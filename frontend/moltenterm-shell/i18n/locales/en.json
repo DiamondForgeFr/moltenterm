@@ -261,6 +261,8 @@
             "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
             "newTab": "New tab",
             "reopenClosed": "Reopen the last closed pane or tab",
+            "splitPlace": "Split the panel…",
+            "splitPlaceDetail": "choose the side: left, right, up or down",
             "newWorkspace": "New workspace",
             "editWorkspace": "Edit workspace…",
             "editWorkspaceDetail": "name, icon, colour, project, folder",
@@ -1490,6 +1492,9 @@
         "items": {
             "split-right": "Split right",
             "split-down": "Split down",
+            "split-left": "Split left",
+            "split-up": "Split up",
+            "split-place": "Split… (choose the side)",
             "split-chord": "Split in a direction",
             "new-panel": "New terminal panel",
             "close-panel": "Close the panel",
@@ -3745,8 +3750,20 @@
     "split": {
         "right": "Split right",
         "down": "Split down",
+        "left": "Split left",
+        "up": "Split up",
         "dragToSize": "drag to size",
-        "tab": "Tab"
+        "tab": "Tab",
+        "place": {
+            "menu": "Split…",
+            "title": "Split the panel",
+            "announce": "Choose where the new panel goes: arrow keys, then Enter. Escape cancels.",
+            "hint": "←↑→↓ choose · ↵ split · Esc cancel",
+            "left": "New panel on the left",
+            "right": "New panel on the right",
+            "up": "New panel above",
+            "down": "New panel below"
+        }
     },
     "reopen": {
         "nothing": "Nothing to reopen",

@@ -117,6 +117,7 @@ describe("workspace actions", () => {
         expect(actions.map((a) => a.label)).toEqual([
             "New tab",
             "Reopen the last closed pane or tab",
+            "Split the panel…",
             "New workspace",
             "Edit workspace…",
             "Switch to Notulia",
@@ -125,8 +126,9 @@ describe("workspace actions", () => {
             "Settings",
             "Keyboard shortcuts",
         ]);
-        expect(actions[4].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
-        expect(actions[7].cli).toBe("wsh editconfig");
+        expect(actions[2].run).toEqual({ kind: "splitplace" });
+        expect(actions[5].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
+        expect(actions[8].cli).toBe("wsh editconfig");
     });
 
     it("gives each workspace entry the rail's badge, imported image and logo included (FR-SHELL-031 AC8)", () => {
@@ -182,6 +184,7 @@ describe("workspace actions", () => {
             "Project tab",
             "New tab",
             "Reopen the last closed pane or tab",
+            "Split the panel…",
             "New workspace",
             "Edit workspace…",
             "Getting started",

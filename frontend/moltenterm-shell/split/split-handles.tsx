@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Edge split handles (FR-SHELL-042-AC1..3, FR-SHELL-046, DS-SHELL-065, DS-SHELL-083): near a panel's right or bottom
-// edge, a 2 px accent hairline runs along the edge with a 20 px "+" handle in its middle; hovering the handle draws a
-// ghost of the new panel at 50 % and its tooltip, a click splits the panel in half, a drag sets the new panel's size
-// (the ghost follows), Escape cancels the drag. Everything is drawn in an overlay of the block frame that clips to the
-// panel: nothing in the panel moves (NFR-SHELL-023, NFR-SHELL-029), nothing reaches the panel below (FR-SHELL-046-AC4),
-// and the layout's resize gutter, outside the block, is never covered.
+// Edge split handles (FR-SHELL-042-AC1..3, FR-SHELL-046, DS-SHELL-065, DS-SHELL-083, #677): near any edge of a panel,
+// a 2 px accent hairline runs along the edge with a 20 px "+" handle in its middle; hovering the handle draws a ghost
+// of the new panel at 50 % and its tooltip, a click enters the split placement mode with that side chosen, a drag sets
+// the new panel's size and splits at once (the ghost follows), Escape cancels the drag. Everything is drawn in an
+// overlay of the block frame that clips to the panel: nothing in the panel moves (NFR-SHELL-023, NFR-SHELL-029),
+// nothing reaches the panel beside it (FR-SHELL-046-AC4), and the layout's resize gutter, outside the block, is never
+// covered.
 
 import { atoms } from "@/app/store/global";
 import { NodeModel } from "@/layout/index";
@@ -17,9 +18,52 @@ import { useLocale } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "./split";
 import "./split-handles.css";
-import { clampFraction, dragFraction, handlesAllowed, MinPanelPx, nearEdge, splitHandleText } from "./split-model";
+import {
+    clampFraction,
+    dragFraction,
+    handlesAllowed,
+    isHorizontalSplit,
+    MinPanelPx,
+    nearEdge,
+    splitHandleText,
+    splitShortcutId,
+    type SplitDirection,
+} from "./split-model";
+import { enterSplitPlacement, splitPlacementAtom } from "./split-place";
+import { SplitPlaceOverlay } from "./split-place-overlay";
 
-type Edge = "right" | "down";
+type Edge = SplitDirection;
+
+const Edges: Edge[] = ["right", "down", "left", "up"];
+
+// Where the ghost of the new panel starts: from the line to the edge the handle sits on.
+function ghostStyle(edge: Edge, at: string, inverse: string): React.CSSProperties {
+    switch (edge) {
+        case "right":
+            return { left: at };
+        case "left":
+            return { right: inverse };
+        case "down":
+            return { top: at };
+        default:
+            return { bottom: inverse };
+    }
+}
+
+// The webview catcher strip in the middle of an edge.
+function catcherStyle(edge: Edge): React.CSSProperties {
+    const along = `calc(50% - ${CatcherLengthPx / 2}px)`;
+    switch (edge) {
+        case "right":
+            return { right: EdgeInsetPx, top: along, width: CatcherDepthPx, height: CatcherLengthPx };
+        case "left":
+            return { left: EdgeInsetPx, top: along, width: CatcherDepthPx, height: CatcherLengthPx };
+        case "down":
+            return { bottom: EdgeInsetPx, left: along, height: CatcherDepthPx, width: CatcherLengthPx };
+        default:
+            return { top: EdgeInsetPx, left: along, height: CatcherDepthPx, width: CatcherLengthPx };
+    }
+}
 
 // The hot zone along the edge, past a small inset; the dwell before the handle shows, and the delay before it hides.
 const HotZonePx = 12;
@@ -64,7 +108,7 @@ function EdgeHandle({
 }) {
     const tipId = useId();
     useLocale();
-    const keys = formatShortcutById(edge === "right" ? "split-right" : "split-down");
+    const keys = formatShortcutById(splitShortcutId(edge));
     const { label, tip } = splitHandleText(edge, keys);
     const [before, after] = keys ? tip.split(keys) : [tip, ""];
     return (
@@ -125,7 +169,9 @@ export function SplitEdgeHandles({
     const dragRef = useRef<DragState>(null);
     dragRef.current = drag;
 
-    const blocked = preview || ephemeral || resizing || (anyMagnified && !magnified) || magnified;
+    const placement = useAtomValue(splitPlacementAtom);
+    const placing = placement != null && placement.blockId === nodeModel.blockId;
+    const blocked = preview || ephemeral || resizing || (anyMagnified && !magnified) || magnified || placing;
     const allowed = (e: Edge) =>
         handlesAllowed({
             preview,
@@ -253,7 +299,7 @@ export function SplitEdgeHandles({
             return;
         }
         const rect = block.getBoundingClientRect();
-        const length = budEdge === "right" ? rect.width : rect.height;
+        const length = isHorizontalSplit(budEdge) ? rect.width : rect.height;
         setDrag({ edge: budEdge, startX: e.clientX, startY: e.clientY, moved: false, pos: length / 2, length });
         rootRef.current?.setPointerCapture(e.pointerId);
     };
@@ -265,7 +311,7 @@ export function SplitEdgeHandles({
         }
         const moved = d.moved || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) >= DragThresholdPx;
         const rect = rootRef.current.parentElement.getBoundingClientRect();
-        const raw = d.edge === "right" ? e.clientX - rect.left : e.clientY - rect.top;
+        const raw = isHorizontalSplit(d.edge) ? e.clientX - rect.left : e.clientY - rect.top;
         const pos = Math.min(Math.max(raw, MinPanelPx), d.length - MinPanelPx);
         setDrag({ ...d, moved, pos });
     };
@@ -280,7 +326,11 @@ export function SplitEdgeHandles({
         setEdge(null);
         overBud.current = false;
         setHoverEdge(null);
-        const fraction = d.moved ? clampFraction(dragFraction(d.edge, d.pos, 0, d.length), d.length) : 0.5;
+        if (!d.moved) {
+            enterSplitPlacement(nodeModel.blockId, d.edge);
+            return;
+        }
+        const fraction = clampFraction(dragFraction(d.edge, d.pos, 0, d.length), d.length);
         fireAndForget(() => splitPanel(nodeModel.blockId, d.edge, fraction));
     };
 
@@ -290,81 +340,66 @@ export function SplitEdgeHandles({
     const webview = WebviewViews.has(viewType);
     const shown = (e: Edge) => !blocked && allowed(e) && (edge === e || drag?.edge === e);
     return (
-        <div
-            ref={rootRef}
-            className={cn("molten-split-overlay", drag != null && "molten-split-overlay-dragging")}
-            data-dragging={drag != null ? drag.edge : undefined}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragUp}
-            onPointerCancel={() => setDrag(null)}
-        >
-            {webview && !blocked ? (
-                <>
-                    {allowed("right") ? (
+        <>
+            <div
+                ref={rootRef}
+                className={cn("molten-split-overlay", drag != null && "molten-split-overlay-dragging")}
+                data-dragging={drag != null ? drag.edge : undefined}
+                onPointerMove={onDragMove}
+                onPointerUp={onDragUp}
+                onPointerCancel={() => setDrag(null)}
+            >
+                {webview && !blocked
+                    ? Edges.map((e) =>
+                          allowed(e) ? (
+                              <div key={`catcher-${e}`} className="molten-split-catcher" style={catcherStyle(e)} />
+                          ) : null
+                      )
+                    : null}
+                {Edges.map((e) => {
+                    if (!allowed(e) || blocked) {
+                        return null;
+                    }
+                    // The ghost of the new panel: at 50 % while the handle is hovered, at the drag's line while dragging.
+                    const dragging = drag?.edge === e && drag.moved;
+                    const ghostShown = drag?.edge === e || (drag == null && hoverEdge === e && shown(e));
+                    const at = dragging ? `${drag.pos}px` : "50%";
+                    const inverse = dragging ? `${drag.length - drag.pos}px` : "50%";
+                    return (
                         <div
-                            className="molten-split-catcher"
-                            style={{
-                                right: EdgeInsetPx,
-                                top: `calc(50% - ${CatcherLengthPx / 2}px)`,
-                                width: CatcherDepthPx,
-                                height: CatcherLengthPx,
+                            key={`ghost-${e}`}
+                            className="molten-split-preview"
+                            data-edge={e}
+                            data-shown={ghostShown ? "" : undefined}
+                            data-dragging={dragging ? "" : undefined}
+                            data-reduced-motion={reducedMotion ? "" : undefined}
+                            style={ghostStyle(e, at, inverse)}
+                        />
+                    );
+                })}
+                {Edges.map((e) =>
+                    allowed(e) && !blocked ? (
+                        <EdgeHandle
+                            key={e}
+                            edge={e}
+                            shown={shown(e)}
+                            hovered={drag == null ? hoverEdge === e : drag.edge === e}
+                            dragging={drag?.edge === e}
+                            reducedMotion={reducedMotion}
+                            onPointerDown={onBudDown}
+                            onHover={(he, inside) => {
+                                overBud.current = inside;
+                                setHoverEdge((prev) => (inside ? he : prev === he ? null : prev));
+                                if (inside) {
+                                    clearTimeout(timers.current.hide);
+                                    timers.current.hide = undefined;
+                                }
                             }}
                         />
-                    ) : null}
-                    {allowed("down") ? (
-                        <div
-                            className="molten-split-catcher"
-                            style={{
-                                bottom: EdgeInsetPx,
-                                left: `calc(50% - ${CatcherLengthPx / 2}px)`,
-                                height: CatcherDepthPx,
-                                width: CatcherLengthPx,
-                            }}
-                        />
-                    ) : null}
-                </>
-            ) : null}
-            {(["right", "down"] as Edge[]).map((e) => {
-                if (!allowed(e) || blocked) {
-                    return null;
-                }
-                // The ghost of the new panel: at 50 % while the handle is hovered, at the drag's line while dragging.
-                const dragging = drag?.edge === e && drag.moved;
-                const ghostShown = drag?.edge === e || (drag == null && hoverEdge === e && shown(e));
-                const at = dragging ? `${drag.pos}px` : "50%";
-                return (
-                    <div
-                        key={`ghost-${e}`}
-                        className="molten-split-preview"
-                        data-edge={e}
-                        data-shown={ghostShown ? "" : undefined}
-                        data-dragging={dragging ? "" : undefined}
-                        data-reduced-motion={reducedMotion ? "" : undefined}
-                        style={e === "right" ? { left: at } : { top: at }}
-                    />
-                );
-            })}
-            {(["right", "down"] as Edge[]).map((e) =>
-                allowed(e) && !blocked ? (
-                    <EdgeHandle
-                        key={e}
-                        edge={e}
-                        shown={shown(e)}
-                        hovered={drag == null ? hoverEdge === e : drag.edge === e}
-                        dragging={drag?.edge === e}
-                        reducedMotion={reducedMotion}
-                        onPointerDown={onBudDown}
-                        onHover={(he, inside) => {
-                            overBud.current = inside;
-                            setHoverEdge((prev) => (inside ? he : prev === he ? null : prev));
-                            if (inside) {
-                                clearTimeout(timers.current.hide);
-                                timers.current.hide = undefined;
-                            }
-                        }}
-                    />
-                ) : null
-            )}
-        </div>
+                    ) : null
+                )}
+            </div>
+            <SplitPlaceOverlay blockId={nodeModel.blockId} />
+        </>
     );
 }

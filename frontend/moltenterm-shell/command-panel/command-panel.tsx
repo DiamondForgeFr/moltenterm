@@ -20,8 +20,8 @@ import { AgentStates } from "../agent-state-store";
 import { t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
-import { splitPanel } from "../split/split";
-import { SplitDownIcon, SplitRightIcon } from "../split/split-menu";
+import { SplitPlaceIcon } from "../split/split-menu";
+import { enterSplitPlacement } from "../split/split-place";
 import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import type { PanelPlacement } from "../view360/view360-model";
 import { pinActions, pinActionShortcut, usePanelPlacement } from "../view360/view360-pin";
@@ -137,24 +137,14 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
     }));
     return [
         {
-            id: "footer:split-right",
+            id: "footer:split-place",
             type: "action",
-            label: t("cmdpanel.footer.splitRight"),
-            icon: SplitRightIcon,
-            shortcut: formatShortcutById("split-right"),
-            keywords: ["new panel", "add panel"],
+            label: t("split.place.menu"),
+            icon: SplitPlaceIcon,
+            shortcut: formatShortcutById("split-place"),
+            keywords: ["new panel", "add panel", "split right", "split down", "split left", "split up"],
             refocus: false,
-            run: () => fireAndForget(() => splitPanel(blockId, "right")),
-        },
-        {
-            id: "footer:split-down",
-            type: "action",
-            label: t("cmdpanel.footer.splitDown"),
-            icon: SplitDownIcon,
-            shortcut: formatShortcutById("split-down"),
-            keywords: ["new panel", "add panel"],
-            refocus: false,
-            run: () => fireAndForget(() => splitPanel(blockId, "down")),
+            run: () => enterSplitPlacement(blockId),
         },
         {
             id: "footer:magnify",

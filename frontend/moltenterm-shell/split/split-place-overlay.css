@@ -1,0 +1,96 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* The split placement mode (#677): a veil over the panel only, its four zones drawn as triangles meeting at the
+   centre, the chosen half dashed like the edge handle's ghost (DS-SHELL-078) with a label chip in the suite's look
+   (#658), and a key hint at the bottom. */
+.molten-split-place {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    overflow: hidden;
+    border-radius: var(--block-border-radius);
+    background-color: color-mix(in srgb, var(--mt-surface-3) 55%, transparent);
+    animation: molten-split-place-in var(--mt-duration-fast) var(--mt-ease);
+    outline: none;
+}
+
+@keyframes molten-split-place-in {
+    from {
+        opacity: 0;
+    }
+}
+
+.molten-split-place-zones {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.molten-split-place-zones polygon {
+    fill: transparent;
+    stroke: color-mix(in srgb, var(--mt-accent) 35%, transparent);
+    stroke-width: 1;
+    transition: fill var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-split-place-zones polygon[data-active] {
+    fill: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+}
+
+.molten-split-place-preview {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px;
+    pointer-events: none;
+    border: 1px dashed color-mix(in srgb, var(--mt-accent) 80%, transparent);
+    border-radius: var(--df-radius-md);
+    background-color: color-mix(in srgb, var(--mt-accent) 12%, transparent);
+    transition:
+        top var(--mt-duration-fast) var(--mt-ease),
+        right var(--mt-duration-fast) var(--mt-ease),
+        bottom var(--mt-duration-fast) var(--mt-ease),
+        left var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-split-place-label {
+    padding: 2px 8px;
+    border-radius: var(--df-radius-sm);
+    background-color: var(--mt-accent);
+    color: var(--mt-accent-fg);
+    font-size: var(--df-text-chip);
+    font-weight: var(--df-weight-semibold);
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.molten-split-place-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    translate: -50% 0;
+    padding: 2px 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--df-radius-sm);
+    background-color: var(--mt-surface-2);
+    color: var(--mt-text-secondary);
+    font-size: var(--df-text-meta);
+    line-height: 16px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.molten-split-place[data-side="down"] .molten-split-place-hint {
+    bottom: auto;
+    top: 10px;
+}
+
+.molten-split-place[data-reduced-motion],
+.molten-split-place[data-reduced-motion] .molten-split-place-preview,
+.molten-split-place[data-reduced-motion] .molten-split-place-zones polygon {
+    animation: none;
+    transition: none;
+}

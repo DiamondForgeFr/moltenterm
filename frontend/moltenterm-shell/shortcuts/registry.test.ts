@@ -81,6 +81,19 @@ describe("shortcut registry (TC-SHELL-086)", () => {
         expect(Shortcuts.find((s) => s.id === "split-down").keys).toBe("Shift:Cmd:d");
     });
 
+    it("binds split left, split up and the placement mode in the key model, on keys nothing else uses (#677)", () => {
+        const ids = ["split-left", "split-up", "split-place"];
+        const keys = ids.map((id) => normalizeKeys(Shortcuts.find((s) => s.id === id).keys));
+        expect(keys).toEqual(["Ctrl:Shift:d", "Ctrl:Shift:e", "Cmd:Shift:s"].map(normalizeKeys));
+        expect(keyModelBindings().map(normalizeKeys)).toEqual(expect.arrayContaining(keys));
+        const others = Shortcuts.filter((s) => !ids.includes(s.id))
+            .flatMap(shortcutBindings)
+            .map(normalizeKeys);
+        expect(others.filter((k) => keys.includes(k))).toEqual([]);
+        expect(formatShortcutById("split-left", true)).toBe("⌃⇧D");
+        expect(formatShortcutById("split-up", false)).toBe("Ctrl+Shift+E");
+    });
+
     it("binds Cmd+/ only to the shortcuts sheet", () => {
         const sheetKeys = new Set([ShortcutsSheetKey, ShortcutsSheetAltKey].map(normalizeKeys));
         const others = Shortcuts.filter((s) => s.id !== "shortcuts")
@@ -150,7 +163,14 @@ describe("shortcuts sheet search (TC-SHELL-085)", () => {
     it("lists Cmd+D and Cmd+Shift+D under Panels for 'split'", () => {
         const sections = filterShortcuts(platformShortcuts(true), "split", true);
         expect(sections[0].category).toBe("Panels");
-        expect(sections[0].shortcuts.map((s) => s.id)).toEqual(["split-right", "split-down", "split-chord"]);
+        expect(sections[0].shortcuts.map((s) => s.id)).toEqual([
+            "split-right",
+            "split-down",
+            "split-left",
+            "split-up",
+            "split-place",
+            "split-chord",
+        ]);
     });
 
     it("matches the keys as shown and keeps the category order", () => {

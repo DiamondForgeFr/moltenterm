@@ -24,6 +24,7 @@ import { openProjectTab } from "../project/project-tab";
 import { reopenLastClosed } from "../reopen/reopen-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
+import { enterSplitPlacement, enterSplitPlacementFocused } from "../split/split-place";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { PaletteRun } from "./palette-model";
@@ -150,6 +151,13 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "reopenclosed":
             await reopenLastClosed();
+            return;
+        case "splitplace":
+            if (target.blockId) {
+                enterSplitPlacement(target.blockId);
+            } else {
+                enterSplitPlacementFocused();
+            }
             return;
         case "panelcommands":
             openPanelFromPalette(target.blockId);

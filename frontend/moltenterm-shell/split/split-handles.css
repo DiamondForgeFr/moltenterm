@@ -18,11 +18,13 @@
     pointer-events: auto;
 }
 
-.molten-split-overlay[data-dragging="right"] {
+.molten-split-overlay[data-dragging="right"],
+.molten-split-overlay[data-dragging="left"] {
     cursor: col-resize;
 }
 
-.molten-split-overlay[data-dragging="down"] {
+.molten-split-overlay[data-dragging="down"],
+.molten-split-overlay[data-dragging="up"] {
     cursor: row-resize;
 }
 
@@ -59,6 +61,14 @@
     border-top: 2px solid var(--mt-accent);
 }
 
+.molten-split-preview[data-dragging][data-edge="left"] {
+    border-right: 2px solid var(--mt-accent);
+}
+
+.molten-split-preview[data-dragging][data-edge="up"] {
+    border-bottom: 2px solid var(--mt-accent);
+}
+
 .molten-split-preview[data-reduced-motion] {
     transition: none;
 }
@@ -80,6 +90,20 @@
     left: 0;
     right: 0;
     bottom: 0;
+    height: 24px;
+}
+
+.molten-split-edge[data-edge="left"] {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 24px;
+}
+
+.molten-split-edge[data-edge="up"] {
+    left: 0;
+    right: 0;
+    top: 0;
     height: 24px;
 }
 
@@ -105,6 +129,22 @@
     left: 8px;
     right: 8px;
     bottom: 0;
+    height: 2px;
+    scale: 0.6 1;
+}
+
+.molten-split-edge[data-edge="left"] .molten-split-hairline {
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 2px;
+    scale: 1 0.6;
+}
+
+.molten-split-edge[data-edge="up"] .molten-split-hairline {
+    left: 8px;
+    right: 8px;
+    top: 0;
     height: 2px;
     scale: 0.6 1;
 }
@@ -153,6 +193,16 @@
     left: calc(50% - 10px);
 }
 
+.molten-split-edge[data-edge="left"] .molten-split-handle {
+    left: 3px;
+    top: calc(50% - 10px);
+}
+
+.molten-split-edge[data-edge="up"] .molten-split-handle {
+    top: 3px;
+    left: calc(50% - 10px);
+}
+
 .molten-split-edge[data-shown] .molten-split-handle {
     opacity: 1;
     scale: 1;
@@ -197,6 +247,18 @@
 
 .molten-split-edge[data-edge="down"] .molten-split-tip {
     bottom: 32px;
+    left: 50%;
+    translate: -50% 0;
+}
+
+.molten-split-edge[data-edge="left"] .molten-split-tip {
+    left: 32px;
+    top: 50%;
+    translate: 0 -50%;
+}
+
+.molten-split-edge[data-edge="up"] .molten-split-tip {
+    top: 32px;
     left: 50%;
     translate: -50% 0;
 }
