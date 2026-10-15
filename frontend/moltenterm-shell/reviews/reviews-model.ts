@@ -345,6 +345,47 @@ export function splitReviews(answer: ReviewsAnswer, readied?: ReadiedPrs): Revie
     };
 }
 
+export type ReviewCounts = { waiting: number; mergeable: number };
+
+// mergeableNow: GitHub says the PR merges cleanly (#683) and no check fails or still runs.
+export function mergeableNow(pr: ReviewPr): boolean {
+    if (pr.draft || pr.merge !== "clean") {
+        return false;
+    }
+    const ci = pr.ci?.state ?? "none";
+    return ci === "success" || ci === "none";
+}
+
+// The rail's counts (#688): the PRs waiting for review (the list's ready group) and those of them that can merge
+// now. Nothing while GitHub could not be read: no badge then.
+export function reviewCounts(answer: ReviewsAnswer, readied?: ReadiedPrs): ReviewCounts {
+    if (answer?.state !== "ok") {
+        return { waiting: 0, mergeable: 0 };
+    }
+    const ready = splitReviews(answer, readied).ready;
+    return { waiting: ready.length, mergeable: ready.filter(mergeableNow).length };
+}
+
+export function railCountText(count: number): string {
+    return count > 9 ? "9+" : String(count);
+}
+
+function plural(n: number, key: string): string {
+    return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
+}
+
+// The Reviews icon's tooltip and accessible name: "Reviews — 3 waiting for review, 1 ready to merge".
+export function reviewsRailLabel(counts: ReviewCounts): string {
+    if (counts == null || counts.waiting === 0) {
+        return t("rail.tools.reviews");
+    }
+    const parts = [plural(counts.waiting, "rail.tools.reviewsCount.waiting")];
+    if (counts.mergeable > 0) {
+        parts.push(plural(counts.mergeable, "rail.tools.reviewsCount.mergeable"));
+    }
+    return t("rail.tools.reviewsCounts", { counts: parts.join(", ") });
+}
+
 // The rows a keyboard walks: the ready ones, then the drafts when their group is open.
 export function navigableRows(split: ReviewsSplit, draftsOpen: boolean): ReviewPr[] {
     if (split == null) {

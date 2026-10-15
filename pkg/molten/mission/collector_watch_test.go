@@ -122,6 +122,58 @@ func TestStartRefreshPassiveAndWatched(t *testing.T) {
 	}
 }
 
+// #688: the rail's Reviews counts read GitHub every railGithubInterval, and never call gh for a project without a
+// GitHub origin or once gh was missing or signed out.
+func TestStartRefreshRailReviews(t *testing.T) {
+	c := MakeCollector("", plainRunner, nil)
+	now := time.Now()
+	c.now = func() time.Time { return now }
+	read := func(githubAge time.Duration, remote string, ghState string) *projectState {
+		state := &projectState{
+			snap: Snapshot{
+				GitAt:    now.Add(-time.Second).UnixMilli(),
+				GithubAt: now.Add(-githubAge).UnixMilli(),
+				Git:      &GitSnapshot{RemoteUrl: remote},
+			},
+			gitSeq:     7,
+			gitWatched: true,
+			fetchedAt:  now,
+		}
+		if ghState != "" {
+			state.snap.Github = &GithubSnapshot{State: ghState}
+		}
+		return state
+	}
+	const origin = "https://github.com/acme/app"
+	rail := refreshAsk{maxAge: time.Minute, passive: true, githubEvery: railGithubInterval, seq: 7, watched: true}
+	cases := []struct {
+		name   string
+		state  *projectState
+		github bool
+	}{
+		{"GitHub due", read(3*time.Minute, origin, GithubStateOk), true},
+		{"GitHub never read", read(time.Hour, origin, ""), true},
+		{"GitHub fresh (a view keeps it)", read(30*time.Second, origin, GithubStateOk), false},
+		{"GitHub a minute old", read(90*time.Second, origin, GithubStateOk), false},
+		{"no GitHub origin", read(time.Hour, "", ""), false},
+		{"gh missing", read(time.Hour, origin, GithubStateNoGh), false},
+		{"gh signed out", read(time.Hour, origin, GithubStateLoggedOut), false},
+		{"not a GitHub repository", read(time.Hour, origin, GithubStateNoRepo), false},
+		{"last read failed", read(3*time.Minute, origin, GithubStateError), true},
+	}
+	for _, tc := range cases {
+		plan, start := c.startRefreshLocked(tc.state, rail)
+		if plan.github != tc.github || start != tc.github || plan.fetch {
+			t.Errorf("%s: start %v plan %+v", tc.name, start, plan)
+		}
+	}
+	noGit := &projectState{snap: Snapshot{GithubAt: 0}}
+	plan, start := c.startRefreshLocked(noGit, refreshAsk{maxAge: time.Minute, passive: true, githubEvery: railGithubInterval})
+	if !start || !plan.git || plan.github || plan.fetch {
+		t.Errorf("unknown project: git first, no gh: start %v plan %+v", start, plan)
+	}
+}
+
 func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
 	dir := makeGitFlowRepo(t)
 	var gitReads atomic.Int32

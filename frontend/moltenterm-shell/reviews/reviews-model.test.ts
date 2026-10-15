@@ -6,18 +6,22 @@ import {
     ciLabel,
     isReviewable,
     markReadyError,
+    mergeableNow,
     mergeLabel,
     navigableRows,
     nextRow,
+    railCountText,
     rebaseAskKey,
     rebaseAskShown,
     rebaseOutcome,
     reportLabel,
     reviewAriaLabel,
+    reviewCounts,
     reviewHeadline,
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    reviewsRailLabel,
     splitReviews,
     validateBlocked,
 } from "./reviews-model";
@@ -220,5 +224,44 @@ describe("reviews model", () => {
         expect(isReviewable({ baseRefName: "main" }, "develop")).toBe(false);
         expect(isReviewable({ baseRefName: "develop", isCrossRepository: true }, "develop")).toBe(false);
         expect(isReviewable({ baseRefName: "develop" }, "")).toBe(false);
+    });
+
+    it("counts the PRs waiting for review and those ready to merge for the rail (#688 AC1, AC3)", () => {
+        const green = { state: "success" as const, success: 2, failure: 0, pending: 0, checks: [] };
+        const running = { state: "pending" as const, success: 0, failure: 0, pending: 1, checks: [] };
+        const failing = { state: "failure" as const, success: 0, failure: 1, pending: 0, checks: [] };
+        const a = answer({
+            githubat: 1000,
+            ready: [
+                pr(1, { ci: green }),
+                pr(2, { merge: "conflicts" }),
+                pr(5, { ci: running }),
+                pr(6, { ci: failing }),
+                pr(7, { merge: "behind" }),
+            ],
+            drafts: [pr(3, { draft: true }), pr(4, { draft: true })],
+        });
+        expect(reviewCounts(a)).toEqual({ waiting: 5, mergeable: 1 });
+        // A draft marked ready here counts at once (#687), mergeable when GitHub found it clean.
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 2000 })).toEqual({ waiting: 6, mergeable: 2 });
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 500 })).toEqual({ waiting: 5, mergeable: 1 });
+        expect(mergeableNow(pr(9))).toBe(true);
+        expect(mergeableNow(pr(9, { draft: true }))).toBe(false);
+        for (const state of ["nogh", "loggedout", "norepo", "error", ""] as const) {
+            expect(reviewCounts(answer({ state }))).toEqual({ waiting: 0, mergeable: 0 });
+        }
+        expect(reviewCounts(null)).toEqual({ waiting: 0, mergeable: 0 });
+    });
+
+    it("words the rail's counts with plurals and caps them at 9+ (#688 AC1)", () => {
+        expect(reviewsRailLabel({ waiting: 0, mergeable: 0 })).toBe("Reviews · pull requests waiting for your review");
+        expect(reviewsRailLabel({ waiting: 3, mergeable: 1 })).toBe("Reviews — 3 waiting for review, 1 ready to merge");
+        expect(reviewsRailLabel({ waiting: 1, mergeable: 0 })).toBe("Reviews — 1 waiting for review");
+        expect(reviewsRailLabel({ waiting: 12, mergeable: 10 })).toBe(
+            "Reviews — 12 waiting for review, 10 ready to merge"
+        );
+        expect(railCountText(1)).toBe("1");
+        expect(railCountText(9)).toBe("9");
+        expect(railCountText(10)).toBe("9+");
     });
 });

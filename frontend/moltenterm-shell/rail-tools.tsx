@@ -7,6 +7,7 @@
 // (DS-SHELL-068): panels are added where the user works, by splitting one. Since #534 the gear opens Settings itself
 // (Secrets is one of its sections) and Tips has its own lightbulb: no menu in between, a second click closes.
 
+import { atoms } from "@/app/store/global";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -21,14 +22,17 @@ import {
 } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { useT } from "./i18n/i18n";
+import { useLocale, useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
-import { MoltentermReviewsView } from "./reviews/reviews-model";
+import { useReviewsAnswer, useReviewsRailWatch } from "./reviews/reviews-client";
+import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "./reviews/reviews-model";
+import { ReviewsRailBadges } from "./reviews/reviews-rail-badge";
 import { ReviewsModel } from "./reviews/reviews-store";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
 import { MoltentermTipsView } from "./tips/tips-view";
+import { readWorkspaceProject } from "./workspace-project";
 
 export type RailHover = (label: string, anchor: { top: number; left: number }) => void;
 
@@ -180,6 +184,29 @@ function SessionsToolButton({ onHover }: { onHover: RailHover }) {
     );
 }
 
+// The Reviews view (FR-REV-001), with the active project's PRs waiting for review and those ready to merge (#688).
+// The rail keeps the counts fresh without the view; the view's own asks feed the same store.
+function ReviewsToolButton({ onHover }: { onHover: RailHover }) {
+    const workspace = useAtomValue(atoms.workspace);
+    const dir = readWorkspaceProject(workspace).dir;
+    useReviewsRailWatch(dir);
+    const answer = useReviewsAnswer(dir);
+    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
+    useLocale();
+    const counts = reviewCounts(answer, readied);
+    return (
+        <ViewToggleButton
+            view={MoltentermReviewsView}
+            label={reviewsRailLabel(counts)}
+            icon="code-pull-request"
+            onHover={onHover}
+            open={() => ReviewsModel.getInstance().openReviews()}
+        >
+            <ReviewsRailBadges counts={counts} />
+        </ViewToggleButton>
+    );
+}
+
 type Flyout = "apps" | "more";
 
 const SettingsView = "waveconfig";
@@ -258,13 +285,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             className="molten-rail-tools mt-auto flex w-full shrink-0 flex-col items-center gap-0.5 border-t border-border pt-2"
         >
             <SessionsToolButton onHover={onHover} />
-            <ViewToggleButton
-                view={MoltentermReviewsView}
-                label={t("rail.tools.reviews")}
-                icon="code-pull-request"
-                onHover={onHover}
-                open={() => ReviewsModel.getInstance().openReviews()}
-            />
+            <ReviewsToolButton onHover={onHover} />
             {shown.map((widget, idx) => (
                 <ToolButton
                     key={idx}

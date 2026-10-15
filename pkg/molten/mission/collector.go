@@ -86,6 +86,9 @@ const (
 	// request): GitHub at most this often, git only after a change, never a fetch.
 	passiveGithubInterval = 10 * time.Minute
 	passiveGitMaxAge      = fetchEvery
+	// The rail's Reviews counts (#688): a passive ask that reads GitHub this often, so a merge or a new PR shows
+	// without opening the view.
+	railGithubInterval = 2 * time.Minute
 	// The programs wavesrv started for its own work since it started (FR-PERF-011), read by the performance harness.
 	SpawnsCommand = "moltenmissionspawns"
 )
@@ -280,8 +283,23 @@ type refreshAsk struct {
 	maxAge  time.Duration
 	forced  bool
 	passive bool
-	seq     uint64
-	watched bool
+	// githubEvery, on a passive ask: GitHub this often instead of passiveGithubInterval, only for a project whose
+	// origin is on GitHub and whose gh worked (railMayReadGithub).
+	githubEvery time.Duration
+	seq         uint64
+	watched     bool
+}
+
+// railMayReadGithub is whether the rail's ask may call gh (#688, AC3): never before git named a GitHub origin, and
+// never again once gh was missing or signed out; a Mission Control view asks again and the rail follows its answer.
+func railMayReadGithub(snap Snapshot) bool {
+	if snap.Git == nil || snap.Git.RemoteUrl == "" {
+		return false
+	}
+	if snap.Github == nil {
+		return true
+	}
+	return snap.Github.State != GithubStateNoGh && snap.Github.State != GithubStateLoggedOut && snap.Github.State != GithubStateNoRepo
 }
 
 // startRefreshLocked decides what to read again and marks the project as refreshing; the caller runs it outside the
@@ -318,6 +336,9 @@ func (c *Collector) startRefreshLocked(state *projectState, ask refreshAsk) (ref
 	}
 	if ask.passive {
 		plan.github = githubAge >= passiveGithubInterval
+		if ask.githubEvery > 0 {
+			plan.github = githubAge >= ask.githubEvery && railMayReadGithub(state.snap)
+		}
 	}
 	if !plan.git && !plan.github {
 		return plan, false
@@ -367,6 +388,12 @@ func (c *Collector) Get(dir string, maxAge time.Duration, forced bool) (Snapshot
 // view (FR-PERF-011): git is read again only after a change, GitHub every passiveGithubInterval, nothing is fetched.
 func (c *Collector) Warm(dir string) (Snapshot, error) {
 	return c.get(dir, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, passive: true})
+}
+
+// WarmReviews answers like Warm for the rail's Reviews counts (#688): GitHub every railGithubInterval, for a GitHub
+// project whose gh works. A Mission Control view keeps GitHub fresher: then this reads nothing.
+func (c *Collector) WarmReviews(dir string) (Snapshot, error) {
+	return c.get(dir, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, passive: true, githubEvery: railGithubInterval})
 }
 
 func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {

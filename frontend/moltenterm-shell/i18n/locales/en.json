@@ -3451,6 +3451,17 @@
             "editWidgets": "Edit widgets.json",
             "label": "Tools",
             "reviews": "Reviews · pull requests waiting for your review",
+            "reviewsCounts": "Reviews — {counts}",
+            "reviewsCount": {
+                "waiting": {
+                    "one": "1 waiting for review",
+                    "other": "{count} waiting for review"
+                },
+                "mergeable": {
+                    "one": "1 ready to merge",
+                    "other": "{count} ready to merge"
+                }
+            },
             "moreWidgets": "{count} more widgets",
             "apps": "Apps",
             "tips": "Tips",

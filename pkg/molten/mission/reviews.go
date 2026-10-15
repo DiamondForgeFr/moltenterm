@@ -85,6 +85,8 @@ var testReportHeadingRe = regexp.MustCompile(`(?i)\btest report\b`)
 type ReviewsRequest struct {
 	Dir   string `json:"dir"`
 	Force bool   `json:"force,omitempty"`
+	// Passive: the rail's counts (#688), read through Collector.WarmReviews; never starts the reports query.
+	Passive bool `json:"passive,omitempty"`
 }
 
 type ReviewCheck struct {
@@ -537,6 +539,15 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		return ReviewsAnswer{}, err
 	}
 	dir := filepath.Clean(req.Dir)
+	if req.Passive {
+		snap, err := r.collector.WarmReviews(dir)
+		if err != nil {
+			return ReviewsAnswer{}, err
+		}
+		answer := BuildReviews(snap)
+		r.applyKnownReports(&answer)
+		return answer, nil
+	}
 	maxAge := DefaultMaxAgeSec * time.Second
 	if req.Force {
 		maxAge = 0
@@ -550,6 +561,12 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		go r.readReports(dir)
 	}
 	return answer, nil
+}
+
+func (r *Reviews) applyKnownReports(answer *ReviewsAnswer) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.applyLocked(answer, r.reports[answer.Dir])
 }
 
 // prepareReports fills the answer with the reports known and says whether a query starts now.
