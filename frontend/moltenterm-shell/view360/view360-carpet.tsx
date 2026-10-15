@@ -6,11 +6,13 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
+import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { CarpetMarginPx, Rect } from "./carpet-model";
+import { addCarpetPanel } from "./carpet-add";
+import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
@@ -40,10 +42,50 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
             <span className="mt-carpet-label">{t("view360.carpet")}</span>
             {layout.columns.length === 0 && <span className="mt-carpet-empty">{t("view360.empty")}</span>}
             <CarpetSensors layoutModel={layoutModel} layout={layout} />
+            <CarpetInvites layoutModel={layoutModel} layout={layout} />
         </div>
     );
 });
 View360Underlay.displayName = "View360Underlay";
+
+// "Add a panel" at each end of the carpet (#702): laid on the carpet's content like columns and moved by the same
+// --mt-carpet-scroll variable, under the panels so they never cover one. Hidden while a panel is magnified or dragged.
+function CarpetInvites({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) {
+    const t = useT();
+    const magnified = useAtomValue(layoutModel.magnifiedNodeIdAtom);
+    const dragging = useAtomValue(layoutModel.activeDrag);
+    if (magnified != null || dragging || !layout.invites?.length) {
+        return null;
+    }
+    const offsetX = layout.viewport.left - layout.surface.left;
+    const top = layout.viewport.top - layout.surface.top;
+    return (
+        <div className="mt-carpet-invites">
+            {layout.invites.map((invite) => {
+                const label = t(invite.end === "start" ? "view360.addStart" : "view360.addEnd");
+                return (
+                    <button
+                        key={invite.end}
+                        type="button"
+                        className="mt-carpet-invite cursor-pointer"
+                        data-testid={`mt-carpet-invite-${invite.end}`}
+                        title={label}
+                        aria-label={label}
+                        style={{
+                            width: invite.width,
+                            height: layout.viewport.height,
+                            transform: `translate3d(calc(${offsetX + invite.x}px - var(${CarpetScrollVar}, 0px)), ${top}px, 0)`,
+                        }}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => fireAndForget(() => addCarpetPanel(layoutModel, invite.end))}
+                    >
+                        <i className="fa fa-solid fa-plus" aria-hidden="true" />
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 // "Too tight to read" (FR-SHELL-066-AC5, DS-SHELL-117): when the developer refused the 360 view and a column is under
 // its readable minimum, a pill floats at the bottom centre of the tab; nothing is resized or closed.

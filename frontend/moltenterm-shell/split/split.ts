@@ -10,7 +10,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { ObjectService } from "@/app/store/services";
 import type { LayoutTreeResizeNodeAction } from "@/layout/index";
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
-import { findParent } from "@/layout/lib/layoutNode";
+import type { LayoutModel } from "@/layout/lib/layoutModel";
+import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
 import { HalfSplit, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
@@ -104,6 +105,48 @@ export function insertBlockBeside(
         resizeOperations: [{ nodeId: source.id, size: sizes.source }],
     } as LayoutTreeResizeNodeAction);
     return true;
+}
+
+// A new top-level column opening on the picker, like a split (#702: the 360 view's "add a panel" at each end of the
+// carpet). place is read once the block exists, the layout may have changed meanwhile; the picker reads its context
+// (directory, connection) from sourceBlockId, and cancelling it gives the focus back there. Returns the new block id,
+// null when there is no place.
+export async function addPickerColumn(
+    layoutModel: LayoutModel,
+    sourceBlockId: string,
+    place: () => { targetNodeId: string; position: "before" | "after" }
+): Promise<string> {
+    if (layoutModel == null || place() == null) {
+        return null;
+    }
+    prunePendingSplits();
+    const newBlockId = await ObjectService.CreateBlock(splitPickerBlockDef(sourceBlockId), {
+        termsize: { rows: 25, cols: 80 },
+    });
+    const where = place();
+    const rootNode = layoutModel.treeState?.rootNode;
+    const target = where == null || rootNode == null ? null : findNode(rootNode, where.targetNodeId);
+    if (target == null) {
+        fireAndForget(() => ObjectService.DeleteBlock(newBlockId));
+        return null;
+    }
+    if (sourceBlockId) {
+        pendingSplits.set(newBlockId, sourceBlockId);
+    }
+    if (layoutModel.magnifiedNodeId != null) {
+        layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
+    }
+    // The size of its neighbour: back in the normal layout, the new column takes an equal share of the row.
+    const newNode = newLayoutNode(undefined, target.size, undefined, { blockId: newBlockId });
+    const action: LayoutTreeSplitHorizontalAction = {
+        type: LayoutTreeActionType.SplitHorizontal,
+        targetNodeId: target.id,
+        newNode,
+        position: where.position,
+        focused: true,
+    };
+    layoutModel.treeReducer(action);
+    return newBlockId;
 }
 
 // The focused panel, for the keys (Cmd+D, Cmd+Shift+D, the Ctrl+Shift+S chord).
