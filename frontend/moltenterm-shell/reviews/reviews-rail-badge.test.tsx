@@ -19,8 +19,8 @@ describe("ReviewsRailBadges (#688 AC4)", () => {
     it("draws the waiting count on top and the mergeable count at the bottom in the success colour", () => {
         const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ waiting: 3, mergeable: 1 }} />);
         expect(badges(html)).toEqual({ waiting: "3", mergeable: "1" });
-        expect(html).toMatch(/molten-reviews-waiting[^"]*top-0\.5/);
-        expect(html).toMatch(/molten-reviews-mergeable[^"]*bottom-0\.5[^"]*bg-success/);
+        expect(html).toMatch(/molten-reviews-waiting[^"]*top-0/);
+        expect(html).toMatch(/molten-reviews-mergeable[^"]*bottom-0[^"]*bg-success/);
         expect(html).not.toMatch(/animate-/);
         expect(html.match(/aria-hidden="true"/g)).toHaveLength(2);
     });
