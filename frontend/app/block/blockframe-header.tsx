@@ -31,6 +31,7 @@ import {
     useMoltenHeader,
     withoutHeaderPills,
 } from "../../moltenterm-shell/header/panel-header";
+import { HeaderCloseButton } from "../../moltenterm-shell/header/header-close-button"; // MOLTENTERM-PATCH (#705)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
@@ -196,13 +197,15 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         );
     }
 
-    const closeDecl: IconButtonDecl = {
-        elemtype: "iconbutton",
-        icon: "xmark-large",
-        title: t("common.close"), // MOLTENTERM-PATCH (#623)
-        click: () => uxCloseBlock(nodeModel.blockId),
-    };
-    endIconsElem.push(<IconButton key="close" decl={closeDecl} className="block-frame-default-close" />);
+    // MOLTENTERM-PATCH (#705): a magnified panel shows no ×, only un-magnify; the slot stays so nothing slides under it
+    endIconsElem.push(
+        <HeaderCloseButton
+            key="close"
+            magnified={magnified}
+            onClose={() => uxCloseBlock(nodeModel.blockId)}
+            className="block-frame-default-close"
+        />
+    );
 
     return <div className="block-frame-end-icons">{endIconsElem}</div>;
 });
