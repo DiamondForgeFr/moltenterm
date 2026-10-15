@@ -2224,6 +2224,7 @@
             "cannotUndo": "Cette action est irréversible.",
             "gone": "Ce worktree n'est plus sur le disque : rien à supprimer.",
             "branchKept": "Worktree supprimé ; la branche {branch} est conservée : {reason}.",
+            "leftover": "Worktree supprimé, mais des fichiers écrits dans {path} pendant la suppression restent : vous pouvez supprimer ce dossier.",
             "titleRemove": "Supprimer le worktree {name} ?",
             "titleClose": "Fermer le terminal du worktree {name} ?",
             "titleLose": "Supprimer {name} et perdre ce qu'il est seul à contenir ?",
@@ -4483,6 +4484,8 @@
             "notRun": "Non lancé : rien n'a été fusionné.",
             "showFolder": "Afficher le worktree de l'agent dans son dossier",
             "showReviewFolder": "Afficher le worktree de revue dans son dossier",
+            "showLeftover": "Afficher dans le dossier",
+            "removeAgain": "Supprimer à nouveau",
             "state": {
                 "todo": "À faire",
                 "running": "En cours",
@@ -4628,6 +4631,7 @@
                 "fetchFailed": "Le fetch après la fusion a échoué : les branches ont été vérifiées avec ce que cet ordinateur avait déjà.",
                 "prNotMerged": "GitHub n'indique pas la pull request comme fusionnée : le nettoyage n'a pas été lancé.",
                 "prUnreadable": "La pull request fusionnée n'a pas pu être lue : le nettoyage n'a pas été lancé.",
+                "leftoverWhy": "Ils n'ont pas pu être supprimés : {error}",
                 "notConfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                 "ignoredGone": {
                     "one": "1 élément ignoré par git est parti avec lui ({names}) : rien à perdre, un build ou une installation le recrée.",
@@ -4677,7 +4681,10 @@
                         "kept": "Conservé : il contient des modifications faites pendant la revue, dans {path}.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "Le worktree de revue n'a pas pu être supprimé.",
-                        "inuse": "Conservé : un panneau travaille encore dans {path}."
+                        "inuse": "Conservé : un panneau travaille encore dans {path}.",
+                        "alreadygone": "Déjà nettoyé.",
+                        "leftoversremoved": "Supprimé ; les fichiers écrits dedans pendant la suppression ont été supprimés ensuite.",
+                        "leftover": "Le worktree de revue est supprimé, mais des fichiers écrits dans {path} pendant la suppression restent."
                     }
                 },
                 "agent-worktree": {
@@ -4694,10 +4701,12 @@
                         "refusedrepo": "Laissé tel quel : {path} contient son dépôt.",
                         "locked": "Laissé tel quel : le worktree est verrouillé.",
                         "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
-                        "alreadygone": "Rien à faire : il était déjà supprimé.",
+                        "alreadygone": "Déjà nettoyé.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "Le worktree de l'agent n'a pas pu être supprimé.",
-                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}."
+                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}.",
+                        "leftoversremoved": "{path} supprimé ; les fichiers écrits dedans pendant la suppression ont été supprimés ensuite.",
+                        "leftover": "Le worktree est supprimé, mais des fichiers écrits dans {path} pendant la suppression restent. La branche suit son cours."
                     }
                 },
                 "local-branch": {

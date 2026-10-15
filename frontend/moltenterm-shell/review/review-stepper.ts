@@ -317,6 +317,10 @@ function mergeStep(
 // --- cleanup rows ---
 
 function rowState(step: ReviewCleanupStepResult): StepState {
+    // A folder the worktree left once git unregistered it (#716): a warning, never a failure.
+    if (step?.code === "leftover" && step.state !== "planned") {
+        return "needs";
+    }
     switch (step?.state) {
         case "done":
             return "done";
@@ -462,6 +466,9 @@ function cleanupRowText(t: Translate, step: ReviewCleanupStepResult, branch: str
     lines.push(...panelLines(t, step.panels));
     if (step.code === "kept") {
         lines.push(...lossLines(t, step.loss));
+    }
+    if (step.code === "leftover" && step.error) {
+        lines.push(t("review.validate.cleanup.leftoverWhy", { error: step.error }));
     }
     if (step.id === "agent-worktree" && step.state === "done") {
         const ignored = ignoredLine(t, step.loss);

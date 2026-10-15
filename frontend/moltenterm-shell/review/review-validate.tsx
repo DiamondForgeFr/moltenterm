@@ -14,7 +14,7 @@ import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { SegmentedControl } from "../segmented-control";
-import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
+import { cleanupLeftovers, cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import { mergedFooter } from "./review-done";
 import { MergedFooterButtons } from "./review-done-view";
@@ -155,9 +155,10 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                         ) : null
                     }
                     kept={{
-                        steps: [keptReview, keptAgent],
+                        steps: [keptReview, keptAgent, ...cleanupLeftovers(cleanup?.steps)],
                         busy: v.confirming,
                         onRemove: (step) => fireAndForget(() => model.removeKeptWorktree(step)),
+                        onRemoveLeftover: (step) => fireAndForget(() => model.removeLeftover(step)),
                     }}
                     onStartAgent={(other) =>
                         ReviewsModel.getInstance().startCleanupAgent(pr.dir, pr.repo, cleanup?.base || baseref, other)

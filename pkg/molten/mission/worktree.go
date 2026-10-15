@@ -109,6 +109,11 @@ type WorktreeRemoveResult struct {
 	Forced        bool   `json:"forced,omitempty"`
 	BranchDeleted string `json:"branchdeleted,omitempty"`
 	BranchKept    string `json:"branchkept,omitempty"`
+	// git unregistered the worktree but could not delete its whole folder (#716): the leftovers were removed after
+	// (LeftoversRemoved), or the folder stays (Leftover, LeftoverError why).
+	LeftoversRemoved bool   `json:"leftoversremoved,omitempty"`
+	Leftover         string `json:"leftover,omitempty"`
+	LeftoverError    string `json:"leftovererror,omitempty"`
 }
 
 type worktreeTerminalsFunc func(ctx context.Context, path string, exclude []string) []WorktreeTerminal
@@ -119,6 +124,9 @@ type Worktrees struct {
 	run       Runner
 	terminals worktreeTerminalsFunc
 	home      string
+	// How the leftovers of a removal are removed (TreeRemover); tests replace them.
+	removeAll func(path string) error
+	wait      func(ctx context.Context, d time.Duration) bool
 }
 
 func MakeWorktrees(run Runner, terminals worktreeTerminalsFunc) *Worktrees {
@@ -126,7 +134,31 @@ func MakeWorktrees(run Runner, terminals worktreeTerminalsFunc) *Worktrees {
 		terminals = openWorktreeTerminals
 	}
 	home, _ := os.UserHomeDir()
-	return &Worktrees{run: hardenedGit(run), terminals: terminals, home: home}
+	return &Worktrees{run: hardenedGit(run), terminals: terminals, home: home, removeAll: os.RemoveAll, wait: waitFor}
+}
+
+// SetLeftoverHooks replaces how the leftovers of a removal are removed and how the tries wait (tests).
+func (w *Worktrees) SetLeftoverHooks(removeAll func(path string) error, wait func(ctx context.Context, d time.Duration) bool) {
+	w.removeAll, w.wait = removeAll, wait
+}
+
+func (w *Worktrees) remover() TreeRemover {
+	return TreeRemover{Run: w.run, Home: w.home, RemoveAll: w.removeAll, Wait: w.wait}
+}
+
+// RemoveTree removes a worktree through git from its main checkout, its leftovers included (TreeRemover.Remove).
+func (w *Worktrees) RemoveTree(ctx context.Context, main string, path string, force bool) (TreeRemoval, error) {
+	return w.remover().Remove(ctx, main, path, force)
+}
+
+// RemoveLeftover removes the folder an unregistered worktree left (TreeRemover.RemoveLeftover).
+func (w *Worktrees) RemoveLeftover(ctx context.Context, main string, path string) (TreeRemoval, error) {
+	return w.remover().RemoveLeftover(ctx, main, path)
+}
+
+// Registered tells whether the repository of main still lists the worktree at path.
+func (w *Worktrees) Registered(ctx context.Context, main string, path string) (bool, error) {
+	return w.remover().Registered(ctx, main, path)
 }
 
 // hardenedGit keeps git from running a program the repository's config names: the folder comes from a block's meta,
@@ -264,14 +296,7 @@ func worktreeBacklinked(path string, gitDir string, common string) bool {
 // refusal names a folder MoltenTerm never removes, whatever git says: the home folder or one of its parents, a folder
 // holding its own repository.
 func (w *Worktrees) refusal(path string, main string) string {
-	real := realPath(path)
-	if w.home != "" && pathInside(realPath(w.home), real) {
-		return "the home folder"
-	}
-	if real == "/" || pathInside(realPath(main), real) {
-		return "it holds its repository"
-	}
-	return ""
+	return worktreeRefusal(path, main, w.home)
 }
 
 func protectedBranches(dir string, trunk string) map[string]bool {
@@ -475,17 +500,14 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 			return WorktreeRemoveResult{}, errors.New("the worktree changed since you confirmed: read the plan again")
 		}
 	}
-	args := []string{"worktree", "remove"}
 	// Only uncommitted changes make git refuse; commits stay on their branch.
 	forced := plan.ChangeCount > 0
-	if forced {
-		args = append(args, "--force")
-	}
-	args = append(args, "--", path)
-	if _, err := w.run(ctx, plan.Main, "git", args...); err != nil {
+	removal, err := w.RemoveTree(ctx, plan.Main, path, forced)
+	if err != nil {
 		return WorktreeRemoveResult{}, err
 	}
-	result := WorktreeRemoveResult{Removed: true, Forced: forced, Real: plan.Real}
+	result := WorktreeRemoveResult{Removed: true, Forced: forced, Real: plan.Real, LeftoversRemoved: removal.LeftoversRemoved,
+		Leftover: removal.Leftover, LeftoverError: removal.LeftoverError}
 	if !req.DeleteBranch {
 		return result, nil
 	}

@@ -417,8 +417,15 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                     confirmed: confirmed ? worktreeRisk(plan) : null,
                     deleteBranch: deleteBranch && view?.canDeleteBranch,
                 });
+                const notices: string[] = [];
+                if (result.leftover) {
+                    notices.push(t("worktree.close.leftover", { path: result.leftover }));
+                }
                 if (deleteBranch && result.branchkept) {
-                    setNotice(t("worktree.close.branchKept", { branch: plan.branch, reason: result.branchkept }));
+                    notices.push(t("worktree.close.branchKept", { branch: plan.branch, reason: result.branchkept }));
+                }
+                if (notices.length > 0) {
+                    setNotice(notices.join(" "));
                     setStep("done");
                     return;
                 }

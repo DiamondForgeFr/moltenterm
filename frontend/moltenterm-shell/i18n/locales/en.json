@@ -2224,6 +2224,7 @@
             "cannotUndo": "This cannot be undone.",
             "gone": "This worktree is no longer on disk: nothing to remove.",
             "branchKept": "Worktree removed; the branch {branch} is kept: {reason}.",
+            "leftover": "Worktree removed, but files written into {path} during the removal stay: you can delete that folder.",
             "titleRemove": "Remove the worktree {name}?",
             "titleClose": "Close the terminal of worktree {name}?",
             "titleLose": "Remove {name} and lose what only it holds?",
@@ -4483,6 +4484,8 @@
             "notRun": "Not run: nothing was merged.",
             "showFolder": "Show the agent worktree in its folder",
             "showReviewFolder": "Show the review worktree in its folder",
+            "showLeftover": "Show in folder",
+            "removeAgain": "Remove again",
             "state": {
                 "todo": "To do",
                 "running": "Running",
@@ -4628,6 +4631,7 @@
                 "fetchFailed": "The fetch after the merge failed: the branches were checked against what this computer already had.",
                 "prNotMerged": "GitHub does not show the pull request as merged: the cleanup did not run.",
                 "prUnreadable": "The merged pull request could not be read: the cleanup did not run.",
+                "leftoverWhy": "They could not be deleted: {error}",
                 "notConfirmed": "Not run: the merge could not be confirmed.",
                 "ignoredGone": {
                     "one": "1 git-ignored item went with it ({names}): nothing to lose, a build or an install makes it again.",
@@ -4677,7 +4681,10 @@
                         "kept": "Kept: it holds changes made during the review, in {path}.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "The review worktree could not be removed.",
-                        "inuse": "Kept: a panel still works in {path}."
+                        "inuse": "Kept: a panel still works in {path}.",
+                        "alreadygone": "Already cleaned up.",
+                        "leftoversremoved": "Removed; files written into it during the removal were removed after.",
+                        "leftover": "The review worktree is removed, but files written into {path} during the removal stay."
                     }
                 },
                 "agent-worktree": {
@@ -4694,10 +4701,12 @@
                         "refusedrepo": "Left as it is: {path} holds its repository.",
                         "locked": "Left as it is: the worktree is locked.",
                         "kept": "Kept, with {branch}: removing {path} would lose work.",
-                        "alreadygone": "Nothing to do: it was already removed.",
+                        "alreadygone": "Already cleaned up.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "The agent worktree could not be removed.",
-                        "inuse": "Kept, with {branch}: a panel still works in {path}."
+                        "inuse": "Kept, with {branch}: a panel still works in {path}.",
+                        "leftoversremoved": "{path} removed; files written into it during the removal were removed after.",
+                        "leftover": "The worktree is removed, but files written into {path} during the removal stay. The branch goes on as usual."
                     }
                 },
                 "local-branch": {

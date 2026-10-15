@@ -348,11 +348,64 @@ describe("Validate's stepper", () => {
         }
     });
 
+    it("shows a folder a removal left as a warning, never a failure (#716)", () => {
+        const steps = buildValidateSteps(en, {
+            plan: plan(),
+            record: merged,
+            cleanup: cleanup(
+                {
+                    id: "agent-worktree",
+                    state: "done",
+                    code: "leftover",
+                    path: "/w/app-716",
+                    error: "unlinkat /w/app-716: directory not empty",
+                },
+                { id: "local-branch", state: "done", code: "deleted", branch: "feature/672-x" }
+            ),
+            headref: "x",
+            baseref: "develop",
+        });
+        const cleanupStep = step(steps, "cleanup");
+        const agent = cleanupStep.rows.find((r) => r.id === "agent-worktree");
+        expect(agent.state).toBe("needs");
+        expect(agent.error).toBeUndefined();
+        expect(agent.lines.join(" ")).toContain("/w/app-716");
+        expect(agent.lines.join(" ")).toContain("directory not empty");
+        expect(cleanupStep.state).toBe("needs");
+        expect(cleanupStep.rows.find((r) => r.id === "local-branch").state).toBe("done");
+    });
+
+    it("reads a worktree gone before the cleanup as already cleaned up (#716)", () => {
+        const steps = buildValidateSteps(en, {
+            plan: plan(),
+            record: merged,
+            cleanup: cleanup(
+                { id: "agent-worktree", state: "skipped", code: "alreadygone", path: "/w/app-716" },
+                { id: "local-branch", state: "done", code: "deleted", branch: "feature/672-x" }
+            ),
+            headref: "x",
+            baseref: "develop",
+        });
+        const agent = step(steps, "cleanup").rows.find((r) => r.id === "agent-worktree");
+        expect(agent.state).toBe("skipped");
+        expect(agent.lines[0]).toBe("Already cleaned up.");
+    });
+
     it("has a sentence for every code wavesrv sends", () => {
         const cleanupCodes: Record<string, string[]> = {
             "ticket-close": ["closed", "alreadyclosed", "noticket", "prunconfirmed"],
             "ticket-done": ["moveddone", "alreadydone", "noticket", "nosfworkflow", "prunconfirmed"],
-            "review-worktree": ["removed", "noreviewtree", "notaworktree", "kept", "inuse", "prunconfirmed"],
+            "review-worktree": [
+                "removed",
+                "noreviewtree",
+                "notaworktree",
+                "kept",
+                "inuse",
+                "prunconfirmed",
+                "alreadygone",
+                "leftoversremoved",
+                "leftover",
+            ],
             "agent-worktree": [
                 "removed",
                 "noagenttree",
@@ -362,6 +415,8 @@ describe("Validate's stepper", () => {
                 "kept",
                 "inuse",
                 "alreadygone",
+                "leftoversremoved",
+                "leftover",
                 "prunconfirmed",
             ],
             "local-branch": [

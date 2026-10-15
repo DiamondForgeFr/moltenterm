@@ -227,6 +227,10 @@ export type WorktreeRemoveResult = {
     forced?: boolean;
     branchdeleted?: string;
     branchkept?: string;
+    // git unregistered the worktree but files written during the removal stay in this folder (#716).
+    leftoversremoved?: boolean;
+    leftover?: string;
+    leftovererror?: string;
 };
 
 // What the user confirms a second time: wavesrv refuses the removal when the worktree holds more by then.

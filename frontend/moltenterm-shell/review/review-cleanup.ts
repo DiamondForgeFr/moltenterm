@@ -121,6 +121,8 @@ export type ReviewCleanupRequest = {
     ticket?: number;
     steps?: ReviewCleanupStepId[];
     worktreeconfirmed?: ReviewWorktreeRisk;
+    // Remove again on the folder a worktree step left (code leftover, #716); wavesrv only removes the one it recorded.
+    leftover?: string;
 };
 
 export function runReviewCleanup(req: ReviewCleanupRequest): Promise<ReviewCleanupResult> {
@@ -149,6 +151,21 @@ export function removeKeptWorktree(
         return confirmAgentWorktree(req, step.confirm);
     }
     return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"] });
+}
+
+// removeLeftover removes again the folder a worktree step left after git unregistered the worktree (#716).
+export function removeLeftover(
+    req: Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed" | "leftover">,
+    step: ReviewCleanupStepResult
+): Promise<ReviewCleanupResult> {
+    return runReviewCleanup({ ...req, steps: [step.id], leftover: step.path });
+}
+
+// cleanupLeftovers are the worktree steps that left a folder behind: a warning with Show in folder and Remove again.
+export function cleanupLeftovers(steps: ReviewCleanupStepResult[]): ReviewCleanupStepResult[] {
+    return (steps ?? []).filter(
+        (s) => (s.id === "review-worktree" || s.id === "agent-worktree") && s.code === "leftover" && !!s.path
+    );
 }
 
 // cleanupNeedsConfirmation is the agent worktree kept because removing it would lose work or a panel works in it.

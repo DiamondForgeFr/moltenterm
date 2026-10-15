@@ -583,7 +583,13 @@ func (p MergePlan) mergedPr(head string, merged string) MergedPr {
 	if head == "" {
 		head = p.HeadOid
 	}
-	return MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged}
+	pr := MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged}
+	for _, step := range p.Cleanup {
+		if step.Id == CleanupStepAgentTree && step.Code == CleanupCodeWillRemove {
+			pr.AgentTree = step.Path
+		}
+	}
+	return pr
 }
 
 func (m *Merger) keepPlan(plan MergePlan) {
