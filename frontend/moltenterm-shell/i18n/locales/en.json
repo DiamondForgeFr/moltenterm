@@ -4052,7 +4052,7 @@
         "commandDetail": "every panel column of the tab at the same width",
         "autoOn": "Auto equalize on",
         "autoOff": "Auto equalize off",
-        "autoOffNotice": "Auto equalize off: you adjusted a panel by hand",
+        "autoOffReason": "You adjusted a panel by hand.",
         "button": {
             "label": "Equalize panels",
             "title": "Equalize panels",

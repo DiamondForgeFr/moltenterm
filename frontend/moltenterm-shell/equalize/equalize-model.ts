@@ -166,7 +166,12 @@ export class EqualizeModel {
             return;
         }
         this.setAuto(false);
-        showToast({ id: AutoOffToastId, kind: "info", title: t("equalize.autoOffNotice") });
+        showToast({
+            id: AutoOffToastId,
+            kind: "info",
+            title: t("equalize.autoOff"),
+            message: t("equalize.autoOffReason"),
+        });
     }
 
     // The carpet columns' widths, evened out against each other; true when a width changed.

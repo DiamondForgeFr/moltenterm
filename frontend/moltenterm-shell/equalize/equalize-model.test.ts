@@ -115,7 +115,7 @@ describe("EqualizeModel", () => {
         model.onResizeEnd(true);
         expect(model.auto).toBe(false);
         expect(showToast).toHaveBeenCalledWith(
-            expect.objectContaining({ title: "Auto equalize off: you adjusted a panel by hand" })
+            expect.objectContaining({ title: "Auto equalize off", message: "You adjusted a panel by hand." })
         );
         expect(vi.mocked(RpcApi.SetMetaCommand).mock.calls.at(-1)[1].meta).toEqual({ [EqualizeAutoMetaKey]: null });
     });
