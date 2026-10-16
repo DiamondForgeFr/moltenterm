@@ -17,6 +17,7 @@ import { AgentStates } from "./agent-state-store";
 import { BusyCloseAction, RunningItem, runningOf, RunningSource } from "./busy-close-model";
 import { t } from "./i18n/i18n";
 import { tabDisplayName } from "./tab-identity";
+import { workspaceShownName } from "./workspace-default-name";
 
 export const ConfirmBusyCloseKey = "moltenterm:confirmbusyclose";
 export const ReadTimeoutMs = 1500;
@@ -86,7 +87,7 @@ async function readTabName(tabId: string): Promise<string> {
 
 export function currentWorkspaceName(): string {
     try {
-        return globalStore.get(atoms.workspace)?.name || unsavedWorkspaceName();
+        return workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || unsavedWorkspaceName();
     } catch {
         return unsavedWorkspaceName();
     }
@@ -177,7 +178,7 @@ export async function readWorkspaceRunning(workspaceId: string, workspaceName: s
         entries = [];
     }
     const terminals = entries.map((e) => ({ blockId: e.blockid, meta: e.meta, tabId: e.tabid }));
-    return readRunning(terminals, workspaceName || unsavedWorkspaceName());
+    return readRunning(terminals, workspaceShownName(workspaceName, t) || unsavedWorkspaceName());
 }
 
 export type BusyCloseRequest = {

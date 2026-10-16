@@ -9,7 +9,7 @@ const { services, api, storeAtoms } = vi.hoisted(() => ({
         GetWorkspace: vi.fn(async (_id: string): Promise<Workspace> => null),
         UpdateWorkspace: vi.fn(async (..._args: unknown[]) => {}),
     },
-    api: { menuCallback: null as () => void },
+    api: { menuCallback: null as (workspaceId?: string) => void },
     storeAtoms: {} as { workspace?: any; staticTabId?: any },
 }));
 
@@ -25,7 +25,7 @@ vi.mock("@/app/store/global", async () => {
     return {
         atoms: storeAtoms,
         getApi: () => ({
-            onMoltentermEditWorkspace: (callback: () => void) => {
+            onMoltentermEditWorkspace: (callback: (workspaceId?: string) => void) => {
                 api.menuCallback = callback;
             },
         }),
@@ -145,6 +145,29 @@ describe("one open request (DS-SHELL-035)", () => {
         api.menuCallback();
         await settle();
         expect(services.UpdateWorkspace).toHaveBeenCalledWith("w2", "", "", "", true);
+        expect(request().workspaceId).toBe("w2");
+    });
+
+    it("opens a workspace just created only in the tab view that shows it (#743)", async () => {
+        listenWorkspaceMenu();
+        globalStore.set(storeAtoms.workspace, saved);
+        api.menuCallback("w2");
+        await settle();
+        expect(request()).toBeNull();
+        expect(JSON.parse(storage.map.get(WorkspaceEditIntentKey)).workspaceId).toBe("w2");
+
+        globalStore.set(storeAtoms.workspace, unsaved);
+        expect(pickUpWorkspaceEdit()).toBe(true);
+        await settle();
+        expect(request().workspaceId).toBe("w2");
+        expect(storage.map.has(WorkspaceEditIntentKey)).toBe(false);
+    });
+
+    it("opens a workspace just created at once when this tab view already shows it (#743)", async () => {
+        listenWorkspaceMenu();
+        globalStore.set(storeAtoms.workspace, unsaved);
+        api.menuCallback("w2");
+        await settle();
         expect(request().workspaceId).toBe("w2");
     });
 

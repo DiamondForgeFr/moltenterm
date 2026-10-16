@@ -7,6 +7,7 @@
 
 import { agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
+import { workspaceShownName } from "../workspace-default-name";
 
 export const MoltentermSessionsView = "molten-sessions";
 
@@ -128,7 +129,7 @@ export function groupSessions(list: DurableSession[], currentWorkspaceId: string
         if (group == null) {
             group = {
                 id: key,
-                title: s.workspacename || t("sessions.workspace"),
+                title: workspaceShownName(s.workspacename, t) || t("sessions.workspace"),
                 color: s.workspacecolor,
                 current: key === currentWorkspaceId,
                 sessions: [],
@@ -400,7 +401,8 @@ export function placeText(s: DurableSession): string {
     if (!s.shown) {
         return t("sessions.notInPane");
     }
-    return s.workspacename ? `${s.workspacename}${s.tabname ? ` › ${s.tabname}` : ""}` : "";
+    const workspace = workspaceShownName(s.workspacename, t);
+    return workspace ? `${workspace}${s.tabname ? ` › ${s.tabname}` : ""}` : "";
 }
 
 export type ConfirmText = { title: string; subtitle: string; warning?: string; confirm: string };

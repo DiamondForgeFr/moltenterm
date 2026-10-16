@@ -14,6 +14,7 @@ import { formatShortcutById } from "../shortcuts/format";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
+import { workspaceShownName } from "../workspace-default-name";
 import { PaletteEntry, PaletteGroupId, PickerGroupOrder, shortestSelectingPrefix } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -267,11 +268,11 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         rtn.push({
             id: `action:switch:${ws.id}`,
             group: "actions",
-            label: t("palette.actions.switchTo", { name: ws.name }),
+            label: t("palette.actions.switchTo", { name: workspaceShownName(ws.name, t) }),
             icon: ws.icon || "circle",
             color: ws.color || undefined,
             badge: { icon: ws.icon || "circle", color: ws.color ?? "", image: ws.image ?? "", logo: ws.logo ?? "" },
-            keywords: ["workspace", ws.name],
+            keywords: ["workspace", ws.name, workspaceShownName(ws.name, t)],
             run: { kind: "switchworkspace", workspaceId: ws.id },
         });
     }

@@ -28,6 +28,7 @@ import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { workspaceShownName } from "../workspace-default-name";
 import {
     ProjectMetaKey,
     readWorkspaceFolder,
@@ -691,7 +692,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     );
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspace?.name || t("settings.thisWorkspace");
+    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
     const openSettingsJson = () => onOpenFile("settings.json");
 

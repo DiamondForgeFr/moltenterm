@@ -11,6 +11,7 @@ import { fireAndForget } from "@/util/util";
 import { t } from "./i18n/i18n";
 import { ToastInput } from "./toast-model";
 import { dismissToast, showToast } from "./toast-store";
+import { workspaceShownName } from "./workspace-default-name";
 import { logoUrl, pathBaseName } from "./workspace-project";
 import { findProjectLogos, markLogoOffered, readProjectFacts, setWorkspaceLogo } from "./workspace-project-store";
 
@@ -73,7 +74,7 @@ export async function offerProjectIcon(ws: Workspace, dir: string): Promise<stri
     const [logos, facts] = await Promise.all([findProjectLogos(dir), readProjectFacts(dir)]);
     const toast = makeIconOffer({
         workspaceId: ws.oid,
-        workspaceName: ws.name ?? "",
+        workspaceName: workspaceShownName(ws.name, t) ?? "",
         dir,
         projectName: facts?.name ?? "",
         logos,

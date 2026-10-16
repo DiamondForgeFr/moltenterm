@@ -39,6 +39,7 @@ import {
 import { KeepAwakeModel } from "./keepawake-store";
 import { SegmentedControl } from "./segmented-control";
 import { TabActivity, whileShown } from "./tab-activity";
+import { workspaceShownName } from "./workspace-default-name";
 
 const TickMs = 1000;
 
@@ -195,7 +196,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                             <i className="fa fa-solid fa-mug-hot text-11 text-[var(--color-awake)]" aria-hidden />
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-primary">
-                                    {coffee.workspacename || t("keepawake.workspace")}
+                                    {workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace")}
                                 </span>
                                 <span className="truncate text-11 text-muted">
                                     {t("keepawake.since", { time: formatClock(coffee.since) })} ·{" "}
@@ -211,7 +212,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                                 type="button"
                                 className="shrink-0 cursor-pointer rounded-6 border border-border px-1.5 text-11 text-secondary hover:bg-hover hover:text-primary"
                                 aria-label={t("keepawake.railStop", {
-                                    name: coffee.workspacename || t("keepawake.thisWorkspace"),
+                                    name: workspaceShownName(coffee.workspacename, t) || t("keepawake.thisWorkspace"),
                                 })}
                                 onClick={() => fireAndForget(() => model.setCoffee(coffee.workspaceid, false))}
                             >
@@ -257,7 +258,7 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
     if (sessions.length === 0 && approvals.length === 0) {
         return null;
     }
-    const name = coffee.workspacename || t("keepawake.workspace");
+    const name = workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace");
     const summary = approvalSummary(approvals);
     return (
         <li aria-label={t("keepawake.requestsIn", { name })} className="flex flex-col gap-1 px-1 pt-1 pb-1.5">

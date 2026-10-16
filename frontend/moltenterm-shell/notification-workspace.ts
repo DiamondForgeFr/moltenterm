@@ -5,6 +5,7 @@
 // line. Kept apart from the component so the rules can be tested without the app.
 
 import { t } from "./i18n/i18n";
+import { workspaceShownName } from "./workspace-default-name";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { pathBaseName, readWorkspaceProject } from "./workspace-project";
 
@@ -51,7 +52,7 @@ export function workspaceLabel(
     }
     const dir = readWorkspaceProject(ws).dir;
     const { logo, image } = workspaceIconSource(ws);
-    const name = ws.name || t("rail.unsavedWorkspace");
+    const name = workspaceShownName(ws.name, t) || t("rail.unsavedWorkspace");
     const projectFolder = pathBaseName(dir);
     return {
         id: workspaceId,

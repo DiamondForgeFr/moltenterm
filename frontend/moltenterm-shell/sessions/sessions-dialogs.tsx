@@ -12,6 +12,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
 import { DominoLoader } from "../suite/suite";
+import { workspaceShownName } from "../workspace-default-name";
 import {
     BulkAction,
     bulkCommandLabel,
@@ -400,7 +401,7 @@ export function BulkDialog({
                                     </span>
                                 ) : null}
                                 <span className="ml-auto shrink-0 text-muted">
-                                    {s.workspacename || t("sessions.notInPaneTitle")}
+                                    {workspaceShownName(s.workspacename, t) || t("sessions.notInPaneTitle")}
                                 </span>
                             </div>
                             {result ? (

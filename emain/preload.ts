@@ -104,8 +104,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
-    // MOLTENTERM-PATCH (#294): the app menu's Edit Workspace… (emain/moltenterm-workspace-menu.ts)
-    onMoltentermEditWorkspace: (callback: () => void) => ipcRenderer.on("moltenterm-edit-workspace", () => callback()),
+    // MOLTENTERM-PATCH (#294, #743): the app menu's Edit Workspace…, or a workspace just created (emain/moltenterm-workspace-menu.ts)
+    onMoltentermEditWorkspace: (callback: (workspaceId?: string) => void) =>
+        ipcRenderer.on("moltenterm-edit-workspace", (_event, workspaceId) => callback(workspaceId)),
     // MOLTENTERM-PATCH (#490): Electron main asks what a window close, a quit or a workspace delete would stop
     // (emain/moltenterm-busy-close.ts, frontend/moltenterm-shell/busy-close-main.ts)
     onMoltentermBusyAsk: (callback: (request: any) => void) =>
