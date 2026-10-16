@@ -58,6 +58,8 @@ type CiJobRecord struct {
 }
 
 type CiRunRecord struct {
+	// Execution is pinned separately from the requested path used for trust, storage and presentation.
+	project    string
 	Id         string        `json:"id"`
 	Dir        string        `json:"dir"`
 	Sha        string        `json:"sha"`
@@ -426,11 +428,17 @@ func (c *Ci) State(dir string) (CiState, error) {
 
 // Start begins a local CI run, after the trust rule; untrusted commands are returned for the user to review.
 func (c *Ci) Start(req CiRunRequest) (CiRunResult, error) {
+	return c.startAt(req, canonicalRunDir(req.Dir))
+}
+
+// A build has already captured its project before preparation. Keep that identity for nested CI without
+// transferring its requested-path trust grant or changing where its CI records can be listed/cancelled.
+func (c *Ci) startAt(req CiRunRequest, project string) (CiRunResult, error) {
 	if err := checkDir(req.Dir); err != nil {
 		return CiRunResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	pipeline, err := readCiPipeline(dir)
+	pipeline, err := readCiPipeline(project)
 	if err != nil {
 		return CiRunResult{}, err
 	}
@@ -441,7 +449,7 @@ func (c *Ci) Start(req CiRunRequest) (CiRunResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), ciCommandTimeout)
 	defer cancel()
-	sha, tree, err := c.resolveRev(ctx, dir, req.Branch)
+	sha, tree, err := c.resolveRev(ctx, project, req.Branch)
 	if err != nil {
 		return CiRunResult{}, err
 	}
@@ -455,6 +463,7 @@ func (c *Ci) Start(req CiRunRequest) (CiRunResult, error) {
 	}
 	now := c.now()
 	rec := CiRunRecord{
+		project:   project,
 		Id:        newRunId(now),
 		Dir:       dir,
 		Sha:       sha,
@@ -664,11 +673,11 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 	}
 	if statErr != nil {
 		os.RemoveAll(tree)
-		step(rec.Dir, "worktree", "prune")
+		step(rec.executionProject(), "worktree", "prune")
 		if err := os.MkdirAll(filepath.Dir(tree), 0700); err != nil {
 			return "", err
 		}
-		if err := step(rec.Dir, "worktree", "add", "--detach", "--force", tree, rec.Sha); err != nil {
+		if err := step(rec.executionProject(), "worktree", "add", "--detach", "--force", tree, rec.Sha); err != nil {
 			return "", uimsg.Errorf(uimsg.Make("mission.ci.worktreeCreate", "detail", err.Error()), "the CI worktree could not be created: %w", err)
 		}
 	} else {
@@ -762,7 +771,7 @@ func (c *Ci) runJob(progress *ciRunProgress, rec CiRunRecord, tree string, job m
 		j.StartedAt = started.UnixMilli()
 	})
 	if statuses {
-		go c.publishStatus(rec.Dir, rec.Sha, job.Name, "pending", "running "+ciPublishScopeNote+"…")
+		go c.publishStatus(rec.executionProject(), rec.Sha, job.Name, "pending", "running "+ciPublishScopeNote+"…")
 	}
 	status := CiStateFailure
 	var exitCode *int
@@ -801,7 +810,7 @@ func (c *Ci) runJob(progress *ciRunProgress, rec CiRunRecord, tree string, job m
 		if status == CiStateFailure {
 			state, description = "failure", fmt.Sprintf("failed after %s %s", took, ciPublishScopeNote)
 		}
-		go c.publishStatus(rec.Dir, rec.Sha, job.Name, state, description)
+		go c.publishStatus(rec.executionProject(), rec.Sha, job.Name, state, description)
 	}
 	return status
 }
@@ -860,5 +869,12 @@ func (c *Ci) branchOf(rec CiRunRecord) string {
 	if rec.Branch != "" && rec.Branch != "HEAD" && !commitIdRegex.MatchString(rec.Branch) {
 		return rec.Branch
 	}
-	return currentBranch(c.run, rec.Dir)
+	return currentBranch(c.run, rec.executionProject())
+}
+
+func (rec CiRunRecord) executionProject() string {
+	if rec.project != "" {
+		return rec.project
+	}
+	return canonicalRunDir(rec.Dir)
 }
