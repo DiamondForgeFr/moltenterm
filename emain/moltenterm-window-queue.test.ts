@@ -654,7 +654,7 @@ describe("window action queue: single operations", () => {
     it("logs a workspace switch with ids only, never the workspace object (#501)", async () => {
         const starter = await setup();
         await addVisitedWorkspace();
-        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        const log = vi.spyOn(console, "log").mockImplementation(() => {}).mockClear();
         ipc("switch-workspace", starter.oid);
         await vi.advanceTimersByTimeAsync(1000);
         expect(h.onScreen()).toBe(starter.activetabid);

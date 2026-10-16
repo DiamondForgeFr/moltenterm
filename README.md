@@ -29,7 +29,7 @@ next milestone.
 Release candidates and releases are on the [releases page](https://github.com/DiamondForgeFr/moltenterm/releases),
 for macOS (Apple Silicon and Intel) and Linux (x64 and arm64, AppImage and .deb).
 
-- **macOS**: open the `.dmg` and drag MoltenTerm to Applications. The builds are not signed with an Apple Developer ID
+- **macOS 12 or later**: open the `.dmg` and drag MoltenTerm to Applications. The builds are not signed with an Apple Developer ID
   yet, so macOS refuses to open them the first time: right-click MoltenTerm in Applications and choose **Open**, or
   run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
 - **Linux**: make the `.AppImage` executable and run it, or install the `.deb` with `sudo apt install ./<file>.deb`.
