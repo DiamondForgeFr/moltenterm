@@ -13,7 +13,6 @@ import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import {
-    AgentMode,
     askReviewInvestigate,
     askReviewRebase,
     markReviewReady,
@@ -21,7 +20,7 @@ import {
     ReviewPrInfo,
 } from "../review/review-client";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
-import { agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
+import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
 import {
     checkNames,
@@ -121,26 +120,28 @@ export class ReviewsModel {
         if (outcome?.kind !== "offer") {
             return outcome;
         }
-        const mode = await askAgentChoice({
+        const choice = await askAgentChoice({
             kind: "rebase",
             number: pr.number,
             branch: pr.branch,
             base: pr.base,
             agent: outcome.agent,
+            ...agentChoiceOf(outcome.result),
         });
-        if (mode == null) {
+        if (choice == null) {
             return null;
         }
-        return this.askRebaseOnce(dir, pr, repo, mode, mergedPr);
+        return this.askRebaseOnce(dir, pr, repo, choice, mergedPr);
     }
 
     private async askRebaseOnce(
         dir: string,
         pr: ReviewPr,
         repo: string,
-        mode: AgentMode,
+        choice: AgentChoiceAnswer,
         mergedPr?: number
     ): Promise<RebaseOutcome> {
+        const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName) {
             return null;
@@ -158,7 +159,7 @@ export class ReviewsModel {
                 url: pr.url,
                 ticket: pr.ticket,
                 mergedpr: mergedPr || undefined,
-                ...(mode != null ? agentStartOf("rebase", pr.number, mode) : {}),
+                ...(mode != null ? agentStartOf("rebase", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
             outcome = rebaseOutcome(result);
@@ -207,21 +208,28 @@ export class ReviewsModel {
         if (outcome?.kind !== "offer") {
             return outcome;
         }
-        const mode = await askAgentChoice({
+        const choice = await askAgentChoice({
             kind: "investigate",
             number: pr.number,
             branch: pr.branch,
             base: pr.base,
             agent: outcome.agent,
             checks: checkNames(checksOf(pr.ci, "failure")),
+            ...agentChoiceOf(outcome.result),
         });
-        if (mode == null) {
+        if (choice == null) {
             return null;
         }
-        return this.investigateOnce(dir, pr, repo, mode);
+        return this.investigateOnce(dir, pr, repo, choice);
     }
 
-    private async investigateOnce(dir: string, pr: ReviewPr, repo: string, mode: AgentMode): Promise<RebaseOutcome> {
+    private async investigateOnce(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        choice: AgentChoiceAnswer
+    ): Promise<RebaseOutcome> {
+        const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName) {
             return null;
@@ -244,7 +252,7 @@ export class ReviewsModel {
                     runid: c.runid,
                     jobid: c.jobid,
                 })),
-                ...(mode != null ? agentStartOf("investigate", pr.number, mode) : {}),
+                ...(mode != null ? agentStartOf("investigate", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
             return rebaseOutcome(result, null, "investigate");

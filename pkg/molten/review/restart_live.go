@@ -75,7 +75,7 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 			}
 			return RestartTypeOutcome{Message: out.Message}
 		},
-		OpenTerminal: reviewsession.OpenTerminal,
+		OpenTerminal:   reviewsession.OpenTerminal,
 		AgentInstalled: agentchoice.Installed,
 		AgentOrder:     agentcontinuity.Default().Ids(),
 		SessionAgent:   reviewsession.SessionAgent,

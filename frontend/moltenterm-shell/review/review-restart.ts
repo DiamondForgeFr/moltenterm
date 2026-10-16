@@ -43,16 +43,24 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
         branch: result.branch ?? "",
         state: agentStateLabel(result.agentstate ?? "working"),
         message: serverText(result.messagetext, result.message ?? ""),
+        chosen: result.chosenname ?? "",
     };
+    // #845: an agent already on the branch took the round, not the one the developer chose.
+    const notChosen =
+        result.chosenname && result.agent && result.chosenagent !== result.agent
+            ? " " + t("review.restart.outcome.notChosen", vars)
+            : "";
     switch (result.reason || result.status) {
         case "started":
             return t(result.hidden ? "review.restart.outcome.startedHidden" : "review.restart.outcome.started", vars);
         case "sent":
-            return t("review.restart.outcome.sent", vars);
+            return t("review.restart.outcome.sent", vars) + notChosen;
         case "typed":
-            return t("review.restart.outcome.typed", vars);
+            return t("review.restart.outcome.typed", vars) + notChosen;
         case "noagent":
             return t("review.restart.outcome.noagent", vars);
+        case "agentmissing":
+            return t("review.restart.outcome.agentmissing", vars);
         case "noround":
             return t("review.restart.outcome.noround");
         case "inflight":

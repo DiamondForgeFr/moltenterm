@@ -35,6 +35,7 @@ export type BatchReason =
     | "agentexited"
     | "agenttimeout"
     | "noagent"
+    | "agentmissing"
     | "agentstart"
     | "blocked"
     | "warnings"
@@ -59,6 +60,7 @@ const WordedReasons = new Set<BatchReason>([
     "agentexited",
     "agenttimeout",
     "noagent",
+    "agentmissing",
     "agentstart",
     "blocked",
     "warnings",

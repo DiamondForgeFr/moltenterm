@@ -7,7 +7,7 @@ import { hiddenTabIds, visibleTabIds } from "../hidden-tabs";
 import { translate } from "../i18n/i18n-core";
 import { askReviewRebase } from "../review/review-client";
 import { restartOutcome } from "../review/review-restart";
-import { AgentChoiceModel, agentStartOf, askAgentChoice } from "./agent-choice";
+import { AgentChoiceModel, agentChoiceOf, agentStartOf, askAgentChoice, pickedAgent } from "./agent-choice";
 import { originText, readOrigin } from "./agent-origin";
 import { rebaseOutcome, ReviewPr } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
@@ -124,7 +124,7 @@ describe("the choice before an agent starts (#758)", () => {
         const second = askAgentChoice({ kind: "restart", number: 2, branch: "b", base: "develop" });
         await expect(first).resolves.toBeNull();
         globalStore.get(AgentChoiceModel.getInstance().pendingAtom).answer("together");
-        await expect(second).resolves.toBe("together");
+        await expect(second).resolves.toEqual({ mode: "together" });
         expect(globalStore.get(AgentChoiceModel.getInstance().pendingAtom)).toBeNull();
     });
 
@@ -178,6 +178,68 @@ describe("the choice before an agent starts (#758)", () => {
         globalStore.get(AgentChoiceModel.getInstance().pendingAtom).answer(null);
         expect(await outcome).toBeNull();
         expect(askReviewRebase).toHaveBeenCalledTimes(1);
+    });
+
+    it("#845 AC3: the dialog switches the agent for one run, and the start carries it", async () => {
+        const agents = [
+            { id: "claude", name: "Claude Code", installed: true },
+            { id: "codex", name: "Codex", installed: true },
+        ];
+        vi.mocked(askReviewRebase)
+            .mockResolvedValueOnce({ status: "offer", agent: "codex", agentname: "Codex", agents })
+            .mockResolvedValueOnce({ status: "started", agent: "claude", agentname: "Claude Code", hidden: true });
+        const outcome = ReviewsModel.getInstance().askRebase("/p", pr(), "acme/app");
+        await vi.waitFor(() => expect(globalStore.get(AgentChoiceModel.getInstance().pendingAtom)).not.toBeNull());
+        const pending = globalStore.get(AgentChoiceModel.getInstance().pendingAtom);
+        expect(pending).toMatchObject({ agent: "Codex", agentid: "codex", agents });
+        expect(pickedAgent(pending, null)).toBe("codex");
+        pending.answer("background", pickedAgent(pending, "claude"));
+        await outcome;
+        expect(vi.mocked(askReviewRebase).mock.calls[1][0]).toMatchObject({ start: true, agent: "claude" });
+    });
+
+    it("#845: a chosen agent that is not installed starts nothing until another is picked", () => {
+        const req = agentChoiceOf({
+            agentmissing: true,
+            chosenagent: "codex",
+            chosenname: "Codex",
+            agents: [
+                { id: "claude", name: "Claude Code", installed: true },
+                { id: "codex", name: "Codex", installed: false },
+            ],
+        });
+        expect(req.missing).toBe("Codex");
+        expect(pickedAgent({ kind: "rebase", number: 1, branch: "b", base: "d", ...req }, null)).toBe("");
+        expect(pickedAgent({ kind: "rebase", number: 1, branch: "b", base: "d", ...req }, "claude")).toBe("claude");
+        expect(agentStartOf("rebase", 1, "background")).not.toHaveProperty("agent");
+        expect(rebaseOutcome({ status: "noagent", reason: "agentmissing", chosenname: "Codex" }).text).toBe(
+            "Codex, the agent you chose, is not installed on this computer: choose an installed agent in the panel's options (Agent)."
+        );
+    });
+
+    it("#845: an agent already on the branch keeps the work, and the outcome names the chosen one", () => {
+        const sent = rebaseOutcome({
+            status: "sent",
+            agent: "claude",
+            agentname: "Claude Code",
+            chosenagent: "codex",
+            chosenname: "Codex",
+            branch: "b",
+        });
+        expect(sent.text).toContain("Claude Code was already working on the branch, so it got it rather than Codex.");
+        expect(sent.note).toBe(true);
+        expect(
+            restartOutcome({
+                status: "sent",
+                agent: "claude",
+                agentname: "Claude Code",
+                chosenagent: "codex",
+                chosenname: "Codex",
+            })
+        ).toContain("rather than Codex");
+        expect(rebaseOutcome({ status: "sent", agent: "codex", agentname: "Codex", branch: "b" }).text).not.toContain(
+            "rather than"
+        );
     });
 
     it("says where an agent started out of sight went", () => {

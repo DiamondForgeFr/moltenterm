@@ -52,7 +52,7 @@ export type ReviewStartRequest = {
     headref: string;
     headoid?: string;
     baseref?: string;
-    // claude or codex; omitted, the first installed.
+    // claude or codex; omitted, the project's choice (#845), else the first installed.
     agent?: string;
     // The agent starts by briefing the PR (FR-REV-005).
     brief?: boolean;
@@ -122,6 +122,8 @@ export type ReviewStartResult = {
     session?: ReviewSessionInfo;
     reason?: string;
     agentname?: string;
+    // agentmissing: the agents installed instead (#845).
+    installed?: string[];
 };
 
 export type ReviewPost = {

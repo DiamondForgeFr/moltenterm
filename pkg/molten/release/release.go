@@ -69,8 +69,8 @@ type Env struct {
 	// CodingAgent asks MoltenTerm for the project's coding agent (#845) when the step's environment does not name it;
 	// false when MoltenTerm cannot be reached (CI, a plain shell).
 	CodingAgent func(ctx context.Context, dir string) (agentchoice.Choice, bool)
-	Sleep func(time.Duration)
-	Now   func() time.Time
+	Sleep       func(time.Duration)
+	Now         func() time.Time
 	// Zero means the defaults (30 s, 90 min).
 	CiPoll  time.Duration
 	CiLimit time.Duration

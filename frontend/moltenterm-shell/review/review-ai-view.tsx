@@ -16,6 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { codingAgentName } from "../coding-agent/coding-agent";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -104,7 +105,12 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
             aria-label={t("review.ai.viewName")}
             data-testid="review-ai"
         >
-            <AiStatus ai={ai} onRetry={() => fireAndForget(() => review.openAi())} onShowTerminal={focusTerminal} />
+            <AiStatus
+                ai={ai}
+                onRetry={() => fireAndForget(() => review.openAi())}
+                onShowTerminal={focusTerminal}
+                onStartWith={(agent) => fireAndForget(() => review.startSession(undefined, agent))}
+            />
             <AskBox model={review} />
             <QuestionQueue model={review} />
             <section className="flex flex-col gap-2" data-slot="review-cards" aria-label={t("review.ai.cardsLabel")}>
@@ -248,10 +254,12 @@ function AiStatus({
     ai,
     onRetry,
     onShowTerminal,
+    onStartWith,
 }: {
     ai: ReviewAiState;
     onRetry: () => void;
     onShowTerminal: () => void;
+    onStartWith: (agent: string) => void;
 }) {
     const t = useT();
     const agentName = ai.session?.agentname ?? t("review.ai.yourAgent");
@@ -285,7 +293,22 @@ function AiStatus({
                 </div>
             );
         case "noagent":
-            return <p className="text-muted">{ai.message}</p>;
+            return (
+                <div className="flex flex-col gap-1.5">
+                    <p className="text-muted">{ai.message}</p>
+                    {(ai.installed ?? []).map((id) => (
+                        <button
+                            key={id}
+                            type="button"
+                            className={SecondaryButton}
+                            onClick={() => onStartWith(id)}
+                            data-testid={`review-ai-start-with-${id}`}
+                        >
+                            {t("review.ai.startWith", { agent: codingAgentName(id) })}
+                        </button>
+                    ))}
+                </div>
+            );
         case "failed":
             return (
                 <div className="flex flex-col gap-1.5">
