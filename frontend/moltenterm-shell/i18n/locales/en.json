@@ -3776,6 +3776,10 @@
             "right": "New panel on the right",
             "up": "New panel above",
             "down": "New panel below"
+        },
+        "beside": {
+            "left": "Add a panel on the left",
+            "right": "Add a panel on the right"
         }
     },
     "reopen": {

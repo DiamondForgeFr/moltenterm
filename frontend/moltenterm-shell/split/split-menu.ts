@@ -5,6 +5,7 @@
 
 import { t } from "../i18n/i18n";
 import { acceleratorById } from "../shortcuts/format";
+import { besideLabel, besideMenuItems } from "./add-beside";
 import { enterSplitPlacement } from "./split-place";
 
 // The English labels identify the split items (views still add their own); the menus show the translated ones.
@@ -43,6 +44,8 @@ export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
         splitRightLabel(),
         splitDownLabel(),
         splitPlaceLabel(),
+        besideLabel("left"),
+        besideLabel("right"),
     ];
     const kept = items.filter((item) => !labels.includes(item.label));
     while (kept.length > 0 && kept[0].type === "separator") {
@@ -52,7 +55,8 @@ export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
 }
 
 // One "Split…" entry enters the split placement mode (#677): the panel shows its four sides and the user picks one.
-// The direct keys (Cmd+D, Cmd+Shift+D, Ctrl+Shift+D, Ctrl+Shift+E) stay for speed.
+// The direct keys (Cmd+D, Cmd+Shift+D, Ctrl+Shift+D, Ctrl+Shift+E) stay for speed. "Add a panel on the left / on the
+// right" follow (#732): a new column beside, the panels already there keeping their size.
 export function splitMenuItems(blockId: string, section = PanelSection): ContextMenuItem[] {
     return [
         {
@@ -62,5 +66,6 @@ export function splitMenuItems(blockId: string, section = PanelSection): Context
             accelerator: acceleratorById("split-place"),
             click: () => enterSplitPlacement(blockId),
         },
+        ...besideMenuItems(blockId, section),
     ];
 }

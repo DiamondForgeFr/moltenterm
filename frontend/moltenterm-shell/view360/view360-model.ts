@@ -396,7 +396,8 @@ export class View360Model {
         return storedFixedPx(globalStore.get(this.tabAtom));
     }
 
-    private columnWidthPx(column: LayoutNode): number {
+    // The width a column takes on the carpet (also what a column keeps when one is added beside it, #732).
+    columnWidthPx(column: LayoutNode): number {
         if (this.dragColumn?.nodeId === column.id) {
             return this.dragColumn.px;
         }

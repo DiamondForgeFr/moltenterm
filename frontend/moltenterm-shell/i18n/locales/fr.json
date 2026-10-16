@@ -3776,6 +3776,10 @@
             "right": "Nouveau panneau à droite",
             "up": "Nouveau panneau au-dessus",
             "down": "Nouveau panneau en dessous"
+        },
+        "beside": {
+            "left": "Ajouter un panneau à gauche",
+            "right": "Ajouter un panneau à droite"
         }
     },
     "reopen": {
