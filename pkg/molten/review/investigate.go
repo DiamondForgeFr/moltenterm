@@ -51,6 +51,8 @@ type InvestigateRequest struct {
 	Mode        string `json:"mode,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	TabName     string `json:"tabname,omitempty"`
+	// Agent: the coding agent picked for this run (#845).
+	Agent string `json:"agent,omitempty"`
 }
 
 func (req InvestigateRequest) check() error {
@@ -90,6 +92,7 @@ func (req InvestigateRequest) restartRequest() RestartRequest {
 		Mode:        req.Mode,
 		WorkspaceId: req.WorkspaceId,
 		TabName:     req.TabName,
+		Agent:       req.Agent,
 	}
 }
 

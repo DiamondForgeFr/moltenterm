@@ -1285,6 +1285,14 @@
             "order": 18
           }
         },
+        "moltenterm:codingagent": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced"
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
