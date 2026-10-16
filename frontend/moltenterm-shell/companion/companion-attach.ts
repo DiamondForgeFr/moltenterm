@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The companion's next actions when it has nothing to show (FR-SHELL-053, DS-SHELL-094): attach it to a terminal of
-// its tab, or start Claude Code (the agent@claude preset) and follow it. The agent is typed into the companion's own
-// terminal only while that shell waits at its prompt; anything else gets a new terminal beside the companion, so a
-// running program never receives the command as input.
+// its tab, or start the project's coding agent (its agent@ preset, #845) and follow it. The agent is typed into the
+// companion's own terminal only while that shell waits at its prompt; anything else gets a new terminal beside the
+// companion, so a running program never receives the command as input.
 
 import { atoms, createBlockSplitHorizontally } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -12,10 +12,11 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { CodingAgentChoice, codingAgentName, fetchCodingAgent } from "../coding-agent/coding-agent";
 import { t } from "../i18n/i18n";
 import { AgentBlockDef, typeCommandWhenReady } from "../palette/palette-actions";
 import { readAgentPresets } from "../palette/palette-sources";
-import { pathBaseName } from "../workspace-project";
+import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { CompanionTargetMetaKey } from "./companion-model";
 
 export type AttachCandidate = { blockId: string; label: string; current: boolean };
@@ -43,13 +44,31 @@ export function attachCandidates(blocks: Block[], current: string): AttachCandid
     return rtn;
 }
 
-// The Claude Code preset as configured (its command can be changed or hidden by the user); the default otherwise.
-export function companionAgent(presets: { [key: string]: MetaType }): CompanionAgent {
-    const preset = readAgentPresets(presets ?? {}).find((p) => p.id === "claude");
+// The preset of the project's coding agent (#845; Claude Code when none is known) as configured (its command can be
+// changed or hidden by the user); the agent's own command otherwise.
+export function companionAgent(presets: { [key: string]: MetaType }, agentId?: string): CompanionAgent {
+    const id = agentId || "claude";
+    const fallback = id === "claude" ? DefaultCompanionAgent : { name: codingAgentName(id), command: id };
+    const preset = readAgentPresets(presets ?? {}).find((p) => p.id === id);
     if (preset == null) {
-        return DefaultCompanionAgent;
+        return fallback;
     }
-    return { name: preset.name || DefaultCompanionAgent.name, command: preset.command };
+    return { name: preset.name || fallback.name, command: preset.command };
+}
+
+// The coding agent the companion starts (#845): the project's choice as wavesrv resolves it; a chosen agent that is
+// not installed stops the start with its reason instead of starting another one.
+async function companionAgentId(): Promise<string> {
+    let choice: CodingAgentChoice;
+    try {
+        choice = await fetchCodingAgent(readWorkspaceProject(globalStore.get(atoms.workspace)).dir);
+    } catch {
+        return undefined;
+    }
+    if (choice?.missing) {
+        throw new Error(t("codingAgent.missing", { agent: choice.chosenname || codingAgentName(choice.chosen) }));
+    }
+    return choice?.agent || undefined;
 }
 
 // Shell integration says "ready" while the shell waits at its prompt, "running-command" otherwise.
@@ -86,7 +105,7 @@ async function readRtInfo(blockId: string): Promise<ObjRTInfo> {
 
 // Starts the agent and attaches the companion to the terminal it runs in. Returns that terminal's block id.
 export async function startCompanionAgent(companionId: string, target: string): Promise<string> {
-    const agent = companionAgent(globalStore.get(atoms.fullConfigAtom)?.presets);
+    const agent = companionAgent(globalStore.get(atoms.fullConfigAtom)?.presets, await companionAgentId());
     if (target && shellAtPrompt(await readRtInfo(target))) {
         if (await typeCommandWhenReady(target, agent.command)) {
             return target;

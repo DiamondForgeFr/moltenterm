@@ -39,6 +39,17 @@ describe("companion attach (FR-SHELL-053-AC1)", () => {
         ).toEqual({ name: "Claude Code", command: "claude --verbose" });
     });
 
+    it("#845: starts the project's coding agent, its preset when it has one", () => {
+        expect(companionAgent({}, "codex")).toEqual({ name: "Codex", command: "codex" });
+        expect(
+            companionAgent(
+                { "agent@codex": { "display:name": "Codex", "agent:command": "codex --full-auto" } as MetaType },
+                "codex"
+            )
+        ).toEqual({ name: "Codex", command: "codex --full-auto" });
+        expect(companionAgent({}, undefined)).toEqual(DefaultCompanionAgent);
+    });
+
     it("types into the terminal only while its shell waits at the prompt", () => {
         expect(shellAtPrompt({ "shell:state": "ready" } as ObjRTInfo)).toBe(true);
         expect(shellAtPrompt({ "shell:state": "running-command" } as ObjRTInfo)).toBe(false);

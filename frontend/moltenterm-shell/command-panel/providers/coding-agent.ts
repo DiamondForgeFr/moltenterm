@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Agent option (#845) of every panel that starts a coding agent: Reviews (investigate, rebase, restart, batch
-// merge), the Review tab (the assisted review) and the Project view (the release notes). One value per project with a
+// merge), the Review tab (the assisted review), the Project view (the release notes) and the companion (Start the
+// agent here). One value per project with a
 // global default, so a change in one panel shows in all of them.
 
 import { atoms, globalStore } from "@/app/store/global";
@@ -21,7 +22,13 @@ import { readSettings, writeSettings } from "../bindings";
 import { CommandProvider, PanelContext, PanelItem, PanelSection, ScopeBinding } from "../panel-types";
 
 // The panels that start an agent on their own.
-export const CodingAgentViews = new Set(["molten-reviews", "molten-review", "molten-project", "molten-timeline"]);
+export const CodingAgentViews = new Set([
+    "molten-reviews",
+    "molten-review",
+    "molten-project",
+    "molten-timeline",
+    "molten-companion",
+]);
 
 // The project a panel works on: the Review tab's PR's, else the workspace's.
 export function codingAgentDir(ctx: PanelContext): string {
