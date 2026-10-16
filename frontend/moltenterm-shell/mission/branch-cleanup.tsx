@@ -9,7 +9,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
-import { t, useT } from "../i18n/i18n";
+import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { ActionSecondaryClass } from "./action-button";
@@ -76,12 +76,13 @@ export function cleanErrorLines(result: BranchesCleanResult, trunk: string): str
 
 export function cleanResultLine(result: BranchesCleanResult): string {
     return result.failed
-        ? t("mc.branches.resultFailed", { deleted: result.deleted.length, failed: result.failed })
-        : t("mc.branches.result", { deleted: result.deleted.length });
+        ? tCount("mc.branches.resultFailed", result.deleted.length, { failed: result.failed })
+        : tCount("mc.branches.result", result.deleted.length);
 }
 
 function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose: () => void; onCleaned: () => void }) {
     const t = useT();
+    const tCount = useTCount();
     const [plan, setPlan] = useState<BranchesPlan>(null);
     const [error, setError] = useState<string>(null);
     const [busy, setBusy] = useState(false);
@@ -109,6 +110,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
     }, [dir]);
     const going = (plan?.branches ?? []).filter((b) => b.action === "delete");
     const staying = (plan?.branches ?? []).filter((b) => b.action === "keep");
+    const nothingToDelete = plan != null && going.length === 0;
     const trunk = plan?.trunk || t("mc.builds.theTrunk");
     const answerOffer = (enable: boolean) =>
         fireAndForget(async () => {
@@ -210,12 +212,13 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 </div>
                 <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" onClick={onClose} className={PlainButton}>
-                        {result ? t("common.close") : t("common.cancel")}
+                        {result || nothingToDelete ? t("common.close") : t("common.cancel")}
                     </button>
-                    {!result ? (
+                    {/* No button with nothing to delete: a disabled red "Delete 0 branches" still looks clickable. */}
+                    {!result && going.length > 0 ? (
                         <button
                             type="button"
-                            disabled={busy || going.length === 0}
+                            disabled={busy}
                             onClick={clean}
                             className={cn(
                                 "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-error transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
@@ -226,7 +229,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             ) : (
                                 <i className="fa fa-solid fa-trash-can text-11" />
                             )}
-                            {t("mc.branches.delete", { count: going.length })}
+                            {tCount("mc.branches.delete", going.length)}
                         </button>
                     ) : null}
                 </div>

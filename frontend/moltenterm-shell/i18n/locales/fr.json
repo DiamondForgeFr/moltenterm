@@ -2440,6 +2440,22 @@
             "deployToLabel": "Déployer vers",
             "asksFirst": "demande d'abord"
         },
+        "versionReason": {
+            "firstPublic": "Première version publique : un choix, pas un calcul.",
+            "nothingVisible": "Rien qu'un utilisateur verrait depuis {tag} (seulement des commits chore, ci, docs, test, style, build ou refactor).",
+            "features": {
+                "one": "{count} nouvelle fonctionnalité",
+                "other": "{count} nouvelles fonctionnalités"
+            },
+            "fixes": {
+                "one": "{count} correction, aucune nouvelle fonctionnalité",
+                "other": "{count} corrections, aucune nouvelle fonctionnalité"
+            },
+            "breaking": {
+                "one": "{count} changement incompatible",
+                "other": "{count} changements incompatibles"
+            }
+        },
         "branches": {
             "keep": {
                 "protected": "une branche principale",
@@ -2455,15 +2471,24 @@
                 "patchesOnTrunk": "ses commits sont sur {trunk} sous de nouveaux identifiants",
                 "commitsAfterPr": "des commits après la fusion de #{pr}"
             },
-            "result": "{deleted} branche(s) supprimée(s).",
-            "resultFailed": "{deleted} branche(s) supprimée(s), {failed} en échec.",
+            "result": {
+                "one": "{count} branche supprimée.",
+                "other": "{count} branches supprimées."
+            },
+            "resultFailed": {
+                "one": "{count} branche supprimée, {failed} en échec.",
+                "other": "{count} branches supprimées, {failed} en échec."
+            },
             "title": "Nettoyer les branches",
             "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Les branches principales restent, comme tout ce qui est incertain.",
             "comparing": "Comparaison de chaque branche avec {trunk}…",
             "wouldGo": "Partiraient ({count})",
             "nothing": "Rien à nettoyer.",
             "stay": "Restent ({count})",
-            "delete": "Supprimer {count} branche(s)",
+            "delete": {
+                "one": "Supprimer {count} branche",
+                "other": "Supprimer {count} branches"
+            },
             "autoDeleteDone": "GitHub supprime désormais les branches de tête quand leur pull request est fusionnée.",
             "autoDeleteOffer": "Sur ce dépôt, GitHub garde les branches de tête après la fusion de leur pull request. Activer son réglage « Automatically delete head branches » pour que les branches fusionnées ne s'accumulent plus ?",
             "notNow": "Pas maintenant",
@@ -3607,7 +3632,8 @@
         "openCicdTitle": "Ouvrir le panneau CI/CD à côté de cette vue : historique, détail et journaux",
         "headerAria": "En-tête du projet",
         "fetchFailed": "Affichage de l'état local : la récupération depuis le dépôt distant a échoué ({error}).",
-        "noPipelineActions": "Build local et Release apparaissent une fois le pipeline connecté.",
+        "noPipelineActions": "Lancer la CI, Build local et Release apparaissent une fois le pipeline connecté.",
+        "noCiJobs": "Lancer la CI apparaît une fois que le pipeline déclare des jobs de CI (ci.jobs).",
         "theTrunk": "le tronc",
         "justNow": "à l'instant",
         "cards": {
@@ -3623,7 +3649,7 @@
             "bars": {
                 "features": "fonctionnalités",
                 "fixes": "corrections",
-                "rest": "le reste"
+                "others": "autres"
             },
             "milestone": {
                 "notRead": "L'avancement du jalon s'affiche une fois GitHub lu.",
@@ -3689,8 +3715,10 @@
             }
         },
         "schedule": {
-            "oneDay": "1 jour",
-            "days": "{count} jours",
+            "days": {
+                "one": "{count} jour",
+                "other": "{count} jours"
+            },
             "overdue": "en retard de {days}",
             "today": "prévu aujourd'hui",
             "tomorrow": "prévu demain",
@@ -3703,19 +3731,32 @@
         },
         "waiting": {
             "title": "En attente sur {trunk}",
-            "notYetOnOne": "changement, pas encore sur {release}",
-            "notYetOn": "changements, pas encore sur {release}",
-            "sinceOne": "changement depuis {tag}",
-            "since": "changements depuis {tag}",
-            "noPublicOne": "changement, pas encore de version publique",
-            "noPublic": "changements, pas encore de version publique"
+            "notYetOn": {
+                "one": "changement, pas encore sur {release}",
+                "other": "changements, pas encore sur {release}"
+            },
+            "since": {
+                "one": "changement depuis {tag}",
+                "other": "changements depuis {tag}"
+            },
+            "noPublic": {
+                "one": "changement, pas encore de version publique",
+                "other": "changements, pas encore de version publique"
+            }
         },
         "counts": {
-            "featureOne": "{count} fonctionnalité",
-            "features": "{count} fonctionnalités",
-            "fixOne": "{count} correction",
-            "fixes": "{count} corrections",
-            "other": "{count} autre(s)"
+            "features": {
+                "one": "{count} fonctionnalité",
+                "other": "{count} fonctionnalités"
+            },
+            "fixes": {
+                "one": "{count} correction",
+                "other": "{count} corrections"
+            },
+            "others": {
+                "one": "{count} autre",
+                "other": "{count} autres"
+            }
         },
         "runCi": {
             "noTrunk": "Le tronc du projet n'est pas encore connu.",
@@ -3731,8 +3772,10 @@
             "aria": "Derniers changements en attente sur {trunk}",
             "heading": "Derniers sur {trunk}",
             "openTicket": "Ouvrir #{ticket} sur GitHub",
-            "moreOne": "et 1 autre changement",
-            "more": "et {count} autres changements"
+            "more": {
+                "one": "et {count} autre changement",
+                "other": "et {count} autres changements"
+            }
         },
         "group": {
             "thisWorkspace": "Cet espace de travail",

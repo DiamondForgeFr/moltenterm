@@ -2440,6 +2440,22 @@
             "deployToLabel": "Deploy to",
             "asksFirst": "asks first"
         },
+        "versionReason": {
+            "firstPublic": "First public release: a choice, not a calculation.",
+            "nothingVisible": "Nothing a user would see since {tag} (only chore, ci, docs, test, style, build or refactor commits).",
+            "features": {
+                "one": "{count} new feature",
+                "other": "{count} new features"
+            },
+            "fixes": {
+                "one": "{count} fix, no new feature",
+                "other": "{count} fixes, no new feature"
+            },
+            "breaking": {
+                "one": "{count} breaking change",
+                "other": "{count} breaking changes"
+            }
+        },
         "branches": {
             "keep": {
                 "protected": "a main branch",
@@ -2455,15 +2471,24 @@
                 "patchesOnTrunk": "its commits are on {trunk} under new ids",
                 "commitsAfterPr": "commits after #{pr} was merged"
             },
-            "result": "{deleted} branch(es) deleted.",
-            "resultFailed": "{deleted} branch(es) deleted, {failed} failed.",
+            "result": {
+                "one": "{count} branch deleted.",
+                "other": "{count} branches deleted."
+            },
+            "resultFailed": {
+                "one": "{count} branch deleted, {failed} failed.",
+                "other": "{count} branches deleted, {failed} failed."
+            },
             "title": "Clean branches",
             "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. The main branches stay, and so does anything in doubt.",
             "comparing": "Comparing each branch with {trunk}…",
             "wouldGo": "Would go ({count})",
             "nothing": "Nothing to clean.",
             "stay": "Stay ({count})",
-            "delete": "Delete {count} branch(es)",
+            "delete": {
+                "one": "Delete {count} branch",
+                "other": "Delete {count} branches"
+            },
             "autoDeleteDone": "GitHub now deletes head branches when their pull request is merged.",
             "autoDeleteOffer": "GitHub keeps head branches after their pull request is merged on this repository. Turn on its “Automatically delete head branches” setting so merged branches stop piling up?",
             "notNow": "Not now",
@@ -3607,7 +3632,8 @@
         "openCicdTitle": "Open the CI/CD panel beside this view: history, detail and logs",
         "headerAria": "Project header",
         "fetchFailed": "Showing the local state: fetching from the remote failed ({error}).",
-        "noPipelineActions": "Build local and Release appear once the pipeline is connected.",
+        "noPipelineActions": "Run CI, Build local and Release appear once the pipeline is connected.",
+        "noCiJobs": "Run CI appears once the pipeline declares CI jobs (ci.jobs).",
         "theTrunk": "the trunk",
         "justNow": "just now",
         "cards": {
@@ -3623,7 +3649,7 @@
             "bars": {
                 "features": "features",
                 "fixes": "fixes",
-                "rest": "the rest"
+                "others": "others"
             },
             "milestone": {
                 "notRead": "Milestone progress shows once GitHub has been read.",
@@ -3689,8 +3715,10 @@
             }
         },
         "schedule": {
-            "oneDay": "1 day",
-            "days": "{count} days",
+            "days": {
+                "one": "{count} day",
+                "other": "{count} days"
+            },
             "overdue": "overdue by {days}",
             "today": "due today",
             "tomorrow": "due tomorrow",
@@ -3703,19 +3731,32 @@
         },
         "waiting": {
             "title": "Waiting on {trunk}",
-            "notYetOnOne": "change, not yet on {release}",
-            "notYetOn": "changes, not yet on {release}",
-            "sinceOne": "change since {tag}",
-            "since": "changes since {tag}",
-            "noPublicOne": "change, no public release yet",
-            "noPublic": "changes, no public release yet"
+            "notYetOn": {
+                "one": "change, not yet on {release}",
+                "other": "changes, not yet on {release}"
+            },
+            "since": {
+                "one": "change since {tag}",
+                "other": "changes since {tag}"
+            },
+            "noPublic": {
+                "one": "change, no public release yet",
+                "other": "changes, no public release yet"
+            }
         },
         "counts": {
-            "featureOne": "{count} feature",
-            "features": "{count} features",
-            "fixOne": "{count} fix",
-            "fixes": "{count} fixes",
-            "other": "{count} other"
+            "features": {
+                "one": "{count} feature",
+                "other": "{count} features"
+            },
+            "fixes": {
+                "one": "{count} fix",
+                "other": "{count} fixes"
+            },
+            "others": {
+                "one": "{count} other",
+                "other": "{count} others"
+            }
         },
         "runCi": {
             "noTrunk": "The project's trunk is not known yet.",
@@ -3731,8 +3772,10 @@
             "aria": "Latest changes waiting on {trunk}",
             "heading": "Latest on {trunk}",
             "openTicket": "Open #{ticket} on GitHub",
-            "moreOne": "and 1 more change",
-            "more": "and {count} more changes"
+            "more": {
+                "one": "and {count} more change",
+                "other": "and {count} more changes"
+            }
         },
         "group": {
             "thisWorkspace": "This workspace",

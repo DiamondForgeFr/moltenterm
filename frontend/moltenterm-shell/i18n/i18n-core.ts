@@ -210,6 +210,33 @@ export function translate(locale: string, key: string, vars?: I18nVars): string 
     return interpolate(text, vars);
 }
 
+function pluralRules(locale: string): Intl.PluralRules {
+    try {
+        return new Intl.PluralRules(locale);
+    } catch {
+        return new Intl.PluralRules(FallbackLanguage);
+    }
+}
+
+// The text of `key`.one or `key`.other for `count` in `locale`, with {count} set: the language's own plural rule
+// picks the form, so French says "0 non lue" where English says "0 unread". Languages with more forms than one and
+// other use other for the rest.
+export function translateCount(locale: string, key: string, count: number, vars?: I18nVars): string {
+    const form = pluralRules(locale).select(count) === "one" ? "one" : "other";
+    return translate(locale, `${key}.${form}`, { count, ...vars });
+}
+
+// A number in the interface language's notation ("0,5" in French), with exactly `fractionDigits` decimals when given.
+export function formatNumber(locale: string, value: number, fractionDigits?: number): string {
+    const opts: Intl.NumberFormatOptions =
+        fractionDigits == null ? {} : { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits };
+    try {
+        return new Intl.NumberFormat(locale, opts).format(value);
+    } catch {
+        return new Intl.NumberFormat(FallbackLanguage, opts).format(value);
+    }
+}
+
 // The text of `key` in `code` alone, packs included, without falling back to English.
 export function languageText(code: string, key: string): string | undefined {
     return lookup(code, key);

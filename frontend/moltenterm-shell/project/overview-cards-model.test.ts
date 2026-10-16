@@ -65,7 +65,7 @@ function milestone(title: string, open: number, closed: number, due?: string): M
 }
 
 describe("next public release card", () => {
-    it("counts features, fixes and the rest by conventional type", () => {
+    it("counts features, fixes and others by conventional type", () => {
         expect(commitKind("feat(#1): x")).toBe("feat");
         expect(commitKind("fix!: x")).toBe("fix");
         expect(commitKind("chore(release): v1.0.0")).toBe("other");
@@ -75,7 +75,7 @@ describe("next public release card", () => {
         expect(bars.map((b) => [b.label, b.count])).toEqual([
             ["features", 3],
             ["fixes", 2],
-            ["the rest", 1],
+            ["others", 1],
         ]);
         expect(bars.map((b) => b.share)).toEqual([0.5, 2 / 6, 1 / 6]);
     });
