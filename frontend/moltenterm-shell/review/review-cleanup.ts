@@ -66,7 +66,8 @@ export type ReviewCleanupPrFlag =
     | "agent-busy"
     | "needs-agent"
     | "needs-rebase"
-    | "checking";
+    | "checking"
+    | "batch";
 
 // must match CleanupPr in pkg/molten/review/cleanup.go; agent: the first name of the agent asked or busy.
 export type ReviewCleanupPr = {

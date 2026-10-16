@@ -33,6 +33,8 @@ type MergedPr struct {
 	MergedOid string `json:"mergedoid,omitempty"`
 	// AgentTree: the agent worktree the plan sheet showed, "" when none (#716).
 	AgentTree string `json:"agenttree,omitempty"`
+	// BatchPrs: the PRs a batch merge still has to merge (FR-REV-025).
+	BatchPrs []int `json:"batchprs,omitempty"`
 }
 
 // PostMerge is the cleanup after the merge (FR-REV-013).
@@ -124,7 +126,7 @@ func (s *Service) Run(ctx context.Context, pr MergedPr) {
 	if s.cleaner == nil {
 		return
 	}
-	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket, PlannedAgentTree: pr.AgentTree})
+	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket, PlannedAgentTree: pr.AgentTree, BatchPrs: pr.BatchPrs})
 	if err != nil {
 		log.Printf("%s %s#%d: the cleanup after the merge: %v\n", logPrefix, pr.Repo, pr.Number, err)
 	}
