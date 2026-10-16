@@ -2,14 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import { branchLabel, branchReason, cleanResultLine } from "./branch-cleanup";
 
 describe("branch cleaning (FR-MC-017)", () => {
     it("names remote branches with their remote, and reports the deletion", () => {
         expect(branchLabel({ name: "feature/1-x", remote: true, action: "delete" })).toBe("origin/feature/1-x");
         expect(branchLabel({ name: "feature/1-x", remote: false, action: "delete" })).toBe("feature/1-x");
-        expect(cleanResultLine({ deleted: ["a", "origin/a"], failed: 0 })).toBe("2 branch(es) deleted.");
-        expect(cleanResultLine({ deleted: ["a"], failed: 1 })).toBe("1 branch(es) deleted, 1 failed.");
+        expect(cleanResultLine({ deleted: ["a", "origin/a"], failed: 0 })).toBe("2 branches deleted.");
+        expect(cleanResultLine({ deleted: ["a"], failed: 1 })).toBe("1 branch deleted, 1 failed.");
+        expect(cleanResultLine({ deleted: [], failed: 1 })).toBe("0 branches deleted, 1 failed.");
+    });
+
+    it("words the result with the French plural rule, 0 singular (#745)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(cleanResultLine({ deleted: [], failed: 1 })).toBe("0 branche supprimée, 1 en échec.");
+            expect(cleanResultLine({ deleted: ["a", "b"], failed: 0 })).toBe("2 branches supprimées.");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("says why each branch goes or stays (#571)", () => {

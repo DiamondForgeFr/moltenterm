@@ -116,7 +116,7 @@ function StatusLine({ line, testId }: { line: NowLine; testId: string }) {
             <Dot tone={line.tone} />
             <span className="min-w-0 flex-1 truncate text-primary">{line.label}</span>
             {line.text ? (
-                <span className={cn("shrink-0 font-mono text-12 tabular-nums", ToneText[line.tone])}>{line.text}</span>
+                <span className={cn("shrink-0 text-12 tabular-nums", ToneText[line.tone])}>{line.text}</span>
             ) : null}
         </div>
     );
@@ -177,12 +177,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
                 aria-hidden
             />
             <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
-            <span
-                className={cn(
-                    "max-w-[55%] shrink-0 truncate font-mono text-12",
-                    AgentStateText[info.state] ?? "text-muted"
-                )}
-            >
+            <span className={cn("max-w-[55%] shrink-0 truncate text-12", AgentStateText[info.state] ?? "text-muted")}>
                 {agentStateLabel(info.state)}
                 {branch ? <span className="text-muted"> · {branch}</span> : null}
             </span>
@@ -258,7 +253,7 @@ export function NowCard({
                             {item.label}
                             {item.detail ? <span className="text-muted"> · {item.detail}</span> : null}
                         </span>
-                        <span className="shrink-0 font-mono text-12 text-[var(--mt-state-working)] tabular-nums">
+                        <span className="shrink-0 text-12 text-[var(--mt-state-working)] tabular-nums">
                             {clockElapsed(now - item.startedat)}
                         </span>
                     </div>

@@ -5,7 +5,7 @@
 // the trunk, the ticker of those changes and the trunk the Run CI button runs on. Computed from what the core already
 // hands every card (no new git or GitHub call), and kept apart from the component so it can be tested without the app.
 
-import { getLocale, t } from "../i18n/i18n";
+import { getLocale, t, tCount } from "../i18n/i18n";
 import { CiState } from "../mission/ci-model";
 import { Milestone, milestoneKey } from "../mission/github";
 import { MissionGit, PipelineDef, RawCommit, toTreeData } from "../mission/mission-model";
@@ -180,7 +180,7 @@ function daysUntil(iso: string, now: number): number {
 }
 
 function relativeDue(days: number, date: string): string {
-    const plural = (n: number) => (n === 1 ? t("project.schedule.oneDay") : t("project.schedule.days", { count: n }));
+    const plural = (n: number) => tCount("project.schedule.days", n);
     if (days < 0) {
         return t("project.schedule.overdue", { days: plural(-days) });
     }
@@ -283,12 +283,12 @@ export function waitingCounts(git: MissionGit): WaitingCounts {
         counts[commitKind(c.subject)]++;
     }
     const trunk = git.trunk || t("project.theTrunk");
-    const one = commits.length === 1;
-    let scope = t(one ? "project.waiting.notYetOnOne" : "project.waiting.notYetOn", { release: git.release });
+    const n = commits.length;
+    let scope = tCount("project.waiting.notYetOn", n, { release: git.release });
     if (isSingleBranch(git)) {
         scope = git.lastpublic
-            ? t(one ? "project.waiting.sinceOne" : "project.waiting.since", { tag: git.lastpublic })
-            : t(one ? "project.waiting.noPublicOne" : "project.waiting.noPublic");
+            ? tCount("project.waiting.since", n, { tag: git.lastpublic })
+            : tCount("project.waiting.noPublic", n);
     }
     return {
         title: t("project.waiting.title", { trunk }),
@@ -304,11 +304,10 @@ export function countsLine(counts: WaitingCounts): string {
     if (counts == null) {
         return "";
     }
-    const plural = (n: number, one: string, many: string) => t(n === 1 ? one : many, { count: n });
     return [
-        plural(counts.features, "project.counts.featureOne", "project.counts.features"),
-        plural(counts.fixes, "project.counts.fixOne", "project.counts.fixes"),
-        t("project.counts.other", { count: counts.other }),
+        tCount("project.counts.features", counts.features),
+        tCount("project.counts.fixes", counts.fixes),
+        tCount("project.counts.others", counts.other),
     ].join(" · ");
 }
 

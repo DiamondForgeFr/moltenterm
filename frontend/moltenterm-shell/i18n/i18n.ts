@@ -13,12 +13,14 @@ import { useCallback } from "react";
 import {
     availableLanguageCodes,
     availableLanguages,
+    formatNumber as formatLocaleNumber,
     I18nVars,
     LanguageInfo,
     onLanguagesChange,
     resolveLanguage,
     SystemLanguage,
     translate,
+    translateCount,
 } from "./i18n-core";
 
 export type TFunction = (key: string, vars?: I18nVars) => string;
@@ -126,6 +128,16 @@ export function t(key: string, vars?: I18nVars): string {
     return translate(getLocale(), key, vars);
 }
 
+// The plural form of `key` (`key`.one / `key`.other) for count, by the current language's rule.
+export function tCount(key: string, count: number, vars?: I18nVars): string {
+    return translateCount(getLocale(), key, count, vars);
+}
+
+// A number in the current language's notation, for models and anything outside React; components pass useLocale().
+export function formatNumber(value: number, fractionDigits?: number, locale: string = getLocale()): string {
+    return formatLocaleNumber(locale, value, fractionDigits);
+}
+
 export function useLocale(): string {
     return jotai.useAtomValue(I18nModel.getInstance().localeAtom, { store: globalStore });
 }
@@ -134,4 +146,13 @@ export function useLocale(): string {
 export function useT(): TFunction {
     const locale = useLocale();
     return useCallback((key: string, vars?: I18nVars) => translate(locale, key, vars), [locale]);
+}
+
+// tCount for components: renders again when the language changes.
+export function useTCount(): (key: string, count: number, vars?: I18nVars) => string {
+    const locale = useLocale();
+    return useCallback(
+        (key: string, count: number, vars?: I18nVars) => translateCount(locale, key, count, vars),
+        [locale]
+    );
 }
