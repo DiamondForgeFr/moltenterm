@@ -108,7 +108,7 @@ export function forecastKey(req: ForecastRequest): string {
 
 // A forecast row usable for the list shown: the forecast is about the same base and the row about the same head. A
 // stale forecast keeps showing what still holds while the next one runs.
-function rowOf(forecast: Forecast, pr: ReviewPr, baseoid: string): ForecastRow {
+export function rowOf(forecast: Forecast, pr: ReviewPr, baseoid: string): ForecastRow {
     if (forecast == null || pr == null || forecast.state !== "ready" || forecast.baseoid !== baseoid) {
         return null;
     }

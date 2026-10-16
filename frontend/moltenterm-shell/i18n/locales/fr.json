@@ -4109,6 +4109,39 @@
         "openOnGithub": "Ouvrir la pull request sur GitHub",
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
         "unpublished": "{count} non publié(s)",
+        "order": {
+            "aria": "Ordre de fusion",
+            "suggested": "Ordre suggéré",
+            "suggestedTitle": "Trie les pull requests pour que les fusionner l'une après l'autre, de haut en bas, relance le moins de CI possible : une pull request ne relance sa CI que si une fusion précédente la met en conflit et qu'elle doit être rebasée.",
+            "list": "Ordre de la liste",
+            "listTitle": "L'ordre propre de la liste.",
+            "costSuggested": {
+                "one": "Cet ordre : {count} CI à relancer — ordre actuel : {other}",
+                "other": "Cet ordre : {count} CI à relancer — ordre actuel : {other}"
+            },
+            "costList": {
+                "one": "Ordre de la liste : {count} CI à relancer — ordre suggéré : {other}",
+                "other": "Ordre de la liste : {count} CI à relancer — ordre suggéré : {other}"
+            },
+            "costTitle": "Compte les pull requests qu'il faudrait rebaser, donc dont la CI serait relancée, en les fusionnant l'une après l'autre dans cet ordre : celles qu'une fusion précédente met en conflit, et celles déjà en conflit avec la base.",
+            "unknownRule": "(si les branches n'ont pas à être à jour)",
+            "unknownRuleTitle": "Impossible de lire si cette base exige des branches à jour avant la fusion (il faut les droits d'administration du dépôt). Si c'est le cas, chaque fusion relance la CI des pull requests restantes, quel que soit l'ordre.",
+            "upToDate": "Branches à jour exigées ici : l'ordre n'épargne aucune CI",
+            "upToDateTitle": "Cette base exige des branches à jour avant la fusion : chaque fusion relance la CI des pull requests restantes, quel que soit l'ordre. L'ordre suggéré en met tout de même le moins possible en conflit.",
+            "greedy": "Plus de {max} pull requests sont liées par des conflits : cet ordre est une estimation proche, pas le meilleur prouvé.",
+            "rankTitle": "Position {rank} dans l'ordre de fusion suggéré",
+            "reason": {
+                "noImpact": "Aucun impact",
+                "puts": "Met {prs} en conflit",
+                "rebaseAfter": "Rebase après {prs}",
+                "after": "Après {prs}, qu'elle mettrait en conflit",
+                "conflictsBase": "Déjà en conflit avec {base} : rebase quel que soit l'ordre",
+                "missing": "Pas encore prévue",
+                "ciFailing": "CI en échec",
+                "ciRunning": "CI en cours",
+                "blocked": "Pas encore fusionnable"
+            }
+        },
         "forecast": {
             "computing": "Prévision des conflits…",
             "computingTitle": "Chaque fusion est simulée dans une copie privée du dépôt : rien n'est écrit dans votre copie de travail, vos branches ou GitHub.",

@@ -58,6 +58,8 @@ import {
     validateBlocked,
 } from "./reviews-model";
 import { NotesSection } from "./reviews-notes-view";
+import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
+import { mergeOrderHeader, mergeOrderReason, orderedPrs, suggestedMergeOrder } from "./reviews-order-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 
@@ -230,12 +232,36 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const split = useMemo(() => splitReviews(answer, readied), [answer, readied]);
-    const rows = navigableRows(split, draftsOpen);
+    const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
-    const forecastReq = useMemo(() => forecastRequestOf(answer, split), [answer, split]);
+    const forecastReq = useMemo(() => forecastRequestOf(answer, listSplit), [answer, listSplit]);
     useForecastWatch(dir, forecastReq);
     const forecast = useForecastAnswer(dir);
+    // The suggested merge order (FR-REV-024), from the same forecast; the list's own order on the developer's choice.
+    const locale = useLocale();
+    const orderChoice = useMergeOrderChoice();
+    const suggested = orderChoice === "suggested";
+    const mergeOrder = useMemo(
+        () => suggestedMergeOrder(forecast, listSplit.ready, [...listSplit.ready, ...listSplit.drafts]),
+        [forecast, listSplit]
+    );
+    const orderHeader = useMemo(() => mergeOrderHeader(mergeOrder, suggested), [mergeOrder, suggested, locale]);
+    const split = useMemo(
+        () => (suggested ? { ...listSplit, ready: orderedPrs(mergeOrder, listSplit.ready) } : listSplit),
+        [listSplit, mergeOrder, suggested]
+    );
+    const rowOrders = useMemo(() => {
+        const rtn: Record<number, RowOrder> = {};
+        if (!suggested || !mergeOrder.usable) {
+            return rtn;
+        }
+        for (const step of mergeOrder.steps) {
+            const pr = listSplit.ready.find((p) => p.number === step.number);
+            rtn[step.number] = { rank: step.rank, reason: mergeOrderReason(step, answer.target, pr) };
+        }
+        return rtn;
+    }, [mergeOrder, suggested, listSplit, answer.target, locale]);
+    const rows = navigableRows(split, draftsOpen);
     const forecastActive = hovered ?? selected;
     const shownForecast = useMemo(
         () => listForecast(forecast, split.ready, [...split.ready, ...split.drafts], forecastActive),
@@ -298,6 +324,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         repo: answer.repo,
         forecast: shownForecast.rows[pr.number],
         forecastActive: forecastActive === pr.number,
+        order: rowOrders[pr.number],
     });
     // Read from the row under the pointer, not from each row's enter and leave: a scroll under a still pointer
     // changes the row without a leave.
@@ -327,6 +354,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     <span className="text-12 font-normal text-muted">{split.ready.length}</span>
                     <ForecastStatusLine status={status} />
                 </h2>
+                {forecastReq != null && split.ready.length > 1 ? (
+                    <MergeOrderBar choice={orderChoice} header={orderHeader} />
+                ) : null}
                 {split.ready.length === 0 ? (
                     <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
                         {t("reviews.noneWaiting")} <code>{answer.target}</code>.
@@ -524,6 +554,7 @@ export function ReviewRow({
     repo,
     forecast,
     forecastActive,
+    order,
 }: {
     pr: ReviewPr;
     selected: boolean;
@@ -537,6 +568,7 @@ export function ReviewRow({
     repo: string;
     forecast?: RowForecast;
     forecastActive?: boolean;
+    order?: RowOrder;
 }) {
     const t = useT();
     useLocale();
@@ -578,7 +610,15 @@ export function ReviewRow({
             role="listitem"
             tabIndex={0}
             data-pr={pr.number}
-            aria-label={[reviewAriaLabel(pr), forecast?.mark?.aria, forecast?.note].filter(Boolean).join(", ")}
+            aria-label={[
+                order ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
+                reviewAriaLabel(pr),
+                order?.reason,
+                forecast?.mark?.aria,
+                forecast?.note,
+            ]
+                .filter(Boolean)
+                .join(", ")}
             aria-current={selected || undefined}
             onClick={() => {
                 onSelect();
@@ -595,6 +635,7 @@ export function ReviewRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate text-13 leading-5 font-medium">
+                        <MergeOrderRank order={order} />
                         {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
                         {head.title}
                         <YoursMarker dir={dir} branch={pr.branch} draft={pr.draft} />
@@ -605,6 +646,7 @@ export function ReviewRow({
                         {t("reviews.opened", { when: timeAgo(pr.createdat || pr.updatedat) })} ·{" "}
                         {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
                     </div>
+                    <MergeOrderReason order={order} />
                 </div>
                 <ReviewRowActions pr={pr} blocked={blocked} markReady={markReady} onValidate={onValidate} />
             </div>
