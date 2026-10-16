@@ -32,6 +32,7 @@ import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
+import { revealPanelOnCarpet } from "../../moltenterm-shell/view360/carpet-reveal"; // MOLTENTERM-PATCH (#747)
 import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
 import { modalsModel } from "./modalmodel";
 import { isBuilderWindow, isTabWindow } from "./windowtype";
@@ -690,6 +691,7 @@ function registerGlobalKeys() {
     globalKeyMap.set("Cmd:g", () => {
         const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
         if (bcm.openSwitchConnection != null) {
+            revealPanelOnCarpet(getFocusedBlockInStaticTab()); // MOLTENTERM-PATCH (#747)
             recordTEvent("action:other", { "action:type": "conndropdown", "action:initiator": "keyboard" });
             bcm.openSwitchConnection();
             return true;
@@ -751,6 +753,8 @@ function registerGlobalKeys() {
             return false;
         }
         if (bcm.viewModel.searchAtoms) {
+            // MOLTENTERM-PATCH (#747): the find bar opens on the focused panel, which may lie off the 360 carpet
+            revealPanelOnCarpet(getFocusedBlockInStaticTab());
             if (globalStore.get(bcm.viewModel.searchAtoms.isOpen)) {
                 // Already open — increment the focusInput counter so this block's
                 // SearchComponent focuses its own input (avoids a global DOM query
