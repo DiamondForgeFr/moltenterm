@@ -6,8 +6,8 @@
 // route starts with its code. The window words the code under server.<code>; the English wavesrv sent shows when the
 // code is missing or unknown here.
 
-import { hasKey } from "./i18n-core";
 import { t } from "./i18n";
+import { hasKey } from "./i18n-core";
 
 // Must match pkg/molten/uimsg/uimsg.go.
 const WireMark = "uimsg:";
@@ -15,18 +15,33 @@ const WireMark = "uimsg:";
 export type ServerText = {
     code: string;
     vars?: Record<string, string>;
+    // Placeholders that are sentences of ours, each worded first (#750).
+    parts?: Record<string, ServerText>;
 };
 
-// serverText words text in the interface language; english is what shows without a known code.
-export function serverText(text: ServerText, english: string): string {
+// The text in the interface language, null when its code or one of its parts' codes is unknown here.
+function wordText(text: ServerText): string {
     if (text?.code == null || text.code === "") {
-        return english ?? "";
+        return null;
     }
     const key = `server.${text.code}`;
     if (!hasKey(key)) {
-        return english ?? "";
+        return null;
     }
-    return t(key, text.vars ?? {});
+    const vars: Record<string, string> = { ...(text.vars ?? {}) };
+    for (const [name, part] of Object.entries(text.parts ?? {})) {
+        const worded = wordText(part);
+        if (worded == null) {
+            return null;
+        }
+        vars[name] = worded;
+    }
+    return t(key, vars);
+}
+
+// serverText words text in the interface language; english is what shows without a known code.
+export function serverText(text: ServerText, english: string): string {
+    return wordText(text) ?? english ?? "";
 }
 
 // serverTexts words a list of sentences (warnings, errors) wavesrv sent with their codes, by position.

@@ -5184,7 +5184,28 @@
                 "endedone": "1 session ended while MoltenTerm was closed",
                 "endedother": "{count} sessions ended while MoltenTerm was closed",
                 "show": "Show {what}",
-                "open": "Open Sessions"
+                "open": "Open Sessions",
+                "line": "{head}{place}{ran}: {news}",
+                "place": " · in {place}",
+                "ran": ", running for {duration}",
+                "join": "{first}; {rest}",
+                "duration": {
+                    "underminute": "under a minute",
+                    "min": "{m} min",
+                    "h": "{h} h",
+                    "hmin": "{h} h {m} min",
+                    "d": "{d} d"
+                },
+                "news": {
+                    "failed": "failed",
+                    "waiting": "waits for you",
+                    "finished": "finished",
+                    "output": "new output",
+                    "exitedzero": "exited (0)",
+                    "exitedstatus": "exited with status {status}",
+                    "endedby": "ended by {signal}",
+                    "exited": "exited"
+                }
             },
             "cannotshow": {
                 "olderversion": "This session cannot be shown: it was started by an older MoltenTerm and can only be ended.",

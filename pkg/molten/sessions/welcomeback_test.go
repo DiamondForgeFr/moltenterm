@@ -4,11 +4,16 @@
 package sessions
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -115,6 +120,70 @@ func TestBuildWelcomeBackOrderAndText(t *testing.T) {
 	}
 	if len(input.Actions) > molten.MaxNotificationActions {
 		t.Errorf("%d actions over the cap", len(input.Actions))
+	}
+	// The message's code, worded with the English dictionary, is the English message (#750).
+	en := loadWbLocale(t, "en")
+	if got := wordWb(t, en, input.MessageText); got != input.Message {
+		t.Errorf("worded message\n%q\nwant\n%q", got, input.Message)
+	}
+	fr := loadWbLocale(t, "fr")
+	if got := wordWb(t, fr, done.TextText); got != "moltenterm · Claude Code · dans feature/12-x, en cours depuis 2 h 10 min : terminé" {
+		t.Errorf("French line %q", got)
+	}
+}
+
+func loadWbLocale(t *testing.T, code string) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "frontend", "moltenterm-shell", "i18n", "locales", code+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dict map[string]any
+	if err := json.Unmarshal(raw, &dict); err != nil {
+		t.Fatal(err)
+	}
+	return dict
+}
+
+var wbPlaceholder = regexp.MustCompile(`\{(\w+)\}`)
+
+// wordWb words a Text as frontend/moltenterm-shell/i18n/server-text.ts does.
+func wordWb(t *testing.T, dict map[string]any, text *uimsg.Text) string {
+	t.Helper()
+	if text == nil {
+		t.Fatal("no text")
+	}
+	var cur any = dict["server"]
+	for _, part := range strings.Split(text.Code, ".") {
+		m, _ := cur.(map[string]any)
+		cur = m[part]
+	}
+	template, ok := cur.(string)
+	if !ok {
+		t.Fatalf("no sentence for %s", text.Code)
+	}
+	vars := map[string]string{}
+	for k, v := range text.Vars {
+		vars[k] = v
+	}
+	for k, p := range text.Parts {
+		vars[k] = wordWb(t, dict, p)
+	}
+	return wbPlaceholder.ReplaceAllStringFunc(template, func(whole string) string {
+		if v, ok := vars[whole[1:len(whole)-1]]; ok {
+			return v
+		}
+		return whole
+	})
+}
+
+func TestWelcomeBackDurationTexts(t *testing.T) {
+	en := loadWbLocale(t, "en")
+	for _, d := range []time.Duration{20 * time.Second, 3 * time.Minute, 2 * time.Hour, 2*time.Hour + 5*time.Minute, 50 * time.Hour} {
+		ms := int64(d / time.Millisecond)
+		if got := wordWb(t, en, runForText(ms)); got != FormatRunFor(ms) {
+			t.Errorf("%v: worded %q, English %q", d, got, FormatRunFor(ms))
+		}
 	}
 }
 
