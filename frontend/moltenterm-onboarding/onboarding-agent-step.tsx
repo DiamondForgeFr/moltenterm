@@ -20,6 +20,7 @@ import {
     foundAgents,
     genericAgent,
     genericRequest,
+    GenericRequestPlaceholder,
     guideCall,
     guideState,
     OnboardingAgent,
@@ -144,7 +145,10 @@ function GenericOption({ agent }: { agent: OnboardingAgent }) {
                           path: agent.path,
                       })}
             </StepText>
-            <CopyLine text={genericRequest(agent, t("onboarding.agent.requestPlaceholder"))} />
+            <CopyLine text={genericRequest(agent, GenericRequestPlaceholder)} />
+            <StepText className="text-12 text-muted">
+                {withCodes(t("onboarding.agent.genericPaste"), { placeholder: GenericRequestPlaceholder })}
+            </StepText>
         </div>
     );
 }

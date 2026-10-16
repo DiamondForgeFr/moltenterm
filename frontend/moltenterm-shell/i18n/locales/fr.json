@@ -1146,7 +1146,7 @@
             "guideOutdated": "v{version}, mis à jour au prochain démarrage",
             "guideMissing": "pas encore installé",
             "guideForeign": "un fichier que MoltenTerm n'a pas écrit occupe sa place ; il n'y est pas touché",
-            "notFound": "Introuvable",
+            "notFound": "Non installé",
             "install": "Installer",
             "declined": "Refusé",
             "found": "Trouvé",
@@ -1155,7 +1155,7 @@
             "genericTitle": "Un autre agent de code",
             "genericInstalled": "Tout agent peut suivre le fichier d'instructions de MoltenTerm dans {path}. Indiquez-le à votre agent avec :",
             "genericMissing": "Tout agent peut suivre le fichier d'instructions de MoltenTerm : {command} l'écrit dans {path}. Indiquez-le à votre agent avec :",
-            "requestPlaceholder": "<ce que MoltenTerm doit faire>",
+            "genericPaste": "Collez cette ligne telle quelle dans votre agent, en remplaçant {placeholder} par votre demande, dans la langue de votre choix.",
             "noneFound": "MoltenTerm n'embarque aucune IA et ne demande aucune clé d'API : c'est l'agent de code que vous utilisez déjà qui le remodèle. Aucun des agents pris en charge par MoltenTerm n'est dans le PATH de cet ordinateur. Installez-en un puis cherchez à nouveau, ou passez cette étape : Premiers pas la propose de nouveau.",
             "lookAgain": "Chercher à nouveau",
             "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm intègre cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
@@ -1185,6 +1185,7 @@
             "openBeside": "Ouvrir {name} à côté de ce guide",
             "firstRequest": "Votre première demande",
             "alternatives": "Ou l'une de celles-ci",
+            "requestsNote": "Ces demandes restent en anglais pour se coller telles quelles ; écrivez les vôtres dans la langue de votre choix.",
             "waiting": "En attente d'un nouveau mod… Rien ne change dans vos projets : {command} retire n'importe quel morph."
         },
         "project": {
@@ -1199,7 +1200,8 @@
             "editWorkspace": "Modifier l'espace de travail",
             "chooseFolder": "Choisir un dossier…",
             "scan": "Trouver mes dépôts git",
-            "scanEmpty": "Aucun dépôt git à deux niveaux sous votre dossier personnel.",
+            "scanning": "Recherche dans vos dossiers…",
+            "scanEmpty": "Aucun dépôt git trouvé dans vos dossiers. Choisissez plutôt le dossier de votre projet.",
             "done": "Terminé",
             "chooseFirst": "Choisissez d'abord un dossier"
         }
@@ -1559,6 +1561,10 @@
         "shortcuts": {
             "title": "Raccourcis",
             "hint": "La même liste que Réglages > Clavier."
+        },
+        "placeholders": {
+            "request": "ce que vous voulez",
+            "text": "texte"
         },
         "items": {
             "morph": {
