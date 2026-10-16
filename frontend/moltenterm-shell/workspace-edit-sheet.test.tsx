@@ -32,9 +32,11 @@ vi.mock("./workspace-project-section", () => ({
 // The real frame portals into document.body; the sheet's content is what is checked here.
 vi.mock("./dialog-frame", () => ({
     useEscape: () => {},
-    DialogFrame: ({ role, title, subtitle, subtitleClass, widthClass, children, buttons }: any) => (
+    DialogFrame: ({ role, title, subtitle, subtitleClass, subtitleTooltip, widthClass, children, buttons }: any) => (
         <div role="dialog" aria-label={title} data-role={role} data-width={widthClass}>
-            <div data-subtitle={subtitleClass}>{subtitle}</div>
+            <div data-subtitle={subtitleClass} title={subtitleTooltip}>
+                {subtitle}
+            </div>
             {children}
             {buttons}
         </div>
@@ -44,7 +46,9 @@ vi.mock("./dialog-frame", () => ({
 import {
     ColourChoices,
     ColourField,
+    balancedColumns,
     IconChoices,
+    IconGridMaxColumns,
     ImagePane,
     initialIconMode,
     WorkspaceEditSheet,
@@ -58,7 +62,7 @@ function sheet(closable: boolean) {
 }
 
 describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
-    it("is one MoltenTerm dialog titled Workspace, with its folder in mono 11 under the title (DS-SHELL-101)", () => {
+    it("is one MoltenTerm dialog titled Workspace, with its folder's name in mono 11 under the title (DS-SHELL-101, #751)", () => {
         const html = sheet(true);
         expect(html).toContain('role="dialog"');
         expect(html).toContain('aria-label="Workspace"');
@@ -66,7 +70,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).toContain('<div data-subtitle="font-mono text-11"></div>');
         current.ws = { ...ws, meta: { "molten:folder": "/Users/me/code/client-a" } } as any as Workspace;
         expect(renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />)).toContain(
-            '<div data-subtitle="font-mono text-11">/Users/me/code/client-a</div>'
+            '<div data-subtitle="font-mono text-11" title="/Users/me/code/client-a">client-a</div>'
         );
         expect(html).toContain('data-width="w-fit max-w-[min(560px,calc(100vw-32px))]"');
         expect(html).not.toContain("workspace-editor");
@@ -227,7 +231,23 @@ describe("icon and colour choices are named radio groups (NFR-SHELL-014)", () =>
         ]);
         expect(html).toContain("cursor-pointer");
         expect(html).toContain("h-8 w-8");
-        expect(html).toContain("flex-wrap");
+        expect(html).toContain("grid-template-columns:repeat(3, max-content)");
+    });
+
+    it("lays the symbols out in even rows, never one alone on the last (#751)", () => {
+        expect(balancedColumns(14, IconGridMaxColumns)).toBe(7);
+        expect(balancedColumns(13, 7)).toBe(7);
+        expect(balancedColumns(15, 7)).toBe(5);
+        expect(balancedColumns(3, 7)).toBe(3);
+        expect(balancedColumns(0, 7)).toBe(1);
+        for (let count = 1; count <= 40; count++) {
+            const columns = balancedColumns(count, IconGridMaxColumns);
+            const last = count - (Math.ceil(count / columns) - 1) * columns;
+            expect(columns).toBeLessThanOrEqual(IconGridMaxColumns);
+            if (count > columns) {
+                expect(last).toBeGreaterThan(1);
+            }
+        }
     });
 
     it("names each colour and marks the chosen one with a check, not by colour alone", () => {
