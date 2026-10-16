@@ -4052,7 +4052,7 @@
         "commandDetail": "toutes les colonnes de panneaux de l'onglet à la même largeur",
         "autoOn": "Égalisation auto activée",
         "autoOff": "Égalisation auto désactivée",
-        "autoOffNotice": "Égalisation auto désactivée : vous avez ajusté un panneau à la main",
+        "autoOffReason": "Vous avez ajusté un panneau à la main.",
         "button": {
             "label": "Égaliser les panneaux",
             "title": "Égaliser les panneaux",

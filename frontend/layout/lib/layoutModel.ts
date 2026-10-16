@@ -748,8 +748,6 @@ export class LayoutModel {
             this.magnifiedNodeId = this.treeState.magnifiedNodeId;
         }
         if (setState) {
-            // MOLTENTERM-PATCH (#825): with auto equalize on, a new shape of the tree is evened out before it is drawn
-            this.moltenEqualize?.beforeUpdate();
             this.updateTree();
             this.setter(this.localTreeStateAtom, { ...this.treeState });
             this.persistToBackend();
@@ -802,6 +800,9 @@ export class LayoutModel {
                     boundingRect,
                     resizeAction
                 );
+            // MOLTENTERM-PATCH (#825): with auto equalize on, a new shape of the tree (whatever path changed it: a
+            // reducer action, a batch of backend actions) is evened out before it is drawn
+            this.moltenEqualize?.beforeUpdate();
             // MOLTENTERM-PATCH (#615): the 360 view's mode decides first (automatic, always, never, the tab's choice)
             this.moltenView360?.evaluate(this.treeState.rootNode, boundingRect);
             // MOLTENTERM-PATCH (#614): in 360 view the tree is balanced first, so the columns placed are the final ones
