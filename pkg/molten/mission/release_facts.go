@@ -101,6 +101,8 @@ type ReleaseFacts struct {
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
+	// A running step waits for a branch's GitHub CI (the promotion, #836).
+	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
 }
 
 type ReleaseStepRequest struct {
@@ -352,6 +354,7 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	facts.Trunk = trunk
 	var announced string
 	facts.Steps, facts.Preparation, announced = r.stepFacts(dir, session.Tag, since)
+	facts.Awaits = r.awaitedCi(dir, session.Tag, since)
 	if !facts.TagExists {
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)

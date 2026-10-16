@@ -6,6 +6,7 @@
 // and from the steps the pipeline declares per phase; MoltenTerm only orders them and shows their state.
 
 import { t } from "../i18n/i18n";
+import type { ReleaseCiAwait } from "./branch-ci";
 import { labelRecord } from "./mission-i18n";
 import { PipelineReleaseStep, ReleasePhase } from "./mission-model";
 import { ReleaseChannel, ReleaseSession, releaseStepPhases } from "./release-model";
@@ -64,6 +65,8 @@ export type ReleaseFacts = {
     release?: { tagName: string; isDraft: boolean; isPrerelease: boolean; url: string };
     ontrunk: boolean;
     backpr?: { number: number; url: string; title: string; headRefName: string };
+    // A running step waits for a branch's GitHub CI (the promotion, #836).
+    awaits?: ReleaseCiAwait;
 };
 
 export type PhaseLink = { label: string; url: string };
