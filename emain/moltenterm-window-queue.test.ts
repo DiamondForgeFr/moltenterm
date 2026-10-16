@@ -547,7 +547,7 @@ async function loadModules() {
     }));
     vi.doMock("./emain-wsh", () => ({ ElectronWshClient: {} }));
     vi.doMock("./updater", () => ({ updater: null }));
-    vi.doMock("./authkey", () => ({ configureAuthKeyRequestInjection: () => {} }));
+    vi.doMock("./authkey", () => ({ getTrustedAppSession: () => ({}), registerTrustedAppContents: () => {} }));
     vi.doMock("./moltenterm-browseragent", () => ({
         hostsBrowserPage: () => false,
         hostsControlledTab: () => false,

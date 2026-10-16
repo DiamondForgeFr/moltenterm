@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     callerProof,
     isBackendDestination,
+    isPDFPreviewDestination,
     permitsCredentialResource,
     stripBackendCredentials,
     TrustedAppCallers,
@@ -101,6 +102,21 @@ describe("backend credential policy", () => {
         expect(permitsCredentialResource("mainFrame")).toBe(false);
         expect(permitsCredentialResource("subFrame")).toBe(false);
         for (const type of ["xhr", "image", "media", "webSocket"]) expect(permitsCredentialResource(type)).toBe(true);
+    });
+
+    it("allows only exact PDF capability navigation destinations", () => {
+        const endpoint = "http://127.0.0.1:1234";
+        const url = `${endpoint}/wave/preview-resource/${"a".repeat(64)}`;
+        expect(isPDFPreviewDestination(url, endpoint)).toBe(true);
+        expect(isPDFPreviewDestination(url + "#page=2", endpoint)).toBe(true);
+        for (const bad of [
+            url + "?path=/other",
+            url + "/other",
+            url.replace(":1234", ":12345"),
+            endpoint + "/wave/service",
+        ]) {
+            expect(isPDFPreviewDestination(bad, endpoint)).toBe(false);
+        }
     });
 
     it("removes all casing variants of privileged headers", () => {

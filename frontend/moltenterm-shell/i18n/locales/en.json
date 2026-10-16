@@ -195,6 +195,7 @@
             "actionError": "Error: {message}"
         },
         "files": {
+            "pdfUnavailable": "The PDF preview is unavailable.",
             "colName": "Name",
             "colPerm": "Perm",
             "colModified": "Last modified",

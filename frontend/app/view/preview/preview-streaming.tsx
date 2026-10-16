@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#805): PDF subframes receive a resource capability, never general backend credentials.
 
 import { Button } from "@/app/element/button";
 import { CenteredDiv } from "@/app/element/quickelems";
@@ -7,9 +8,31 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { formatRemoteUri } from "@/util/waveutil";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
+import { useT } from "../../../moltenterm-shell/i18n/i18n";
 import type { SpecializedViewProps } from "./preview";
+import { leasePDFPreview } from "./preview-capability";
+
+function PDFPreview({ path }: { path: string }) {
+    const t = useT();
+    const [url, setUrl] = useState("");
+    const [failed, setFailed] = useState(false);
+    useEffect(
+        () =>
+            leasePDFPreview(
+                path,
+                (url) => {
+                    setUrl(url);
+                    setFailed(false);
+                },
+                () => setFailed(true)
+            ),
+        [path]
+    );
+    if (!url) return <CenteredDiv>{t(failed ? "wave.files.pdfUnavailable" : "common.loading")}</CenteredDiv>;
+    return <iframe src={url} width="100%" height="100%" name="pdfview" referrerPolicy="no-referrer" />;
+}
 
 function ImageZoomControls() {
     const { zoomIn, zoomOut, resetTransform } = useControls();
@@ -57,6 +80,7 @@ function StreamingPreview({ model }: SpecializedViewProps) {
     }, []);
     const conn = useAtomValue(model.connection);
     const fileInfo = useAtomValue(model.statFile);
+    const refreshVersion = useAtomValue(model.refreshVersion);
     const filePath = fileInfo.path;
     const remotePath = formatRemoteUri(filePath, conn);
     const usp = new URLSearchParams();
@@ -65,7 +89,7 @@ function StreamingPreview({ model }: SpecializedViewProps) {
     if (fileInfo.mimetype === "application/pdf") {
         return (
             <div className="flex flex-row h-full overflow-hidden items-center justify-center p-[5px]">
-                <iframe src={streamingUrl} width="100%" height="100%" name="pdfview" />
+                <PDFPreview key={`${remotePath}:${refreshVersion}`} path={remotePath} />
             </div>
         );
     }

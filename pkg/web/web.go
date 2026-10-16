@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#805): exact development CORS and scoped PDF streaming capabilities.
 
 package web
 
@@ -245,6 +246,10 @@ func handleLocalStreamFile(w http.ResponseWriter, r *http.Request, path string, 
 }
 
 func handleStreamFileFromReader(w http.ResponseWriter, r *http.Request, path string, no404 bool) error {
+	return handleStreamFileWithMime(w, r, path, no404, "")
+}
+
+func handleStreamFileWithMime(w http.ResponseWriter, r *http.Request, path string, no404 bool, requiredMime string) error {
 	startTime := time.Now()
 	rangeHeader := r.Header.Get("Range")
 	log.Printf("stream-file path=%q range=%q\n", path, rangeHeader)
@@ -292,11 +297,23 @@ func handleStreamFileFromReader(w http.ResponseWriter, r *http.Request, path str
 			serveTransparentGIF(w)
 			return nil
 		}
-		http.Error(w, fmt.Sprintf("file not found: %q", path), http.StatusNotFound)
+		message := fmt.Sprintf("file not found: %q", path)
+		if requiredMime != "" {
+			message = "PDF preview unavailable"
+		}
+		http.Error(w, message, http.StatusNotFound)
 		return nil
 	}
 	if fileInfo.IsDir {
-		http.Error(w, fmt.Sprintf("cannot stream directory: %q", path), http.StatusBadRequest)
+		message := fmt.Sprintf("cannot stream directory: %q", path)
+		if requiredMime != "" {
+			message = "PDF preview unavailable"
+		}
+		http.Error(w, message, http.StatusBadRequest)
+		return nil
+	}
+	if requiredMime != "" && fileInfo.MimeType != requiredMime {
+		http.Error(w, "unexpected preview content type", http.StatusUnsupportedMediaType)
 		return nil
 	}
 	log.Printf("stream-file headers-ready path=%q time-to-headers=%v\n", path, time.Since(startTime))
@@ -317,6 +334,9 @@ func handleStreamFileFromReader(w http.ResponseWriter, r *http.Request, path str
 		w.Header().Set(ContentLengthHeaderKey, fmt.Sprintf("%d", fileInfo.Size))
 	}
 	http.NewResponseController(w).SetWriteDeadline(time.Time{})
+	if r.Method == http.MethodHead {
+		return nil
+	}
 	_, copyErr := io.Copy(w, reader)
 	if copyErr != nil && r.Context().Err() == nil {
 		log.Printf("error streaming file %q: %v\n", path, copyErr)
@@ -402,9 +422,13 @@ func WebFnWrap(opts WebFnOpts, fn WebFnType) WebFnType {
 		}
 		w.Header().Set("Access-Control-Expose-Headers", "X-ZoneFileInfo")
 
-		// Handle CORS preflight OPTIONS requests without auth validation
+		// Development uses the exact configured origin; packaged CORS requires injected main-frame authority.
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			if authkey.AllowsCORS(r) {
+				w.WriteHeader(http.StatusNoContent)
+			} else {
+				w.WriteHeader(http.StatusForbidden)
+			}
 			return
 		}
 
@@ -442,9 +466,13 @@ func MakeUnixListener() (net.Listener, error) {
 
 const schemaPrefix = "/schema/"
 
-// blocking
-func RunWebServer(listener net.Listener) {
+func makeWebHandler() http.Handler {
 	gr := mux.NewRouter()
+	previews := newPreviewCapabilities(wshfs.Stat, func(w http.ResponseWriter, r *http.Request, path string) error {
+		return handleStreamFileWithMime(w, r, path, false, "application/pdf")
+	}, authkey.ValidateRendererRequest)
+	gr.HandleFunc("/wave/preview-resource", previews.issue)
+	gr.PathPrefix(previewResourcePrefix).HandlerFunc(previews.resource)
 
 	// Streaming routes must be registered before the /wave/ prefix catch-all to bypass TimeoutHandler.
 	// http.TimeoutHandler buffers the entire response before flushing, which stalls streaming.
@@ -469,31 +497,41 @@ func RunWebServer(listener net.Listener) {
 	gr.PathPrefix(schemaPrefix).Handler(http.StripPrefix(schemaPrefix, schema.GetSchemaHandler()))
 
 	handler := http.Handler(gr)
-	if wavebase.IsDevMode() {
+	{
 		originalHandler := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			if origin != "" {
+			if authkey.AllowsCORS(r) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Session-Id, X-AuthKey, Authorization, X-Requested-With, Accept, x-vercel-ai-ui-message-stream")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Session-Id, X-AuthKey, X-Molten-Caller, X-Molten-Proof, Authorization, X-Requested-With, Accept, x-vercel-ai-ui-message-stream")
 			w.Header().Set("Access-Control-Expose-Headers", "X-ZoneFileInfo, Content-Length, Content-Type, x-vercel-ai-ui-message-stream")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 			if r.Method == "OPTIONS" {
-				w.WriteHeader(204)
+				if authkey.AllowsCORS(r) {
+					w.WriteHeader(http.StatusNoContent)
+				} else {
+					w.WriteHeader(http.StatusForbidden)
+				}
 				return
 			}
 
 			originalHandler.ServeHTTP(w, r)
 		})
 	}
+	return handler
+}
+
+// blocking
+func RunWebServer(listener net.Listener) {
 	server := &http.Server{
 		ReadTimeout:    HttpReadTimeout,
 		WriteTimeout:   HttpWriteTimeout,
 		MaxHeaderBytes: HttpMaxHeaderBytes,
-		Handler:        handler,
+		Handler:        makeWebHandler(),
 	}
 	err := server.Serve(listener)
 	if err != nil {

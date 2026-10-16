@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#805): await the native WebSocket transport before connecting.
 
 import { setWpsRpcClient, wpsReconnectHandler } from "@/app/store/wps";
 import { WshClient } from "@/app/store/wshclient";
@@ -111,7 +112,9 @@ if (globalThis.window != null) {
     globalThis["consumeGenerator"] = consumeGenerator;
 }
 
-function initElectronWshrpc(electronClient: WshClient, eoOpts: ElectronOverrideOpts) {
+async function initElectronWshrpc(electronClient: WshClient, eoOpts: ElectronOverrideOpts) {
+    const { waitForNativeWebSocket } = await import("@/util/wsutil");
+    await waitForNativeWebSocket();
     setDefaultRouter(new WshRouter(new UpstreamWshRpcProxy()));
     const handleFn = (event: WSEventType) => {
         DefaultRouter.recvRpcMessage(event.data);

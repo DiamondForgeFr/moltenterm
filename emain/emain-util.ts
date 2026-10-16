@@ -3,6 +3,7 @@
 
 import * as electron from "electron";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
+import { isPDFPreviewDestination } from "./moltenterm-app-auth-policy"; // MOLTENTERM-PATCH (#805)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 
 export const WaveAppPathVarName = "WAVETERM_APP_PATH";
@@ -99,6 +100,10 @@ export function handleCtrlShiftState(sender: Electron.WebContents, waveEvent: Wa
 }
 
 export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavigateEventParams>, url: string) {
+    if (isPDFPreviewDestination(url, getWebServerEndpoint())) {
+        event.preventDefault();
+        return; // Resource capabilities stay in their PDF frame; never log or hand them to an external browser.
+    }
     const isDev = !electron.app.isPackaged;
     if (
         isDev &&
@@ -138,7 +143,12 @@ export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWill
         return;
     }
     const url = event.url;
-    console.log(`frame-navigation url=${url} frame=${event.frame.name}`);
+    const previewResource = isPDFPreviewDestination(url, getWebServerEndpoint());
+    console.log(`frame-navigation url=${previewResource ? "[PDF resource]" : url} frame=${event.frame.name}`);
+    if (previewResource) {
+        if (!frameOrAncestorHasName(event.frame, "pdfview")) event.preventDefault();
+        return;
+    }
     if (event.frame.name == "webview") {
         // "webview" links always open in new window
         // this will *not* effect the initial load because srcdoc does not count as an electron navigation

@@ -77,7 +77,7 @@ vi.mock("node:child_process", () => ({
     },
 }));
 vi.mock("../frontend/util/endpoints", () => ({ WebServerEndpointVarName: "WEB", WSServerEndpointVarName: "WS" }));
-vi.mock("./authkey", () => ({ AuthKey: "key", WaveAuthKeyEnv: "AUTHKEY" }));
+vi.mock("./authkey", () => ({ AuthKey: "key", WaveAuthKeyEnv: "AUTHKEY", CallerSecret: "proof-secret", AppOrigin: "" }));
 vi.mock("./emain-activity", () => ({ setForceQuit: vi.fn(), setUserConfirmedQuit: vi.fn() }));
 vi.mock("./emain-platform", () => ({
     getElectronAppResourcesPath: () => "/res",
