@@ -204,17 +204,6 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     };
     useEffect(() => {
         defaultRef.current?.focus();
-        // On the window, before the document's listeners: the Validate sheet under this dialog keeps its Escape.
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") {
-                return;
-            }
-            e.stopPropagation();
-            e.preventDefault();
-            pending.answer(null);
-        };
-        window.addEventListener("keydown", onKey, true);
-        return () => window.removeEventListener("keydown", onKey, true);
     }, [pending]);
     const keys = ChoiceKeys[pending.kind];
     const vars = {
@@ -240,6 +229,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     return (
         <DialogFrame
             role="agent-choice"
+            onEscape={() => pending.answer(null)}
             title={t(keys.title, vars)}
             subtitle={t("agentChoice.subtitle", vars)}
             widthClass="w-[520px]"

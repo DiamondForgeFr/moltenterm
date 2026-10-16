@@ -11,7 +11,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
@@ -322,7 +322,6 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const cancelRef = useRef<HTMLButtonElement>(null);
-    useEscape(!busy, onCancel);
     // After the frame: the pane the click came from takes the focus back on mouseup, which would leave the dialog
     // without it.
     useEffect(() => {
@@ -344,6 +343,7 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
     return (
         <DialogFrame
             role="molten-git-init"
+            onEscape={busy ? undefined : onCancel}
             title={t("mc.frame.gitInitTitle")}
             subtitle={dir}
             trapFocus

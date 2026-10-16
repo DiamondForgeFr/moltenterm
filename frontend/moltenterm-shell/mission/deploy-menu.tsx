@@ -6,7 +6,7 @@
 // same dialog the CD tab's Run button opens.
 
 import { useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
@@ -67,10 +67,10 @@ function DeployConfirm({
     onCancel: () => void;
 }) {
     const t = useT();
-    useEscape(true, onCancel);
     return (
         <DialogFrame
             role="deploy-confirm"
+            onEscape={onCancel}
             title={t("mc.deploy.confirmTitle", { env: target.environment })}
             trapFocus
             buttons={

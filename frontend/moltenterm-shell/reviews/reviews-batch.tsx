@@ -12,6 +12,7 @@ import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { topModal } from "../modal-focus";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { BatchRuns } from "./reviews-batch-client";
@@ -154,8 +155,12 @@ export function BatchConfirmDialog({
     useEffect(() => {
         startRef.current?.focus();
         const onKey = (e: KeyboardEvent) => {
+            const dialog = startRef.current?.closest('[role="dialog"]');
+            if (dialog == null || topModal() !== dialog) {
+                return;
+            }
             const answer = batchConfirmKey(e.key);
-            if (answer == null) {
+            if (answer == null || answer === "cancel") {
                 return;
             }
             // Another button with the focus (Cancel) answers Enter itself.
@@ -164,11 +169,8 @@ export function BatchConfirmDialog({
                 return;
             }
             e.stopPropagation();
+            e.stopImmediatePropagation();
             e.preventDefault();
-            if (answer === "cancel") {
-                onCancel();
-                return;
-            }
             startRefFn.current();
         };
         window.addEventListener("keydown", onKey, true);
@@ -178,6 +180,7 @@ export function BatchConfirmDialog({
     return (
         <DialogFrame
             role="reviews-batch-confirm"
+            onEscape={onCancel}
             title={tCount("reviews.batch.confirm.title", count)}
             subtitle={t("reviews.batch.confirm.subtitle", { base, method })}
             widthClass="w-[560px]"

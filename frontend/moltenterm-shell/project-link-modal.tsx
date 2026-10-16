@@ -14,7 +14,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ScrimClass } from "./dialog-frame";
+import { ScrimClass, useEscape } from "./dialog-frame";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
@@ -63,15 +63,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
             setName(facts.name);
         });
     }, [offer.dir]);
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                decline();
-            }
-        };
-        document.addEventListener("keydown", onKey, true);
-        return () => document.removeEventListener("keydown", onKey, true);
-    });
+    useEscape(true, () => decline(), "workspace-project-link");
     const run = (fn: () => Promise<void>) =>
         fireAndForget(async () => {
             setBusy(true);
@@ -96,7 +88,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
     const decline = () =>
         run(() => dismissProject(ws.oid, withDismissed(readDismissed(ws.meta as Record<string, any>), offer.dir)));
     return createPortal(
-        <div className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}>
+        <div data-role="workspace-project-link" className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}>
             <div
                 role="dialog"
                 aria-modal="true"

@@ -14,7 +14,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { BuildIdentity, isReleaseChannel } from "../build/build-identity";
 import type { MoltentermBuildChange } from "../build/build-info";
 import { currentBuildIdentity, readBuildInfo } from "../build/current-build";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { getLocale, useT } from "../i18n/i18n";
 import { readableSubject } from "../mission/versions";
 import { SuiteSignature } from "../suite/suite";
@@ -226,7 +226,6 @@ export function ReleaseNotesWindow() {
     useEffect(() => {
         listRef.current?.querySelector<HTMLElement>('[aria-current="true"]')?.focus();
     }, []);
-    useEscape(true, () => model.close());
 
     const move = (e: React.KeyboardEvent) => {
         const keys = history.selectable;
@@ -266,6 +265,7 @@ export function ReleaseNotesWindow() {
     return (
         <DialogFrame
             role="release-notes"
+            onEscape={() => model.close()}
             title={t("releases.title")}
             subtitle={subtitle}
             belowSubtitle={<SuiteSignature className="mt-0.5" label={t("common.diamondforgeProduct")} />}
