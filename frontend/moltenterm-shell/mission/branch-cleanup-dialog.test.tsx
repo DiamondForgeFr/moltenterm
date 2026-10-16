@@ -28,6 +28,7 @@ describe("the branch cleaning dialog (#746)", () => {
         expect(html).toContain("molten-scrim");
         const buttons = html.match(/<button[^>]*>[^<]*/g);
         expect(buttons[0]).toMatch(/>Cancel$/);
-        expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf("Delete"));
+        // While the plan loads there is nothing to delete, so no Delete button (#745).
+        expect(html).not.toContain("Delete");
     });
 });
