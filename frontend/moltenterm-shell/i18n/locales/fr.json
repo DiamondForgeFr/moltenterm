@@ -4051,6 +4051,11 @@
         "empty": "Les panneaux que vous ouvrez se placent ici",
         "addStart": "Ajouter un panneau à gauche",
         "addEnd": "Ajouter un panneau à droite",
+        "grip": {
+            "noRoomFloor": "Cette colonne ne peut pas être redimensionnée ici : son terminal a besoin de cette largeur pour rester lisible, et le tapis a besoin du reste de la fenêtre.",
+            "noRoomWindow": "Cette colonne ne peut pas être redimensionnée ici : la fenêtre est trop étroite pour laisser de la place au tapis. Élargissez la fenêtre pour la redimensionner.",
+            "noRoomColumns": "Cette colonne ne peut pas être élargie : les autres colonnes fixes prennent le reste de la place. Rétrécissez-en une d'abord."
+        },
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",

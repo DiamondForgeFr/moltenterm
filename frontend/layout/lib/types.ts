@@ -369,6 +369,8 @@ export interface ResizeHandleProps {
     centerPx: number;
     transform: CSSProperties;
     flexDirection: FlexDirection;
+    // MOLTENTERM-PATCH (#829): set when the handle cannot move; the i18n key of what hovering it says
+    stuckTitleKey?: string;
 }
 
 export interface LayoutNodeAdditionalProps {

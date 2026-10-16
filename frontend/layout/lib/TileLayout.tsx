@@ -19,6 +19,7 @@ import React, {
 import { DropTargetMonitor, XYCoord, useDrag, useDragLayer, useDrop } from "react-dnd";
 import { debounce, throttle } from "throttle-debounce";
 import { useDevicePixelRatio } from "use-device-pixel-ratio";
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#829)
 import { View360Overlay, View360Underlay } from "../../moltenterm-shell/view360/view360-carpet"; // MOLTENTERM-PATCH (#614)
 import { interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { LayoutModel } from "./layoutModel";
@@ -444,6 +445,8 @@ interface ResizeHandleComponentProps {
 const ResizeHandle = memo(({ resizeHandleAtom, layoutModel }: ResizeHandleComponentProps) => {
     const resizeHandleProps = useAtomValue(resizeHandleAtom);
     const resizeHandleRef = useRef<HTMLDivElement>(null);
+    const t = useT(); // MOLTENTERM-PATCH (#829)
+    const stuckTitleKey = resizeHandleProps.stuckTitleKey;
 
     // The pointer currently captured, or undefined.
     const [trackingPointer, setTrackingPointer] = useState<number>(undefined);
@@ -481,7 +484,10 @@ const ResizeHandle = memo(({ resizeHandleAtom, layoutModel }: ResizeHandleCompon
     return (
         <div
             ref={resizeHandleRef}
-            className={clsx("resize-handle", `flex-${resizeHandleProps.flexDirection}`)}
+            className={clsx("resize-handle", `flex-${resizeHandleProps.flexDirection}`, {
+                "mt-handle-stuck": stuckTitleKey != null, // MOLTENTERM-PATCH (#829): it cannot move, its title says why
+            })}
+            title={stuckTitleKey != null ? t(stuckTitleKey) : undefined}
             onPointerDown={onPointerDown}
             onGotPointerCapture={onPointerCapture}
             onLostPointerCapture={onPointerRelease}
