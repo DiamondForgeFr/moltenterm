@@ -429,6 +429,30 @@ func TestMorphGuideClaudeCodePart(t *testing.T) {
 	}
 }
 
+// #720: every agent's /morph names the planned capability an out-of-reach request waits for, and a text change
+// targets the current interface language (audit #713, probe P1).
+func TestMorphGuideNamesPlannedCapabilities(t *testing.T) {
+	for _, p := range AgentProfiles {
+		content, err := p.Render("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Out of reach for now", "#721", "#722", "#723", "#724", "#725", "#726"} {
+			if !strings.Contains(content, want) {
+				t.Errorf("%s: the guide lacks %q", p.Id, want)
+			}
+		}
+	}
+	format, _ := agentdocs.Files.ReadFile("mod-format.md")
+	if strings.Contains(string(format), "#31") || !strings.Contains(string(format), "#726") {
+		t.Error("mod-format.md must name the planned capabilities, not the closed #31")
+	}
+	pack, _ := agentdocs.Files.ReadFile("language-pack.md")
+	if !strings.Contains(string(pack), "interface language:") {
+		t.Error("language-pack.md must tell the agent to target the current interface language")
+	}
+}
+
 // #383: an agent that has the guide runs the project's local CI through Mission Control, for every agent, from the
 // one rule file.
 func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
@@ -465,6 +489,21 @@ func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
 	format, _ := os.ReadFile(filepath.Join(dir, "pipeline-format.md"))
 	if !strings.Contains(string(format), "molten ci run") {
 		t.Error("pipeline-format.md must point to molten ci run")
+	}
+}
+
+// #789: the agent docs give the canonical heading the Reviews list finds a test report by.
+func TestPipelineGuideGivesTheTestReportHeading(t *testing.T) {
+	pipeline, err := FindGuide(PipelineGuideName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := guideSource(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(source, "first line is exactly `## Test report`") {
+		t.Error("the molten-pipeline guide must give the canonical test report heading")
 	}
 }
 

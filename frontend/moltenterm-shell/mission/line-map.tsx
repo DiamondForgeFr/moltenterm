@@ -1303,7 +1303,7 @@ export const MapSvg = memo(function MapSvg({
                         <line className="lm-tick" x1={t.x} x2={t.x} y1={geo.tickTop} y2={geo.tickBottom} />
                         <text
                             className={cn("lm-ticktxt", t.now && "lm-ticktxt-now")}
-                            x={t.x}
+                            x={t.labelX}
                             y={geo.height - 6}
                             textAnchor="middle"
                         >

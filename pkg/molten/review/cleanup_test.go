@@ -40,11 +40,11 @@ type cleanupFixture struct {
 	// prHead: the head gh says it merged; headOid when empty.
 	prHead string
 
-	lock      sync.Mutex
-	ghCalls   [][]string
-	prState   string
-	issue     string
-	openPrs   string
+	lock    sync.Mutex
+	ghCalls [][]string
+	prState string
+	issue   string
+	openPrs string
 	// openPrsSeq: the answers of the first gh pr list calls, in order, before openPrs (GitHub computing mergeability).
 	openPrsSeq []string
 	ghFail     map[string]error
@@ -56,6 +56,27 @@ type cleanupFixture struct {
 	typed         map[string]string
 	opened        int
 	mergeableWait time.Duration
+	// #716: refuseRemove makes git worktree remove fail without doing anything; afterRemove runs after a removal git
+	// did, and its error is git's (a file written during the removal). removeAll removes the leftovers (os.RemoveAll
+	// when nil); removeAlls counts its calls, waits the waits between them.
+	refuseRemove error
+	afterRemove  func(path string) error
+	removeAll    func(path string) error
+	removeAlls   int
+	waits        int
+}
+
+// worktreeRemoveOf is the path of a git worktree remove call, "" for any other command.
+func worktreeRemoveOf(name string, args []string) string {
+	if name != "git" {
+		return ""
+	}
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "worktree" && args[i+1] == "remove" {
+			return args[len(args)-1]
+		}
+	}
+	return ""
 }
 
 func gitEnv() []string {
@@ -162,6 +183,10 @@ func (f *cleanupFixture) run(ctx context.Context, dir string, name string, args 
 	if name == "gh" {
 		return f.gh(args)
 	}
+	removed := worktreeRemoveOf(name, args)
+	if removed != "" && f.refuseRemove != nil {
+		return nil, f.refuseRemove
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = gitEnv()
@@ -171,7 +196,17 @@ func (f *cleanupFixture) run(ctx context.Context, dir string, name string, args 
 	if err != nil {
 		return out, fmt.Errorf("%s %s: %s", name, strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
+	if removed != "" && f.afterRemove != nil {
+		return out, f.afterRemove(removed)
+	}
 	return out, nil
+}
+
+// recreateDsStore is what the system's file browser does in the issue: it writes into the folder git is deleting, and
+// git's last rmdir fails.
+func (f *cleanupFixture) recreateDsStore(path string) error {
+	f.write(path, ".DS_Store", "metadata")
+	return fmt.Errorf("git worktree remove -- %s: error: failed to delete '%s': Directory not empty", path, path)
 }
 
 func (f *cleanupFixture) worktreeTerminals(ctx context.Context, path string) []mission.WorktreeTerminal {
@@ -212,6 +247,26 @@ func (f *cleanupFixture) restarter() *Restarter {
 }
 
 func (f *cleanupFixture) cleaner() *Cleaner {
+	c := f.makeCleaner()
+	c.worktrees.SetLeftoverHooks(func(path string) error {
+		f.lock.Lock()
+		f.removeAlls++
+		remove := f.removeAll
+		f.lock.Unlock()
+		if remove == nil {
+			return os.RemoveAll(path)
+		}
+		return remove(path)
+	}, func(ctx context.Context, d time.Duration) bool {
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		f.waits++
+		return true
+	})
+	return c
+}
+
+func (f *cleanupFixture) makeCleaner() *Cleaner {
 	return MakeCleaner(CleanupEnv{
 		Run:           f.run,
 		Terminals:     f.worktreeTerminals,
@@ -394,6 +449,23 @@ func TestCleanupAfterMerge(t *testing.T) {
 	}
 	if len(f.typed) != 1 || f.opened != 0 {
 		t.Errorf("only the idle agent is reached, nothing is started: typed %v opened %d", f.typed, f.opened)
+	}
+}
+
+// A batch merge's own PRs (FR-REV-025) are left to the batch: their agents are not asked for a rebase.
+func TestCleanupLeavesTheBatchPrsToTheBatch(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
+	f.openPrs = `[{"number":9,"headRefName":"feature/9-idle","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}]`
+
+	result := f.cleanup(CleanupRequest{BatchPrs: []int{9}})
+
+	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateDone)
+	if pr := otherPrsByNumber(others)[9]; pr.State != CleanupStateDone || pr.Flag != CleanupFlagBatch {
+		t.Errorf("batch PR: %+v", pr)
+	}
+	if len(f.typed) != 0 || f.opened != 0 {
+		t.Errorf("no agent is reached for a batch PR: typed %v opened %d", f.typed, f.opened)
 	}
 }
 

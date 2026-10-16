@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -48,6 +49,22 @@ func TestNotificationPublishAddsAndUpdatesByKey(t *testing.T) {
 	got, _ := changed["molten:notif:a"].(map[string]any)
 	if len(changed) != 1 || got["message"] != "Build 1234567" || got["read"] != false || got["updated"] != float64(3000) || got["time"] != float64(1000) {
 		t.Fatalf("changed content updates in place and is unread again: %+v", changed)
+	}
+}
+
+func TestNotificationUpdateDropsTheCodesItReplaces(t *testing.T) {
+	now := time.UnixMilli(1000)
+	coded := NotificationInput{Key: "k", Source: "build", Title: "Gold is built", TitleText: uimsg.Make("notif.build.builtTitle", "name", "Gold"),
+		Message: "Build 1 finished.", MessageText: uimsg.Make("notif.build.finished", "sha", "1")}
+	meta := roundTrip(t, waveobj.MetaMapType(NotificationPublishUpdate(nil, coded, now, "a")))
+	stored, _ := meta["molten:notif:a"].(map[string]any)
+	if stored["titletext"] == nil || stored["messagetext"] == nil {
+		t.Fatalf("the codes are stored with the notification: %+v", stored)
+	}
+	plain := NotificationInput{Key: "k", Source: "build", Title: "Gold", Message: "an agent's words"}
+	got, _ := NotificationPublishUpdate(meta, plain, now.Add(time.Second), "b")["molten:notif:a"].(map[string]any)
+	if got == nil || got["title"] != "Gold" || got["titletext"] != nil || got["messagetext"] != nil {
+		t.Fatalf("an update without codes keeps none of the old ones: %+v", got)
 	}
 }
 
@@ -126,6 +143,34 @@ func TestNotificationRetention(t *testing.T) {
 	want := []string{"old", "ra", "rb"}
 	if !reflect.DeepEqual(sortedStrings(dropped), want) {
 		t.Fatalf("dropped %v, want %v (open ones never dropped)", dropped, want)
+	}
+}
+
+func TestNotificationAgentDoneFoldsItsWaiting(t *testing.T) {
+	now := time.UnixMilli(1000)
+	meta := waveobj.MetaMapType{
+		"molten:notif:wait":  notif(map[string]any{"source": "agent", "kind": "warning", "blockid": "b1", "title": "Margaux is waiting for you"}),
+		"molten:notif:other": notif(map[string]any{"source": "agent", "kind": "warning", "blockid": "b2"}),
+		"molten:notif:shell": notif(map[string]any{"source": "sessions", "kind": "warning", "blockid": "b1"}),
+	}
+	update := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Kind: "success", Title: "Margaux finished", BlockId: "b1"}, now, "done")
+	var keys []string
+	for k := range update {
+		keys = append(keys, strings.TrimPrefix(k, NotificationKeyPrefix))
+	}
+	if want := []string{"done", "wait"}; !reflect.DeepEqual(sortedStrings(keys), want) {
+		t.Fatalf("update touches %v, want %v", keys, want)
+	}
+	folded, _ := update["molten:notif:wait"].(map[string]any)
+	if folded["resolved"] != float64(1000) || folded["archived"] != float64(1000) || folded["read"] != true || folded["title"] != "Margaux is waiting for you" {
+		t.Fatalf("the outdated waiting is folded: %v", folded)
+	}
+}
+
+func TestNotificationSessionsShareTheAgentsSubject(t *testing.T) {
+	meta := waveobj.MetaMapType{NotificationPrefsMetaKey: map[string]any{"agents": "off"}}
+	if update := NotificationPublishUpdate(meta, NotificationInput{Source: "sessions", Kind: "info", Title: "kept"}, time.UnixMilli(1), "a"); update != nil {
+		t.Fatalf("agents are off, the sessions' news follows: %v", update)
 	}
 }
 

@@ -163,9 +163,19 @@ async function setWorkspaceMeta(workspaceId: string, meta: Record<string, any>):
     await RpcApi.SetMetaCommand(TabRpcClient, { oref: makeORef("workspace", workspaceId), meta: meta as MetaType });
 }
 
+function latestWorkspace(ws: Workspace): Workspace {
+    return globalStore.get(getWaveObjectAtom<Workspace>(makeORef("workspace", ws.oid))) ?? ws;
+}
+
+// The linked folder joins the workspace's recent folders (#749). The workspace is read again: a caller's copy can
+// predate a folder set just before the link, which would be dropped from the history.
 export async function linkWorkspaceProject(ws: Workspace, folder: string): Promise<string> {
     const dir = await resolveProjectDir(folder);
-    await setWorkspaceMeta(ws.oid, linkUpdate(readWorkspaceProject(ws), dir));
+    const latest = latestWorkspace(ws);
+    await setWorkspaceMeta(ws.oid, {
+        ...linkUpdate(readWorkspaceProject(latest), dir),
+        [WorkspaceRecentFoldersMetaKey]: pushRecentFolder(readRecentFolders(latest), dir),
+    });
     return dir;
 }
 
@@ -178,7 +188,7 @@ export async function unlinkWorkspaceProject(workspaceId: string): Promise<void>
 export async function setWorkspaceFolder(workspaceId: string, folder: string): Promise<void> {
     const meta: Record<string, any> = { [WorkspaceFolderMetaKey]: folder || null };
     if (folder) {
-        const ws = globalStore.get(getWaveObjectAtom<Workspace>(makeORef("workspace", workspaceId)));
+        const ws = latestWorkspace({ oid: workspaceId } as Workspace);
         meta[WorkspaceRecentFoldersMetaKey] = pushRecentFolder(readRecentFolders(ws), folder);
     }
     await setWorkspaceMeta(workspaceId, meta);

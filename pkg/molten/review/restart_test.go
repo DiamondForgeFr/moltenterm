@@ -37,6 +37,19 @@ type restartFixture struct {
 	installed map[string]bool
 	typeOut   RestartTypeOutcome
 	conv      *molten.ProjectConventions
+	// The agent tabs made (#758): name, hidden; the terminals closed, the notifications and the resolved keys.
+	tabs     []agentTabCall
+	closed   []string
+	notes    []molten.NotificationInput
+	resolved []string
+	gone     map[string]bool
+}
+
+type agentTabCall struct {
+	workspaceId string
+	name        string
+	meta        waveobj.MetaMapType
+	hidden      bool
 }
 
 func makeRestartFixture(t *testing.T) *restartFixture {
@@ -65,7 +78,7 @@ func makeRestartFixture(t *testing.T) *restartFixture {
 	f := &restartFixture{cleanupFixture: base, k: PrKey{Repo: restartRepo, Number: 9}, store: MakeStore(base.dataDir),
 		typed: map[string]string{}, runs: map[string]molten.AgentRunInfo{}, terms: map[string][]mission.WorktreeTerminal{},
 		review: map[string]bool{}, installed: map[string]bool{molten.AgentIdClaude: true, molten.AgentIdCodex: true},
-		typeOut: RestartTypeOutcome{Sent: true, Submitted: true}}
+		typeOut: RestartTypeOutcome{Sent: true, Submitted: true}, gone: map[string]bool{}}
 	git := func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = dir
@@ -96,6 +109,23 @@ func makeRestartFixture(t *testing.T) *restartFixture {
 		AgentInstalled: func(agent string) bool { return f.installed[agent] },
 		AgentOrder:     []string{molten.AgentIdClaude, molten.AgentIdCodex},
 		Conventions:    func(dir string) *molten.ProjectConventions { return f.conv },
+		AgentTab: func(ctx context.Context, workspaceId string, name string, meta waveobj.MetaMapType, hidden bool) (string, error) {
+			f.tabs = append(f.tabs, agentTabCall{workspaceId: workspaceId, name: name, meta: meta, hidden: hidden})
+			return "agent-tab", nil
+		},
+		BlockExists: func(ctx context.Context, blockId string) bool { return !f.gone[blockId] },
+		CloseTerminal: func(ctx context.Context, blockId string) error {
+			f.closed = append(f.closed, blockId)
+			return nil
+		},
+		Notify: func(ctx context.Context, input molten.NotificationInput) error {
+			f.notes = append(f.notes, input)
+			return nil
+		},
+		ResolveNotices: func(ctx context.Context, keyPrefix string) error {
+			f.resolved = append(f.resolved, keyPrefix)
+			return nil
+		},
 	})
 	return f
 }
@@ -124,7 +154,7 @@ func (f *restartFixture) publishRound() {
 
 func (f *restartFixture) request() RestartRequest {
 	return RestartRequest{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x", BaseRef: "develop", Title: "Fix x",
-		TabId: "tab-1", AfterBlockId: "review-block"}
+		Start: true, Mode: AgentModeBackground, WorkspaceId: "ws-1", TabName: "Relance #9"}
 }
 
 func (f *restartFixture) restart() RestartResult {

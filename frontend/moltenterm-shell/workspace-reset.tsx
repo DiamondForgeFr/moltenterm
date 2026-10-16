@@ -18,6 +18,7 @@ import { busyCloseEnabled, readWorkspaceRunning } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { t, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { workspaceShownName } from "./workspace-default-name";
 import { resetLossText } from "./workspace-reset-model";
 
 const PlainButton =
@@ -55,7 +56,7 @@ export function askResetWorkspace(workspaceId: string): void {
         } catch (e) {
             console.log("panes of the workspace to reset", e);
         }
-        const name = ws.name || t("workspace.reset.unsaved");
+        const name = workspaceShownName(ws.name, t) || t("workspace.reset.unsaved");
         const running = busyCloseEnabled() ? await readWorkspaceRunning(workspaceId, name) : [];
         globalStore.set(ResetRequestAtom, {
             workspaceId,

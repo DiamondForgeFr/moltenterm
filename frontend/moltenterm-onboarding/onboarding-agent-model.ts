@@ -11,6 +11,9 @@ export const OnboardingAgentInstallCommand = "onboardingagentinstall";
 export const GenericAgentId = "generic";
 // The step's data key holding the id of the agent the user works with.
 export const ChosenAgentKey = "agent";
+// A line pasted into an agent stays English, its placeholder included (#749): agents read English, and a line mixing
+// two languages reads as broken. The text around it, shown to the user, is translated and says what to replace.
+export const GenericRequestPlaceholder = "<what you want MoltenTerm to do>";
 
 export type OnboardingGuide = {
     name: string;

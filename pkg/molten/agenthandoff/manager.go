@@ -17,11 +17,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
-	// The developer has this long to answer the first send between two agents: under Codex's default 60-second MCP
-	// tool timeout, so the agent reads the outcome instead of a timeout.
+	// The sender waits this long for the developer's answer to the first send between two agents: under Codex's default
+	// 60-second MCP tool timeout, so the agent reads the outcome instead of a timeout. The request itself stays open
+	// after that, until the developer answers (#790).
 	DefaultApprovalTimeout = 50 * time.Second
 	// A queued handoff waits this long for its receiver's idle prompt.
 	DefaultQueueTimeout = time.Hour
@@ -37,8 +39,12 @@ const (
 	errNotInMoltenTerm = "Not running in a MoltenTerm terminal"
 	errRemote          = "Handoffs between agents work in local terminals only, not over SSH or WSL"
 	errNotUi           = "only a MoltenTerm window can answer a handoff request"
-	errNoAnswer        = "No answer from the developer (50 seconds): nothing was sent. Ask them, then send again."
 	errDismissed       = "The developer did not allow this handoff: nothing was sent."
+
+	// A late answer and its delivery run apart from the window's answer call, which returns at once.
+	lateDeliveryTimeout = 30 * time.Second
+	// What MoltenTerm types in the sender's terminal starts with this, so the agent tells it from the developer's words.
+	receiptPrefix = "[MoltenTerm]"
 )
 
 // Location is where a pane is now.
@@ -76,9 +82,16 @@ type Env interface {
 	DataDir() string
 }
 
+// pendingAnswer is a request waiting for the developer. late: the sender stopped waiting, so the answer, whenever it
+// comes, is carried out by Answer itself and its outcome typed in the sender's terminal.
 type pendingAnswer struct {
-	pair   string
-	answer chan string
+	pair     string
+	answer   chan string
+	late     bool
+	notifKey string
+	from     Party
+	to       Party
+	brief    Brief
 }
 
 type delivery struct {
@@ -87,6 +100,8 @@ type delivery struct {
 	line      string
 	briefPath string
 	queuedAt  time.Time
+	// receipt: MoltenTerm's own line to the sender of a late answer; failing to type it is only logged.
+	receipt bool
 }
 
 type Manager struct {
@@ -207,6 +222,7 @@ func (m *Manager) party(blockId string, run molten.AgentRunInfo, hasRun bool, lo
 		Tab:        loc.TabName,
 	}
 	p.WorkspaceId = loc.WorkspaceId
+	p.TabId = loc.TabId
 	if hasRun && run.Running {
 		p.FirstName = run.FirstName
 		p.Agent = run.Agent
@@ -362,10 +378,26 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (SendResult, error)
 	if err := m.resolveBrowserLinks(ctx, senderId, &brief); err != nil {
 		return SendResult{}, err
 	}
-	if err := m.approve(ctx, from, to, brief); err != nil {
+	pending, err := m.approve(ctx, from, to, brief)
+	if err != nil {
 		m.logf("%s from=%q to=%q refused: %v\n", logPrefix, from.callName(), to.callName(), err)
 		return SendResult{}, err
 	}
+	if pending {
+		m.logf("%s from=%q to=%q waits for the developer\n", logPrefix, from.callName(), to.callName())
+		return SendResult{Status: StatusPending, To: to.FirstName, Message: pendingMessage(to)}, nil
+	}
+	return m.complete(ctx, from, to, brief)
+}
+
+func pendingMessage(to Party) string {
+	return fmt.Sprintf("The developer has not answered yet: the request stays in MoltenTerm's notifications and nothing "+
+		"is sent to %s until they allow it. When they answer, MoltenTerm types the outcome in your terminal, starting "+
+		"with %s. Do not send it again: carry on with other work or end your turn.", to.callName(), receiptPrefix)
+}
+
+// complete writes the brief of an allowed handoff and delivers its prompt.
+func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brief) (SendResult, error) {
 	path, err := writeBrief(m.env.DataDir(), from, to, brief, m.now())
 	if err != nil {
 		return SendResult{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
@@ -419,34 +451,73 @@ func (m *Manager) takePending(id string) *pendingAnswer {
 	return p
 }
 
+// stopWaiting marks the request late when the sender's wait ends. ok false: the answer came meanwhile, here it is.
+func (m *Manager) stopWaiting(id string, p *pendingAnswer) (string, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.pending[id] == nil {
+		// claimAnswer took it and filled the buffered channel under this lock: the read does not block.
+		return <-p.answer, false
+	}
+	p.late = true
+	return "", true
+}
+
+// claimAnswer takes the request for the answer. A sender still waiting gets the decision through its channel; late
+// tells the caller to carry it out.
+func (m *Manager) claimAnswer(id string, decision string) (*pendingAnswer, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	p := m.pending[id]
+	if p == nil {
+		return nil, false
+	}
+	delete(m.pending, id)
+	if p.late {
+		return p, true
+	}
+	p.answer <- decision
+	return p, false
+}
+
 // approve asks the developer for the first send between two panes (NFR-CONT-005): Allow once, Always for this pair,
-// Block. Nothing else answers it: coffee mode approves agents' own permission requests, never this one.
-func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) error {
+// Block. Nothing else answers it: coffee mode approves agents' own permission requests, never this one. pending: the
+// developer had not answered when the wait ended; the request stays open and Answer carries it out (#790).
+func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) (bool, error) {
 	key := pairKey(from.BlockId, to.BlockId)
 	switch m.pairDecision(key) {
 	case DecisionAlways:
-		return nil
+		return false, nil
 	case DecisionBlock:
-		return fmt.Errorf("The developer blocked handoffs between %s and %s until MoltenTerm restarts: nothing was sent.", from.callName(), to.callName())
+		return false, fmt.Errorf("The developer blocked handoffs between %s and %s until MoltenTerm restarts: nothing was sent.", from.callName(), to.callName())
 	}
 	id := uuid.NewString()
-	p := &pendingAnswer{pair: key, answer: make(chan string, 1)}
-	m.addPending(id, p)
 	notifKey := NotificationKeyPrefix + id
+	p := &pendingAnswer{pair: key, answer: make(chan string, 1), notifKey: notifKey, from: from, to: to, brief: b}
+	m.addPending(id, p)
 	m.env.Notify(approvalNotification(notifKey, id, from, to, b))
-	defer m.env.ResolveNotification(notifKey)
 	timer := time.NewTimer(m.approvalTimeout)
 	defer timer.Stop()
 	var decision string
 	select {
 	case decision = <-p.answer:
 	case <-timer.C:
-		m.takePending(id)
-		return errors.New(errNoAnswer)
+		answer, late := m.stopWaiting(id, p)
+		if late {
+			return true, nil
+		}
+		decision = answer
 	case <-ctx.Done():
 		m.takePending(id)
-		return errors.New("Cancelled: nothing was sent.")
+		m.env.ResolveNotification(notifKey)
+		return false, errors.New("Cancelled: nothing was sent.")
 	}
+	m.env.ResolveNotification(notifKey)
+	return false, m.applyDecision(key, decision, from, to)
+}
+
+// applyDecision remembers the pair's answer; an error is a refusal.
+func (m *Manager) applyDecision(key string, decision string, from Party, to Party) error {
 	switch decision {
 	case DecisionOnce:
 		return nil
@@ -461,8 +532,8 @@ func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) er
 }
 
 func approvalNotification(key string, id string, from Party, to Party, b Brief) molten.NotificationInput {
-	action := func(actionId string, label string, decision string) molten.NotificationAction {
-		return molten.NotificationAction{Id: actionId, Label: label, Kind: "gesture", Gesture: AnswerGesture,
+	action := func(actionId string, label string, text *uimsg.Text, decision string) molten.NotificationAction {
+		return molten.NotificationAction{Id: actionId, Label: label, LabelText: text, Kind: "gesture", Gesture: AnswerGesture,
 			Args: map[string]any{"requestid": id, "decision": decision}}
 	}
 	fromWhere := from.label()
@@ -473,22 +544,34 @@ func approvalNotification(key string, id string, from Party, to Party, b Brief) 
 	if to.Project != "" {
 		toWhere += " in " + to.Project
 	}
+	goal := cut(cleanLine(b.Goal), 160)
 	return molten.NotificationInput{
-		Key:    key,
-		Source: NotificationSource,
-		Title:  capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
+		Key:       key,
+		Source:    NotificationSource,
+		Title:     capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
+		TitleText: uimsg.Make("handoff.approval.title", "from", from.callName(), "to", to.callName()),
 		Message: fmt.Sprintf("%s → %s: %s. Allowing it types a prompt in %s's terminal.", capitalize(fromWhere), toWhere,
-			cut(cleanLine(b.Goal), 160), to.callName()),
+			goal, to.callName()),
+		// The windows show where each agent works with a separator rather than English's "in".
+		MessageText: uimsg.Make("handoff.approval.message", "from", partWhere(from), "to", partWhere(to), "goal", goal,
+			"receiver", to.callName()),
 		Kind:        "warning",
 		WorkspaceId: from.WorkspaceId,
 		// The asking agent waits on it: the 360 view's radar pulses that panel (FR-SHELL-068).
 		BlockId: from.BlockId,
 		Actions: []molten.NotificationAction{
-			action("once", "Allow once", DecisionOnce),
-			action("always", "Always for this pair", DecisionAlways),
-			action("block", "Block", DecisionBlock),
+			action("once", "Allow once", uimsg.Make("handoff.approval.once"), DecisionOnce),
+			action("always", "Always for this pair", uimsg.Make("handoff.approval.always"), DecisionAlways),
+			action("block", "Block", uimsg.Make("handoff.approval.block"), DecisionBlock),
 		},
 	}
+}
+
+func partWhere(p Party) string {
+	if p.Project == "" {
+		return p.label()
+	}
+	return p.label() + " · " + p.Project
 }
 
 // Answer is the developer's answer from a window.
@@ -501,12 +584,50 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	default:
 		return fmt.Errorf("unknown decision %q", req.Decision)
 	}
-	p := m.takePending(req.RequestId)
+	p, late := m.claimAnswer(req.RequestId, req.Decision)
 	if p == nil {
-		return errors.New("This handoff request is no longer waiting")
+		return uimsg.Errorf(uimsg.Make("handoff.notwaiting"), "This handoff request is no longer waiting")
 	}
-	p.answer <- req.Decision
+	if late {
+		go m.answerLate(p, req.Decision)
+	}
 	return nil
+}
+
+// answerLate carries out an answer given after the sender stopped waiting, and tells the sender in its terminal.
+func (m *Manager) answerLate(p *pendingAnswer, decision string) {
+	defer func() {
+		if r := recover(); r != nil {
+			m.logf("%s late answer panic: %v\n", logPrefix, r)
+		}
+	}()
+	m.env.ResolveNotification(p.notifKey)
+	if err := m.applyDecision(p.pair, decision, p.from, p.to); err != nil {
+		m.logf("%s from=%q to=%q refused late: %v\n", logPrefix, p.from.callName(), p.to.callName(), err)
+		m.tellSender(p.from, fmt.Sprintf("%s Your handoff to %s: %s", receiptPrefix, p.to.callName(), err.Error()))
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), lateDeliveryTimeout)
+	defer cancel()
+	res, err := m.complete(ctx, p.from, p.to, p.brief)
+	if err != nil {
+		m.logf("%s from=%q to=%q late delivery failed: %v\n", logPrefix, p.from.callName(), p.to.callName(), err)
+		m.tellSender(p.from, fmt.Sprintf("%s The developer allowed your handoff to %s, but it failed: %s", receiptPrefix,
+			p.to.callName(), err.Error()))
+		return
+	}
+	m.tellSender(p.from, fmt.Sprintf("%s The developer allowed your handoff to %s. %s", receiptPrefix, p.to.callName(), res.Message))
+}
+
+// tellSender types MoltenTerm's line in the sender's terminal, as a handoff's prompt is: now when its prompt is idle,
+// else queued. A pane without an agent (a shell's `molten agent send`) cannot take it: that is only logged.
+func (m *Manager) tellSender(sender Party, line string) {
+	d := &delivery{from: sender, to: sender, line: cutBytes(cleanLine(line), maxPromptBytes), queuedAt: m.now(), receipt: true}
+	ctx, cancel := context.WithTimeout(context.Background(), lateDeliveryTimeout)
+	defer cancel()
+	if _, err := m.deliver(ctx, d); err != nil {
+		m.logf("%s to=%q receipt not typed: %v\n", logPrefix, sender.callName(), err)
+	}
 }
 
 func receiverBusy(run molten.AgentRunInfo) bool {
@@ -528,9 +649,10 @@ func (m *Manager) deliver(ctx context.Context, d *delivery) (SendResult, error) 
 					rtn.Status, rtn.Message = StatusDelivered, fmt.Sprintf("Sent to %s. The brief is at %s.", d.to.FirstName, d.briefPath)
 					return rtn, nil
 				}
+				m.notifyTyped(d)
 				rtn.Status = StatusTyped
 				rtn.Message = fmt.Sprintf("Typed in %s's prompt without Enter, because the developer may have an unsent message there: "+
-					"it starts when they press Enter. The brief is at %s.", d.to.FirstName, d.briefPath)
+					"it starts when they press Enter (MoltenTerm told them). The brief is at %s.", d.to.FirstName, d.briefPath)
 				return rtn, nil
 			}
 			if !out.Retry {
@@ -644,6 +766,9 @@ func (m *Manager) runQueue(blockId string) {
 		}
 		if out.Sent {
 			m.logf("%s from=%q to=%q delivered from the queue submitted=%v\n", logPrefix, d.from.callName(), d.to.callName(), out.Submitted)
+			if !out.Submitted {
+				m.notifyTyped(d)
+			}
 		} else {
 			m.notifyUndelivered(d, out.Message)
 		}
@@ -654,12 +779,42 @@ func (m *Manager) runQueue(blockId string) {
 	}
 }
 
+// notifyTyped tells the developer a handoff's prompt waits for Enter in the receiver's terminal, behind what may be
+// their own unsent words there (#790): the action takes them to it, nothing moves by itself.
+func (m *Manager) notifyTyped(d *delivery) {
+	if d.receipt {
+		return
+	}
+	receiver := d.to.callName()
+	m.env.Notify(molten.NotificationInput{
+		Source:      NotificationSource,
+		Title:       fmt.Sprintf("Typed in %s's prompt: press Enter in its terminal to start", receiver),
+		TitleText:   uimsg.Make("handoff.typed.title", "receiver", receiver),
+		Message:     fmt.Sprintf("%s's handoff was added after what was already in the prompt. The brief is at %s.", capitalize(d.from.callName()), d.briefPath),
+		MessageText: uimsg.Make("handoff.typed.message", "from", capitalize(d.from.callName()), "path", d.briefPath),
+		Kind:        "warning",
+		WorkspaceId: d.to.WorkspaceId,
+		TabId:       d.to.TabId,
+		BlockId:     d.to.BlockId,
+		Actions: []molten.NotificationAction{{
+			Id: "goto", Label: "Go to " + receiver, LabelText: uimsg.Make("handoff.typed.goto", "receiver", receiver),
+			Kind: "open", WorkspaceId: d.to.WorkspaceId, TabId: d.to.TabId, BlockId: d.to.BlockId,
+		}},
+	})
+}
+
 func (m *Manager) notifyUndelivered(d *delivery, reason string) {
 	m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
+	if d.receipt {
+		return
+	}
 	m.env.Notify(molten.NotificationInput{
-		Source:  NotificationSource,
-		Title:   capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
-		Message: fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
-		Kind:    "error",
+		Source:    NotificationSource,
+		Title:     capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
+		TitleText: uimsg.Make("handoff.undelivered.title", "from", d.from.callName(), "to", d.to.callName()),
+		Message:   fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
+		// reason is the typing path's English: it stays the detail.
+		MessageText: uimsg.Make("handoff.undelivered.message", "detail", reason, "path", d.briefPath),
+		Kind:        "error",
 	})
 }

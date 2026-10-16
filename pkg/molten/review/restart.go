@@ -5,7 +5,6 @@ package review
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,13 +17,15 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 // Restart work (FR-REV-011, DS-REV-009): once a round is published, its comments go back to an agent in the worktree
 // that holds the PR's branch, never the developer's main checkout. An idle agent already working in that worktree gets
-// the prompt through the guarded path of the handoffs (#595); otherwise a terminal of the Review tab starts the
-// developer's agent there, through the PATH shim and with no permission flag: this is regular work under the
+// the prompt through the guarded path of the handoffs (#595); otherwise, once the developer chose how it works (out of
+// sight or with them, #758, agentstart.go), the developer's agent starts there in a tab of its own, through the PATH
+// shim and with no permission flag: this is regular work under the
 // developer's own profile (coffee mode applies), not the read-only review session. The prompt names the PR and the
 // round and points to a brief written in MoltenTerm's data folder: the round's published comments with their GitHub
 // threads, and the steps, which override the gaps of sf-git-fix-pr-comments (#505 R5: no ticket in its commit, no reply
@@ -35,6 +36,8 @@ const (
 
 	RestartStarted = "started"
 	RestartSent    = "sent"
+	// RestartOffer: no agent runs on the branch; the window asks how one should work (#758), then sends Start.
+	RestartOffer = "offer"
 	// RestartTyped: the prompt is in a reused agent's input but not sent, a draft of the developer's may be there.
 	RestartTyped   = "typed"
 	RestartBusy    = "busy"
@@ -73,9 +76,12 @@ type RestartRequest struct {
 	Title   string `json:"title,omitempty"`
 	Url     string `json:"url,omitempty"`
 	Ticket  int    `json:"ticket,omitempty"`
-	// TabId: the Review tab, where a new agent terminal goes, right of AfterBlockId when it is in the tab.
-	TabId        string `json:"tabid"`
-	AfterBlockId string `json:"afterblockid,omitempty"`
+	// Start: the developer chose how a new agent works (Mode, #758) when none runs on the branch; its tab goes in
+	// WorkspaceId, named TabName (the window's words).
+	Start       bool   `json:"start,omitempty"`
+	Mode        string `json:"mode,omitempty"`
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	TabName     string `json:"tabname,omitempty"`
 }
 
 type RestartResult struct {
@@ -86,13 +92,18 @@ type RestartResult struct {
 	AgentState string `json:"agentstate,omitempty"`
 	Branch     string `json:"branch,omitempty"`
 	Message    string `json:"message,omitempty"`
-	Round      string `json:"round,omitempty"`
+	// MessageText: Message's code when it is one of ours (#656), nil for a tool's or the agent's own words.
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
+	Round       string      `json:"round,omitempty"`
 	// Worktree: the folder the agent works in; WorktreeCreated: MoltenTerm made it for this restart.
 	Worktree        string `json:"worktree,omitempty"`
 	WorktreeCreated bool   `json:"worktreecreated,omitempty"`
 	BlockId         string `json:"blockid,omitempty"`
-	Agent           string `json:"agent,omitempty"`
-	AgentName       string `json:"agentname,omitempty"`
+	// TabId: the new agent's tab; Hidden: it works out of sight (#758).
+	TabId     string `json:"tabid,omitempty"`
+	Hidden    bool   `json:"hidden,omitempty"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
 	// FirstName: the reused agent's first name (FR-CONT-014), the one the developer calls it by.
 	FirstName string `json:"firstname,omitempty"`
 	BriefPath string `json:"briefpath,omitempty"`
@@ -126,6 +137,17 @@ type RestartEnv struct {
 	SessionAgent func(ctx context.Context, repo string, number int) string
 	// Conventions: the project's commit format (.saasfoundry.json), nil without one.
 	Conventions func(dir string) *molten.ProjectConventions
+	// AgentTab makes a new agent's tab in the workspace, hidden or not (#758); CloseTab takes it away when the
+	// terminal could not be made.
+	AgentTab func(ctx context.Context, workspaceId string, name string, meta waveobj.MetaMapType, hidden bool) (string, error)
+	CloseTab func(ctx context.Context, tabId string) error
+	// The clean end (agentfollow.go): FollowEvery is how often the agent is read (none: not followed);
+	// CloseTerminal closes a terminal and its tab when nothing else is there.
+	FollowEvery    time.Duration
+	BlockExists    func(ctx context.Context, blockId string) bool
+	CloseTerminal  func(ctx context.Context, blockId string) error
+	Notify         func(ctx context.Context, input molten.NotificationInput) error
+	ResolveNotices func(ctx context.Context, keyPrefix string) error
 }
 
 type Restarter struct {
@@ -169,8 +191,18 @@ func (req RestartRequest) check() error {
 	if !reviewsession.ValidRef(req.HeadRef) {
 		return fmt.Errorf("headref must be the PR's head branch")
 	}
-	if req.TabId == "" {
-		return fmt.Errorf("tabid is required")
+	return req.checkStart()
+}
+
+func (req RestartRequest) checkStart() error {
+	if !req.Start {
+		return nil
+	}
+	if !validMode(req.Mode) {
+		return fmt.Errorf("mode must be %s or %s to start an agent", AgentModeBackground, AgentModeTogether)
+	}
+	if req.WorkspaceId == "" {
+		return fmt.Errorf("workspaceid is required to start an agent")
 	}
 	return nil
 }
@@ -198,7 +230,7 @@ type treeEntry struct {
 func (r *Restarter) worktrees(ctx context.Context, dir string) ([]treeEntry, error) {
 	out, err := r.git(ctx, dir, "worktree", "list", "--porcelain")
 	if err != nil {
-		return nil, fmt.Errorf("the project's worktrees could not be listed: %w", err)
+		return nil, uimsg.Errorf(uimsg.Make("review.worktreelist", "detail", uimsg.Detail(err)), "the project's worktrees could not be listed: %w", err)
 	}
 	var rtn []treeEntry
 	for _, line := range strings.Split(out, "\n") {
@@ -269,6 +301,11 @@ func (e *mainCheckoutError) Error() string {
 	return e.msg
 }
 
+func mainCheckoutText(branch string, path string) string {
+	return fmt.Sprintf("%s is checked out in the project's main folder (%s), where MoltenTerm never starts an agent: "+
+		"switch that folder to another branch, then try again", branch, path)
+}
+
 // agentTree finds or makes the linked worktree on the PR's branch. The main checkout is never used: when it has the
 // branch checked out, git cannot check it out a second time, and Restart work says so instead of working there.
 func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, bool, error) {
@@ -282,8 +319,7 @@ func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, 
 			continue
 		}
 		if i == 0 {
-			return "", false, &mainCheckoutError{fmt.Sprintf("%s is checked out in the project's main folder (%s), where Restart work never works: "+
-				"switch that folder to another branch, then restart the work", req.HeadRef, e.path)}
+			return "", false, &mainCheckoutError{mainCheckoutText(req.HeadRef, e.path)}
 		}
 		if info, err := os.Stat(e.path); err == nil && info.IsDir() {
 			return e.path, false, nil
@@ -299,12 +335,13 @@ func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, 
 	args := []string{"worktree", "add", "--quiet", tree, req.HeadRef}
 	if _, err := r.git(ctx, req.Dir, "rev-parse", "--verify", "--quiet", ref); err != nil {
 		if _, err := r.git(ctx, req.Dir, "rev-parse", "--verify", "--quiet", remote); err != nil {
-			return "", false, fmt.Errorf("the branch %s was found neither in the project nor on origin", req.HeadRef)
+			return "", false, uimsg.Errorf(uimsg.Make("review.branchmissing", "branch", req.HeadRef), "the branch %s was found neither in the project nor on origin", req.HeadRef)
 		}
 		args = []string{"worktree", "add", "--quiet", "--track", "-b", req.HeadRef, tree, "origin/" + req.HeadRef}
 	}
 	if _, err := r.git(ctx, req.Dir, args...); err != nil {
-		return "", false, fmt.Errorf("a worktree on %s could not be created: %w", req.HeadRef, err)
+		return "", false, uimsg.Errorf(uimsg.Make("review.worktreecreate", "branch", req.HeadRef, "detail", uimsg.Detail(err)),
+			"a worktree on %s could not be created: %w", req.HeadRef, err)
 	}
 	return tree, true, nil
 }
@@ -360,7 +397,9 @@ func hasSkill(tree string) bool {
 	return false
 }
 
-// Restart hands the last published round to an agent in the PR's worktree (the developer's click, a window's only).
+// Restart hands the last published round to an agent in the PR's worktree (the developer's click, a window's only). An
+// agent already on the branch gets it; otherwise the window is offered to start one (RestartOffer), and Start starts it
+// the way the developer chose (#758).
 func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartResult, error) {
 	if err := req.check(); err != nil {
 		return RestartResult{}, err
@@ -378,33 +417,76 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		return RestartResult{Status: RestartFailed, Reason: RestartReasonNoRound, Message: "no review round is published yet: publish your comments first, then restart the work"}, nil
 	}
 	roundId := round.Id
+	ticket := restartTicket(req)
+	linked, main, err := r.branchTrees(ctx, req.Dir, req.HeadRef)
+	if err != nil {
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err), Round: roundId}, nil
+	}
+	for _, tree := range linked {
+		result := RestartResult{Round: roundId, Worktree: tree}
+		line, ok := r.restartLine(state, *round, roundNumber, req, tree, ticket, &result)
+		if !ok {
+			return result, nil
+		}
+		if !r.reuseAgent(ctx, tree, line, &result) {
+			continue
+		}
+		if result.Status != RestartSent && result.Status != RestartTyped {
+			return result, nil
+		}
+		return r.markRestarted(req, roundId, tree, result)
+	}
+	if main != "" {
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonMainCheckout, Branch: req.HeadRef, Round: roundId,
+			Message: mainCheckoutText(req.HeadRef, main)}, nil
+	}
+	if !req.Start {
+		return r.offer(ctx, req, roundId), nil
+	}
 	tree, created, err := r.agentTree(ctx, req)
 	if err != nil {
-		reason := RestartReasonWorktree
-		var main *mainCheckoutError
-		if errors.As(err, &main) {
-			reason = RestartReasonMainCheckout
-		}
-		return RestartResult{Status: RestartFailed, Reason: reason, Branch: req.HeadRef, Message: err.Error(), Round: roundId}, nil
+		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err), Round: roundId}, nil
 	}
 	result := RestartResult{Round: roundId, Worktree: tree, WorktreeCreated: created}
-	ticket := restartTicket(req)
-	briefPath, err := r.writeBrief(state, *round, roundNumber, req, tree, ticket)
+	line, ok := r.restartLine(state, *round, roundNumber, req, tree, ticket, &result)
+	if !ok {
+		return result, nil
+	}
+	origin := r.origin(req, AgentOriginRestart)
+	origin.Round = roundNumber
+	if !r.startAgent(ctx, req, origin, tree, created, line, &result) {
+		return result, nil
+	}
+	return r.markRestarted(req, roundId, tree, result)
+}
+
+// offer: no agent on the branch; the agent that would start is named for the window's choice.
+func (r *Restarter) offer(ctx context.Context, req RestartRequest, roundId string) RestartResult {
+	result := RestartResult{Status: RestartOffer, Branch: req.HeadRef, Round: roundId}
+	if agent := r.pickAgent(ctx, req); agent != "" {
+		result.Agent, result.AgentName = agent, molten.AgentDisplayName(agent)
+	}
+	return result
+}
+
+func (r *Restarter) origin(req RestartRequest, kind string) AgentOrigin {
+	return AgentOrigin{Kind: kind, Repo: req.Repo, Number: req.Number, Branch: req.HeadRef, Base: req.BaseRef, Mode: req.Mode,
+		At: r.env.Now().UnixMilli()}
+}
+
+// restartLine writes the round's brief for the tree and returns the prompt; false (the result says why) when not.
+func (r *Restarter) restartLine(state State, round Round, roundNumber int, req RestartRequest, tree string, ticket int, result *RestartResult) (string, bool) {
+	briefPath, err := r.writeBrief(state, round, roundNumber, req, tree, ticket)
 	if err != nil {
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonBrief, fmt.Sprintf("the brief could not be written: %v", err)
-		return result, nil
+		return "", false
 	}
 	result.BriefPath = briefPath
-	line := promptLine(req, roundNumber, roundId, briefPath, r.commitFormat(req.Dir, ticket))
-	handed := false
-	if r.reuseAgent(ctx, tree, line, &result) {
-		handed = result.Status == RestartSent || result.Status == RestartTyped
-	} else {
-		handed = r.startAgent(ctx, req, tree, line, &result)
-	}
-	if !handed {
-		return result, nil
-	}
+	return promptLine(req, roundNumber, round.Id, briefPath, r.commitFormat(req.Dir, ticket)), true
+}
+
+// markRestarted marks the round handed over; the store's change goes to the Review tabs.
+func (r *Restarter) markRestarted(req RestartRequest, roundId string, tree string, result RestartResult) (RestartResult, error) {
 	marked, changed, err := r.store.update(req.PrKey, func(s *State) bool {
 		for i := range s.Rounds {
 			if s.Rounds[i].Id == roundId {
@@ -418,7 +500,7 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		return false
 	})
 	if err != nil {
-		return result, fmt.Errorf("the work was restarted but the round could not be marked: %w", err)
+		return result, uimsg.Errorf(uimsg.Make("review.roundunmarked", "detail", uimsg.Detail(err)), "the work was restarted but the round could not be marked: %w", err)
 	}
 	if changed {
 		result.State = &marked
@@ -426,9 +508,10 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 	return result, nil
 }
 
-// startAgent opens a terminal in the Review tab, in the worktree, and starts the agent with the prompt; true when the
-// terminal exists (the agent's command typed, or shown to the developer when the shell gave no prompt).
-func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, tree string, line string, result *RestartResult) bool {
+// startAgent opens the agent's own tab (hidden in background mode), starts the developer's agent there in the
+// worktree with the prompt, and follows it to its clean end; true when the terminal exists (the agent's command typed,
+// or shown to the developer when the shell gave no prompt).
+func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, origin AgentOrigin, tree string, created bool, line string, result *RestartResult) bool {
 	agent := r.pickAgent(ctx, req)
 	if agent == "" {
 		result.Status = RestartNoAgent
@@ -439,22 +522,39 @@ func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, tree str
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonTerminal, "MoltenTerm cannot open terminals yet: try again in a moment."
 		return false
 	}
+	tabId, err := r.agentTab(ctx, req, origin)
+	if err != nil {
+		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonTerminal, fmt.Sprintf("The agent's tab could not be made: %v", err)
+		return false
+	}
+	startHead, _ := r.git(ctx, tree, "rev-parse", "HEAD")
 	command := reviewsession.CommandLine(agent, []string{"--", line})
 	meta := waveobj.MetaMapType{
 		waveobj.MetaKey_View:       "term",
 		waveobj.MetaKey_Controller: "shell",
 		waveobj.MetaKey_CmdCwd:     tree,
 		molten.WorktreeMetaKey:     tree,
+		OriginMetaKey:              origin,
 	}
-	blockId, err := r.env.OpenTerminal(ctx, req.TabId, req.AfterBlockId, meta, command)
+	blockId, err := r.env.OpenTerminal(ctx, tabId, "", meta, command)
 	result.BlockId, result.Agent, result.AgentName = blockId, agent, molten.AgentDisplayName(agent)
+	result.TabId, result.Hidden = tabId, req.Mode == AgentModeBackground
+	if blockId == "" && r.env.CloseTab != nil {
+		if cerr := r.env.CloseTab(ctx, tabId); cerr == nil {
+			result.TabId = ""
+		}
+	}
+	if blockId != "" {
+		r.startFollow(agentFollow{req: req, origin: origin, tree: tree, created: created, blockId: blockId, tabId: tabId,
+			startHead: startHead, agent: agent})
+	}
 	if err != nil {
 		result.Status, result.Reason = RestartFailed, RestartReasonNotStarted
 		result.Message = fmt.Sprintf("The agent was not started (%v). Start it in the new terminal with: %s", err, command)
 		return blockId != ""
 	}
 	result.Status = RestartStarted
-	result.Message = fmt.Sprintf("%s started in %s with the round's comments.", result.AgentName, tree)
+	result.Message = fmt.Sprintf("%s started in %s.", result.AgentName, tree)
 	return true
 }
 

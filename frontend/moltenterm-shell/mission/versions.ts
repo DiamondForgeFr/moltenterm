@@ -7,7 +7,19 @@
 // public release the number is a decision, and commits that change nothing a user sees justify no release. The rules
 // themselves live in ../releases/versions.ts, the twin of pkg/molten/versions.
 
-import { BumpLevel, DefaultTagPrefix, lastPublic, lastRc, planRelease, VersionRules } from "../releases/versions";
+import { t, tCount } from "../i18n/i18n";
+import {
+    BumpLevel,
+    CommitInput,
+    decideBump,
+    DefaultTagPrefix,
+    lastPublic,
+    lastRc,
+    planRelease,
+    PlanResult,
+    releaseOf,
+    VersionRules,
+} from "../releases/versions";
 import { RawCommit, RawTag, TreeData } from "./mission-model";
 
 // A release candidate is a version with a suffix (v1.2.0-3), as in Notulia, read after the project's tag prefix (which
@@ -43,6 +55,31 @@ export function treeRules(tree: Pick<TreeData, "tagPrefix" | "firstPublic">): Ve
     return { tagprefix: tree?.tagPrefix || DefaultTagPrefix, firstpublic: tree?.firstPublic || "" };
 }
 
+// The plan's reason in the interface language. ../releases/versions.ts keeps its English, the twin of
+// pkg/molten/versions and of their shared test vectors; the window words the same cases from the plan itself.
+export function planReasonText(plan: PlanResult, rules: VersionRules, commits: readonly CommitInput[]): string {
+    if (plan.how === "decision" && !plan.lastpublic) {
+        return t("mc.versionReason.firstPublic");
+    }
+    if ((plan.how !== "refused" && plan.how !== "derived") || !plan.lastpublic) {
+        return plan.reason;
+    }
+    const decision = decideBump(releaseOf(rules, plan.lastpublic), commits);
+    if (decision == null) {
+        return plan.how === "refused" ? t("mc.versionReason.nothingVisible", { tag: plan.lastpublic }) : plan.reason;
+    }
+    if (plan.how !== "derived") {
+        return plan.reason;
+    }
+    if (decision.breaking.length > 0) {
+        return tCount("mc.versionReason.breaking", decision.breaking.length);
+    }
+    if (decision.level === "minor") {
+        return tCount("mc.versionReason.features", decision.counts.feat ?? 0);
+    }
+    return tCount("mc.versionReason.fixes", decision.counts.fix ?? 0);
+}
+
 export function releaseState(
     tags: readonly RawTag[],
     ahead: readonly RawCommit[],
@@ -52,20 +89,17 @@ export function releaseState(
     const names = tags.map((t) => t.name);
     const publicName = lastPublic(rules, names);
     const rcName = lastRc(rules, names);
-    const plan = planRelease(
-        rules,
-        names,
-        sincePublic.map((c) => ({ subject: c.subject })),
-        "public"
-    );
+    const commits = sincePublic.map((c) => ({ subject: c.subject }));
+    const plan = planRelease(rules, names, commits, "public");
+    const reason = planReasonText(plan, rules, commits);
     const next: NextRelease =
         plan.how === "refused"
-            ? { version: null, how: "nothing", reason: plan.reason }
+            ? { version: null, how: "nothing", reason }
             : {
                   version: plan.base,
                   how: plan.how === "derived" ? "derived" : "decision",
                   level: plan.level,
-                  reason: plan.reason,
+                  reason,
               };
     const typed = ahead.map((c) => ({ c, type: TypeRegex.exec(c.subject)?.[1] ?? "" }));
     const feat = typed.filter((t) => t.type === "feat").map((t) => t.c);

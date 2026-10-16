@@ -309,3 +309,90 @@ func TestHookedAgentRepublishesItsTerminals(t *testing.T) {
 		t.Fatalf("a new Claude Code terminal starts hooked: %+v", last)
 	}
 }
+
+// The window translates the waiting and done titles from their code and the agent's name (#727).
+func TestAgentNoticeTitleCodes(t *testing.T) {
+	h := makeAgentHarness()
+	h.states.names = agentnames.MakeAllocator([]string{"Pauline"})
+	h.out("b1", cmdMark("claude"))
+	signal, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateWaiting})
+	if err != nil || signal == nil {
+		t.Fatalf("waiting: %v %v", signal, err)
+	}
+	if signal.TitleCode != molten.NotificationTitleAgentWaiting || signal.TitleName != "Pauline" {
+		t.Fatalf("waiting signal %+v", signal)
+	}
+	if vars := notificationTitleVars(*signal); vars["name"] != "Pauline" {
+		t.Fatalf("title vars %v", vars)
+	}
+	h.clock = h.clock.Add(10 * time.Second)
+	signal, _, _ = h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone})
+	if signal == nil || signal.TitleCode != molten.NotificationTitleAgentDone || signal.TitleName != "Pauline" {
+		t.Fatalf("done signal %+v", signal)
+	}
+	if vars := notificationTitleVars(AttentionSignal{Title: "from the agent"}); vars != nil {
+		t.Fatalf("a signal without a code has no vars: %v", vars)
+	}
+}
+
+func (h *agentHarness) version(block string) int64 {
+	for _, info := range h.states.snapshot() {
+		if info.BlockId == block {
+			return info.Version
+		}
+	}
+	return 0
+}
+
+// #784: done means finished and not seen yet. The window's seen clears it to idle, for the version it saw only;
+// waiting and error never clear by being looked at.
+func TestSeenClearsDoneOnly(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	h.report("b1", molten.AgentStateWaiting, "claude")
+	if h.states.seen("b1", h.version("b1")) || h.state("b1") != molten.AgentStateWaiting {
+		t.Fatalf("waiting cleared by a look: %q", h.state("b1"))
+	}
+	h.report("b1", molten.AgentStateDone, "claude")
+	seenAt := h.version("b1")
+	h.states.setSettings("b1", "claude", molten.AgentSettings{Model: "opus"})
+	if h.states.seen("b1", seenAt) || h.state("b1") != molten.AgentStateDone {
+		t.Fatalf("an older version must not clear: %q", h.state("b1"))
+	}
+	if !h.states.seen("b1", h.version("b1")) || h.state("b1") != molten.AgentStateIdle {
+		t.Fatalf("seen done: %q", h.state("b1"))
+	}
+	if h.states.seen("b1", h.version("b1")) {
+		t.Fatal("seen twice changes nothing")
+	}
+	h.report("b1", molten.AgentStateError, "claude")
+	if h.states.seen("b1", h.version("b1")) || h.state("b1") != molten.AgentStateError {
+		t.Fatalf("error cleared by a look: %q", h.state("b1"))
+	}
+	if h.states.seen("nope", 1) {
+		t.Fatal("a block without agent")
+	}
+}
+
+// #784: Claude Code's idle reminder through the terminal (OSC 9) ends a working turn but never brings back a done the
+// user has seen, nor turns a finished agent to waiting.
+func TestIdleReminderSignal(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	h.report("b1", molten.AgentStateDone, "claude")
+	h.out("b1", "\x1b]9;Claude is waiting for your input\x07")
+	if got := h.state("b1"); got != molten.AgentStateDone {
+		t.Fatalf("done stays done, got %q", got)
+	}
+	h.states.seen("b1", h.version("b1"))
+	h.clock = h.clock.Add(time.Minute)
+	h.out("b1", "\x1b]9;Claude is waiting for your input\x07")
+	if got := h.state("b1"); got != molten.AgentStateIdle {
+		t.Fatalf("seen stays seen, got %q", got)
+	}
+	h.report("b1", molten.AgentStateWorking, "claude")
+	h.out("b1", "\x1b]777;notify;Claude Code;Claude is waiting for your input\x07")
+	if got := h.state("b1"); got != molten.AgentStateDone {
+		t.Fatalf("working then the reminder: done, got %q", got)
+	}
+}

@@ -231,7 +231,8 @@ export type LineMapGeometry = {
     mainY: number;
     devY: number;
     single: boolean;
-    ticks: { x: number; label: string; now: boolean }[];
+    // labelX: where the date is centred, moved right of its tick when centring it would cut it at the plot's left edge.
+    ticks: { x: number; label: string; now: boolean; labelX: number }[];
     tickTop: number;
     tickBottom: number;
     main: { x1: number; x2: number; y: number };
@@ -258,6 +259,14 @@ export type LineMapGeometry = {
 
 function truncate(text: string, max: number): string {
     return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+// The axis dates are 11px text: about this wide per character, generously, so the estimate never falls short.
+const TickLabelCharWidth = 6.5;
+const TickLabelMargin = 2;
+
+function tickLabelHalfWidth(label: string): number {
+    return (label.length * TickLabelCharWidth) / 2;
 }
 
 export function tickStep(pxPerDay: number): number {
@@ -600,10 +609,12 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
 
     const pxPerDay = (nowX - left) / Math.max(1, model.days);
     const step = tickStep(pxPerDay);
-    const ticks: LineMapGeometry["ticks"] = [{ x: nowX, label: t("mc.lineMap.now"), now: true }];
+    const ticks: LineMapGeometry["ticks"] = [{ x: nowX, label: t("mc.lineMap.now"), now: true, labelX: nowX }];
     for (let k = 1; model.now - k * step * Day >= model.start - 60_000; k++) {
         const at = model.now - k * step * Day;
-        ticks.push({ x: xOf(at), label: formatDay(at), now: false });
+        const x = xOf(at);
+        const label = formatDay(at);
+        ticks.push({ x, label, now: false, labelX: Math.max(x, tickLabelHalfWidth(label) + TickLabelMargin) });
     }
     ticks.reverse();
 

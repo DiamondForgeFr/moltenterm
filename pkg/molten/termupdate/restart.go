@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Restart with current settings (#389, the Sessions view's bulk actions): the coding agent of a terminal is ended with
@@ -40,6 +41,7 @@ type AgentRestartRequest struct {
 }
 
 var restartTextsCurrent = restartTexts{
+	restart:    true,
 	notice:     "MoltenTerm: restarting with the current settings",
 	again:      "Restart it",
 	againLower: "restart it with the current settings",
@@ -50,37 +52,41 @@ var restartTextsCurrent = restartTexts{
 // RestartAgent restarts the terminal's agent on its session, or says why it did not touch the terminal.
 func (u *Updater) RestartAgent(ctx context.Context, req AgentRestartRequest) Outcome {
 	if !u.begin(req.BlockId) {
-		return Outcome{Status: StatusBusy, Message: "MoltenTerm is already typing in this terminal: try again in a moment."}
+		r := refusedBusy()
+		return Outcome{Status: StatusBusy, Message: r.Message, MessageText: r.MessageText}
 	}
 	defer u.end(req.BlockId)
 	st, out := u.inspect(ctx, req.BlockId)
 	if out != nil {
-		if out.Message == msgNotLocal {
+		if isNotLocal(out) {
 			out.Message = "Only an agent running in a local terminal can be restarted."
+			out.MessageText = uimsg.Make("termupdate.restart.notlocal")
 		}
 		return *out
 	}
 	expected := molten.AgentDisplayName(req.Agent)
-	if expected == "" {
-		expected = "The agent"
-	}
 	if st.adapter == nil {
 		if st.busy != "" {
-			return Outcome{Status: StatusBusy, Program: st.busy, Message: fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", st.busy, expected)}
+			r := refusedNotForeground(st.busy, expected)
+			return Outcome{Status: StatusBusy, Program: st.busy, Message: r.Message, MessageText: r.MessageText}
 		}
-		return Outcome{Status: StatusNoAgent, Message: fmt.Sprintf("%s no longer runs in this terminal: nothing was typed.", expected)}
+		r := refusedNoAgent(expected)
+		return Outcome{Status: StatusNoAgent, Message: r.Message, MessageText: r.MessageText}
 	}
 	agent, name := st.agent.Agent, st.adapter.Name()
 	if req.Agent != "" && req.Agent != agent {
-		return Outcome{Status: StatusBusy, Program: name, Agent: agent, AgentName: name, Message: fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", name, expected)}
+		r := refusedNotForeground(name, expected)
+		return Outcome{Status: StatusBusy, Program: name, Agent: agent, AgentName: name, Message: r.Message, MessageText: r.MessageText}
 	}
 	var extra []string
 	if req.Mode != "" {
 		if agent != molten.AgentIdClaude {
-			return Outcome{Status: StatusUnavailable, Agent: agent, AgentName: name, Message: fmt.Sprintf("%s has no permission mode MoltenTerm can set: nothing was typed.", name)}
+			return Outcome{Status: StatusUnavailable, Agent: agent, AgentName: name, MessageText: uimsg.Make("termupdate.restart.nomodes", "agent", name),
+				Message: fmt.Sprintf("%s has no permission mode MoltenTerm can set: nothing was typed.", name)}
 		}
 		if !slices.Contains(restartModes, req.Mode) {
-			return Outcome{Status: StatusUnavailable, Agent: agent, AgentName: name, Message: fmt.Sprintf("%s has no permission mode %q: nothing was typed.", name, req.Mode)}
+			return Outcome{Status: StatusUnavailable, Agent: agent, AgentName: name, MessageText: uimsg.Make("termupdate.input.unknownmode", "agent", name, "mode", req.Mode),
+				Message: fmt.Sprintf("%s has no permission mode %q: nothing was typed.", name, req.Mode)}
 		}
 		extra = []string{claudePermissionModeFlag, req.Mode}
 	}

@@ -13,7 +13,9 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { tabShownName } from "../../moltenterm-shell/project/project-model"; // MOLTENTERM-PATCH (#741)
 import { closeTabAskingFirst } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
 import { UpdateStatusBanner } from "./updatebanner";
@@ -123,6 +125,7 @@ function VTabWrapper({
 }: VTabWrapperProps) {
     const env = useWaveEnv<VTabBarEnv>();
     const [tabData] = env.wos.useWaveObjectValue<Tab>(makeORef("tab", tabId));
+    const t = useT(); // MOLTENTERM-PATCH (#741)
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const renameRef = useRef<(() => void) | null>(null);
     const tabModel = getTabModelByTabId(tabId, env);
@@ -150,7 +153,7 @@ function VTabWrapper({
 
     const tab: VTabItem = {
         id: tabId,
-        name: tabData?.name ?? "",
+        name: tabShownName(tabData, t), // MOLTENTERM-PATCH (#741): the Project tab in the interface language
         badges,
         flagColor,
         agentDot: <AgentTabDot tabId={tabId} />, // MOLTENTERM-PATCH (#109)
@@ -194,7 +197,8 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
     const activeTabId = useAtomValue(env.atoms.staticTabId);
     const reinitVersion = useAtomValue(env.atoms.reinitVersion);
     const documentHasFocus = useAtomValue(env.atoms.documentHasFocus);
-    const tabIds = workspace?.tabids ?? [];
+    const tabIds = visibleTabIds(workspace); // MOLTENTERM-PATCH (#758): an agent working out of sight has no tab here
+    const tabIdsKey = tabIds.join(",");
 
     const [orderedTabIds, setOrderedTabIds] = useState<string[]>(tabIds);
     const [dragTabId, setDragTabId] = useState<string | null>(null);
@@ -212,11 +216,11 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
 
     useEffect(() => {
         setOrderedTabIds(tabIds);
-    }, [workspace?.tabids]);
+    }, [tabIdsKey]); // MOLTENTERM-PATCH (#758)
 
     useEffect(() => {
         if (reinitVersion > 0) {
-            setOrderedTabIds(workspace?.tabids ?? []);
+            setOrderedTabIds(visibleTabIds(workspace)); // MOLTENTERM-PATCH (#758)
         }
     }, [reinitVersion]);
 

@@ -11,7 +11,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
-import { t } from "../moltenterm-shell/i18n/i18n";
+import { getLocale, t } from "../moltenterm-shell/i18n/i18n";
 import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
 import { checkLanguagePack, formatPackProblems } from "../moltenterm-shell/i18n/language-pack";
 import type { LanguagePackInput } from "../moltenterm-shell/i18n/language-packs";
@@ -25,7 +25,7 @@ import {
     MoltenNotificationKind,
     MoltenNotificationOptions,
 } from "./molten-api";
-import { MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
+import { budgetReasonText, MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
 import {
     isDataOnlyMod,
     MoltenManifestFileName,
@@ -74,6 +74,13 @@ export type MoltenHostEnv = {
     clock?: MoltenTimerClock;
     // The renderer's JS heap in MB, or null when it does not tell (best-effort memory of a mod's activation).
     heapUsedMB?: () => number;
+    // What mods' code added to the page (molten-page.ts, FR-MORPH-012): released when the mod stops.
+    page?: MoltenPageOwner;
+};
+
+export type MoltenPageOwner = {
+    // Removes the nodes the mod's code added to the page; returns how many went.
+    release: (modId: string) => number;
 };
 
 // pending: enabled, its code waits for the tab view to show (FR-PERF-014).
@@ -703,6 +710,9 @@ export class MoltenHost {
             (count) => (meter.timers = count)
         );
         runtime.timers = timers;
+        // Registered before the module runs, so it is the last disposer: the page is cleaned once the mod's own
+        // disposers, which may still touch its nodes, have run.
+        runtime.disposers.push(() => this.releasePage(manifest.id));
         runtime.disposers.push(() => timers.dispose());
         if (!this.showing && !runtime.status.background) {
             timers.pause();
@@ -817,6 +827,19 @@ export class MoltenHost {
         this.applyLanguages();
     }
 
+    // Whether the mod's code may run now (loading or active): the page guard removes at once what a stopped mod adds.
+    isRunning(id: string): boolean {
+        const runtime = this.runtimes.get(id);
+        return runtime != null && !runtime.stopped;
+    }
+
+    releasePage(id: string): void {
+        const removed = this.env?.page?.release(id) ?? 0;
+        if (removed > 0) {
+            console.log(`[molten:${id}] removed ${removed} node(s) the mod added to the page`);
+        }
+    }
+
     clock(): MoltenTimerClock {
         return this.env?.clock ?? DefaultClock;
     }
@@ -901,7 +924,7 @@ export class MoltenHost {
             console.warn(`[molten:${id}] over budget: ${usage.reason}`);
             this.notify({
                 title: t("molten.notify.overBudgetTitle", { id }),
-                message: t("molten.notify.overBudgetMessage", { reason: usage.reason, id }),
+                message: t("molten.notify.overBudgetMessage", { reason: budgetReasonText(usage, t, getLocale()), id }),
                 kind: "warning",
             });
         }

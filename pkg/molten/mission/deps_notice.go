@@ -10,11 +10,13 @@ import (
 	"log"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // A stale dependency is told once in the notification center (FR-MC-029-AC5, FR-MC-010): one notification per
@@ -96,11 +98,13 @@ func dependencyNotice(dependent GroupMemberInfo, dep DependencyState, key string
 		message += fmt.Sprintf(", newest %s.", shortSha(dep.Source.Sha))
 	}
 	input := molten.NotificationInput{
-		Key:     key,
-		Source:  DepNotificationSource,
-		Kind:    "warning",
-		Title:   fmt.Sprintf("%s is behind %s", dependent.Name, dep.SourceName),
-		Message: message,
+		Key:         key,
+		Source:      DepNotificationSource,
+		Kind:        "warning",
+		Title:       fmt.Sprintf("%s is behind %s", dependent.Name, dep.SourceName),
+		TitleText:   uimsg.Make("notif.deps.behindTitle", "dependent", dependent.Name, "source", dep.SourceName),
+		Message:     message,
+		MessageText: dependencyNoticeText(dependent, dep, changed),
 		// Archived, it stays so until the source changes again.
 		KeepDismissed: true,
 	}
@@ -109,10 +113,47 @@ func dependencyNotice(dependent GroupMemberInfo, dep DependencyState, key string
 	}
 	if dep.Sync != "" {
 		input.Actions = append(input.Actions, molten.NotificationAction{Id: "sync", Label: "Sync", Kind: "gesture", Gesture: DepSyncGesture,
-			Args: map[string]any{"dir": dependent.Dir, "project": dep.SourceName, "index": dep.Index}})
+			Args: map[string]any{"dir": dependent.Dir, "project": dep.SourceName, "index": dep.Index}, LabelText: uimsg.Make("notif.deps.sync")})
 	}
-	input.Actions = append(input.Actions, molten.NotificationAction{Id: "open", Label: "Open", Kind: "open", View: ProjectView})
+	input.Actions = append(input.Actions, molten.NotificationAction{Id: "open", Label: "Open", Kind: "open", View: ProjectView,
+		LabelText: uimsg.Make("notif.deps.open")})
 	return input
+}
+
+// neutralList is listShown without English words, for a coded sentence's vars: "a, b, c +2".
+func neutralList(items []string, shown int) string {
+	if len(items) <= shown {
+		return strings.Join(items, ", ")
+	}
+	return fmt.Sprintf("%s +%d", strings.Join(items[:shown], ", "), len(items)-shown)
+}
+
+// dependencyNoticeText is dependencyNotice's message as the windows word it: the tickets and the newest commit are
+// data, the sentence has one code per shape.
+func dependencyNoticeText(dependent GroupMemberInfo, dep DependencyState, changed []string) *uimsg.Text {
+	count := strconv.Itoa(len(dep.Commits))
+	if dep.MoreCommits {
+		count += "+"
+	}
+	tickets := ""
+	if found := DepTickets(dep); len(found) > 0 {
+		tickets = " (" + neutralList(found, depNoticeShownTickets) + ")"
+	}
+	newest := ""
+	if dep.Source != nil {
+		newest = shortSha(dep.Source.Sha)
+	}
+	vars := []string{"dependent", dependent.Name, "source", dep.SourceName, "paths", neutralList(changed, depNoticeShownPaths),
+		"branch", dep.Branch, "count", count, "tickets", tickets, "newest", newest}
+	switch {
+	case dep.Synced == nil && newest != "":
+		return uimsg.Make("notif.deps.neverSyncedNewest", vars...)
+	case dep.Synced == nil:
+		return uimsg.Make("notif.deps.neverSynced", vars...)
+	case newest != "":
+		return uimsg.Make("notif.deps.changedNewest", vars...)
+	}
+	return uimsg.Make("notif.deps.changed", vars...)
 }
 
 // mergeFlagged folds the flagged declarations of one dependent on one source into the one its notification tells:

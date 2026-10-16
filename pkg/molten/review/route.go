@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -102,6 +103,10 @@ type Service struct {
 	handoff HandoffEnv
 	// restarter: Restart work (FR-REV-011); nil in the tests that do not need it.
 	restarter *Restarter
+	// forecaster: the Reviews list's conflict forecast (FR-REV-023); nil in the tests that do not need it.
+	forecaster *Forecaster
+	// batch: the batch merge by an agent (FR-REV-025); nil in the tests that do not need it.
+	batch *BatchRunner
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -193,6 +198,23 @@ func Start() {
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
+		service.forecaster = MakeForecaster(ForecastEnv{
+			Git:      liveForecastGit,
+			StoreDir: filepath.Join(wavebase.GetWaveDataDir(), "molten", "forecast"),
+			Rules:    makeForecastRules(service.merger).Rules,
+			Publish: func(f Forecast) {
+				wps.Broker.Publish(wps.WaveEvent{Event: ForecastEvent, Scopes: []string{f.Dir}, Data: f})
+			},
+		})
+		service.batch = MakeBatchRunner(BatchEnv{
+			Gh:      ExecGh,
+			Merger:  service.merger,
+			Agents:  service.restarter,
+			DataDir: wavebase.GetWaveDataDir(),
+			Publish: func(run BatchRun) {
+				wps.Broker.Publish(wps.WaveEvent{Event: BatchEvent, Scopes: []string{run.Dir}, Data: run})
+			},
+		})
 		service.publishNotes = func(notes Notes) {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
@@ -336,7 +358,7 @@ func commandTimeout(command string) time.Duration {
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand, RebaseCommand:
+	case RestartCommand, RebaseCommand, InvestigateCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -393,6 +415,15 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.store.GetNotes(req.Repo)
+	case ForecastCommand:
+		req, err := decode[ForecastRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.forecaster == nil {
+			return nil, fmt.Errorf("the conflict forecast is not available")
+		}
+		return s.forecaster.Get(req)
 	}
 	switch command {
 	case OpenCommand:
@@ -532,6 +563,13 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskRebase(ctx, req)
+	case InvestigateCommand:
+		// The developer's click on Investigate (#797): like Ask for a rebase, never an agent's from a terminal.
+		req, err := decode[InvestigateRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskInvestigate(ctx, req)
 	case MarkReadyCommand:
 		// The developer's click on Mark ready for review (#687): GitHub notifies the reviewers, so never a terminal's.
 		req, err := decode[MarkReadyRequest](data)
@@ -539,6 +577,9 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.MarkReady(ctx, req)
+	case BatchStartCommand, BatchGetCommand, BatchCancelCommand, BatchDecideCommand, BatchDismissCommand:
+		// NFR-REV-003: a batch merge starts and is decided on the developer's clicks in a window only.
+		return s.handleBatch(command, data)
 	case NoteKeepCommand:
 		req, err := decode[NoteKeepRequest](data)
 		if err != nil {

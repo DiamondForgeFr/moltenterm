@@ -303,8 +303,13 @@ export function PlanUsageBody({
             >
                 <i className="fa fa-solid fa-gauge" aria-hidden="true" />
                 <span>{t("companion.gauges.title")}</span>
-                <button type="button" className={cn(GhostButton, "ml-auto")} onClick={onShow}>
-                    {t("companion.gauges.show")}
+                <button
+                    type="button"
+                    className={cn(GhostButton, "ml-auto")}
+                    aria-label={t("companion.gauges.show")}
+                    onClick={onShow}
+                >
+                    {t("companion.gauges.showShort")}
                 </button>
             </div>
         );
@@ -322,8 +327,13 @@ export function PlanUsageBody({
                         {t("companion.gauges.unavailable")}
                         <span className="sr-only">: {view.reason}</span>
                     </span>
-                    <button type="button" className={cn(GhostButton, "ml-auto")} onClick={onHide}>
-                        {t("companion.gauges.hide")}
+                    <button
+                        type="button"
+                        className={cn(GhostButton, "ml-auto")}
+                        aria-label={t("companion.gauges.hide")}
+                        onClick={onHide}
+                    >
+                        {t("companion.gauges.hideShort")}
                     </button>
                 </div>
                 {extra}

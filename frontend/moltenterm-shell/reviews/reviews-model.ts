@@ -5,6 +5,7 @@
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
 
 import { t } from "../i18n/i18n";
+import { serverText, type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 
@@ -15,7 +16,15 @@ export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failin
 export type ReviewReportState = "present" | "missing" | "unknown";
 export type ReviewCheckState = CheckState | "none";
 
-export type ReviewCheck = { name: string; state: CheckState; local?: boolean };
+export type ReviewCheck = {
+    name: string;
+    state: CheckState;
+    local?: boolean;
+    workflow?: string;
+    url?: string;
+    runid?: number;
+    jobid?: number;
+};
 
 export type ReviewCi = {
     state: ReviewCheckState;
@@ -47,6 +56,7 @@ export type ReviewPr = {
     mergeable?: string;
     mergestate?: string;
     merge: ReviewMerge;
+    reviewdecision?: string;
     ci: ReviewCi;
     report: ReviewReport;
     unpublished: number;
@@ -103,6 +113,44 @@ export function mergeLabel(merge: ReviewMerge, base: string): { label: string; t
     return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
 }
 
+// blockedReasons says why GitHub blocks a PR's merge (#797), from what the row knows: its failed and running checks, a
+// conflict, the review decision; else a branch rule the list cannot read.
+export function blockedReasons(pr: ReviewPr): string[] {
+    const reasons: string[] = [];
+    const failed = checksOf(pr.ci, "failure");
+    if (failed.length > 0) {
+        reasons.push(t("reviews.merge.why.failed", { names: checkNames(failed) }));
+    }
+    const running = checksOf(pr.ci, "pending");
+    if (running.length > 0) {
+        reasons.push(t("reviews.merge.why.pending", { names: checkNames(running) }));
+    }
+    if (pr.merge === "conflicts") {
+        reasons.push(t("reviews.merge.why.conflicts", { base: pr.base }));
+    }
+    switch ((pr.reviewdecision ?? "").toUpperCase()) {
+        case "REVIEW_REQUIRED":
+            reasons.push(t("reviews.merge.why.review"));
+            break;
+        case "CHANGES_REQUESTED":
+            reasons.push(t("reviews.merge.why.changes"));
+            break;
+    }
+    if (reasons.length === 0) {
+        reasons.push(t("reviews.merge.why.rule"));
+    }
+    return reasons;
+}
+
+// mergeLabelOf is a row's merge chip; blocked says why on hover (#797).
+export function mergeLabelOf(pr: ReviewPr): { label: string; tone: Tone; title: string } {
+    const label = mergeLabel(pr.merge, pr.base);
+    if (pr.merge !== "blocked") {
+        return label;
+    }
+    return { ...label, title: t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") }) };
+}
+
 // validateBlocked is why a row's Validate cannot open the sheet, "" when it can (#683). It names the checks the Validate
 // plan fails on and the row already knows (pkg/molten/review/merge.go's evaluate); running checks and a merge state
 // still computing do not block: the sheet waits for them.
@@ -114,7 +162,7 @@ export function validateBlocked(pr: ReviewPr): string {
         return t("reviews.validate.conflicts", { base: pr.base });
     }
     if (pr.merge === "blocked") {
-        return t("reviews.validate.blocked");
+        return t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") });
     }
     if (pr.ci?.state === "failure") {
         return t("reviews.validate.failing", { count: pr.ci.failure });
@@ -184,18 +232,22 @@ export type RebaseResult = {
     agentstate?: string;
     branch?: string;
     message?: string;
+    messagetext?: ServerText;
     worktree?: string;
     agent?: string;
     agentname?: string;
     firstname?: string;
     briefpath?: string;
+    tabid?: string;
+    hidden?: boolean;
 };
 
-// asked: the agent has it (name), note when the developer still has a step; offer: no agent on the branch, the row
-// offers to start one; info and failed: a line.
+// asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
+// agent on the branch, the developer chooses how one starts (agent: the one that would); info and failed: a line.
 export type RebaseOutcome = {
     kind: "asked" | "offer" | "info" | "failed";
     name?: string;
+    agent?: string;
     text: string;
     note?: boolean;
 };
@@ -205,9 +257,30 @@ function folderOf(path: string): string {
     return parts[parts.length - 1] ?? "";
 }
 
-export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutcome {
+// The sentences that name what was asked (a rebase, or an investigation of the CI, #797); the others are shared.
+const OutcomeKeys = {
+    rebase: {
+        asked: "reviews.rebase.asked",
+        startedHidden: "reviews.rebase.startedHidden",
+        offer: "reviews.rebase.offer",
+        failed: "reviews.rebase.failed",
+    },
+    investigate: {
+        asked: "reviews.ci.investigate.asked",
+        startedHidden: "reviews.ci.investigate.startedHidden",
+        offer: "reviews.ci.investigate.offer",
+        failed: "reviews.ci.investigate.failed",
+    },
+};
+
+export function rebaseOutcome(
+    result: RebaseResult,
+    error?: string,
+    what: keyof typeof OutcomeKeys = "rebase"
+): RebaseOutcome {
+    const keys = OutcomeKeys[what];
     if (error) {
-        return { kind: "failed", text: t("reviews.rebase.failed", { message: error }) };
+        return { kind: "failed", text: t(keys.failed, { message: error }) };
     }
     if (result == null) {
         return null;
@@ -218,16 +291,20 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
         branch: result.branch ?? "",
         folder: folderOf(result.worktree),
         brief: result.briefpath ?? "",
-        message: result.message ?? "",
+        message: serverText(result.messagetext, result.message ?? ""),
     };
     switch (result.status) {
-        case "sent":
         case "started":
-            return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
+            if (result.hidden) {
+                return { kind: "asked", name, text: t(keys.startedHidden, vars), note: true };
+            }
+            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
+        case "sent":
+            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
         case "typed":
             return { kind: "asked", name, text: t("reviews.rebase.typed", vars), note: true };
         case "offer":
-            return { kind: "offer", text: t("reviews.rebase.offer", vars) };
+            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "" };
         case "noagent":
             return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
         case "busy":
@@ -251,19 +328,47 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
         case "terminal":
             return { kind: "failed", text: t("reviews.rebase.terminal") };
     }
-    return { kind: "failed", text: t("reviews.rebase.failed", vars) };
+    return { kind: "failed", text: t(keys.failed, vars) };
 }
 
+const CheckStateKeys: Record<CheckState, string> = {
+    success: "reviews.ci.state.success",
+    failure: "reviews.ci.state.failure",
+    pending: "reviews.ci.state.pending",
+    neutral: "reviews.ci.state.neutral",
+};
+
+// The checks shown by name before "+N" (#797).
+const NamedChecks = 2;
+
+export function checksOf(ci: ReviewCi, state: CheckState): ReviewCheck[] {
+    return (ci?.checks ?? []).filter((c) => c.state === state);
+}
+
+// checkNames names the first checks, then how many more.
+export function checkNames(checks: readonly ReviewCheck[]): string {
+    const names = checks.slice(0, NamedChecks).map((c) => c.name);
+    if (checks.length <= NamedChecks) {
+        return names.join(", ");
+    }
+    return t("reviews.ci.more", { names: names.join(", "), count: checks.length - NamedChecks });
+}
+
+// #797: a failed check is named on the chip (CI: Backend failed); the title lists every check with its state.
 export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: string } {
     const checks = ci?.checks ?? [];
-    const title = checks.map((c) => `${c.name}: ${c.state}`).join("\n") || t("reviews.ci.noneTitle");
+    const title =
+        checks
+            .map((c) => t("reviews.ci.checkLine", { name: c.name, state: t(CheckStateKeys[c.state] ?? CheckStateKeys.neutral) }))
+            .join("\n") || t("reviews.ci.noneTitle");
     if (checks.length === 0) {
         return { label: t("reviews.ci.none"), tone: "neutral", title };
     }
-    const parts: string[] = [];
-    if (ci.failure > 0) {
-        parts.push(t("reviews.ci.failing", { count: ci.failure }));
+    const failed = checksOf(ci, "failure");
+    if (failed.length > 0) {
+        return { label: t("reviews.ci.failedLabel", { names: checkNames(failed) }), tone: "failure", title };
     }
+    const parts: string[] = [];
     if (ci.pending > 0) {
         parts.push(t("reviews.ci.running", { count: ci.pending }));
     }
@@ -358,6 +463,12 @@ export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
     return null;
 }
 
+// Only a failed read can come back on a retry alone; the other empty states wait on the user (install gh, log in, add
+// a remote), so their retry is a calm secondary action rather than a call to action that cannot succeed (#744).
+export function reviewsRetryIsPrimary(answer: ReviewsAnswer): boolean {
+    return answer?.state === "error";
+}
+
 export type ReviewsSplit = { ready: ReviewPr[]; drafts: ReviewPr[] };
 
 // The PRs marked ready from MoltenTerm (#687), by rebaseAskKey: when the click was made.
@@ -387,7 +498,7 @@ export function splitReviews(answer: ReviewsAnswer, readied?: ReadiedPrs): Revie
     };
 }
 
-export type ReviewCounts = { waiting: number; mergeable: number };
+export type ReviewCounts = { toreview: number; mergeable: number };
 
 // mergeableNow: GitHub says the PR merges cleanly (#683) and no check fails or still runs.
 export function mergeableNow(pr: ReviewPr): boolean {
@@ -398,30 +509,35 @@ export function mergeableNow(pr: ReviewPr): boolean {
     return ci === "success" || ci === "none";
 }
 
-// The rail's counts (#688): the PRs waiting for review (the list's ready group) and those of them that can merge
-// now. Nothing while GitHub could not be read: no badge then.
+// The rail's counts (#688, #775): the PRs waiting for review (the list's ready group) split in two disjoint sets that
+// add up to them, those that cannot merge yet and those that can merge now. Nothing while GitHub could not be read:
+// no badge then.
 export function reviewCounts(answer: ReviewsAnswer, readied?: ReadiedPrs): ReviewCounts {
     if (answer?.state !== "ok") {
-        return { waiting: 0, mergeable: 0 };
+        return { toreview: 0, mergeable: 0 };
     }
     const ready = splitReviews(answer, readied).ready;
-    return { waiting: ready.length, mergeable: ready.filter(mergeableNow).length };
+    const mergeable = ready.filter(mergeableNow).length;
+    return { toreview: ready.length - mergeable, mergeable };
 }
 
 export function railCountText(count: number): string {
-    return count > 9 ? "9+" : String(count);
+    return count > 99 ? "99+" : String(count);
 }
 
 function plural(n: number, key: string): string {
     return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
-// The Reviews icon's tooltip and accessible name: "Reviews — 3 waiting for review, 1 ready to merge".
+// The Reviews icon's tooltip and accessible name: "Reviews — 5 to review, 4 ready to merge".
 export function reviewsRailLabel(counts: ReviewCounts): string {
-    if (counts == null || counts.waiting === 0) {
+    if (counts == null || (counts.toreview === 0 && counts.mergeable === 0)) {
         return t("rail.tools.reviews");
     }
-    const parts = [plural(counts.waiting, "rail.tools.reviewsCount.waiting")];
+    const parts: string[] = [];
+    if (counts.toreview > 0) {
+        parts.push(plural(counts.toreview, "rail.tools.reviewsCount.toReview"));
+    }
     if (counts.mergeable > 0) {
         parts.push(plural(counts.mergeable, "rail.tools.reviewsCount.mergeable"));
     }

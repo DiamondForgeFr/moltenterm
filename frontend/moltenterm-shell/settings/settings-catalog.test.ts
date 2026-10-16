@@ -7,7 +7,7 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
-import { translate } from "../i18n/i18n-core";
+import { hasKey, translate } from "../i18n/i18n-core";
 import { SuiteIcons } from "../suite/suite-icons";
 import {
     buildCatalog,
@@ -168,7 +168,7 @@ describe("settings search (FR-SHELL-050-AC2)", () => {
     });
 
     it("finds a setting by its description", () => {
-        expect(searchSettings(all(), "caffeinate")[0].key).toBe("power:sleeppolicy");
+        expect(searchSettings(all(), "desktop show through")[0].key).toBe("window:transparent");
         expect(searchSettings(all(), "dotfiles")[0].key).toBe("preview:showhiddenfiles");
     });
 
@@ -245,6 +245,14 @@ describe("settings in the interface language (FR-I18N-001)", () => {
         expect(sectionTitle("keyboard", fr)).toBe("Clavier");
         expect(searchSettings(all, "quitter")[0].key).toBe("app:confirmquit");
         expect(jsonSummary(["a", "b"], fr)).toBe("2 éléments");
+    });
+
+    it("words every unit the catalog uses (#741)", () => {
+        const all = localizeCatalog(catalog(), fr);
+        expect(all.find((e) => e.key === "term:scrollback").unit).toBe("lignes");
+        expect(all.find((e) => e.key === "moltenterm:hiddentabviewsmb").unit).toBe("Mo");
+        const units = new Set(catalog().map((e) => e.unit).filter((u) => !!u));
+        expect([...units].filter((u) => !hasKey(`settings.units.${u}`))).toEqual([]);
     });
 
     it("keeps the metadata's English for a setting the dictionaries do not know yet", () => {

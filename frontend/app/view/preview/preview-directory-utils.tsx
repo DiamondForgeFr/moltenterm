@@ -6,6 +6,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, isBlank } from "@/util/util";
 import dayjs from "dayjs";
 import React from "react";
+import { t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 import { type PreviewModel } from "./preview-model";
 
 export const recursiveError = "recursive flag must be set for directory operations";
@@ -38,19 +39,16 @@ export function getBestUnit(bytes: number, si = false, sigfig = 3): string {
     return `${parseFloat(value.toPrecision(sigfig))}${displaySuffixes[unit] ?? unit}`;
 }
 
-function padDay(day: number) {
-    return String(day).padStart(2, " ");
-}
-
-export function getLastModifiedTime(unixMillis: number): string {
+// MOLTENTERM-PATCH (#742): the month and the day order follow the interface language
+export function getLastModifiedTime(unixMillis: number, locale = "en"): string {
     const file = dayjs(unixMillis);
     const now = dayjs();
 
-    const day = padDay(file.date());
     const time = file.format("HH:mm");
 
     if (now.isSame(file, "year")) {
-        return `${file.format("MMM")} ${day} ${time}`;
+        const day = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(file.toDate());
+        return `${day} ${time}`;
     }
 
     return `${file.format("YYYY-MM-DD")}`;
@@ -81,6 +79,12 @@ export function cleanMimetype(input: string): string {
     return truncated.trim();
 }
 
+// MOLTENTERM-PATCH (#742): "directory" is a word in the Type column, not a MIME type, so it is translated
+export function typeLabel(mimetype: string, tr: (key: string) => string): string {
+    const clean = cleanMimetype(mimetype ?? "");
+    return clean === "directory" ? tr("wave.files.typeDirectory") : clean;
+}
+
 export function handleRename(
     model: PreviewModel,
     path: string,
@@ -102,7 +106,7 @@ export function handleRename(
             const errorText = `${e}`;
             console.warn(`Rename failed: ${errorText}`);
             const errorMsg: ErrorMsg = {
-                status: "Rename Failed",
+                status: t("wave.files.renameFailed"), // MOLTENTERM-PATCH (#742)
                 text: `${e}`,
             };
             setErrorMsg(errorMsg);
@@ -130,19 +134,19 @@ export function handleFileDelete(
             let errorMsg: ErrorMsg;
             if (errorText.includes(recursiveError) && !recursive) {
                 errorMsg = {
-                    status: "Confirm Delete Directory",
-                    text: "Deleting a directory requires the recursive flag. Proceed?",
+                    status: t("wave.files.confirmDeleteFolder"), // MOLTENTERM-PATCH (#742)
+                    text: t("wave.files.confirmDeleteFolderText"), // MOLTENTERM-PATCH (#742)
                     level: "warning",
                     buttons: [
                         {
-                            text: "Delete Recursively",
+                            text: t("wave.files.deleteWithContents"), // MOLTENTERM-PATCH (#742)
                             onClick: () => handleFileDelete(model, path, true, setErrorMsg),
                         },
                     ],
                 };
             } else {
                 errorMsg = {
-                    status: "Delete Failed",
+                    status: t("wave.files.deleteFailed"), // MOLTENTERM-PATCH (#742)
                     text: `${e}`,
                 };
             }
@@ -157,10 +161,10 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
     const showHiddenFiles = globalStore.get(model.showHiddenFiles) ?? true;
     return [
         {
-            label: "Directory Sort Order",
+            label: t("wave.files.sortOrder"), // MOLTENTERM-PATCH (#742)
             submenu: [
                 {
-                    label: "Name",
+                    label: t("wave.files.sortName"), // MOLTENTERM-PATCH (#742)
                     type: "checkbox",
                     checked: defaultSort === "name",
                     click: () =>
@@ -169,7 +173,7 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
                         ),
                 },
                 {
-                    label: "Last Modified",
+                    label: t("wave.files.sortModified"), // MOLTENTERM-PATCH (#742)
                     type: "checkbox",
                     checked: defaultSort === "modtime",
                     click: () =>
@@ -180,10 +184,10 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
             ],
         },
         {
-            label: "Show Hidden Files",
+            label: t("wave.files.showHidden"), // MOLTENTERM-PATCH (#742)
             submenu: [
                 {
-                    label: "On",
+                    label: t("wave.files.on"), // MOLTENTERM-PATCH (#742)
                     type: "checkbox",
                     checked: showHiddenFiles,
                     click: () => {
@@ -194,7 +198,7 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
                     },
                 },
                 {
-                    label: "Off",
+                    label: t("wave.files.off"), // MOLTENTERM-PATCH (#742)
                     type: "checkbox",
                     checked: !showHiddenFiles,
                     click: () => {

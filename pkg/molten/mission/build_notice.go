@@ -6,9 +6,11 @@ package mission
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The end of a local build is told in the notification center (FR-MC-014), once, wherever the user is: a build runs
@@ -49,28 +51,37 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 		return molten.NotificationInput{}, false
 	}
 	name := fmt.Sprintf("%s %s", projectName, rec.Title)
-	open := molten.NotificationAction{Id: "open", Label: "Show the build", Kind: "open", View: ProjectView}
+	open := molten.NotificationAction{Id: "open", Label: "Show the build", Kind: "open", View: ProjectView,
+		LabelText: uimsg.Make("notif.build.showBuild")}
 	if rec.State == RunStateSuccess {
+		sha := shortSha(rec.Commit)
 		input := molten.NotificationInput{Source: "build", Kind: "info", Title: name + " is built",
-			Message: fmt.Sprintf("Build %s finished.", shortSha(rec.Commit)), Actions: []molten.NotificationAction{open}}
+			TitleText: uimsg.Make("notif.build.builtTitle", "name", name),
+			Message:   fmt.Sprintf("Build %s finished.", sha), MessageText: uimsg.Make("notif.build.finished", "sha", sha),
+			Actions: []molten.NotificationAction{open}}
 		if delivered := deliveredManifest(rec, manifest); delivered != nil {
 			product := delivered.ProductName
 			if product == "" {
 				product = name
 			}
 			input.Title = product + " is ready"
+			input.TitleText = uimsg.Make("notif.build.readyTitle", "name", product)
 			input.Message = fmt.Sprintf("Build %s delivered to the local builds folder (%d commit(s) since the previous one).",
 				shortSha(delivered.Commit), len(delivered.Notes))
+			input.MessageText = uimsg.Make("notif.build.delivered", "sha", shortSha(delivered.Commit),
+				"count", strconv.Itoa(len(delivered.Notes)))
 		}
 		if rec.Artifact != "" {
 			reveal := molten.NotificationAction{Id: "reveal", Label: "Show in folder", Kind: "gesture", Gesture: revealPathGesture,
-				Args: map[string]any{"path": filepath.Clean(rec.Artifact)}, Lasting: true}
+				Args: map[string]any{"path": filepath.Clean(rec.Artifact)}, Lasting: true, LabelText: uimsg.Make("notif.build.showInFolder")}
 			input.Actions = []molten.NotificationAction{reveal, open}
 		}
 		return input, true
 	}
 	return molten.NotificationInput{Source: "build", Kind: "error", Title: fmt.Sprintf("The %s build stopped", name),
-		Message: "Its run card shows at which step, and the end of its log.", Actions: []molten.NotificationAction{open}}, true
+		TitleText: uimsg.Make("notif.build.stoppedTitle", "name", name),
+		Message:   "Its run card shows at which step, and the end of its log.", MessageText: uimsg.Make("notif.build.stopped"),
+		Actions: []molten.NotificationAction{open}}, true
 }
 
 // UseNotifier lets the runs tell the end of a build; wavesrv writes it in the notification center.

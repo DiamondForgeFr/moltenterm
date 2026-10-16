@@ -48,3 +48,35 @@
 .molten-notification-count {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black);
 }
+
+/* A rise of the count pulses the pill a few times, so a new notification is noticed without looking for the bell
+   (#790). Reduced motion keeps the bigger pill, without the pulse. */
+.molten-notification-count-arrive {
+    animation: molten-count-arrive 0.9s var(--mt-ease) 3;
+}
+
+@keyframes molten-count-arrive {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black);
+    }
+    40% {
+        transform: scale(1.3);
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black),
+            0 0 0 6px color-mix(in srgb, var(--color-accent) 35%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-notification-count-arrive {
+        animation: none;
+    }
+}
+
+/* The entry a panel opened by itself for (#790). */
+.molten-notification-highlight {
+    box-shadow: inset 3px 0 0 var(--color-accent);
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}

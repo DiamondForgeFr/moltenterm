@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const env = vi.hoisted(() => ({ store: null as any, entriesAtom: null as any, pushed: [] as any[] }));
+const env = vi.hoisted(() => ({ store: null as any, entriesAtom: null as any, requested: [] as string[][] }));
 
 vi.mock("@/app/store/global", () => ({ getApi: () => null }));
 vi.mock("@/app/store/jotaiStore", async () => {
@@ -14,11 +14,13 @@ vi.mock("@/app/store/jotaiStore", async () => {
 });
 vi.mock("./notifications-store", () => ({
     MoltentermNotifications: {
-        getInstance: () => ({ entriesAtom: env.entriesAtom, entries: () => env.store.get(env.entriesAtom) }),
+        getInstance: () => ({
+            entriesAtom: env.entriesAtom,
+            entries: () => env.store.get(env.entriesAtom),
+            requestPanel: (ids: string[]) => env.requested.push(ids),
+        }),
     },
 }));
-vi.mock("./notification-toasts", () => ({ notificationToast: (entry: any) => ({ id: `notif:${entry.id}` }) }));
-vi.mock("./toast-store", () => ({ Toasts: { getInstance: () => ({ push: (t: any) => env.pushed.push(t) }) } }));
 
 import {
     handoffNotifyChanges,
@@ -85,7 +87,7 @@ describe("handoffNotifyChanges", () => {
 describe("startHandoffSystemNotifications", () => {
     beforeEach(() => {
         env.store.set(env.entriesAtom, []);
-        env.pushed.length = 0;
+        env.requested.length = 0;
         lastHandoffSystemNotify.clear();
     });
 
@@ -94,7 +96,7 @@ describe("startHandoffSystemNotifications", () => {
         stop();
     });
 
-    it("asks main once per question, closes it once answered, and shows the question on click", async () => {
+    it("asks main once per question, closes it once answered, and opens the panel on the question on click", async () => {
         const { api, calls } = fakeApi();
         env.store.set(env.entriesAtom, [entry("other", { key: "attention:x" })]);
         const stop = startHandoffSystemNotifications(api);
@@ -109,12 +111,12 @@ describe("startHandoffSystemNotifications", () => {
         expect(lastHandoffSystemNotify.get("q1")).toBe("shown");
 
         calls.click("q1");
-        expect(env.pushed).toEqual([{ id: "notif:q1" }]);
+        expect(env.requested).toEqual([["q1"]]);
 
         env.store.set(env.entriesAtom, [entry("q1", { resolved: 3 })]);
         expect(calls.close).toEqual(["q1"]);
         calls.click("q1");
-        expect(env.pushed).toHaveLength(1);
+        expect(env.requested).toHaveLength(1);
 
         stop();
         expect(calls.click).toBeNull();

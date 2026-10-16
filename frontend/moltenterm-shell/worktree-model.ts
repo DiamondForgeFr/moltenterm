@@ -6,6 +6,7 @@
 // the components so the rules can be tested without the app.
 
 import { t } from "./i18n/i18n";
+import { ServerText, serverText } from "./i18n/server-text";
 import type { PaneState } from "./status-bar-model";
 import { pathBaseName } from "./workspace-project";
 
@@ -218,6 +219,7 @@ export type WorktreePlan = {
     protected?: boolean;
     terminals: WorktreeTerminal[];
     refused?: string;
+    refusedtext?: ServerText;
 };
 export type WorktreeRisk = { sha: string; changecount: number; unpushed: number; ignoredfilecount: number };
 export type WorktreeRemoveResult = {
@@ -227,6 +229,11 @@ export type WorktreeRemoveResult = {
     forced?: boolean;
     branchdeleted?: string;
     branchkept?: string;
+    branchkepttext?: ServerText;
+    // git unregistered the worktree but files written during the removal stay in this folder (#716).
+    leftoversremoved?: boolean;
+    leftover?: string;
+    leftovererror?: string;
 };
 
 // What the user confirms a second time: wavesrv refuses the removal when the worktree holds more by then.
@@ -345,7 +352,7 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         blockedReason: plan.locked
             ? t("worktree.plan.locked")
             : plan.refused
-              ? t("worktree.plan.refused", { reason: plan.refused })
+              ? t("worktree.plan.refused", { reason: serverText(plan.refusedtext, plan.refused) })
               : "",
     };
 }

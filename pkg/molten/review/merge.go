@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -194,6 +195,8 @@ type MergePlan struct {
 	CreatedAt int64    `json:"createdat"`
 
 	ciNames []string
+	// batch: the PRs a batch merge still has to merge after this one (FR-REV-025).
+	batch []int
 }
 
 type MergeRequest struct {
@@ -203,6 +206,9 @@ type MergeRequest struct {
 	Override bool `json:"override,omitempty"`
 	// Method: one of the plan's Methods; empty takes the plan's default.
 	Method string `json:"method,omitempty"`
+	// Batch: the PRs a batch merge (FR-REV-025) still has to merge after this one; the cleanup after this merge does
+	// not ask their agents for a rebase, the batch does it.
+	Batch []int `json:"batch,omitempty"`
 }
 
 // MergeRecord is the merge's progress and outcome, kept in the review store (AC5).
@@ -339,7 +345,7 @@ func shortHead(oid string) string {
 // those are the cleanup's (FR-REV-013), which checks them first.
 func (m *Merger) runGh(ctx context.Context, dir string, repo string, args ...string) ([]byte, error) {
 	if m.gh == nil {
-		return nil, fmt.Errorf("gh is not available")
+		return nil, noGhError()
 	}
 	ctx, cancel := context.WithTimeout(ctx, ghCallTimeout)
 	defer cancel()
@@ -504,11 +510,14 @@ func ticketOf(req int, pr ghMergePr) int {
 func (m *Merger) inputs(ctx context.Context, dir string, k PrKey) (ghMergePr, mission.ReviewCi, int, State, error) {
 	pr, err := m.viewPr(ctx, dir, k)
 	if err != nil {
+		if uimsg.TextOf(err) == nil {
+			err = uimsg.Errorf(uimsg.Make("review.readpr", "detail", err.Error()), "%w", err)
+		}
 		return pr, mission.ReviewCi{}, 0, State{}, err
 	}
 	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
 	if err != nil {
-		return pr, ci, 0, State{}, fmt.Errorf("the checks could not be read: %v", err)
+		return pr, ci, 0, State{}, uimsg.Errorf(uimsg.Make("review.checks", "detail", uimsg.Detail(err)), "the checks could not be read: %v", err)
 	}
 	unpublished, err := m.store.Unpublished(k)
 	if err != nil {
@@ -583,7 +592,13 @@ func (p MergePlan) mergedPr(head string, merged string) MergedPr {
 	if head == "" {
 		head = p.HeadOid
 	}
-	return MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged}
+	pr := MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged, BatchPrs: p.batch}
+	for _, step := range p.Cleanup {
+		if step.Id == CleanupStepAgentTree && step.Code == CleanupCodeWillRemove {
+			pr.AgentTree = step.Path
+		}
+	}
+	return pr
 }
 
 func (m *Merger) keepPlan(plan MergePlan) {
@@ -620,6 +635,7 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	if req.Method != "" {
 		plan.Method = req.Method
 	}
+	plan.batch = req.Batch
 	delete(m.plans, k)
 	run := &runningMerge{planId: plan.Id}
 	done := make(chan struct{})

@@ -75,15 +75,16 @@ func (e *fakeEnv) Locate(ctx context.Context, blockId string) (Location, error) 
 }
 
 func (e *fakeEnv) TypePrompt(ctx context.Context, blockId string, line string) TypeResult {
+	out := TypeResult{Sent: true, Submitted: true}
 	if e.typeOut != nil {
-		if out := e.typeOut(blockId); !out.Sent {
+		if out = e.typeOut(blockId); !out.Sent {
 			return out
 		}
 	}
 	e.lock.Lock()
 	defer e.lock.Unlock()
 	e.typed = append(e.typed, typed{blockId: blockId, line: line})
-	return TypeResult{Sent: true, Submitted: true}
+	return out
 }
 
 func (e *fakeEnv) typedLines() []typed {
@@ -154,7 +155,9 @@ func makeFixture(t *testing.T) (*Manager, *fakeEnv, string, string) {
 	m.logf = func(string, ...any) {}
 	m.sleep = func(time.Duration) { time.Sleep(time.Millisecond) }
 	m.queuePoll = time.Millisecond
-	m.approvalTimeout = 2 * time.Second
+	// Answered tests return as soon as the answer comes: the wait only bounds a failing run, and a short one would turn
+	// a slow answer into a pending request.
+	m.approvalTimeout = time.Minute
 	return m, env, projA, projB
 }
 
@@ -163,7 +166,7 @@ func answerWith(m *Manager, env *fakeEnv, decision string) {
 	env.lock.Lock()
 	defer env.lock.Unlock()
 	env.onNotify = func(input molten.NotificationInput) {
-		if len(input.Actions) == 0 {
+		if len(input.Actions) == 0 || input.Actions[0].Gesture != AnswerGesture {
 			return
 		}
 		m.Answer("tab:abc", AnswerRequest{RequestId: input.Actions[0].Args["requestid"].(string), Decision: decision})
@@ -223,6 +226,11 @@ func TestFirstSendAsksThenAlwaysIsRemembered(t *testing.T) {
 	if notes[0].BlockId != "blockA" {
 		t.Fatalf("approval block: %q", notes[0].BlockId)
 	}
+	// The windows word the request by its codes (#656).
+	if notes[0].TitleText == nil || notes[0].TitleText.Code != "handoff.approval.title" || notes[0].TitleText.Vars["to"] != "Jérôme" ||
+		notes[0].MessageText == nil || notes[0].MessageText.Vars["goal"] == "" || notes[0].Actions[0].LabelText == nil {
+		t.Fatalf("approval texts: %+v %+v %+v", notes[0].TitleText, notes[0].MessageText, notes[0].Actions[0].LabelText)
+	}
 	lines := env.typedLines()
 	if len(lines) != 1 || lines[0].blockId != "blockB" {
 		t.Fatalf("typed: %+v", lines)
@@ -256,13 +264,152 @@ func TestBlockAndNoAnswer(t *testing.T) {
 	if len(env.typedLines()) != 0 {
 		t.Fatal("nothing may be typed for a blocked pair")
 	}
-	m2, env2, _, _ := makeFixture(t)
-	m2.approvalTimeout = 20 * time.Millisecond
-	if _, err := m2.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}}); err == nil || err.Error() != errNoAnswer {
-		t.Fatalf("timeout: %v", err)
+}
+
+// waitFor polls a condition; the deadline only bounds a failing run.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	if len(env2.resolved) != 1 || !strings.HasPrefix(env2.resolved[0], NotificationKeyPrefix) {
-		t.Fatalf("the question must be resolved: %v", env2.resolved)
+}
+
+func (e *fakeEnv) resolvedKeys() []string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([]string(nil), e.resolved...)
+}
+
+// sendUnanswered sends with no one answering and a wait that ends at once: the request stays pending (#790).
+func sendUnanswered(t *testing.T, m *Manager, env *fakeEnv) (SendResult, string) {
+	t.Helper()
+	m.approvalTimeout = time.Nanosecond
+	res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "Review the parser"}})
+	if err != nil {
+		t.Fatalf("an unanswered request is not an error: %v", err)
+	}
+	notes := env.notifications()
+	if len(notes) != 1 || len(notes[0].Actions) != 3 {
+		t.Fatalf("approval: %+v", notes)
+	}
+	return res, notes[0].Actions[0].Args["requestid"].(string)
+}
+
+// #790: the developer may answer after the sender stopped waiting; nothing is sent before, the brief is delivered
+// after, and the sender is told in its terminal.
+func TestLateAllowDeliversAndTellsTheSender(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	res, id := sendUnanswered(t, m, env)
+	if res.Status != StatusPending || res.BriefPath != "" || !strings.Contains(res.Message, "nothing is sent to Jérôme until they allow it") ||
+		strings.Contains(res.Message, "nothing was sent") {
+		t.Fatalf("pending: %+v", res)
+	}
+	if len(env.typedLines()) != 0 || len(env.resolvedKeys()) != 0 {
+		t.Fatalf("before the answer: typed %+v, resolved %v", env.typedLines(), env.resolvedKeys())
+	}
+	if err := m.Answer("tab:abc", AnswerRequest{RequestId: id, Decision: DecisionAlways}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the brief and the receipt", func() bool { return len(env.typedLines()) == 2 })
+	lines := env.typedLines()
+	if lines[0].blockId != "blockB" || !strings.HasPrefix(lines[0].line, "[From Camille") {
+		t.Fatalf("brief prompt: %+v", lines[0])
+	}
+	if lines[1].blockId != "blockA" || !strings.HasPrefix(lines[1].line, "[MoltenTerm] The developer allowed your handoff to Jérôme. Sent to Jérôme.") {
+		t.Fatalf("receipt: %+v", lines[1])
+	}
+	if keys := env.resolvedKeys(); len(keys) != 1 || keys[0] != NotificationKeyPrefix+id {
+		t.Fatalf("the question must be resolved once answered: %v", keys)
+	}
+	if err := m.Answer("tab:abc", AnswerRequest{RequestId: id, Decision: DecisionOnce}); err == nil {
+		t.Fatal("a request answered twice")
+	}
+	// Always was remembered by the late answer.
+	m.approvalTimeout = time.Minute
+	if res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "again"}}); err != nil || res.Status != StatusDelivered {
+		t.Fatalf("after always: %+v %v", res, err)
+	}
+}
+
+func TestLateBlockTellsTheSenderAndSendsNothing(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	_, id := sendUnanswered(t, m, env)
+	if err := m.Answer("tab:abc", AnswerRequest{RequestId: id, Decision: DecisionBlock}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the receipt", func() bool { return len(env.typedLines()) == 1 })
+	lines := env.typedLines()
+	if lines[0].blockId != "blockA" || !strings.Contains(lines[0].line, "blocked handoffs between Camille and Jérôme") {
+		t.Fatalf("receipt: %+v", lines)
+	}
+	if _, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}}); err == nil || !strings.Contains(err.Error(), "until MoltenTerm restarts") {
+		t.Fatalf("blocked pair: %v", err)
+	}
+}
+
+// A sender busy when the late answer comes gets its receipt once its prompt is idle, like any handoff.
+func TestLateReceiptWaitsForABusySender(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	_, id := sendUnanswered(t, m, env)
+	env.setState("blockA", molten.AgentStateWorking)
+	if err := m.Answer("tab:abc", AnswerRequest{RequestId: id, Decision: DecisionOnce}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the receipt queued", func() bool { return m.hasQueue("blockA") })
+	if lines := env.typedLines(); len(lines) != 1 || lines[0].blockId != "blockB" {
+		t.Fatalf("only the brief may be typed while the sender works: %+v", lines)
+	}
+	env.setState("blockA", molten.AgentStateIdle)
+	waitFor(t, "the receipt", func() bool { return len(env.typedLines()) == 2 })
+	if l := env.typedLines()[1]; l.blockId != "blockA" || !strings.HasPrefix(l.line, receiptPrefix) {
+		t.Fatalf("receipt: %+v", l)
+	}
+}
+
+func TestCancelledSendDropsTheRequest(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	m.approvalTimeout = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	env.onNotify = func(molten.NotificationInput) { cancel() }
+	if _, err := m.Send(ctx, SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}}); err == nil || !strings.Contains(err.Error(), "Cancelled") {
+		t.Fatalf("cancelled: %v", err)
+	}
+	id := env.notifications()[0].Actions[0].Args["requestid"].(string)
+	if err := m.Answer("tab:abc", AnswerRequest{RequestId: id, Decision: DecisionOnce}); err == nil {
+		t.Fatal("a cancelled request was still answerable")
+	}
+	if len(env.resolvedKeys()) != 1 {
+		t.Fatalf("the question must be resolved: %v", env.resolvedKeys())
+	}
+}
+
+// #790: a prompt typed without Enter tells the developer, with the way to the receiver's terminal.
+func TestTypedWithoutEnterIsNotified(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	env.locs["blockB"] = Location{WorkspaceId: "wsB", WorkspaceName: "B", TabId: "tabB", TabName: "T2", Folder: env.locs["blockB"].Folder,
+		ProjectDir: env.locs["blockB"].ProjectDir, Local: true}
+	answerWith(m, env, DecisionOnce)
+	env.typeOut = func(string) TypeResult { return TypeResult{Sent: true} }
+	res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}})
+	if err != nil || res.Status != StatusTyped {
+		t.Fatalf("typed: %+v %v", res, err)
+	}
+	notes := env.notifications()
+	if len(notes) != 2 {
+		t.Fatalf("notifications: %+v", notes)
+	}
+	n := notes[1]
+	if n.Kind != "warning" || n.TitleText == nil || n.TitleText.Code != "handoff.typed.title" || n.TitleText.Vars["receiver"] != "Jérôme" ||
+		!strings.Contains(n.Title, "press Enter") || n.BlockId != "blockB" {
+		t.Fatalf("typed notification: %+v", n)
+	}
+	if len(n.Actions) != 1 || n.Actions[0].Kind != "open" || n.Actions[0].BlockId != "blockB" || n.Actions[0].TabId != "tabB" ||
+		n.Actions[0].WorkspaceId != "wsB" || n.Actions[0].LabelText == nil || n.Actions[0].LabelText.Code != "handoff.typed.goto" {
+		t.Fatalf("go to action: %+v", n.Actions)
 	}
 }
 

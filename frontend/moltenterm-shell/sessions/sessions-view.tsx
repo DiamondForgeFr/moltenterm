@@ -21,6 +21,7 @@ import { AgentStateDot } from "../agent-state-ui";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { sessionRowDragProps } from "../split/drop-zones";
 import { whileShown } from "../tab-activity";
 import { showToast } from "../toast-store";
@@ -323,7 +324,7 @@ function SessionRow({
             {...sessionRowDragProps(session, sessionWhat(session))}
             className={cn(
                 RowGrid,
-                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
                 checked && "bg-accent/10",
                 focused && !checked && "bg-hover/60"
             )}
@@ -759,7 +760,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         try {
             await fn();
         } catch (e) {
-            setNotice({ text: e?.message ?? String(e), error: true });
+            setNotice({ text: serverErrorText(e), error: true });
         } finally {
             setRowBusy(id, null);
         }

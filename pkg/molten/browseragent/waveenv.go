@@ -279,7 +279,7 @@ func (waveEnv) SetAgentSite(site string, decision string) error {
 
 func (waveEnv) TypeLine(ctx context.Context, blockId string, line string) TypeLineResult {
 	out := termupdate.TypeShareLine(ctx, blockId, line)
-	return TypeLineResult{Sent: out.Result == termupdate.InputSent, Message: out.Message}
+	return TypeLineResult{Sent: out.Result == termupdate.InputSent, Message: out.Message, MessageText: out.MessageText}
 }
 
 func (waveEnv) Publish(state PanelState) {

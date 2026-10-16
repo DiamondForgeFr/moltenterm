@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Share and tell (FR-BRW-011, DS-BRW-017): the browser panel's line about a shared tab is typed into the agent's prompt
@@ -44,7 +45,7 @@ func getRunningUpdater() *Updater {
 func TypeShareLine(ctx context.Context, blockId string, line string) AgentInputResult {
 	u := getRunningUpdater()
 	if u == nil {
-		return refused(InputReasonUnavailable, "MoltenTerm cannot type in terminals yet: nothing was typed.")
+		return refusedCannotType()
 	}
 	return u.TypeLine(ctx, blockId, line)
 }
@@ -55,7 +56,7 @@ func TypeShareLine(ctx context.Context, blockId string, line string) AgentInputR
 func TypeHandoffLine(ctx context.Context, blockId string, line string) AgentInputResult {
 	u := getRunningUpdater()
 	if u == nil {
-		return refused(InputReasonUnavailable, "MoltenTerm cannot type in terminals yet: nothing was typed.")
+		return refusedCannotType()
 	}
 	return u.typeLine(ctx, blockId, line, true)
 }
@@ -81,23 +82,21 @@ func (u *Updater) TypeLine(ctx context.Context, blockId string, line string) Age
 func (u *Updater) typeLine(ctx context.Context, blockId string, line string, submit bool) AgentInputResult {
 	line = cleanTypedLine(line)
 	if line == "" || len(line) > maxTypedLine {
-		return refused(InputReasonUnknownAction, "There is no line to type: nothing was typed.")
+		return refused(InputReasonUnknownAction, uimsg.Make("termupdate.line.none"), "There is no line to type: nothing was typed.")
 	}
 	if !u.begin(blockId) {
-		return refused(InputReasonBusy, "MoltenTerm is already typing in this terminal: try again in a moment.")
+		return refusedBusy()
 	}
 	defer u.end(blockId)
 	st, out := u.inspect(ctx, blockId)
 	if out != nil {
-		return refused(InputReasonUnavailable, out.Message+" Nothing was typed.")
+		return refusedUnreadable(out)
 	}
 	if st.adapter == nil {
 		if st.busy != "" {
-			rtn := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not the agent: nothing was typed.", st.busy))
-			rtn.Program = st.busy
-			return rtn
+			return refusedNotForeground(st.busy, "")
 		}
-		return refused(InputReasonNoAgent, "The agent no longer runs in this terminal: nothing was typed.")
+		return refusedNoAgent("")
 	}
 	agent, name := st.agent.Agent, st.adapter.Name()
 	base := func(r AgentInputResult) AgentInputResult {
@@ -105,21 +104,15 @@ func (u *Updater) typeLine(ctx context.Context, blockId string, line string, sub
 		return r
 	}
 	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
-		r := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", blocker, name))
-		if blocker == name {
-			r.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)
-		}
-		r.Program = blocker
-		return base(r)
+		return base(refusedBlocked(blocker, name))
 	}
 	if run, ok := u.env.AgentRun(blockId); ok && run.Running {
 		switch run.State {
 		case molten.AgentStateWaiting:
-			r := refused(InputReasonWaiting, fmt.Sprintf("%s is waiting for your answer: answer it first.", name))
-			r.Offer = OfferGoto
-			return base(r)
+			return base(refusedWaiting(name))
 		case molten.AgentStateWorking:
-			return base(refused(InputReasonWorking, fmt.Sprintf("%s is working: wait for its turn to end.", name)))
+			return base(refused(InputReasonWorking, uimsg.Make("termupdate.line.working", "agent", name),
+				fmt.Sprintf("%s is working: wait for its turn to end.", name)))
 		}
 	}
 	steps := []string{pasteStart + line + pasteEnd}
@@ -129,16 +122,20 @@ func (u *Updater) typeLine(ctx context.Context, blockId string, line string, sub
 	}
 	sent, err := u.sendToForegroundAgent(blockId, st.agent, st.shell.Pid, steps)
 	if err != nil {
-		return base(refused(InputReasonUnavailable, fmt.Sprintf("The terminal did not take the input: %v", err)))
+		return base(refusedNotTaken(err))
 	}
 	if !sent {
-		return base(refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)))
+		return base(refusedGone(name))
 	}
 	if enter {
-		return base(AgentInputResult{Result: InputSent, Submitted: true, Message: fmt.Sprintf("Sent to %s.", name)})
+		rtn := sentResult(uimsg.Make("termupdate.line.sent", "agent", name), fmt.Sprintf("Sent to %s.", name))
+		rtn.Submitted = true
+		return base(rtn)
 	}
 	if submit {
-		return base(AgentInputResult{Result: InputSent, Message: fmt.Sprintf("Typed in %s's prompt without Enter: the user may have an unsent message there.", name)})
+		return base(sentResult(uimsg.Make("termupdate.line.typeddraft", "agent", name),
+			fmt.Sprintf("Typed in %s's prompt without Enter: the user may have an unsent message there.", name)))
 	}
-	return base(AgentInputResult{Result: InputSent, Message: fmt.Sprintf("Typed in %s's prompt: add what to do and press Enter.", name)})
+	return base(sentResult(uimsg.Make("termupdate.line.typed", "agent", name),
+		fmt.Sprintf("Typed in %s's prompt: add what to do and press Enter.", name)))
 }

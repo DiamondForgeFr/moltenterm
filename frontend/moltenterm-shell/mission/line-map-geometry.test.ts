@@ -95,6 +95,15 @@ describe("scale and ticks", () => {
         expect(geo.ticks[3].x).toBe(geo.nowX);
     });
 
+    it("keeps the first date whole at the plot's left edge (#745)", () => {
+        const geo = layoutLineMap(model(), { width: 1400, left: 16 });
+        const first = geo.ticks[0];
+        expect(first.x).toBeCloseTo(16);
+        expect(first.labelX - (first.label.length * 6.5) / 2).toBeGreaterThanOrEqual(0);
+        expect(geo.ticks[1].labelX).toBe(geo.ticks[1].x);
+        expect(geo.ticks[3].labelX).toBe(geo.nowX);
+    });
+
     it("picks the tick step from the room per day", () => {
         expect(tickStep(150)).toBe(1);
         expect(tickStep(70)).toBe(2);

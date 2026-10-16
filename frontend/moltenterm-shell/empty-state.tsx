@@ -48,12 +48,11 @@ const PrimaryClass =
 const SecondaryClass =
     "molten-btn-secondary inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 px-3 text-12 disabled:opacity-60";
 
-// A secondary action with no primary beside it would read as plain text: alone, it gets the calm button's border.
-function ActionButton({ action, primary, alone }: { action: EmptyStateAction; primary: boolean; alone?: boolean }) {
+function ActionButton({ action, primary }: { action: EmptyStateAction; primary: boolean }) {
     return (
         <button
             type="button"
-            className={primary ? PrimaryClass : cn(SecondaryClass, alone && "border border-line")}
+            className={primary ? PrimaryClass : SecondaryClass}
             onClick={action.onClick}
             disabled={action.disabled || action.busy}
             aria-busy={action.busy || undefined}
@@ -101,9 +100,7 @@ export function EmptyState({
                 {hasActions ? (
                     <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                         {primary != null ? <ActionButton action={primary} primary /> : null}
-                        {secondary != null ? (
-                            <ActionButton action={secondary} primary={false} alone={primary == null} />
-                        ) : null}
+                        {secondary != null ? <ActionButton action={secondary} primary={false} /> : null}
                     </div>
                 ) : null}
                 {alert ? (
@@ -123,7 +120,7 @@ export function EmptyStateDetails({ text }: { text: string }) {
     const t = useT();
     return (
         <details className="group mt-2 w-full text-left" data-testid="empty-state-details">
-            <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-4 px-1.5 py-0.5 text-11 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+            <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-4 px-1.5 py-0.5 text-11 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring) [&::-webkit-details-marker]:hidden">
                 <i
                     className="fa fa-solid fa-chevron-right text-11 transition-transform duration-120 ease-mt group-open:rotate-90"
                     aria-hidden

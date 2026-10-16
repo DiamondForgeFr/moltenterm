@@ -25,15 +25,21 @@ import {
 } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
 import {
+    floorFromDraggedTerminals,
+    fullWidthTerminals,
     PanelAxis,
     PanelSibling,
     panelSizeKind,
     PanelSizes,
     PanelSizesMetaKey,
     readPanelSizes,
+    readTerminalFloor,
     rememberedPanelPx,
     rememberPanelSize,
     sizesForRememberedPanel,
+    TerminalFloorMetaKey,
+    terminalNeedPx,
+    TerminalView,
 } from "./panel-size-model";
 
 // A second drag recorded before the first write came back builds on the first, not on the stale meta.
@@ -66,6 +72,60 @@ function writePanelSizes(sizes: PanelSizes): void {
             }
         }
     });
+}
+
+// The floor this window last wrote, ahead of the meta's round trip; { px: null } while a clear is on its way.
+let unconfirmedFloor: { px: number } = null;
+
+// The terminal floor (#731) in pixels, or null when none is set.
+export function currentTerminalFloorPx(): number {
+    if (unconfirmedFloor != null) {
+        return unconfirmedFloor.px;
+    }
+    const clientAtom = ClientModel.getInstance().clientAtom;
+    const client = clientAtom == null ? null : globalStore.get(clientAtom);
+    return readTerminalFloor(client?.meta?.[TerminalFloorMetaKey]);
+}
+
+function writeTerminalFloor(px: number): void {
+    const clientId = ClientModel.getInstance().clientId;
+    if (clientId == null) {
+        return;
+    }
+    const pending = { px };
+    unconfirmedFloor = pending;
+    fireAndForget(async () => {
+        try {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("client", clientId),
+                meta: { [TerminalFloorMetaKey]: px } as MetaType,
+            });
+        } finally {
+            if (unconfirmedFloor === pending) {
+                unconfirmedFloor = null;
+            }
+        }
+    });
+}
+
+export function setTerminalFloor(px: number): void {
+    const floor = readTerminalFloor(px);
+    if (floor == null || floor === currentTerminalFloorPx()) {
+        return;
+    }
+    writeTerminalFloor(floor);
+}
+
+// Back to "no floor": terminals fill the free room again down to their readable minimum ("Readjust every size", #733).
+export function clearTerminalFloor(): void {
+    if (currentTerminalFloorPx() == null) {
+        return;
+    }
+    writeTerminalFloor(null);
+}
+
+export function isTerminalLeaf(node: LayoutNode): boolean {
+    return node != null && !node.children?.length && cachedBlockView(node.data?.blockId) === TerminalView;
 }
 
 // A carpet column dragged in 360 view (#614): its kind's remembered width, shared with the normal layout's memory.
@@ -112,10 +172,18 @@ export function recordDraggedPanelSizes(model: LayoutModel, action: LayoutTreeRe
     }
     let sizes = currentPanelSizes();
     let changed = false;
+    const terminalWidths: number[] = [];
     for (const op of action.resizeOperations) {
-        const kind = nodeKind(findNode(rootNode, op.nodeId));
-        const parent = kind == null ? null : findParent(rootNode, op.nodeId);
+        const node = findNode(rootNode, op.nodeId);
+        const parent = node == null ? null : findParent(rootNode, op.nodeId);
         if (parent == null) {
+            continue;
+        }
+        if (parentAxis(parent) === "width" && fullWidthTerminals(node, isTerminalLeaf).length) {
+            terminalWidths.push(op.size / ratio);
+        }
+        const kind = nodeKind(node);
+        if (kind == null) {
             continue;
         }
         sizes = rememberPanelSize(sizes, kind, parentAxis(parent), op.size / ratio);
@@ -124,11 +192,29 @@ export function recordDraggedPanelSizes(model: LayoutModel, action: LayoutTreeRe
     if (changed) {
         writePanelSizes(sizes);
     }
+    const floor = floorFromDraggedTerminals(terminalWidths);
+    if (floor != null) {
+        setTerminalFloor(floor);
+    }
+}
+
+// The width the added panel asks for: its kind's remembered width; without one, while a terminal floor is set, the
+// width the layout gave it (so the floor still clamps it), and at least the floor for a new terminal.
+function addedPanelTargetPx(view: string, node: LayoutNode, axis: PanelAxis, ratio: number, floor: number): number {
+    const kind = panelSizeKind(view);
+    const remembered = rememberedPanelPx(currentPanelSizes(), kind, axis);
+    if (remembered != null || axis !== "width" || floor == null) {
+        return remembered;
+    }
+    const currentPx = node.size / ratio;
+    return view === TerminalView ? Math.max(currentPx, floor) : currentPx;
 }
 
 async function applyRememberedPanelSize(model: LayoutModel, blockId: string): Promise<void> {
-    const kind = panelSizeKind(await loadBlockView(blockId));
-    if (kind == null) {
+    const view = await loadBlockView(blockId);
+    const kind = panelSizeKind(view);
+    const floor = currentTerminalFloorPx();
+    if (kind == null && (view !== TerminalView || floor == null)) {
         return;
     }
     const rootNode = model.treeState?.rootNode;
@@ -137,15 +223,20 @@ async function applyRememberedPanelSize(model: LayoutModel, blockId: string): Pr
     if (parent == null || (parent.children?.length ?? 0) < 2) {
         return;
     }
-    const targetPx = rememberedPanelPx(currentPanelSizes(), kind, parentAxis(parent));
+    const axis = parentAxis(parent);
     const ratio = model.getter(model.additionalProps)?.[parent.id]?.pixelToSizeRatio;
-    if (targetPx == null || !(ratio > 0)) {
+    if (!(ratio > 0)) {
         return;
     }
-    const siblings: PanelSibling[] = parent.children.map((child) => ({
-        size: child.size,
-        fill: child.id !== node.id && nodeKind(child) == null,
-    }));
+    const targetPx = addedPanelTargetPx(view, node, axis, ratio, floor);
+    if (targetPx == null) {
+        return;
+    }
+    const siblings: PanelSibling[] = parent.children.map((child) => {
+        const fill = child.id !== node.id && nodeKind(child) == null;
+        const needPx = fill && axis === "width" ? terminalNeedPx(child, floor, isTerminalLeaf) : 0;
+        return needPx > 0 ? { size: child.size, fill, minPx: needPx } : { size: child.size, fill };
+    });
     const index = parent.children.findIndex((child) => child.id === node.id);
     const next = sizesForRememberedPanel(siblings, index, targetPx, ratio);
     if (next == null) {

@@ -10,11 +10,13 @@
 import { atoms, getApi, globalStore } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
+import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
+import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
@@ -24,8 +26,9 @@ import { languageName } from "../i18n/i18n-core";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
-import { OptionList, OptionRow } from "../suite/suite";
+import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { workspaceShownName } from "../workspace-default-name";
 import {
     ProjectMetaKey,
     readWorkspaceFolder,
@@ -82,6 +85,9 @@ const FileDescriptionKeys: Record<string, string> = {
 
 // Wave's file names in sentence case (DS-SHELL-079).
 const FileNameKeys: Record<string, string> = {
+    "settings.json": "settings.files.settings.name",
+    "connections.json": "settings.files.connections.name",
+    "widgets.json": "settings.files.widgets.name",
     "backgrounds.json": "settings.files.backgrounds.name",
 };
 
@@ -95,6 +101,9 @@ const InputClass =
     "h-row max-w-full min-w-0 rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const GhostButton =
     "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
+// A labelled action of a row (Open →, Edit in JSON, Add a language): the calm button, which keeps its outline at rest.
+const SecondaryButton =
+    "molten-btn-secondary inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
 
 // The section each screen was last on, so a remount (a tab switch) keeps it.
 const LastSection = new Map<string, SettingsSectionId>();
@@ -366,7 +375,7 @@ function AddLanguageButton() {
         });
     };
     return (
-        <button type="button" className={GhostButton} title={t("language.addHint")} onClick={onClick}>
+        <button type="button" className={SecondaryButton} title={t("language.addHint")} onClick={onClick}>
             <i className={cn("fa-solid", copied ? "fa-check" : "fa-language")} />
             {copied ? t("language.addCopied") : t("language.add")}
         </button>
@@ -447,7 +456,7 @@ function Control({
             return (
                 <span className="inline-flex items-center gap-2">
                     <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
-                    <button type="button" className={GhostButton} onClick={onOpenJson}>
+                    <button type="button" className={SecondaryButton} onClick={onOpenJson}>
                         {t("settings.editInJson")}
                     </button>
                 </span>
@@ -624,7 +633,7 @@ function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (p
                                     : (f.description ?? "")}
                             </div>
                         </div>
-                        <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
+                        <button type="button" className={SecondaryButton} onClick={() => onOpenFile(f.path)}>
                             {t("common.open")}
                             <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
                         </button>
@@ -678,6 +687,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         []
     );
     const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const appVersion = useMemo(() => currentBuildIdentity(getApi().getAboutModalDetails()?.version ?? "").version, []);
     const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
@@ -685,7 +695,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     );
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspace?.name || t("settings.thisWorkspace");
+    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
     const openSettingsJson = () => onOpenFile("settings.json");
 
@@ -803,6 +813,12 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                             </button>
                         );
                     })}
+                    <SuiteSignature
+                        className="mt-auto shrink-0 px-2 pt-3 @max-w600:hidden"
+                        product={MoltentermProductName}
+                        version={appVersion}
+                        label={t("common.diamondforgeProduct")}
+                    />
                 </nav>
                 <div ref={contentRef} className="@container/page min-w-0 flex-1 overflow-y-auto">
                     <PageFill width={width}>

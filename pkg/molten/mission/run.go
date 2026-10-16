@@ -83,6 +83,11 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 
 // ExecRunner runs programs with the login shell's PATH; the error carries the program's last error line.
 func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+	return ExecRunnerInput(ctx, dir, nil, name, args...)
+}
+
+// ExecRunnerInput is ExecRunner with input on the program's standard input (none when input is nil).
+func ExecRunnerInput(ctx context.Context, dir string, input []byte, name string, args ...string) ([]byte, error) {
 	program := lookPathIn(name, readLoginPath())
 	if program == "" {
 		path, err := exec.LookPath(name)
@@ -96,6 +101,9 @@ func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([
 	cmd := spawns.Command(ctx, program, args...)
 	cmd.Dir = dir
 	cmd.Env = append(commandEnv(), runEnvOf(ctx)...)
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

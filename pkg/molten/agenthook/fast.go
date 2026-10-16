@@ -4,7 +4,6 @@
 package agenthook
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -113,21 +112,6 @@ func ParseStateArgs(args []string) (StateArgs, bool) {
 	return sa, true
 }
 
-// HookMessage reads the "message" field of a hook's JSON input (Claude Code's Notification hook).
-func HookMessage(r io.Reader) string {
-	data, err := io.ReadAll(io.LimitReader(r, maxStateStdin))
-	if err != nil {
-		return ""
-	}
-	var input struct {
-		Message string `json:"message"`
-	}
-	if json.Unmarshal(data, &input) != nil {
-		return ""
-	}
-	return input.Message
-}
-
 func runState(sa StateArgs, env Env) (bool, int) {
 	token := env.Getenv(jwtVarName)
 	if token == "" {
@@ -141,8 +125,11 @@ func runState(sa StateArgs, env Env) (bool, int) {
 		return false, 0
 	}
 	message := sa.Message
-	if sa.Stdin && message == "" {
-		message = HookMessage(env.Stdin)
+	if sa.Stdin {
+		var send bool
+		if message, send = StateReport(sa.State, message, env.Stdin); !send {
+			return true, 0
+		}
 	}
 	req := AgentStateRequest{BlockId: blockId, State: sa.State, Agent: sa.Agent, Message: message}
 	if err := SendAgentState(token, req); err != nil {

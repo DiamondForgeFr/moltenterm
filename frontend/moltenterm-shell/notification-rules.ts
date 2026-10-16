@@ -35,7 +35,7 @@ export const NotificationSubjects: {
     labelKey: string;
     sources: MoltentermNotificationSource[];
 }[] = [
-    { id: "agents", labelKey: "notif.subjects.agents", sources: ["agent"] },
+    { id: "agents", labelKey: "notif.subjects.agents", sources: ["agent", "sessions"] },
     { id: "builds", labelKey: "notif.subjects.builds", sources: ["build"] },
     { id: "ci", labelKey: "notif.subjects.ci", sources: ["ci"] },
     { id: "releases", labelKey: "notif.subjects.releases", sources: ["release"] },
@@ -53,6 +53,7 @@ export const DeliveryLabels: Record<Delivery, string> = {
 
 const SourceLabels: Record<MoltentermNotificationSource, string> = {
     agent: "notif.source.agent",
+    sessions: "notif.source.sessions",
     mod: "notif.source.mod",
     moltenterm: "notif.source.moltenterm",
     build: "notif.source.build",

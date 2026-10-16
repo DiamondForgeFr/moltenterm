@@ -12,10 +12,21 @@ import { CheckState, mergeStateLabel, PullRequest, summarizeChecks } from "../mi
 import { MissionGit, RunRecord } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
 
-// must match pkg/molten/mission/projecttab.go
+// must match pkg/molten/mission/projecttab.go (ProjectTabName too)
 export const ProjectTabCommand = "moltenmissionprojecttab";
 export const ProjectTabMetaKey = "molten:projecttab";
 export const ProjectTabDirMetaKey = "molten:projecttabdir";
+export const ProjectTabName = "Project";
+
+// The name a tab shows: wavesrv names the Project tab in English when it makes it, so the window words that name in
+// the interface language (#741); a name the user gave it stays as typed.
+export function tabShownName(tab: Tab, tr: (key: string) => string = t): string {
+    const name = tab?.name ?? "";
+    if (name === ProjectTabName && (tab?.meta as Record<string, unknown>)?.[ProjectTabMetaKey]) {
+        return tr("project.tabName");
+    }
+    return name;
+}
 // must match ProjectView in pkg/molten/mission/projecttab.go and ProjectOverviewView in pkg/molten/missionviews.go
 export const MoltentermProjectView = "molten-project";
 // The Timeline view, absorbed by the Project overview (FR-MC-020): saved layouts and notifications may still name it.

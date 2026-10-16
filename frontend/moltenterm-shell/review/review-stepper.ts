@@ -8,6 +8,7 @@
 // written here, through the interface's language.
 
 import type { I18nVars } from "../i18n/i18n-core";
+import { serverText } from "../i18n/server-text";
 import type {
     ReviewCleanupPanel,
     ReviewCleanupPr,
@@ -309,7 +310,7 @@ function mergeStep(
                 ? t("review.validate.cleanup.prNotMerged")
                 : t("review.validate.cleanup.prUnreadable")
         );
-        step.error = pr.error ?? step.error;
+        step.error = pr.error ? serverText(pr.errortext, pr.error) : step.error;
     }
     return step;
 }
@@ -317,6 +318,10 @@ function mergeStep(
 // --- cleanup rows ---
 
 function rowState(step: ReviewCleanupStepResult): StepState {
+    // A folder the worktree left once git unregistered it (#716): a warning, never a failure.
+    if (step?.code === "leftover" && step.state !== "planned") {
+        return "needs";
+    }
     switch (step?.state) {
         case "done":
             return "done";
@@ -463,6 +468,9 @@ function cleanupRowText(t: Translate, step: ReviewCleanupStepResult, branch: str
     if (step.code === "kept") {
         lines.push(...lossLines(t, step.loss));
     }
+    if (step.code === "leftover" && step.error) {
+        lines.push(t("review.validate.cleanup.leftoverWhy", { error: step.error }));
+    }
     if (step.id === "agent-worktree" && step.state === "done") {
         const ignored = ignoredLine(t, step.loss);
         if (ignored) {
@@ -478,7 +486,7 @@ function cleanupRow(t: Translate, step: ReviewCleanupStepResult, branch: string,
         label: t(`review.validate.cleanup.${step.id}.label`),
         state: rowState(step),
         lines: cleanupRowText(t, step, branch, base),
-        error: step.state === "failed" ? step.error : undefined,
+        error: step.state === "failed" && step.error ? serverText(step.errortext, step.error) : undefined,
     };
 }
 
@@ -583,6 +591,8 @@ export function otherPrText(t: Translate, pr: ReviewCleanupPr, base: string): st
             return t("review.validate.others.notAsked", vars);
         case "checking":
             return t("review.validate.others.checking", vars);
+        case "batch":
+            return t("review.validate.others.batch", vars);
     }
     return t("review.validate.others.unaffected");
 }
@@ -591,6 +601,7 @@ function otherPrRowState(pr: ReviewCleanupPr): StepState {
     switch (pr.flag) {
         case "rebase-asked":
         case "rebase-typed":
+        case "batch":
             return "done";
         case "agent-busy":
         case "needs-agent":
@@ -657,14 +668,14 @@ function othersStep(
             label: `#${pr.number} ${pr.branch}`,
             state: otherPrRowState(pr),
             lines: [otherPrText(t, pr, prBase)],
-            error: pr.error,
+            error: pr.error ? serverText(pr.errortext, pr.error) : undefined,
             url: pr.url,
             startAgent: pr.flag === "needs-agent" ? pr : undefined,
         }));
     if (others.state === "failed" && (others.prs ?? []).length === 0) {
         step.state = "failed";
         step.lines.push(t("review.validate.others.listFailed"));
-        step.error = others.error;
+        step.error = others.error ? serverText(others.errortext, others.error) : undefined;
         return step;
     }
     const summary = otherPrsSummary(t, others, prBase);

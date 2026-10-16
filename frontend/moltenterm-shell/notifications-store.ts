@@ -15,6 +15,14 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { t } from "./i18n/i18n";
+import { serverErrorText } from "./i18n/server-text";
+import {
+    attentionCount,
+    checkAnsweredInNotification,
+    NotificationPanelMetaKey,
+    PanelPolicy,
+    parsePanelPolicy,
+} from "./notification-attention";
 import {
     Delivery,
     deliveryOf,
@@ -88,6 +96,12 @@ export class MoltentermNotifications {
     // "<notification id>:<action id>" of the actions running, and the last failure per notification.
     runningAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
     errorsAtom = atom({}) as PrimitiveAtom<Record<string, string>>;
+    // The bell's count: the unread ones and the questions still open (#790).
+    attentionCountAtom: Atom<number>;
+    // When the panel opens by itself (#790), shared by every window through the client meta.
+    panelPolicyAtom: Atom<PanelPolicy>;
+    // A request to open this window's panel on these notifications; seq tells two requests for the same ids apart.
+    panelRequestAtom = atom(null) as PrimitiveAtom<{ ids: string[]; seq: number }>;
 
     private constructor() {
         this.entriesAtom = atom((get) => {
@@ -101,6 +115,23 @@ export class MoltentermNotifications {
         this.shownEntriesAtom = atom((get) => shownEntries(get(this.entriesAtom), get(this.prefsAtom)));
         this.unreadCountAtom = atom((get) => unreadCount(get(this.shownEntriesAtom)));
         this.openCountAtom = atom((get) => openCount(get(this.shownEntriesAtom)));
+        this.attentionCountAtom = atom((get) => attentionCount(get(this.shownEntriesAtom)));
+        this.panelPolicyAtom = atom((get) => {
+            const clientAtom = ClientModel.getInstance().clientAtom;
+            return parsePanelPolicy((clientAtom == null ? null : get(clientAtom)?.meta)?.[NotificationPanelMetaKey]);
+        });
+    }
+
+    setPanelPolicy(policy: PanelPolicy): void {
+        this.write({ [NotificationPanelMetaKey]: policy });
+    }
+
+    requestPanel(ids: string[]): void {
+        if (ids.length === 0) {
+            return;
+        }
+        const seq = (globalStore.get(this.panelRequestAtom)?.seq ?? 0) + 1;
+        globalStore.set(this.panelRequestAtom, { ids, seq });
     }
 
     setDelivery(subject: NotificationSubject, delivery: Delivery): void {
@@ -265,7 +296,9 @@ export class MoltentermNotifications {
             if (!result?.ok) {
                 this.setError(
                     entry.id,
-                    t("notif.action.failed", { error: result?.error ?? t("notif.action.unknownError") })
+                    t("notif.action.failed", {
+                        error: result?.error ? serverErrorText(result.error) : t("notif.action.unknownError"),
+                    })
                 );
                 return;
             }
@@ -273,7 +306,7 @@ export class MoltentermNotifications {
                 this.resolve(entry.key);
             }
         } catch (e) {
-            this.setError(entry.id, t("notif.action.failed", { error: e?.message ?? String(e) }));
+            this.setError(entry.id, t("notif.action.failed", { error: serverErrorText(e) }));
         } finally {
             this.setRunning(runKey, false);
         }
@@ -306,7 +339,9 @@ async function showProjectTabSafely(workspaceId: string): Promise<boolean> {
 }
 
 // wavesrv records agents' signals as unread (pkg/molten/attention): it cannot know what the user looks at. A signal
-// from the block the user has in front of them is marked read as soon as it arrives.
+// from the block the user has in front of them is marked read as soon as it arrives. A question answered only by the
+// notification's buttons stays unread (#790): the handoff approval names the asking agent's pane, which the developer
+// is usually looking at, and read on arrival it never showed.
 export const AutoReadWindowMs = 15000;
 
 export function startNotificationAutoRead(): () => void {
@@ -322,7 +357,13 @@ export function startNotificationAutoRead(): () => void {
         const now = Date.now();
         const ids = model
             .entries()
-            .filter((e) => checkUnread(e) && e.blockid === focused && now - e.time < AutoReadWindowMs)
+            .filter(
+                (e) =>
+                    checkUnread(e) &&
+                    e.blockid === focused &&
+                    now - e.time < AutoReadWindowMs &&
+                    !checkAnsweredInNotification(e)
+            )
             .map((e) => e.id);
         if (ids.length > 0) {
             model.markRead(ids);

@@ -12,8 +12,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Branch cleaning (FR-MC-017), as Notulia's: which branches can go, and their deletion. "Already merged" cannot be read
@@ -76,6 +79,8 @@ type BranchesCleanResult struct {
 	Deleted []string `json:"deleted"`
 	Failed  int      `json:"failed"`
 	Errors  []string `json:"errors,omitempty"`
+	// ErrorsText: Errors' codes, by position (#656).
+	ErrorsText []*uimsg.Text `json:"errorstext,omitempty"`
 }
 
 type BranchesAutoDeleteRequest struct {
@@ -246,11 +251,11 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 	g.out("fetch", "--quiet", "--prune", "origin")
 	trunk, trunkRef := resolveTrunk(ctx, r.git, dir)
 	if trunkRef == "" {
-		return BranchesPlan{}, errors.New("the project has no trunk branch to compare with")
+		return BranchesPlan{}, uimsg.Errorf(uimsg.Make("mission.branches.noTrunk"), "the project has no trunk branch to compare with")
 	}
 	trunkTree, err := g.out("rev-parse", trunkRef+"^{tree}")
 	if err != nil {
-		return BranchesPlan{}, fmt.Errorf("reading %s: %w", trunkRef, err)
+		return BranchesPlan{}, uimsg.Errorf(uimsg.Make("mission.branches.readTrunk", "ref", trunkRef, "detail", err.Error()), "reading %s: %w", trunkRef, err)
 	}
 	protected := protectedBranches(dir, trunk)
 	checkedOut := map[string]bool{}
@@ -330,7 +335,7 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 		return BranchesCleanResult{}, err
 	}
 	if len(req.Names) == 0 {
-		return BranchesCleanResult{}, errors.New("no branch to delete")
+		return BranchesCleanResult{}, uimsg.Errorf(uimsg.Make("mission.branches.noneToDelete"), "no branch to delete")
 	}
 	wanted := map[string]bool{}
 	for _, name := range req.Names {
@@ -354,6 +359,7 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 		if b.Action != BranchActionDelete {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: kept (%s)", branchLabel(b), b.Reason))
+			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.kept", "branch", branchLabel(b), "reason", b.Reason, "pr", strconv.Itoa(b.Pr)))
 			continue
 		}
 		var err error
@@ -365,6 +371,7 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", branchLabel(b), err))
+			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.deleteFailed", "branch", branchLabel(b), "detail", err.Error()))
 			continue
 		}
 		result.Deleted = append(result.Deleted, branchLabel(b))
@@ -383,7 +390,7 @@ func (r *Runs) AnswerAutoDelete(req BranchesAutoDeleteRequest) error {
 		ctx, cancel := context.WithTimeout(context.Background(), branchesTimeout)
 		defer cancel()
 		if _, err := r.git(ctx, dir, "gh", "repo", "edit", "--delete-branch-on-merge"); err != nil {
-			return fmt.Errorf("turning on automatic branch deletion: %w", err)
+			return uimsg.Errorf(uimsg.Make("mission.branches.autoDeleteFailed", "detail", err.Error()), "turning on automatic branch deletion: %w", err)
 		}
 	}
 	if err := os.MkdirAll(r.projectDir(dir), 0700); err != nil {

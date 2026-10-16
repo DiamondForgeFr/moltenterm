@@ -21,6 +21,7 @@ import clsx from "clsx";
 import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
+import { AgentOriginBanner, OriginMetaKey } from "../../../moltenterm-shell/reviews/agent-origin"; // MOLTENTERM-PATCH (#758)
 import { TermSelectionToolbar } from "../../../moltenterm-shell/term-copy/selection-toolbar"; // MOLTENTERM-PATCH (#119)
 import { TermLinkTooltip } from "./term-tooltip";
 import { TermStickers } from "./termsticker";
@@ -391,6 +392,8 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermResyncHandler blockId={blockId} model={model} />
             <TermThemeUpdater blockId={blockId} model={model} termRef={model.termRef} />
             <TermStickers config={stickerConfig} />
+            {/* MOLTENTERM-PATCH (#758): an agent MoltenTerm started says why it is there. */}
+            <AgentOriginBanner value={blockData?.meta?.[OriginMetaKey]} />
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
             <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />

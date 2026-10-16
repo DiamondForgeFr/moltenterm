@@ -68,7 +68,7 @@ export function releaseBars(commits: readonly RawCommit[]): { total: number; bar
         bars: [
             bar("feat", t("project.overview.bars.features")),
             bar("fix", t("project.overview.bars.fixes")),
-            bar("other", t("project.overview.bars.rest")),
+            bar("other", t("project.overview.bars.others")),
         ],
     };
 }

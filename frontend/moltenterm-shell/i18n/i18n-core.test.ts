@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     availableLanguageCodes,
     availableLanguages,
+    formatNumber,
     interpolate,
     placeholders,
     preferredLocale,
@@ -12,6 +13,7 @@ import {
     resolveKey,
     resolveLanguage,
     translate,
+    translateCount,
 } from "./i18n-core";
 
 describe("resolveKey and interpolate (DS-I18N-001)", () => {
@@ -99,5 +101,25 @@ describe("translate (TC-I18N-004)", () => {
     it("interpolates the translation", () => {
         expect(translate("fr", "appMenu.quit", { app: "MoltenTerm" })).toBe("Quitter MoltenTerm");
         expect(translate("en", "appMenu.quit", { app: "MoltenTerm" })).toBe("Quit MoltenTerm");
+    });
+});
+
+describe("plurals and numbers in the interface language (#741)", () => {
+    it("picks the form by the language's rule: French 0 and 1 are singular, English 0 is plural", () => {
+        expect(translateCount("fr", "notif.center.bellUnread", 1)).toBe("Notifications, 1 non lue");
+        expect(translateCount("fr", "notif.center.bellUnread", 0)).toBe("Notifications, 0 non lue");
+        expect(translateCount("fr", "notif.center.bellUnread", 3)).toBe("Notifications, 3 non lues");
+        expect(translateCount("fr", "rail.unread", 1)).toBe("1 non lue");
+        expect(translateCount("fr", "settings.mods.usage.timers", 0)).toBe("0 minuteur");
+        expect(translateCount("en", "settings.mods.usage.timers", 0)).toBe("0 timers");
+        expect(translateCount("en", "settings.mods.usage.timers", 1)).toBe("1 timer");
+    });
+
+    it("writes decimals in the language's notation", () => {
+        expect(formatNumber("fr", 0, 1)).toBe("0,0");
+        expect(formatNumber("fr", 3.46, 1)).toBe("3,5");
+        expect(formatNumber("en", 3.46, 1)).toBe("3.5");
+        expect(formatNumber("en", 25)).toBe("25");
+        expect(formatNumber("not a locale!", 1.5, 1)).toBe("1.5");
     });
 });

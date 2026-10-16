@@ -17,6 +17,32 @@ import (
 // must match the key in frontend/moltenterm-shell/workspace-project.ts
 const WorkspaceFolderMetaKey = "molten:folder"
 
+// must match WorkspaceRecentFoldersMetaKey in frontend/moltenterm-shell/workspace-project.ts and MaxRecentFolders in
+// frontend/moltenterm-shell/palette/palette-sources.ts
+const WorkspaceRecentFoldersMetaKey = "molten:recentfolders"
+const MaxRecentFolders = 8
+
+// PushRecentFolder puts folder first in a workspace's recent folders, as read from its meta (any JSON value), without
+// a duplicate, keeping MaxRecentFolders at most. The command palette offers them (FR-SHELL-013).
+func PushRecentFolder(recent any, folder string) []string {
+	list := []string{}
+	if folder != "" {
+		list = append(list, folder)
+	}
+	values, _ := recent.([]any)
+	for _, value := range values {
+		f, ok := value.(string)
+		if !ok || f == "" || f == folder {
+			continue
+		}
+		list = append(list, f)
+	}
+	if len(list) > MaxRecentFolders {
+		list = list[:MaxRecentFolders]
+	}
+	return list
+}
+
 // CheckPathInside reports whether path is dir or lies below it.
 func CheckPathInside(path string, dir string) bool {
 	if path == "" || dir == "" {

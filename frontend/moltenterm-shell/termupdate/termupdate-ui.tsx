@@ -12,8 +12,11 @@ import { useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useProposalRequest } from "../header/header-proposals";
 import { t as translate, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { TermUpdateOutcome } from "./termupdate-model";
+import { termupdateMessage } from "./termupdate-text";
 import { TermUpdates } from "./termupdate-store";
 
 const PlainButton =
@@ -41,7 +44,7 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
             try {
                 finish(await store.run(blockId, confirmed));
             } catch (e) {
-                finish({ status: "failed", message: translate("termupdate.failedUpdate", { error: String(e) }) });
+                finish({ status: "failed", message: translate("termupdate.failedUpdate", { error: serverErrorText(e) }) });
             } finally {
                 setPending(false);
             }
@@ -53,7 +56,7 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
             try {
                 outcome = await store.check(blockId);
             } catch (e) {
-                outcome = { status: "failed", message: translate("termupdate.failedCheck", { error: String(e) }) };
+                outcome = { status: "failed", message: translate("termupdate.failedCheck", { error: serverErrorText(e) }) };
             }
             setPending(false);
             if (outcome.status === "ready") {
@@ -114,7 +117,7 @@ function TermUpdateDialog({
                             disabled={pending}
                             autoFocus
                         >
-                            {pending ? <i className="fa fa-solid fa-spinner fa-spin mr-1.5" /> : null}
+                            {pending ? <DominoLoader className="mr-1.5" /> : null}
                             {t("termupdate.dialog.restart", { agent: name })}
                             <MoltenWave />
                         </button>
@@ -144,7 +147,7 @@ function TermUpdateDialog({
             }
         >
             <p className="text-secondary" data-role="molten-termupdate-message">
-                {outcome.message}
+                {termupdateMessage(outcome)}
             </p>
             {outcome.command && outcome.status !== "updated" ? (
                 <pre className="rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 text-secondary select-text">

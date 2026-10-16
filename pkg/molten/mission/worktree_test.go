@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 func TestPaneFreshRequestsShareOneProbe(t *testing.T) {
@@ -173,8 +175,13 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	if plan.Merged == nil || *plan.Merged {
 		t.Fatalf("a branch with new work is not merged: %+v", plan)
 	}
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, DeleteBranch: true}); err == nil {
+	_, err = w.Remove(WorktreeRemoveRequest{Dir: tree, DeleteBranch: true})
+	if err == nil {
 		t.Fatal("removed without the second confirmation")
+	}
+	if text := uimsg.TextOf(err); text == nil || text.Code != "worktree.needsConfirmation" ||
+		err.Error() != "the worktree holds work or is used by another terminal: removing it needs a second confirmation" {
+		t.Fatalf("the refusal a window words: %v %+v", err, text)
 	}
 	if _, err := os.Stat(filepath.Join(tree, "draft.txt")); err != nil {
 		t.Fatal("the refused removal lost a file")
@@ -182,8 +189,12 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	// A change made after the user confirmed is not covered by the confirmation.
 	seen := riskOf(plan)
 	os.WriteFile(filepath.Join(tree, "late.txt"), []byte("late"), 0644)
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: seen, DeleteBranch: true}); err == nil {
+	_, err = w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: seen, DeleteBranch: true})
+	if err == nil {
 		t.Fatal("removed work the user never saw")
+	}
+	if text := uimsg.TextOf(err); text == nil || text.Code != "worktree.changedSinceConfirmed" {
+		t.Fatalf("the refusal a window words: %v %+v", err, text)
 	}
 	plan, _ = w.Plan(WorktreeRequest{Dir: tree})
 	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan), DeleteBranch: true})
@@ -192,6 +203,10 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	}
 	if !res.Removed || !res.Forced || res.BranchDeleted != "" || !strings.Contains(res.BranchKept, "not merged") {
 		t.Fatalf("confirmed removal: %+v", res)
+	}
+	if kept := res.BranchKeptText; kept == nil || kept.Code != "worktree.branchKept.notMerged" ||
+		kept.Vars["branch"] != "feature/5-x" || kept.Vars["trunk"] != plan.Trunk {
+		t.Fatalf("the kept branch's reason a window words: %+v", kept)
 	}
 	g := &gitReader{ctx: context.Background(), run: plainRunner, dir: clone}
 	if !g.refExists("refs/heads/feature/5-x") {
@@ -295,8 +310,16 @@ func TestWorktreeRefusesHome(t *testing.T) {
 	if err != nil || plan.Refused == "" {
 		t.Fatalf("a worktree holding the home folder: %+v %v", plan, err)
 	}
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)}); err == nil {
+	if plan.RefusedText == nil || plan.RefusedText.Code != "worktree.refused.home" {
+		t.Fatalf("the refusal a window words: %+v", plan.RefusedText)
+	}
+	_, err = w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)})
+	if err == nil {
 		t.Fatal("removed a folder holding the home folder")
+	}
+	if text := uimsg.TextOf(err); text == nil || text.Code != "worktree.removeRefused.home" || text.Vars["path"] != tree ||
+		err.Error() != "MoltenTerm does not remove "+tree+": the home folder" {
+		t.Fatalf("the refusal a window words: %v %+v", err, text)
 	}
 }
 

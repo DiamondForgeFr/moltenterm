@@ -144,7 +144,7 @@ export function SitePermissionBar({ permissions, tabId }: { permissions: SitePer
                     type="button"
                     data-testid="site-permission-block"
                     onClick={() => click(DecisionBlock)}
-                    className="h-6 cursor-pointer rounded-4 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+                    className="h-6 cursor-pointer rounded-4 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-(--mt-focus-ring)"
                 >
                     {t("browser.sitePermission.block")}
                 </button>

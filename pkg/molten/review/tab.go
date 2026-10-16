@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
@@ -178,7 +179,7 @@ func OpenAiPane(ctx context.Context, req AiPaneRequest) (AiPaneResult, error) {
 		}
 	}
 	if !slices.Contains(tab.BlockIds, req.BlockId) {
-		return AiPaneResult{}, fmt.Errorf("the review block is not in this tab")
+		return AiPaneResult{}, uimsg.Errorf(uimsg.Make("review.blocknotintab"), "the review block is not in this tab")
 	}
 	block, err := wcore.CreateBlock(ctx, req.TabId, &waveobj.BlockDef{Meta: waveobj.MetaMapType{
 		waveobj.MetaKey_View: AiPaneView, PrMetaKey: req.Pr,

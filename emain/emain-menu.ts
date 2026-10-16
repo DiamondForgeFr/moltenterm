@@ -5,6 +5,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
 import { MenuRoleKeys, MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371, #623)
+import { workspaceShownName } from "../frontend/moltenterm-shell/workspace-default-name"; // MOLTENTERM-PATCH (#743)
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
@@ -78,7 +79,7 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
             { type: "separator" },
             ...workspaceList.map<Electron.MenuItemConstructorOptions>((workspace, i) => {
                 return {
-                    label: `${workspace.workspacedata.name}`,
+                    label: `${workspaceShownName(workspace.workspacedata.name, mt)}`, // MOLTENTERM-PATCH (#743): default names in the interface language
                     click: (_, window) => {
                         ((window as WaveBrowserWindow) ?? ww)?.switchWorkspace(workspace.workspacedata.oid);
                     },
@@ -519,7 +520,10 @@ electron.ipcMain.on(
             };
             const retire = () => {
                 cleanup();
-                menu.closePopup(window);
+                // MOLTENTERM-PATCH (#734): the tab's contents can be destroyed after its window, and closePopup reads window.id
+                if (!window.isDestroyed()) {
+                    menu.closePopup(window);
+                }
             };
             const revoke = (host: electron.WebContents, lease: string) => {
                 if (host === webContents && lease === target) retire();

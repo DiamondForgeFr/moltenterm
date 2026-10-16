@@ -10,7 +10,7 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { LegacyTimelineView, MoltentermProjectView } from "../project/project-model";
 
 // The fixed zone keeps this width at least, and never more than half of the tab's width (half wins on a narrow
-// window: the carpet must stay usable).
+// window: the carpet must stay usable). The terminal floor lifts both while a carpet column still fits (fixedBoundsPx).
 export const FixedMinPx = 520;
 export const FixedMaxShare = 0.5;
 // Room around the carpet surface, so it reads as a recessed area beside the fixed zone.
@@ -28,6 +28,12 @@ export const DefaultCarpetColumnPx = 560;
 // by the carpet's margin.
 export const PinnedColumnMinPx = 320;
 export const FixedColumnGapPx = CarpetMarginPx;
+// The "add a panel" invitation laid at each end of the carpet (#702): a slim column, a column gap from its neighbour.
+export const CarpetInvitePx = 44;
+// The readable minimum of a column other than the first (FR-SHELL-066's automatic decision counts it too).
+export const ReadableCarpetColumnPx = 360;
+// What the carpet needs to show one column at its readable minimum: the column, the carpet's padding and margins.
+export const CarpetReservePx = ReadableCarpetColumnPx + 2 * CarpetPadXPx + 2 * CarpetMarginPx;
 
 // The width a column takes on the carpet when none is remembered for its kind.
 const DefaultCarpetWidths: Record<string, number> = {
@@ -54,6 +60,16 @@ export type CarpetColumn = {
     width: number;
 };
 
+// An end of the carpet: "start" right after the fixed zone, "end" after the last column.
+export type CarpetEnd = "start" | "end";
+
+// The invitation to add a panel at one end of the carpet (#702), laid on the carpet's content like a column.
+export type CarpetInvite = {
+    end: CarpetEnd;
+    x: number;
+    width: number;
+};
+
 // A carpet column pinned to the fixed zone (FR-SHELL-067): a second fixed column beside the first, or stacked under it.
 export type PinMode = "beside" | "stacked";
 
@@ -74,6 +90,8 @@ export type CarpetLayout = {
     surface: Rect;
     viewport: Rect;
     columns: CarpetColumn[];
+    // Before the first column and after the last one; a single "end" one on an empty carpet.
+    invites: CarpetInvite[];
     contentWidth: number;
     maxScroll: number;
 };
@@ -88,6 +106,8 @@ export type CarpetLayoutInput = {
     columns: { nodeId: string; widthPx: number }[];
     // The columns pinned to the fixed zone, in the tree's order; widthPx is only used beside.
     pins?: { nodeId: string; mode: PinMode; widthPx: number }[];
+    // The width the first column's terminals need to keep the terminal floor (#731, #733), 0 without one.
+    fixedNeedPx?: number;
 };
 
 // The tab's columns in 360 view, or null when there is nothing to lay out (no tree, or a single panel).
@@ -143,13 +163,17 @@ export function defaultCarpetWidthPx(kind: string): number {
     return DefaultCarpetWidths[kind] ?? DefaultCarpetColumnPx;
 }
 
-export function fixedBoundsPx(width: number): { min: number; max: number } {
-    const max = Math.max(0, Math.floor(width * FixedMaxShare));
-    return { min: Math.min(FixedMinPx, max), max };
+// The fixed zone's bounds. needPx (the terminal floor of its terminals, #733) lifts both the minimum and the half-window
+// cap, as long as one carpet column at its readable minimum still fits beside it; otherwise the cap stays.
+export function fixedBoundsPx(width: number, needPx = 0): { min: number; max: number } {
+    const half = Math.max(0, Math.floor(width * FixedMaxShare));
+    const need = Number.isFinite(needPx) && needPx > 0 ? Math.ceil(needPx) : 0;
+    const max = need > half && need + CarpetReservePx <= width ? need : half;
+    return { min: Math.min(Math.max(FixedMinPx, need), max), max };
 }
 
-export function clampFixedPx(px: number, width: number): number {
-    const { min, max } = fixedBoundsPx(width);
+export function clampFixedPx(px: number, width: number, needPx = 0): number {
+    const { min, max } = fixedBoundsPx(width, needPx);
     const want = Number.isFinite(px) && px > 0 ? px : min;
     return Math.round(Math.min(Math.max(want, min), max));
 }
@@ -175,14 +199,17 @@ export function canPinBeside(width: number, besideCount: number): boolean {
 // The widths of the fixed zone's columns side by side, the first one then those pinned beside it, within half of the
 // window. When they do not fit, the pinned columns shrink to their minimum first, then the first column; below every
 // minimum (a very narrow window) they share the half in proportion, so the carpet never loses its space.
-export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[]): number[] {
+// needPx: the first column's terminal floor (#733), kept while the pinned columns can still shrink to their minimum.
+export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[], needPx = 0): number[] {
     if (!pinnedPx.length) {
-        return [clampFixedPx(firstPx, width)];
+        return [clampFixedPx(firstPx, width, needPx)];
     }
-    const avail = Math.max(0, fixedBoundsPx(width).max - FixedColumnGapPx * pinnedPx.length);
+    const avail = Math.max(0, fixedBoundsPx(width, needPx).max - FixedColumnGapPx * pinnedPx.length);
     const want = (px: number, fallback: number) =>
         Math.max(PinnedColumnMinPx, Number.isFinite(px) && px > 0 ? px : fallback);
-    let first = want(firstPx, FixedMinPx);
+    const need = Number.isFinite(needPx) && needPx > 0 ? needPx : 0;
+    const firstMin = Math.max(PinnedColumnMinPx, Math.min(need, avail - PinnedColumnMinPx * pinnedPx.length));
+    let first = Math.max(want(firstPx, FixedMinPx), firstMin);
     let pins = pinnedPx.map((px) => want(px, DefaultCarpetColumnPx));
     let over = first + sumPx(pins) - avail;
     if (over > 0) {
@@ -194,7 +221,7 @@ export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[
         over -= take;
     }
     if (over > 0) {
-        const take = Math.min(over, first - PinnedColumnMinPx);
+        const take = Math.max(0, Math.min(over, first - firstMin));
         first -= take;
         over -= take;
     }
@@ -215,7 +242,8 @@ function layoutFixedColumns(input: CarpetLayoutInput, width: number, height: num
     const widths = fitFixedWidths(
         width,
         input.fixedPx,
-        beside.map((p) => p.widthPx)
+        beside.map((p) => p.widthPx),
+        input.fixedNeedPx
     );
     const rows = stacked.length + 1;
     const rowHeight = Math.max(0, (height - FixedColumnGapPx * stacked.length) / rows);
@@ -256,14 +284,22 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
         width: Math.max(0, surface.width - 2 * CarpetPadXPx),
         height: Math.max(0, surface.height - CarpetPadTopPx - CarpetScrubberPx),
     };
+    // The invitations are part of the content: scrolling to either end reaches one, and they never cover a panel.
+    const invites: CarpetInvite[] = [];
     let x = 0;
+    if (input.columns.length) {
+        invites.push({ end: "start", x: 0, width: CarpetInvitePx });
+        x = CarpetInvitePx + CarpetColumnGapPx;
+    }
     const columns: CarpetColumn[] = input.columns.map((col, i) => {
         const colWidth = clampColumnPx(col.widthPx, viewport.width);
         const rtn = { nodeId: col.nodeId, x: x + (i > 0 ? CarpetColumnGapPx : 0), width: colWidth };
         x = rtn.x + colWidth;
         return rtn;
     });
-    const contentWidth = x;
+    const endX = columns.length ? x + CarpetColumnGapPx : 0;
+    invites.push({ end: "end", x: endX, width: CarpetInvitePx });
+    const contentWidth = endX + CarpetInvitePx;
     return {
         fixedNodeId: input.fixedNodeId,
         fixed,
@@ -271,13 +307,14 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
         surface,
         viewport,
         columns,
+        invites,
         contentWidth,
         maxScroll: Math.max(0, contentWidth - viewport.width),
     };
 }
 
-// Where a carpet column is drawn before scrolling, in the layout's coordinates.
-export function carpetColumnRect(layout: CarpetLayout, column: CarpetColumn): Rect {
+// Where a carpet column (or an invitation) is drawn before scrolling, in the layout's coordinates.
+export function carpetColumnRect(layout: CarpetLayout, column: { x: number; width: number }): Rect {
     return {
         top: layout.viewport.top,
         left: layout.viewport.left + column.x,
@@ -304,21 +341,58 @@ export function visibleCarpetColumnIds(layout: CarpetLayout, scrollLeft: number)
 }
 
 // The scroll position that brings a column fully into view while moving as little as possible (a column wider than
-// the carpet shows its start), or the current position when it is already in view or not on the carpet.
+// the carpet shows its start), or the current position when it is already in view or not on the carpet. The first and
+// last columns bring their end's invitation along when both fit (#702): a panel just added at an end leaves the
+// invitation in view, to add another.
 export function scrollToRevealColumn(layout: CarpetLayout, nodeId: string, scrollLeft: number): number {
     const current = clampScroll(layout, scrollLeft);
-    const column = layout?.columns.find((c) => c.nodeId === nodeId);
-    if (column == null) {
+    const index = layout?.columns.findIndex((c) => c.nodeId === nodeId) ?? -1;
+    if (index === -1) {
         return current;
     }
+    const column = layout.columns[index];
     const viewWidth = layout.viewport.width;
-    if (column.x < current || column.width > viewWidth) {
-        return clampScroll(layout, column.x);
+    let start = column.x;
+    let end = column.x + column.width;
+    const startInvite = index === 0 ? layout.invites?.find((i) => i.end === "start") : null;
+    const endInvite = index === layout.columns.length - 1 ? layout.invites?.find((i) => i.end === "end") : null;
+    if (startInvite != null && end - startInvite.x <= viewWidth) {
+        start = startInvite.x;
     }
-    if (column.x + column.width > current + viewWidth) {
-        return clampScroll(layout, column.x + column.width - viewWidth);
+    if (endInvite != null && endInvite.x + endInvite.width - start <= viewWidth) {
+        end = endInvite.x + endInvite.width;
+    }
+    if (start < current || end - start > viewWidth) {
+        return clampScroll(layout, start);
+    }
+    if (end > current + viewWidth) {
+        return clampScroll(layout, end - viewWidth);
     }
     return current;
+}
+
+// Where a panel added at an end of the carpet goes in the tree (#702): a new top-level column right before the first
+// carpet column, or right after the last one. A carpet with no column (everything fixed or pinned) gets it after the
+// root's last column; a tree that is not a row yet is wrapped, the new panel after it.
+export function carpetInsertPlace(
+    root: LayoutNode,
+    layout: CarpetLayout,
+    end: CarpetEnd
+): { targetNodeId: string; position: "before" | "after" } {
+    if (root == null) {
+        return null;
+    }
+    if (root.flexDirection !== FlexDirection.Row || !root.children?.length) {
+        return { targetNodeId: root.id, position: "after" };
+    }
+    const onCarpet = (layout?.columns ?? []).filter((c) => root.children.some((child) => child.id === c.nodeId));
+    if (!onCarpet.length) {
+        return { targetNodeId: root.children[root.children.length - 1].id, position: "after" };
+    }
+    if (end === "start") {
+        return { targetNodeId: onCarpet[0].nodeId, position: "before" };
+    }
+    return { targetNodeId: onCarpet[onCarpet.length - 1].nodeId, position: "after" };
 }
 
 // The inline CSS for a node drawn on the carpet: its position follows the --mt-carpet-scroll variable, so scrolling

@@ -104,6 +104,32 @@ func TestCollectGitFlow(t *testing.T) {
 	}
 }
 
+// Without a public release, a remote or a tag, the trunk's whole history waits for the first public release (#745).
+func TestCollectGitSincePublicBeforeFirstRelease(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	gitRun(t, dir, "init", "-q", "-b", "main")
+	commit(t, dir, "a.txt", "feat: first")
+	commit(t, dir, "b.txt", "feat: second")
+	commit(t, dir, "c.txt", "fix: third")
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Trunk != "main" || snap.Release != "main" || snap.LastPublic != "" || snap.RemoteUrl != "" {
+		t.Fatalf("trunk %q release %q last public %q remote %q", snap.Trunk, snap.Release, snap.LastPublic, snap.RemoteUrl)
+	}
+	subjects := []string{}
+	for _, c := range snap.SincePublic {
+		subjects = append(subjects, c.Subject)
+	}
+	if strings.Join(subjects, ",") != "fix: third,feat: second,feat: first" {
+		t.Fatalf("since public, newest first: %v", subjects)
+	}
+}
+
 func TestCollectGitReadsConfiguredBranches(t *testing.T) {
 	dir := makeGitFlowRepo(t)
 	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(`{"mainBranch":"main","workflow":{"workingBranch":"feature/4-thing"}}`), 0644)

@@ -10,8 +10,10 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useLocale } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { ReviewComment, ReviewCommentText, ReviewPublishRecord, ReviewState, ReviewSummaryId } from "./review-client";
 import { shortOid } from "./review-model";
 import {
@@ -140,7 +142,7 @@ function TranslateLine({
             data-status={sheet.translate.status}
             data-missing={missing}
         >
-            {waiting ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11 text-muted" /> : null}
+            {waiting ? <DominoLoader className="text-muted" /> : null}
             <span className={cn("min-w-0 flex-1", sheet.translate.status === "failed" ? "text-error" : "text-muted")}>
                 {missing > 0 ? `${PublishText.missing(missing, sheet.language.name)} ` : ""}
                 {sheet.translate.status === "sent" && missing === 0 ? "" : message}
@@ -369,7 +371,7 @@ function PublishOutcome({
             data-state={running ? "publishing" : record?.state}
         >
             <div className={cn("flex items-center gap-2 text-13 leading-5", running ? "text-muted" : tone)}>
-                {running ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" /> : null}
+                {running ? <DominoLoader /> : null}
                 <span>{running ? PublishText.posting : publishStateLabel(record)}</span>
                 {record?.url && !running ? (
                     <button
@@ -383,7 +385,9 @@ function PublishOutcome({
                     </button>
                 ) : null}
             </div>
-            {record?.message && !running ? <div className="text-muted">{record.message}</div> : null}
+            {record?.message && !running ? (
+                <div className="text-muted">{serverText(record.messagetext, record.message)}</div>
+            ) : null}
             {notes.length > 0 && !running ? (
                 <ul className="flex flex-col gap-1" data-testid="publish-notes">
                     {notes.map((n) => {
@@ -394,7 +398,9 @@ function PublishOutcome({
                                     {c ? `${c.anchor.path} ${linesLabel(c)}` : n.commentid}
                                 </span>
                                 : {PublishText.note[n.note] ?? n.note}
-                                {n.message ? <span className="text-error"> ({n.message})</span> : null}
+                                {n.message ? (
+                                    <span className="text-error"> ({serverText(n.messagetext, n.message)})</span>
+                                ) : null}
                             </li>
                         );
                     })}

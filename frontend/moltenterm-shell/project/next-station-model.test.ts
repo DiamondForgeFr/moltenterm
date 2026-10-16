@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import { CiState } from "../mission/ci-model";
 import { Milestone } from "../mission/github";
 import { terminusText } from "../mission/line-map-geometry";
@@ -101,6 +102,25 @@ describe("next station", () => {
         expect(s.note).toMatch(/^Nothing a user would see since v1\.1\.0/);
     });
 
+    it("words the plan's reason in the interface language (#745)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(nextStation(git(), null).note).toBe("Première version publique : un choix, pas un calcul.");
+            expect(nextStation(Released, null).note).toBe("Déduit des commits : 3 nouvelles fonctionnalités.");
+            const fixOnly = nextStation(git({ ...Released, sincepublic: commits("fix: a") }), null);
+            expect(fixOnly.note).toBe("Déduit des commits : 1 correction, aucune nouvelle fonctionnalité.");
+            const breaking = nextStation(git({ ...Released, sincepublic: commits("feat!: a") }), null);
+            expect(breaking.note).toBe("Déduit des commits : 1 changement incompatible.");
+            const nothing = nextStation(git({ ...Released, sincepublic: commits("chore: bump") }), null);
+            expect(nothing.note).toMatch(/^Rien qu'un utilisateur verrait depuis v1\.1\.0 /);
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+        expect(nextStation(git({ ...Released, sincepublic: commits("fix: a", "fix: b") }), null).note).toBe(
+            "Derived from the commits: 2 fixes, no new feature."
+        );
+    });
+
     it("follows the project's tag prefix", () => {
         expect(nextStation(git({ tagprefix: "release-" }), null).tag).toBe("release-1.0.0");
     });
@@ -159,7 +179,39 @@ describe("waiting on develop", () => {
             git({ release: "main", trunk: "main", ahead: [], lastpublic: "v1.1.0", sincepublic: commits("fix: a") })
         );
         expect(counts).toMatchObject({ title: "Waiting on main", total: 1, fixes: 1, scope: "change since v1.1.0" });
-        expect(countsLine(counts)).toBe("0 features · 1 fix · 0 other");
+        expect(countsLine(counts)).toBe("0 features · 1 fix · 0 others");
+    });
+
+    it("before the first public release, counts the trunk's commits the collector reads (#745)", () => {
+        const counts = waitingCounts(
+            git({
+                release: "main",
+                trunk: "main",
+                ahead: [],
+                lastpublic: "",
+                sincepublic: commits("feat: b", "feat: a", "docs: c"),
+            })
+        );
+        expect(counts).toMatchObject({
+            total: 3,
+            features: 2,
+            fixes: 0,
+            other: 1,
+            scope: "changes, no public release yet",
+        });
+        expect(countsLine(counts)).toBe("2 features · 0 fixes · 1 other");
+    });
+
+    it("uses the French plural rule: 0 and 1 are singular (#745)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const none = waitingCounts(git({ release: "main", trunk: "main", ahead: [], sincepublic: [] }));
+            expect(none.scope).toBe("changement, pas encore de version publique");
+            expect(countsLine(none)).toBe("0 fonctionnalité · 0 correction · 0 autre");
+            expect(countsLine(waitingCounts(git()))).toBe("3 fonctionnalités · 2 corrections · 1 autre");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("reads nothing waiting as zero", () => {

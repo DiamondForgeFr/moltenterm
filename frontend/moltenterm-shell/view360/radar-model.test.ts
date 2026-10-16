@@ -23,7 +23,7 @@ function col(columnId: string, ...blockIds: string[]): RadarColumnInput {
 }
 
 const facts: Record<string, RadarBlockFacts> = {
-    a: { view: "term", agent: true, title: "[Léa] Claude Code", attention: null },
+    a: { view: "term", agent: true, title: "Léa · Claude Code", attention: null },
     w: { view: "molten-browser", agent: false, title: "github.com", attention: null },
     c: { view: "molten-companion", agent: false, title: "Companion", attention: null },
     r: { view: "molten-review", agent: false, title: "Review", attention: null },

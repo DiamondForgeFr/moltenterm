@@ -64,7 +64,9 @@ func TestAttentionAgentState(t *testing.T) {
 	cases := []struct{ title, message, want string }{
 		{"A terminal needs your attention", "Bell", AgentStateWaiting},
 		{"Claude needs your permission to use Bash", "", AgentStateWaiting},
-		{"Claude is waiting for your input", "", AgentStateWaiting},
+		// Claude Code's idle reminder follows a finished turn (#784).
+		{"Claude is waiting for your input", "", AgentStateDone},
+		{"Claude Code", "Claude is waiting for your input", AgentStateDone},
 		{"Codex", "Turn complete", AgentStateDone},
 		{"Task finished", "", AgentStateDone},
 	}

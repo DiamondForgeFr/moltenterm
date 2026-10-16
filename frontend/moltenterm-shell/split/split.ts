@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the edge handles, the
-// menus, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in
+// Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the menus, the placement
+// mode, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in
 // pane mode, DS-SHELL-066); cancelling it removes the panel and gives its room back to the source.
 
 import { getFocusedBlockId, WOS } from "@/app/store/global";
@@ -10,9 +10,11 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { ObjectService } from "@/app/store/services";
 import type { LayoutTreeResizeNodeAction } from "@/layout/index";
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
-import { findParent } from "@/layout/lib/layoutNode";
+import type { LayoutModel } from "@/layout/lib/layoutModel";
+import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
+import { besideColumns } from "./add-beside-model";
 import { HalfSplit, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
 
 // The pickers opened by a split and not chosen or cancelled yet (new block id -> source block id). Not persisted: a
@@ -45,8 +47,8 @@ function prunePendingSplits() {
     }
 }
 
-// Splits the panel and opens the picker in the new one; fraction is the new panel's share of the source (the handles
-// pass the dragged size, every other way a half). Returns the new block id, null when the panel is not in the layout.
+// Splits the panel and opens the picker in the new one; fraction is the new panel's share of the source, a half by
+// default. Returns the new block id, null when the panel is not in the layout.
 export async function splitPanel(
     sourceBlockId: string,
     direction: SplitDirection,
@@ -104,6 +106,60 @@ export function insertBlockBeside(
         resizeOperations: [{ nodeId: source.id, size: sizes.source }],
     } as LayoutTreeResizeNodeAction);
     return true;
+}
+
+// A new top-level column opening on the picker, like a split (#702: the 360 view's "add a panel" at each end of the
+// carpet). place is read once the block exists, the layout may have changed meanwhile; the picker reads its context
+// (directory, connection) from sourceBlockId, and cancelling it gives the focus back there. A place with columnSizes
+// (#732) then sizes the top-level columns, the new one included, before the layout is drawn. Returns the new block id,
+// null when there is no place.
+export async function addPickerColumn(
+    layoutModel: LayoutModel,
+    sourceBlockId: string,
+    place: () => { targetNodeId: string; position: "before" | "after"; columnSizes?: number[] }
+): Promise<string> {
+    if (layoutModel == null || place() == null) {
+        return null;
+    }
+    prunePendingSplits();
+    const newBlockId = await ObjectService.CreateBlock(splitPickerBlockDef(sourceBlockId), {
+        termsize: { rows: 25, cols: 80 },
+    });
+    const where = place();
+    const rootNode = layoutModel.treeState?.rootNode;
+    const target = where == null || rootNode == null ? null : findNode(rootNode, where.targetNodeId);
+    if (target == null) {
+        fireAndForget(() => ObjectService.DeleteBlock(newBlockId));
+        return null;
+    }
+    if (sourceBlockId) {
+        pendingSplits.set(newBlockId, sourceBlockId);
+    }
+    if (layoutModel.magnifiedNodeId != null) {
+        layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
+    }
+    // The size of its neighbour: back in the normal layout, the new column takes an equal share of the row.
+    const newNode = newLayoutNode(undefined, target.size, undefined, { blockId: newBlockId });
+    const action: LayoutTreeSplitHorizontalAction = {
+        type: LayoutTreeActionType.SplitHorizontal,
+        targetNodeId: target.id,
+        newNode,
+        position: where.position,
+        focused: true,
+    };
+    const sizes = where.columnSizes;
+    if (!sizes?.length || besideColumns(rootNode).length !== sizes.length - 1) {
+        layoutModel.treeReducer(action);
+        return newBlockId;
+    }
+    // Both actions before the layout is drawn: the existing columns never show squeezed.
+    layoutModel.treeReducer(action, false);
+    const columns = besideColumns(layoutModel.treeState?.rootNode);
+    layoutModel.treeReducer({
+        type: LayoutTreeActionType.ResizeNode,
+        resizeOperations: columns.map((column, i) => ({ nodeId: column.id, size: sizes[i] ?? column.size })),
+    } as LayoutTreeResizeNodeAction);
+    return newBlockId;
 }
 
 // The focused panel, for the keys (Cmd+D, Cmd+Shift+D, the Ctrl+Shift+S chord).

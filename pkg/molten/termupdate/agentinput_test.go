@@ -126,6 +126,9 @@ func TestAgentInputRefusals(t *testing.T) {
 		if out.Result != InputRefused || out.Reason != tc.reason || out.Offer != tc.offer || out.Message == "" {
 			t.Errorf("%s: %+v", tc.name, out)
 		}
+		if out.MessageText == nil || out.MessageText.Code == "" {
+			t.Errorf("%s: no code for the window: %+v", tc.name, out)
+		}
 		if len(f.input) != 0 {
 			t.Errorf("%s: typed %q", tc.name, f.input)
 		}
@@ -330,5 +333,23 @@ func TestInputWatch(t *testing.T) {
 	w.output("b1", []byte("plan mode on"))
 	if st := w.state("b1"); st.Mode != "" {
 		t.Fatalf("only Claude Code draws these modes: %+v", st)
+	}
+}
+
+// #790: the key answering the agent's own question is not a draft in its prompt; a draft typed before stays.
+func TestInputWatchIgnoresAnswersToTheAgent(t *testing.T) {
+	run := molten.AgentRunInfo{BlockId: "b1", Agent: "claude", Running: true, Started: 10, State: molten.AgentStateWaiting}
+	w := makeInputWatch(func(string) (molten.AgentRunInfo, bool) { return run, true }, func(string) bool { return true })
+	w.input("b1", []byte("1"))
+	if st := w.state("b1"); st.Draft {
+		t.Fatalf("an answer made a draft: %+v", st)
+	}
+	run.State = molten.AgentStateIdle
+	w.input("b1", []byte("half a message"))
+	run.State = molten.AgentStateWaiting
+	w.input("b1", []byte("y\r"))
+	run.State = molten.AgentStateIdle
+	if st := w.state("b1"); !st.Draft {
+		t.Fatalf("the draft typed before the question was lost: %+v", st)
 	}
 }

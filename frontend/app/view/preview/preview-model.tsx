@@ -18,11 +18,11 @@ import { Atom, atom, Getter, PrimitiveAtom, WritableAtom } from "jotai";
 import { loadable } from "jotai/utils";
 import type * as MonacoTypes from "monaco-editor";
 import { createRef } from "react";
+import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
-import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
-import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 
 // TODO drive this using config
 const BOOKMARKS: { label: string; path: string }[] = [
@@ -267,19 +267,23 @@ export class PreviewModel implements ViewModel {
                 const fileInfo = globalStore.get(this.loadableFileInfo);
                 // MOLTENTERM-PATCH (#406): states are the header's one Pill, not buttons that do nothing
                 if (fileInfo.state != "hasData") {
-                    viewTextChildren.push({ elemtype: "pill", text: "Loading…", tone: "neutral" });
+                    viewTextChildren.push({
+                        elemtype: "pill",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.loading"),
+                        tone: "neutral",
+                    }); // MOLTENTERM-PATCH (#750)
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({
                         elemtype: "pill",
-                        text: "Read only",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.readOnly"), // MOLTENTERM-PATCH (#750)
                         tone: "neutral",
                         icon: "lock",
-                        title: "This file is read-only",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.readOnlyTitle"), // MOLTENTERM-PATCH (#750)
                     });
                 } else {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Save",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.save"), // MOLTENTERM-PATCH (#750)
                         className: clsx(`${saveClassName} rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => fireAndForget(this.handleFileSave.bind(this)),
                     });
@@ -287,7 +291,7 @@ export class PreviewModel implements ViewModel {
                 if (get(this.canPreview)) {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Preview",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.preview"), // MOLTENTERM-PATCH (#750)
                         className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                         onClick: () => fireAndForget(() => this.setEditMode(false)),
                     });
@@ -295,7 +299,7 @@ export class PreviewModel implements ViewModel {
             } else if (get(this.canPreview)) {
                 viewTextChildren.push({
                     elemtype: "textbutton",
-                    text: "Edit",
+                    text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.edit"), // MOLTENTERM-PATCH (#750)
                     className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                     onClick: () => fireAndForget(() => this.setEditMode(true)),
                 });
@@ -337,7 +341,10 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: showHiddenFiles ? "eye" : "eye-slash",
-                        title: showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files",
+                        title: translate(
+                            get(I18nModel.getInstance().localeAtom),
+                            showHiddenFiles ? "wave.files.hideHidden" : "wave.files.showHidden"
+                        ), // MOLTENTERM-PATCH (#742)
                         click: () => {
                             globalStore.set(this.showHiddenFiles, (prev) => !prev);
                         },
@@ -345,6 +352,7 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.files.refresh"), // MOLTENTERM-PATCH (#742)
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -353,13 +361,13 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "book",
-                        title: "Table of Contents",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.tableOfContents"), // MOLTENTERM-PATCH (#750)
                         click: () => this.markdownShowTocToggle(),
                     },
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.refresh"), // MOLTENTERM-PATCH (#750)
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -369,7 +377,7 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.refresh"), // MOLTENTERM-PATCH (#750)
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -705,7 +713,7 @@ export class PreviewModel implements ViewModel {
         const overrideFontSize = blockData?.meta?.["editor:fontsize"];
         const menuItems: ContextMenuItem[] = [];
         menuItems.push({
-            label: "Copy Full Path",
+            label: t("wave.files.copyPath"), // MOLTENTERM-PATCH (#742)
             click: () =>
                 fireAndForget(async () => {
                     const filePath = await globalStore.get(this.statFilePath);
@@ -723,7 +731,7 @@ export class PreviewModel implements ViewModel {
                 }),
         });
         menuItems.push({
-            label: "Copy File Name",
+            label: t("wave.files.copyName"), // MOLTENTERM-PATCH (#742)
             click: () =>
                 fireAndForget(async () => {
                     const fileInfo = await globalStore.get(this.statFile);
@@ -739,6 +747,7 @@ export class PreviewModel implements ViewModel {
         const loadableSV = globalStore.get(this.loadableSpecializedView);
         const wordWrapAtom = getOverrideConfigAtom(this.blockId, "editor:wordwrap");
         const wordWrap = globalStore.get(wordWrapAtom) ?? false;
+        const locale = globalStore.get(I18nModel.getInstance().localeAtom); // MOLTENTERM-PATCH (#750)
         menuItems.push({ type: "separator" });
         if (loadableSV.state == "hasData" && loadableSV.data.specializedView == "codeedit") {
             const fontSizeSubMenu: ContextMenuItem[] = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(
@@ -757,7 +766,7 @@ export class PreviewModel implements ViewModel {
                 }
             );
             fontSizeSubMenu.unshift({
-                label: "Default (" + defaultFontSize + "px)",
+                label: translate(locale, "wave.editor.fontSizeDefault", { size: defaultFontSize }), // MOLTENTERM-PATCH (#750)
                 type: "checkbox",
                 checked: overrideFontSize == null,
                 click: () => {
@@ -768,23 +777,23 @@ export class PreviewModel implements ViewModel {
                 },
             });
             menuItems.push({
-                label: "Editor Font Size",
+                label: translate(locale, "wave.editor.fontSize"), // MOLTENTERM-PATCH (#750)
                 submenu: fontSizeSubMenu,
             });
             if (globalStore.get(this.newFileContent) != null) {
                 menuItems.push({ type: "separator" });
                 menuItems.push({
-                    label: "Save File",
+                    label: translate(locale, "wave.editor.saveFile"), // MOLTENTERM-PATCH (#750)
                     click: () => fireAndForget(this.handleFileSave.bind(this)),
                 });
                 menuItems.push({
-                    label: "Revert File",
+                    label: translate(locale, "wave.editor.revertFile"), // MOLTENTERM-PATCH (#750)
                     click: () => fireAndForget(this.handleFileRevert.bind(this)),
                 });
             }
             menuItems.push({ type: "separator" });
             menuItems.push({
-                label: "Word Wrap",
+                label: translate(locale, "wave.editor.wordWrap"), // MOLTENTERM-PATCH (#750)
                 type: "checkbox",
                 checked: wordWrap,
                 click: () =>
@@ -798,7 +807,7 @@ export class PreviewModel implements ViewModel {
         }
         if (loadableSV.state == "hasData" && loadableSV.data.specializedView == "directory") {
             menuItems.push({ type: "separator" });
-            menuItems.push({ label: "Default Settings", enabled: false });
+            menuItems.push({ label: t("wave.files.defaultSettings"), enabled: false }); // MOLTENTERM-PATCH (#742)
             menuItems.push(...makeDirectoryDefaultMenuItems(this));
         }
         return menuItems;

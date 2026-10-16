@@ -113,6 +113,8 @@ type Session struct {
 	Format  string
 	// Id: the agent's session id, when its transcript says it.
 	Id string
+	// metaSeen: the transcript's own header was read; a later one is another session's (a Codex sub-agent's copy).
+	metaSeen bool
 	// Cwd: the agent's folder when its transcript says it, for the relative paths of its edits.
 	Cwd         string
 	lines       int
@@ -133,8 +135,10 @@ type Session struct {
 	// What the task checkpoint reads (FR-CONT-007): the prompts, when the task list last changed, the turns ended.
 	firstPrompt *Prompt
 	prompts     []Prompt
-	todosAt     int64
-	turnsEnded  int
+	// promptTurn: the turn the latest prompt was added in.
+	promptTurn int
+	todosAt    int64
+	turnsEnded int
 	// recordAt: the time of the record being parsed, for the changes whose call does not carry it.
 	recordAt int64
 	// startedAt: the time of the first record; firstCommand: the first slash command, the title until a prompt.
@@ -216,10 +220,20 @@ func (s *Session) AddPrompt(text string, at int64) {
 		s.firstPrompt = &first
 	}
 	s.startTopic(text, at)
+	s.promptTurn = s.nextTurn
 	s.prompts = append(s.prompts, p)
 	if len(s.prompts) > MaxPrompts {
 		s.prompts = append([]Prompt(nil), s.prompts[len(s.prompts)-MaxPrompts:]...)
 	}
+}
+
+// PromptInTurn tells whether the current turn already has this prompt (an agent that writes one prompt as two records).
+func (s *Session) PromptInTurn(text string) bool {
+	text = strings.TrimSpace(oneLine(text))
+	if len(s.prompts) == 0 || s.promptTurn != s.nextTurn {
+		return false
+	}
+	return s.prompts[len(s.prompts)-1].Text == cutString(text, MaxPromptBytes)
 }
 
 func (s *Session) touch() {

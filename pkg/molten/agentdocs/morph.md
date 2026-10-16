@@ -32,6 +32,9 @@ instead of steps 3 to 9 below (steps 1 and 2 still apply):
      that concerns the workspace, if there is one, and tell the user plainly which part you could not do and why.
    - **Both**: build the workspace part, and say which part was left out.
    - **Neither** (MoltenTerm's own code, or something no mod can reach): say so and stop.
+
+   When the request, or part of it, needs something the installed API cannot do yet, see "Out of reach for now"
+   below.
 <!-- /not -->
 <!-- only:claude-code -->
 3. Decide what the request changes. A mod has two layers, and a request may need one or both:
@@ -46,19 +49,23 @@ instead of steps 3 to 9 below (steps 1 and 2 still apply):
      environment. A MoltenTerm part cannot call into Claude Code: the Claude Code part pulls, by running a `molten`
      command.
    - **Neither** (MoltenTerm's own code, or something no mod can reach): say so and stop.
+
+   When the request, or part of it, needs something the installed API cannot do yet, see "Out of reach for now"
+   below.
 <!-- /only -->
 4. See what exists: `molten mod list --json`. If a mod already covers this feature, edit it instead of creating a
    new one.
 <!-- not:claude-code -->
 5. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, then write `main.js` in the
    folder it prints, and list in `mod.json` the capabilities it uses. A mod is one self-contained ES module: no
-   import, only the `api` given to `activate`.
+   import, only the `api` given to `activate`, never `document` or the page (`mod-format.md` says why).
 <!-- /not -->
 <!-- only:claude-code -->
 5. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, with `--claude-code` when
    the request needs the Claude Code part. Then:
    - write `main.js` in the folder it prints, and list in `mod.json` the capabilities it uses. A mod is one
-     self-contained ES module: no import, only the `api` given to `activate`. A mod with only a Claude Code part
+     self-contained ES module: no import, only the `api` given to `activate`, never `document` or the page
+     (`mod-format.md` says why). A mod with only a Claude Code part
      keeps a `main.js` whose `activate` does nothing.
    - write the Claude Code part in the `agents/claude-code/` folder `molten mod new` printed: `hooks/register.ts`
      (or `.tsx`), `hooks/hooks.json`, `.claude-plugin/plugin.json` whose `name` stays the mod id. Use the
@@ -85,6 +92,34 @@ instead of steps 3 to 9 below (steps 1 and 2 still apply):
    the configuration path), ask them to check the result, and tell them that
    `molten undo` reverts the last change (repeat it to go further back) and `molten mod disable <id>` turns the mod
    off.
+
+## Out of reach for now
+
+MoltenTerm API version 1 adds commands, boxes next to a terminal, notifications and interface texts (language
+packs). When a request needs more, build what is reachable, then tell the user plainly which part waits and for
+which planned capability, with its story:
+
+| The request needs | Planned capability | Story |
+| --- | --- | --- |
+| Colours, accent, fonts, density | Mod themes | #721 |
+| Hiding or replacing a part of the interface | Hide list | #722 |
+| A setting, a rail tool, an agent preset, a terminal theme | Settings, widgets, presets and terminal themes in mods | #723 |
+| A command in the palette or the command panel, a keybinding | Mod commands in the palette, the command panel and keys | #724 |
+| Reacting to an event ("an agent finished", "a tab opened"), reading the workspace, project or agents | Events and read-only state | #725 |
+| A Mission Control card, a status bar item | Cards and status bar items | #726 |
+| A layout, a free-form panel | Not planned yet: say so | — |
+
+The stories are on https://github.com/DiamondForgeFr/moltenterm/issues/<number>. For example: "Hiding the radar
+waits for the hide list (#722); I added nothing." or "I added `molten staging`, which shows the deployed branch in a
+box; a Mission Control card for it waits for #726."
+
+Never work around a missing capability by reaching into the page (`document`, injected styles, MoltenTerm's internal
+objects): it is unsupported, breaks on updates, and stays on screen after `molten mod disable` or `molten undo`.
+<!-- only:claude-code -->
+Inside Claude Code sessions, the Claude Code part may already cover part of such a request (a hook on Claude Code's
+own events, a status line entry): build it there, and say that other agents and the rest of the workspace still
+wait for the story.
+<!-- /only -->
 
 ## Rules
 

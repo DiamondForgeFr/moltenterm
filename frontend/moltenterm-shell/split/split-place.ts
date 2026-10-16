@@ -8,6 +8,7 @@ import { getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, type PrimitiveAtom } from "jotai";
+import { panelIsLaidOut, revealPanelOnCarpet } from "../view360/carpet-reveal";
 import { splitPanel } from "./split";
 import type { SplitDirection } from "./split-model";
 
@@ -16,10 +17,13 @@ export type SplitPlacement = { blockId: string; side: SplitDirection };
 
 export const splitPlacementAtom = atom(null) as PrimitiveAtom<SplitPlacement>;
 
+// The panel first comes into view on the 360 carpet (#747); a block the tab draws no panel for gets no mode, which
+// would swallow the arrows with nothing on screen.
 export function enterSplitPlacement(blockId: string, side: SplitDirection = null): void {
-    if (!blockId) {
+    if (!panelIsLaidOut(blockId)) {
         return;
     }
+    revealPanelOnCarpet(blockId);
     globalStore.set(splitPlacementAtom, { blockId, side });
 }
 

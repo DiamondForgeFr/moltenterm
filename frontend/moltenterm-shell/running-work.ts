@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { t } from "./i18n/i18n";
+import type { ServerText } from "./i18n/server-text";
 import { ciCancel, missionCancel, MissionCiEvent, MissionRouteId, MissionRunEvent } from "./mission/mission-client";
 import { TabActivity, whileShown } from "./tab-activity";
 import { GoldUpdateModel } from "./update/update-store";
@@ -25,6 +26,7 @@ export type WorkItem = {
     workspaceid?: string;
     title: string;
     detail?: string;
+    detailtext?: ServerText;
     startedat: number;
     // From 0 to 1, or -1 when the work does not say.
     progress: number;

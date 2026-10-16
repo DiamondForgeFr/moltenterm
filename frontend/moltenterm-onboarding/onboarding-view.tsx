@@ -16,6 +16,7 @@ import * as WOS from "@/app/store/wos";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { I18nModel, t, useT } from "../moltenterm-shell/i18n/i18n";
+import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { onboardingUpdate, OnboardingUpdate, setPanelPage } from "./onboarding-client";
 import { openBesidePanel } from "./onboarding-open";
@@ -74,7 +75,7 @@ export class OnboardingViewModel implements ViewModel {
         try {
             await fn();
         } catch (e) {
-            globalStore.set(this.errorAtom, `${e?.message ?? e}`);
+            globalStore.set(this.errorAtom, serverErrorText(e));
         } finally {
             globalStore.set(this.busyAtom, false);
         }

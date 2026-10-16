@@ -13,6 +13,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -156,6 +157,30 @@ func TestLinkCancelFromItsOwnLinkOnly(t *testing.T) {
 		}
 	case <-time.After(time.Minute):
 		t.Fatal("the cancelled call did not answer")
+	}
+}
+
+func TestLinkSendsCodedErrorsToWindowsOnly(t *testing.T) {
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, localroute.Route{
+		Id:     "test",
+		Policy: localroute.Policy{Default: localroute.AllowLocal},
+		Handler: func(context.Context, string, localroute.Caller, any) (any, error) {
+			return nil, uimsg.Errorf(uimsg.Make("test.failed", "detail", "boom"), "it failed: %s", "boom")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, errStr := routetest.Ask(t, link, e.Window(), "x", nil)
+	text, english := uimsg.Unwire(errStr)
+	if text == nil || text.Code != "test.failed" || text.Vars["detail"] != "boom" || english != "it failed: boom" {
+		t.Fatalf("a window got %q", errStr)
+	}
+	for _, from := range []routetest.From{e.Terminal(), e.Electron()} {
+		if _, errStr := routetest.Ask(t, link, from, "x", nil); errStr != "it failed: boom" {
+			t.Fatalf("%s got %q, want the English only", from.Name, errStr)
+		}
 	}
 }
 

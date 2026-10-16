@@ -7,6 +7,7 @@
         "addHint": "Collez la demande /morph copiée dans votre agent de code en nommant la langue : il écrit la traduction et l'installe comme mod."
     },
     "common": {
+        "diamondforgeProduct": "Un produit DiamondForge",
         "cancel": "Annuler",
         "close": "Fermer",
         "ok": "OK",
@@ -18,6 +19,7 @@
         "off": "Désactivé",
         "open": "Ouvrir",
         "confirm": "Confirmer",
+        "loading": "Chargement",
         "selected": "Sélectionné"
     },
     "i18n": {
@@ -108,8 +110,15 @@
         }
     },
     "wave": {
+        "launcher": {
+            "searchAria": "Rechercher des widgets",
+            "noneFound": "Aucun widget trouvé. Appuyez sur Échap pour effacer la recherche.",
+            "hintIdle": "Tapez pour filtrer, Entrée pour lancer, flèches pour naviguer",
+            "hintSearching": "Recherche de « {query} », Entrée pour lancer, flèches pour naviguer"
+        },
         "tab": {
             "rename": "Renommer l'onglet",
+            "nameAria": "Nom de l'onglet",
             "copyId": "Copier l'identifiant de l'onglet",
             "flag": "Marquer l'onglet",
             "flagNone": "Aucune",
@@ -140,11 +149,99 @@
             "unmagnify": "Réduire",
             "noView": "(Aucune vue)",
             "viewTerminal": "Terminal",
-            "viewPreview": "Aperçu",
+            "viewPreview": "Fichiers",
             "viewWeb": "Web",
             "viewHelp": "Aide",
             "viewTips": "Astuces",
             "viewProcesses": "Processus"
+        },
+        "processes": {
+            "load": "Charge",
+            "mem": "Mém.",
+            "cpu": "CPU",
+            "procs": "Proc.",
+            "errShort": "Err.",
+            "cores": {
+                "one": "100 % par cœur · 1 cœur = {max} % max",
+                "other": "100 % par cœur · {count} cœurs = {max} % max"
+            },
+            "search": "Rechercher ({shortcut})",
+            "paused": "En pause",
+            "clickToResume": "Cliquer pour reprendre",
+            "clickToPause": "Cliquer pour mettre en pause",
+            "error": "Erreur",
+            "stalled": "Bloqué",
+            "updating": "Actualisation",
+            "colPid": "PID",
+            "colCommand": "Commande",
+            "colStatus": "État",
+            "colUser": "Utilisateur",
+            "colThreads": "NT",
+            "colThreadsTip": "Nombre de threads",
+            "colCpu": "CPU %",
+            "colMem": "Mémoire",
+            "gone": "(terminé)",
+            "filter": "Filtrer les processus…",
+            "copyPid": "Copier le PID",
+            "signal": "Signal",
+            "kill": "Arrêter le processus",
+            "refreshInterval": "Intervalle d'actualisation",
+            "seconds": {
+                "one": "1 seconde",
+                "other": "{count} secondes"
+            },
+            "killed": "Processus n° {pid} arrêté",
+            "signalSent": "Processus n° {pid} : {signal} envoyé",
+            "actionError": "Erreur : {message}"
+        },
+        "files": {
+            "colName": "Nom",
+            "colPerm": "Droits",
+            "colModified": "Modifié le",
+            "colSize": "Taille",
+            "colType": "Type",
+            "typeDirectory": "dossier",
+            "searchHint": "Tapez pour chercher (Échap pour annuler)",
+            "searching": "Recherche de « {search} »",
+            "newFile": "Nouveau fichier",
+            "newFolder": "Nouveau dossier",
+            "rename": "Renommer",
+            "save": "Enregistrer",
+            "cancel": "Annuler",
+            "copyName": "Copier le nom du fichier",
+            "copyPath": "Copier le chemin complet",
+            "copyNameQuoted": "Copier le nom du fichier (échappé pour le shell)",
+            "copyPathQuoted": "Copier le chemin complet (échappé pour le shell)",
+            "defaultSettings": "Réglages par défaut",
+            "delete": "Supprimer",
+            "sortOrder": "Ordre de tri des dossiers",
+            "sortName": "Nom",
+            "sortModified": "Date de modification",
+            "showHidden": "Afficher les fichiers cachés",
+            "hideHidden": "Masquer les fichiers cachés",
+            "refresh": "Actualiser",
+            "on": "Oui",
+            "off": "Non",
+            "showInFolder": "Afficher dans le dossier",
+            "openDefaultApp": "Ouvrir avec l'application par défaut",
+            "download": "Télécharger le fichier",
+            "openInNewPanel": "Ouvrir dans un nouveau panneau",
+            "openTerminalHere": "Ouvrir un terminal ici",
+            "renameFailed": "Échec du renommage",
+            "deleteFailed": "Échec de la suppression",
+            "confirmDeleteFolder": "Supprimer ce dossier ?",
+            "confirmDeleteFolderText": "Supprimer un dossier supprime aussi tout son contenu. Continuer ?",
+            "deleteWithContents": "Supprimer avec son contenu",
+            "cannotRead": "Impossible de lire le dossier",
+            "copyFailed": "Échec de la copie",
+            "confirmOverwrite": "Remplacer les fichiers existants ?",
+            "confirmOverwriteText": "Cette copie remplace un fichier existant. Continuer ?",
+            "deleteThenCopy": "Supprimer puis copier",
+            "sync": "Fusionner"
+        },
+        "apps": {
+            "none": "Aucune application locale",
+            "build": "Créer ou modifier des applications"
         },
         "conn": {
             "stalledTitle": "Connexion bloquée",
@@ -204,6 +301,31 @@
             "create": "Créer un espace de travail",
             "save": "Enregistrer l'espace de travail",
             "edit": "Modifier l'espace de travail"
+        },
+        "editor": {
+            "fontSize": "Taille de police de l'éditeur",
+            "fontSizeDefault": "Par défaut ({size} px)",
+            "saveFile": "Enregistrer le fichier",
+            "revertFile": "Revenir à la version enregistrée",
+            "wordWrap": "Retour à la ligne automatique",
+            "tableOfContents": "Table des matières",
+            "refresh": "Actualiser",
+            "loading": "Chargement…",
+            "readOnly": "Lecture seule",
+            "readOnlyTitle": "Ce fichier est en lecture seule",
+            "save": "Enregistrer",
+            "preview": "Aperçu",
+            "edit": "Modifier"
+        },
+        "search": {
+            "placeholder": "Rechercher",
+            "results": "Résultats de la recherche",
+            "previous": "Résultat précédent (Maj+Entrée)",
+            "next": "Résultat suivant (Entrée)",
+            "close": "Fermer (Échap)",
+            "regex": "Expression régulière",
+            "wholeWord": "Mot entier",
+            "caseSensitive": "Respecter la casse"
         }
     },
     "menu": {
@@ -230,6 +352,7 @@
         "ariaPalette": "Palette de commandes",
         "ariaSearch": "Rechercher dans la palette de commandes",
         "placeholder": "Ouvrir un agent, un panneau, un dossier…",
+        "noMatch": "Rien ne correspond à « {query} »",
         "footer": {
             "choose": "choisir",
             "open": "ouvrir",
@@ -364,12 +487,15 @@
             "title": "Fichiers JSON",
             "hint": "Modifiés sur place, vérifiés avant d'être enregistrés.",
             "settings": {
+                "name": "Réglages",
                 "description": "Tous les réglages de cet écran, et ceux qu'il n'affiche pas."
             },
             "connections": {
+                "name": "Connexions",
                 "description": "Les hôtes SSH et leurs options."
             },
             "widgets": {
+                "name": "Widgets du rail",
                 "description": "Les outils personnalisés du rail."
             },
             "backgrounds": {
@@ -379,6 +505,13 @@
             "secrets": {
                 "description": "Les valeurs gardées dans le trousseau du système."
             }
+        },
+        "units": {
+            "px": "px",
+            "lines": "lignes",
+            "min": "min",
+            "ms": "ms",
+            "MB": "Mo"
         },
         "shortcuts": {
             "title": "Raccourcis",
@@ -787,7 +920,7 @@
             },
             "power:sleeppolicy": {
                 "label": "Garder l'ordinateur éveillé",
-                "description": "Si les terminaux peuvent garder l'ordinateur éveillé (caffeinate, systemd-inhibit).",
+                "description": "Si un programme lancé dans un terminal peut garder l'ordinateur éveillé.",
                 "unset": "Demander la première fois",
                 "options": {
                     "allow": "Quand un terminal le demande",
@@ -949,11 +1082,10 @@
             },
             "moltenterm:view360": {
                 "label": "Vue 360",
-                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Le bouton 360 de l'onglet l'emporte.",
+                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Son bouton 360 l'active aussi.",
                 "options": {
                     "auto": "Automatique",
-                    "always": "Toujours",
-                    "never": "Jamais"
+                    "always": "Toujours"
                 }
             },
             "review:publishlanguage": {
@@ -984,7 +1116,7 @@
             "usage": {
                 "cpu": "{pct} % de CPU au repos",
                 "timers": {
-                    "one": "1 minuteur",
+                    "one": "{count} minuteur",
                     "other": "{count} minuteurs"
                 },
                 "activation": "activation {ms} ms",
@@ -1053,6 +1185,11 @@
             "fieldPart": "Partie Claude Code",
             "partWrittenFor": ", écrite pour Claude Code {version}",
             "footer": "L'agent peut continuer à le modifier sans redemander. Annulez avec molten mod untrust {id}."
+        },
+        "budget": {
+            "cpu": "{pct} de CPU au repos sur les {window} dernières s (budget {budget} %)",
+            "memory": "{mb} Mo de mémoire à l'activation (budget {budget} Mo)",
+            "separator": " ; "
         }
     },
     "onboarding": {
@@ -1142,7 +1279,7 @@
             "guideOutdated": "v{version}, mis à jour au prochain démarrage",
             "guideMissing": "pas encore installé",
             "guideForeign": "un fichier que MoltenTerm n'a pas écrit occupe sa place ; il n'y est pas touché",
-            "notFound": "Introuvable",
+            "notFound": "Non installé",
             "install": "Installer",
             "declined": "Refusé",
             "found": "Trouvé",
@@ -1151,7 +1288,7 @@
             "genericTitle": "Un autre agent de code",
             "genericInstalled": "Tout agent peut suivre le fichier d'instructions de MoltenTerm dans {path}. Indiquez-le à votre agent avec :",
             "genericMissing": "Tout agent peut suivre le fichier d'instructions de MoltenTerm : {command} l'écrit dans {path}. Indiquez-le à votre agent avec :",
-            "requestPlaceholder": "<ce que MoltenTerm doit faire>",
+            "genericPaste": "Collez cette ligne telle quelle dans votre agent, en remplaçant {placeholder} par votre demande, dans la langue de votre choix.",
             "noneFound": "MoltenTerm n'embarque aucune IA et ne demande aucune clé d'API : c'est l'agent de code que vous utilisez déjà qui le remodèle. Aucun des agents pris en charge par MoltenTerm n'est dans le PATH de cet ordinateur. Installez-en un puis cherchez à nouveau, ou passez cette étape : Premiers pas la propose de nouveau.",
             "lookAgain": "Chercher à nouveau",
             "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm intègre cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
@@ -1181,6 +1318,7 @@
             "openBeside": "Ouvrir {name} à côté de ce guide",
             "firstRequest": "Votre première demande",
             "alternatives": "Ou l'une de celles-ci",
+            "requestsNote": "Ces demandes restent en anglais pour se coller telles quelles ; écrivez les vôtres dans la langue de votre choix.",
             "waiting": "En attente d'un nouveau mod… Rien ne change dans vos projets : {command} retire n'importe quel morph."
         },
         "project": {
@@ -1195,7 +1333,8 @@
             "editWorkspace": "Modifier l'espace de travail",
             "chooseFolder": "Choisir un dossier…",
             "scan": "Trouver mes dépôts git",
-            "scanEmpty": "Aucun dépôt git à deux niveaux sous votre dossier personnel.",
+            "scanning": "Recherche dans vos dossiers…",
+            "scanEmpty": "Aucun dépôt git trouvé dans vos dossiers. Choisissez plutôt le dossier de votre projet.",
             "done": "Terminé",
             "chooseFirst": "Choisissez d'abord un dossier"
         }
@@ -1254,7 +1393,7 @@
             "remoteDetail": "La session de l'agent se trouve sur la machine distante.",
             "searching": "En attente de la session de {name}",
             "searchingIntegrated": "L'intégration de MoltenTerm la relie dès que l'agent démarre sa session.",
-            "searchingDetail": "Elle s'affiche dès que l'agent écrit son premier message, ou aussitôt avec un hook SessionStart (molten docs, agent-states.md).",
+            "searchingDetail": "Elle s'affiche dès que l'agent écrit son premier message.",
             "unsupportedFormat": "Format de session non pris en charge",
             "unsupportedFormatDetail": "{name} écrit sa transcription dans un format que cette version de MoltenTerm ne lit pas. Le terminal n'est pas touché.",
             "error": "Le compagnon s'est arrêté",
@@ -1273,6 +1412,7 @@
         },
         "link": {
             "hook": "reliée par le hook de l'agent",
+            "process": "reliée par le processus de l'agent",
             "picked": "choisie",
             "guessed": "devinée",
             "folder": "trouvée par dossier"
@@ -1367,7 +1507,8 @@
             "turnOffAgent": "Désactiver pour {name}",
             "turnOffAll": "Désactiver pour tous les agents",
             "turnOn": "Réactiver",
-            "guide": "Ouvrir le guide"
+            "guide": "Ouvrir le guide",
+            "addedNothing": "MoltenTerm n'a rien ajouté à cette exécution : {reason}."
         },
         "files": {
             "added": "Ajouté",
@@ -1443,6 +1584,7 @@
             "unavailable": "Utilisation de l'abonnement indisponible",
             "hide": "Masquer l'utilisation de l'abonnement",
             "hideShort": "Masquer",
+            "showShort": "Afficher",
             "experimentalSourceTitle": "Lu depuis un service qu'Anthropic ne documente pas : il peut changer ou cesser de fonctionner",
             "modelLimits": "Limites des modèles et crédits",
             "turnOff": "Désactiver",
@@ -1472,6 +1614,18 @@
     "shortcuts": {
         "then": "puis",
         "or": "ou",
+        "keys": {
+            "enter": "Entrée",
+            "escape": "Échap",
+            "tab": "Tab",
+            "backspace": "Retour arrière",
+            "delete": "Suppr",
+            "pageUp": "Pg préc",
+            "pageDown": "Pg suiv",
+            "home": "Début",
+            "end": "Fin",
+            "space": "Espace"
+        },
         "sheet": {
             "title": "Raccourcis clavier",
             "altSubtitle": "Alt joue le rôle de ⌘ sur ce système",
@@ -1554,6 +1708,10 @@
         "shortcuts": {
             "title": "Raccourcis",
             "hint": "La même liste que Réglages > Clavier."
+        },
+        "placeholders": {
+            "request": "ce que vous voulez",
+            "text": "texte"
         },
         "items": {
             "morph": {
@@ -2224,6 +2382,7 @@
             "cannotUndo": "Cette action est irréversible.",
             "gone": "Ce worktree n'est plus sur le disque : rien à supprimer.",
             "branchKept": "Worktree supprimé ; la branche {branch} est conservée : {reason}.",
+            "leftover": "Worktree supprimé, mais des fichiers écrits dans {path} pendant la suppression restent : vous pouvez supprimer ce dossier.",
             "titleRemove": "Supprimer le worktree {name} ?",
             "titleClose": "Fermer le terminal du worktree {name} ?",
             "titleLose": "Supprimer {name} et perdre ce qu'il est seul à contenir ?",
@@ -2402,6 +2561,22 @@
             "deployToLabel": "Déployer vers",
             "asksFirst": "demande d'abord"
         },
+        "versionReason": {
+            "firstPublic": "Première version publique : un choix, pas un calcul.",
+            "nothingVisible": "Rien qu'un utilisateur verrait depuis {tag} (seulement des commits chore, ci, docs, test, style, build ou refactor).",
+            "features": {
+                "one": "{count} nouvelle fonctionnalité",
+                "other": "{count} nouvelles fonctionnalités"
+            },
+            "fixes": {
+                "one": "{count} correction, aucune nouvelle fonctionnalité",
+                "other": "{count} corrections, aucune nouvelle fonctionnalité"
+            },
+            "breaking": {
+                "one": "{count} changement incompatible",
+                "other": "{count} changements incompatibles"
+            }
+        },
         "branches": {
             "keep": {
                 "protected": "une branche principale",
@@ -2417,15 +2592,24 @@
                 "patchesOnTrunk": "ses commits sont sur {trunk} sous de nouveaux identifiants",
                 "commitsAfterPr": "des commits après la fusion de #{pr}"
             },
-            "result": "{deleted} branche(s) supprimée(s).",
-            "resultFailed": "{deleted} branche(s) supprimée(s), {failed} en échec.",
+            "result": {
+                "one": "{count} branche supprimée.",
+                "other": "{count} branches supprimées."
+            },
+            "resultFailed": {
+                "one": "{count} branche supprimée, {failed} en échec.",
+                "other": "{count} branches supprimées, {failed} en échec."
+            },
             "title": "Nettoyer les branches",
             "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Les branches principales restent, comme tout ce qui est incertain.",
             "comparing": "Comparaison de chaque branche avec {trunk}…",
             "wouldGo": "Partiraient ({count})",
             "nothing": "Rien à nettoyer.",
             "stay": "Restent ({count})",
-            "delete": "Supprimer {count} branche(s)",
+            "delete": {
+                "one": "Supprimer {count} branche",
+                "other": "Supprimer {count} branches"
+            },
             "autoDeleteDone": "GitHub supprime désormais les branches de tête quand leur pull request est fusionnée.",
             "autoDeleteOffer": "Sur ce dépôt, GitHub garde les branches de tête après la fusion de leur pull request. Activer son réglage « Automatically delete head branches » pour que les branches fusionnées ne s'accumulent plus ?",
             "notNow": "Pas maintenant",
@@ -3072,6 +3256,10 @@
         }
     },
     "workspace": {
+        "defaultName": {
+            "starter": "Espace de départ",
+            "new": "Nouvel espace de travail ({id})"
+        },
         "edit": {
             "emptyName": "Un espace de travail a besoin d'un nom. Le nom précédent est conservé.",
             "deleteLabel": "Supprimer l'espace de travail",
@@ -3345,8 +3533,14 @@
             "silence": "Ne plus me le dire…",
             "running": "En cours…",
             "rowFailed": "Cette notification n'a pas pu être affichée.",
-            "bellUnread": "Notifications, {count} non lues",
-            "bellOpen": "Notifications, {count} encore ouvertes",
+            "bellUnread": {
+                "one": "Notifications, {count} non lue",
+                "other": "Notifications, {count} non lues"
+            },
+            "bellOpen": {
+                "one": "Notifications, {count} encore ouverte",
+                "other": "Notifications, {count} encore ouvertes"
+            },
             "bellRunning": "{count} en cours",
             "title": "Notifications",
             "archived": "Archivées",
@@ -3366,8 +3560,15 @@
             "stopQuestion": "Arrêter {title} ?",
             "keepIt": "Le garder"
         },
+        "title": {
+            "agentWaiting": "{name} vous attend",
+            "agentDone": "{name} a terminé",
+            "bell": "Un terminal demande votre attention"
+        },
         "settings": {
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
+            "openPanel": "Ouvrir ce panneau à chaque nouvelle notification",
+            "openPanelHint": "Sinon, il ne s'ouvre de lui-même que pour ce qui attend votre réponse ; le reste s'affiche quelques secondes en bas à droite.",
             "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas."
         },
         "subjects": {
@@ -3386,6 +3587,7 @@
         },
         "source": {
             "agent": "agent",
+            "sessions": "sessions",
             "mod": "mod",
             "moltenterm": "MoltenTerm",
             "build": "build",
@@ -3424,7 +3626,10 @@
     "rail": {
         "keepAwakeWhileWorking": "Garder cet ordinateur éveillé pendant le travail",
         "keptAwake": "gardé éveillé {condition}",
-        "unread": "{count} non lues",
+        "unread": {
+            "one": "{count} non lue",
+            "other": "{count} non lues"
+        },
         "unsavedWorkspace": "Espace de travail non enregistré",
         "unsavedClickToSave": "Espace de travail non enregistré : cliquez pour l'enregistrer",
         "groupNameTooLong": "Un nom de groupe fait au plus {max} caractères.",
@@ -3453,9 +3658,9 @@
             "reviews": "Revues · pull requests qui attendent votre revue",
             "reviewsCounts": "Revues — {counts}",
             "reviewsCount": {
-                "waiting": {
-                    "one": "1 en attente de revue",
-                    "other": "{count} en attente de revue"
+                "toReview": {
+                    "one": "1 à relire",
+                    "other": "{count} à relire"
                 },
                 "mergeable": {
                     "one": "1 prête à fusionner",
@@ -3558,13 +3763,15 @@
     },
     "project": {
         "viewName": "Projet",
+        "tabName": "Projet",
         "frameTitle": "L'onglet Projet",
         "cardFailed": "{title} n'a pas pu être affiché : {error}",
         "unknownError": "erreur inconnue",
         "openCicdTitle": "Ouvrir le panneau CI/CD à côté de cette vue : historique, détail et journaux",
         "headerAria": "En-tête du projet",
         "fetchFailed": "Affichage de l'état local : la récupération depuis le dépôt distant a échoué ({error}).",
-        "noPipelineActions": "Build local et Release apparaissent une fois le pipeline connecté.",
+        "noPipelineActions": "Lancer la CI, Build local et Release apparaissent une fois le pipeline connecté.",
+        "noCiJobs": "Lancer la CI apparaît une fois que le pipeline déclare des jobs de CI (ci.jobs).",
         "theTrunk": "le tronc",
         "justNow": "à l'instant",
         "cards": {
@@ -3580,7 +3787,7 @@
             "bars": {
                 "features": "fonctionnalités",
                 "fixes": "corrections",
-                "rest": "le reste"
+                "others": "autres"
             },
             "milestone": {
                 "notRead": "L'avancement du jalon s'affiche une fois GitHub lu.",
@@ -3646,8 +3853,10 @@
             }
         },
         "schedule": {
-            "oneDay": "1 jour",
-            "days": "{count} jours",
+            "days": {
+                "one": "{count} jour",
+                "other": "{count} jours"
+            },
             "overdue": "en retard de {days}",
             "today": "prévu aujourd'hui",
             "tomorrow": "prévu demain",
@@ -3660,19 +3869,32 @@
         },
         "waiting": {
             "title": "En attente sur {trunk}",
-            "notYetOnOne": "changement, pas encore sur {release}",
-            "notYetOn": "changements, pas encore sur {release}",
-            "sinceOne": "changement depuis {tag}",
-            "since": "changements depuis {tag}",
-            "noPublicOne": "changement, pas encore de version publique",
-            "noPublic": "changements, pas encore de version publique"
+            "notYetOn": {
+                "one": "changement, pas encore sur {release}",
+                "other": "changements, pas encore sur {release}"
+            },
+            "since": {
+                "one": "changement depuis {tag}",
+                "other": "changements depuis {tag}"
+            },
+            "noPublic": {
+                "one": "changement, pas encore de version publique",
+                "other": "changements, pas encore de version publique"
+            }
         },
         "counts": {
-            "featureOne": "{count} fonctionnalité",
-            "features": "{count} fonctionnalités",
-            "fixOne": "{count} correction",
-            "fixes": "{count} corrections",
-            "other": "{count} autre(s)"
+            "features": {
+                "one": "{count} fonctionnalité",
+                "other": "{count} fonctionnalités"
+            },
+            "fixes": {
+                "one": "{count} correction",
+                "other": "{count} corrections"
+            },
+            "others": {
+                "one": "{count} autre",
+                "other": "{count} autres"
+            }
         },
         "runCi": {
             "noTrunk": "Le tronc du projet n'est pas encore connu.",
@@ -3688,8 +3910,10 @@
             "aria": "Derniers changements en attente sur {trunk}",
             "heading": "Derniers sur {trunk}",
             "openTicket": "Ouvrir #{ticket} sur GitHub",
-            "moreOne": "et 1 autre changement",
-            "more": "et {count} autres changements"
+            "more": {
+                "one": "et {count} autre changement",
+                "other": "et {count} autres changements"
+            }
         },
         "group": {
             "thisWorkspace": "Cet espace de travail",
@@ -3727,6 +3951,14 @@
         "commitOnBranch": "commit {commit} sur {branch}",
         "dirty": "{line} (modifications non commitées)"
     },
+    "about": {
+        "tagline": "Le terminal qui prend votre forme.",
+        "version": "Version {version}",
+        "unknownVersion": "inconnue",
+        "releaseNotes": "Notes de version",
+        "basedOn": "Basé sur Wave Terminal {wave} de Command Line Inc. (Apache-2.0)",
+        "copyright": "© {year} DiamondForge. Certaines parties © Command Line Inc."
+    },
     "releases": {
         "title": "Notes de version",
         "subtitleRelease": "MoltenTerm {version}, basé sur Wave Terminal {wave}",
@@ -3752,7 +3984,9 @@
         "noReleaseNewest": "Pas encore de version : les {count} changements les plus récents.",
         "new": "Nouveau",
         "fixed": "Corrigé",
-        "other": "Autres"
+        "other": "Autres",
+        "internalOne": "Et 1 changement interne (tests, outillage, documentation), non listé.",
+        "internalOther": "Et {count} changements internes (tests, outillage, documentation), non listés."
     },
     "lazy": {
         "loadingEditor": "Chargement de l'éditeur…",
@@ -3761,9 +3995,6 @@
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",
-        "left": "Diviser à gauche",
-        "up": "Diviser en haut",
-        "dragToSize": "glisser pour redimensionner",
         "tab": "Onglet",
         "place": {
             "menu": "Diviser…",
@@ -3774,6 +4005,10 @@
             "right": "Nouveau panneau à droite",
             "up": "Nouveau panneau au-dessus",
             "down": "Nouveau panneau en dessous"
+        },
+        "beside": {
+            "left": "Ajouter un panneau à gauche",
+            "right": "Ajouter un panneau à droite"
         }
     },
     "reopen": {
@@ -3787,21 +4022,32 @@
     "view360": {
         "carpet": "tapis",
         "empty": "Les panneaux que vous ouvrez se placent ici",
+        "addStart": "Ajouter un panneau à gauche",
+        "addEnd": "Ajouter un panneau à droite",
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",
             "tooltipOn": "La vue 360 est active : la première colonne reste fixe, les autres panneaux défilent latéralement sur le tapis.",
             "tooltipOff": "La vue 360 est désactivée : tous les panneaux se partagent la largeur de l'onglet.",
-            "tooltipAuto": "Automatique : bascule d'elle-même quand un panneau devient trop étroit pour être lu.",
-            "tooltipManual": "Choisi pour cet onglet. Clic droit pour suivre de nouveau le réglage.",
-            "tooltipSetting": "D'après le réglage Vue 360.",
+            "heldManual": "À la demande : activée depuis ce bouton.",
+            "heldAuto": "Automatique : les panneaux ne tiennent plus côte à côte à une largeur lisible.",
+            "heldSetting": "D'après le réglage Vue 360 (Toujours).",
+            "offManual": "Désactivée pour cet onglet. Elle s'active encore d'elle-même quand les panneaux ne tiennent plus côte à côte.",
+            "offAuto": "Automatique : s'active d'elle-même quand les panneaux ne tiennent plus côte à côte.",
+            "clickOn": "Cliquer pour l'activer.",
+            "clickOff": "Cliquer pour la quitter. Si les panneaux ne tiennent qu'en réajustant leurs tailles, une confirmation est demandée d'abord.",
             "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
-            "menuOn": "Activée",
-            "menuOff": "Désactivée",
-            "menuFollow": "Suivre le réglage",
-            "pillText": "Trop étroit pour être lu",
-            "pillAction": "Passer en vue 360",
-            "pillClose": "Masquer jusqu'à l'ajout d'un panneau"
+            "menuOn": "Activer la vue 360",
+            "menuLeave": "Quitter la vue 360",
+            "menuSettings": "Réglages de la vue 360",
+            "readjustTitle": "Quitter la vue 360 ?",
+            "readjustText": "Les panneaux ne tiennent côte à côte que si les terminaux renoncent à la largeur où ils ont été étirés. Toutes les tailles sont réajustées : la largeur minimale des terminaux est effacée et les panneaux se partagent la largeur de l'onglet.",
+            "readjustConfirm": "Réajuster toutes les tailles",
+            "readjustStay": "Rester en vue 360",
+            "blockedTitle": "Fermer d'abord des panneaux",
+            "blockedOne": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez une colonne pour quitter la vue 360.",
+            "blockedMany": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez {count} colonnes pour quitter la vue 360.",
+            "blockedOk": "Rester en vue 360"
         },
         "radar": {
             "label": "Panneaux sur le tapis",
@@ -3843,7 +4089,193 @@
             "sendTo": "Envoyer vers…"
         }
     },
+    "reviewsAgents": {
+        "agent": "Agent",
+        "background": "Agent en arrière-plan",
+        "state": {
+            "working": "au travail",
+            "waiting": "vous attend",
+            "done": "terminé",
+            "idle": "inactif",
+            "background": "probablement actif"
+        },
+        "duration": {
+            "lessThanMinute": "moins d'une minute",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}",
+            "days": "{count} j"
+        },
+        "forSince": "depuis {duration} · commencé à {since}",
+        "lastChange": "dernier changement il y a {duration}",
+        "goTo": "Y aller",
+        "goToTitle": "Afficher le panneau de {name}",
+        "parent": "Session de {name}",
+        "parentTitle": "Afficher le panneau de {name} : il a probablement lancé cet agent",
+        "yours": "À vous",
+        "yoursTitle": "Aucun agent ne travaille sur ce brouillon : c'est à vous de le finir ou de le valider.",
+        "upcoming": {
+            "title": "À venir",
+            "none": "Aucune branche de ticket n'attend sa pull request.",
+            "noCommit": "aucun commit pour l'instant",
+            "aheadOne": "1 commit d'avance",
+            "ahead": "{count} commits d'avance",
+            "remote": "sur origin seulement",
+            "statusTitle": "Le statut du ticket sur le tableau",
+            "boardStatus": {
+                "backlog": "Backlog",
+                "ready": "Prêt",
+                "inProgress": "En cours",
+                "aiDrafting": "Rédaction IA",
+                "humanReview": "Relecture humaine",
+                "spawning": "Découpage",
+                "aiTesting": "Tests IA",
+                "humanTesting": "Tests humains",
+                "inReview": "En revue",
+                "done": "Terminé"
+            },
+            "openTicket": "Ouvrir le ticket",
+            "openAgent": "Aller à l'agent qui y travaille",
+            "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus."
+        }
+    },
     "reviews": {
+        "batch": {
+            "tabName": "Fusion groupée",
+            "yourAgent": "Votre agent",
+            "method": {
+                "merge": "commit de fusion",
+                "squash": "squash",
+                "rebase": "rebase",
+                "repository": "la méthode du dépôt"
+            },
+            "select": {
+                "start": "Fusionner plusieurs…",
+                "startTitle": "Sélectionnez des pull requests et confiez-les à votre agent, qui les fusionne l'une après l'autre dans l'ordre suggéré",
+                "count": {
+                    "one": "{count} pull request sélectionnée",
+                    "other": "{count} pull requests sélectionnées"
+                },
+                "merge": {
+                    "one": "Fusionner {count} PR avec un agent…",
+                    "other": "Fusionner {count} PR avec un agent…"
+                },
+                "none": "Sélectionnez d'abord les pull requests à fusionner",
+                "rowAria": "Sélectionner #{number} pour la fusion groupée"
+            },
+            "confirm": {
+                "title": {
+                    "one": "Fusionner {count} pull request avec un agent",
+                    "other": "Fusionner {count} pull requests avec un agent"
+                },
+                "subtitle": "Dans {base}, dans cet ordre · {method}",
+                "cost": {
+                    "one": "Cet ordre devrait relancer {count} CI.",
+                    "other": "Cet ordre devrait relancer {count} CI."
+                },
+                "costUnknown": "La prévision des conflits n'est pas prête : les CI que cet ordre relance ne sont pas encore connues.",
+                "costUpToDate": "Cette base exige des branches à jour : chaque fusion relance la CI des pull requests restantes.",
+                "what": "Pour chaque pull request à son tour : celle qui fusionne encore proprement avec des checks au vert est fusionnée tout de suite, sans rebase ni nouvelle CI. Celle qui est en conflit part à votre agent, hors de vue dans sa propre copie du dépôt : il la rebase sur {base} à jour, résout les conflits et pousse, puis MoltenTerm la fusionne une fois ses checks passés.",
+                "stops": "Une pull request dont les checks échouent n'est jamais fusionnée : la fusion groupée s'arrête dessus et vous demande, et les suivantes attendent. Annuler arrête la fusion groupée après l'étape en cours.",
+                "checkout": "Votre checkout principal n'est pas touché.",
+                "start": "Lancer la fusion groupée"
+            },
+            "banner": {
+                "running": {
+                    "one": "Un agent fusionne {count} PR — {position} sur {count}",
+                    "other": "Un agent fusionne {count} PR — {position} sur {count}"
+                },
+                "cancelling": {
+                    "one": "Annulation après l'étape en cours — {position} sur {count}",
+                    "other": "Annulation après l'étape en cours — {position} sur {count}"
+                },
+                "paused": {
+                    "one": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}",
+                    "other": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}"
+                },
+                "done": {
+                    "one": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}"
+                },
+                "cancelled": {
+                    "one": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}"
+                },
+                "interrupted": {
+                    "one": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}"
+                }
+            },
+            "step": {
+                "queued": "Attend son tour",
+                "checking": "Lecture de son état sur GitHub",
+                "rebasing": "{name} la rebase sur {base}",
+                "waiting": "{name} attend votre réponse dans son terminal",
+                "waitingChecks": "Attend ses checks",
+                "waitingRebased": "Attend ses checks sur la tête rebasée",
+                "merging": "Fusion en cours",
+                "merged": "Fusionnée"
+            },
+            "why": {
+                "failing": "Checks en échec : {names}",
+                "ambiguous": "Un conflit que votre agent vous laisse",
+                "ambiguousNote": "Un conflit que votre agent vous laisse : {note}",
+                "conflict": "Toujours en conflit avec {base} après un rebase",
+                "agentexited": "La session de l'agent s'est terminée avant qu'il pousse",
+                "agenttimeout": "L'agent n'a pas fini le rebase à temps",
+                "noagent": "Aucun agent de code n'est installé pour le rebase",
+                "agentstart": "L'agent n'a pas pu être lancé : {detail}",
+                "blocked": "GitHub bloque la fusion (une revue ou une règle)",
+                "warnings": "Des commentaires non publiés ou un travail en cours dessus",
+                "citimeout": "Ses checks n'ont pas fini à temps",
+                "unknown": "GitHub n'a pas dit si elle fusionne proprement",
+                "mergefailed": "La fusion a échoué : {detail}",
+                "read": "GitHub n'a pas pu être lu : {detail}",
+                "headmoved": "Sa branche n'a pas cessé de bouger",
+                "draft": "C'est un brouillon",
+                "mergedaway": "Déjà fusionnée",
+                "closed": "Fermée",
+                "notreached": "Pas atteinte",
+                "cancelled": "Annulée",
+                "interrupted": "MoltenTerm a redémarré"
+            },
+            "decide": {
+                "retry": "Réessayer",
+                "override": "Fusionner quand même",
+                "skip": "Passer cette PR",
+                "end": "Terminer la fusion groupée"
+            },
+            "waitsForYou": "Les pull requests suivantes vous attendent :",
+            "goTo": "Aller à l'agent",
+            "goToTitle": "Afficher le terminal de {name}",
+            "cancel": "Annuler",
+            "cancelling": "Annulation…",
+            "cancelTitle": "Arrêter la fusion groupée après l'étape en cours ; rien de plus n'est fusionné",
+            "dismiss": "Masquer",
+            "kept": {
+                "changes": "La copie de l'agent a des fichiers non commités : elle est gardée.",
+                "unpushed": "La copie de l'agent a des commits non poussés : elle est gardée.",
+                "rebasing": "L'agent s'est arrêté au milieu d'un rebase : sa copie est gardée.",
+                "working": "L'agent travaille encore : son terminal est gardé.",
+                "unread": "La copie de l'agent n'a pas pu être lue : elle est gardée."
+            },
+            "summary": {
+                "merged": "Fusionnées : {list}.",
+                "mergedNone": "Rien n'a été fusionné.",
+                "skipped": "Passées : {list}.",
+                "skippedItem": "#{number} ({reason})",
+                "ciRuns": {
+                    "one": "{count} CI relancée.",
+                    "other": "{count} CI relancées."
+                }
+            },
+            "row": {
+                "merged": "Fusionnée par le lot",
+                "stopped": "A arrêté le lot",
+                "skipped": "Passée par le lot",
+                "queued": "Lot : {rank}",
+                "current": "Lot : en cours"
+            }
+        },
         "viewName": "Revues",
         "into": "vers",
         "intoTitle": "Pull requests vers {target} ({from})",
@@ -3856,12 +4288,80 @@
         "noneWaiting": "Aucune pull request en attente de revue vers",
         "draftsTitle": "Brouillons",
         "noneDrafts": "Aucune pull request en brouillon vers",
-        "openReview": "Ouvrir la revue",
+        "assistedReview": "Revue assistée",
+        "assistedReviewAria": "Ouvrir la revue assistée de la PR #{number}",
         "opened": "ouverte {when}",
         "updated": "mise à jour {when}",
         "openOnGithub": "Ouvrir la pull request sur GitHub",
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
         "unpublished": "{count} non publié(s)",
+        "order": {
+            "aria": "Ordre de fusion",
+            "suggested": "Ordre suggéré",
+            "suggestedTitle": "Trie les pull requests pour que les fusionner l'une après l'autre, de haut en bas, relance le moins de CI possible : une pull request ne relance sa CI que si une fusion précédente la met en conflit et qu'elle doit être rebasée.",
+            "list": "Ordre de la liste",
+            "listTitle": "L'ordre propre de la liste.",
+            "costSuggested": {
+                "one": "Cet ordre : {count} CI à relancer — ordre actuel : {other}",
+                "other": "Cet ordre : {count} CI à relancer — ordre actuel : {other}"
+            },
+            "costList": {
+                "one": "Ordre de la liste : {count} CI à relancer — ordre suggéré : {other}",
+                "other": "Ordre de la liste : {count} CI à relancer — ordre suggéré : {other}"
+            },
+            "costTitle": "Compte les pull requests qu'il faudrait rebaser, donc dont la CI serait relancée, en les fusionnant l'une après l'autre dans cet ordre : celles qu'une fusion précédente met en conflit, et celles déjà en conflit avec la base.",
+            "unknownRule": "(si les branches n'ont pas à être à jour)",
+            "unknownRuleTitle": "Impossible de lire si cette base exige des branches à jour avant la fusion (il faut les droits d'administration du dépôt). Si c'est le cas, chaque fusion relance la CI des pull requests restantes, quel que soit l'ordre.",
+            "upToDate": "Branches à jour exigées ici : l'ordre n'épargne aucune CI",
+            "upToDateTitle": "Cette base exige des branches à jour avant la fusion : chaque fusion relance la CI des pull requests restantes, quel que soit l'ordre. L'ordre suggéré en met tout de même le moins possible en conflit.",
+            "greedy": "Plus de {max} pull requests sont liées par des conflits : cet ordre est une estimation proche, pas le meilleur prouvé.",
+            "rankTitle": "Position {rank} dans l'ordre de fusion suggéré",
+            "reason": {
+                "noImpact": "Aucun impact",
+                "puts": "Met {prs} en conflit",
+                "rebaseAfter": "Rebase après {prs}",
+                "after": "Après {prs}, qu'elle mettrait en conflit",
+                "conflictsBase": "Déjà en conflit avec {base} : rebase quel que soit l'ordre",
+                "missing": "Pas encore prévue",
+                "ciFailing": "CI en échec",
+                "ciRunning": "CI en cours",
+                "blocked": "Pas encore fusionnable"
+            }
+        },
+        "forecast": {
+            "computing": "Prévision des conflits…",
+            "computingTitle": "Chaque fusion est simulée dans une copie privée du dépôt : rien n'est écrit dans votre copie de travail, vos branches ou GitHub.",
+            "stale": "Mise à jour de la prévision des conflits…",
+            "staleTitle": "Une pull request ou la base a bougé : la prévision est recalculée. Les marques toujours valables restent affichées.",
+            "failed": "Prévision des conflits indisponible",
+            "error": {
+                "nogit": "Le dossier du projet n'est pas un dépôt git.",
+                "base": "Le commit de base est introuvable dans le projet comme sur origin.",
+                "failed": "git n'a pas pu simuler les fusions.",
+                "toomany": "Trop de pull requests ouvertes pour la prévision (plus de {max})."
+            },
+            "ready": "Prévision des conflits · {method}",
+            "readyTitle": "Chaque pull request en attente de revue est fusionnée sur la base par {method}, puis chaque autre pull request ouverte par-dessus le résultat, dans une copie privée du dépôt.",
+            "method": {
+                "merge": "commit de fusion",
+                "squash": "squash",
+                "rebase": "rebase"
+            },
+            "approximate": "Un rebase est simulé comme une seule fusion des changements de la pull request : quand ses commits n'entrent en conflit qu'un par un, le résultat peut différer.",
+            "upToDateRequired": "Cette base exige des branches à jour avant la fusion : chaque fusion oblige les autres pull requests à se rebaser, quel que soit l'ordre.",
+            "missing": "Certaines têtes de pull request n'ont pas pu être lues : leur prévision attend la prochaine actualisation.",
+            "markTitle": {
+                "one": "Fusionner cette pull request mettrait 1 autre pull request en conflit :",
+                "other": "Fusionner cette pull request mettrait {count} autres pull requests en conflit :"
+            },
+            "markAria": {
+                "one": "la fusionner mettrait 1 pull request en conflit",
+                "other": "la fusionner mettrait {count} pull requests en conflit"
+            },
+            "markLine": "PR #{number} : {paths}",
+            "impacted": "En conflit une fois la PR #{number} fusionnée : {paths}",
+            "pathsMore": "{paths} et {count} de plus"
+        },
         "merge": {
             "clean": "prête à fusionner",
             "cleanTitle": "Aucun conflit : peut être rebasée et fusionnée telle quelle.",
@@ -3874,7 +4374,16 @@
             "failing": "vérifications en échec",
             "failingTitle": "Fusionnable, mais certaines vérifications échouent.",
             "pending": "vérification…",
-            "pendingTitle": "GitHub calcule encore si elle fusionne sans conflit."
+            "pendingTitle": "GitHub calcule encore si elle fusionne sans conflit.",
+            "blockedWhy": "GitHub bloque la fusion : {reasons}.",
+            "why": {
+                "failed": "{names} en échec",
+                "pending": "vérifications encore en cours : {names}",
+                "conflicts": "conflits avec {base}",
+                "review": "une revue approuvée est requise",
+                "changes": "des modifications ont été demandées",
+                "rule": "une règle de branche (vérification ou revue requise) n'est pas remplie"
+            }
         },
         "validate": {
             "button": "Valider",
@@ -3901,7 +4410,8 @@
             "notready": "{name} ne peut pas prendre le rebase maintenant : {message}",
             "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",
             "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
-            "failed": "Le rebase n'a pas pu être demandé : {message}"
+            "failed": "Le rebase n'a pas pu être demandé : {message}",
+            "startedHidden": "{name} rebase {branch} hors de vue : suivez-le ci-dessous ou dans Sessions. Une notification vous prévient quand il a fini ou a besoin de vous."
         },
         "ready": {
             "button": "Prête pour la revue",
@@ -3928,7 +4438,34 @@
             "running": "{count} en cours",
             "passed": "{count} réussie(s)",
             "skipped": "{count} ignorée(s)",
-            "label": "CI {parts}"
+            "label": "CI {parts}",
+            "failedLabel": "CI : {names} en échec",
+            "more": "{names} +{count}",
+            "checkLine": "{name} : {state}",
+            "state": {
+                "success": "réussie",
+                "failure": "en échec",
+                "pending": "en cours",
+                "neutral": "ignorée"
+            },
+            "rerun": {
+                "button": "Relancer les jobs en échec",
+                "buttonTitle": "Relancer sur GitHub les jobs en échec de {names}",
+                "confirm": "GitHub relance les jobs en échec de {names} ; une notification vous donne le résultat.",
+                "confirmButton": "Relancer",
+                "sending": "Relance…",
+                "started": "Relancé sur GitHub : {names}. Une notification vous donne le résultat.",
+                "failed": "Les jobs en échec n'ont pas pu être relancés : {message}"
+            },
+            "investigate": {
+                "button": "Analyser l'échec",
+                "buttonTitle": "Un agent de travail lit les logs en échec de {names}, dit si cette pull request en est la cause et propose une relance, un correctif ou un ticket",
+                "asking": "Demande…",
+                "asked": "{name} analyse l'échec de la CI : ses conclusions et sa proposition arrivent dans son terminal.",
+                "startedHidden": "{name} analyse hors de vue l'échec de la CI de {branch} : une notification vous prévient quand ses conclusions sont prêtes.",
+                "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour analyser l'échec de la CI ?",
+                "failed": "L'analyse n'a pas pu être demandée : {message}"
+            }
         },
         "report": {
             "present": "rapport de test",
@@ -4416,6 +4953,13 @@
                 "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
                 "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus. Cet onglet de revue n'est plus utile.",
                 "done": "Fusionnée et nettoyée. Cet onglet de revue n'est plus utile."
+            },
+            "done": "Terminé",
+            "footerSheet": {
+                "cleaning": "Fusionnée. Le nettoyage continue même après votre départ.",
+                "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus.",
+                "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus.",
+                "done": "Fusionnée et nettoyée."
             }
         },
         "validate": {
@@ -4438,6 +4982,8 @@
             "notRun": "Non lancé : rien n'a été fusionné.",
             "showFolder": "Afficher le worktree de l'agent dans son dossier",
             "showReviewFolder": "Afficher le worktree de revue dans son dossier",
+            "showLeftover": "Afficher dans le dossier",
+            "removeAgain": "Supprimer à nouveau",
             "state": {
                 "todo": "À faire",
                 "running": "En cours",
@@ -4583,6 +5129,7 @@
                 "fetchFailed": "Le fetch après la fusion a échoué : les branches ont été vérifiées avec ce que cet ordinateur avait déjà.",
                 "prNotMerged": "GitHub n'indique pas la pull request comme fusionnée : le nettoyage n'a pas été lancé.",
                 "prUnreadable": "La pull request fusionnée n'a pas pu être lue : le nettoyage n'a pas été lancé.",
+                "leftoverWhy": "Ils n'ont pas pu être supprimés : {error}",
                 "notConfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                 "ignoredGone": {
                     "one": "1 élément ignoré par git est parti avec lui ({names}) : rien à perdre, un build ou une installation le recrée.",
@@ -4632,7 +5179,10 @@
                         "kept": "Conservé : il contient des modifications faites pendant la revue, dans {path}.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "Le worktree de revue n'a pas pu être supprimé.",
-                        "inuse": "Conservé : un panneau travaille encore dans {path}."
+                        "inuse": "Conservé : un panneau travaille encore dans {path}.",
+                        "alreadygone": "Déjà nettoyé.",
+                        "leftoversremoved": "Supprimé ; les fichiers écrits dedans pendant la suppression ont été supprimés ensuite.",
+                        "leftover": "Le worktree de revue est supprimé, mais des fichiers écrits dans {path} pendant la suppression restent."
                     }
                 },
                 "agent-worktree": {
@@ -4649,10 +5199,12 @@
                         "refusedrepo": "Laissé tel quel : {path} contient son dépôt.",
                         "locked": "Laissé tel quel : le worktree est verrouillé.",
                         "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
-                        "alreadygone": "Rien à faire : il était déjà supprimé.",
+                        "alreadygone": "Déjà nettoyé.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "Le worktree de l'agent n'a pas pu être supprimé.",
-                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}."
+                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}.",
+                        "leftoversremoved": "{path} supprimé ; les fichiers écrits dedans pendant la suppression ont été supprimés ensuite.",
+                        "leftover": "Le worktree est supprimé, mais des fichiers écrits dans {path} pendant la suppression restent. La branche suit son cours."
                     }
                 },
                 "local-branch": {
@@ -4688,6 +5240,7 @@
             },
             "others": {
                 "plan": "Les autres pull requests ouvertes sur {base} restent telles quelles ; celles que ce merge met en conflit partent à leur agent pour un rebase.",
+                "batch": "Dans la fusion groupée : rebasée à son tour",
                 "none": "Rien à faire : aucune autre pull request ouverte sur {base}.",
                 "unaffectedCount": {
                     "one": "1 non concernée",
@@ -4943,7 +5496,7 @@
             "sheet": {
                 "title": "Relancer le travail · #{number}",
                 "what": "Les {count} commentaires publiés du tour de revue {round} vont à un agent dans le worktree de {branch} : il les applique, commite au format du projet, pousse et répond sur chaque fil.",
-                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon votre agent démarre dans un nouveau terminal de cet onglet, avec vos permissions habituelles.",
+                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon vous choisissez comment votre agent démarre : hors de vue, ou dans son propre onglet, avec vos permissions habituelles.",
                 "ticket": "Le ticket garde son statut. Rien ne démarre avant votre clic sur Relancer le travail.",
                 "again": "Ce tour a déjà été confié : un nouveau clic le confie à nouveau.",
                 "cancel": "Annuler"
@@ -4963,7 +5516,8 @@
                 "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
                 "notstarted": "L'agent n'a pas démarré : {message}",
                 "nottyped": "Les commentaires n'ont pas pu être envoyés à {agent} : {message}",
-                "failed": "La relance du travail a échoué : {message}"
+                "failed": "La relance du travail a échoué : {message}",
+                "startedHidden": "{agent} travaille sur la passe hors de vue dans {folder} : une notification vous prévient quand il a fini ou a besoin de vous."
             }
         },
         "notes": {
@@ -4986,5 +5540,659 @@
             "byAgent": "Expliquée par {agent}",
             "openLine": "Ouvrir le fichier à cette ligne, tel qu'après le merge de la PR ou sur la branche de base"
         }
+    },
+    "server": {
+        "review": {
+            "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
+            "batchrunning": "Une fusion groupée tourne déjà dans ce projet.",
+            "batchgone": "Cette fusion groupée ne tourne plus.",
+            "batchnotstopped": "La fusion groupée n'attend pas de décision.",
+            "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",
+            "mergebase": "La base de fusion de {branch} et du head de la PR n'a pas pu être lue : {detail}",
+            "earlierhead": "L'ancien head {head} n'est plus dans le projet.",
+            "files": "Les fichiers de la PR n'ont pas pu être listés : {detail}",
+            "file": "Le fichier n'a pas pu être lu : {detail}",
+            "newcommits": "Les nouveaux commits n'ont pas pu être comptés : {detail}",
+            "nocomment": "Ce commentaire n'existe plus.",
+            "commentdropped": "Ce commentaire est abandonné : rétablissez-le pour le modifier.",
+            "commentpublished": "Ce commentaire est publié sur GitHub : il reste tel quel.",
+            "toomanycomments": "Cette revue a trop de commentaires ({max} au plus).",
+            "commentempty": "Le commentaire est vide.",
+            "commenttoolong": "Le commentaire est trop long (64 Ko au plus).",
+            "selectiontoolarge": "La sélection est trop grande pour être commentée (64 Ko au plus).",
+            "onlydraftstaged": "Seul un brouillon peut être marqué prêt.",
+            "notstaged": "Ce commentaire n'est pas marqué prêt.",
+            "alreadydropped": "Ce commentaire est déjà abandonné.",
+            "onlydroppedrestored": "Seul un commentaire abandonné peut être rétabli.",
+            "onlyproposalaccepted": "Seule une proposition peut être acceptée.",
+            "norewrite": "Cette réponse ne propose pas de réécriture.",
+            "rewritedone": "Cette réécriture a déjà été utilisée ou ignorée.",
+            "messagetoolong": "Le message est trop long (64 Ko au plus).",
+            "nothingtodiscuss": "Ce commentaire est publié ou abandonné : il n'y a plus rien à discuter.",
+            "nosession": "MoltenTerm ne peut pas joindre la session de revue.",
+            "nogh": "gh, la ligne de commande de GitHub, n'est pas disponible.",
+            "pathoutside": "Le chemin doit rester dans le projet.",
+            "rebaseunavailable": "Demander un rebase n'est pas disponible.",
+            "restartunavailable": "Relancer le travail n'est pas disponible.",
+            "notesfile": "Le fichier des notes n'a pas pu être lu : {detail}",
+            "answergone": "Cette réponse n'est plus dans la revue de la PR.",
+            "notenotfound": "Cette note n'existe plus.",
+            "notetitle": "Une note a besoin d'un titre.",
+            "notefiletoolarge": "{path} est trop volumineux pour être ouvert depuis une note.",
+            "notefilemissing": "{path} n'est ni dans le commit fusionné de la PR, ni dans son head, ni dans la branche de base.",
+            "notefileunreadable": "{path} n'a pas pu être lu à {commit} : {detail}",
+            "translationtoolong": "La traduction est trop longue (64 Ko au plus).",
+            "nosummary": "La revue n'a pas de résumé.",
+            "onlystagedtranslated": "Seul un commentaire prêt est traduit.",
+            "summarytoolong": "Le résumé est trop long (64 Ko au plus).",
+            "blocknotintab": "Le panneau de revue n'est pas dans cet onglet.",
+            "worktreelist": "Les worktrees du projet n'ont pas pu être listés : {detail}",
+            "branchmissing": "La branche {branch} est introuvable dans le projet comme sur origin.",
+            "worktreecreate": "Un worktree sur {branch} n'a pas pu être créé : {detail}",
+            "roundunmarked": "Le travail a été relancé, mais le tour n'a pas pu être marqué : {detail}",
+            "checks": "Les vérifications n'ont pas pu être lues : {detail}",
+            "publishing": "Cette revue est en cours de publication.",
+            "nothingtopublish": "Il n'y a rien à publier : marquez d'abord des commentaires prêts.",
+            "untranslated": "{count} textes ne sont pas encore en {lang} : attendez les traductions, écrivez-les, ou publiez-les tels quels.",
+            "readreviews": "Les revues de la PR n'ont pas pu être lues : {detail}",
+            "reviewrefused": "GitHub n'a pas accepté la revue : {detail}",
+            "reviewanswer": "La réponse de GitHub à la revue n'a pas pu être lue.",
+            "readreviewcomments": "Les commentaires de la revue n'ont pas pu être lus : {detail}",
+            "readprcomments": "Les commentaires de la PR n'ont pas pu être lus : {detail}",
+            "ghanswer": "La réponse de GitHub n'a pas pu être lue.",
+            "someunposted": "Certains commentaires n'ont pas pu être publiés : publier la revue à nouveau n'envoie que ceux-là.",
+            "cleanupunavailable": "Le nettoyage n'est pas disponible.",
+            "cleanupunrecorded": "Le nettoyage a eu lieu, mais son résultat n'a pas pu être enregistré : {detail}",
+            "leftoveronly": "MoltenTerm ne supprime que le dossier laissé par son nettoyage, pas {path}.",
+            "sessionended": "Cette session de revue est terminée.",
+            "questiongone": "Cette question n'attend plus : elle a été envoyée ou retirée.",
+            "readpr": "La pull request n'a pas pu être lue sur GitHub : {detail}",
+            "headnotcommit": "La tête {head} n'est pas un identifiant de commit.",
+            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}."
+        },
+        "handoff": {
+            "notwaiting": "Cette demande de passage de relais n'est plus en attente.",
+            "approval": {
+                "title": "{from} veut passer du travail à {to}",
+                "message": "{from} → {to} : {goal}. Autoriser tape une invite dans le terminal de {receiver}.",
+                "once": "Autoriser une fois",
+                "always": "Toujours pour cette paire",
+                "block": "Bloquer"
+            },
+            "undelivered": {
+                "title": "Le passage de relais de {from} à {to} n'a pas été remis",
+                "message": "{detail} Le brief se trouve dans {path}."
+            },
+            "typed": {
+                "title": "Tapé dans l'invite de {receiver} : appuyez sur Entrée dans son terminal pour démarrer",
+                "message": "Le passage de relais de {from} a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
+                "goto": "Aller à {receiver}"
+            }
+        },
+        "sessions": {
+            "noid": "Aucune session n'a été indiquée.",
+            "gone": "La session {session} ne tourne plus.",
+            "endself": "Une session ne peut pas se terminer elle-même : tapez exit à la place.",
+            "notab": "Aucun onglet où ouvrir la session.",
+            "welcomeback": {
+                "keptone": "1 session a continué de tourner pendant que MoltenTerm était fermé",
+                "keptother": "{count} sessions ont continué de tourner pendant que MoltenTerm était fermé",
+                "endedone": "1 session s'est terminée pendant que MoltenTerm était fermé",
+                "endedother": "{count} sessions se sont terminées pendant que MoltenTerm était fermé",
+                "show": "Afficher {what}",
+                "open": "Ouvrir Sessions",
+                "line": "{head}{place}{ran} : {news}",
+                "place": " · dans {place}",
+                "ran": ", en cours depuis {duration}",
+                "join": "{first} ; {rest}",
+                "duration": {
+                    "underminute": "moins d'une minute",
+                    "min": "{m} min",
+                    "h": "{h} h",
+                    "hmin": "{h} h {m} min",
+                    "d": "{d} j"
+                },
+                "news": {
+                    "failed": "échec",
+                    "waiting": "vous attend",
+                    "finished": "terminé",
+                    "output": "nouvelle sortie",
+                    "exitedzero": "terminée (0)",
+                    "exitedstatus": "terminée avec le code {status}",
+                    "endedby": "arrêtée par {signal}",
+                    "exited": "terminée"
+                }
+            },
+            "cannotshow": {
+                "olderversion": "Cette session ne peut pas être affichée : elle a été lancée par une ancienne version de MoltenTerm et ne peut qu'être terminée.",
+                "ending": "Cette session ne peut pas être affichée : elle est en train de se terminer.",
+                "other": "Cette session ne peut pas être affichée : {reason}"
+            }
+        },
+        "termupdate": {
+            "unreadable": "Ce terminal ne peut pas être lu : {detail}",
+            "notlocal": "Seul le shell d'un terminal local peut être mis à jour.",
+            "cannotsee": "MoltenTerm ne peut pas voir ce qui tourne dans ce terminal sur ce système.",
+            "shellended": "Le shell de ce terminal s'est terminé.",
+            "input": {
+                "busy": "MoltenTerm tape déjà dans ce terminal : réessayez dans un instant.",
+                "cannottype": "MoltenTerm ne peut pas encore taper dans les terminaux : rien n'a été tapé.",
+                "unreadable": "Ce terminal ne peut pas être lu : {detail} Rien n'a été tapé.",
+                "notlocal": "MoltenTerm ne tape que dans un terminal local : rien n'a été tapé.",
+                "cannotsee": "MoltenTerm ne peut pas voir ce qui tourne dans ce terminal sur ce système : rien n'a été tapé.",
+                "shellended": "Le shell de ce terminal s'est terminé : rien n'a été tapé.",
+                "notforeground": "{program} est au premier plan de ce terminal, pas {agent} : rien n'a été tapé.",
+                "notforegroundany": "{program} est au premier plan de ce terminal, pas l'agent : rien n'a été tapé.",
+                "noagent": "{agent} ne tourne plus dans ce terminal : rien n'a été tapé.",
+                "noagentany": "L'agent ne tourne plus dans ce terminal : rien n'a été tapé.",
+                "gone": "{agent} n'est plus le programme au premier plan : rien n'a été tapé.",
+                "nottaken": "Le terminal n'a pas accepté la saisie : {detail}",
+                "waiting": "{agent} attend votre réponse : répondez-lui d'abord.",
+                "working": "{agent} travaille : attendez la fin de son tour, ou interrompez-le.",
+                "draft": "Un message non envoyé dans {agent} sera effacé.",
+                "unknowncommand": "{agent} n'a pas de commande « {action} » dans MoltenTerm : rien n'a été tapé.",
+                "unknownmodel": "{agent} n'a pas de modèle « {model} » vers lequel MoltenTerm peut basculer : choisissez-le dans le /model de {agent}. Rien n'a été tapé.",
+                "unknownmode": "{agent} n'a pas de mode d'autorisation « {mode} » : rien n'a été tapé.",
+                "sent": "{text} envoyé à {agent}.",
+                "sentinterrupt": "Touche d'interruption envoyée à {agent}.",
+                "alreadymode": "{agent} est déjà en mode {mode}.",
+                "modenow": "{agent} est maintenant en mode {mode}.",
+                "modeblind": "Maj+Tab envoyé une fois. MoltenTerm ne voit pas le mode de {agent} : chaque clic passe au mode suivant.",
+                "modemissed": "{agent} affiche le mode {mode} : {target} n'a pas été atteint."
+            },
+            "effort": {
+                "unknown": "{agent} n'a pas de niveau d'effort « {effort} » ici : rien n'a été tapé.",
+                "already": "{agent} tourne déjà avec l'effort {effort}.",
+                "remapped": "Vos réglages de {agent} donnent leurs propres touches aux raccourcis d'effort : choisissez le niveau dans le /model de {agent}. Rien n'a été tapé.",
+                "notknown": "MoltenTerm ne connaît pas encore le niveau d'effort de {agent} (il le lit à chaque tour) : choisissez-le dans le /model de {agent}. Rien n'a été tapé.",
+                "set": "{agent} est réglé sur l'effort {effort} pour cette session. MoltenTerm l'affiche à partir du prochain tour de {agent}."
+            },
+            "line": {
+                "none": "Il n'y a pas de ligne à taper : rien n'a été tapé.",
+                "working": "{agent} travaille : attendez la fin de son tour.",
+                "sent": "Envoyé à {agent}.",
+                "typeddraft": "Tapé dans l'invite de {agent} sans Entrée : vous y avez peut-être un message non envoyé.",
+                "typed": "Tapé dans l'invite de {agent} : ajoutez ce qu'il faut faire et appuyez sur Entrée."
+            },
+            "update": {
+                "programbusy": "Terminez ou arrêtez d'abord {program} : mettre à jour le terminal remplace son shell.",
+                "needconfirm": "Redémarrer {agent} avec l'intégration de MoltenTerm ? La conversation reprend.",
+                "ready": "Le shell est à son invite : il est remplacé dans le même dossier.",
+                "already": "Ce terminal est déjà en cours de mise à jour.",
+                "uptodate": "Ce terminal est déjà à jour.",
+                "shellfailed": "Le nouveau shell n'a pas démarré : {detail}",
+                "updated": "Terminal mis à jour.",
+                "agentwaiting": "{agent} attend votre réponse : répondez-lui, puis mettez à jour le terminal.",
+                "agentworking": "{agent} travaille : mettez à jour le terminal une fois son tour terminé.",
+                "agentgone": "{agent} n'est plus le programme au premier plan : rien n'a été tapé. Mettez à jour le terminal à nouveau.",
+                "agentstuck": "{agent} ne s'est pas arrêté en {seconds} s et tourne toujours. Quittez-le vous-même, puis mettez à jour le terminal.",
+                "noinput": "MoltenTerm n'a pas pu taper dans ce terminal, donc {agent} tourne toujours. Affichez son panneau une fois, puis mettez à jour le terminal.",
+                "exitedunavailable": "{agent} s'est arrêté, mais le terminal ne peut pas être mis à jour : {detail} Relancez-le avec : {command}",
+                "shellkept": "{agent} s'est arrêté, mais {program} tourne maintenant dans le terminal, donc son shell a été gardé. Terminez-le, mettez à jour le terminal, puis lancez {agent} avec : {command}",
+                "exitedshellfailed": "{agent} s'est arrêté mais le nouveau shell n'a pas démarré : {detail}. Relancez-le avec : {command}",
+                "noprompt": "Le nouveau shell n'a pas affiché d'invite, donc {agent} n'a pas été lancé. Lancez-le avec : {command}",
+                "notstarted": "Le nouveau shell a démarré, mais pas {agent}. Lancez-le avec : {command}",
+                "startfailed": "Le nouveau shell a démarré mais {agent} n'a pas pu l'être : {detail}. Lancez-le avec : {command}",
+                "done": "Terminal mis à jour. {agent} reprend sa session ({command}).",
+                "doneguessed": "Terminal mis à jour. MoltenTerm n'a pas pu savoir quelle session de {agent} tournait ici, donc {agent} rouvre sa plus récente dans ce dossier ({command})."
+            },
+            "restart": {
+                "notlocal": "Seul un agent qui tourne dans un terminal local peut être redémarré.",
+                "nomodes": "{agent} n'a pas de mode d'autorisation que MoltenTerm peut régler : rien n'a été tapé.",
+                "agentwaiting": "{agent} attend votre réponse : répondez-lui, puis redémarrez-le avec les réglages actuels.",
+                "agentworking": "{agent} travaille : redémarrez-le avec les réglages actuels une fois son tour terminé.",
+                "agentgone": "{agent} n'est plus le programme au premier plan : rien n'a été tapé. Redémarrez-le à nouveau.",
+                "agentstuck": "{agent} ne s'est pas arrêté en {seconds} s et tourne toujours. Quittez-le vous-même, puis redémarrez-le avec les réglages actuels.",
+                "noinput": "MoltenTerm n'a pas pu taper dans ce terminal, donc {agent} tourne toujours. Affichez son panneau une fois, puis redémarrez-le avec les réglages actuels.",
+                "shellkept": "{agent} s'est arrêté, mais {program} tourne maintenant dans le terminal, donc son shell a été gardé. Terminez-le, redémarrez-le avec les réglages actuels, puis lancez {agent} avec : {command}",
+                "done": "Redémarré. {agent} reprend sa session ({command}).",
+                "doneguessed": "Redémarré. MoltenTerm n'a pas pu savoir quelle session de {agent} tournait ici, donc {agent} rouvre sa plus récente dans ce dossier ({command})."
+            }
+        },
+        "mission": {
+            "noPipeline": "Le projet n'a pas de pipeline (.molten/project.json).",
+            "pipelineProblems": "Le pipeline a des problèmes : {detail}",
+            "ci": {
+                "noJobs": "Le pipeline ne déclare aucun job de CI (ci.jobs).",
+                "notACommit": "{rev} n'est pas un commit de ce projet.",
+                "noneOfJobs": "Le pipeline ne déclare aucun des jobs {jobs}.",
+                "alreadyGreen": "La CI locale est déjà verte sur ce code : choisissez Tout relancer pour la lancer quand même.",
+                "inProgress": "Une exécution de la CI locale est en cours ({run}).",
+                "notRunning": "Cette exécution de la CI locale n'est pas en cours.",
+                "worktreeCreate": "Le worktree de la CI n'a pas pu être créé : {detail}",
+                "worktreeMove": "Le worktree de la CI n'a pas pu passer sur {commit} : {detail}",
+                "worktreeClean": "Le worktree de la CI n'a pas pu être nettoyé : {detail}",
+                "prepareFailed": "ci.prepare a échoué (code {exit}) : la fin de prepare.log dit pourquoi."
+            },
+            "run": {
+                "noBuild": "Le pipeline ne déclare aucun build « {id} ».",
+                "noStep": "Le pipeline ne déclare aucune étape « {id} ».",
+                "alreadyRunning": "{title} est déjà en cours.",
+                "stillRunning": "{title} est encore en cours.",
+                "stillRunningCancel": "{title} est encore en cours : annulez-le d'abord.",
+                "notRunning": "{title} n'est pas en cours.",
+                "startFailed": "{title} n'a pas pu être lancé : {detail}"
+            },
+            "deps": {
+                "noGroup": "Ce projet n'est dans aucun groupe : ajoutez \"group\" à son .molten/project.json et à celui de la source.",
+                "noSource": "Aucun autre projet lié à un espace de travail ne déclare le groupe {group} avec le nom « {name} ».",
+                "invalid": "Cette dépendance est mal déclarée : {detail}",
+                "sourceGone": "Le dossier de {name} n'existe plus : {dir}",
+                "readBranches": "Les branches de {name} n'ont pas pu être lues : {detail}",
+                "noTrunk": "{name} n'a pas de branche principale à suivre : déclarez \"branch\".",
+                "noBranch": "{name} n'a pas de branche {branch}, ni locale ni sur origin.",
+                "readOwnHistory": "L'historique de ce projet n'a pas pu être lu : {detail}",
+                "readHistory": "L'historique de {name} n'a pas pu être lu : {detail}"
+            },
+            "depSync": {
+                "unavailable": "La synchronisation d'une dépendance n'est pas disponible.",
+                "noDependencyId": "Le projet ne déclare aucune dépendance {id}.",
+                "otherProject": "{id} est une dépendance envers {project}, pas envers {asked}.",
+                "noDependencyOn": "Le projet ne déclare aucune dépendance envers {project}.",
+                "noDependency": "Le projet ne déclare aucune dépendance (\"dependson\").",
+                "noSync": "Aucune commande de synchronisation n'est déclarée pour la dépendance envers {project} : ajoutez-lui \"sync\" dans {file}.",
+                "noSyncAny": "Aucune dépendance ne déclare de commande de synchronisation : ajoutez \"sync\" à l'une d'elles dans {file}.",
+                "nameOne": "Plusieurs dépendances déclarent une synchronisation, nommez-en une : {names}",
+                "cannotSync": "Impossible de synchroniser depuis {project} : {detail}",
+                "alreadyRunning": "Une synchronisation de ce projet est déjà en cours."
+            },
+            "reviews": {
+                "rerunUnknown": "MoltenTerm n'a pas encore lu #{number} sur GitHub : actualisez la liste, puis réessayez.",
+                "rerunNothing": "Aucune vérification GitHub Actions de #{number} n'a échoué : rien à relancer.",
+                "rerunFailed": "Les jobs en échec n'ont pas pu être relancés : {detail}"
+            },
+            "release": {
+                "noSteps": "Le pipeline ne déclare aucune étape release.{channel}.",
+                "notATag": "« {tag} » n'est pas un tag de version ({prefix}X.Y.Z ou {prefix}X.Y.Z-N).",
+                "rcTag": "{tag} est le tag d'une version candidate, pas d'une version publique.",
+                "publicTag": "{tag} est le tag d'une version publique, pas d'une version candidate.",
+                "onItsWay": "Une version est déjà en cours de publication : {tag}.",
+                "tagged": "{tag} est déjà tagué.",
+                "notFollowed": "{tag} n'est pas la version suivie.",
+                "noPreparation": "Le pipeline ne déclare aucune préparation.",
+                "noStep": "Le pipeline ne déclare aucune étape release.{channel} « {step} ».",
+                "noRerun": "Aucune exécution GitHub de {tag} à relancer.",
+                "noNotes": "Aucune note publique n'est rédigée pour cette version.",
+                "notesTooLarge": "{path} est trop volumineux pour être modifié ici.",
+                "notesLink": "{path} n'est pas un fichier ordinaire : les notes de version ne sont pas écrites à travers un lien.",
+                "notesOutside": "{path} est hors du projet : les notes de version n'y sont pas écrites."
+            },
+            "branches": {
+                "noneToDelete": "Aucune branche à supprimer.",
+                "noTrunk": "Le projet n'a pas de branche principale avec laquelle comparer.",
+                "readTrunk": "{ref} n'a pas pu être lu : {detail}",
+                "kept": "{branch} : gardée ({reason})",
+                "deleteFailed": "{branch} : {detail}",
+                "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}"
+            },
+            "jobs": {
+                "tooLarge": "Le fichier est trop volumineux pour être lu.",
+                "badYaml": "YAML illisible : {detail}",
+                "noMapping": "pas un workflow : le fichier ne contient aucun mapping",
+                "noAgent": "Aucun agent n'a été choisi.",
+                "gone": "Le job « {job} » n'est plus dans les fichiers de CI du projet.",
+                "cannotType": "MoltenTerm ne peut pas encore taper dans les terminaux : rien n'a été envoyé."
+            },
+            "git": {
+                "noFolder": "Le dossier {dir} n'existe pas.",
+                "alreadyRepo": "{dir} est déjà dans un dépôt git."
+            },
+            "upcoming": {
+                "noTrees": "Les worktrees du projet n'ont pas pu être listés."
+            },
+            "work": {
+                "preparing": "préparation"
+            }
+        },
+        "notif": {
+            "railgroups": {
+                "movedTitle": "{workspace} a rejoint {product}",
+                "moved": "{workspace} appartient désormais à {product}, déclaré dans ses fichiers de projet : il a donc quitté le groupe {group}. Les groupes de projet passent en premier."
+            },
+            "build": {
+                "builtTitle": "{name} est compilé",
+                "finished": "Le build {sha} est terminé.",
+                "readyTitle": "{name} est prêt",
+                "delivered": "Build {sha} livré dans le dossier des builds locaux ({count} commit(s) depuis le précédent).",
+                "stoppedTitle": "Le build {name} s'est arrêté",
+                "stopped": "Sa carte d'exécution montre à quelle étape, et la fin de son journal.",
+                "showBuild": "Voir le build",
+                "showInFolder": "Afficher dans le dossier"
+            },
+            "worktree": {
+                "keptTitle": "Le worktree {name} est toujours sur le disque",
+                "kept": "Son terminal s'est fermé sans que MoltenTerm le demande (son shell s'est terminé, une commande l'a fermé, ou sa fenêtre ou son espace de travail s'est fermé) ; le worktree et sa branche sont conservés.\n{path}",
+                "review": "Examiner et supprimer…"
+            },
+            "deps": {
+                "behindTitle": "{dependent} est en retard sur {source}",
+                "changed": "{paths} a changé sur {branch} depuis la dernière synchronisation : {count} commit(s){tickets}.",
+                "changedNewest": "{paths} a changé sur {branch} depuis la dernière synchronisation : {count} commit(s){tickets}, le plus récent {newest}.",
+                "neverSynced": "{dependent} n'a jamais été synchronisé : {count} commit(s) de {source} touchent {paths} sur {branch}{tickets}.",
+                "neverSyncedNewest": "{dependent} n'a jamais été synchronisé : {count} commit(s) de {source} touchent {paths} sur {branch}{tickets}, le plus récent {newest}.",
+                "sync": "Synchroniser",
+                "open": "Ouvrir"
+            },
+            "onboarding": {
+                "availableTitle": "Premiers pas est disponible",
+                "available": "Une courte configuration : votre agent, un premier morph, votre projet. Premiers pas est aussi dans le menu de l'application et la palette de commandes.",
+                "leftTitle": "Premiers pas est toujours là",
+                "left": "Rouvrez-le quand vous voulez, depuis le menu de l'application ou la palette de commandes.",
+                "open": "Ouvrir Premiers pas"
+            },
+            "review": {
+                "rebasedTitle": "#{number} rebasée sur {base} par {name}, prête pour la revue",
+                "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}, prête pour la revue",
+                "needsTitle": "{name} a besoin de vous sur #{number}",
+                "stopped": "{name} s'est arrêté avant de pousser {branch} : son terminal dit ce qu'il attend.",
+                "exited": "La session de {name} s'est terminée avant que {branch} soit poussée.",
+                "midRebase": "{name} s'est arrêté au milieu du rebase de {branch} : son terminal dit ce qu'il attend.",
+                "changes": "{name} a poussé, mais sa copie de {branch} a des fichiers non commités ({count}) : {names}",
+                "commits": "Commits non poussés sur {branch} : {count}.",
+                "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
+                "openReview": "Ouvrir la revue",
+                "investigatedTitle": "{name} a analysé la CI de #{number}",
+                "investigated": "Ses conclusions et sa proposition sont dans son terminal : répondez-y.",
+                "rerun": {
+                    "passedTitle": "#{number} : les jobs relancés ont réussi",
+                    "failedTitle": "#{number} : encore en échec après la relance",
+                    "failed": "Toujours en échec : {names}. Analysez l'échec depuis la ligne de la pull request dans Revues."
+                },
+                "batch": {
+                    "openReviews": "Ouvrir la liste des revues",
+                    "goTo": "Aller au terminal",
+                    "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
+                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
+                    "doneTitle": "Fusion groupée — PR fusionnées : {merged} sur {total}",
+                    "cancelledTitle": "Fusion groupée annulée — PR fusionnées : {merged} sur {total}",
+                    "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}",
+                    "mergedList": "Fusionnées : {list}. ",
+                    "mergedNone": "Rien n'a été fusionné. ",
+                    "skippedFirst": "Passées : #{number} ({reason}){rest}. ",
+                    "skippedNext": ", #{number} ({reason}){rest}",
+                    "kept": {
+                        "changes": " La copie de l'agent a des fichiers non commités : elle est gardée.",
+                        "unpushed": " La copie de l'agent a des commits non poussés : elle est gardée.",
+                        "rebasing": " L'agent s'est arrêté au milieu d'un rebase : sa copie est gardée.",
+                        "working": " L'agent travaille encore : son terminal est gardé.",
+                        "unread": " La copie de l'agent n'a pas pu être lue : elle est gardée."
+                    },
+                    "why": {
+                        "failing": "checks en échec : {names}",
+                        "ambiguous": "un conflit que votre agent vous laisse",
+                        "ambiguousNote": "un conflit que votre agent vous laisse : {note}",
+                        "conflict": "toujours en conflit avec {base} après un rebase",
+                        "agentexited": "la session de l'agent s'est terminée avant qu'il pousse",
+                        "agenttimeout": "l'agent n'a pas fini le rebase à temps",
+                        "noagent": "aucun agent de code n'est installé pour le rebase",
+                        "agentstart": "l'agent n'a pas pu être lancé : {detail}",
+                        "blocked": "GitHub bloque la fusion (une revue ou une règle)",
+                        "warnings": "des commentaires non publiés ou un travail en cours dessus",
+                        "citimeout": "ses checks n'ont pas fini à temps",
+                        "unknown": "GitHub n'a pas dit si elle fusionne proprement",
+                        "mergefailed": "la fusion a échoué : {detail}",
+                        "read": "GitHub n'a pas pu être lu : {detail}",
+                        "headmoved": "sa branche n'a pas cessé de bouger",
+                        "draft": "c'est un brouillon",
+                        "mergedaway": "déjà fusionnée",
+                        "closed": "fermée",
+                        "cancelled": "annulée",
+                        "interrupted": "MoltenTerm a redémarré",
+                        "notreached": "pas atteinte"
+                    }
+                }
+            }
+        },
+        "companion": {
+            "terminalunreadable": "Ce terminal n'a pas pu être lu.",
+            "foldernotknown": "Le dossier de ce terminal n'est pas encore connu.",
+            "newsession": "Une nouvelle session a démarré. Elle s'affiche ici dès que l'agent écrit son premier message.",
+            "transcriptinvalid": "La transcription de la session ne peut pas être lue : {detail}",
+            "followedelsewhere": "Cette session est suivie par un autre terminal.",
+            "transcriptunopened": "La transcription de la session n'a pas pu être ouverte.",
+            "transcriptgone": "La transcription de la session n'est plus lisible.",
+            "sessionofother": "Cette session appartient à un autre terminal.",
+            "remoteterminal": "Il n'y a pas de compagnon pour un terminal distant.",
+            "toomanyviews": "Trop de vues de ce compagnon sont ouvertes.",
+            "toomanycompanions": "Trop de compagnons sont ouverts.",
+            "notopen": "Le compagnon de ce terminal n'est pas ouvert.",
+            "nosession": "Aucune session n'est affichée.",
+            "noagentruns": "Aucun agent ne tourne dans ce terminal.",
+            "nocompanionfor": "Il n'y a pas de compagnon pour {agent}.",
+            "answergone": "Cette réponse n'est plus conservée.",
+            "nofilechange": "Ce fichier n'a pas été modifié dans la session."
+        },
+        "integration": {
+            "name": {
+                "statehooks": "Hooks d'état de l'agent",
+                "statehooksof": "Hooks d'état de l'agent ({events})",
+                "sessionlink": "Lien de session",
+                "coffeeapprovals": "Approbations du café",
+                "coffeeapprovalsyours": "Approbations du café (votre propre hook, dans {where})",
+                "codexcoffeeapprovals": "Approbations du café (une fois le hook de MoltenTerm approuvé dans /hooks de Codex)",
+                "statusline": "Relais de la ligne d'état",
+                "statuslinenone": "Relais de la ligne d'état (vous n'avez pas de ligne d'état : rien n'est affiché)",
+                "statuslinearound": "Relais de la ligne d'état autour de la vôtre",
+                "browser": "Navigateur MoltenTerm",
+                "codexnotify": "État terminé à la fin de chaque tour (notify)",
+                "codexnotifyaround": "État terminé à la fin de chaque tour (notify, autour de votre propre notify)",
+                "codexsessionlink": "Lien de session (à la fin du premier tour)"
+            },
+            "reason": {
+                "managedhooksonly": "les réglages gérés de votre organisation n'autorisent que leurs propres hooks",
+                "managedhooksonlyin": "{where} de votre organisation n'autorise que ses propres hooks",
+                "reviewsession": "une session de revue est en lecture seule : le mode café ne répond jamais à ses demandes",
+                "alreadyyours": "déjà présent chez vous, dans {where}",
+                "alreadyyoursflag": "déjà présent chez vous, dans votre {flag}",
+                "alreadyyoursmcpconfig": "déjà présent chez vous, dans votre --mcp-config",
+                "alreadyyoursnotify": "déjà présent chez vous, dans {where} : il tourne comme vous l'avez réglé, et la session est liée autour",
+                "managedstatusline": "les réglages gérés de votre organisation définissent la ligne d'état",
+                "statuslinefileunreadable": "{where} n'a pas pu être lu, votre ligne d'état n'a donc pas pu être conservée",
+                "statuslineunreadable": "la ligne d'état de {where} n'a pas pu être lue",
+                "statuslinenotcommand": "votre ligne d'état n'est pas une commande",
+                "statuslinerelayed": "votre ligne d'état l'exécute déjà",
+                "browsernotinstalled": "le serveur de navigateur de MoltenTerm (molten mcp browser) n'est pas installé",
+                "moltennotinstalled": "la commande molten de MoltenTerm n'est pas installée",
+                "strictmcp": "vous avez passé {flag} : seuls vos propres serveurs --mcp-config tournent",
+                "mcpconfigunreadable": "votre --mcp-config {file} n'a pas pu être lu",
+                "fileunreadable": "{where} n'a pas pu être lu",
+                "browserconfignotwritten": "la configuration du serveur n'a pas pu être écrite",
+                "managedmcp": "la configuration MCP gérée de votre organisation décide des serveurs qui tournent",
+                "managedprovided": "déjà fourni par les réglages gérés de votre organisation",
+                "codexhookstrust": "Codex n'exécute les hooks ajoutés pour une exécution qu'une fois que vous les avez approuvés, et MoltenTerm ne contourne jamais cette approbation",
+                "codexmcpservers": "vous avez passé {flag} : seuls vos propres serveurs tournent",
+                "ownnotifyflag": "vous avez passé votre propre -c notify : il tourne comme vous l'avez réglé",
+                "profilenotify": "votre profil {profile} dans {where} définit notify : il tourne comme vous l'avez réglé",
+                "managednotify": "{where} de votre organisation définit notify",
+                "projectnotify": "{where} peut définir notify pour ce projet : il tourne comme vous l'avez réglé",
+                "rootmarkers": "{where} définit project_root_markers : les fichiers de projet que Codex lit n'ont pas pu être déterminés",
+                "notifynotlist": "le notify de {where} n'est pas une liste de chaînes",
+                "codexhooksoff": "les hooks de Codex sont désactivés dans {where}",
+                "codexhooksflag": "vous avez passé {flag} : seuls vos propres hooks tournent",
+                "ownpermissionhooks": "vous avez vos propres hooks PermissionRequest, dans {where}"
+            },
+            "stepaside": {
+                "outsidepane": "hors d'un terminal MoltenTerm",
+                "nested": "lancé par un agent en cours",
+                "turnedoff": "{var}=0",
+                "passthrough": "une commande qui ne démarre pas de session",
+                "settingsoff": "l'intégration est désactivée dans les réglages de MoltenTerm ({setting})",
+                "settingsagentoff": "l'intégration est désactivée pour cet agent dans les réglages de MoltenTerm ({setting})",
+                "settingsunknown": "les réglages de MoltenTerm n'ont pas pu être lus à temps",
+                "disableallhooks": "disableAllHooks est activé dans {where} : Claude Code n'exécute aucun hook ni ligne d'état",
+                "notwritten": "l'intégration n'a pas pu être écrite : {detail}"
+            }
+        },
+        "keepawake": {
+            "deny": {
+                "question": "une question à laquelle vous seul pouvez répondre",
+                "keychain": "lit le trousseau",
+                "remove": "supprime hors du dossier de la session : {detail}",
+                "forcepush": "push forcé ou suppression d'une branche principale : {detail}",
+                "credential": "lit ou écrit un fichier d'identifiants : {detail}",
+                "toodeep": "exécute une commande que les règles ne peuvent pas lire : shells imbriqués trop profondément",
+                "stdin": "exécute une commande que les règles ne peuvent pas lire : {program} lit son programme sur l'entrée standard",
+                "opaque": "exécute une commande que les règles ne peuvent pas lire : {detail}"
+            },
+            "session": {
+                "remote": "il tourne sur un hôte distant",
+                "unsupported": "MoltenTerm ne peut pas répondre aux demandes de {agent}",
+                "nolauncher": "il a été lancé hors du lanceur de MoltenTerm",
+                "codexuntrusted": "approuvé une fois le hook de MoltenTerm approuvé : tapez /hooks dans Codex et approuvez molten agent permission",
+                "tooold": "il a été lancé avant l'existence des approbations du café : relancez-le depuis MoltenTerm",
+                "review": "une session de revue est en lecture seule : ses demandes vous sont toujours posées"
+            },
+            "why": {
+                "working": "{agent} : au travail",
+                "background": "{agent} : travail en arrière-plan",
+                "anycommand": "Une commande",
+                "command": "Commande : {command}",
+                "mission": "Exécution de Mission Control",
+                "more": "{count} de plus"
+            },
+            "notice": {
+                "asktitle": "Un terminal veut garder cet ordinateur éveillé",
+                "ask": "Un programme a lancé {tool}. Choisissez une fois pour toutes ce que fait MoltenTerm de ces demandes : les laisser passer, garder lui-même cet ordinateur éveillé jusqu'à la fin du travail, ou le laisser dormir.",
+                "askparent": "{who} a lancé {tool}. Choisissez une fois pour toutes ce que fait MoltenTerm de ces demandes : les laisser passer, garder lui-même cet ordinateur éveillé jusqu'à la fin du travail, ou le laisser dormir.",
+                "asktab": "Un programme dans {tab} a lancé {tool}. Choisissez une fois pour toutes ce que fait MoltenTerm de ces demandes : les laisser passer, garder lui-même cet ordinateur éveillé jusqu'à la fin du travail, ou le laisser dormir.",
+                "askparenttab": "{who} dans {tab} a lancé {tool}. Choisissez une fois pour toutes ce que fait MoltenTerm de ces demandes : les laisser passer, garder lui-même cet ordinateur éveillé jusqu'à la fin du travail, ou le laisser dormir.",
+                "allow": "Autoriser",
+                "untilworkends": "Jusqu'à la fin du travail",
+                "letsleep": "Le laisser dormir",
+                "coffeeendtitle": "{name} : travail terminé, cet ordinateur peut de nouveau se mettre en veille",
+                "coffeeendtitleunnamed": "Un espace de travail : travail terminé, cet ordinateur peut de nouveau se mettre en veille",
+                "coffeeend": "Son café s'est arrêté 2 minutes après la fin du dernier travail dans l'espace de travail.",
+                "policyendtitle": "Travail terminé : cet ordinateur peut de nouveau se mettre en veille",
+                "policyend": "« Jusqu'à la fin du travail » l'a gardé éveillé pendant le travail ; MoltenTerm a levé son blocage 2 minutes après la fin du dernier travail."
+            }
+        },
+        "browser": {
+            "action": {
+                "back": "Est revenu en arrière",
+                "forward": "Est allé en avant",
+                "navigate": "Est allé sur {site}",
+                "readpage": "A lu la page",
+                "pagetext": "A lu le texte de la page",
+                "find": "A cherché dans la page",
+                "screenshot": "A pris une capture d'écran",
+                "zoom": "A zoomé dans la page",
+                "wait": "En attente",
+                "opened": "A ouvert cet onglet",
+                "engaged": "Travaille dans l'onglet que vous avez partagé",
+                "clicked": "A cliqué",
+                "clickedon": "A cliqué sur {on}",
+                "rightclicked": "A fait un clic droit",
+                "rightclickedon": "A fait un clic droit sur {on}",
+                "doubleclicked": "A double-cliqué",
+                "doubleclickedon": "A double-cliqué sur {on}",
+                "tripleclicked": "A triple-cliqué",
+                "tripleclickedon": "A triple-cliqué sur {on}",
+                "hovered": "A survolé",
+                "hoveredon": "A survolé {on}",
+                "scrolledto": "A défilé",
+                "scrolledtoon": "A défilé jusqu'à {on}",
+                "typing": "Saisit du texte",
+                "typingon": "Saisit du texte dans {on}",
+                "set": "A défini une valeur",
+                "seton": "A défini {on}",
+                "scrolledup": "A défilé vers le haut",
+                "scrolleddown": "A défilé vers le bas",
+                "scrolledleft": "A défilé vers la gauche",
+                "scrolledright": "A défilé vers la droite",
+                "pressed": "A appuyé sur {keys}",
+                "dragged": "A fait glisser de {from} à {to}",
+                "resized": "A redimensionné la page en {size}"
+            },
+            "prompt": {
+                "sensitivefield": "saisir dans un champ de mot de passe ou de paiement",
+                "sensitivefill": "remplir un champ de mot de passe ou de paiement",
+                "framefield": "saisir dans un champ à l'intérieur d'un cadre, que MoltenTerm ne peut pas vérifier",
+                "sensitiveform": "envoyer un formulaire avec un champ de mot de passe ou de paiement",
+                "filechooser": "ouvrir un sélecteur de fichiers",
+                "download": "lancer un téléchargement",
+                "sensitive": "faire une action sensible"
+            },
+            "share": {
+                "notui": "Seule une fenêtre de MoltenTerm peut partager un onglet avec un agent.",
+                "tabgone": "Cet onglet n'est plus dans le panneau.",
+                "otherengine": "Cette page est ouverte dans un autre navigateur : ouvrez-la dans MoltenTerm pour la partager.",
+                "sessiongone": "La session de navigateur de cet agent est terminée.",
+                "elsewhere": "Cet agent tourne dans un autre espace de travail.",
+                "othertab": "Cet agent tourne dans un autre onglet : partagez la page depuis un panneau de navigateur de son onglet.",
+                "notshared": "Cet onglet n'est pas partagé avec un agent.",
+                "nopage": "Ouvrez d'abord une page dans cet onglet.",
+                "toomanytabs": "Cet agent tient déjà trop d'onglets.",
+                "panelunknown": "MoltenTerm n'a pas pu lire le panneau du navigateur."
+            }
+        },
+        "worktree": {
+            "notLinked": "{path} n'est pas un worktree lié.",
+            "notListed": "{path} n'est pas un worktree lié de son dépôt.",
+            "git": "git n'a pas pu lire le worktree : {detail}",
+            "removeFailed": "git n'a pas supprimé le worktree : {detail}",
+            "locked": "Le worktree est verrouillé (git worktree unlock {path}).",
+            "removeRefused": {
+                "home": "MoltenTerm ne supprime pas {path} : c'est le dossier personnel.",
+                "repository": "MoltenTerm ne supprime pas {path} : il contient son dépôt."
+            },
+            "needsConfirmation": "Le worktree contient du travail ou sert à un autre terminal : le supprimer demande une seconde confirmation.",
+            "changedSinceConfirmed": "Le worktree a changé depuis votre confirmation : relisez le plan.",
+            "refused": {
+                "home": "c'est le dossier personnel",
+                "repository": "il contient son dépôt"
+            },
+            "branchKept": {
+                "detached": "aucune branche (HEAD détachée)",
+                "longLived": "{branch} est une branche durable",
+                "mergeUnknown": "MoltenTerm n'a pas pu savoir si {branch} est fusionnée",
+                "notMerged": "{branch} n'est pas fusionnée dans {trunk}",
+                "unusualName": "nom de branche inhabituel",
+                "git": "git ne l'a pas supprimée ({detail})"
+            }
+        },
+        "onboarding": {
+            "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
+            "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}"
+        }
+    },
+    "agentChoice": {
+        "title": {
+            "rebase": "Rebaser #{number} avec un agent",
+            "restart": "Relancer le travail sur #{number} avec un agent",
+            "investigate": "Analyser l'échec de la CI de #{number} avec un agent"
+        },
+        "subtitle": "{branch} → {base}",
+        "what": {
+            "rebase": "{agent} rebase {branch} sur {base} dans une copie isolée de la branche, résout les conflits, lance les vérifications du projet et pousse avec lease.",
+            "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil.",
+            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch}, dit si la pull request a causé l'échec ou si un test instable ou sans rapport l'a fait, et propose une relance, un correctif sur la branche ou un ticket. Il ne change rien avant votre choix."
+        },
+        "background": {
+            "button": "Laisser l'agent s'en charger",
+            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans Revues ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
+        },
+        "together": {
+            "rebase": "Faire le rebase avec l'agent",
+            "restart": "Faire le travail avec l'agent",
+            "investigate": "Faire l'analyse avec l'agent",
+            "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend."
+        },
+        "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
+        "checkoutInvestigate": "Votre copie principale n'est pas touchée. Le terminal de l'agent reste ouvert avec ses conclusions jusqu'à ce que vous le fermiez.",
+        "default": "Par défaut",
+        "yourAgent": "Votre agent",
+        "tab": {
+            "rebase": "Rebase #{number}",
+            "restart": "Relance #{number}",
+            "investigate": "CI #{number}"
+        },
+        "noReview": "La pull request à ouvrir n'est pas connue."
+    },
+    "agentOrigin": {
+        "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",
+        "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
+        "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
+        "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
+        "investigate": "Lancé par vous à {time} pour analyser l'échec de la CI de #{number}"
     }
 }

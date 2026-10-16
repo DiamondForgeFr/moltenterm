@@ -15,6 +15,7 @@ import { RunningDot } from "../mission/action-button";
 import { StripDependency, StripMember, stripMembers, StripTone, SyncArgs } from "../mission/group-strip-model";
 import { startDependencySync } from "../mission/group-sync";
 import { MoltenWave } from "../molten-button";
+import { workspaceShownName } from "../workspace-default-name";
 import { ProjectCardProps } from "./project-context";
 
 const ToneText: Record<StripTone, string> = {
@@ -66,7 +67,9 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
             onClick={() => onSwitch(entry.target)}
             className="group/member flex min-w-0 cursor-pointer items-center gap-2 text-left"
             title={
-                workspace?.name ? t("project.group.switchNamed", { name: workspace.name }) : t("project.group.switch")
+                workspace?.name
+                    ? t("project.group.switchNamed", { name: workspaceShownName(workspace.name, t) })
+                    : t("project.group.switch")
             }
             data-testid="group-strip-switch"
         >

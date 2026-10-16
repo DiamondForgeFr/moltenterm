@@ -4,6 +4,7 @@
 // The local CI's data on the panel side (FR-MC-011): mirrors pkg/molten/mission/ci.go. Kept apart from the components
 // so the rules can be tested without the app.
 
+import type { ServerText } from "../i18n/server-text";
 import { labelRecord } from "./mission-i18n";
 
 export type CiStatus = "running" | "success" | "failure" | "cancelled" | "interrupted" | "queued";
@@ -32,6 +33,7 @@ export type CiRunRecord = {
     only?: string[];
     jobs: CiJobRecord[];
     error?: string;
+    errortext?: ServerText;
 };
 
 export type CiBranch = { name: string; sha: string; date: number; verdict: CiVerdictStatus };

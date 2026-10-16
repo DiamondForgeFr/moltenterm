@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The review worktree (DS-REV-004, #505 Q4): a linked worktree of the project that has the PR's head branch checked
@@ -89,7 +90,7 @@ func resolveHead(ctx context.Context, git GitRunner, projectDir string, headRef 
 	}
 	if headOid != "" {
 		if !oidPattern.MatchString(headOid) {
-			return "", fmt.Errorf("the head commit %q is not a commit id", headOid)
+			return "", uimsg.Errorf(uimsg.Make("review.headnotcommit", "head", headOid), "the head commit %q is not a commit id", headOid)
 		}
 		if hasCommit(headOid) {
 			return headOid, nil
@@ -98,7 +99,7 @@ func resolveHead(ctx context.Context, git GitRunner, projectDir string, headRef 
 		if hasCommit(headOid) {
 			return headOid, nil
 		}
-		return "", fmt.Errorf("the PR's head commit %s is not in the project, even after a fetch of %s", headOid[:12], headRef)
+		return "", uimsg.Errorf(uimsg.Make("review.headmissing", "head", headOid[:12], "branch", headRef), "the PR's head commit %s is not in the project, even after a fetch of %s", headOid[:12], headRef)
 	}
 	git(ctx, projectDir, "fetch", "--quiet", "origin", "refs/heads/"+headRef)
 	for _, ref := range []string{"refs/remotes/origin/" + headRef, "refs/heads/" + headRef} {
@@ -107,7 +108,7 @@ func resolveHead(ctx context.Context, git GitRunner, projectDir string, headRef 
 			return oid, nil
 		}
 	}
-	return "", fmt.Errorf("the branch %s was not found in the project or on origin", headRef)
+	return "", uimsg.Errorf(uimsg.Make("review.branchmissing", "branch", headRef), "the branch %s was not found in the project or on origin", headRef)
 }
 
 // ResolveHead is resolveHead for the Review tab's diff (pkg/molten/review).
@@ -156,7 +157,12 @@ func checkoutReviewTree(ctx context.Context, git GitRunner, dataDir string, proj
 		return err
 	}
 	hooks := []string{"-c", "core.hooksPath=" + noHooks}
-	if _, err := os.Stat(filepath.Join(tree, ".git")); err == nil {
+	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
+	_, statErr := os.Stat(filepath.Join(tree, ".git"))
+	if statErr == nil {
+		_, statErr = git(ctx, tree, "rev-parse", "--git-dir")
+	}
+	if statErr == nil {
 		if _, err := git(ctx, tree, append(hooks, "checkout", "--quiet", "--detach", "--force", headOid)...); err != nil {
 			return fmt.Errorf("the review worktree could not move to %s: %w", headOid[:12], err)
 		}

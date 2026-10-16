@@ -31,6 +31,7 @@ import {
     StatusBarChannel,
     statusBarFolder,
 } from "./status-bar-model";
+import { DominoLoader } from "./suite/suite";
 import { ReleaseUpdateButton } from "./update/release-update-ui";
 import { GoldUpdateButton } from "./update/update-dialog";
 import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
@@ -105,7 +106,11 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     title={t("status.ci.title", { label: pane.ci.label })}
                     onClick={() => openView(MoltentermCicdView)}
                 >
-                    <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
+                    {pane.ci.status === "running" ? (
+                        <DominoLoader className="text-accent" />
+                    ) : (
+                        <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
+                    )}
                     {pane.ci.label}
                 </button>
             ) : null}

@@ -11,6 +11,10 @@ import { t } from "./i18n/i18n";
 export const AgentStateEvent = "molten:agentstate";
 export const AgentStatesRoute = "molten:agents";
 export const AgentStatesCommand = "moltenagentstates";
+export const AgentStateSeenCommand = "moltenagentstateseen";
+
+// How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
+export const AgentSeenDwellMs = 1500;
 
 export type AgentStateName = "working" | "waiting" | "done" | "error" | "idle";
 
@@ -96,6 +100,37 @@ export function agentStatesOfWorkspace(data: AgentStatesData, workspaceId: strin
     return Object.values(data.states).filter((s) => s.workspaceid === workspaceId);
 }
 
+// What a tab view shows the user (#784): active when it is the tab on screen in the focused window.
+export type AgentSeenView = {
+    active: boolean;
+    blockIds: string[];
+    focusedBlockId: string;
+};
+
+// Done means finished and not seen yet (#784). In an active view, a done agent in the focused pane is seen at once,
+// one in another pane of the tab once it stayed in view for AgentSeenDwellMs. Waiting and error are never seen away:
+// only the agent moving on ends them.
+export function doneAgentsInView(
+    data: AgentStatesData,
+    view: AgentSeenView
+): { focused: AgentStateInfo[]; shown: AgentStateInfo[] } {
+    const rtn = { focused: [] as AgentStateInfo[], shown: [] as AgentStateInfo[] };
+    if (!view?.active) {
+        return rtn;
+    }
+    for (const info of agentStatesOfBlocks(data, view.blockIds)) {
+        if (info.state !== "done") {
+            continue;
+        }
+        if (info.blockid === view.focusedBlockId) {
+            rtn.focused.push(info);
+        } else {
+            rtn.shown.push(info);
+        }
+    }
+    return rtn;
+}
+
 const StateNames = ["working", "waiting", "done", "error", "idle"];
 
 export function agentStateLabel(state: string): string {
@@ -113,12 +148,12 @@ export const AgentStateDotClasses: Record<string, string> = {
     idle: "bg-secondary",
 };
 
-// How a list or a title names a session's agent (FR-CONT-014): "[Jérôme] Claude Code", the agent's name alone without
+// How a list or a title names a session's agent (FR-CONT-014): "Jérôme · Claude Code", the agent's name alone without
 // a first name. Must match AgentLabel in pkg/molten/agentstate.go.
 export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
     const kind = info?.agentname || info?.agent || fallback;
     const first = (info?.firstname ?? "").trim();
-    return first ? `[${first}] ${kind}` : kind;
+    return first ? `${first} · ${kind}` : kind;
 }
 
 // How a sentence names a session's agent: its first name, else the agent's name ("Shared with Jérôme").

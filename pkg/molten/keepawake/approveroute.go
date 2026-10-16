@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // wavesrv's side of the coffee approvals (FR-SHELL-063): the route's keepawakepermission answer, the sessions the
@@ -71,6 +72,7 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	approval := Approval{
 		At: time.Now().UnixMilli(), WorkspaceId: info.WorkspaceId, BlockId: req.BlockId, Agent: req.Agent,
 		SessionId: req.SessionId, Tool: req.ToolName, Detail: approvalDetail(req), Outcome: outcome, Reason: answer.Reason,
+		ReasonText: DenyReasonText(answer.Reason),
 	}
 	goSafe("molten:keepawake:approval", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
@@ -116,13 +118,13 @@ func (s *service) sessions(ctx context.Context, wsIds []string) []AutoApproveSes
 			continue
 		}
 		report, hasReport := attention.AgentIntegration(run.BlockId)
-		approved, reason := SessionApproval(run.Agent, info.Remote, report, hasReport, s.hooks.ran(run.Agent))
+		approved, reason, text := SessionApprovalText(run.Agent, info.Remote, report, hasReport, s.hooks.ran(run.Agent))
 		if info.Review {
-			approved, reason = false, ReasonReviewSession
+			approved, reason, text = false, ReasonReviewSession, uimsg.Make("keepawake.session.review")
 		}
 		rtn = append(rtn, AutoApproveSession{
 			WorkspaceId: info.WorkspaceId, BlockId: run.BlockId, TabName: s.tabName(ctx, run.BlockId), Agent: run.Agent,
-			AgentName: molten.AgentLabel(run.FirstName, run.Agent), Approved: approved, Reason: reason,
+			AgentName: molten.AgentLabel(run.FirstName, run.Agent), Approved: approved, Reason: reason, ReasonText: text,
 		})
 	}
 	sortSessions(rtn)

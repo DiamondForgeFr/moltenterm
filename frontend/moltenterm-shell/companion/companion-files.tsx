@@ -9,6 +9,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { filterFiles } from "./companion-files-model";
 import {
     CompanionDiff,
@@ -241,7 +242,7 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });

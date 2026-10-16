@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
@@ -93,13 +94,15 @@ type ActionCue struct {
 
 // PanelAgentTab is what a panel shows for one controlled tab. Must match frontend/moltenterm-shell/browser/browser-agent.ts.
 type PanelAgentTab struct {
-	BrowserTabId string     `json:"browsertabid"`
-	AgentName    string     `json:"agentname"`
-	Origin       string     `json:"origin"`
-	State        string     `json:"state"`
-	Action       string     `json:"action,omitempty"`
-	ActionTs     int64      `json:"actionts,omitempty"`
-	Cue          *ActionCue `json:"cue,omitempty"`
+	BrowserTabId string `json:"browsertabid"`
+	AgentName    string `json:"agentname"`
+	Origin       string `json:"origin"`
+	State        string `json:"state"`
+	Action       string `json:"action,omitempty"`
+	// ActionText: Action's code for the window (#656).
+	ActionText *uimsg.Text `json:"actiontext,omitempty"`
+	ActionTs   int64       `json:"actionts,omitempty"`
+	Cue        *ActionCue  `json:"cue,omitempty"`
 	// Permission is the request waiting on this tab, shown instead of the control bar: a site permission (DS-BRW-013)
 	// or a sensitive action (DS-BRW-016).
 	Permission *PermissionPrompt `json:"permission,omitempty"`
@@ -121,6 +124,8 @@ type PermissionPrompt struct {
 	Site      string `json:"site"`
 	Kind      string `json:"kind"`
 	Action    string `json:"action,omitempty"`
+	// ActionText: Action's code for the window (#656).
+	ActionText *uimsg.Text `json:"actiontext,omitempty"`
 }
 
 type PanelState struct {
@@ -196,6 +201,7 @@ type Env interface {
 }
 
 type TypeLineResult struct {
-	Sent    bool
-	Message string
+	Sent        bool
+	Message     string
+	MessageText *uimsg.Text
 }

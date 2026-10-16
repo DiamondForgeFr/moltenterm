@@ -19,6 +19,7 @@ import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { always, TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
@@ -154,7 +155,7 @@ function useCompanion(target: string): {
                     }
                 } catch (e) {
                     if (!cancelled) {
-                        setError(String(e?.message ?? e));
+                        setError(serverErrorText(e));
                     }
                 }
             });
@@ -424,7 +425,7 @@ function useEmptyActions(): {
             try {
                 await fn();
             } catch (e) {
-                setFailed({ alert: failure, raw: String(e?.message ?? e) });
+                setFailed({ alert: failure, raw: serverErrorText(e) });
             } finally {
                 setBusy(false);
             }
@@ -485,7 +486,7 @@ function SessionHistory({
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });
@@ -500,7 +501,7 @@ function SessionHistory({
                     await companionCall<CompanionView>(CompanionPickCommand, { blockid: target, viewid: viewId, path })
                 );
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     return <SessionHistoryList sessions={sessions} error={error} now={Date.now()} onPick={pick} onClose={onClose} />;
@@ -599,7 +600,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });

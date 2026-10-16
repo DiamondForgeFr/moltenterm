@@ -19,6 +19,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 )
 
@@ -172,9 +173,13 @@ func TestClaudePlanEmptySettings(t *testing.T) {
 	if !strings.Contains(string(doc), string(quoted)) {
 		t.Errorf("SessionStart is not agent-states.md's: %s", quoted)
 	}
+	// The Notification hook runs for the types that wait for the user only (#784).
+	if n := gen.Hooks["Notification"]; len(n) != 1 || n[0].Matcher != agenthook.ClaudeWaitingNotificationMatcher {
+		t.Errorf("Notification: %+v", n)
+	}
 	for event, matchers := range gen.Hooks {
 		for _, m := range matchers {
-			if m.Matcher != "" {
+			if m.Matcher != "" && event != "Notification" {
 				t.Errorf("%s has a matcher %q: SessionStart must run on startup, resume, clear and compact", event, m.Matcher)
 			}
 		}

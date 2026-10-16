@@ -14,6 +14,7 @@ import { formatShortcutById } from "../shortcuts/format";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
+import { workspaceShownName } from "../workspace-default-name";
 import { PaletteEntry, PaletteGroupId, PickerGroupOrder, shortestSelectingPrefix } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -86,14 +87,6 @@ function num(value: unknown, fallback: number): number {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-// Quotes an argument for a POSIX shell only when it needs it.
-export function shellQuote(arg: string): string {
-    if (arg !== "" && /^[A-Za-z0-9_./~:@%+=,-]+$/.test(arg)) {
-        return arg;
-    }
-    return `'${arg.replace(/'/g, `'\\''`)}'`;
-}
-
 export function tildePath(path: string, home: string): string {
     if (!path || !home) {
         return path ?? "";
@@ -106,18 +99,6 @@ export function tildePath(path: string, home: string): string {
         return "~" + path.slice(h.length);
     }
     return path;
-}
-
-// A path as a shell argument, with ~ for the home folder left outside the quotes so the shell still expands it.
-export function shellPath(path: string, home: string): string {
-    const short = tildePath(path, home);
-    if (short === "~") {
-        return short;
-    }
-    if (short.startsWith("~/")) {
-        return "~/" + shellQuote(short.slice(2));
-    }
-    return shellQuote(short);
 }
 
 function baseName(path: string): string {
@@ -184,7 +165,7 @@ export function panelEntries(widgets: { [key: string]: WidgetConfigType }, works
             detail: w.description || undefined,
             icon: w.icon || "browser",
             color: w.color || undefined,
-            cli: `wsh launch ${shellQuote(key)}`,
+            hint: key === "defwidget@terminal" ? formatShortcutById("new-panel") || undefined : undefined,
             keywords: [w.label, w.blockdef?.meta?.view].filter((s) => s),
             run: { kind: "widget", blockdef: w.blockdef },
         }));
@@ -218,7 +199,6 @@ export function folderEntries(folders: string[], home: string): PaletteEntry[] {
         label: baseName(path),
         detail: tildePath(path, home),
         icon: "folder",
-        cli: `wsh term ${shellPath(path, home)}`,
         run: { kind: "folder", path },
     }));
 }
@@ -242,7 +222,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             group: "actions",
             label: t("palette.actions.newTab"),
             icon: "plus",
-            hint: "⌘T",
+            hint: formatShortcutById("new-tab") || undefined,
             run: { kind: "newtab" },
         },
         {
@@ -250,7 +230,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             group: "actions",
             label: t("palette.actions.reopenClosed"),
             icon: "rotate-left",
-            hint: "⇧⌘T",
+            hint: formatShortcutById("reopen-closed") || undefined,
             keywords: ["undo close", "restore", "closed tab", "closed panel"],
             run: { kind: "reopenclosed" },
         },
@@ -288,11 +268,11 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         rtn.push({
             id: `action:switch:${ws.id}`,
             group: "actions",
-            label: t("palette.actions.switchTo", { name: ws.name }),
+            label: t("palette.actions.switchTo", { name: workspaceShownName(ws.name, t) }),
             icon: ws.icon || "circle",
             color: ws.color || undefined,
             badge: { icon: ws.icon || "circle", color: ws.color ?? "", image: ws.image ?? "", logo: ws.logo ?? "" },
-            keywords: ["workspace", ws.name],
+            keywords: ["workspace", ws.name, workspaceShownName(ws.name, t)],
             run: { kind: "switchworkspace", workspaceId: ws.id },
         });
     }
@@ -319,7 +299,6 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         group: "actions",
         label: t("palette.actions.settings"),
         icon: "gear",
-        cli: "wsh editconfig",
         keywords: ["config", "preferences"],
         run: { kind: "settings" },
     });

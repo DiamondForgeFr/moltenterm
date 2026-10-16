@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
@@ -41,6 +43,8 @@ const (
 	LinkHook      = "hook"
 	LinkPicked    = "picked"
 	LinkDiscovery = "discovery"
+	// LinkProcess: the agent's own process holds the transcript open (processlink.go, #799).
+	LinkProcess = "process"
 	// LinkGuessed: discovery could not tell, the companion chose the likeliest session (guess.go).
 	LinkGuessed = "guessed"
 )
@@ -120,13 +124,15 @@ type EarlierSession struct {
 
 // CompanionView is what the companion view shows of a block; the earlier answers and the diffs are fetched on demand.
 type CompanionView struct {
-	BlockId   string       `json:"blockid"`
-	Version   int64        `json:"version"`
-	Status    string       `json:"status"`
-	Agent     string       `json:"agent,omitempty"`
-	AgentName string       `json:"agentname,omitempty"`
-	Message   string       `json:"message,omitempty"`
-	Session   *SessionInfo `json:"session,omitempty"`
+	BlockId   string `json:"blockid"`
+	Version   int64  `json:"version"`
+	Status    string `json:"status"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+	Message   string `json:"message,omitempty"`
+	// MessageText: Message's code for the windows (#656), none for the unsupported format's name.
+	MessageText *uimsg.Text  `json:"messagetext,omitempty"`
+	Session     *SessionInfo `json:"session,omitempty"`
 	// Ended: the agent no longer runs; the view shows its last session.
 	Ended   bool         `json:"ended,omitempty"`
 	Answers []AnswerInfo `json:"answers,omitempty"`
@@ -159,6 +165,15 @@ type sessionReport struct {
 	at    time.Time
 	// pending: the transcript did not exist yet when the hook reported it (SessionStart after /clear).
 	pending bool
+	// by: LinkHook, or LinkProcess for a transcript the agent's process holds open (processlink.go).
+	by string
+}
+
+func (r sessionReport) linkKind() string {
+	if r.by == "" {
+		return LinkHook
+	}
+	return r.by
 }
 
 type sessionPick struct {
@@ -190,6 +205,9 @@ type Manager struct {
 	// The status line relay's reports of each block, at most one a second (statuslinegate.go).
 	statusLines   map[string]*statusLineGate
 	statusLineGap time.Duration
+	// The followers' loops and the usage reads they start: a closed companion's last read may still be running, and
+	// tests wait for it before the next one swaps the shared Codex usage state (#796).
+	running sync.WaitGroup
 	// Whether Codex's plan limits are kept: set when the gauges are turned on or off, before the reloaded settings
 	// say so; until then (limitsUnset) the settings tell.
 	limitsState atomic.Int32
@@ -199,6 +217,10 @@ type Manager struct {
 	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
 	complexities  map[string]*complexityEntry
 	ticketLookups int
+	// The process links and settings follow of the agents' runs (processlink.go), by block, and which rollouts are
+	// sub-agents'.
+	tracks        map[string]*runTrack
+	subagentPaths map[string]bool
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
@@ -212,6 +234,8 @@ type Manager struct {
 	writeGauges   func(agents []string) error
 	writeSetting  func(key string, value any) error
 	adapterFor    func(agent string) Adapter
+	openFiles     func(pid int32) []string
+	procTable     func() (*proctree.Table, error)
 	settings      func() *wconfig.SettingsType
 	now           func() time.Time
 	tick          time.Duration
@@ -230,6 +254,8 @@ func MakeManager() *Manager {
 		statusLines:    map[string]*statusLineGate{},
 		statusLineGap:  statusLineMinGap,
 		idMisses:       map[string]time.Time{},
+		tracks:         map[string]*runTrack{},
+		subagentPaths:  map[string]bool{},
 		adapterFor:     AdapterFor,
 		now:            time.Now,
 		tick:           tickInterval,
@@ -287,18 +313,22 @@ func (m *Manager) lease(blockId string, viewId string) (*watcher, error) {
 	w := m.watchers[blockId]
 	if w != nil {
 		if w.leases[viewId].IsZero() && len(w.leases) >= maxLeases {
-			return nil, fmt.Errorf("too many views of this companion")
+			return nil, uimsg.Errorf(uimsg.Make("companion.toomanyviews"), "too many views of this companion")
 		}
 		w.leases[viewId] = until
 		return w, nil
 	}
 	if len(m.watchers) >= maxWatchers {
-		return nil, fmt.Errorf("too many companions open")
+		return nil, uimsg.Errorf(uimsg.Make("companion.toomanycompanions"), "too many companions open")
 	}
 	w = makeWatcher(m, blockId)
 	w.leases[viewId] = until
 	m.watchers[blockId] = w
-	go w.loop()
+	m.running.Add(1)
+	go func() {
+		defer m.running.Done()
+		w.loop()
+	}()
 	return w, nil
 }
 
@@ -529,7 +559,7 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	if err != nil {
 		return err
 	}
-	if err := m.recordReport(req.BlockId, agent, path, pending); err != nil {
+	if err := m.recordReport(req.BlockId, agent, path, pending, LinkHook); err != nil {
 		return err
 	}
 	if !pending {
@@ -538,7 +568,7 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	return nil
 }
 
-func (m *Manager) recordReport(blockId string, agent string, path string, pending bool) error {
+func (m *Manager) recordReport(blockId string, agent string, path string, pending bool, by string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.reportedByOtherLocked(blockId, path) {
@@ -553,7 +583,7 @@ func (m *Manager) recordReport(blockId string, agent string, path string, pendin
 		// Kept even while no companion is open: the history still offers the session the pane moved on from.
 		m.addEarlierLocked(blockId, EarlierSession{Path: prev.path, Until: now.UnixMilli()})
 	}
-	m.reports[blockId] = sessionReport{agent: agent, path: path, at: now, pending: pending}
+	m.reports[blockId] = sessionReport{agent: agent, path: path, at: now, pending: pending, by: by}
 	if w := m.watchers[blockId]; w != nil {
 		w.poke()
 	}
@@ -743,18 +773,18 @@ func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionVie
 	}
 	run, ok := w.currentRun()
 	if !ok {
-		return CompanionView{}, fmt.Errorf("no agent runs in this terminal")
+		return CompanionView{}, errNoAgentRuns()
 	}
 	adapter := m.adapterFor(run.Agent)
 	if adapter == nil {
-		return CompanionView{}, fmt.Errorf("no companion exists for %s", molten.AgentDisplayName(run.Agent))
+		return CompanionView{}, errNoCompanionFor(run.Agent)
 	}
 	resolved, err := ValidateSessionPath(adapter, path)
 	if err != nil {
-		return CompanionView{}, err
+		return CompanionView{}, uimsg.Errorf(uimsg.Make("companion.transcriptinvalid", "detail", err.Error()), "%w", err)
 	}
 	if m.heldByOther(blockId, resolved) || !m.claim(blockId, resolved, LinkPicked) {
-		return CompanionView{}, fmt.Errorf("this session belongs to another terminal")
+		return CompanionView{}, uimsg.Errorf(uimsg.Make("companion.sessionofother"), "this session belongs to another terminal")
 	}
 	m.lock.Lock()
 	m.picks[blockId] = sessionPick{agent: run.Agent, started: run.Started, path: resolved, at: m.now()}
@@ -772,11 +802,11 @@ func (m *Manager) Sessions(blockId string, viewId string) ([]Candidate, error) {
 	}
 	run, ok := w.currentRun()
 	if !ok {
-		return nil, fmt.Errorf("no agent runs in this terminal")
+		return nil, errNoAgentRuns()
 	}
 	adapter := m.adapterFor(run.Agent)
 	if adapter == nil {
-		return nil, fmt.Errorf("no companion exists for %s", molten.AgentDisplayName(run.Agent))
+		return nil, errNoCompanionFor(run.Agent)
 	}
 	var info blockInfo
 	if m.blockInfo != nil {
@@ -786,7 +816,7 @@ func (m *Manager) Sessions(blockId string, viewId string) ([]Candidate, error) {
 		}
 	}
 	if info.remote {
-		return nil, fmt.Errorf("no companion for a remote terminal")
+		return nil, uimsg.Errorf(uimsg.Make("companion.remoteterminal"), "no companion for a remote terminal")
 	}
 	var rtn []Candidate
 	current, hasCurrent := w.currentCandidate()
@@ -880,7 +910,7 @@ func (m *Manager) watcher(blockId string) *watcher {
 func (m *Manager) Answer(blockId string, index int) (AnswerView, error) {
 	w := m.watcher(blockId)
 	if w == nil {
-		return AnswerView{}, fmt.Errorf("the companion of this terminal is not open")
+		return AnswerView{}, errNotOpen()
 	}
 	return w.answer(index)
 }
@@ -888,9 +918,27 @@ func (m *Manager) Answer(blockId string, index int) (AnswerView, error) {
 func (m *Manager) Diff(blockId string, path string) (FileDiff, error) {
 	w := m.watcher(blockId)
 	if w == nil {
-		return FileDiff{}, fmt.Errorf("the companion of this terminal is not open")
+		return FileDiff{}, errNotOpen()
 	}
 	return w.diff(path)
+}
+
+// The errors a companion window shows, worded there by their codes (#656).
+func errNotOpen() error {
+	return uimsg.Errorf(uimsg.Make("companion.notopen"), "the companion of this terminal is not open")
+}
+
+func errNoSession() error {
+	return uimsg.Errorf(uimsg.Make("companion.nosession"), "no session")
+}
+
+func errNoAgentRuns() error {
+	return uimsg.Errorf(uimsg.Make("companion.noagentruns"), "no agent runs in this terminal")
+}
+
+func errNoCompanionFor(agent string) error {
+	name := molten.AgentDisplayName(agent)
+	return uimsg.Errorf(uimsg.Make("companion.nocompanionfor", "agent", name), "no companion exists for %s", name)
 }
 
 // sameFolderRuns counts the blocks running the same agent in the same folder (discovery cannot tell their sessions
@@ -944,17 +992,18 @@ type watcher struct {
 
 	lock sync.Mutex
 	// Guarded by lock: read by the commands while the loop updates them.
-	status     string
-	message    string
-	agent      string
-	runStarted int64
-	hasRun     bool
-	ended      bool
-	path       string
-	linkedBy   string
-	guess      string
-	session    *Session
-	version    int64
+	status      string
+	message     string
+	messageText *uimsg.Text
+	agent       string
+	runStarted  int64
+	hasRun      bool
+	ended       bool
+	path        string
+	linkedBy    string
+	guess       string
+	session     *Session
+	version     int64
 	// earlier: the session shown is an earlier one of the pane the user chose; the hook reports a newer one, live.
 	earlier bool
 	live    string
@@ -967,6 +1016,7 @@ type watcher struct {
 	info          blockInfo
 	infoAt        time.Time
 	discoveredAt  time.Time
+	processAt     time.Time
 	linkedStarted int64
 	// sawRun: the agent states knew this block's agent; a hook report alone then no longer makes a run.
 	sawRun        bool
@@ -1076,13 +1126,14 @@ func (w *watcher) closeFollower() {
 	}
 }
 
-func (w *watcher) setStatus(status string, message string) {
+// setStatus: text is message's code for the windows (#656), nil without a message.
+func (w *watcher) setStatus(status string, text *uimsg.Text, message string) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if w.status == status && w.message == message {
 		return
 	}
-	w.status, w.message = status, message
+	w.status, w.message, w.messageText = status, message, text
 	w.version++
 }
 
@@ -1146,16 +1197,16 @@ func (w *watcher) step() bool {
 		w.unlink()
 		w.adapter = w.m.adapterFor(run.Agent)
 		if err := w.refreshInfo(true); err != nil {
-			w.setStatus(StatusError, "This terminal could not be read.")
+			w.setStatus(StatusError, uimsg.Make("companion.terminalunreadable"), "This terminal could not be read.")
 			return false
 		}
 	}
 	if w.adapter == nil {
-		w.setStatus(StatusUnsupportedAgent, "")
+		w.setStatus(StatusUnsupportedAgent, nil, "")
 		return false
 	}
 	if w.info.remote {
-		w.setStatus(StatusRemote, "")
+		w.setStatus(StatusRemote, nil, "")
 		return false
 	}
 	w.rereadIfAsked()
@@ -1277,7 +1328,7 @@ func (w *watcher) noRun() {
 		}
 		return
 	}
-	w.setStatus(StatusNoAgent, "")
+	w.setStatus(StatusNoAgent, nil, "")
 }
 
 func (w *watcher) unlink() {
@@ -1336,8 +1387,11 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			w.waitForReported(report.path)
 			return
 		}
-		w.follow(report.path, LinkHook, 0, "")
+		w.follow(report.path, report.linkKind(), 0, "")
 		w.setEarlier(false, "")
+		return
+	}
+	if w.linkByProcess(run) {
 		return
 	}
 	if picked {
@@ -1356,7 +1410,7 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 	w.discoveredAt = now
 	w.refreshInfo(false)
 	if w.info.cwd == "" {
-		w.setStatus(StatusSearching, "This terminal's folder is not known yet.")
+		w.setStatus(StatusSearching, uimsg.Make("companion.foldernotknown"), "This terminal's folder is not known yet.")
 		return
 	}
 	var free []Candidate
@@ -1379,6 +1433,17 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 	}
 	runs := w.m.sameFolderRuns(run.Agent, w.info.cwd)
+	if now.Sub(time.UnixMilli(run.Started)) < resumeGrace {
+		written = 0
+	}
+	if by, _ := w.linkKind(); w.follower != nil && by == LinkGuessed && current != nil && guessedElsewhere == 0 {
+		// A guess made while discovery could not tell (within the resume grace, before the session's first record)
+		// becomes discovery's link once discovery would choose the same session on its own (#799).
+		if chosen, ambiguous := chooseCandidate(free, written, run.Started, runs); chosen != nil && !ambiguous && chosen.Path == w.path {
+			w.follow(w.path, LinkDiscovery, chosen.Started, "")
+			return
+		}
+	}
 	if by, _ := w.linkKind(); w.follower != nil && by == LinkGuessed {
 		// Several panes of the folder keep a guess from following a /clear by the rule below. A guess moves to a
 		// session started after the linked one only when this pane's agent wrote it as far as its activity tells and
@@ -1409,9 +1474,6 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 		return
 	}
-	if now.Sub(time.UnixMilli(run.Started)) < resumeGrace {
-		written = 0
-	}
 	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
 	if chosen != nil && !ambiguous && guessedElsewhere == 0 {
 		w.follow(chosen.Path, LinkDiscovery, chosen.Started, "")
@@ -1422,7 +1484,7 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		w.follow(guess.Path, LinkGuessed, guess.Started, reason)
 		return
 	}
-	w.setStatus(StatusSearching, "")
+	w.setStatus(StatusSearching, nil, "")
 }
 
 // guessSession weighs this block's agent against the other unlinked agents of the same folder.
@@ -1533,7 +1595,7 @@ func (w *watcher) waitForReported(path string) {
 	if following {
 		w.unlink()
 	}
-	w.setStatus(StatusSearching, "A new session started. It shows here once the agent writes its first message.")
+	w.setStatus(StatusSearching, uimsg.Make("companion.newsession"), "A new session started. It shows here once the agent writes its first message.")
 }
 
 func (w *watcher) livePath() string {
@@ -1571,11 +1633,11 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 	// Every path is checked again, discovered ones included: under the agent's session root, no symlink.
 	resolved, err := ValidateSessionPath(w.adapter, path)
 	if err != nil {
-		w.setStatus(StatusSearching, "The session transcript cannot be read: "+err.Error())
+		w.setStatus(StatusSearching, uimsg.Make("companion.transcriptinvalid", "detail", err.Error()), "The session transcript cannot be read: "+err.Error())
 		return
 	}
 	if !w.m.claim(w.blockId, resolved, linkedBy) {
-		w.setStatus(StatusSearching, "This session is followed by another terminal.")
+		w.setStatus(StatusSearching, uimsg.Make("companion.followedelsewhere"), "This session is followed by another terminal.")
 		return
 	}
 	w.retire()
@@ -1583,7 +1645,7 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 	f, err := openFollower(resolved)
 	if err != nil {
 		w.m.releaseClaims(w.blockId)
-		w.setStatus(StatusSearching, "The session transcript could not be opened.")
+		w.setStatus(StatusSearching, uimsg.Make("companion.transcriptunopened"), "The session transcript could not be opened.")
 		return
 	}
 	w.follower = f
@@ -1594,7 +1656,7 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 	w.path, w.linkedBy, w.guess, w.session = resolved, linkedBy, guess, MakeSession()
 	// Another session's answer may have the same index and revision: the first event of this one carries its text.
 	w.latestStarted = false
-	w.status, w.message = StatusLoading, ""
+	w.status, w.message, w.messageText = StatusLoading, "", nil
 	w.version++
 }
 
@@ -1655,6 +1717,7 @@ func (w *watcher) read() bool {
 		w.follower = nil
 		w.path = ""
 		w.status, w.message = StatusSearching, "The session transcript is no longer readable."
+		w.messageText = uimsg.Make("companion.transcriptgone")
 		w.version++
 		w.m.releaseClaims(w.blockId)
 		return false
@@ -1672,7 +1735,8 @@ func (w *watcher) read() bool {
 		message = w.session.Format
 	}
 	if w.status != status || w.message != message {
-		w.status, w.message = status, message
+		// The unsupported format's message is its name, not a sentence.
+		w.status, w.message, w.messageText = status, message, nil
 		w.version++
 	}
 	return more
@@ -1713,6 +1777,7 @@ func (w *watcher) view(elide bool) CompanionView {
 		Message: w.message,
 		Ended:   w.ended,
 	}
+	v.MessageText = w.messageText
 	v.Integration = w.integration
 	if w.agent != "" {
 		v.AgentName = molten.AgentDisplayName(w.agent)
@@ -1765,11 +1830,11 @@ func (w *watcher) answer(index int) (AnswerView, error) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if w.session == nil {
-		return AnswerView{}, fmt.Errorf("no session")
+		return AnswerView{}, errNoSession()
 	}
 	a, ok := w.session.Answer(index)
 	if !ok {
-		return AnswerView{}, fmt.Errorf("this answer is no longer kept")
+		return AnswerView{}, uimsg.Errorf(uimsg.Make("companion.answergone"), "this answer is no longer kept")
 	}
 	return a, nil
 }
@@ -1778,11 +1843,11 @@ func (w *watcher) diff(path string) (FileDiff, error) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if w.session == nil {
-		return FileDiff{}, fmt.Errorf("no session")
+		return FileDiff{}, errNoSession()
 	}
 	d, ok := w.session.Diff(path)
 	if !ok {
-		return FileDiff{}, fmt.Errorf("no change of this file in the session")
+		return FileDiff{}, uimsg.Errorf(uimsg.Make("companion.nofilechange"), "no change of this file in the session")
 	}
 	return d, nil
 }

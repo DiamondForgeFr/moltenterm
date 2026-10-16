@@ -27,6 +27,7 @@ import {
 } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { t as translate, useT } from "./i18n/i18n";
+import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
@@ -417,8 +418,20 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                     confirmed: confirmed ? worktreeRisk(plan) : null,
                     deleteBranch: deleteBranch && view?.canDeleteBranch,
                 });
+                const notices: string[] = [];
+                if (result.leftover) {
+                    notices.push(t("worktree.close.leftover", { path: result.leftover }));
+                }
                 if (deleteBranch && result.branchkept) {
-                    setNotice(t("worktree.close.branchKept", { branch: plan.branch, reason: result.branchkept }));
+                    notices.push(
+                        t("worktree.close.branchKept", {
+                            branch: plan.branch,
+                            reason: serverText(result.branchkepttext, result.branchkept),
+                        })
+                    );
+                }
+                if (notices.length > 0) {
+                    setNotice(notices.join(" "));
                     setStep("done");
                     return;
                 }
@@ -536,7 +549,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                 </label>
             ) : null}
             {notice ? <div className="text-secondary">{notice}</div> : null}
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-error">{serverErrorText(error)}</div> : null}
         </DialogFrame>
     );
 }
@@ -606,7 +619,7 @@ function TabCloseRowView({
                     {t("worktree.close.deleteBranch", { branch: row.plan.branch })}
                 </label>
             ) : null}
-            {row.error ? <div className="text-error">{row.error}</div> : null}
+            {row.error ? <div className="text-error">{serverErrorText(row.error)}</div> : null}
         </div>
     );
 }

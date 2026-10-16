@@ -13,7 +13,7 @@ import { useMemo } from "react";
 import { AgentStateInfo, agentStatesOfBlocks, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { TFunction, useT } from "./i18n/i18n";
-import { ProjectTabMetaKey } from "./project/project-model";
+import { ProjectTabMetaKey, ProjectTabName } from "./project/project-model";
 import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
 import { agentGlyph, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
 import { useWorkingBeat } from "./working-beat";
@@ -64,10 +64,12 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
     const facts = useAtomValue(identityAtom);
     const urgent = useAtomValue(urgentAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const t = useT();
     const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
     const icon = facts.agentId ? agentGlyph(facts.agentId, presets) : panelIcon(facts.meta);
+    const shownName = facts.pinned && tabName === ProjectTabName ? t("project.tabName") : tabName;
     return {
-        name: tabDisplayName(tabName, facts.meta, getHomeDir()),
+        name: tabDisplayName(shownName, facts.meta, getHomeDir()),
         icon,
         pinned: facts.pinned,
         agent: urgent,

@@ -20,7 +20,9 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import type { AgentStateInfo } from "../agent-state-model";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
+import { agentStartOf, askAgentChoice, showStartedAgent } from "../reviews/agent-choice";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -28,7 +30,6 @@ import { whileShown } from "../tab-activity";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { everyInPanel } from "../view360/offcarpet-model";
 import { answerKey, worktreeFilePath } from "./review-answers";
-import { removeKeptWorktree, ReviewCleanupStepResult } from "./review-cleanup";
 import {
     discussReviewComment,
     openReviewAiPane,
@@ -48,11 +49,6 @@ import {
     reviewFiles,
     ReviewFilesResult,
     ReviewLanguage,
-    reviewMerge,
-    reviewMergeCancel,
-    ReviewMergeMethod,
-    ReviewMergePlan,
-    reviewMergePlan,
     ReviewPrInfo,
     ReviewPrMetaKey,
     reviewPrState,
@@ -81,7 +77,6 @@ import {
     reviewDoneOf,
     shouldReadPrState,
 } from "./review-done";
-import { chosenMethod, mergeRunning } from "./review-merge";
 import {
     buildFileTree,
     FileLink,
@@ -93,10 +88,9 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
-import { closePanels } from "./review-panels";
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
-import { ReviewRestartState } from "./review-restart";
+import { lastPublished, ReviewRestartState } from "./review-restart";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
@@ -114,6 +108,8 @@ import {
 } from "./review-session";
 import { localizeAsk, localizeBrief, localizeSession, startResultText } from "./review-session-text";
 import { watchReviewSheetRequests } from "./review-sheet-request";
+import { closeThisTab } from "./review-tab-close";
+import { ReviewValidateModel } from "./review-validate-model";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
@@ -138,23 +134,6 @@ export type ReviewFileView = {
 export type ReviewNewCommits = { to: string; baseoid?: string; commits: number; rewritten?: boolean };
 
 export type ReviewWorktreeState = { state: "pending" | "ready" | "failed"; worktree?: ReviewWorktree; error?: string };
-
-// Validate's plan sheet (FR-REV-012): the plan read on opening it, the developer's confirmation of its warnings, and
-// the plan whose merge was clicked, so the sheet follows that merge in the review store.
-export type ReviewValidateState = {
-    open: boolean;
-    loading: boolean;
-    plan?: ReviewMergePlan;
-    error?: string;
-    override: boolean;
-    // The merge method chosen in the sheet (#673): the plan's default until the developer picks another.
-    method?: ReviewMergeMethod;
-    clicked?: string;
-    // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
-    confirming?: boolean;
-    // The sheet reopened from the header's Validated state (#686): the merge's result, read-only.
-    result?: boolean;
-};
 
 // What asking the session for the translations did (FR-REV-010 AC1).
 export type ReviewTranslateStatus = "idle" | "asking" | "sent" | "typed" | "busy" | "nosession" | "none" | "failed";
@@ -262,7 +241,8 @@ export abstract class ReviewTabModel implements ViewModel {
     aiAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewAiState>;
     briefAskAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewBriefAsk>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
-    validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
+    // The Validate sheet (FR-REV-012), shared with a Reviews row's Validate (#707).
+    validator: ReviewValidateModel;
     publishAtom = atom({ open: false, translate: { status: "idle" } }) as PrimitiveAtom<ReviewPublishSheet>;
     restartAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewRestartState>;
     // Restart work's sheet, opened by `molten review restart` (FR-REV-014): its click is the confirmation.
@@ -320,6 +300,11 @@ export abstract class ReviewTabModel implements ViewModel {
         this.nodeModel = nodeModel;
         const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
         this.prAtom = atom((get) => (get(blockAtom)?.meta?.[ReviewPrMetaKey] as ReviewPrInfo) ?? null);
+        this.validator = new ReviewValidateModel(this.prAtom, this.stateAtom, {
+            inTab: true,
+            reviewNewCommits: () => this.showNewCommits(),
+            closeTab: () => closeThisTab(),
+        });
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
             get(I18nModel.getInstance().localeAtom);
@@ -519,11 +504,6 @@ export abstract class ReviewTabModel implements ViewModel {
         );
     }
 
-    // The Validated state's click (#686): the sheet shows the merge's result, read-only.
-    openValidateResult() {
-        globalStore.set(this.validateAtom, { open: true, loading: false, override: false, result: true });
-    }
-
     prOf(answer: ReviewsAnswer): { headoid?: string; baseoid?: string } {
         const pr = this.pr();
         if (answer == null || answer.dir !== pr?.dir) {
@@ -631,7 +611,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 globalStore.set(this.fileAtom, null);
             }
         } catch (e) {
-            globalStore.set(this.filesErrorAtom, String(e?.message ?? e));
+            globalStore.set(this.filesErrorAtom, serverErrorText(e));
         } finally {
             globalStore.set(this.filesLoadingAtom, false);
         }
@@ -665,7 +645,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 globalStore.set(this.worktreeAtom, { state: "ready", worktree });
             }
         } catch (e) {
-            globalStore.set(this.worktreeAtom, { state: "failed", error: String(e?.message ?? e) });
+            globalStore.set(this.worktreeAtom, { state: "failed", error: serverErrorText(e) });
         }
         await this.syncSessionHead();
     }
@@ -715,7 +695,7 @@ export abstract class ReviewTabModel implements ViewModel {
         try {
             this.applyBriefAsk(await askReviewBriefing({ id: session.id }));
         } catch (e) {
-            globalStore.set(this.briefAskAtom, { status: "failed", message: String(e?.message ?? e) });
+            globalStore.set(this.briefAskAtom, { status: "failed", message: serverErrorText(e) });
         }
     }
 
@@ -812,7 +792,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 if (globalStore.get(this.fileAtom)?.key !== key) {
                     return;
                 }
-                globalStore.set(this.fileAtom, { path, key, loading: false, error: String(e?.message ?? e), askedAt });
+                globalStore.set(this.fileAtom, { path, key, loading: false, error: serverErrorText(e), askedAt });
             }
         });
     }
@@ -917,7 +897,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return result.sent || !!result.queued;
         } catch (e) {
             console.log(`[review] ${pr.repo}#${pr.number}: the question could not be sent`, e);
-            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: String(e?.message ?? e) }));
+            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: serverErrorText(e) }));
             return false;
         }
     }
@@ -935,7 +915,7 @@ export abstract class ReviewTabModel implements ViewModel {
             );
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1014,7 +994,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return true;
         } catch (e) {
             globalStore.set(this.composerAtom, (cur) =>
-                cur ? { ...cur, text, kind, saving: false, error: String(e?.message ?? e) } : cur
+                cur ? { ...cur, text, kind, saving: false, error: serverErrorText(e) } : cur
             );
             return false;
         }
@@ -1028,7 +1008,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1044,7 +1024,7 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1056,7 +1036,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1081,7 +1061,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return { result };
         } catch (e) {
             console.log(`[review] ${pr.repo}#${pr.number}: the comment could not be discussed`, e);
-            return { error: String(e?.message ?? e) };
+            return { error: serverErrorText(e) };
         }
     }
 
@@ -1142,32 +1122,48 @@ export abstract class ReviewTabModel implements ViewModel {
     }
 
     // Restart work (FR-REV-011) is the developer's click: wavesrv hands the last published round to an agent in the
-    // worktree of the PR's branch and marks the round; the ticket's status is not touched.
+    // worktree of the PR's branch and marks the round; the ticket's status is not touched. With no agent there, the
+    // developer chooses how one starts (#758): out of sight, or in its own tab; never this Review tab.
     async restartWork() {
         const pr = this.pr();
         if (pr == null || globalStore.get(this.restartAtom).status === "restarting") {
             return;
         }
         globalStore.set(this.restartAtom, { status: "restarting" });
+        const req = {
+            repo: pr.repo,
+            number: pr.number,
+            dir: pr.dir,
+            headref: pr.headref,
+            baseref: pr.baseref,
+            title: pr.title,
+            url: pr.url,
+            ticket: pr.ticket,
+        };
         try {
-            const result = await restartReviewWork({
-                repo: pr.repo,
-                number: pr.number,
-                dir: pr.dir,
-                headref: pr.headref,
-                baseref: pr.baseref,
-                title: pr.title,
-                url: pr.url,
-                ticket: pr.ticket,
-                tabid: globalStore.get(atoms.staticTabId),
-                afterblockid: globalStore.get(this.aiPaneIdAtom) ?? this.blockId,
-            });
+            let result = await restartReviewWork(req);
+            if (result.status === "offer") {
+                const mode = await askAgentChoice({
+                    kind: "restart",
+                    number: pr.number,
+                    branch: pr.headref,
+                    base: pr.baseref,
+                    agent: result.agentname,
+                    round: lastPublished(globalStore.get(this.stateAtom))?.number,
+                });
+                if (mode == null) {
+                    globalStore.set(this.restartAtom, { status: "idle" });
+                    return;
+                }
+                result = await restartReviewWork({ ...req, ...agentStartOf("restart", pr.number, mode) });
+                showStartedAgent(mode, result);
+            }
             if (result.state != null) {
                 this.applyState(result.state);
             }
             globalStore.set(this.restartAtom, { status: "done", result });
         } catch (e) {
-            globalStore.set(this.restartAtom, { status: "done", error: String(e?.message ?? e) });
+            globalStore.set(this.restartAtom, { status: "done", error: serverErrorText(e) });
         }
     }
 
@@ -1215,7 +1211,7 @@ export abstract class ReviewTabModel implements ViewModel {
             language = await reviewPublishInfo(pr.dir, pr.repo, pr.number);
             globalStore.set(this.publishAtom, (p) => (p.open ? { ...p, language } : p));
         } catch (e) {
-            globalStore.set(this.publishAtom, (p) => ({ ...p, languageError: String(e?.message ?? e) }));
+            globalStore.set(this.publishAtom, (p) => ({ ...p, languageError: serverErrorText(e) }));
             return;
         }
         if (missingTranslations(globalStore.get(this.stateAtom), language.lang) > 0) {
@@ -1256,7 +1252,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 setTranslate({ status: "failed", count: result.count, message: result.message });
             }
         } catch (e) {
-            setTranslate({ status: "failed", message: String(e?.message ?? e) });
+            setTranslate({ status: "failed", message: serverErrorText(e) });
         }
     }
 
@@ -1269,7 +1265,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, await setReviewTranslation(pr.repo, pr.number, id, text, lang));
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1280,7 +1276,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1304,7 +1300,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 await reviewsGet(pr.dir, true);
             });
         } catch (e) {
-            globalStore.set(this.publishAtom, (p) => ({ ...p, error: String(e?.message ?? e) }));
+            globalStore.set(this.publishAtom, (p) => ({ ...p, error: serverErrorText(e) }));
         } finally {
             globalStore.set(this.publishAtom, (p) => ({ ...p, posting: false }));
         }
@@ -1380,105 +1376,20 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: startResultText(result) }));
         } catch (e) {
-            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: String(e?.message ?? e) }));
+            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: serverErrorText(e) }));
         }
     }
 
-    // applyState takes the store's state; a merge that just ended refreshes the Reviews list once (DS-REV-001: right
-    // after a MoltenTerm action).
     applyState(state: ReviewState) {
-        const before = globalStore.get(this.stateAtom)?.merge;
-        globalStore.set(this.stateAtom, state);
-        const after = state?.merge;
-        if (after == null || !mergeRunning(before) || mergeRunning(after) || before.planid !== after.planid) {
-            return;
-        }
-        const pr = this.pr();
-        fireAndForget(async () => {
-            await reviewsGet(pr.dir, true);
-        });
+        this.validator.applyState(state);
     }
 
-    // Validate (FR-REV-012, AC1): the plan sheet opens on a fresh read of the PR. Nothing merges until Merge is
-    // clicked on it.
     async openValidate() {
-        globalStore.set(this.validateAtom, { open: true, loading: true, override: false });
-        await this.loadPlan();
+        await this.validator.openValidate();
     }
 
-    async loadPlan() {
-        const pr = this.pr();
-        globalStore.set(this.validateAtom, (v) => ({ ...v, loading: true, error: null }));
-        try {
-            const plan = await reviewMergePlan({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket: pr.ticket });
-            globalStore.set(this.validateAtom, (v) =>
-                v.open ? { ...v, loading: false, plan, override: false, method: chosenMethod(plan, v.method) } : v
-            );
-        } catch (e) {
-            globalStore.set(this.validateAtom, (v) => ({ ...v, loading: false, error: String(e?.message ?? e) }));
-        }
-    }
-
-    closeValidate() {
-        globalStore.set(this.validateAtom, { open: false, loading: false, override: false });
-    }
-
-    setValidateOverride(override: boolean) {
-        globalStore.set(this.validateAtom, (v) => ({ ...v, override }));
-    }
-
-    setValidateMethod(method: ReviewMergeMethod) {
-        globalStore.set(this.validateAtom, (v) => (v.plan?.methods?.includes(method) ? { ...v, method } : v));
-    }
-
-    // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store.
-    async merge() {
-        const pr = this.pr();
-        const v = globalStore.get(this.validateAtom);
-        if (v.plan == null) {
-            return;
-        }
-        globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
-        try {
-            const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override, chosenMethod(v.plan, v.method));
-            // The store's event may have come first with a newer step of this merge.
-            globalStore.set(this.stateAtom, (state) =>
-                state && state.merge?.planid !== record.planid ? { ...state, merge: record } : state
-            );
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, error: String(e?.message ?? e) }));
-        }
-    }
-
-    async cancelMerge() {
-        const pr = this.pr();
-        try {
-            await reviewMergeCancel(pr.repo, pr.number);
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
-        }
-    }
-
-    // A worktree the merge's cleanup kept (FR-REV-013, #672), because removing it loses work or a panel still works in
-    // it: the panels are closed first, then wavesrv reads the folder again and removes it (the agent worktree with its
-    // branch, losing what the sheet named). The outcome comes back in the review store.
-    async removeKeptWorktree(step: ReviewCleanupStepResult) {
-        const pr = this.pr();
-        const ticket = globalStore.get(this.validateAtom).plan?.ticket;
-        globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: true, error: null }));
-        try {
-            await closePanels((step.panels ?? []).map((p) => p.blockid));
-            await removeKeptWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, step);
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
-        } finally {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: false }));
-        }
-    }
-
-    // After a refusal on new commits (AC2): the sheet closes and the tab shows the PR's new head.
-    async reviewNewCommits() {
-        this.closeValidate();
+    // After a refusal on new commits (AC2): the tab shows the PR's new head.
+    async showNewCommits() {
         try {
             const latest = this.prOf(await reviewsGet(this.pr().dir, true));
             if (latest?.headoid) {

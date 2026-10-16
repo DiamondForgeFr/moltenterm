@@ -8,8 +8,11 @@ import { cn, makeIconClass } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
+import { DominoLoader } from "../suite/suite";
+import { workspaceShownName } from "../workspace-default-name";
 import {
     BulkAction,
     bulkCommandLabel,
@@ -108,7 +111,7 @@ export function EndSessionDialog({
         try {
             await onEnd();
         } catch (e) {
-            setError(e?.message ?? String(e));
+            setError(serverErrorText(e));
             setBusy(false);
         }
     };
@@ -155,7 +158,7 @@ export function CleanupDialog({
         try {
             await onEnd();
         } catch (e) {
-            setError(e?.message ?? String(e));
+            setError(serverErrorText(e));
             setBusy(false);
         }
     };
@@ -211,10 +214,7 @@ function ResultMark({ result, running }: { result: BulkResult; running: boolean 
     const t = useT();
     if (result == null) {
         return running ? (
-            <i
-                className={cn(makeIconClass("spinner", true), "w-4 shrink-0 animate-spin text-muted")}
-                aria-label={t("sessions.dialog.runningMark")}
-            />
+            <DominoLoader className="mt-dominos-icon text-muted" label={t("sessions.dialog.runningMark")} />
         ) : (
             <i
                 className={cn(makeIconClass("circle", true), "w-4 shrink-0 text-11 text-muted opacity-50")}
@@ -401,7 +401,7 @@ export function BulkDialog({
                                     </span>
                                 ) : null}
                                 <span className="ml-auto shrink-0 text-muted">
-                                    {s.workspacename || t("sessions.notInPaneTitle")}
+                                    {workspaceShownName(s.workspacename, t) || t("sessions.notInPaneTitle")}
                                 </span>
                             </div>
                             {result ? (

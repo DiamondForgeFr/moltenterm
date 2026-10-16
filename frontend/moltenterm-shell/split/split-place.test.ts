@@ -3,6 +3,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revealPanelOnCarpet } from "../view360/carpet-reveal";
 import { splitPanel } from "./split";
 import {
     cancelSplitPlacement,
@@ -15,11 +16,30 @@ import {
 
 vi.mock("@/app/store/global", () => ({ getFocusedBlockId: () => "focused" }));
 vi.mock("./split", () => ({ splitPanel: vi.fn(() => Promise.resolve("new")) }));
+vi.mock("../view360/carpet-reveal", () => ({
+    panelIsLaidOut: vi.fn((blockId: string) => !!blockId && blockId !== "gone"),
+    revealPanelOnCarpet: vi.fn(),
+}));
 
 describe("split placement mode (#677)", () => {
     beforeEach(() => {
         globalStore.set(splitPlacementAtom, null);
         vi.mocked(splitPanel).mockClear();
+        vi.mocked(revealPanelOnCarpet).mockClear();
+    });
+
+    it("brings the panel into view on the carpet before showing the zones (#747)", () => {
+        enterSplitPlacement("b1");
+        expect(revealPanelOnCarpet).toHaveBeenCalledWith("b1");
+        enterSplitPlacementFocused();
+        expect(revealPanelOnCarpet).toHaveBeenLastCalledWith("focused");
+    });
+
+    it("never enters an invisible mode on a block the tab draws no panel for (#747)", () => {
+        enterSplitPlacement("gone");
+        enterSplitPlacement(null);
+        expect(globalStore.get(splitPlacementAtom)).toBe(null);
+        expect(revealPanelOnCarpet).not.toHaveBeenCalled();
     });
 
     it("splits on the side chosen with the pointer or the arrows", () => {
@@ -37,7 +57,7 @@ describe("split placement mode (#677)", () => {
         expect(splitPanel).toHaveBeenCalledWith("b1", "left");
     });
 
-    it("starts with the edge handle's side chosen", () => {
+    it("starts with a side already chosen", () => {
         enterSplitPlacement("b1", "left");
         confirmSplitPlacement();
         expect(splitPanel).toHaveBeenCalledWith("b1", "left");

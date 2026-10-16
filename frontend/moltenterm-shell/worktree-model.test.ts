@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "./i18n/i18n";
 import type { PaneState } from "./status-bar-model";
 import {
     closePlanView,
@@ -205,6 +206,18 @@ describe("closePlanView", () => {
         const v = closePlanView(plan({ refused: "the home folder" }));
         expect(v.canRemove).toBe(false);
         expect(v.blockedReason).toContain("home folder");
+    });
+
+    it("words wavesrv's refusal in the interface language (#656)", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const v = closePlanView(
+                plan({ refused: "the home folder", refusedtext: { code: "worktree.refused.home" } })
+            );
+            expect(v.blockedReason).toBe("MoltenTerm ne supprime pas ce dossier : c'est le dossier personnel.");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 });
 

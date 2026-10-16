@@ -14,7 +14,8 @@ import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { SegmentedControl } from "../segmented-control";
-import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
+import { DominoLoader } from "../suite/suite";
+import { cleanupLeftovers, cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import { mergedFooter } from "./review-done";
 import { MergedFooterButtons } from "./review-done-view";
@@ -34,6 +35,7 @@ import { buildValidateSteps } from "./review-stepper";
 import { ValidateStepper } from "./review-stepper-view";
 import { DraftActions } from "./review-tab-draft";
 import { ReviewTabModel } from "./review-tab-model";
+import { ReviewValidateModel } from "./review-validate-model";
 
 const PlainButton =
     "cursor-pointer rounded-4 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
@@ -54,18 +56,14 @@ export function ValidateButton({ model }: { model: ReviewTabModel }) {
             title={t("review.validate.buttonTitle")}
             data-testid="review-validate"
         >
-            {running ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-            ) : (
-                <i className="fa fa-solid fa-code-merge text-11" />
-            )}
+            {running ? <DominoLoader /> : <i className="fa fa-solid fa-code-merge text-11" />}
             {running ? t("review.merge.state.merging") : t("review.validate.button")}
             <MoltenWave />
         </button>
     );
 }
 
-export function ValidateSheet({ model }: { model: ReviewTabModel }) {
+export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const t = useT();
     const v = useAtomValue(model.validateAtom);
     const pr = useAtomValue(model.prAtom);
@@ -93,6 +91,8 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
         (s) => s.id === "review-worktree" && (s.code === "kept" || s.code === "inuse")
     );
     const warnings = plan?.warnings ?? [];
+    // Merged from a Reviews row (#707): closing the sheet loses nothing, so a press outside is Done.
+    const backdropDone = !model.host.inTab && mergedFooter(record, cleanup) != null;
     return (
         <DialogFrame
             role="review-validate"
@@ -101,6 +101,7 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
             widthClass="w-[640px]"
             trapFocus
             suite
+            onBackdrop={backdropDone ? () => model.closeValidate() : undefined}
             buttons={
                 <SheetButtons
                     model={model}
@@ -151,12 +152,19 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                         ) : null
                     }
                     kept={{
-                        steps: [keptReview, keptAgent],
+                        steps: [keptReview, keptAgent, ...cleanupLeftovers(cleanup?.steps)],
                         busy: v.confirming,
                         onRemove: (step) => fireAndForget(() => model.removeKeptWorktree(step)),
+                        onRemoveLeftover: (step) => fireAndForget(() => model.removeLeftover(step)),
                     }}
                     onStartAgent={(other) =>
-                        ReviewsModel.getInstance().startCleanupAgent(pr.dir, pr.repo, cleanup?.base || baseref, other)
+                        ReviewsModel.getInstance().startCleanupAgent(
+                            pr.dir,
+                            pr.repo,
+                            cleanup?.base || baseref,
+                            other,
+                            pr.number
+                        )
                     }
                 />
                 {record == null && plan != null && !plan.canmerge ? (
@@ -179,7 +187,7 @@ function SheetButtons({
     disabledReason,
     loading,
 }: {
-    model: ReviewTabModel;
+    model: ReviewValidateModel;
     plan: ReviewMergePlan;
     record: ReviewMergeRecord;
     cleanup: ReviewCleanupResult;

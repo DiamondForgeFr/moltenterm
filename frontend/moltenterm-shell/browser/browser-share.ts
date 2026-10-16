@@ -18,7 +18,7 @@ export type ShareSession = AgentSession;
 export type ShareAgent = {
     blockId: string;
     // agentName: how a sentence names the agent, its first name when it has one (FR-CONT-014); label: how the menu lists
-    // it ("[Jérôme] Claude Code").
+    // it ("Jérôme · Claude Code").
     agentName: string;
     label?: string;
     // agentKind: the agent itself ("Claude Code"), for what concerns the agent rather than the session.

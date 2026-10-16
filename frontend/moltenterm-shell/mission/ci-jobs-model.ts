@@ -7,6 +7,7 @@
 // description up: a job's text is its file's.
 
 import { t } from "../i18n/i18n";
+import { serverText, ServerText } from "../i18n/server-text";
 import { describeCron, parseCron, WorkflowRun } from "./github";
 
 // must match pkg/molten/mission/cijobs.go
@@ -45,6 +46,7 @@ export type CatalogueWorkflow = {
     triggers: WorkflowTrigger[];
     jobs: CatalogueJob[];
     error?: string;
+    errortext?: ServerText;
 };
 
 export type CatalogueLocalJob = {
@@ -66,7 +68,7 @@ export type CatalogueLocal = {
 
 export type CiCatalogue = { dir: string; workflows: CatalogueWorkflow[]; local?: CatalogueLocal };
 
-export type JobDescribeResult = { sent: boolean; submitted?: boolean; message: string };
+export type JobDescribeResult = { sent: boolean; submitted?: boolean; message: string; messagetext?: ServerText };
 
 // Pull request activities with a sentence of their own (mc.jobs.prType.*); others show their GitHub name.
 const PullRequestTypes = [
@@ -721,7 +723,7 @@ export function describeOutcome(result: JobDescribeResult, agentName: string): {
         return { ok: false, text: t("mc.jobs.outcome.unreachable") };
     }
     if (!result.sent) {
-        return { ok: false, text: result.message || t("mc.jobs.outcome.nothingSent") };
+        return { ok: false, text: serverText(result.messagetext, result.message) || t("mc.jobs.outcome.nothingSent") };
     }
     if (result.submitted) {
         return { ok: true, text: t("mc.jobs.outcome.sent", { agent: agentName }) };

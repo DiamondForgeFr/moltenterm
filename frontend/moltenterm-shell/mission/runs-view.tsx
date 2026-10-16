@@ -8,10 +8,12 @@
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ScrimClass } from "../dialog-frame";
+import { useRestoreFocus } from "../busy-close";
+import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathParent } from "../workspace-project";
@@ -45,39 +47,25 @@ export function TrustPrompt({
     onCancel: () => void;
 }) {
     const t = useT();
-    return createPortal(
-        <div
-            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
-            onPointerDown={onCancel}
-        >
-            <div
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[560px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">
-                        {t("mc.trust.title", { project: projectName })}
-                    </div>
-                    <div className="mt-0.5 text-12 text-muted">{t("mc.trust.body", { dir })}</div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-2">
-                    {info.commands.map((c) => (
-                        <div key={`${c.kind}:${c.id}`} className="border-b border-border py-1.5 last:border-b-0">
-                            <div className="text-12">
-                                <span className="mr-1.5 rounded-4 bg-hover px-1 text-11 text-muted uppercase">
-                                    {c.kind}
-                                </span>
-                                {c.title || c.id}
-                            </div>
-                            <code className="block text-11 break-all text-secondary">
-                                {c.cwd ? `${c.cwd}$ ` : ""}
-                                {c.run}
-                            </code>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-                    <button type="button" onClick={onCancel} className={PlainButton}>
+    const cancelRef = useRef<HTMLButtonElement>(null);
+    useRestoreFocus();
+    // After useRestoreFocus noted where the focus was: autoFocus would come first.
+    useEffect(() => {
+        cancelRef.current?.focus();
+    }, []);
+    useEscape(true, onCancel);
+    return (
+        <DialogFrame
+            role="mc-trust"
+            title={t("mc.trust.title", { project: projectName })}
+            subtitle={t("mc.trust.body", { dir })}
+            subtitleWraps
+            widthClass="w-[560px]"
+            trapFocus
+            onBackdrop={onCancel}
+            buttons={
+                <>
+                    <button ref={cancelRef} type="button" onClick={onCancel} className={PlainButton}>
                         {t("common.cancel")}
                     </button>
                     <button
@@ -88,10 +76,26 @@ export function TrustPrompt({
                         {t("mc.trust.trustAndRun")}
                         <MoltenWave />
                     </button>
-                </div>
+                </>
+            }
+        >
+            <div>
+                {info.commands.map((c) => (
+                    <div key={`${c.kind}:${c.id}`} className="border-b border-border py-1.5 last:border-b-0">
+                        <div className="text-12">
+                            <span className="mr-1.5 rounded-4 bg-hover px-1 text-11 text-muted uppercase">
+                                {c.kind}
+                            </span>
+                            {c.title || c.id}
+                        </div>
+                        <code className="block text-11 break-all text-secondary">
+                            {c.cwd ? `${c.cwd}$ ` : ""}
+                            {c.run}
+                        </code>
+                    </div>
+                ))}
             </div>
-        </div>,
-        document.body
+        </DialogFrame>
     );
 }
 
@@ -111,7 +115,7 @@ export function useStartRun(dir: string, projectName: string) {
             }
             return "";
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     };
     const start = (kind: string, id: string) =>
@@ -129,7 +133,7 @@ export function useStartRun(dir: string, projectName: string) {
                 await missionTrust(dir, run.info.hash);
                 await missionRun(dir, run.kind, run.id);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const prompt =
@@ -207,9 +211,7 @@ export function useRunLog(run: RunRecord): string {
 export function RunStateBadge({ state }: { state: RunState }) {
     return (
         <span className={cn("rounded-4 px-1.5 py-0.5 text-11 font-medium", StateClasses[state])}>
-            {state === "running" ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11 text-accent" />
-            ) : null}
+            {state === "running" ? <DominoLoader className="mr-1 text-accent" /> : null}
             {RunStateLabels[state] ?? state}
         </span>
     );
@@ -230,7 +232,7 @@ function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
         return <i className="fa fa-solid fa-xmark text-11" />;
     }
     if (status === "running") {
-        return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />;
+        return <DominoLoader className="mt-dominos-node" />;
     }
     return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
 }

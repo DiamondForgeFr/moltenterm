@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -69,7 +70,8 @@ type CiRunRecord struct {
 	Only       []string      `json:"only,omitempty"`
 	Jobs       []CiJobRecord `json:"jobs"`
 	// Why the run stopped before its jobs (the worktree or ci.prepare failed).
-	Error string `json:"error,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
 }
 
 type CiVerdict struct {
@@ -327,13 +329,10 @@ func (c *Ci) prune(dir string) {
 func readCiPipeline(dir string) (*molten.Pipeline, error) {
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
-		if !report.Present {
-			return nil, errors.New("the project has no pipeline (.molten/project.json)")
-		}
-		return nil, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
+		return nil, pipelineError(report)
 	}
 	if report.Pipeline.Ci == nil || len(report.Pipeline.Ci.Jobs) == 0 {
-		return nil, errors.New("the pipeline declares no CI job (ci.jobs)")
+		return nil, uimsg.Errorf(uimsg.Make("mission.ci.noJobs"), "the pipeline declares no CI job (ci.jobs)")
 	}
 	return report.Pipeline, nil
 }
@@ -347,7 +346,7 @@ func (c *Ci) resolveRev(ctx context.Context, dir string, rev string) (string, st
 	}
 	sha, err := c.git(ctx, dir, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	if err != nil || sha == "" {
-		return "", "", fmt.Errorf("%s is not a commit of this project", rev)
+		return "", "", uimsg.Errorf(uimsg.Make("mission.ci.notACommit", "rev", rev), "%s is not a commit of this project", rev)
 	}
 	tree, err := c.git(ctx, dir, "rev-parse", sha+"^{tree}")
 	if err != nil {
@@ -449,9 +448,10 @@ func (c *Ci) Start(req CiRunRequest) (CiRunResult, error) {
 	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdicts(dir, tree), req.Force, req.Only)
 	if len(jobs) == 0 {
 		if len(req.Only) > 0 {
-			return CiRunResult{}, fmt.Errorf("the pipeline declares none of the jobs %s", strings.Join(req.Only, ", "))
+			only := strings.Join(req.Only, ", ")
+			return CiRunResult{}, uimsg.Errorf(uimsg.Make("mission.ci.noneOfJobs", "jobs", only), "the pipeline declares none of the jobs %s", only)
 		}
-		return CiRunResult{}, errors.New("the local CI is already green on this code: choose Run all again to run it anyway")
+		return CiRunResult{}, uimsg.Errorf(uimsg.Make("mission.ci.alreadyGreen"), "the local CI is already green on this code: choose Run all again to run it anyway")
 	}
 	now := c.now()
 	rec := CiRunRecord{
@@ -486,7 +486,7 @@ func (c *Ci) claim(dir string, runId string) error {
 	defer c.lock.Unlock()
 	key := projectKey(dir)
 	if running := c.active[key]; running != nil {
-		return fmt.Errorf("a local CI run is in progress (%s)", running.runId)
+		return uimsg.Errorf(uimsg.Make("mission.ci.inProgress", "run", running.runId), "a local CI run is in progress (%s)", running.runId)
 	}
 	c.active[key] = &ciActive{runId: runId, pids: map[string]int{}}
 	return nil
@@ -531,7 +531,7 @@ func (c *Ci) Cancel(dir string, runId string) error {
 		defer c.lock.Unlock()
 		running := c.active[projectKey(dir)]
 		if running == nil || running.runId != runId {
-			return errors.New("this local CI run is not running")
+			return uimsg.Errorf(uimsg.Make("mission.ci.notRunning"), "this local CI run is not running")
 		}
 		running.cancelled = true
 		for _, pid := range running.pids {
@@ -594,6 +594,7 @@ func (c *Ci) execute(rec CiRunRecord, pipeline *molten.Pipeline, jobs []molten.P
 				r.Status = CiStateCancelled
 			}
 			r.Error = err.Error()
+			r.ErrorText = uimsg.TextOf(err)
 			r.FinishedAt = c.now().UnixMilli()
 			for i := range r.Jobs {
 				r.Jobs[i].Status = CiStateCancelled
@@ -656,21 +657,26 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 		}
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(tree, ".git")); err != nil {
+	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
+	_, statErr := os.Stat(filepath.Join(tree, ".git"))
+	if statErr == nil {
+		_, statErr = c.run(ctx, tree, "git", "rev-parse", "--git-dir")
+	}
+	if statErr != nil {
 		os.RemoveAll(tree)
 		step(rec.Dir, "worktree", "prune")
 		if err := os.MkdirAll(filepath.Dir(tree), 0700); err != nil {
 			return "", err
 		}
 		if err := step(rec.Dir, "worktree", "add", "--detach", "--force", tree, rec.Sha); err != nil {
-			return "", fmt.Errorf("the CI worktree could not be created: %w", err)
+			return "", uimsg.Errorf(uimsg.Make("mission.ci.worktreeCreate", "detail", err.Error()), "the CI worktree could not be created: %w", err)
 		}
 	} else {
 		if err := step(tree, "checkout", "--detach", "--force", rec.Sha); err != nil {
-			return "", fmt.Errorf("the CI worktree could not move to %s: %w", shortSha(rec.Sha), err)
+			return "", uimsg.Errorf(uimsg.Make("mission.ci.worktreeMove", "commit", shortSha(rec.Sha), "detail", err.Error()), "the CI worktree could not move to %s: %w", shortSha(rec.Sha), err)
 		}
 		if err := step(tree, "clean", "-fdq"); err != nil {
-			return "", fmt.Errorf("the CI worktree could not be cleaned: %w", err)
+			return "", uimsg.Errorf(uimsg.Make("mission.ci.worktreeClean", "detail", err.Error()), "the CI worktree could not be cleaned: %w", err)
 		}
 	}
 	if pipeline.Ci.Prepare == nil {
@@ -688,7 +694,7 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 		return "", err
 	}
 	if exit != 0 {
-		return "", fmt.Errorf("ci.prepare failed (exit %d): the end of prepare.log says why", exit)
+		return "", uimsg.Errorf(uimsg.Make("mission.ci.prepareFailed", "exit", strconv.Itoa(exit)), "ci.prepare failed (exit %d): the end of prepare.log says why", exit)
 	}
 	return tree, nil
 }

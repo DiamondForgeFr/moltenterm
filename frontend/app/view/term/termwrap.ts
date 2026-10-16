@@ -30,6 +30,10 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
+import {
+    clearSharedTextureAtlas,
+    registerAtlasClearer,
+} from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
 import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/term-controller-sync"; // MOLTENTERM-PATCH (#451)
 import {
     decideResize,
@@ -201,6 +205,8 @@ export class TermWrap {
             )
         );
         this.setTermRenderer(WebGLSupported && waveOptions.useWebGl ? "webgl" : "dom");
+        // MOLTENTERM-PATCH (#801): another terminal's atlas clear resets this one's glyph model (shared-atlas.ts)
+        this.toDispose.push({ dispose: registerAtlasClearer(() => this.resetSharedAtlasModel()) });
         // Register OSC handlers
         this.terminal.parser.registerOscHandler(7, (data: string) => {
             try {
@@ -707,7 +713,20 @@ export class TermWrap {
         if (this.isDisposed || document.visibilityState !== "visible" || this.terminal.rows <= 0) {
             return;
         }
-        this.webglAddon?.clearTextureAtlas();
+        // MOLTENTERM-PATCH (#801): the atlas is shared with the other WebGL terminals, so they all redraw with it
+        if (this.webglAddon != null) {
+            clearSharedTextureAtlas();
+        }
+        this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+
+    // MOLTENTERM-PATCH (#801): the first call empties the shared atlas; on an empty one, xterm only drops this
+    // terminal's cached glyph positions and redraws every row, which is what every other terminal needs
+    resetSharedAtlasModel() {
+        if (this.isDisposed || this.webglAddon == null || this.terminal.rows <= 0) {
+            return;
+        }
+        this.webglAddon.clearTextureAtlas();
         this.terminal.refresh(0, this.terminal.rows - 1);
     }
 

@@ -18,7 +18,7 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-accent) 35%, transparent);
 }
 
-/* The ghost of the new panel, as the split handle's (DS-SHELL-083): dashed accent, a light fill, on the zone's half. */
+/* The ghost of the new panel (DS-SHELL-083): dashed accent, a light fill, on the zone's half. */
 .molten-drop-ghost {
     position: absolute;
     border: 1px dashed color-mix(in srgb, var(--mt-accent) 70%, transparent);
@@ -31,7 +31,7 @@
         height var(--mt-duration-fast) var(--mt-ease);
 }
 
-/* The side where the split lands: its inner edge solid, as the handle's drag line. */
+/* The side where the split lands: its inner edge solid. */
 .molten-drop-ghost[data-zone="right"] {
     border-left: 2px solid var(--mt-accent);
 }

@@ -13,16 +13,32 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { serverErrorText } from "../i18n/server-text";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import { ReviewsAnswer } from "./reviews-model";
 
-// must match the names in pkg/molten/mission/reviews.go
+// must match the names in pkg/molten/mission/reviews.go and reviews_rerun.go
 export const ReviewsCommand = "moltenmissionreviews";
 export const ReviewsEvent = "molten:mission:reviews";
+export const ReviewsRerunCommand = "moltenmissionreviewsrerun";
 
 const ReviewsRpcTimeoutMs = 15000;
+// reviews_rerun.go's rerunTimeout, plus a margin.
+const ReviewsRerunTimeoutMs = 50000;
+
+// must match ReviewsRerunResult in pkg/molten/mission/reviews_rerun.go
+export type ReviewsRerunResult = { runs: number[]; checks: string[] };
+
+// Reruns the failed jobs of a PR's failed checks (#797), once the developer confirmed in its row; wavesrv names the runs.
+export function reviewsRerunFailed(dir: string, number: number): Promise<ReviewsRerunResult> {
+    return TabRpcClient.wshRpcCall(
+        ReviewsRerunCommand,
+        { dir, number },
+        { route: MissionRouteId, timeout: ReviewsRerunTimeoutMs }
+    );
+}
 // The rail's ask while the window shows; wavesrv decides whether GitHub is due (railGithubInterval).
 const RailPollMs = 60000;
 
@@ -115,7 +131,7 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
                         setError(null);
                     }
                 } catch (e) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             });
         },

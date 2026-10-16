@@ -1,0 +1,57 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The conflict forecast's links (FR-REV-023): thin warning-toned brackets in the list's left gutter, from the PR whose
+   merge would cause the conflicts to each PR it would put in conflict. The dashes flow from the cause to the impacted
+   row, slowly; under reduced motion they stand still. */
+
+.mt-forecast-links {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 1;
+    animation: mt-forecast-in var(--mt-duration-base, 180ms) var(--mt-ease, ease-out);
+}
+
+.mt-forecast-link {
+    fill: none;
+    stroke: var(--color-warning);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-dasharray: 3 4;
+    opacity: 0.85;
+    animation: mt-forecast-flow 1.4s linear infinite;
+}
+
+.mt-forecast-end {
+    fill: var(--color-warning);
+}
+
+.mt-forecast-start {
+    fill: var(--color-warning);
+    opacity: 0.6;
+}
+
+@keyframes mt-forecast-flow {
+    to {
+        stroke-dashoffset: -14;
+    }
+}
+
+@keyframes mt-forecast-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-forecast-links,
+    .mt-forecast-link {
+        animation: none;
+    }
+}

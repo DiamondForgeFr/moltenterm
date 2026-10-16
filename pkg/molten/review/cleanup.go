@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010 steps 2 to 5): the ticket closed and Done, the review worktree and
@@ -55,38 +56,44 @@ const (
 	CleanupFlagNeedsAgent  = "needs-agent"
 	CleanupFlagNeedsRebase = "needs-rebase"
 	CleanupFlagChecking    = "checking"
+	// batch: a PR the running batch merge rebases itself in turn (FR-REV-025).
+	CleanupFlagBatch = "batch"
 
 	// What a step did or why it was skipped (#672: the sheet writes the sentences from these codes and the data).
-	CleanupCodeMerged         = "merged"
-	CleanupCodeNotMerged      = "notmerged"
-	CleanupCodePrUnconfirmed  = "prunconfirmed"
-	CleanupCodeNoTicket       = "noticket"
-	CleanupCodeClosed         = "closed"
-	CleanupCodeAlreadyClosed  = "alreadyclosed"
-	CleanupCodeNoSfWorkflow   = "nosfworkflow"
-	CleanupCodeMovedDone      = "moveddone"
-	CleanupCodeAlreadyDone    = "alreadydone"
-	CleanupCodeNoReviewTree   = "noreviewtree"
-	CleanupCodeNotAWorktree   = "notaworktree"
-	CleanupCodeNoAgentTree    = "noagenttree"
-	CleanupCodeRefusedHome    = "refusedhome"
-	CleanupCodeRefusedRepo    = "refusedrepo"
-	CleanupCodeLocked         = "locked"
-	CleanupCodeKept           = "kept"
-	CleanupCodeInUse          = "inuse"
-	CleanupCodeAlreadyGone    = "alreadygone"
-	CleanupCodeRemoved        = "removed"
-	CleanupCodeWillRemove     = "willremove"
-	CleanupCodeNoLocalBranch  = "nolocalbranch"
-	CleanupCodeTreeFailed     = "treefailed"
-	CleanupCodeInKeptTree     = "inkepttree"
-	CleanupCodeInMainCheckout = "inmaincheckout"
-	CleanupCodeMoved          = "moved"
-	CleanupCodeDeleted        = "deleted"
-	CleanupCodeDeletedByMerge = "deletedbymerge"
-	CleanupCodePushedAfter    = "pushedafter"
-	CleanupCodeNoOtherPr      = "noother"
-	CleanupCodeOtherPrs       = "otherprs"
+	CleanupCodeMerged        = "merged"
+	CleanupCodeNotMerged     = "notmerged"
+	CleanupCodePrUnconfirmed = "prunconfirmed"
+	CleanupCodeNoTicket      = "noticket"
+	CleanupCodeClosed        = "closed"
+	CleanupCodeAlreadyClosed = "alreadyclosed"
+	CleanupCodeNoSfWorkflow  = "nosfworkflow"
+	CleanupCodeMovedDone     = "moveddone"
+	CleanupCodeAlreadyDone   = "alreadydone"
+	CleanupCodeNoReviewTree  = "noreviewtree"
+	CleanupCodeNotAWorktree  = "notaworktree"
+	CleanupCodeNoAgentTree   = "noagenttree"
+	CleanupCodeRefusedHome   = "refusedhome"
+	CleanupCodeRefusedRepo   = "refusedrepo"
+	CleanupCodeLocked        = "locked"
+	CleanupCodeKept          = "kept"
+	CleanupCodeInUse         = "inuse"
+	CleanupCodeAlreadyGone   = "alreadygone"
+	CleanupCodeRemoved       = "removed"
+	// #716: git unregistered the worktree but could not delete its folder (a file written during the removal); the
+	// leftovers were removed after (leftoversremoved), or the folder stays (leftover, a warning, never a failure).
+	CleanupCodeLeftoversRemoved = "leftoversremoved"
+	CleanupCodeLeftover         = "leftover"
+	CleanupCodeWillRemove       = "willremove"
+	CleanupCodeNoLocalBranch    = "nolocalbranch"
+	CleanupCodeTreeFailed       = "treefailed"
+	CleanupCodeInKeptTree       = "inkepttree"
+	CleanupCodeInMainCheckout   = "inmaincheckout"
+	CleanupCodeMoved            = "moved"
+	CleanupCodeDeleted          = "deleted"
+	CleanupCodeDeletedByMerge   = "deletedbymerge"
+	CleanupCodePushedAfter      = "pushedafter"
+	CleanupCodeNoOtherPr        = "noother"
+	CleanupCodeOtherPrs         = "otherprs"
 
 	CleanupWorkflowCliPath = ".claude/skills/sf-workflow/workflow-cli.sh"
 
@@ -123,6 +130,12 @@ type CleanupRequest struct {
 	// WorktreeConfirmed: the developer chose to lose what the kept agent worktree holds (the step's Confirm). The
 	// worktree goes, and its branch too while its tip is still the one confirmed.
 	WorktreeConfirmed *mission.WorktreeRisk `json:"worktreeconfirmed,omitempty"`
+	// PlannedAgentTree: the agent worktree the plan sheet showed; gone by the cleanup, it reads as already cleaned up.
+	PlannedAgentTree string `json:"plannedagenttree,omitempty"`
+	// Leftover: Remove again on a folder a worktree step left (CleanupCodeLeftover); only the one the step recorded.
+	Leftover string `json:"leftover,omitempty"`
+	// BatchPrs: the PRs a batch merge still has to merge (FR-REV-025): the batch rebases those itself.
+	BatchPrs []int `json:"batchprs,omitempty"`
 }
 
 // CleanupPanel is a terminal still open in a worktree: the cleanup never pulls a folder from under it (#672).
@@ -147,6 +160,8 @@ type CleanupPr struct {
 	Flag  string `json:"flag,omitempty"`
 	Agent string `json:"agent,omitempty"`
 	Error string `json:"error,omitempty"`
+	// ErrorText: Error's code when it is one of MoltenTerm's sentences (#656), nil for a tool's raw error.
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
 }
 
 type CleanupStepResult struct {
@@ -154,12 +169,14 @@ type CleanupStepResult struct {
 	State string `json:"state"`
 	// Code: what the step did or why it was skipped (CleanupCode…), written by the sheet from the data below; Error:
 	// the raw error of a failed step (or of the fetch after the merge check).
-	Code   string `json:"code,omitempty"`
-	Error  string `json:"error,omitempty"`
-	Ticket int    `json:"ticket,omitempty"`
-	Branch string `json:"branch,omitempty"`
-	Base   string `json:"base,omitempty"`
-	Path   string `json:"path,omitempty"`
+	Code  string `json:"code,omitempty"`
+	Error string `json:"error,omitempty"`
+	// ErrorText: Error's code when it is one of MoltenTerm's sentences (#656), nil for git's or gh's raw error.
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
+	Ticket    int         `json:"ticket,omitempty"`
+	Branch    string      `json:"branch,omitempty"`
+	Base      string      `json:"base,omitempty"`
+	Path      string      `json:"path,omitempty"`
 	// Loss: what removing the worktree or the branch loses (kept), or the ignored files that went with it (removed).
 	Loss *WorktreeLoss `json:"loss,omitempty"`
 	// Confirm: the kept agent worktree's risk, sent back as WorktreeConfirmed to remove it and lose its work.
@@ -319,7 +336,7 @@ func skipped(id string, code string) CleanupStepResult {
 }
 
 func failed(id string, err error) CleanupStepResult {
-	return CleanupStepResult{Id: id, State: CleanupStateFailed, Error: err.Error()}
+	return CleanupStepResult{Id: id, State: CleanupStateFailed, Error: err.Error(), ErrorText: uimsg.TextOf(err)}
 }
 
 func (req CleanupRequest) check() error {
@@ -553,7 +570,10 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 		}
 	}
 	tree := reviewsession.ReviewTreeDir(r.c.env.DataDir, r.dir, r.req.Number)
-	if _, err := os.Stat(tree); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Lstat(tree); errors.Is(err, os.ErrNotExist) {
+		if r.req.Leftover != "" {
+			return withPath(skipped(CleanupStepReviewTree, CleanupCodeAlreadyGone), tree)
+		}
 		return skipped(CleanupStepReviewTree, CleanupCodeNoReviewTree)
 	}
 	entries, err := r.worktreeEntries()
@@ -567,6 +587,11 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 		}
 	}
 	if !listed {
+		// MoltenTerm's own checkout, no longer a worktree and with no .git: what an earlier removal left.
+		if molten.WorktreeMissing(tree) {
+			removal, err := r.c.worktrees.RemoveLeftover(r.ctx, r.dir, tree)
+			return r.removedStep(CleanupStepReviewTree, tree, removal, err)
+		}
 		return withPath(skipped(CleanupStepReviewTree, CleanupCodeNotAWorktree), tree)
 	}
 	changes, count, err := r.statusChanges(tree)
@@ -587,10 +612,44 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 		step.Panels = panels
 		return step
 	}
-	if _, err := r.git(r.dir, "worktree", "remove", "--force", "--", tree); err != nil {
+	removal, err := r.c.worktrees.RemoveTree(r.ctx, r.dir, tree, true)
+	if err != nil {
 		return failed(CleanupStepReviewTree, err)
 	}
-	return withPath(done(CleanupStepReviewTree, CleanupCodeRemoved), tree)
+	return r.removedStep(CleanupStepReviewTree, tree, removal, nil)
+}
+
+// removedStep is a worktree step once git unregistered the worktree: removed, its leftovers removed after, or a
+// leftover folder that stays (a warning naming it, with Remove again). err: the leftovers could not even be tried.
+func (r *cleanupRun) removedStep(id string, path string, removal mission.TreeRemoval, err error) CleanupStepResult {
+	switch {
+	case err != nil:
+		step := withPath(done(id, CleanupCodeLeftover), path)
+		step.Error = err.Error()
+		return step
+	case removal.Leftover != "":
+		step := withPath(done(id, CleanupCodeLeftover), removal.Leftover)
+		step.Error = removal.LeftoverError
+		return step
+	case removal.LeftoversRemoved:
+		return withPath(done(id, CleanupCodeLeftoversRemoved), path)
+	}
+	return withPath(done(id, CleanupCodeRemoved), path)
+}
+
+// removeLeftover is Remove again on a folder a worktree step left: Service.Cleanup checked it is the one the step
+// recorded, and RemoveLeftover checks again that git no longer lists it and that it is not a folder MoltenTerm never
+// removes.
+func (r *cleanupRun) removeLeftover(id string) CleanupStepResult {
+	path := filepath.Clean(r.req.Leftover)
+	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+		return withPath(skipped(id, CleanupCodeAlreadyGone), path)
+	}
+	removal, err := r.c.worktrees.RemoveLeftover(r.ctx, r.dir, path)
+	if err == nil && removal.Leftover == "" {
+		return withPath(done(id, CleanupCodeLeftoversRemoved), path)
+	}
+	return r.removedStep(id, path, removal, err)
 }
 
 // findAgentTree is the linked worktree that has the PR's branch checked out; never the main checkout.
@@ -643,6 +702,13 @@ func (r *cleanupRun) agentLoss(plan mission.WorktreePlan) WorktreeLoss {
 // through Mission Control's worktree removal, which reads the worktree again first.
 func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 	if r.agentTree == "" {
+		if r.req.Leftover != "" {
+			return r.removeLeftover(CleanupStepAgentTree)
+		}
+		// The worktree the plan sheet showed went before the cleanup (its agent, by hand): nothing left to do.
+		if r.req.PlannedAgentTree != "" {
+			return withPath(skipped(CleanupStepAgentTree, CleanupCodeAlreadyGone), r.req.PlannedAgentTree)
+		}
 		return withBranch(skipped(CleanupStepAgentTree, CleanupCodeNoAgentTree), r.pr.HeadRefName, "")
 	}
 	tree := r.agentTree
@@ -688,9 +754,12 @@ func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 		r.confirmedTip = r.req.WorktreeConfirmed.Sha
 	}
 	if res.Gone {
+		// Its folder was deleted while git still lists it: prune the entry, or the branch stays "checked out" there.
+		r.git(r.dir, "worktree", "prune")
 		return withPath(skipped(CleanupStepAgentTree, CleanupCodeAlreadyGone), tree)
 	}
-	step := withPath(done(CleanupStepAgentTree, CleanupCodeRemoved), res.Real)
+	step := r.removedStep(CleanupStepAgentTree, res.Real, mission.TreeRemoval{LeftoversRemoved: res.LeftoversRemoved,
+		Leftover: res.Leftover, LeftoverError: res.LeftoverError}, nil)
 	step.Loss = &loss
 	return step
 }
@@ -756,7 +825,12 @@ func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 // Validate sheet read.
 func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResult, error) {
 	if s.cleaner == nil {
-		return CleanupResult{}, errors.New("the cleanup is not available")
+		return CleanupResult{}, uimsg.Errorf(uimsg.Make("review.cleanupunavailable"), "the cleanup is not available")
+	}
+	if req.Leftover != "" {
+		if err := s.checkLeftover(req); err != nil {
+			return CleanupResult{}, err
+		}
 	}
 	result, err := s.cleaner.Run(ctx, req)
 	if err != nil {
@@ -764,9 +838,25 @@ func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResul
 	}
 	state, changed, err := s.store.SetCleanup(result)
 	if _, err := s.changed(state, changed, err); err != nil {
-		return result, fmt.Errorf("the cleanup ran but its outcome could not be recorded: %w", err)
+		return result, uimsg.Errorf(uimsg.Make("review.cleanupunrecorded", "detail", uimsg.Detail(err)), "the cleanup ran but its outcome could not be recorded: %w", err)
 	}
 	return result, nil
+}
+
+// checkLeftover: Remove again only ever removes the folder a worktree step of this PR's cleanup recorded as left.
+func (s *Service) checkLeftover(req CleanupRequest) error {
+	state, err := s.store.Get(PrKey{Repo: req.Repo, Number: req.Number})
+	if err != nil {
+		return err
+	}
+	if len(req.Steps) == 1 && state.Cleanup != nil {
+		step := state.Cleanup.Step(req.Steps[0])
+		if step != nil && step.Code == CleanupCodeLeftover && step.Path != "" && samePath(step.Path, req.Leftover) &&
+			(step.Id == CleanupStepAgentTree || step.Id == CleanupStepReviewTree) {
+			return nil
+		}
+	}
+	return uimsg.Errorf(uimsg.Make("review.leftoveronly", "path", req.Leftover), "MoltenTerm only removes the folder its cleanup left, not %s", req.Leftover)
 }
 
 // otherPrs reads the other open PRs on the base, and reads them again while GitHub has not told whether some still
@@ -799,7 +889,8 @@ func (r *cleanupRun) otherPrs(base string) ([]openPrFacts, error) {
 // (rebase.go): a busy agent is not interrupted, and with no agent nothing starts; the window offers to start one.
 func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	if r.c.env.AskRebase == nil {
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, "Ask for a rebase is not available"
+		err := rebaseUnavailableError()
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error(), uimsg.TextOf(err)
 		return
 	}
 	res, err := r.c.env.AskRebase(r.ctx, RebaseRequest{
@@ -818,7 +909,7 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	}
 	switch {
 	case err != nil:
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error()
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error(), uimsg.TextOf(err)
 	case res.Status == RestartSent || res.Status == RestartStarted:
 		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseAsked
 	case res.Status == RestartTyped:
@@ -828,7 +919,7 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	case res.Status == RebaseOffer:
 		item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
 	default:
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message, res.MessageText
 		if item.Error == "" {
 			item.Error = res.Status
 		}
@@ -848,6 +939,9 @@ func (r *cleanupRun) checkOtherPrs() CleanupStepResult {
 	for _, pr := range prs {
 		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName, Url: pr.Url, Title: pr.Title, HeadOid: pr.HeadRefOid}
 		switch {
+		case pr.conflicting() && slices.Contains(r.req.BatchPrs, pr.Number):
+			step.Conflicting++
+			item.State, item.Flag = CleanupStateDone, CleanupFlagBatch
 		case pr.conflicting():
 			step.Conflicting++
 			r.askRebase(pr, &item)

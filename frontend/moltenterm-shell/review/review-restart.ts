@@ -7,6 +7,7 @@
 import type { AgentStateInfo } from "../agent-state-model";
 import { agentLabel, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import type { ReviewRestartResult, ReviewRound, ReviewState } from "./review-client";
 
 // The strings of Restart work in the interface language; the prompt and the brief the agent gets stay in English
@@ -41,11 +42,11 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
         brief: result.briefpath ?? "",
         branch: result.branch ?? "",
         state: agentStateLabel(result.agentstate ?? "working"),
-        message: result.message ?? "",
+        message: serverText(result.messagetext, result.message ?? ""),
     };
     switch (result.reason || result.status) {
         case "started":
-            return t("review.restart.outcome.started", vars);
+            return t(result.hidden ? "review.restart.outcome.startedHidden" : "review.restart.outcome.started", vars);
         case "sent":
             return t("review.restart.outcome.sent", vars);
         case "typed":

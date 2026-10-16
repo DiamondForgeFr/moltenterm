@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { ReviewsModel } from "./reviews-store";
 
 export type MarkReadyPhase = "idle" | "confirm" | "sending" | "failed";
@@ -75,7 +76,7 @@ export function MarkReadyButton({ state, className }: { state: MarkReadyState; c
             title={t("reviews.ready.buttonTitle")}
             data-testid="reviews-mark-ready"
         >
-            <i className={cn("fa fa-solid text-11", sending ? "fa-spinner fa-spin" : "fa-eye")} />
+            {sending ? <DominoLoader /> : <i className="fa fa-solid fa-eye text-11" />}
             {sending ? t("reviews.ready.sending") : t("reviews.ready.button")}
             <MoltenWave />
         </button>

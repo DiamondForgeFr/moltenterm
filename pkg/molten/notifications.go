@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -25,6 +26,14 @@ const (
 	MaxNotificationActions = 3
 )
 
+// The title codes the window translates (#727), with TitleVars as the key's placeholders; must match
+// NotificationTitleKeys in frontend/moltenterm-shell/notifications-model.ts.
+const (
+	NotificationTitleAgentWaiting = "agentwaiting"
+	NotificationTitleAgentDone    = "agentdone"
+	NotificationTitleBell         = "bell"
+)
+
 type NotificationAction struct {
 	Id          string         `json:"id"`
 	Label       string         `json:"label"`
@@ -36,13 +45,20 @@ type NotificationAction struct {
 	Gesture     string         `json:"gesture,omitempty"`
 	Args        map[string]any `json:"args,omitempty"`
 	Lasting     bool           `json:"lasting,omitempty"`
+	LabelText   *uimsg.Text    `json:"labeltext,omitempty"`
 }
 
 type NotificationInput struct {
-	Key         string               `json:"key,omitempty"`
-	Source      string               `json:"source"`
-	Title       string               `json:"title"`
+	Key       string            `json:"key,omitempty"`
+	Source    string            `json:"source"`
+	Title     string            `json:"title"`
+	TitleCode string            `json:"titlecode,omitempty"`
+	TitleVars map[string]string `json:"titlevars,omitempty"`
+	// TitleText, MessageText: the title and message as the windows word them (#656), for what wavesrv writes itself.
+	// An agent's words in Message are data and carry none.
+	TitleText   *uimsg.Text          `json:"titletext,omitempty"`
 	Message     string               `json:"message,omitempty"`
+	MessageText *uimsg.Text          `json:"messagetext,omitempty"`
 	Kind        string               `json:"kind,omitempty"`
 	WorkspaceId string               `json:"workspaceid,omitempty"`
 	TabId       string               `json:"tabid,omitempty"`
@@ -217,6 +233,7 @@ const (
 // The subject of each source, which the user chooses to hear (FR-MC-019).
 var NotificationSubjects = map[string]string{
 	"agent":      "agents",
+	"sessions":   "agents",
 	"build":      "builds",
 	"ci":         "ci",
 	"release":    "releases",
@@ -265,7 +282,14 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 			for k, v := range n.value {
 				value[k] = v
 			}
-			for k, v := range inputValue(input) {
+			next := inputValue(input)
+			// An update without a code must not keep the code of the text it replaces.
+			for _, k := range []string{"titlecode", "titlevars", "titletext", "messagetext"} {
+				if _, ok := next[k]; !ok {
+					delete(value, k)
+				}
+			}
+			for k, v := range next {
 				value[k] = v
 			}
 			value["updated"] = nowMs
@@ -282,12 +306,39 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 	value["read"] = read
 	entry := storedNotification{id: id, value: value}
 	update := waveobj.MetaMapType{NotificationKeyPrefix + id: value}
+	for _, n := range supersededAgentWaits(entries, input) {
+		folded := map[string]any{}
+		for k, v := range n.value {
+			folded[k] = v
+		}
+		folded["resolved"] = nowMs
+		folded["archived"] = nowMs
+		folded["read"] = true
+		update[NotificationKeyPrefix+n.id] = folded
+	}
 	for _, dropId := range notificationPruneIds(append(entries, entry), now) {
 		if dropId != id {
 			update[NotificationKeyPrefix+dropId] = nil
 		}
 	}
 	return update
+}
+
+// supersededAgentWaits are the open "waiting" notifications an agent's newer notification makes outdated (#748): the
+// same terminal's agent has moved on, so the older one folds into the archive and stops offering its terminal.
+// Must match supersededAgentWaits in frontend/moltenterm-shell/notifications-model.ts.
+func supersededAgentWaits(entries []storedNotification, input NotificationInput) []storedNotification {
+	if input.Source != "agent" || input.BlockId == "" {
+		return nil
+	}
+	var rtn []storedNotification
+	for _, n := range entries {
+		if n.str("source") != "agent" || n.str("blockid") != input.BlockId || n.str("kind") != "warning" || n.closedMark() {
+			continue
+		}
+		rtn = append(rtn, n)
+	}
+	return rtn
 }
 
 // dismissedSame tells whether the newest notification of the input's key was archived by the user and says the same.

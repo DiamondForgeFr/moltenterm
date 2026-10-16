@@ -5,7 +5,6 @@ package reviewsession
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The questions queue (FR-REV-006 AC4): a question asked while the agent works or waits for an answer is kept, shown
@@ -92,10 +92,10 @@ func (m *Manager) CancelQuestion(ctx context.Context, req mcpreview.AskCancelReq
 	m.ensureLoaded(ctx)
 	s := m.find(req.SessionKey)
 	if s == nil {
-		return errors.New(mcpreview.ErrSessionEnded)
+		return uimsg.Errorf(uimsg.Make("review.sessionended"), "%s", mcpreview.ErrSessionEnded)
 	}
 	if !m.dropQuestion(s, req.QuestionId) {
-		return errors.New("this question is no longer waiting: it was sent or removed")
+		return uimsg.Errorf(uimsg.Make("review.questiongone"), "this question is no longer waiting: it was sent or removed")
 	}
 	m.publish(s, false)
 	return nil

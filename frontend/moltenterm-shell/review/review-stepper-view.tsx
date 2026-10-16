@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import type { RebaseOutcome } from "../reviews/reviews-model";
+import { DominoLoader } from "../suite/suite";
 import { ReviewCleanupPr, ReviewCleanupStepResult } from "./review-cleanup";
 import { showPanel } from "./review-panels";
 import { keptButtonLabel, panelName, StepRow, StepState, ValidateStep } from "./review-stepper";
@@ -45,7 +46,7 @@ function StateIcon({ state, small }: { state: StepState; small?: boolean }) {
         case "failed":
             return <i className={cn("fa fa-solid fa-xmark", size)} />;
         case "running":
-            return <i className={cn("fa fa-solid fa-circle-notch fa-spin mt-step-spin", size)} />;
+            return <DominoLoader className={small ? "mt-dominos-icon" : "mt-dominos-node"} />;
         case "needs":
             return <i className={cn("fa fa-solid fa-exclamation", size)} />;
         case "skipped":
@@ -155,7 +156,38 @@ type KeptActions = {
     steps: ReviewCleanupStepResult[];
     busy?: boolean;
     onRemove?: (step: ReviewCleanupStepResult) => void;
+    // A folder a worktree left once git unregistered it (#716): Remove again.
+    onRemoveLeftover?: (step: ReviewCleanupStepResult) => void;
 };
+
+function LeftoverStepButtons({ step, actions }: { step: ReviewCleanupStepResult; actions: KeptActions }) {
+    const t = useT();
+    return (
+        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid={`validate-leftover-${step.id}`}>
+            {actions.onRemoveLeftover != null ? (
+                <button
+                    type="button"
+                    className={PlainButton}
+                    disabled={actions.busy}
+                    onClick={() => actions.onRemoveLeftover(step)}
+                    data-testid={`validate-remove-leftover-${step.id}`}
+                >
+                    {t("review.validate.removeAgain")}
+                </button>
+            ) : null}
+            <button
+                type="button"
+                className={PlainButton}
+                title={step.path}
+                onClick={() => getApi().openNativePath(step.path)}
+                data-testid={`validate-show-leftover-${step.id}`}
+            >
+                <i className="fa fa-solid fa-folder-open mr-1 text-11" />
+                {t("review.validate.showLeftover")}
+            </button>
+        </div>
+    );
+}
 
 // canRemoveKept: the agent worktree can always be removed on the developer's choice; the review worktree only once its
 // panels are closed, never with changes in it (the sheet names them).
@@ -221,9 +253,13 @@ function KeptButtons({ actions }: { actions: KeptActions }) {
     }
     return (
         <div data-testid="validate-kept-actions">
-            {steps.map((s) => (
-                <KeptStepButtons key={s.id} step={s} actions={actions} />
-            ))}
+            {steps.map((s) =>
+                s.code === "leftover" ? (
+                    <LeftoverStepButtons key={s.id} step={s} actions={actions} />
+                ) : (
+                    <KeptStepButtons key={s.id} step={s} actions={actions} />
+                )
+            )}
         </div>
     );
 }

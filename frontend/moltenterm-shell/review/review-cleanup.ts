@@ -8,6 +8,7 @@
 // back with what it would lose and the risk to confirm.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { ServerText } from "../i18n/server-text";
 import { ReviewRoute } from "./review-client";
 
 // must match pkg/molten/review/cleanup.go
@@ -65,7 +66,8 @@ export type ReviewCleanupPrFlag =
     | "agent-busy"
     | "needs-agent"
     | "needs-rebase"
-    | "checking";
+    | "checking"
+    | "batch";
 
 // must match CleanupPr in pkg/molten/review/cleanup.go; agent: the first name of the agent asked or busy.
 export type ReviewCleanupPr = {
@@ -78,6 +80,7 @@ export type ReviewCleanupPr = {
     flag?: ReviewCleanupPrFlag;
     agent?: string;
     error?: string;
+    errortext?: ServerText;
 };
 
 export type ReviewCleanupStepResult = {
@@ -85,6 +88,7 @@ export type ReviewCleanupStepResult = {
     state: ReviewCleanupStepState;
     code?: string;
     error?: string;
+    errortext?: ServerText;
     ticket?: number;
     branch?: string;
     base?: string;
@@ -121,6 +125,8 @@ export type ReviewCleanupRequest = {
     ticket?: number;
     steps?: ReviewCleanupStepId[];
     worktreeconfirmed?: ReviewWorktreeRisk;
+    // Remove again on the folder a worktree step left (code leftover, #716); wavesrv only removes the one it recorded.
+    leftover?: string;
 };
 
 export function runReviewCleanup(req: ReviewCleanupRequest): Promise<ReviewCleanupResult> {
@@ -149,6 +155,21 @@ export function removeKeptWorktree(
         return confirmAgentWorktree(req, step.confirm);
     }
     return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"] });
+}
+
+// removeLeftover removes again the folder a worktree step left after git unregistered the worktree (#716).
+export function removeLeftover(
+    req: Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed" | "leftover">,
+    step: ReviewCleanupStepResult
+): Promise<ReviewCleanupResult> {
+    return runReviewCleanup({ ...req, steps: [step.id], leftover: step.path });
+}
+
+// cleanupLeftovers are the worktree steps that left a folder behind: a warning with Show in folder and Remove again.
+export function cleanupLeftovers(steps: ReviewCleanupStepResult[]): ReviewCleanupStepResult[] {
+    return (steps ?? []).filter(
+        (s) => (s.id === "review-worktree" || s.id === "agent-worktree") && s.code === "leftover" && !!s.path
+    );
 }
 
 // cleanupNeedsConfirmation is the agent worktree kept because removing it would lose work or a panel works in it.

@@ -5,6 +5,7 @@
 // (pkg/molten/companion), and the pure rules of its view. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
+import { ServerText, serverText } from "../i18n/server-text";
 
 // must match pkg/molten/agentcompanion.go
 export const CompanionRoute = "molten:companion";
@@ -92,7 +93,7 @@ export type CompanionEarlierSession = {
 };
 
 // must match pkg/molten/companion/manager.go and guess.go
-export type CompanionLinkKind = "hook" | "picked" | "discovery" | "guessed";
+export type CompanionLinkKind = "hook" | "process" | "picked" | "discovery" | "guessed";
 export type CompanionGuess = "started" | "activity" | "recent";
 
 export type CompanionSession = {
@@ -155,6 +156,7 @@ export type CompanionView = {
     agent?: string;
     agentname?: string;
     message?: string;
+    messagetext?: ServerText;
     session?: CompanionSession;
     ended?: boolean;
     answers?: CompanionAnswerInfo[];
@@ -224,7 +226,13 @@ export function historyGroups(sessions: CompanionCandidate[]): HistoryGroup[] {
     return groups.filter((g) => g.sessions.length > 0);
 }
 
-export type CompanionIntegrationItem = { kind: string; name: string; reason?: string };
+export type CompanionIntegrationItem = {
+    kind: string;
+    name: string;
+    nametext?: ServerText;
+    reason?: string;
+    reasontext?: ServerText;
+};
 
 export type CompanionIntegration = {
     agent: string;
@@ -235,6 +243,7 @@ export type CompanionIntegration = {
     added?: CompanionIntegrationItem[];
     skipped?: CompanionIntegrationItem[];
     stepaside?: string;
+    stepasidetext?: ServerText;
     at?: number;
 };
 
@@ -249,7 +258,15 @@ export function integrationProblem(view: CompanionView): string {
     if (!reason || reason.startsWith(IntegrationTurnedOffPrefix)) {
         return null;
     }
-    return `MoltenTerm added nothing to this run: ${reason}.`;
+    return t("companion.integration.addedNothing", { reason: serverText(view.integration.stepasidetext, reason) });
+}
+
+// An integration item's name and reason in the interface language (#656).
+export function integrationItemText(item: CompanionIntegrationItem): { name: string; reason: string } {
+    return {
+        name: serverText(item?.nametext, item?.name),
+        reason: item?.reason ? serverText(item.reasontext, item.reason) : "",
+    };
 }
 
 // The launcher added the session link to this run: nothing for the user to paste (FR-SHELL-040-AC6).
@@ -326,7 +343,7 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
             return {
                 title: t("companion.status.searching", { name }),
                 detail:
-                    view.message ||
+                    serverText(view.messagetext, view.message) ||
                     (linksItsSession(view)
                         ? t("companion.status.searchingIntegrated")
                         : t("companion.status.searchingDetail")),
@@ -340,7 +357,7 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
             return {
                 title: t("companion.status.error"),
                 detail: t("companion.status.errorDetail"),
-                raw: view.message,
+                raw: serverText(view.messagetext, view.message),
             };
     }
     return null;
@@ -473,6 +490,8 @@ export function linkLabel(session: CompanionSession): string {
     switch (session?.linkedby) {
         case "hook":
             return t("companion.link.hook");
+        case "process":
+            return t("companion.link.process");
         case "picked":
             return t("companion.link.picked");
         case "guessed":

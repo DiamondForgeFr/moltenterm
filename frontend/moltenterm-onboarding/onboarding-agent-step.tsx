@@ -10,6 +10,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
+import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { openSettingsSection } from "../moltenterm-shell/settings/settings-open";
 import {
@@ -19,6 +20,7 @@ import {
     foundAgents,
     genericAgent,
     genericRequest,
+    GenericRequestPlaceholder,
     guideCall,
     guideState,
     OnboardingAgent,
@@ -143,7 +145,10 @@ function GenericOption({ agent }: { agent: OnboardingAgent }) {
                           path: agent.path,
                       })}
             </StepText>
-            <CopyLine text={genericRequest(agent, t("onboarding.agent.requestPlaceholder"))} />
+            <CopyLine text={genericRequest(agent, GenericRequestPlaceholder)} />
+            <StepText className="text-12 text-muted">
+                {withCodes(t("onboarding.agent.genericPaste"), { placeholder: GenericRequestPlaceholder })}
+            </StepText>
         </div>
     );
 }
@@ -207,7 +212,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             setList(await listOnboardingAgents());
         } catch (e) {
-            setError(t("onboarding.agent.listFailed", { error: `${e?.message ?? e}` }));
+            setError(t("onboarding.agent.listFailed", { error: serverErrorText(e) }));
         } finally {
             setBusy(false);
         }
@@ -223,7 +228,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             await installDeclinedAgent(id);
         } catch (e) {
-            setError(`${e?.message ?? e}`);
+            setError(serverErrorText(e));
         } finally {
             setBusy(false);
         }
@@ -258,7 +263,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
     const keepChosen = () =>
         ctx.setData({ [ChosenAgentKey]: chosen.id }).then(
             () => ctx.complete(),
-            (e) => setError(`${e?.message ?? e}`)
+            (e) => setError(serverErrorText(e))
         );
 
     return (

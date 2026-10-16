@@ -5,6 +5,8 @@
 // `.molten/project.json`, with a state summary per member. The rail (FR-MC-027) and the group strip (FR-MC-028) read
 // them with missionGroups and follow MissionGroupsEvent; these helpers hold the rules they share.
 
+import type { ServerText } from "../i18n/server-text";
+
 // must match the names in pkg/molten/mission/group.go
 export const MissionGroupsCommand = "moltenmissiongroups";
 export const MissionGroupsEvent = "molten:mission:groups";
@@ -42,6 +44,7 @@ export type DependencyState = {
     ref?: string;
     state: DependencyStateName;
     problem?: string;
+    problemtext?: ServerText;
     sourcedir?: string;
     sourcename?: string;
     // The source's newest commit on the watched branch touching paths.

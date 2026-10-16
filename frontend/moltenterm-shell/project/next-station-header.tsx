@@ -7,7 +7,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo } from "react";
-import { useLocale, useT } from "../i18n/i18n";
+import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
 import { BuildLocalMenu } from "../mission/build-local-menu";
@@ -114,6 +114,7 @@ function ChangeText({ item }: { item: TickerItem }) {
 // by itself; the Waiting count above says how many there are in all.
 function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: string; total: number }) {
     const t = useT();
+    const tCount = useTCount();
     const shown = items.slice(0, LatestShown);
     // The items stop at the ticker cap; the Waiting count above holds them all.
     const more = Math.max(total ?? 0, items.length) - shown.length;
@@ -147,11 +148,7 @@ function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: st
                     </li>
                 ))}
             </ul>
-            {more > 0 ? (
-                <span className="text-11 text-muted">
-                    {more === 1 ? t("project.latest.moreOne") : t("project.latest.more", { count: more })}
-                </span>
-            ) : null}
+            {more > 0 ? <span className="text-11 text-muted">{tCount("project.latest.more", more)}</span> : null}
         </section>
     );
 }
@@ -183,6 +180,7 @@ export function NextStationHeader({
     const counts = useMemo(() => waitingCounts(git), [git, locale]);
     const items = useMemo(() => tickerItems(git), [git]);
     const target = runCiTarget(git, pipeline, ci);
+    const hasCiJobs = (pipeline?.ci?.jobs ?? []).length > 0;
     const lastBuild = latestRun(runs, "build");
     const iconSource = workspaceIconSource(project.workspace);
     const trunk = git?.trunk || "develop";
@@ -243,7 +241,9 @@ export function NextStationHeader({
                             {t("project.runCi.running", { branch: target.branch })}
                             <MoltenWave />
                         </button>
-                    ) : (
+                    ) : !hasCiJobs ? null : (
+                        // Hidden rather than disabled without CI jobs: a disabled primary button still reads as the
+                        // main action (#745); the hint below and the pipeline banner say what brings it.
                         <button
                             type="button"
                             className={ActionPrimaryClass}
@@ -287,9 +287,9 @@ export function NextStationHeader({
                         onShowRun={showRuns}
                     />
                     <BranchCleanupButton dir={project.dir} onCleaned={refresh} />
-                    {pipeline ? null : (
-                        <p className="basis-full text-11 text-muted @min-[64rem]:text-right">
-                            {t("project.noPipelineActions")}
+                    {pipeline && hasCiJobs ? null : (
+                        <p className="basis-full text-11 text-muted @min-[64rem]:text-right" data-testid="actions-hint">
+                            {pipeline ? t("project.noCiJobs") : t("project.noPipelineActions")}
                         </p>
                     )}
                 </div>

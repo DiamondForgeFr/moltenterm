@@ -16,6 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -89,7 +90,7 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });
@@ -153,7 +154,7 @@ export function WorkspaceTaskSection({
                 setActionError(null);
                 await fn();
             } catch (e) {
-                setActionError(String(e?.message ?? e));
+                setActionError(serverErrorText(e));
             }
         });
     const open = (edit: boolean) =>

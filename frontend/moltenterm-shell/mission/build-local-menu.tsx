@@ -9,7 +9,9 @@ import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { pathParent } from "../workspace-project";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { buildCardTitle, BuildFacts, BuildsFacts, ciLine, lastBuildLine } from "./builds-model";
@@ -63,7 +65,7 @@ export function BuildLocalMenu({
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             } finally {
                 if (!cancelled) {
@@ -159,9 +161,7 @@ export function BuildLocalMenu({
                         </div>
                     ))}
                     <div className="flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 p-2 text-11 text-muted">
-                        {fetching ? (
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mt-0.5 text-11" />
-                        ) : null}
+                        {fetching ? <DominoLoader className="mt-0.5" label={t("common.loading")} /> : null}
                         <span>{t("mc.builds.builtFrom", { trunk: facts?.trunk || t("mc.builds.theTrunk") })}</span>
                     </div>
                     <button
@@ -170,9 +170,7 @@ export function BuildLocalMenu({
                         onClick={launch}
                         className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                     >
-                        {busy ? (
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
-                        ) : null}
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
                         {chosen ? t("mc.builds.buildOne", { title: chosen.title || chosen.id }) : t("mc.builds.choose")}
                         <MoltenWave />
                     </button>

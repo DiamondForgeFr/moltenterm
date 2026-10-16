@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Safe agent input (FR-SHELL-048, DS-SHELL-087): the command panel's Agent section types a command of the agent's table
@@ -94,10 +95,12 @@ type AgentInputResult struct {
 	Result string `json:"result"`
 	Reason string `json:"reason,omitempty"`
 	// Offer: what the panel offers instead of a refused command (interrupt, goto).
-	Offer     string `json:"offer,omitempty"`
-	Message   string `json:"message"`
-	Agent     string `json:"agent,omitempty"`
-	AgentName string `json:"agentname,omitempty"`
+	Offer   string `json:"offer,omitempty"`
+	Message string `json:"message"`
+	// MessageText: Message's code, for the windows (#656).
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
+	Agent       string      `json:"agent,omitempty"`
+	AgentName   string      `json:"agentname,omitempty"`
 	// Program: what is in the foreground instead of the agent (notforeground).
 	Program string `json:"program,omitempty"`
 	// Mode: the permission mode the agent shows after the command, "" when not seen.
@@ -182,37 +185,26 @@ func (u *Updater) offeredEfforts(run molten.AgentRunInfo) []string {
 	return levels
 }
 
-func refused(reason string, message string) AgentInputResult {
-	return AgentInputResult{Result: InputRefused, Reason: reason, Message: message}
-}
-
 // AgentInput types one command of the agent's table, or says why it typed nothing.
 func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentInputResult {
 	if !u.begin(req.BlockId) {
-		return refused(InputReasonBusy, "MoltenTerm is already typing in this terminal: try again in a moment.")
+		return refusedBusy()
 	}
 	defer u.end(req.BlockId)
 	expected := molten.AgentDisplayName(req.Agent)
-	if expected == "" {
-		expected = "the agent"
-	}
 	st, out := u.inspect(ctx, req.BlockId)
 	if out != nil {
-		return refused(InputReasonUnavailable, out.Message+" Nothing was typed.")
+		return refusedUnreadable(out)
 	}
 	if st.adapter == nil {
 		if st.busy != "" {
-			rtn := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", st.busy, expected))
-			rtn.Program = st.busy
-			return rtn
+			return refusedNotForeground(st.busy, expected)
 		}
-		return refused(InputReasonNoAgent, fmt.Sprintf("%s no longer runs in this terminal: nothing was typed.", expected))
+		return refusedNoAgent(expected)
 	}
 	agent, name := st.agent.Agent, st.adapter.Name()
 	if req.Agent != "" && req.Agent != agent {
-		rtn := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", name, expected))
-		rtn.Program = name
-		return rtn
+		return refusedNotForeground(name, expected)
 	}
 	base := func(r AgentInputResult) AgentInputResult {
 		r.Agent, r.AgentName = agent, name
@@ -220,38 +212,35 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	}
 	cmd, ok := agentcontinuity.FindAgentCommand(agent, req.Action)
 	if !ok {
-		return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no command %q in MoltenTerm: nothing was typed.", name, req.Action)))
+		return base(refused(InputReasonUnknownAction, uimsg.Make("termupdate.input.unknowncommand", "agent", name, "action", req.Action),
+			fmt.Sprintf("%s has no command %q in MoltenTerm: nothing was typed.", name, req.Action)))
 	}
 	text := cmd.Text
 	if req.Model != "" {
 		if _, ok := agentcontinuity.ModelAlias(agent, req.Model); !ok || req.Action != agentcontinuity.ActionModel {
-			return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no model %q that MoltenTerm can switch to: choose it in %s's /model. Nothing was typed.", name, req.Model, name)))
+			return base(refused(InputReasonUnknownAction, uimsg.Make("termupdate.input.unknownmodel", "agent", name, "model", req.Model),
+				fmt.Sprintf("%s has no model %q that MoltenTerm can switch to: choose it in %s's /model. Nothing was typed.", name, req.Model, name)))
 		}
 		text = cmd.Text + " " + req.Model
 	}
 	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
-		r := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", blocker, name))
-		if blocker == name {
-			r.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)
-		}
-		r.Program = blocker
-		return base(r)
+		return base(refusedBlocked(blocker, name))
 	}
 	if run, ok := u.env.AgentRun(req.BlockId); ok && run.Running {
 		switch {
 		case run.State == molten.AgentStateWaiting:
-			r := refused(InputReasonWaiting, fmt.Sprintf("%s is waiting for your answer: answer it first.", name))
-			r.Offer = OfferGoto
-			return base(r)
+			return base(refusedWaiting(name))
 		case run.State == molten.AgentStateWorking && cmd.Kind != agentcontinuity.CommandInterrupt:
-			r := refused(InputReasonWorking, fmt.Sprintf("%s is working: wait for its turn to end, or interrupt it.", name))
+			r := refused(InputReasonWorking, uimsg.Make("termupdate.input.working", "agent", name),
+				fmt.Sprintf("%s is working: wait for its turn to end, or interrupt it.", name))
 			r.Offer = OfferInterrupt
 			return base(r)
 		}
 	}
 	in := u.inputState(req.BlockId)
 	if cmd.ClearsLine() && !req.ConfirmedDraft && in.Draft {
-		return base(refused(InputReasonDraft, fmt.Sprintf("An unsent message in %s will be cleared.", name)))
+		return base(refused(InputReasonDraft, uimsg.Make("termupdate.input.draft", "agent", name),
+			fmt.Sprintf("An unsent message in %s will be cleared.", name)))
 	}
 	if cmd.Kind == agentcontinuity.CommandMode {
 		return base(u.stepMode(req, st, cmd, in.Mode, name))
@@ -261,6 +250,7 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	}
 	steps := []string{text}
 	shown := text
+	interrupt := false
 	switch {
 	case cmd.Action == agentcontinuity.ActionQuit:
 		text = st.adapter.Exit().Command
@@ -268,16 +258,19 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	case cmd.Kind == agentcontinuity.CommandSlash:
 		steps = []string{keyClearLine, text, "\r"}
 	case cmd.Kind == agentcontinuity.CommandInterrupt:
-		shown = "the interrupt key"
+		shown, interrupt = "the interrupt key", true
 	}
 	sent, err := u.sendToForegroundAgent(req.BlockId, st.agent, st.shell.Pid, steps)
 	if err != nil {
-		return base(refused(InputReasonUnavailable, fmt.Sprintf("The terminal did not take the input: %v", err)))
+		return base(refusedNotTaken(err))
 	}
 	if !sent {
-		return base(refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)))
+		return base(refusedGone(name))
 	}
-	return base(AgentInputResult{Result: InputSent, Message: fmt.Sprintf("Sent %s to %s.", shown, name)})
+	if interrupt {
+		return base(sentResult(uimsg.Make("termupdate.input.sentinterrupt", "agent", name), fmt.Sprintf("Sent %s to %s.", shown, name)))
+	}
+	return base(sentResult(uimsg.Make("termupdate.input.sent", "agent", name, "text", shown), fmt.Sprintf("Sent %s to %s.", shown, name)))
 }
 
 // stepMode presses Shift+Tab until the agent shows the requested mode. Each press waits for the agent to draw its
@@ -285,10 +278,14 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 func (u *Updater) stepMode(req AgentInputRequest, st shellState, cmd agentcontinuity.AgentCommand, current string, name string) AgentInputResult {
 	target := req.Mode
 	if target != "" && !slices.Contains(knownModes, target) {
-		return refused(InputReasonUnknownAction, fmt.Sprintf("%s has no permission mode %q: nothing was typed.", name, target))
+		return refused(InputReasonUnknownAction, uimsg.Make("termupdate.input.unknownmode", "agent", name, "mode", target),
+			fmt.Sprintf("%s has no permission mode %q: nothing was typed.", name, target))
 	}
 	if target != "" && target == current {
-		return AgentInputResult{Result: InputSent, Mode: current, Message: fmt.Sprintf("%s is already in %s mode.", name, modeLabel(current))}
+		rtn := sentResult(uimsg.Make("termupdate.input.alreadymode", "agent", name, "mode", current),
+			fmt.Sprintf("%s is already in %s mode.", name, modeLabel(current)))
+		rtn.Mode = current
+		return rtn
 	}
 	steps := 1
 	if target != "" && current != "" {
@@ -305,7 +302,7 @@ func (u *Updater) stepMode(req AgentInputRequest, st shellState, cmd agentcontin
 		sent, err := u.sendToForegroundAgent(req.BlockId, st.agent, st.shell.Pid, []string{cmd.Text})
 		if err != nil || !sent {
 			if presses == 0 {
-				return refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name))
+				return refusedGone(name)
 			}
 			break
 		}
@@ -324,12 +321,16 @@ func (u *Updater) stepMode(req AgentInputRequest, st shellState, cmd agentcontin
 	switch {
 	case target != "" && prev == target:
 		rtn.Message = fmt.Sprintf("%s is now in %s mode.", name, modeLabel(target))
+		rtn.MessageText = uimsg.Make("termupdate.input.modenow", "agent", name, "mode", target)
 	case prev == "":
 		rtn.Message = fmt.Sprintf("Sent Shift+Tab once. MoltenTerm cannot see %s's mode, so each click moves one mode on.", name)
+		rtn.MessageText = uimsg.Make("termupdate.input.modeblind", "agent", name)
 	case target != "":
 		rtn.Message = fmt.Sprintf("%s shows %s mode: %s was not reached.", name, modeLabel(prev), modeLabel(target))
+		rtn.MessageText = uimsg.Make("termupdate.input.modemissed", "agent", name, "mode", prev, "target", target)
 	default:
 		rtn.Message = fmt.Sprintf("%s is now in %s mode.", name, modeLabel(prev))
+		rtn.MessageText = uimsg.Make("termupdate.input.modenow", "agent", name, "mode", prev)
 	}
 	return rtn
 }

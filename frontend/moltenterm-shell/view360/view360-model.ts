@@ -26,8 +26,15 @@ import { fireAndForget } from "@/util/util";
 import { Atom, atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import type { CSSProperties } from "react";
-import { rememberedPanelPx } from "../panel-size/panel-size-model";
-import { cachedBlockView, currentPanelSizes, rememberPanelWidth } from "../panel-size/panel-size-store";
+import { rememberedPanelPx, terminalNeedPx } from "../panel-size/panel-size-model";
+import {
+    cachedBlockView,
+    clearTerminalFloor,
+    currentPanelSizes,
+    currentTerminalFloorPx,
+    isTerminalLeaf,
+    rememberPanelWidth,
+} from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import {
     canPinBeside,
@@ -59,14 +66,20 @@ import { PinText } from "./pin-text";
 import {
     anyColumnTooTight,
     autoWants,
-    countLeaves,
+    columnMinimumsPx,
+    columnsParent,
     decideView360,
+    exitView360,
+    fitsAtCurrentFloors,
+    fitsAtReadableMinimums,
     normalColumnPxs,
     normalizeView360Setting,
+    readableMinimumsPx,
     ResizeSettleMs,
-    showTightPill,
+    sharedColumnSizes,
     topColumns,
     View360Decision,
+    View360Exit,
     View360SettingKey,
 } from "./view360-decision";
 import { setTabFixedPx, setTabPins, setTabView360, storedFixedPx, storedPins, tabManualView360 } from "./view360-meta";
@@ -108,16 +121,13 @@ export class View360Model {
     manualAtom: Atom<boolean>;
     autoOnAtom: PrimitiveAtom<boolean> = atom(false);
     columnCountAtom: PrimitiveAtom<number> = atom(0);
-    tooTightAtom: PrimitiveAtom<boolean> = atom(false);
-    // The tab's panel count when the "too tight" pill was closed, null while it is not dismissed: a panel added
-    // anywhere (a new column or a split) shows it again.
-    pillDismissedAtAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
-    panelCount = 0;
     // Bumped on each automatic switch, for its short glow.
     signalAtom: PrimitiveAtom<number> = atom(0);
     decisionAtom: Atom<View360Decision>;
     activeAtom: Atom<boolean>;
-    pillAtom: Atom<boolean>;
+    // Turning the view off asks first (#733): the confirmation ("readjust") or the "close panels first" message
+    // ("blocked") on screen, null when none is.
+    exitAskAtom: PrimitiveAtom<View360Exit> = atom(null) as PrimitiveAtom<View360Exit>;
     // The geometry of the last layout pass, null when the tab is not drawn in 360 view.
     layoutAtom: PrimitiveAtom<CarpetLayout> = atom(null) as PrimitiveAtom<CarpetLayout>;
     scrollLeftAtom: PrimitiveAtom<number> = atom(0);
@@ -137,6 +147,8 @@ export class View360Model {
     scrollLeft = 0;
     // The fixed zone's width as this window last set it, ahead of the tab meta's round trip.
     savedFixedPx: number = null;
+    // The width the first column's terminals need under the terminal floor at the last pass (#733).
+    fixedNeedPx = 0;
     // Widths being dragged, applied until the drag ends.
     dragFixedPx: number = null;
     dragColumn: { nodeId: string; kind: string; px: number } = null;
@@ -149,6 +161,10 @@ export class View360Model {
 
     // The automatic decision's last inputs: a new column count switches at once, a width change once it holds.
     lastColumnCount: number = null;
+    // Each column's minimum at the last pass, terminal floor included (#731), with the width and gap it was measured at.
+    lastColumnMins: number[] = [];
+    lastEvalWidth = 0;
+    lastEvalGap = 0;
     settleTimer360: ReturnType<typeof setTimeout> = null;
     applySettled = false;
     inLayoutPass = false;
@@ -167,15 +183,6 @@ export class View360Model {
             })
         );
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
-        this.pillAtom = atom((get) =>
-            showTightPill({
-                setting: normalizeView360Setting(get(this.settingAtom)),
-                manual: get(this.manualAtom),
-                active: get(this.activeAtom),
-                tooTight: get(this.tooTightAtom),
-                dismissed: get(this.pillDismissedAtAtom) != null,
-            })
-        );
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
         this.fixedNodeIdAtom = atom((get) => get(this.layoutAtom)?.fixedNodeId ?? null);
@@ -215,8 +222,7 @@ export class View360Model {
         return globalStore.get(this.tabAtom)?.oid ?? null;
     }
 
-    // The tab's manual choice (the tab bar's toggle, the pill's action): true or false wins over the setting, null
-    // follows it again.
+    // The tab's manual choice: true on demand, false off under the always setting, null follows the setting again.
     setManual(choice: boolean): void {
         const tabId = this.tabId;
         if (tabId == null || choice === globalStore.get(this.manualAtom)) {
@@ -225,16 +231,73 @@ export class View360Model {
         fireAndForget(() => setTabView360(tabId, choice));
     }
 
+    // The tab's button (#733): on turns the view on on demand; off is guarded (requestLeave).
     setActive(on: boolean): void {
-        this.setManual(on);
+        if (on) {
+            this.setManual(true);
+            return;
+        }
+        this.requestLeave();
     }
 
     toggle(): void {
         this.setActive(!this.active);
     }
 
-    dismissPill(): void {
-        globalStore.set(this.pillDismissedAtAtom, this.panelCount);
+    // Turning the view off (#733): left at once when every column fits at the current floors; otherwise the
+    // confirmation (fits once the terminal floor is cleared) or the "close panels first" message, and the view stays.
+    requestLeave(): View360Exit {
+        const exit = exitView360(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap);
+        if (exit.kind === "leave") {
+            this.leave(this.lastColumnMins, false);
+        } else {
+            globalStore.set(this.exitAskAtom, exit);
+        }
+        return exit;
+    }
+
+    closeExitAsk(): void {
+        globalStore.set(this.exitAskAtom, null);
+    }
+
+    // "Readjust every size": the terminal floor is cleared and the columns share the width at their readable minimums.
+    // A panel opened meanwhile may leave no room even then: the message says so instead.
+    readjustAndLeave(): void {
+        const exit = exitView360(readableMinimumsPx(this.lastColumnMins.length), this.lastEvalWidth, this.lastEvalGap);
+        if (exit.kind === "blocked") {
+            globalStore.set(this.exitAskAtom, exit);
+            return;
+        }
+        globalStore.set(this.exitAskAtom, null);
+        clearTerminalFloor();
+        this.leave(readableMinimumsPx(this.lastColumnMins.length), true);
+    }
+
+    // Back to the normal layout: the columns share the width again when asked to or when one would be under its
+    // minimum; the automatic decision is reset (its leaving margin would hold the view on), an on-demand choice goes
+    // back to automatic, and under the always setting the tab is turned off by hand.
+    private leave(columnMins: number[], share: boolean) {
+        const parent = columnsParent(this.layoutModel.treeState?.rootNode);
+        if (parent != null && parent.children.length === columnMins.length) {
+            const width = this.lastEvalWidth;
+            const gap = this.lastEvalGap;
+            const normalPxs = normalColumnPxs(
+                parent.children.map((c) => c.size),
+                width,
+                gap
+            );
+            if (share || anyColumnTooTight(normalPxs, columnMins)) {
+                const sizes = sharedColumnSizes(columnMins, width, gap);
+                const resize: LayoutTreeResizeNodeAction = {
+                    type: LayoutTreeActionType.ResizeNode,
+                    resizeOperations: parent.children.map((c, i) => ({ nodeId: c.id, size: sizes[i] })),
+                };
+                this.layoutModel.treeReducer(resize);
+            }
+        }
+        globalStore.set(this.autoOnAtom, false);
+        this.setManual(normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ? false : null);
+        this.layoutModel.updateTree();
     }
 
     // ---- the automatic decision ------------------------------------------------------------------------------------
@@ -263,20 +326,13 @@ export class View360Model {
         const count = columns.length;
         const gap = this.gapPx();
         globalStore.set(this.columnCountAtom, count);
-        this.panelCount = countLeaves(rootNode);
-        const dismissedAt = globalStore.get(this.pillDismissedAtAtom);
-        if (dismissedAt != null && this.panelCount > dismissedAt) {
-            globalStore.set(this.pillDismissedAtAtom, null);
-        }
-        const normalPxs = normalColumnPxs(
-            columns.map((c) => c.size),
-            width,
-            gap
-        );
-        globalStore.set(this.tooTightAtom, anyColumnTooTight(normalPxs));
+        const columnMins = columnMinimumsPx(columns, currentTerminalFloorPx(), isTerminalLeaf);
+        this.lastColumnMins = columnMins;
+        this.lastEvalWidth = width;
+        this.lastEvalGap = gap;
 
         const prevOn = globalStore.get(this.autoOnAtom);
-        const want = autoWants(prevOn, count, width, gap);
+        const want = autoWants(prevOn, count, width, gap, columnMins);
         const first = this.lastColumnCount == null;
         const countChanged = !first && count !== this.lastColumnCount;
         this.lastColumnCount = count;
@@ -292,6 +348,16 @@ export class View360Model {
             return;
         }
         this.scheduleSettle();
+    }
+
+    // Whether the tab's columns, as last measured, fit side by side at their minimums with the terminal floor (#733).
+    fitsAtCurrentFloors(marginPx = 0): boolean {
+        return fitsAtCurrentFloors(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap, marginPx);
+    }
+
+    // Whether they would fit at their readable minimums alone, once the terminal floor is cleared (#733).
+    fitsAtReadableMinimums(marginPx = 0): boolean {
+        return fitsAtReadableMinimums(this.lastColumnMins.length, this.lastEvalWidth, this.lastEvalGap, marginPx);
     }
 
     private applyAuto(on: boolean, signal: boolean) {
@@ -330,7 +396,8 @@ export class View360Model {
         return storedFixedPx(globalStore.get(this.tabAtom));
     }
 
-    private columnWidthPx(column: LayoutNode): number {
+    // The width a column takes on the carpet (also what a column keeps when one is added beside it, #732).
+    columnWidthPx(column: LayoutNode): number {
         if (this.dragColumn?.nodeId === column.id) {
             return this.dragColumn.px;
         }
@@ -351,13 +418,15 @@ export class View360Model {
             this.setPlacements({});
             return null;
         }
+        const fixedNeedPx = terminalNeedPx(split.fixed, currentTerminalFloorPx(), isTerminalLeaf);
+        this.fixedNeedPx = fixedNeedPx;
         let fixedPx = this.storedFixedPx();
         if (fixedPx == null) {
             // Entering the view, the fixed zone keeps the first column's normal width, then holds it while panels
             // are laid on the carpet.
             const total = rootNode.children.reduce((acc, c) => acc + c.size, 0);
             fixedPx = split.carpet.length && total > 0 ? (split.fixed.size / total) * bounds.width : bounds.width;
-            this.savedFixedPx = clampFixedPx(fixedPx, bounds.width);
+            this.savedFixedPx = clampFixedPx(fixedPx, bounds.width, fixedNeedPx);
             // Saved at once (#614 follow-up): before, the width chosen on entering was kept only once dragged.
             const tabId = this.tabId;
             const px = this.savedFixedPx;
@@ -371,6 +440,7 @@ export class View360Model {
             height: bounds.height,
             fixedNodeId: split.fixed.id,
             fixedPx,
+            fixedNeedPx,
             columns: carpet.map((c) => ({ nodeId: c.id, widthPx: this.columnWidthPx(c) })),
             pins: pinned.map((p) => ({
                 nodeId: p.node.id,
@@ -584,10 +654,19 @@ export class View360Model {
 
     // Called once the layout has placed newly added blocks: the carpet scrolls to the last one laid on it.
     onBlocksAdded(blockIds: string[]): void {
-        if (this.layout == null || !blockIds?.length) {
+        if (!blockIds?.length) {
             return;
         }
-        const node = this.layoutModel.getNodeByBlockId(blockIds[blockIds.length - 1]);
+        this.revealBlock(blockIds[blockIds.length - 1]);
+    }
+
+    // Glides the carpet so the panel's column is fully in view (#747): anything drawn on a panel for the keyboard
+    // (the split placement, find) must never land off-screen. Nothing to do outside 360 view or in the fixed zone.
+    revealBlock(blockId: string): void {
+        if (this.layout == null || !blockId) {
+            return;
+        }
+        const node = this.layoutModel.getNodeByBlockId?.(blockId);
         const columnId = node == null ? null : this.carpetColumnOf(node.id);
         if (columnId != null) {
             this.scrollToColumn(columnId);
@@ -772,7 +851,7 @@ export class View360Model {
             }
             // The column takes what the others leave of half of the window, never less than its minimum.
             const others = layout.fixed.width - column.rect.width;
-            const max = Math.max(PinnedColumnMinPx, fixedBoundsPx(container.width).max - others);
+            const max = Math.max(PinnedColumnMinPx, fixedBoundsPx(container.width, this.fixedNeedPx).max - others);
             const px = Math.round(
                 Math.min(Math.max(x - column.rect.left - CarpetMarginPx / 2, PinnedColumnMinPx), max)
             );
@@ -784,7 +863,7 @@ export class View360Model {
                 this.dragPin = { nodeId: column.nodeId, blockId, px };
             }
         } else if (isGrip) {
-            this.dragFixedPx = clampFixedPx(x - CarpetMarginPx / 2, container.width);
+            this.dragFixedPx = clampFixedPx(x - CarpetMarginPx / 2, container.width, this.fixedNeedPx);
         } else if (isFixedHandle) {
             return true;
         } else {

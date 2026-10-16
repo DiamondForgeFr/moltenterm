@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { AnswerGroup, citedLine, groupAnswers, PrAnswersKey } from "./review-answers";
 import { ReviewExplanation } from "./review-client";
 import { parseFileLink } from "./review-model";
@@ -294,7 +295,7 @@ function KeepButton({ model, answer, notes }: { model: ReviewTabModel; answer: R
                     })
                 );
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }

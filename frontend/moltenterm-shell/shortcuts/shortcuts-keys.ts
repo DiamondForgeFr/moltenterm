@@ -6,6 +6,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
+import { modalIsOpen } from "../modal-open";
 import { ShortcutsSheetAltKey, ShortcutsSheetKey } from "./registry";
 
 export const ShortcutsSheetModalName = "MoltentermShortcutsSheet";
@@ -28,6 +29,10 @@ export function openShortcutsSheet() {
 export function toggleShortcutsSheet(): boolean {
     if (modalsModel.isModalOpen(ShortcutsSheetModalName)) {
         closeShortcutsSheet();
+        return true;
+    }
+    // Under another modal it opens nothing (#746).
+    if (modalIsOpen()) {
         return true;
     }
     modalsModel.pushModal(ShortcutsSheetModalName);

@@ -54,6 +54,12 @@ func handleAgentCommand(command string, data any) (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), agentReportTimeout)
 		defer cancel()
 		return nil, ReportAgentState(ctx, req)
+	case molten.AgentStateSeenCommand:
+		var req molten.AgentStateSeenRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return AgentStateSeen(req), nil
 	case molten.AgentHookOfferCommand:
 		var req molten.AgentHookOfferRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

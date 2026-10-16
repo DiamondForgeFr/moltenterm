@@ -111,6 +111,30 @@ func TestResolveWorktreeDetached(t *testing.T) {
 	}
 }
 
+// #699: a review worktree whose .git/worktrees entry was pruned is recreated, not left failing every checkout.
+func TestResolveWorktreeRecoversFromPrunedMetadata(t *testing.T) {
+	repo := makeTestRepo(t)
+	data := t.TempDir()
+	ctx := context.Background()
+	tree, _, err := ResolveWorktree(ctx, execGit, data, repo.project, 7, "feature/7-x", repo.head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link, err := os.ReadFile(filepath.Join(tree, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(strings.TrimSpace(strings.TrimPrefix(string(link), "gitdir:"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ResolveWorktree(ctx, execGit, data, repo.project, 7, "feature/7-x", repo.head); err != nil {
+		t.Fatalf("a review worktree whose metadata was pruned must be recreated: %v", err)
+	}
+	if got := mustGit(t, tree, "rev-parse", "HEAD"); got != repo.head {
+		t.Errorf("review worktree at %s, want %s", got, repo.head)
+	}
+}
+
 // #505 Q4: the agent's linked worktree that has the branch is read as it is; the main checkout never is.
 func TestResolveWorktreeAgent(t *testing.T) {
 	repo := makeTestRepo(t)

@@ -19,6 +19,7 @@ import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { offerProjectIcon } from "./project-icon-offer";
+import { workspaceShownName } from "./workspace-default-name";
 import { WorkspaceEditModel } from "./workspace-edit";
 import { hasImportedIcon } from "./workspace-icon-model";
 import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
@@ -114,7 +115,9 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                         <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
                         {t("workspace.link.rename", { name })}
                         {ws.name ? (
-                            <span className="text-muted">{t("workspace.link.now", { name: ws.name })}</span>
+                            <span className="text-muted">
+                                {t("workspace.link.now", { name: workspaceShownName(ws.name, t) })}
+                            </span>
                         ) : null}
                     </label>
                     {error ? <div className="text-error">{error}</div> : null}

@@ -5,6 +5,7 @@
 // rules can be tested without the app.
 
 import { t } from "./i18n/i18n";
+import { workspaceShownName } from "./workspace-default-name";
 
 export type WorkspaceRailSource = { workspace: Workspace; windowId: string };
 
@@ -27,7 +28,7 @@ export function isSavedWorkspace(ws: Workspace): boolean {
 function toEntry(ws: Workspace, windowId: string, activeId: string): WorkspaceRailEntry {
     return {
         id: ws.oid,
-        name: ws.name || t("rail.unsavedWorkspace"),
+        name: workspaceShownName(ws.name, t) || t("rail.unsavedWorkspace"),
         icon: ws.icon,
         color: ws.color,
         saved: isSavedWorkspace(ws),

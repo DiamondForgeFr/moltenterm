@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import { acceleratorById, electronAccelerator, formatKeys, formatShortcutById, keyCaps } from "./format";
 import {
     normalizeKeys,
@@ -144,6 +145,20 @@ describe("shortcut formatting (FR-SHELL-042-AC8)", () => {
         expect(formatKeys("Shift:Cmd:d", false)).toBe("Alt+Shift+D");
         expect(formatKeys("Cmd:/", false)).toBe("Alt+/");
         expect(keyCaps("Ctrl:Shift:s", false)).toEqual(["Ctrl", "Shift", "S"]);
+    });
+
+    it("names page and line keys by glyph on macOS and in the interface language elsewhere (#741)", () => {
+        expect(formatKeys("Shift:PageUp", true)).toBe("⇧⇞");
+        expect(formatKeys("Cmd:End", true)).toBe("⌘↘");
+        expect(formatKeys("Shift:PageDown", false)).toBe("Shift+PgDn");
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(formatKeys("Shift:PageUp", false)).toBe("Shift+Pg préc");
+            expect(formatKeys("Ctrl:Home", false)).toBe("Ctrl+Début");
+            expect(formatKeys("Ctrl:Space", true)).toBe("⌃Espace");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("shows a chord with its second step", () => {

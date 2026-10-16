@@ -5,6 +5,7 @@
 // folder, or a workspace was linked without choosing its icon. Kept apart from the components so the rules can be
 // tested without the app.
 
+import { StarterWorkspaceName } from "./workspace-default-name";
 import type { WorkspaceProject } from "./workspace-project";
 
 // The project folders the user answered "Not now" for, in this workspace's meta.
@@ -76,5 +77,5 @@ export function projectOfGitFile(root: string, gitFile: string): string {
 // A workspace still carrying the name MoltenTerm or Wave gave it is named after the project by default.
 export function hasDefaultName(name: string): boolean {
     const value = (name ?? "").trim();
-    return value === "" || value === "Starter workspace" || /^New Workspace\b/.test(value);
+    return value === "" || value === StarterWorkspaceName || /^New Workspace\b/.test(value);
 }

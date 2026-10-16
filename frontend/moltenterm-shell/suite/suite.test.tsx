@@ -5,7 +5,17 @@ import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BlockRows, GlowRing, nextToggleIndex, OptionList, OptionRow, SectionBlock, ToggleGroup } from "./suite";
+import {
+    BlockRows,
+    DominoLoader,
+    GlowRing,
+    nextToggleIndex,
+    OptionList,
+    OptionRow,
+    SectionBlock,
+    SuiteSignature,
+    ToggleGroup,
+} from "./suite";
 import { suiteIcon, SuiteIcons } from "./suite-icons";
 
 const KitDir = __dirname;
@@ -119,6 +129,53 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(nextToggleIndex("ArrowLeft", 0, 3)).toBe(2);
         expect(nextToggleIndex("End", 0, 3)).toBe(2);
         expect(nextToggleIndex("a", 0, 3)).toBe(-1);
+    });
+
+    it("signs with the product, its version and the caller's label, or the label alone (#740)", () => {
+        const full = renderToStaticMarkup(
+            <SuiteSignature product="MoltenTerm" version="1.0.0" label="A DiamondForge product" className="x" />
+        );
+        expect(full).toBe(
+            '<p class="df-signature x" data-suite-signature=""><span class="df-signature-product">MoltenTerm 1.0.0 ·</span> ' +
+                '<span class="df-signature-label">A DiamondForge product</span></p>'
+        );
+        const bare = renderToStaticMarkup(<SuiteSignature label="Un produit DiamondForge" />);
+        expect(bare).toBe(
+            '<p class="df-signature" data-suite-signature=""><span class="df-signature-label">Un produit DiamondForge</span></p>'
+        );
+        expect(renderToStaticMarkup(<SuiteSignature product="MoltenTerm" label="L" />)).toContain(
+            '<span class="df-signature-product">MoltenTerm ·</span> <span class="df-signature-label">L</span>'
+        );
+    });
+
+    it("draws the falling dominoes inline or large, a status only when it names what works (#739)", () => {
+        const bars = "<span></span>".repeat(8);
+        expect(renderToStaticMarkup(<DominoLoader />)).toBe(
+            `<span class="df-domino-loader" aria-hidden="true">${bars}</span>`
+        );
+        expect(renderToStaticMarkup(<DominoLoader size="large" label="Loading" className="x" />)).toBe(
+            `<span class="df-dominos x" role="status" aria-label="Loading">${bars}</span>`
+        );
+    });
+
+    it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        expect(css).toMatch(/\.df-dominos \{[^}]*width: 110px;\s*height: 44px;/);
+        expect(css).toMatch(/\.df-dominos > span \{[^}]*height: 7px;\s*width: 25px;\s*background: var\(--df-accent\);/);
+        expect(css).toMatch(/\.df-domino-loader \{[^}]*width: 32px;\s*height: 14px;/);
+        expect(css).toMatch(/\.df-domino-loader > span \{[^}]*height: 2px;\s*width: 8px;\s*background: currentColor;/);
+        const delays = ["0.915s", "0.79s", "0.665s", "0.54s", "0.425s", "0.3s", "0.125s"];
+        for (const kind of ["dominos", "domino-loader"]) {
+            expect(css).toMatch(new RegExp(`\\.df-${kind} > span \\{[^}]*animation: df-dominos 1s ease infinite;`));
+            delays.forEach((delay, i) => {
+                expect(css).toMatch(
+                    new RegExp(`\\.df-${kind} > span:nth-child\\(${i + 2}\\) \\{[^}]*animation-delay: ${delay};`)
+                );
+            });
+        }
+        expect(css).toMatch(
+            /@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;/
+        );
     });
 
     it("maps each concept to one Lucide icon, Notulia's where it has one", () => {

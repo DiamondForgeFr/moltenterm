@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
+import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { focusMoltentermView } from "../moltenterm-shell/open-view";
 import { MoltentermSessionsView } from "../moltenterm-shell/sessions/sessions-model";
@@ -147,6 +148,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const [scanned, setScanned] = useState<ProjectCandidate[]>(null);
+    const [scanning, setScanning] = useState(false);
     const [agents, setAgents] = useState<OnboardingAgents>(null);
     const [facts, setFacts] = useState<FolderFacts>(null);
     const [busy, setBusy] = useState(false);
@@ -182,7 +184,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             await fn();
         } catch (e) {
-            setError(`${e?.message ?? e}`);
+            setError(serverErrorText(e));
         } finally {
             setBusy(false);
         }
@@ -217,7 +219,12 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     const scan = () =>
         run(async () => {
-            setScanned(await scanProjectCandidates());
+            setScanning(true);
+            try {
+                setScanned(await scanProjectCandidates());
+            } finally {
+                setScanning(false);
+            }
         });
 
     const candidates = projectCandidates(readRecentFolders(ws), scanned ?? []);
@@ -260,7 +267,11 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                     >
                         {t("onboarding.project.chooseFolder")}
                     </button>
-                    {scanned == null ? (
+                    {scanning ? (
+                        <span className="text-12 text-muted" role="status">
+                            {t("onboarding.project.scanning")}
+                        </span>
+                    ) : scanned == null ? (
                         <button
                             type="button"
                             disabled={busy}
@@ -271,7 +282,9 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                             {t("onboarding.project.scan")}
                         </button>
                     ) : scanned.length === 0 ? (
-                        <span className="text-12 text-muted">{t("onboarding.project.scanEmpty")}</span>
+                        <span className="text-12 text-muted" data-testid="first-run-scan-empty">
+                            {t("onboarding.project.scanEmpty")}
+                        </span>
                     ) : null}
                 </div>
             </div>

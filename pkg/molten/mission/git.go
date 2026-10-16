@@ -495,6 +495,10 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 	snap.LastPublic = g.lastPublic()
 	if snap.LastPublic != "" && baseRef != "" {
 		snap.SincePublic = parseCommits(g.lines("log", "--no-merges", commitFormat, "-n", strconv.Itoa(maxSincePublic), snap.LastPublic+".."+baseRef))
+	} else if baseRef != "" {
+		// Before the first public release, everything on the trunk waits for it: the counts stay honest without a
+		// remote or a tag (#745).
+		snap.SincePublic = parseCommits(g.lines("log", "--no-merges", commitFormat, "-n", strconv.Itoa(maxSincePublic), baseRef))
 	}
 	return snap, nil
 }

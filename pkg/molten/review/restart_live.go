@@ -5,7 +5,7 @@ package review
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
@@ -13,15 +13,21 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
+
+// liveFollowEvery: how often an agent MoltenTerm started is read on its way to its clean end (agentfollow.go); while
+// it works only its in-memory state is.
+const liveFollowEvery = 5 * time.Second
 
 // Restart is the developer's click on Restart work; the store's change goes to every Review tab of the PR.
 func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResult, error) {
 	if s.restarter == nil {
-		return RestartResult{}, fmt.Errorf("Restart work is not available")
+		return RestartResult{}, uimsg.Errorf(uimsg.Make("review.restartunavailable"), "Restart work is not available")
 	}
 	result, err := s.restarter.Restart(ctx, req)
 	if result.State != nil {
@@ -33,9 +39,16 @@ func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResul
 // AskRebase is the developer's click on Ask for a rebase in the Reviews list (#683).
 func (s *Service) AskRebase(ctx context.Context, req RebaseRequest) (RestartResult, error) {
 	if s.restarter == nil {
-		return RestartResult{}, fmt.Errorf("Ask for a rebase is not available")
+		return RestartResult{}, rebaseUnavailableError()
 	}
 	return s.restarter.AskRebase(ctx, req)
+}
+
+func (s *Service) AskInvestigate(ctx context.Context, req InvestigateRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskInvestigate(ctx, req)
 }
 
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
@@ -70,6 +83,18 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		SessionAgent: reviewsession.SessionAgent,
 		Conventions: func(dir string) *molten.ProjectConventions {
 			return molten.ReadProject(dir).Conventions
+		},
+		AgentTab:    wcore.CreateAgentTab,
+		CloseTab:    wcore.CloseAgentTab,
+		FollowEvery: liveFollowEvery,
+		BlockExists: func(ctx context.Context, blockId string) bool {
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			return err == nil && block != nil
+		},
+		CloseTerminal: wcore.CloseAgentTerminal,
+		Notify:        attention.PublishNotification,
+		ResolveNotices: func(ctx context.Context, keyPrefix string) error {
+			return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
 		},
 	}
 }

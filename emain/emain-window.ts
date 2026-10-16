@@ -36,6 +36,7 @@ import {
     windowTabViews,
 } from "./moltenterm-tabview-host";
 import { isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions";
+import { askEditNewWorkspace } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#743)
 import { updater } from "./updater";
 
 export type WindowOpts = {
@@ -215,6 +216,10 @@ export class WaveBrowserWindow extends BaseWindow {
         const fullscreenOnLaunch = fullConfig?.settings["window:fullscreenonlaunch"];
         if (fullscreenOnLaunch && opts.foregroundWindow) {
             this.once("show", () => {
+                // MOLTENTERM-PATCH (#734): a window listener may run after "closed", when every call throws
+                if (this.isDestroyed()) {
+                    return;
+                }
                 this.setFullScreen(true);
             });
         }
@@ -609,6 +614,11 @@ export async function createWorkspace(window: WaveBrowserWindow) {
             // MOLTENTERM-PATCH (#490): a switch the user cancelled leaves no empty workspace behind
             if (!(await window.switchWorkspace(newWsId))) {
                 await WorkspaceService.DeleteWorkspace(newWsId);
+            } else {
+                // MOLTENTERM-PATCH (#743): name it at once, in the window that shows it (a new one when the unsaved
+                // workspace left had content)
+                const shown = getWaveWindowByWorkspaceId(newWsId) ?? window;
+                await askEditNewWorkspace(shown.activeTabView, newWsId);
             }
         } else {
             await createWindowForWorkspace(newWsId);

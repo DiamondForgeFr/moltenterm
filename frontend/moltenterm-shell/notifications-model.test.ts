@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "./i18n/i18n";
+import { translate } from "./i18n/i18n-core";
 import {
     activeEntries,
     archivedEntries,
@@ -15,8 +17,11 @@ import {
     MaxNotifications,
     MoltentermNotification,
     NotificationAction,
+    notificationActionLabel,
     notificationLocation,
+    notificationMessage,
     notificationTabToActivate,
+    notificationTitle,
     openCount,
     parseNotifications,
     pruneIds,
@@ -99,6 +104,19 @@ describe("updates", () => {
         expect(readUpdate(list, ["a"])["molten:notif:a"]).toMatchObject({ read: true, title: "ta", time: 1 });
         expect(readUpdate(list, ["a"])["molten:notif:a"].id).toBeUndefined();
         expect(Object.keys(readAllUpdate(list)).sort()).toEqual(["molten:notif:a", "molten:notif:b"]);
+    });
+
+    it("folds an agent's outdated waiting entry into its newer one (#748)", () => {
+        const waiting = entry("w", 1, { kind: "warning", blockid: "b1" });
+        const otherBlock = entry("o", 2, { kind: "warning", blockid: "b2" });
+        const shell = entry("s", 3, { kind: "warning", blockid: "b1", source: "sessions" });
+        const done = { source: "agent" as const, kind: "success" as const, title: "Done", blockid: "b1" };
+        const update = publishUpdate([waiting, otherBlock, shell], done, 10, "d");
+        expect(Object.keys(update).sort()).toEqual(["molten:notif:d", "molten:notif:w"]);
+        expect(update["molten:notif:w"]).toMatchObject({ resolved: 10, archived: 10, read: true, title: "tw" });
+        const folded = parseNotifications(update).find((e) => e.id === "w");
+        expect(visibleActions({ ...folded, actions: [{ id: "a", label: "A", kind: "open" }] })).toEqual([]);
+        expect(Object.keys(publishUpdate([waiting], { ...done, blockid: "b2" }, 10, "d"))).toEqual(["molten:notif:d"]);
     });
 });
 
@@ -261,5 +279,48 @@ describe("location (#80)", () => {
         expect(notificationTabToActivate(entry("1", 1, { tabid: "b1" }), shown, "b1")).toBeNull();
         expect(notificationTabToActivate(entry("1", 1, { tabid: "a1", workspaceid: "wsB" }), shown, "b1")).toBeNull();
         expect(notificationTabToActivate(entry("1", 1), shown, "b1")).toBeNull();
+    });
+});
+
+describe("notificationTitle (#727)", () => {
+    const fr = (key: string, vars?: Record<string, string>) => translate("fr", key, vars);
+    const en = (key: string, vars?: Record<string, string>) => translate("en", key, vars);
+    const waiting = { title: "Pauline is waiting for you", titlecode: "agentwaiting", titlevars: { name: "Pauline" } };
+
+    it("translates the agent titles wavesrv sends with a code", () => {
+        expect(notificationTitle(waiting, fr)).toBe("Pauline vous attend");
+        expect(notificationTitle(waiting, en)).toBe("Pauline is waiting for you");
+        const done = { title: "Pauline is done", titlecode: "agentdone", titlevars: { name: "Pauline" } };
+        expect(notificationTitle(done, fr)).toBe("Pauline a terminé");
+        expect(notificationTitle({ title: "A terminal needs your attention", titlecode: "bell" }, fr)).toBe(
+            "Un terminal demande votre attention"
+        );
+    });
+
+    it("words what wavesrv wrote itself with a code (#656), and leaves an agent's words alone", () => {
+        const built = {
+            title: "Gold is built",
+            titletext: { code: "notif.build.builtTitle", vars: { name: "Gold" } },
+            message: "Build 9c425c4 finished.",
+            messagetext: { code: "notif.build.finished", vars: { sha: "9c425c4" } },
+        };
+        const action = { label: "Show in folder", labeltext: { code: "notif.build.showInFolder" } };
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(notificationTitle(built, fr)).toBe("Gold est compilé");
+            expect(notificationMessage(built)).toBe("Le build 9c425c4 est terminé.");
+            expect(notificationActionLabel(action)).toBe("Afficher dans le dossier");
+            expect(notificationMessage({ message: "Done: tests pass" })).toBe("Done: tests pass");
+            expect(notificationMessage({})).toBe("");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+        expect(notificationMessage(built)).toBe("Build 9c425c4 finished.");
+    });
+
+    it("shows a title without a known code as published", () => {
+        expect(notificationTitle({ title: "Claude needs your permission" }, fr)).toBe("Claude needs your permission");
+        expect(notificationTitle({ title: "Later", titlecode: "somethingnew" }, fr)).toBe("Later");
+        expect(notificationTitle({ title: "Proto", titlecode: "constructor" }, fr)).toBe("Proto");
     });
 });

@@ -31,14 +31,17 @@ import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { HeaderCloseButton } from "../header/header-close-button";
 import { Pill } from "../header/pill";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
+import { serverErrorText, serverText } from "../i18n/server-text";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
@@ -893,7 +896,7 @@ export class BrowserViewModel implements ViewModel {
                 title: t(res?.sent ? "browser.share.shared" : "browser.share.sharedNothingTyped", {
                     name: agent.agentName,
                 }),
-                message: res?.message ?? "",
+                message: serverText(res?.messagetext, res?.message ?? ""),
             });
         } catch (e) {
             this.showNotice(t("browser.notice.tellFailed", { error: errorText(e) }));
@@ -1068,7 +1071,7 @@ export class BrowserViewModel implements ViewModel {
 }
 
 function errorText(e: unknown): string {
-    return e instanceof Error ? e.message : String(e);
+    return serverErrorText(e);
 }
 
 function makeBlockAtom(blockId: string): Atom<Block> {
@@ -1488,18 +1491,18 @@ function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; a
     );
 }
 
-// A tab's favicon, or a spinner in the working colour while its page loads; a page that failed shows a warning.
+// A tab's favicon, or the falling dominoes in the working colour while its page loads; a page that failed shows a warning.
 function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     const t = useT();
     const [broken, setBroken] = useState<string>(null);
     if (load?.loading) {
         return (
-            <span className="molten-browser-tab-icon flex items-center justify-center">
-                <span
-                    role="progressbar"
-                    aria-label={t("browser.tabs.loading")}
-                    className="molten-browser-tab-spinner h-3 w-3 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
-                />
+            <span
+                role="progressbar"
+                aria-label={t("browser.tabs.loading")}
+                className="molten-browser-tab-icon flex items-center justify-center"
+            >
+                <DominoLoader className="mt-dominos-icon text-[var(--mt-state-working)]" />
             </span>
         );
     }
@@ -1539,12 +1542,6 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         title: t("browser.panel.addToLayout"),
         click: () => node.addEphemeralNodeToLayout?.(),
     };
-    const close: IconButtonDecl = {
-        elemtype: "iconbutton",
-        icon: "xmark-large",
-        title: t("common.close"),
-        click: () => uxCloseBlock(model.blockId),
-    };
     const commands: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "sliders",
@@ -1566,7 +1563,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
                     disabled={numLeafs <= 1}
                 />
             )}
-            <IconButton decl={close} />
+            <HeaderCloseButton magnified={magnified} onClose={() => uxCloseBlock(model.blockId)} />
         </div>
     );
 }

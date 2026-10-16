@@ -7,6 +7,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The deny list of the coffee approvals (FR-SHELL-063, DS-SHELL-111): what still prompts while a coffee holds.
@@ -22,6 +24,7 @@ const (
 	reasonCredential = "reads or writes a credential file: "
 	reasonKeychain   = "reads the keychain"
 	reasonOpaque     = "runs a command the rules cannot read: "
+	reasonTooDeep    = "shells nested too deep"
 	// What a reason shows of the path or the branch.
 	maxReasonDetail = 120
 	// How many shells deep (bash -c 'eval …') a command is read again; past it, the command stays with the person.
@@ -165,6 +168,33 @@ func deletesOutsideSession(p string, c PermissionCheck) bool {
 	return sessionDir == "" || !within(p, sessionDir) || p == sessionDir
 }
 
+// DenyReasonText is the code of a DenyReason for the windows (#656), nil for "". The reason itself stays English: it
+// is also the answer the agent reads.
+func DenyReasonText(reason string) *uimsg.Text {
+	switch {
+	case reason == "":
+		return nil
+	case reason == reasonQuestion:
+		return uimsg.Make("keepawake.deny.question")
+	case reason == reasonKeychain:
+		return uimsg.Make("keepawake.deny.keychain")
+	case strings.HasPrefix(reason, reasonRemove):
+		return uimsg.Make("keepawake.deny.remove", "detail", strings.TrimPrefix(reason, reasonRemove))
+	case strings.HasPrefix(reason, reasonForcePush):
+		return uimsg.Make("keepawake.deny.forcepush", "detail", strings.TrimPrefix(reason, reasonForcePush))
+	case strings.HasPrefix(reason, reasonCredential):
+		return uimsg.Make("keepawake.deny.credential", "detail", strings.TrimPrefix(reason, reasonCredential))
+	case reason == reasonOpaque+reasonTooDeep:
+		return uimsg.Make("keepawake.deny.toodeep")
+	case strings.HasPrefix(reason, reasonOpaque) && strings.HasSuffix(reason, reasonStdinDetail):
+		program := strings.TrimSuffix(strings.TrimPrefix(reason, reasonOpaque), reasonStdinDetail)
+		return uimsg.Make("keepawake.deny.stdin", "program", program)
+	case strings.HasPrefix(reason, reasonOpaque):
+		return uimsg.Make("keepawake.deny.opaque", "detail", strings.TrimPrefix(reason, reasonOpaque))
+	}
+	return nil
+}
+
 func clipDetail(s string) string {
 	if len(s) > maxReasonDetail {
 		return s[:maxReasonDetail] + "…"
@@ -262,7 +292,7 @@ func commandDenyReason(line string, c PermissionCheck) string {
 // given to a shell is one quoted word: it is read again by the same rules, as the shell would run it.
 func scriptDenyReason(line string, c PermissionCheck, cwd string, cwdKnown bool, depth int) string {
 	if depth > maxShellDepth {
-		return reasonOpaque + "shells nested too deep"
+		return reasonOpaque + reasonTooDeep
 	}
 	cmds, ok := splitCommands(line)
 	if !ok {

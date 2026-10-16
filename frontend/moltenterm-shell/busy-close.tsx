@@ -23,6 +23,7 @@ import { BusyCloseRequest, BusyCloseRequestAtom } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { workspaceShownName } from "./workspace-default-name";
 
 export const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
@@ -97,7 +98,7 @@ export function useRestoreFocus() {
 
 function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
     const t = useT();
-    const text = busyCloseText(request.action, request.tabName ?? request.name, request.quits);
+    const text = busyCloseText(request.action, request.tabName ?? workspaceShownName(request.name, t), request.quits);
     const cancelRef = useRef<HTMLButtonElement>(null);
     const blockAtom = request.blockId
         ? getWaveObjectAtom<Block>(makeORef("block", request.blockId))

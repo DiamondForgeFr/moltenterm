@@ -4,8 +4,9 @@
 preconfigured morphs (`language-pack.md`) and complete example mods, all matching the installed version.
 
 A mod changes MoltenTerm from the outside: it is a folder in the configuration directory that MoltenTerm loads when a
-tab opens. Mods only see `MoltenApi`, described below, and never Wave's internal modules. This page documents API
-version 1.
+tab opens. Mods are supported only through `MoltenApi`, described below: a mod cannot import Wave's internal
+modules, and the page around it is not part of the API (see "The page is not part of the API"). This page documents
+API version 1.
 
 ## Folder
 
@@ -167,6 +168,25 @@ output.
 Every `register` and `show` returns a function that undoes it. MoltenTerm calls them all, in reverse order, when the
 mod stops.
 
+## The page is not part of the API
+
+A mod's code runs in the tab, so `document`, `window` and the renderer's globals are within its reach. Using them is
+unsupported, and a mod built on them is not accepted as a morph:
+
+- MoltenTerm can only undo what it knows about. Everything a mod does through `api` is undone when it stops
+  (`molten mod disable`, `molten mod remove`, `molten undo`, a reload on save, a failure); a change made directly in
+  the page is not, so the workspace would not come back as it was.
+- MoltenTerm's class names, elements and globals change between versions and with each update from Wave Terminal: a
+  mod that relies on them breaks without warning.
+
+As a safety net, MoltenTerm removes, when a mod stops, the elements its code added directly to `<html>`, `<head>` or
+`<body>` (with `appendChild`, `insertBefore`, `replaceChild`, `append`, `prepend`, `insertAdjacentElement` or
+`insertAdjacentHTML`), from `activate`, a command, a timer or any later callback; an element a stopped mod's leftover
+code adds there is removed at once. Everything else stays until the tab reloads: changes inside existing elements,
+attributes and inline styles (such as `document.documentElement.style`), an element of the app a mod replaced or
+removed, elements added with `before`, `after`, `replaceWith` or `innerHTML`, and event listeners on `window` or
+`document`. In safe mode no mod code runs, so nothing of a mod reaches the page.
+
 Two mods cannot register the same command name. Built-in mods load first, then the others in id order, and a mod
 loaded later never takes a name from a running one: the first keeps the command, and the second gets an error naming
 both mods (a notification, and `molten mod list`). Rename the command in one of them.
@@ -316,5 +336,22 @@ The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod 
 
 ## Not in API version 1 yet
 
-Free-form panels (Mission Control, #31). `molten mod remove` also moves the folder to the system trash on macOS
-(`<data>/molten/removed/` elsewhere), and `molten undo` brings the mod back.
+A mod cannot restyle, hide or replace what MoltenTerm shows, add a panel or a card, put a command in the palette or
+on a key, or react to events. These are the next steps, each declared by the mod and owned by the host (undone on
+disable and `molten undo`, skipped in safe mode, recorded in `molten history`):
+
+| Planned capability | What it will allow | Story |
+| --- | --- | --- |
+| Themes | override the colour, typography and density tokens and the accent, as data in `mod.json` | #721 |
+| Hide list | hide named parts of the interface (the 360 radar, a status bar item…) | #722 |
+| Settings, widgets, presets, terminal themes | carry settings, rail tools, agent presets and terminal themes in the mod | #723 |
+| Palette, command panel, keys | show a mod command in the palette and the command panel, and bind it to a key | #724 |
+| Events and state | react to "an agent finished", "a tab opened"…, read the workspace, project and agents | #725 |
+| Cards and status bar items | add Mission Control cards and status bar items, drawn by the host like boxes | #726 |
+
+Layouts and free-form panels come later. Until then, use only `api`: a mod that reaches into the page (`document`,
+injected styles, MoltenTerm's internal objects) is unsupported, breaks on any update, and what it changes stays on
+screen after the mod stops or is undone, beyond the safety net described in "The page is not part of the API".
+
+`molten mod remove` also moves the folder to the system trash on macOS (`<data>/molten/removed/` elsewhere), and
+`molten undo` brings the mod back.

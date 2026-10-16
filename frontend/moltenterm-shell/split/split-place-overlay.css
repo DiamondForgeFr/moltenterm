@@ -2,7 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 /* The split placement mode (#677): a veil over the panel only, its four zones drawn as triangles meeting at the
-   centre, the chosen half dashed like the edge handle's ghost (DS-SHELL-078) with a label chip in the suite's look
+   centre, the chosen half dashed like a drop target (DS-SHELL-078) with a label chip in the suite's look
    (#658), and a key hint at the bottom. */
 .molten-split-place {
     position: absolute;

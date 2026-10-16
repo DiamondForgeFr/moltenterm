@@ -20,7 +20,9 @@ const (
 	ProjectTabMetaKey = "molten:projecttab"
 	// Workspace meta: the project folder the Project tab was last made for.
 	ProjectTabDirMetaKey = "molten:projecttabdir"
-	ProjectTabName       = "Project"
+	// The stored name, in English: the windows show it in the interface language while the user has not renamed it.
+	// must match ProjectTabName in frontend/moltenterm-shell/project/project-model.ts
+	ProjectTabName = "Project"
 	// must match MoltentermProjectView in frontend/moltenterm-shell/project/project-model.ts
 	ProjectView = "molten-project"
 )

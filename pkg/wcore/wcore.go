@@ -72,6 +72,8 @@ func EnsureInitialData() (bool, error) {
 	wsId := ""
 	if firstLaunch {
 		log.Println("client has no windows and first launch, creating starter workspace")
+		// MOLTENTERM-PATCH (#743): the windows show this name in the interface language; must match StarterWorkspaceName in
+		// frontend/moltenterm-shell/workspace-default-name.ts
 		starterWs, err := CreateWorkspace(ctx, "Starter workspace", "custom@wave-logo-solid", WorkspaceColors[0], false, true) // MOLTENTERM-PATCH (#73)
 		if err != nil {
 			return firstLaunch, fmt.Errorf("error creating starter workspace: %w", err)

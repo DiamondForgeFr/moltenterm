@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import { OverlayScrollbars } from "overlayscrollbars";
 import { createRef, memo, useCallback, useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
+import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
 import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
@@ -163,7 +164,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         if (!workspace) {
             return;
         }
-        const newTabIdsArr = workspace.tabids ?? [];
+        const newTabIdsArr = visibleTabIds(workspace); // MOLTENTERM-PATCH (#758): an agent out of sight has no tab here
 
         const areEqual = strArrayIsEqual(tabIds, newTabIdsArr);
 

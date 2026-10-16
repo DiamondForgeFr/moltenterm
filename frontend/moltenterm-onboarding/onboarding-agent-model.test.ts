@@ -8,6 +8,7 @@ import {
     foundAgents,
     genericAgent,
     genericRequest,
+    GenericRequestPlaceholder,
     guideCall,
     guideRequest,
     guideState,
@@ -60,6 +61,12 @@ describe("your agent step (FR-ONB-002)", () => {
             "Read /data/molten/agents/morph.md and follow it with my request: add a box"
         );
         expect(genericRequest(null, "x")).toBe("");
+    });
+
+    it("keeps the pasted line English, its placeholder included, whatever the interface language (#749)", () => {
+        expect(genericRequest(genericAgent(listing), GenericRequestPlaceholder)).toBe(
+            "Read /data/molten/agents/morph.md and follow it with my request: <what you want MoltenTerm to do>"
+        );
     });
 
     it("tells installed, outdated, foreign and missing guides apart", () => {

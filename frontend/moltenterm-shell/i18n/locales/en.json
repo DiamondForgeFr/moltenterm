@@ -7,6 +7,7 @@
         "addHint": "Paste the copied /morph request into your coding agent and name the language: it writes the translation and installs it as a mod."
     },
     "common": {
+        "diamondforgeProduct": "A DiamondForge product",
         "cancel": "Cancel",
         "close": "Close",
         "ok": "OK",
@@ -18,6 +19,7 @@
         "off": "Off",
         "open": "Open",
         "confirm": "Confirm",
+        "loading": "Loading",
         "selected": "Selected"
     },
     "i18n": {
@@ -108,8 +110,15 @@
         }
     },
     "wave": {
+        "launcher": {
+            "searchAria": "Search widgets",
+            "noneFound": "No widgets found. Press Escape to clear the search.",
+            "hintIdle": "Type to filter, Enter to launch, arrow keys to navigate",
+            "hintSearching": "Searching \"{query}\", Enter to launch, arrow keys to navigate"
+        },
         "tab": {
             "rename": "Rename tab",
+            "nameAria": "Tab name",
             "copyId": "Copy tab id",
             "flag": "Flag tab",
             "flagNone": "None",
@@ -140,11 +149,99 @@
             "unmagnify": "Minimize",
             "noView": "(No View)",
             "viewTerminal": "Terminal",
-            "viewPreview": "Preview",
+            "viewPreview": "Files",
             "viewWeb": "Web",
             "viewHelp": "Help",
             "viewTips": "Tips",
             "viewProcesses": "Processes"
+        },
+        "processes": {
+            "load": "Load",
+            "mem": "Mem",
+            "cpu": "CPU",
+            "procs": "Procs",
+            "errShort": "Err",
+            "cores": {
+                "one": "100% per core · 1 core = {max}% max",
+                "other": "100% per core · {count} cores = {max}% max"
+            },
+            "search": "Search ({shortcut})",
+            "paused": "Paused",
+            "clickToResume": "Click to resume",
+            "clickToPause": "Click to pause",
+            "error": "Error",
+            "stalled": "Stalled",
+            "updating": "Updating",
+            "colPid": "PID",
+            "colCommand": "Command",
+            "colStatus": "Status",
+            "colUser": "User",
+            "colThreads": "NT",
+            "colThreadsTip": "Number of threads",
+            "colCpu": "CPU%",
+            "colMem": "Memory",
+            "gone": "(gone)",
+            "filter": "Filter processes…",
+            "copyPid": "Copy PID",
+            "signal": "Signal",
+            "kill": "Kill process",
+            "refreshInterval": "Refresh interval",
+            "seconds": {
+                "one": "1 second",
+                "other": "{count} seconds"
+            },
+            "killed": "Process #{pid} killed",
+            "signalSent": "Process #{pid}: {signal} sent",
+            "actionError": "Error: {message}"
+        },
+        "files": {
+            "colName": "Name",
+            "colPerm": "Perm",
+            "colModified": "Last modified",
+            "colSize": "Size",
+            "colType": "Type",
+            "typeDirectory": "folder",
+            "searchHint": "Type to search (Esc to cancel)",
+            "searching": "Searching for “{search}”",
+            "newFile": "New file",
+            "newFolder": "New folder",
+            "rename": "Rename",
+            "save": "Save",
+            "cancel": "Cancel",
+            "copyName": "Copy file name",
+            "copyPath": "Copy full path",
+            "copyNameQuoted": "Copy file name (shell quoted)",
+            "copyPathQuoted": "Copy full path (shell quoted)",
+            "defaultSettings": "Default settings",
+            "delete": "Delete",
+            "sortOrder": "Folder sort order",
+            "sortName": "Name",
+            "sortModified": "Last modified",
+            "showHidden": "Show hidden files",
+            "hideHidden": "Hide hidden files",
+            "refresh": "Refresh",
+            "on": "On",
+            "off": "Off",
+            "showInFolder": "Show in folder",
+            "openDefaultApp": "Open with the default app",
+            "download": "Download file",
+            "openInNewPanel": "Open in a new panel",
+            "openTerminalHere": "Open a terminal here",
+            "renameFailed": "Rename failed",
+            "deleteFailed": "Delete failed",
+            "confirmDeleteFolder": "Delete this folder?",
+            "confirmDeleteFolderText": "Deleting a folder also deletes everything in it. Continue?",
+            "deleteWithContents": "Delete with its contents",
+            "cannotRead": "Cannot read the folder",
+            "copyFailed": "Copy failed",
+            "confirmOverwrite": "Replace existing files?",
+            "confirmOverwriteText": "This copy replaces an existing file. Continue?",
+            "deleteThenCopy": "Delete then copy",
+            "sync": "Merge"
+        },
+        "apps": {
+            "none": "No local apps found",
+            "build": "Build or edit apps"
         },
         "conn": {
             "stalledTitle": "Connection Stalled",
@@ -204,6 +301,31 @@
             "create": "Create new workspace",
             "save": "Save workspace",
             "edit": "Edit workspace"
+        },
+        "editor": {
+            "fontSize": "Editor font size",
+            "fontSizeDefault": "Default ({size}px)",
+            "saveFile": "Save file",
+            "revertFile": "Revert file",
+            "wordWrap": "Word wrap",
+            "tableOfContents": "Table of contents",
+            "refresh": "Refresh",
+            "loading": "Loading…",
+            "readOnly": "Read only",
+            "readOnlyTitle": "This file is read-only",
+            "save": "Save",
+            "preview": "Preview",
+            "edit": "Edit"
+        },
+        "search": {
+            "placeholder": "Search",
+            "results": "Search results",
+            "previous": "Previous result (Shift+Enter)",
+            "next": "Next result (Enter)",
+            "close": "Close (Esc)",
+            "regex": "Regular expression",
+            "wholeWord": "Whole word",
+            "caseSensitive": "Match case"
         }
     },
     "menu": {
@@ -230,6 +352,7 @@
         "ariaPalette": "Command palette",
         "ariaSearch": "Search the command palette",
         "placeholder": "Open an agent, a panel, a folder…",
+        "noMatch": "Nothing matches \"{query}\"",
         "footer": {
             "choose": "choose",
             "open": "open",
@@ -672,7 +795,7 @@
             },
             "power:sleeppolicy": {
                 "label": "Keep the computer awake",
-                "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit).",
+                "description": "Whether a program in a terminal may keep the computer awake.",
                 "unset": "Ask the first time",
                 "options": {
                     "allow": "When a terminal asks",
@@ -842,11 +965,10 @@
             },
             "moltenterm:view360": {
                 "label": "360 view",
-                "description": "When a tab fixes its first column and lays the others on a sideways carpet. The tab's 360 toggle wins.",
+                "description": "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
                 "options": {
                     "auto": "Automatic",
-                    "always": "Always",
-                    "never": "Never"
+                    "always": "Always"
                 }
             },
             "review:publishlanguage": {
@@ -888,12 +1010,15 @@
             "title": "JSON files",
             "hint": "Edited in place, checked before they are saved.",
             "settings": {
+                "name": "Settings",
                 "description": "Every setting of this screen, and the ones it does not show."
             },
             "connections": {
+                "name": "Connections",
                 "description": "SSH hosts and their options."
             },
             "widgets": {
+                "name": "Rail widgets",
                 "description": "The custom tools of the rail."
             },
             "backgrounds": {
@@ -903,6 +1028,13 @@
             "secrets": {
                 "description": "Values kept in the system's keychain."
             }
+        },
+        "units": {
+            "px": "px",
+            "lines": "lines",
+            "min": "min",
+            "ms": "ms",
+            "MB": "MB"
         },
         "shortcuts": {
             "title": "Shortcuts",
@@ -984,7 +1116,7 @@
             "usage": {
                 "cpu": "{pct} % CPU idle",
                 "timers": {
-                    "one": "1 timer",
+                    "one": "{count} timer",
                     "other": "{count} timers"
                 },
                 "activation": "activation {ms} ms",
@@ -1053,6 +1185,11 @@
             "fieldPart": "Claude Code part",
             "partWrittenFor": ", written for Claude Code {version}",
             "footer": "The agent can keep editing it without asking again. Undo with molten mod untrust {id}."
+        },
+        "budget": {
+            "cpu": "{pct} CPU while idle over the last {window} s (budget {budget} %)",
+            "memory": "{mb} MB of memory at activation (budget {budget} MB)",
+            "separator": "; "
         }
     },
     "onboarding": {
@@ -1142,7 +1279,7 @@
             "guideOutdated": "v{version}, updated at the next start",
             "guideMissing": "not installed yet",
             "guideForeign": "a file MoltenTerm did not write is at its place; it is left alone",
-            "notFound": "Not found",
+            "notFound": "Not installed",
             "install": "Install",
             "declined": "Declined",
             "found": "Found",
@@ -1151,7 +1288,7 @@
             "genericTitle": "Another coding agent",
             "genericInstalled": "Any agent can follow MoltenTerm's instruction file at {path}. Point your agent to it with:",
             "genericMissing": "Any agent can follow MoltenTerm's instruction file: {command} writes it to {path}. Point your agent to it with:",
-            "requestPlaceholder": "<what you want MoltenTerm to do>",
+            "genericPaste": "Paste this line into your agent as is, with {placeholder} replaced by your request, in any language.",
             "noneFound": "MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. None of the agents MoltenTerm supports is on this computer's PATH. Install one, then look again, or skip this step: Getting started offers it again.",
             "lookAgain": "Look again",
             "integration": "When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm integrates that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
@@ -1181,6 +1318,7 @@
             "openBeside": "Open {name} beside this guide",
             "firstRequest": "Your first request",
             "alternatives": "Or one of these",
+            "requestsNote": "Paste a request as is; your own requests can be in any language.",
             "waiting": "Waiting for a new mod… Nothing changes in your projects: {command} takes any morph back."
         },
         "project": {
@@ -1195,7 +1333,8 @@
             "editWorkspace": "Edit workspace",
             "chooseFolder": "Choose a folder…",
             "scan": "Find my git repositories",
-            "scanEmpty": "No git repository two levels under your home folder.",
+            "scanning": "Searching your folders…",
+            "scanEmpty": "No git repository found in your folders. Choose your project folder instead.",
             "done": "Done",
             "chooseFirst": "Choose a folder first"
         }
@@ -1254,7 +1393,7 @@
             "remoteDetail": "The agent's session lives on the remote machine.",
             "searching": "Waiting for the {name} session",
             "searchingIntegrated": "MoltenTerm's integration links it as soon as the agent starts its session.",
-            "searchingDetail": "It shows once the agent writes its first message, or at once with a SessionStart hook (molten docs, agent-states.md).",
+            "searchingDetail": "It shows as soon as the agent writes its first message.",
             "unsupportedFormat": "Unsupported session format",
             "unsupportedFormatDetail": "{name} writes its transcript in a format this version of MoltenTerm does not read. The terminal is not affected.",
             "error": "The companion stopped",
@@ -1273,6 +1412,7 @@
         },
         "link": {
             "hook": "linked by the agent's hook",
+            "process": "linked by the agent's process",
             "picked": "picked",
             "guessed": "guessed",
             "folder": "found by folder"
@@ -1367,7 +1507,8 @@
             "turnOffAgent": "Turn off for {name}",
             "turnOffAll": "Turn off for every agent",
             "turnOn": "Turn back on",
-            "guide": "Open the guide"
+            "guide": "Open the guide",
+            "addedNothing": "MoltenTerm added nothing to this run: {reason}."
         },
         "files": {
             "added": "Added",
@@ -1443,6 +1584,7 @@
             "unavailable": "Plan usage unavailable",
             "hide": "Hide plan usage",
             "hideShort": "Hide",
+            "showShort": "Show",
             "experimentalSourceTitle": "Read from an endpoint Anthropic does not document: it may change or stop working",
             "modelLimits": "Model limits and credits",
             "turnOff": "Turn off",
@@ -1472,6 +1614,18 @@
     "shortcuts": {
         "then": "then",
         "or": "or",
+        "keys": {
+            "enter": "Enter",
+            "escape": "Esc",
+            "tab": "Tab",
+            "backspace": "Backspace",
+            "delete": "Del",
+            "pageUp": "PgUp",
+            "pageDown": "PgDn",
+            "home": "Home",
+            "end": "End",
+            "space": "Space"
+        },
         "sheet": {
             "title": "Keyboard shortcuts",
             "altSubtitle": "Alt plays the part of ⌘ on this system",
@@ -1554,6 +1708,10 @@
         "shortcuts": {
             "title": "Shortcuts",
             "hint": "The same list as Settings > Keyboard."
+        },
+        "placeholders": {
+            "request": "what you want",
+            "text": "text"
         },
         "items": {
             "morph": {
@@ -2224,6 +2382,7 @@
             "cannotUndo": "This cannot be undone.",
             "gone": "This worktree is no longer on disk: nothing to remove.",
             "branchKept": "Worktree removed; the branch {branch} is kept: {reason}.",
+            "leftover": "Worktree removed, but files written into {path} during the removal stay: you can delete that folder.",
             "titleRemove": "Remove the worktree {name}?",
             "titleClose": "Close the terminal of worktree {name}?",
             "titleLose": "Remove {name} and lose what only it holds?",
@@ -2402,6 +2561,22 @@
             "deployToLabel": "Deploy to",
             "asksFirst": "asks first"
         },
+        "versionReason": {
+            "firstPublic": "First public release: a choice, not a calculation.",
+            "nothingVisible": "Nothing a user would see since {tag} (only chore, ci, docs, test, style, build or refactor commits).",
+            "features": {
+                "one": "{count} new feature",
+                "other": "{count} new features"
+            },
+            "fixes": {
+                "one": "{count} fix, no new feature",
+                "other": "{count} fixes, no new feature"
+            },
+            "breaking": {
+                "one": "{count} breaking change",
+                "other": "{count} breaking changes"
+            }
+        },
         "branches": {
             "keep": {
                 "protected": "a main branch",
@@ -2417,15 +2592,24 @@
                 "patchesOnTrunk": "its commits are on {trunk} under new ids",
                 "commitsAfterPr": "commits after #{pr} was merged"
             },
-            "result": "{deleted} branch(es) deleted.",
-            "resultFailed": "{deleted} branch(es) deleted, {failed} failed.",
+            "result": {
+                "one": "{count} branch deleted.",
+                "other": "{count} branches deleted."
+            },
+            "resultFailed": {
+                "one": "{count} branch deleted, {failed} failed.",
+                "other": "{count} branches deleted, {failed} failed."
+            },
             "title": "Clean branches",
             "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. The main branches stay, and so does anything in doubt.",
             "comparing": "Comparing each branch with {trunk}…",
             "wouldGo": "Would go ({count})",
             "nothing": "Nothing to clean.",
             "stay": "Stay ({count})",
-            "delete": "Delete {count} branch(es)",
+            "delete": {
+                "one": "Delete {count} branch",
+                "other": "Delete {count} branches"
+            },
             "autoDeleteDone": "GitHub now deletes head branches when their pull request is merged.",
             "autoDeleteOffer": "GitHub keeps head branches after their pull request is merged on this repository. Turn on its “Automatically delete head branches” setting so merged branches stop piling up?",
             "notNow": "Not now",
@@ -3072,6 +3256,10 @@
         }
     },
     "workspace": {
+        "defaultName": {
+            "starter": "Starter workspace",
+            "new": "New workspace ({id})"
+        },
         "edit": {
             "emptyName": "A workspace needs a name. The previous name is kept.",
             "deleteLabel": "Delete workspace",
@@ -3345,8 +3533,14 @@
             "silence": "Don't tell me again…",
             "running": "Running…",
             "rowFailed": "This notification could not be shown.",
-            "bellUnread": "Notifications, {count} unread",
-            "bellOpen": "Notifications, {count} still open",
+            "bellUnread": {
+                "one": "Notifications, {count} unread",
+                "other": "Notifications, {count} unread"
+            },
+            "bellOpen": {
+                "one": "Notifications, {count} still open",
+                "other": "Notifications, {count} still open"
+            },
             "bellRunning": "{count} running",
             "title": "Notifications",
             "archived": "Archived",
@@ -3366,8 +3560,15 @@
             "stopQuestion": "Stop {title}?",
             "keepIt": "Keep it"
         },
+        "title": {
+            "agentWaiting": "{name} is waiting for you",
+            "agentDone": "{name} is done",
+            "bell": "A terminal needs your attention"
+        },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
+            "openPanel": "Open this panel for every new notification",
+            "openPanelHint": "Otherwise it opens by itself only for what needs your answer; the rest shows for a few seconds at the bottom right.",
             "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it."
         },
         "subjects": {
@@ -3386,6 +3587,7 @@
         },
         "source": {
             "agent": "agent",
+            "sessions": "sessions",
             "mod": "mod",
             "moltenterm": "MoltenTerm",
             "build": "build",
@@ -3424,7 +3626,10 @@
     "rail": {
         "keepAwakeWhileWorking": "Keep this computer awake while it works",
         "keptAwake": "kept awake {condition}",
-        "unread": "{count} unread",
+        "unread": {
+            "one": "{count} unread",
+            "other": "{count} unread"
+        },
         "unsavedWorkspace": "Unsaved workspace",
         "unsavedClickToSave": "Unsaved workspace: click to save it",
         "groupNameTooLong": "A group name is at most {max} characters.",
@@ -3453,9 +3658,9 @@
             "reviews": "Reviews · pull requests waiting for your review",
             "reviewsCounts": "Reviews — {counts}",
             "reviewsCount": {
-                "waiting": {
-                    "one": "1 waiting for review",
-                    "other": "{count} waiting for review"
+                "toReview": {
+                    "one": "1 to review",
+                    "other": "{count} to review"
                 },
                 "mergeable": {
                     "one": "1 ready to merge",
@@ -3558,13 +3763,15 @@
     },
     "project": {
         "viewName": "Project",
+        "tabName": "Project",
         "frameTitle": "The Project tab",
         "cardFailed": "{title} could not be shown: {error}",
         "unknownError": "unknown error",
         "openCicdTitle": "Open the CI/CD panel beside this view: history, detail and logs",
         "headerAria": "Project header",
         "fetchFailed": "Showing the local state: fetching from the remote failed ({error}).",
-        "noPipelineActions": "Build local and Release appear once the pipeline is connected.",
+        "noPipelineActions": "Run CI, Build local and Release appear once the pipeline is connected.",
+        "noCiJobs": "Run CI appears once the pipeline declares CI jobs (ci.jobs).",
         "theTrunk": "the trunk",
         "justNow": "just now",
         "cards": {
@@ -3580,7 +3787,7 @@
             "bars": {
                 "features": "features",
                 "fixes": "fixes",
-                "rest": "the rest"
+                "others": "others"
             },
             "milestone": {
                 "notRead": "Milestone progress shows once GitHub has been read.",
@@ -3646,8 +3853,10 @@
             }
         },
         "schedule": {
-            "oneDay": "1 day",
-            "days": "{count} days",
+            "days": {
+                "one": "{count} day",
+                "other": "{count} days"
+            },
             "overdue": "overdue by {days}",
             "today": "due today",
             "tomorrow": "due tomorrow",
@@ -3660,19 +3869,32 @@
         },
         "waiting": {
             "title": "Waiting on {trunk}",
-            "notYetOnOne": "change, not yet on {release}",
-            "notYetOn": "changes, not yet on {release}",
-            "sinceOne": "change since {tag}",
-            "since": "changes since {tag}",
-            "noPublicOne": "change, no public release yet",
-            "noPublic": "changes, no public release yet"
+            "notYetOn": {
+                "one": "change, not yet on {release}",
+                "other": "changes, not yet on {release}"
+            },
+            "since": {
+                "one": "change since {tag}",
+                "other": "changes since {tag}"
+            },
+            "noPublic": {
+                "one": "change, no public release yet",
+                "other": "changes, no public release yet"
+            }
         },
         "counts": {
-            "featureOne": "{count} feature",
-            "features": "{count} features",
-            "fixOne": "{count} fix",
-            "fixes": "{count} fixes",
-            "other": "{count} other"
+            "features": {
+                "one": "{count} feature",
+                "other": "{count} features"
+            },
+            "fixes": {
+                "one": "{count} fix",
+                "other": "{count} fixes"
+            },
+            "others": {
+                "one": "{count} other",
+                "other": "{count} others"
+            }
         },
         "runCi": {
             "noTrunk": "The project's trunk is not known yet.",
@@ -3688,8 +3910,10 @@
             "aria": "Latest changes waiting on {trunk}",
             "heading": "Latest on {trunk}",
             "openTicket": "Open #{ticket} on GitHub",
-            "moreOne": "and 1 more change",
-            "more": "and {count} more changes"
+            "more": {
+                "one": "and {count} more change",
+                "other": "and {count} more changes"
+            }
         },
         "group": {
             "thisWorkspace": "This workspace",
@@ -3727,6 +3951,14 @@
         "commitOnBranch": "commit {commit} on {branch}",
         "dirty": "{line} (uncommitted changes)"
     },
+    "about": {
+        "tagline": "The terminal that takes your shape.",
+        "version": "Version {version}",
+        "unknownVersion": "unknown",
+        "releaseNotes": "Release notes",
+        "basedOn": "Based on Wave Terminal {wave} by Command Line Inc. (Apache-2.0)",
+        "copyright": "© {year} DiamondForge. Portions © Command Line Inc."
+    },
     "releases": {
         "title": "Release notes",
         "subtitleRelease": "MoltenTerm {version}, based on Wave Terminal {wave}",
@@ -3752,7 +3984,9 @@
         "noReleaseNewest": "No release yet: the newest {count} changes.",
         "new": "New",
         "fixed": "Fixed",
-        "other": "Other"
+        "other": "Other",
+        "internalOne": "And 1 internal change (tests, tooling, docs), not listed.",
+        "internalOther": "And {count} internal changes (tests, tooling, docs), not listed."
     },
     "lazy": {
         "loadingEditor": "Loading editor…",
@@ -3761,9 +3995,6 @@
     "split": {
         "right": "Split right",
         "down": "Split down",
-        "left": "Split left",
-        "up": "Split up",
-        "dragToSize": "drag to size",
         "tab": "Tab",
         "place": {
             "menu": "Split…",
@@ -3774,6 +4005,10 @@
             "right": "New panel on the right",
             "up": "New panel above",
             "down": "New panel below"
+        },
+        "beside": {
+            "left": "Add a panel on the left",
+            "right": "Add a panel on the right"
         }
     },
     "reopen": {
@@ -3787,21 +4022,32 @@
     "view360": {
         "carpet": "carpet",
         "empty": "Panels you open are laid here",
+        "addStart": "Add a panel on the left",
+        "addEnd": "Add a panel on the right",
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",
             "tooltipOn": "360 view is on: the first column stays fixed, the other panels scroll sideways on the carpet.",
             "tooltipOff": "360 view is off: every panel shares the tab's width.",
-            "tooltipAuto": "Automatic: switches by itself when a panel gets too narrow to read.",
-            "tooltipManual": "Chosen for this tab. Right-click to follow the setting again.",
-            "tooltipSetting": "From the 360 view setting.",
+            "heldManual": "On demand: turned on from this button.",
+            "heldAuto": "Automatic: the panels no longer fit side by side at a readable width.",
+            "heldSetting": "From the 360 view setting (Always).",
+            "offManual": "Turned off for this tab. It still turns on by itself when the panels no longer fit side by side.",
+            "offAuto": "Automatic: turns on by itself when the panels no longer fit side by side.",
+            "clickOn": "Click to turn it on.",
+            "clickOff": "Click to leave it. If the panels only fit with their sizes readjusted, you are asked first.",
             "tooltipSingle": "360 view needs a second panel beside the first one.",
-            "menuOn": "On",
-            "menuOff": "Off",
-            "menuFollow": "Follow the setting",
-            "pillText": "Too tight to read",
-            "pillAction": "Switch to 360",
-            "pillClose": "Hide until a panel is added"
+            "menuOn": "Turn on 360 view",
+            "menuLeave": "Leave 360 view",
+            "menuSettings": "360 view settings",
+            "readjustTitle": "Leave 360 view?",
+            "readjustText": "The panels fit side by side only once the terminals give up the width they were dragged to. Every size is readjusted: the terminals' minimum width is cleared and the panels share the tab's width.",
+            "readjustConfirm": "Readjust every size",
+            "readjustStay": "Stay in 360 view",
+            "blockedTitle": "Close panels first",
+            "blockedOne": "The panels don't fit side by side, even at their smallest readable width. Close one column to leave 360 view.",
+            "blockedMany": "The panels don't fit side by side, even at their smallest readable width. Close {count} columns to leave 360 view.",
+            "blockedOk": "Stay in 360 view"
         },
         "radar": {
             "label": "Panels on the carpet",
@@ -3843,7 +4089,193 @@
             "sendTo": "Send to…"
         }
     },
+    "reviewsAgents": {
+        "agent": "Agent",
+        "background": "Background agent",
+        "state": {
+            "working": "working",
+            "waiting": "waiting for you",
+            "done": "done",
+            "idle": "idle",
+            "background": "probably active"
+        },
+        "duration": {
+            "lessThanMinute": "less than a minute",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}",
+            "days": "{count} d"
+        },
+        "forSince": "for {duration} · since {since}",
+        "lastChange": "last change {duration} ago",
+        "goTo": "Go to",
+        "goToTitle": "Show {name}'s panel",
+        "parent": "{name}'s session",
+        "parentTitle": "Show {name}'s panel: it probably started this agent",
+        "yours": "Yours",
+        "yoursTitle": "No agent works on this draft: it is yours to finish or validate.",
+        "upcoming": {
+            "title": "Upcoming",
+            "none": "No ticket branch is waiting for its pull request.",
+            "noCommit": "no commit yet",
+            "aheadOne": "1 commit ahead",
+            "ahead": "{count} commits ahead",
+            "remote": "on origin only",
+            "statusTitle": "The ticket's status on the board",
+            "boardStatus": {
+                "backlog": "Backlog",
+                "ready": "Ready",
+                "inProgress": "In progress",
+                "aiDrafting": "AI drafting",
+                "humanReview": "Human review",
+                "spawning": "Spawning",
+                "aiTesting": "AI testing",
+                "humanTesting": "Human testing",
+                "inReview": "In review",
+                "done": "Done"
+            },
+            "openTicket": "Open the ticket",
+            "openAgent": "Go to the agent working on it",
+            "ticketsError": "The tickets' titles and statuses could not be read."
+        }
+    },
     "reviews": {
+        "batch": {
+            "tabName": "Batch merge",
+            "yourAgent": "Your agent",
+            "method": {
+                "merge": "merge commit",
+                "squash": "squash",
+                "rebase": "rebase",
+                "repository": "the repository's method"
+            },
+            "select": {
+                "start": "Merge several…",
+                "startTitle": "Select pull requests and hand them to your agent, which merges them one after the other in the suggested order",
+                "count": {
+                    "one": "{count} pull request selected",
+                    "other": "{count} pull requests selected"
+                },
+                "merge": {
+                    "one": "Merge {count} PR with an agent…",
+                    "other": "Merge {count} PRs with an agent…"
+                },
+                "none": "Select the pull requests to merge first",
+                "rowAria": "Select #{number} for the batch merge"
+            },
+            "confirm": {
+                "title": {
+                    "one": "Merge {count} pull request with an agent",
+                    "other": "Merge {count} pull requests with an agent"
+                },
+                "subtitle": "Into {base}, in this order · {method}",
+                "cost": {
+                    "one": "This order should redo {count} CI run.",
+                    "other": "This order should redo {count} CI runs."
+                },
+                "costUnknown": "The conflict forecast is not ready: the CI runs this order redoes are not known yet.",
+                "costUpToDate": "This base requires branches to be up to date: each merge reruns the CI of the pull requests left.",
+                "what": "For each pull request in turn: one that still merges cleanly with green checks is merged at once, with no rebase and no new CI run. One that conflicts goes to your agent, out of sight in its own copy of the repository: it rebases it on the updated {base}, resolves the conflicts and pushes, and MoltenTerm merges it once its checks pass.",
+                "stops": "A pull request whose checks fail is never merged: the batch stops on it and asks you, and the ones after it wait. Cancel stops the batch after the current step.",
+                "checkout": "Your main checkout is not touched.",
+                "start": "Start the batch merge"
+            },
+            "banner": {
+                "running": {
+                    "one": "An agent is merging {count} PR — {position} of {count}",
+                    "other": "An agent is merging {count} PRs — {position} of {count}"
+                },
+                "cancelling": {
+                    "one": "Cancelling after the current step — {position} of {count}",
+                    "other": "Cancelling after the current step — {position} of {count}"
+                },
+                "paused": {
+                    "one": "The batch merge stopped on #{number} — {position} of {count}",
+                    "other": "The batch merge stopped on #{number} — {position} of {count}"
+                },
+                "done": {
+                    "one": "Batch merge done: {merged} of {count} PR merged",
+                    "other": "Batch merge done: {merged} of {count} PRs merged"
+                },
+                "cancelled": {
+                    "one": "Batch merge cancelled: {merged} of {count} PR merged",
+                    "other": "Batch merge cancelled: {merged} of {count} PRs merged"
+                },
+                "interrupted": {
+                    "one": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PR merged",
+                    "other": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PRs merged"
+                }
+            },
+            "step": {
+                "queued": "Waits its turn",
+                "checking": "Reading its state on GitHub",
+                "rebasing": "{name} rebases it on {base}",
+                "waiting": "{name} waits for your answer in its terminal",
+                "waitingChecks": "Waiting for its checks",
+                "waitingRebased": "Waiting for its checks on the rebased head",
+                "merging": "Merging",
+                "merged": "Merged"
+            },
+            "why": {
+                "failing": "Checks failing: {names}",
+                "ambiguous": "A conflict your agent left to you",
+                "ambiguousNote": "A conflict your agent left to you: {note}",
+                "conflict": "Still conflicts with {base} after a rebase",
+                "agentexited": "The agent's session ended before it pushed",
+                "agenttimeout": "The agent did not finish the rebase in time",
+                "noagent": "No coding agent is installed for the rebase",
+                "agentstart": "The agent could not be started: {detail}",
+                "blocked": "GitHub blocks the merge (a review or a rule)",
+                "warnings": "Unpublished comments or work in progress on it",
+                "citimeout": "Its checks did not finish in time",
+                "unknown": "GitHub did not say whether it merges cleanly",
+                "mergefailed": "The merge failed: {detail}",
+                "read": "GitHub could not be read: {detail}",
+                "headmoved": "Its branch kept moving",
+                "draft": "It is a draft",
+                "mergedaway": "Already merged",
+                "closed": "Closed",
+                "notreached": "Not reached",
+                "cancelled": "Cancelled",
+                "interrupted": "MoltenTerm restarted"
+            },
+            "decide": {
+                "retry": "Try again",
+                "override": "Merge anyway",
+                "skip": "Skip this PR",
+                "end": "End the batch"
+            },
+            "waitsForYou": "The pull requests after it wait for you:",
+            "goTo": "Go to the agent",
+            "goToTitle": "Show {name}'s terminal",
+            "cancel": "Cancel",
+            "cancelling": "Cancelling…",
+            "cancelTitle": "Stop the batch merge after the current step; nothing more is merged",
+            "dismiss": "Hide",
+            "kept": {
+                "changes": "The agent's copy has uncommitted files: it is kept.",
+                "unpushed": "The agent's copy has commits not pushed: it is kept.",
+                "rebasing": "The agent stopped in the middle of a rebase: its copy is kept.",
+                "working": "The agent is still working: its terminal is kept.",
+                "unread": "The agent's copy could not be read: it is kept."
+            },
+            "summary": {
+                "merged": "Merged: {list}.",
+                "mergedNone": "Nothing merged.",
+                "skipped": "Skipped: {list}.",
+                "skippedItem": "#{number} ({reason})",
+                "ciRuns": {
+                    "one": "{count} CI run redone.",
+                    "other": "{count} CI runs redone."
+                }
+            },
+            "row": {
+                "merged": "Merged by the batch",
+                "stopped": "Stopped the batch",
+                "skipped": "Skipped by the batch",
+                "queued": "Batch: {rank}",
+                "current": "Batch: in progress"
+            }
+        },
         "viewName": "Reviews",
         "into": "into",
         "intoTitle": "Pull requests into {target} ({from})",
@@ -3856,12 +4288,80 @@
         "noneWaiting": "No pull request waiting for review into",
         "draftsTitle": "Drafts",
         "noneDrafts": "No draft pull request towards",
-        "openReview": "Open the review",
+        "assistedReview": "Assisted review",
+        "assistedReviewAria": "Open the assisted review of PR #{number}",
         "opened": "opened {when}",
         "updated": "updated {when}",
         "openOnGithub": "Open the pull request on GitHub",
         "unpublishedTitle": "Comments written here, not published yet",
         "unpublished": "{count} unpublished",
+        "order": {
+            "aria": "Merge order",
+            "suggested": "Suggested order",
+            "suggestedTitle": "Sorts the pull requests so that merging them one after the other, top to bottom, reruns the fewest CI runs: a pull request reruns its CI only when an earlier merge puts it in conflict and it has to be rebased.",
+            "list": "List order",
+            "listTitle": "The list's own order.",
+            "costSuggested": {
+                "one": "This order: {count} CI run to redo — current order: {other}",
+                "other": "This order: {count} CI runs to redo — current order: {other}"
+            },
+            "costList": {
+                "one": "List order: {count} CI run to redo — suggested order: {other}",
+                "other": "List order: {count} CI runs to redo — suggested order: {other}"
+            },
+            "costTitle": "Counts the pull requests that would have to be rebased, hence rerun their CI, if they were merged one after the other in this order: those an earlier merge puts in conflict, and those already conflicting with the base.",
+            "unknownRule": "(if branches need not be up to date)",
+            "unknownRuleTitle": "Whether this base requires branches to be up to date before merging could not be read (it takes admin rights on the repository). If it does, every merge reruns the CI of the pull requests left, whatever the order.",
+            "upToDate": "Up-to-date branches required here: ordering saves no CI run",
+            "upToDateTitle": "This base requires branches to be up to date before merging: every merge reruns the CI of the pull requests left, whatever the order. The suggested order still puts the fewest of them in conflict.",
+            "greedy": "More than {max} pull requests are linked by conflicts: this order is a close estimate, not the proven best.",
+            "rankTitle": "Position {rank} in the suggested merge order",
+            "reason": {
+                "noImpact": "No impact",
+                "puts": "Puts {prs} in conflict",
+                "rebaseAfter": "Rebase after {prs}",
+                "after": "After {prs}, which it would put in conflict",
+                "conflictsBase": "Already conflicts with {base}: rebase in any order",
+                "missing": "Not forecast yet",
+                "ciFailing": "CI failing",
+                "ciRunning": "CI running",
+                "blocked": "Cannot merge yet"
+            }
+        },
+        "forecast": {
+            "computing": "Forecasting conflicts…",
+            "computingTitle": "Each merge is simulated in a private copy of the repository: nothing is written to your checkout, your branches or GitHub.",
+            "stale": "Updating the conflict forecast…",
+            "staleTitle": "A pull request or the base moved: the forecast is computed again. The marks that still hold stay shown.",
+            "failed": "Conflict forecast unavailable",
+            "error": {
+                "nogit": "The project folder is not a git repository.",
+                "base": "The base commit could not be found in the project or on origin.",
+                "failed": "git could not simulate the merges.",
+                "toomany": "Too many open pull requests to forecast (more than {max})."
+            },
+            "ready": "Conflict forecast · {method}",
+            "readyTitle": "Each pull request waiting for review is merged onto the base by {method}, then every other open pull request on top of the result, in a private copy of the repository.",
+            "method": {
+                "merge": "merge commit",
+                "squash": "squash",
+                "rebase": "rebase"
+            },
+            "approximate": "A rebase is simulated as one merge of the pull request's changes: when its commits conflict only one by one, the result may differ.",
+            "upToDateRequired": "This base requires branches to be up to date before merging: every merge makes the other pull requests rebase, whatever the order.",
+            "missing": "Some pull request heads could not be read: their forecast waits for the next refresh.",
+            "markTitle": {
+                "one": "Merging this pull request would put 1 other pull request in conflict:",
+                "other": "Merging this pull request would put {count} other pull requests in conflict:"
+            },
+            "markAria": {
+                "one": "merging it would put 1 pull request in conflict",
+                "other": "merging it would put {count} pull requests in conflict"
+            },
+            "markLine": "PR #{number}: {paths}",
+            "impacted": "Conflicts once PR #{number} is merged: {paths}",
+            "pathsMore": "{paths} and {count} more"
+        },
         "merge": {
             "clean": "ready to merge",
             "cleanTitle": "No conflict: can be rebased and merged as it is.",
@@ -3874,7 +4374,16 @@
             "failing": "checks failing",
             "failingTitle": "Mergeable, but some checks fail.",
             "pending": "checking…",
-            "pendingTitle": "GitHub is still computing whether it merges cleanly."
+            "pendingTitle": "GitHub is still computing whether it merges cleanly.",
+            "blockedWhy": "GitHub blocks the merge: {reasons}.",
+            "why": {
+                "failed": "{names} failed",
+                "pending": "checks still running: {names}",
+                "conflicts": "conflicts with {base}",
+                "review": "an approving review is required",
+                "changes": "changes were requested",
+                "rule": "a branch rule (a required check or review) is not met"
+            }
         },
         "validate": {
             "button": "Validate",
@@ -3901,7 +4410,8 @@
             "notready": "{name} cannot take the rebase now: {message}",
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
-            "failed": "The rebase could not be asked: {message}"
+            "failed": "The rebase could not be asked: {message}",
+            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you."
         },
         "ready": {
             "button": "Mark ready for review",
@@ -3928,7 +4438,34 @@
             "running": "{count} running",
             "passed": "{count} passed",
             "skipped": "{count} skipped",
-            "label": "CI {parts}"
+            "label": "CI {parts}",
+            "failedLabel": "CI: {names} failed",
+            "more": "{names} +{count}",
+            "checkLine": "{name}: {state}",
+            "state": {
+                "success": "passed",
+                "failure": "failed",
+                "pending": "running",
+                "neutral": "skipped"
+            },
+            "rerun": {
+                "button": "Rerun failed jobs",
+                "buttonTitle": "Run the failed jobs of {names} again on GitHub",
+                "confirm": "GitHub runs the failed jobs of {names} again; a notification tells you the outcome.",
+                "confirmButton": "Rerun",
+                "sending": "Rerunning…",
+                "started": "Rerunning on GitHub: {names}. A notification tells you the outcome.",
+                "failed": "The failed jobs could not be rerun: {message}"
+            },
+            "investigate": {
+                "button": "Investigate",
+                "buttonTitle": "A work agent reads the failed logs of {names}, says whether this pull request caused it, and proposes a rerun, a fix or a ticket",
+                "asking": "Asking…",
+                "asked": "{name} investigates the failed CI: its findings and proposal come in its terminal.",
+                "startedHidden": "{name} investigates the failed CI of {branch} out of sight: a notification tells you when its findings are ready.",
+                "offer": "No agent works on {branch}. Start one to investigate the failed CI?",
+                "failed": "The investigation could not be asked: {message}"
+            }
         },
         "report": {
             "present": "test report",
@@ -4416,6 +4953,13 @@
                 "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",
                 "failed": "Merged, but a cleanup step failed above. This review tab is no longer needed.",
                 "done": "Merged and cleaned up. This review tab is no longer needed."
+            },
+            "done": "Done",
+            "footerSheet": {
+                "cleaning": "Merged. The cleanup keeps going after you leave.",
+                "needs": "Merged. A kept worktree waits for you above.",
+                "failed": "Merged, but a cleanup step failed above.",
+                "done": "Merged and cleaned up."
             }
         },
         "validate": {
@@ -4438,6 +4982,8 @@
             "notRun": "Not run: nothing was merged.",
             "showFolder": "Show the agent worktree in its folder",
             "showReviewFolder": "Show the review worktree in its folder",
+            "showLeftover": "Show in folder",
+            "removeAgain": "Remove again",
             "state": {
                 "todo": "To do",
                 "running": "Running",
@@ -4583,6 +5129,7 @@
                 "fetchFailed": "The fetch after the merge failed: the branches were checked against what this computer already had.",
                 "prNotMerged": "GitHub does not show the pull request as merged: the cleanup did not run.",
                 "prUnreadable": "The merged pull request could not be read: the cleanup did not run.",
+                "leftoverWhy": "They could not be deleted: {error}",
                 "notConfirmed": "Not run: the merge could not be confirmed.",
                 "ignoredGone": {
                     "one": "1 git-ignored item went with it ({names}): nothing to lose, a build or an install makes it again.",
@@ -4632,7 +5179,10 @@
                         "kept": "Kept: it holds changes made during the review, in {path}.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "The review worktree could not be removed.",
-                        "inuse": "Kept: a panel still works in {path}."
+                        "inuse": "Kept: a panel still works in {path}.",
+                        "alreadygone": "Already cleaned up.",
+                        "leftoversremoved": "Removed; files written into it during the removal were removed after.",
+                        "leftover": "The review worktree is removed, but files written into {path} during the removal stay."
                     }
                 },
                 "agent-worktree": {
@@ -4649,10 +5199,12 @@
                         "refusedrepo": "Left as it is: {path} holds its repository.",
                         "locked": "Left as it is: the worktree is locked.",
                         "kept": "Kept, with {branch}: removing {path} would lose work.",
-                        "alreadygone": "Nothing to do: it was already removed.",
+                        "alreadygone": "Already cleaned up.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "The agent worktree could not be removed.",
-                        "inuse": "Kept, with {branch}: a panel still works in {path}."
+                        "inuse": "Kept, with {branch}: a panel still works in {path}.",
+                        "leftoversremoved": "{path} removed; files written into it during the removal were removed after.",
+                        "leftover": "The worktree is removed, but files written into {path} during the removal stay. The branch goes on as usual."
                     }
                 },
                 "local-branch": {
@@ -4688,6 +5240,7 @@
             },
             "others": {
                 "plan": "The other open pull requests on {base} are left as they are; those this merge puts in conflict go to their agent for a rebase.",
+                "batch": "In the batch merge: rebased in its turn",
                 "none": "Nothing to do: no other open pull request on {base}.",
                 "unaffectedCount": {
                     "one": "1 unaffected",
@@ -4943,7 +5496,7 @@
             "sheet": {
                 "title": "Restart work · #{number}",
                 "what": "Review round {round}'s {count} published comments go to an agent in the worktree of {branch}: it applies them, commits in the project's format, pushes and replies on each thread.",
-                "who": "An idle agent already working there gets them; otherwise your agent starts in a new terminal of this tab, with your usual permissions.",
+                "who": "An idle agent already working there gets them; otherwise you choose how your agent starts: out of sight, or in a tab of its own, with your usual permissions.",
                 "ticket": "The ticket keeps its status. Nothing starts until you click Restart work.",
                 "again": "This round was already handed over: a new click hands it again.",
                 "cancel": "Cancel"
@@ -4963,7 +5516,8 @@
                 "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
                 "notstarted": "The agent was not started: {message}",
                 "nottyped": "The comments could not be sent to {agent}: {message}",
-                "failed": "Restart work failed: {message}"
+                "failed": "Restart work failed: {message}",
+                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you."
             }
         },
         "notes": {
@@ -4986,5 +5540,659 @@
             "byAgent": "Explained by {agent}",
             "openLine": "Open the file at this line, as of the merged PR or the base branch"
         }
+    },
+    "server": {
+        "review": {
+            "batchempty": "Select the pull requests to merge first.",
+            "batchrunning": "A batch merge already runs in this project.",
+            "batchgone": "This batch merge no longer runs.",
+            "batchnotstopped": "The batch merge is not waiting for a decision.",
+            "basemissing": "The base branch {branch} was not found in the project or on origin.",
+            "mergebase": "The merge base of {branch} and the pull request's head could not be read: {detail}",
+            "earlierhead": "The earlier head {head} is no longer in the project.",
+            "files": "The pull request's files could not be listed: {detail}",
+            "file": "The file could not be read: {detail}",
+            "newcommits": "The new commits could not be counted: {detail}",
+            "nocomment": "This comment no longer exists.",
+            "commentdropped": "This comment is dropped: restore it to change it.",
+            "commentpublished": "This comment is published on GitHub: it stays as it is.",
+            "toomanycomments": "This review has too many comments ({max} at most).",
+            "commentempty": "The comment is empty.",
+            "commenttoolong": "The comment is too long (64 KB at most).",
+            "selectiontoolarge": "The selection is too large to comment on (64 KB at most).",
+            "onlydraftstaged": "Only a draft can be staged.",
+            "notstaged": "This comment is not staged.",
+            "alreadydropped": "This comment is already dropped.",
+            "onlydroppedrestored": "Only a dropped comment can be restored.",
+            "onlyproposalaccepted": "Only a proposal can be accepted.",
+            "norewrite": "This reply proposes no rewrite.",
+            "rewritedone": "This rewrite was already used or ignored.",
+            "messagetoolong": "The message is too long (64 KB at most).",
+            "nothingtodiscuss": "This comment is published or dropped: there is nothing left to discuss.",
+            "nosession": "MoltenTerm cannot reach the review session.",
+            "nogh": "gh, GitHub's command line, is not available.",
+            "pathoutside": "The path must stay in the project.",
+            "rebaseunavailable": "Ask for a rebase is not available.",
+            "restartunavailable": "Restart work is not available.",
+            "notesfile": "The notes file could not be read: {detail}",
+            "answergone": "This answer is no longer in the pull request's review.",
+            "notenotfound": "This note no longer exists.",
+            "notetitle": "A note needs a title.",
+            "notefiletoolarge": "{path} is too large to open from a note.",
+            "notefilemissing": "{path} is neither in the pull request's merged commit, its head nor the base branch.",
+            "notefileunreadable": "{path} could not be read at {commit}: {detail}",
+            "translationtoolong": "The translation is too long (64 KB at most).",
+            "nosummary": "The review has no summary.",
+            "onlystagedtranslated": "Only a staged comment is translated.",
+            "summarytoolong": "The summary is too long (64 KB at most).",
+            "blocknotintab": "The review panel is not in this tab.",
+            "worktreelist": "The project's worktrees could not be listed: {detail}",
+            "branchmissing": "The branch {branch} was found neither in the project nor on origin.",
+            "worktreecreate": "A worktree on {branch} could not be created: {detail}",
+            "roundunmarked": "The work was restarted, but the round could not be marked: {detail}",
+            "checks": "The checks could not be read: {detail}",
+            "publishing": "This review is being published.",
+            "nothingtopublish": "There is nothing to publish: stage comments first.",
+            "untranslated": "{count} texts are not in {lang} yet: wait for the translations, write them, or post as written.",
+            "readreviews": "The pull request's reviews could not be read: {detail}",
+            "reviewrefused": "GitHub did not take the review: {detail}",
+            "reviewanswer": "GitHub's answer to the review could not be read.",
+            "readreviewcomments": "The review's comments could not be read: {detail}",
+            "readprcomments": "The pull request's comments could not be read: {detail}",
+            "ghanswer": "GitHub's answer could not be read.",
+            "someunposted": "Some comments could not be posted: Post review again posts only those.",
+            "cleanupunavailable": "The cleanup is not available.",
+            "cleanupunrecorded": "The cleanup ran, but its outcome could not be recorded: {detail}",
+            "leftoveronly": "MoltenTerm only removes the folder its cleanup left, not {path}.",
+            "sessionended": "This review session has ended.",
+            "questiongone": "This question is no longer waiting: it was sent or removed.",
+            "readpr": "The pull request could not be read on GitHub: {detail}",
+            "headnotcommit": "The head {head} is not a commit id.",
+            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}."
+        },
+        "handoff": {
+            "notwaiting": "This handoff request is no longer waiting.",
+            "approval": {
+                "title": "{from} wants to hand work to {to}",
+                "message": "{from} → {to}: {goal}. Allowing it types a prompt in {receiver}'s terminal.",
+                "once": "Allow once",
+                "always": "Always for this pair",
+                "block": "Block"
+            },
+            "undelivered": {
+                "title": "{from}'s handoff to {to} was not delivered",
+                "message": "{detail} The brief is at {path}."
+            },
+            "typed": {
+                "title": "Typed in {receiver}'s prompt: press Enter in its terminal to start",
+                "message": "{from}'s handoff was added after what was already in the prompt. The brief is at {path}.",
+                "goto": "Go to {receiver}"
+            }
+        },
+        "sessions": {
+            "noid": "No session was given.",
+            "gone": "The session {session} is no longer running.",
+            "endself": "A session cannot end itself: type exit instead.",
+            "notab": "There is no tab to open the session in.",
+            "welcomeback": {
+                "keptone": "1 session kept running while MoltenTerm was closed",
+                "keptother": "{count} sessions kept running while MoltenTerm was closed",
+                "endedone": "1 session ended while MoltenTerm was closed",
+                "endedother": "{count} sessions ended while MoltenTerm was closed",
+                "show": "Show {what}",
+                "open": "Open Sessions",
+                "line": "{head}{place}{ran}: {news}",
+                "place": " · in {place}",
+                "ran": ", running for {duration}",
+                "join": "{first}; {rest}",
+                "duration": {
+                    "underminute": "under a minute",
+                    "min": "{m} min",
+                    "h": "{h} h",
+                    "hmin": "{h} h {m} min",
+                    "d": "{d} d"
+                },
+                "news": {
+                    "failed": "failed",
+                    "waiting": "waits for you",
+                    "finished": "finished",
+                    "output": "new output",
+                    "exitedzero": "exited (0)",
+                    "exitedstatus": "exited with status {status}",
+                    "endedby": "ended by {signal}",
+                    "exited": "exited"
+                }
+            },
+            "cannotshow": {
+                "olderversion": "This session cannot be shown: it was started by an older MoltenTerm and can only be ended.",
+                "ending": "This session cannot be shown: it is being ended.",
+                "other": "This session cannot be shown: {reason}"
+            }
+        },
+        "termupdate": {
+            "unreadable": "This terminal cannot be read: {detail}",
+            "notlocal": "Only a local terminal's shell can be updated.",
+            "cannotsee": "MoltenTerm cannot see what runs in this terminal on this system.",
+            "shellended": "This terminal's shell has ended.",
+            "input": {
+                "busy": "MoltenTerm is already typing in this terminal: try again in a moment.",
+                "cannottype": "MoltenTerm cannot type in terminals yet: nothing was typed.",
+                "unreadable": "This terminal cannot be read: {detail} Nothing was typed.",
+                "notlocal": "Only a local terminal can be typed into: nothing was typed.",
+                "cannotsee": "MoltenTerm cannot see what runs in this terminal on this system: nothing was typed.",
+                "shellended": "This terminal's shell has ended: nothing was typed.",
+                "notforeground": "{program} is in the foreground of this terminal, not {agent}: nothing was typed.",
+                "notforegroundany": "{program} is in the foreground of this terminal, not the agent: nothing was typed.",
+                "noagent": "{agent} no longer runs in this terminal: nothing was typed.",
+                "noagentany": "The agent no longer runs in this terminal: nothing was typed.",
+                "gone": "{agent} is no longer the program in the foreground: nothing was typed.",
+                "nottaken": "The terminal did not take the input: {detail}",
+                "waiting": "{agent} is waiting for your answer: answer it first.",
+                "working": "{agent} is working: wait for its turn to end, or interrupt it.",
+                "draft": "An unsent message in {agent} will be cleared.",
+                "unknowncommand": "{agent} has no command \"{action}\" in MoltenTerm: nothing was typed.",
+                "unknownmodel": "{agent} has no model \"{model}\" that MoltenTerm can switch to: choose it in {agent}'s /model. Nothing was typed.",
+                "unknownmode": "{agent} has no permission mode \"{mode}\": nothing was typed.",
+                "sent": "Sent {text} to {agent}.",
+                "sentinterrupt": "Sent the interrupt key to {agent}.",
+                "alreadymode": "{agent} is already in {mode} mode.",
+                "modenow": "{agent} is now in {mode} mode.",
+                "modeblind": "Sent Shift+Tab once. MoltenTerm cannot see {agent}'s mode, so each click moves one mode on.",
+                "modemissed": "{agent} shows {mode} mode: {target} was not reached."
+            },
+            "effort": {
+                "unknown": "{agent} has no effort level \"{effort}\" here: nothing was typed.",
+                "already": "{agent} already runs at {effort} effort.",
+                "remapped": "Your {agent} settings give the effort shortcuts keys of their own: choose the level in {agent}'s /model. Nothing was typed.",
+                "notknown": "MoltenTerm does not know {agent}'s effort level yet (it reads it at each turn): choose it in {agent}'s /model. Nothing was typed.",
+                "set": "{agent} is set to {effort} effort for this session. MoltenTerm shows it from {agent}'s next turn."
+            },
+            "line": {
+                "none": "There is no line to type: nothing was typed.",
+                "working": "{agent} is working: wait for its turn to end.",
+                "sent": "Sent to {agent}.",
+                "typeddraft": "Typed in {agent}'s prompt without Enter: you may have an unsent message there.",
+                "typed": "Typed in {agent}'s prompt: add what to do and press Enter."
+            },
+            "update": {
+                "programbusy": "Finish or stop {program} first: updating the terminal replaces its shell.",
+                "needconfirm": "Restart {agent} with MoltenTerm's integration? The conversation resumes.",
+                "ready": "The shell is at its prompt: it is replaced in the same folder.",
+                "already": "This terminal is already being updated.",
+                "uptodate": "This terminal is already up to date.",
+                "shellfailed": "The new shell did not start: {detail}",
+                "updated": "Terminal updated.",
+                "agentwaiting": "{agent} is waiting for your answer: answer it, then update the terminal.",
+                "agentworking": "{agent} is working: update the terminal once its turn ends.",
+                "agentgone": "{agent} is no longer the program in the foreground: nothing was typed. Update the terminal again.",
+                "agentstuck": "{agent} did not exit within {seconds} s and is still running. Exit it yourself, then update the terminal.",
+                "noinput": "MoltenTerm could not type in this terminal, so {agent} kept running. Show its pane once, then update the terminal.",
+                "exitedunavailable": "{agent} exited, but the terminal cannot be updated: {detail} Start it again with: {command}",
+                "shellkept": "{agent} exited, but {program} now runs in the terminal, so its shell was kept. Finish it, update the terminal, then start {agent} with: {command}",
+                "exitedshellfailed": "{agent} exited but the new shell did not start: {detail}. Start it again with: {command}",
+                "noprompt": "The new shell did not show a prompt, so {agent} was not started. Start it with: {command}",
+                "notstarted": "The new shell started, but {agent} was not. Start it with: {command}",
+                "startfailed": "The new shell started but {agent} could not be: {detail}. Start it with: {command}",
+                "done": "Terminal updated. {agent} resumes its session ({command}).",
+                "doneguessed": "Terminal updated. MoltenTerm could not tell which {agent} session ran here, so {agent} reopens its most recent one in this folder ({command})."
+            },
+            "restart": {
+                "notlocal": "Only an agent running in a local terminal can be restarted.",
+                "nomodes": "{agent} has no permission mode MoltenTerm can set: nothing was typed.",
+                "agentwaiting": "{agent} is waiting for your answer: answer it, then restart it with the current settings.",
+                "agentworking": "{agent} is working: restart it with the current settings once its turn ends.",
+                "agentgone": "{agent} is no longer the program in the foreground: nothing was typed. Restart it again.",
+                "agentstuck": "{agent} did not exit within {seconds} s and is still running. Exit it yourself, then restart it with the current settings.",
+                "noinput": "MoltenTerm could not type in this terminal, so {agent} kept running. Show its pane once, then restart it with the current settings.",
+                "shellkept": "{agent} exited, but {program} now runs in the terminal, so its shell was kept. Finish it, restart it with the current settings, then start {agent} with: {command}",
+                "done": "Restarted. {agent} resumes its session ({command}).",
+                "doneguessed": "Restarted. MoltenTerm could not tell which {agent} session ran here, so {agent} reopens its most recent one in this folder ({command})."
+            }
+        },
+        "mission": {
+            "noPipeline": "The project has no pipeline (.molten/project.json).",
+            "pipelineProblems": "The pipeline has problems: {detail}",
+            "ci": {
+                "noJobs": "The pipeline declares no CI job (ci.jobs).",
+                "notACommit": "{rev} is not a commit of this project.",
+                "noneOfJobs": "The pipeline declares none of the jobs {jobs}.",
+                "alreadyGreen": "The local CI is already green on this code: choose Run all again to run it anyway.",
+                "inProgress": "A local CI run is in progress ({run}).",
+                "notRunning": "This local CI run is not running.",
+                "worktreeCreate": "The CI worktree could not be created: {detail}",
+                "worktreeMove": "The CI worktree could not move to {commit}: {detail}",
+                "worktreeClean": "The CI worktree could not be cleaned: {detail}",
+                "prepareFailed": "ci.prepare failed (exit {exit}): the end of prepare.log says why."
+            },
+            "run": {
+                "noBuild": "The pipeline declares no build “{id}”.",
+                "noStep": "The pipeline declares no step “{id}”.",
+                "alreadyRunning": "{title} is already running.",
+                "stillRunning": "{title} is still running.",
+                "stillRunningCancel": "{title} is still running: cancel it first.",
+                "notRunning": "{title} is not running.",
+                "startFailed": "{title} could not be started: {detail}"
+            },
+            "deps": {
+                "noGroup": "This project is in no group: add \"group\" to its .molten/project.json and to the source's.",
+                "noSource": "No other project linked to a workspace declares the group {group} with the name “{name}”.",
+                "invalid": "This dependency is declared wrong: {detail}",
+                "sourceGone": "The folder of {name} no longer exists: {dir}",
+                "readBranches": "The branches of {name} could not be read: {detail}",
+                "noTrunk": "{name} has no trunk branch to watch: declare \"branch\".",
+                "noBranch": "{name} has no branch {branch}, local or on origin.",
+                "readOwnHistory": "This project's history could not be read: {detail}",
+                "readHistory": "The history of {name} could not be read: {detail}"
+            },
+            "depSync": {
+                "unavailable": "Syncing a dependency is not available.",
+                "noDependencyId": "The project declares no dependency {id}.",
+                "otherProject": "{id} is a dependency on {project}, not on {asked}.",
+                "noDependencyOn": "The project declares no dependency on {project}.",
+                "noDependency": "The project declares no dependency (\"dependson\").",
+                "noSync": "No sync command is declared for the dependency on {project}: add \"sync\" to it in {file}.",
+                "noSyncAny": "No dependency declares a sync command: add \"sync\" to one in {file}.",
+                "nameOne": "Several dependencies declare a sync, name one: {names}",
+                "cannotSync": "Cannot sync from {project}: {detail}",
+                "alreadyRunning": "A sync of this project is already running."
+            },
+            "reviews": {
+                "rerunUnknown": "MoltenTerm has not read #{number} on GitHub yet: refresh the list, then try again.",
+                "rerunNothing": "No GitHub Actions check of #{number} failed: nothing to rerun.",
+                "rerunFailed": "The failed jobs could not be rerun: {detail}"
+            },
+            "release": {
+                "noSteps": "The pipeline declares no release.{channel} steps.",
+                "notATag": "“{tag}” is not a release tag ({prefix}X.Y.Z or {prefix}X.Y.Z-N).",
+                "rcTag": "{tag} is a release candidate's tag, not a public release's.",
+                "publicTag": "{tag} is a public release's tag, not a release candidate's.",
+                "onItsWay": "A release is already on its way: {tag}.",
+                "tagged": "{tag} is already tagged.",
+                "notFollowed": "{tag} is not the release followed.",
+                "noPreparation": "The pipeline declares no preparation.",
+                "noStep": "The pipeline declares no release.{channel} step “{step}”.",
+                "noRerun": "No GitHub run of {tag} to rerun.",
+                "noNotes": "No public notes are drafted for this release.",
+                "notesTooLarge": "{path} is too large to edit here.",
+                "notesLink": "{path} is not a regular file: release notes are not written through a link.",
+                "notesOutside": "{path} is outside the project: release notes are not written there."
+            },
+            "branches": {
+                "noneToDelete": "No branch to delete.",
+                "noTrunk": "The project has no trunk branch to compare with.",
+                "readTrunk": "{ref} could not be read: {detail}",
+                "kept": "{branch}: kept ({reason})",
+                "deleteFailed": "{branch}: {detail}",
+                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}"
+            },
+            "jobs": {
+                "tooLarge": "The file is too large to read.",
+                "badYaml": "unreadable YAML: {detail}",
+                "noMapping": "not a workflow: the file holds no mapping",
+                "noAgent": "No agent was chosen.",
+                "gone": "The job “{job}” is no longer in the project's CI files.",
+                "cannotType": "MoltenTerm cannot type in terminals yet: nothing was sent."
+            },
+            "git": {
+                "noFolder": "The folder {dir} does not exist.",
+                "alreadyRepo": "{dir} is already inside a git repository."
+            },
+            "upcoming": {
+                "noTrees": "The project's worktrees could not be listed."
+            },
+            "work": {
+                "preparing": "preparing"
+            }
+        },
+        "notif": {
+            "railgroups": {
+                "movedTitle": "{workspace} moved to {product}",
+                "moved": "{workspace} now belongs to {product}, declared in its project files, so it left the group {group}. Project groups come first."
+            },
+            "build": {
+                "builtTitle": "{name} is built",
+                "finished": "Build {sha} finished.",
+                "readyTitle": "{name} is ready",
+                "delivered": "Build {sha} delivered to the local builds folder ({count} commit(s) since the previous one).",
+                "stoppedTitle": "The {name} build stopped",
+                "stopped": "Its run card shows at which step, and the end of its log.",
+                "showBuild": "Show the build",
+                "showInFolder": "Show in folder"
+            },
+            "worktree": {
+                "keptTitle": "Worktree {name} is still on disk",
+                "kept": "Its terminal closed without MoltenTerm asking (its shell exited, a command closed it, or its window or workspace closed); the worktree and its branch are kept.\n{path}",
+                "review": "Review and remove…"
+            },
+            "deps": {
+                "behindTitle": "{dependent} is behind {source}",
+                "changed": "{paths} changed on {branch} since the last sync: {count} commit(s){tickets}.",
+                "changedNewest": "{paths} changed on {branch} since the last sync: {count} commit(s){tickets}, newest {newest}.",
+                "neverSynced": "{dependent} was never synced: {count} commit(s) of {source} touch {paths} on {branch}{tickets}.",
+                "neverSyncedNewest": "{dependent} was never synced: {count} commit(s) of {source} touch {paths} on {branch}{tickets}, newest {newest}.",
+                "sync": "Sync",
+                "open": "Open"
+            },
+            "onboarding": {
+                "availableTitle": "Getting started is available",
+                "available": "A short setup: your agent, a first morph, your project. It is also in the app menu and the command palette.",
+                "leftTitle": "Getting started is still here",
+                "left": "Open it again whenever you want, from the app menu or the command palette.",
+                "open": "Open Getting started"
+            },
+            "review": {
+                "rebasedTitle": "#{number} rebased on {base} by {name}, ready for review",
+                "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}, ready for review",
+                "needsTitle": "{name} needs you on #{number}",
+                "stopped": "{name} stopped before pushing {branch}: its terminal says what it needs.",
+                "exited": "{name}'s session ended before {branch} was pushed.",
+                "midRebase": "{name} stopped in the middle of the rebase of {branch}: its terminal says what it needs.",
+                "changes": "{name} pushed, but its copy of {branch} has uncommitted files ({count}): {names}",
+                "commits": "Commits not pushed on {branch}: {count}.",
+                "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
+                "openReview": "Open the review",
+                "investigatedTitle": "{name} investigated the CI of #{number}",
+                "investigated": "Its findings and what it proposes are in its terminal: answer there.",
+                "rerun": {
+                    "passedTitle": "#{number}: the rerun jobs passed",
+                    "failedTitle": "#{number}: failed again after the rerun",
+                    "failed": "Still failing: {names}. Investigate from the pull request's row in Reviews."
+                },
+                "batch": {
+                    "openReviews": "Open the Reviews list",
+                    "goTo": "Go to the terminal",
+                    "stoppedTitle": "The batch merge stopped on #{number}",
+                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
+                    "doneTitle": "Batch merge: {merged} of {total} PRs merged",
+                    "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
+                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}",
+                    "mergedList": "Merged: {list}. ",
+                    "mergedNone": "Nothing merged. ",
+                    "skippedFirst": "Skipped: #{number} ({reason}){rest}. ",
+                    "skippedNext": ", #{number} ({reason}){rest}",
+                    "kept": {
+                        "changes": " The agent's copy has uncommitted files: it is kept.",
+                        "unpushed": " The agent's copy has commits not pushed: it is kept.",
+                        "rebasing": " The agent stopped in the middle of a rebase: its copy is kept.",
+                        "working": " The agent is still working: its terminal is kept.",
+                        "unread": " The agent's copy could not be read: it is kept."
+                    },
+                    "why": {
+                        "failing": "checks failing: {names}",
+                        "ambiguous": "a conflict your agent left to you",
+                        "ambiguousNote": "a conflict your agent left to you: {note}",
+                        "conflict": "still conflicts with {base} after a rebase",
+                        "agentexited": "the agent's session ended before it pushed",
+                        "agenttimeout": "the agent did not finish the rebase in time",
+                        "noagent": "no coding agent is installed for the rebase",
+                        "agentstart": "the agent could not be started: {detail}",
+                        "blocked": "GitHub blocks the merge (a review or a rule)",
+                        "warnings": "unpublished comments or work in progress on it",
+                        "citimeout": "its checks did not finish in time",
+                        "unknown": "GitHub did not say whether it merges cleanly",
+                        "mergefailed": "the merge failed: {detail}",
+                        "read": "GitHub could not be read: {detail}",
+                        "headmoved": "its branch kept moving",
+                        "draft": "it is a draft",
+                        "mergedaway": "already merged",
+                        "closed": "closed",
+                        "cancelled": "cancelled",
+                        "interrupted": "MoltenTerm restarted",
+                        "notreached": "not reached"
+                    }
+                }
+            }
+        },
+        "companion": {
+            "terminalunreadable": "This terminal could not be read.",
+            "foldernotknown": "This terminal's folder is not known yet.",
+            "newsession": "A new session started. It shows here once the agent writes its first message.",
+            "transcriptinvalid": "The session transcript cannot be read: {detail}",
+            "followedelsewhere": "This session is followed by another terminal.",
+            "transcriptunopened": "The session transcript could not be opened.",
+            "transcriptgone": "The session transcript is no longer readable.",
+            "sessionofother": "This session belongs to another terminal.",
+            "remoteterminal": "There is no companion for a remote terminal.",
+            "toomanyviews": "Too many views of this companion are open.",
+            "toomanycompanions": "Too many companions are open.",
+            "notopen": "The companion of this terminal is not open.",
+            "nosession": "No session is shown.",
+            "noagentruns": "No agent runs in this terminal.",
+            "nocompanionfor": "There is no companion for {agent}.",
+            "answergone": "This answer is no longer kept.",
+            "nofilechange": "This file was not changed in the session."
+        },
+        "integration": {
+            "name": {
+                "statehooks": "Agent state hooks",
+                "statehooksof": "Agent state hooks ({events})",
+                "sessionlink": "Session link",
+                "coffeeapprovals": "Coffee approvals",
+                "coffeeapprovalsyours": "Coffee approvals (your own hook, in {where})",
+                "codexcoffeeapprovals": "Coffee approvals (once you trust MoltenTerm's hook in Codex's /hooks)",
+                "statusline": "Status line relay",
+                "statuslinenone": "Status line relay (you have no status line: nothing is shown)",
+                "statuslinearound": "Status line relay around your status line",
+                "browser": "MoltenTerm browser",
+                "codexnotify": "Done state at each turn's end (notify)",
+                "codexnotifyaround": "Done state at each turn's end (notify, around your own notify)",
+                "codexsessionlink": "Session link (at the end of the first turn)"
+            },
+            "reason": {
+                "managedhooksonly": "your organization's managed settings allow only their own hooks",
+                "managedhooksonlyin": "your organization's {where} allows only its own hooks",
+                "reviewsession": "a review session is read-only: coffee mode never answers its requests",
+                "alreadyyours": "already yours, in {where}",
+                "alreadyyoursflag": "already yours, in your {flag}",
+                "alreadyyoursmcpconfig": "already yours, in your --mcp-config",
+                "alreadyyoursnotify": "already yours, in {where}: it runs as you set it, and the session is linked around it",
+                "managedstatusline": "your organization's managed settings set the status line",
+                "statuslinefileunreadable": "{where} could not be read, so your status line could not be kept",
+                "statuslineunreadable": "the status line in {where} could not be read",
+                "statuslinenotcommand": "your status line is not a command",
+                "statuslinerelayed": "your status line already runs it",
+                "browsernotinstalled": "MoltenTerm's browser server (molten mcp browser) is not installed",
+                "moltennotinstalled": "MoltenTerm's molten command is not installed",
+                "strictmcp": "you passed {flag}: only your own --mcp-config servers run",
+                "mcpconfigunreadable": "your --mcp-config {file} could not be read",
+                "fileunreadable": "{where} could not be read",
+                "browserconfignotwritten": "the server's configuration could not be written",
+                "managedmcp": "your organization's managed MCP configuration decides which servers run",
+                "managedprovided": "already provided by your organization's managed settings",
+                "codexhookstrust": "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust",
+                "codexmcpservers": "you passed {flag}: only your own servers run",
+                "ownnotifyflag": "you passed your own -c notify: it runs as you set it",
+                "profilenotify": "your profile {profile} in {where} sets notify: it runs as you set it",
+                "managednotify": "your organization's {where} sets notify",
+                "projectnotify": "{where} may set notify for this project: it runs as you set it",
+                "rootmarkers": "{where} sets project_root_markers: the project files Codex reads could not be told",
+                "notifynotlist": "the notify of {where} is not a list of strings",
+                "codexhooksoff": "Codex's hooks are turned off in {where}",
+                "codexhooksflag": "you passed {flag}: only your own hooks run",
+                "ownpermissionhooks": "you have your own PermissionRequest hooks, in {where}"
+            },
+            "stepaside": {
+                "outsidepane": "not in a MoltenTerm terminal",
+                "nested": "started by a running agent",
+                "turnedoff": "{var}=0",
+                "passthrough": "a command that starts no session",
+                "settingsoff": "the integration is turned off in MoltenTerm's settings ({setting})",
+                "settingsagentoff": "the integration is turned off for this agent in MoltenTerm's settings ({setting})",
+                "settingsunknown": "MoltenTerm's settings could not be read in time",
+                "disableallhooks": "disableAllHooks is on in {where}: Claude Code runs no hooks and no status line",
+                "notwritten": "the integration could not be written: {detail}"
+            }
+        },
+        "keepawake": {
+            "deny": {
+                "question": "a question only you can answer",
+                "keychain": "reads the keychain",
+                "remove": "deletes outside the session's folder: {detail}",
+                "forcepush": "force push or deletion of a main branch: {detail}",
+                "credential": "reads or writes a credential file: {detail}",
+                "toodeep": "runs a command the rules cannot read: shells nested too deep",
+                "stdin": "runs a command the rules cannot read: {program} reads its program from standard input",
+                "opaque": "runs a command the rules cannot read: {detail}"
+            },
+            "session": {
+                "remote": "it runs on a remote host",
+                "unsupported": "MoltenTerm cannot answer {agent}'s prompts",
+                "nolauncher": "it was started outside MoltenTerm's launcher",
+                "codexuntrusted": "approved once you trust MoltenTerm's hook: type /hooks in Codex and trust molten agent permission",
+                "tooold": "it was started before coffee approvals existed: restart it from MoltenTerm",
+                "review": "a review session is read-only: its requests always ask you"
+            },
+            "why": {
+                "working": "{agent}: working",
+                "background": "{agent}: background work",
+                "anycommand": "A command",
+                "command": "Command: {command}",
+                "mission": "Mission Control run",
+                "more": "{count} more"
+            },
+            "notice": {
+                "asktitle": "A terminal wants to keep this computer awake",
+                "ask": "A program ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "askparent": "{who} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "asktab": "A program in {tab} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "askparenttab": "{who} in {tab} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "allow": "Allow",
+                "untilworkends": "Until work ends",
+                "letsleep": "Let it sleep",
+                "coffeeendtitle": "{name}: work finished, this computer may sleep again",
+                "coffeeendtitleunnamed": "A workspace: work finished, this computer may sleep again",
+                "coffeeend": "Its coffee ended 2 minutes after the last work in the workspace stopped.",
+                "policyendtitle": "Work finished: this computer may sleep again",
+                "policyend": "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped."
+            }
+        },
+        "browser": {
+            "action": {
+                "back": "Went back",
+                "forward": "Went forward",
+                "navigate": "Went to {site}",
+                "readpage": "Read the page",
+                "pagetext": "Read the page's text",
+                "find": "Searched the page",
+                "screenshot": "Took a screenshot",
+                "zoom": "Zoomed into the page",
+                "wait": "Waiting",
+                "opened": "Opened this tab",
+                "engaged": "Working in the tab you shared",
+                "clicked": "Clicked",
+                "clickedon": "Clicked {on}",
+                "rightclicked": "Right-clicked",
+                "rightclickedon": "Right-clicked {on}",
+                "doubleclicked": "Double-clicked",
+                "doubleclickedon": "Double-clicked {on}",
+                "tripleclicked": "Triple-clicked",
+                "tripleclickedon": "Triple-clicked {on}",
+                "hovered": "Hovered over",
+                "hoveredon": "Hovered over {on}",
+                "scrolledto": "Scrolled to",
+                "scrolledtoon": "Scrolled to {on}",
+                "typing": "Typing in",
+                "typingon": "Typing in {on}",
+                "set": "Set",
+                "seton": "Set {on}",
+                "scrolledup": "Scrolled up",
+                "scrolleddown": "Scrolled down",
+                "scrolledleft": "Scrolled left",
+                "scrolledright": "Scrolled right",
+                "pressed": "Pressed {keys}",
+                "dragged": "Dragged from {from} to {to}",
+                "resized": "Resized the page to {size}"
+            },
+            "prompt": {
+                "sensitivefield": "type into a password or payment field",
+                "sensitivefill": "fill in a password or payment field",
+                "framefield": "type into a field inside a frame, which MoltenTerm cannot check",
+                "sensitiveform": "submit a form with a password or payment field",
+                "filechooser": "open a file chooser",
+                "download": "start a download",
+                "sensitive": "do a sensitive action"
+            },
+            "share": {
+                "notui": "Only a MoltenTerm window can share a tab with an agent.",
+                "tabgone": "This tab is no longer in the panel.",
+                "otherengine": "This page is open in another browser: open it in MoltenTerm to share it.",
+                "sessiongone": "This agent's browser session has ended.",
+                "elsewhere": "This agent runs in another workspace.",
+                "othertab": "This agent runs in another tab: share the page from a browser panel in its tab.",
+                "notshared": "This tab is not shared with an agent.",
+                "nopage": "Open a page in this tab first.",
+                "toomanytabs": "This agent already holds too many tabs.",
+                "panelunknown": "MoltenTerm could not read the browser panel."
+            }
+        },
+        "worktree": {
+            "notLinked": "{path} is not a linked worktree.",
+            "notListed": "{path} is not a linked worktree of its repository.",
+            "git": "git could not read the worktree: {detail}",
+            "removeFailed": "git did not remove the worktree: {detail}",
+            "locked": "The worktree is locked (git worktree unlock {path}).",
+            "removeRefused": {
+                "home": "MoltenTerm does not remove {path}: it is the home folder.",
+                "repository": "MoltenTerm does not remove {path}: it holds its repository."
+            },
+            "needsConfirmation": "The worktree holds work or is used by another terminal: removing it needs a second confirmation.",
+            "changedSinceConfirmed": "The worktree changed since you confirmed: read the plan again.",
+            "refused": {
+                "home": "it is the home folder",
+                "repository": "it holds its repository"
+            },
+            "branchKept": {
+                "detached": "no branch (detached HEAD)",
+                "longLived": "{branch} is a long-lived branch",
+                "mergeUnknown": "MoltenTerm could not tell whether {branch} is merged",
+                "notMerged": "{branch} is not merged into {trunk}",
+                "unusualName": "unusual branch name",
+                "git": "git did not delete it ({detail})"
+            }
+        },
+        "onboarding": {
+            "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
+            "installFailed": "The guides of {agent} could not be installed: {detail}"
+        }
+    },
+    "agentChoice": {
+        "title": {
+            "rebase": "Rebase #{number} with an agent",
+            "restart": "Restart work on #{number} with an agent",
+            "investigate": "Investigate the failed CI of #{number} with an agent"
+        },
+        "subtitle": "{branch} → {base}",
+        "what": {
+            "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
+            "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
+            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch}, says whether the pull request caused the failure or a flaky or unrelated test did, and proposes a rerun, a fix on the branch or a ticket. It changes nothing until you choose."
+        },
+        "background": {
+            "button": "Let the agent handle it",
+            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in Reviews or in Sessions; a notification tells you when it is done or needs you."
+        },
+        "together": {
+            "rebase": "Go through the rebase with the agent",
+            "restart": "Go through the work with the agent",
+            "investigate": "Go through the investigation with the agent",
+            "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
+        },
+        "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
+        "checkoutInvestigate": "Your main checkout is not touched. The agent's terminal stays open with its findings until you close it.",
+        "default": "Default",
+        "yourAgent": "Your agent",
+        "tab": {
+            "rebase": "Rebase #{number}",
+            "restart": "Restart #{number}",
+            "investigate": "CI #{number}"
+        },
+        "noReview": "The pull request to open is not known."
+    },
+    "agentOrigin": {
+        "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
+        "rebase": "Started by you at {time} to rebase #{number} on {base}",
+        "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
+        "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
+        "investigate": "Started by you at {time} to investigate the failed CI of #{number}"
     }
 }

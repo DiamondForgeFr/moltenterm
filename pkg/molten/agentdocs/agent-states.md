@@ -3,7 +3,10 @@
 MoltenTerm shows, in the header of a terminal running a coding agent, the agent, its project and its branch, and a
 dot with the agent's state: **working**, **waiting** for you, **done**, **error**. The tab and the workspace icon in
 the rail show the most urgent state of their panes (waiting, then error, then working, then done). An agent that
-waits or is done while you look elsewhere raises a notification; opening it brings you to the pane.
+waits or is done while you look elsewhere raises a notification; opening it brings you to the pane. **Done** means
+finished and not seen yet: once you look at the pane (it is focused, or shown in the active tab of the window you
+use for a moment), its green dot and the marks of its tab and workspace clear, and its "is done" notification is
+read. Waiting only clears when the agent moves on.
 
 MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) and OpenCode (`opencode`) in a
 MoltenTerm terminal. It never reads the screen to guess what an agent does: without hooks it only looks at when the
@@ -74,7 +77,9 @@ molten agent state <working|waiting|done|error|idle> [--agent <name>] [--message
 - `--agent` names the agent: `claude`, `codex`, `gemini`, `opencode`, or any short lowercase name for another
   agent. It is required when MoltenTerm did not see the agent start.
 - `--message` adds a short text to the notification; `--stdin` takes it from the `message` field of the JSON the
-  hook receives on its standard input (Claude Code's `Notification` hook).
+  hook receives on its standard input (Claude Code's `Notification` hook). With `waiting`, `--stdin` also reads its
+  `notification_type`: a Claude Code notification that asks nothing (`idle_prompt`, `auth_success`...) reports
+  nothing.
 - `waiting` and `done` raise a notification when the state changes; MoltenTerm drops the agent's own OSC signal for
   the same moment, so you are not notified twice.
 - Outside MoltenTerm, `molten` is not there: the commands below test `WAVETERM_BLOCKID` first, so the same settings
@@ -101,7 +106,7 @@ with the hooks you already have:
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
     ],
     "Notification": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
+      { "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|quota_auto_resume_stale", "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
     ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent claude || true" }] }
@@ -110,9 +115,15 @@ with the hooks you already have:
 }
 ```
 
-`Notification` fires when Claude Code asks for a permission or has waited for your input for a while; `Stop` when it
-ends its turn; `UserPromptSubmit` when you send a prompt; `PostToolUse` after each tool it runs, so the dot is
-working again once you approved a permission.
+`Notification` fires, for the types its matcher names, when Claude Code asks for a permission, an MCP server asks a
+question, or a session waits for you to continue; `Stop` when it ends its turn; `UserPromptSubmit` when you send a
+prompt; `PostToolUse` after each tool it runs, so the dot is working again once you approved a permission.
+
+Claude Code also notifies about a minute after a turn ended ("Claude is waiting for your input", type `idle_prompt`),
+after a login, or when a usage limit lets it go on. Those ask nothing: `molten agent state waiting --stdin` reads the
+`notification_type` of the hook's input and leaves the state as it is for them, so a Notification hook pasted before
+the matcher existed keeps a finished agent done rather than waiting. Without a `notification_type` (an older Claude
+Code), the idle text is recognised the same way.
 
 ### Coffee approvals
 

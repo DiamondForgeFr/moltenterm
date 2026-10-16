@@ -7,6 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { ServerText } from "../i18n/server-text";
 import type { MarkReadyResult } from "../reviews/reviews-model";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
@@ -132,18 +133,28 @@ export type ReviewRestartResult = {
     reason?: string;
     agentstate?: string;
     branch?: string;
-    // wavesrv's English detail.
+    // wavesrv's English detail, and its code when it is one of MoltenTerm's sentences.
     message?: string;
+    messagetext?: ServerText;
     round?: string;
     worktree?: string;
     worktreecreated?: boolean;
     blockid?: string;
+    // The new agent's own tab, hidden when it works out of sight (#758).
+    tabid?: string;
+    hidden?: boolean;
     agent?: string;
     agentname?: string;
     firstname?: string;
     briefpath?: string;
     state?: ReviewState;
 };
+
+// How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
+export type AgentMode = "background" | "together";
+
+// The start of a new agent the developer chose: its tab goes in the workspace, named in the interface language.
+export type AgentStart = { start?: boolean; mode?: AgentMode; workspaceid?: string; tabname?: string };
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
 
@@ -535,7 +546,12 @@ export type ReviewPublishNoteKind =
     | "late"
     | "notinpr"
     | "failed";
-export type ReviewPublishNote = { commentid: string; note: ReviewPublishNoteKind; message?: string };
+export type ReviewPublishNote = {
+    commentid: string;
+    note: ReviewPublishNoteKind;
+    message?: string;
+    messagetext?: ServerText;
+};
 export type ReviewPublishState = "publishing" | "published" | "partial" | "failed";
 export type ReviewPublishRecord = {
     roundid: string;
@@ -546,6 +562,7 @@ export type ReviewPublishRecord = {
     reviewid?: number;
     url?: string;
     message?: string;
+    messagetext?: ServerText;
     notes?: ReviewPublishNote[];
     startedat: number;
     endedat?: number;
@@ -596,38 +613,63 @@ export function publishReview(req: {
 }
 
 // restartReviewWork is the developer's click on Restart work (FR-REV-011): the last published round goes to an agent in
-// the worktree of the PR's branch; a new agent terminal goes in tabid, right of afterblockid.
-export function restartReviewWork(req: {
-    repo: string;
-    number: number;
-    dir: string;
-    headref: string;
-    baseref?: string;
-    title?: string;
-    url?: string;
-    ticket?: number;
-    tabid: string;
-    afterblockid?: string;
-}): Promise<ReviewRestartResult> {
+// the worktree of the PR's branch; with no agent there it answers offer, and start starts one the chosen way (#758).
+export function restartReviewWork(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
     return call(RestartCommand, req, RestartTimeoutMs);
 }
 
 // askReviewRebase is the developer's click on Ask for a rebase in the Reviews list (#683): the agent on the PR's branch
-// gets the rebase; with start, a new agent starts in the Review tab tabid when none works there.
-export function askReviewRebase(req: {
-    repo: string;
-    number: number;
-    dir: string;
-    headref: string;
-    baseref: string;
-    headoid?: string;
-    title?: string;
-    url?: string;
-    ticket?: number;
-    start?: boolean;
-    tabid?: string;
-}): Promise<ReviewRestartResult> {
+// gets the rebase; with start, a new agent starts the chosen way (#758) when none works there.
+export function askReviewRebase(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        mergedpr?: number;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
     return call(RebaseCommand, req, RestartTimeoutMs);
+}
+
+const InvestigateCommand = "moltenreviewinvestigate";
+
+// must match InvestigateCheck in pkg/molten/review/investigate.go
+export type InvestigateCheck = { name: string; workflow?: string; url?: string; runid?: number; jobid?: number };
+
+// askReviewInvestigate is the developer's click on Investigate (#797): the agent on the PR's branch, or a new one once
+// the developer chose how (Start), reads the failed checks and proposes what to do.
+export function askReviewInvestigate(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        checks: InvestigateCheck[];
+    } & AgentStart
+): Promise<ReviewRestartResult> {
+    return call(InvestigateCommand, req, RestartTimeoutMs);
 }
 
 const MarkReadyCommand = "moltenreviewmarkready";

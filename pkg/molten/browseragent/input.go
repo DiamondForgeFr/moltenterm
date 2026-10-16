@@ -565,7 +565,7 @@ func chordNames(chords []keyChord, repeat int) string {
 // pressKeys sends each chord to the page, repeat times. The focused element is looked at again before every chord that
 // can type or submit, since a key may move the focus; one Allow covers the rest of the call for the same reason.
 func (m *Manager) pressKeys(ctx context.Context, s sessionInfo, p pageContext, plan inputPlan, started time.Time) (mcpbrowser.CallResult, error) {
-	m.noteAction(s.id, p.tabId, "Pressed "+chordNames(plan.chords, plan.repeat))
+	m.noteAction(s.id, p.tabId, actionPressedPrefix+chordNames(plan.chords, plan.repeat))
 	allowed := map[string]bool{}
 	for r := 0; r < plan.repeat; r++ {
 		for _, chord := range plan.chords {
@@ -607,7 +607,7 @@ func (m *Manager) drag(ctx context.Context, s sessionInfo, p pageContext, plan i
 	if !inViewport(from, width, height) || !inViewport(to, width, height) {
 		return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrCoordinateOutside)
 	}
-	m.noteActionAt(s.id, p.tabId, fmt.Sprintf("Dragged from (%d, %d) to (%d, %d)", int(from.x), int(from.y), int(to.x), int(to.y)),
+	m.noteActionAt(s.id, p.tabId, fmt.Sprintf(actionDragFormat, int(from.x), int(from.y), int(to.x), int(to.y)),
 		&ActionCue{Kind: "click", X: to.x, Y: to.y})
 	if err := m.mouse(ctx, p, mouseParams("mouseMoved", from, buttonNone, 0, 0, plan.modifiers)); err != nil {
 		return mcpbrowser.CallResult{}, err
@@ -772,7 +772,7 @@ func (m *Manager) resize(ctx context.Context, s sessionInfo, loc BlockLocation, 
 			return mcpbrowser.CallResult{}, err
 		}
 		m.setViewport(s.id, p.tabId, &Viewport{Width: width, Height: height})
-		m.noteAction(s.id, p.tabId, fmt.Sprintf("Resized the page to %d×%d", width, height))
+		m.noteAction(s.id, p.tabId, fmt.Sprintf(actionResizeFormat, width, height))
 		return mcpbrowser.TextResult(fmt.Sprintf("The page's viewport is now %d×%d CSS pixels, emulated inside the panel "+
 			"until your control of the tab ends.", width, height)), nil
 	})

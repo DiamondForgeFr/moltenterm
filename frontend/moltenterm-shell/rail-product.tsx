@@ -18,7 +18,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
-import { useT } from "./i18n/i18n";
+import { useT, useTCount } from "./i18n/i18n";
 import { ProductCoffeeDrop } from "./keepawake-ui";
 import { productGridEntries, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
 import { RailTray, showRailMenu, useRailTrayHost } from "./rail-tray";
@@ -215,6 +215,7 @@ export function RailProduct({
     children: React.ReactNode;
 }) {
     const t = useT();
+    const tc = useTCount();
     const ref = useRef<HTMLButtonElement>(null);
     const color = useGroupColor(unit);
     const { isOpen, hostProps } = useRailTrayHost(unit.id, true);
@@ -288,7 +289,7 @@ export function RailProduct({
                     ref={ref}
                     type="button"
                     tabIndex={nav.tabIndex}
-                    aria-label={`${t(kindKey, { name, count: unit.entries.length })}${unread > 0 ? `, ${t("rail.unread", { count: unread })}` : ""}`}
+                    aria-label={`${t(kindKey, { name, count: unit.entries.length })}${unread > 0 ? `, ${tc("rail.unread", unread)}` : ""}`}
                     aria-expanded={!collapsed}
                     aria-current={showActive ? "true" : undefined}
                     data-rail-product={unit.key}

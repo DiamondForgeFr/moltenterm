@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -38,8 +39,9 @@ const (
 	// the last action the Sessions view, which lists them all.
 	welcomeBackPaneActions = 2
 	welcomeBackKeyPrefix   = "sessions:welcomeback:"
-	welcomeBackSource      = "agent"
-	welcomeBackLabelMax    = 24
+	// "sessions", not "agent": the sessions may be plain shells (#748). It shares the agents' subject.
+	welcomeBackSource   = "sessions"
+	welcomeBackLabelMax = 24
 
 	// must match frontend/moltenterm-shell/sessions/sessions-store.ts
 	ShowSessionGesture  = "sessions:show"
@@ -60,8 +62,9 @@ type aliveRecord struct {
 }
 
 type WelcomeBackLine struct {
-	News string `json:"news"`
-	Text string `json:"text"`
+	News     string      `json:"news"`
+	Text     string      `json:"text"`
+	TextText *uimsg.Text `json:"texttext,omitempty"`
 	// What runs, for the line's button.
 	What        string `json:"what"`
 	JobId       string `json:"jobid"`
@@ -145,6 +148,25 @@ func FormatRunFor(ms int64) string {
 	return fmt.Sprintf("%d d", int(d.Hours()/24))
 }
 
+// runForText is FormatRunFor as the window words it.
+func runForText(ms int64) *uimsg.Text {
+	d := time.Duration(ms) * time.Millisecond
+	switch {
+	case d < time.Minute:
+		return uimsg.Make("sessions.welcomeback.duration.underminute")
+	case d < time.Hour:
+		return uimsg.Make("sessions.welcomeback.duration.min", "m", fmt.Sprintf("%d", int(d.Minutes())))
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		m := int(d.Minutes()) - h*60
+		if m == 0 {
+			return uimsg.Make("sessions.welcomeback.duration.h", "h", fmt.Sprintf("%d", h))
+		}
+		return uimsg.Make("sessions.welcomeback.duration.hmin", "h", fmt.Sprintf("%d", h), "m", fmt.Sprintf("%d", m))
+	}
+	return uimsg.Make("sessions.welcomeback.duration.d", "d", fmt.Sprintf("%d", int(d.Hours()/24)))
+}
+
 func sessionPlace(s molten.DurableSession) string {
 	if s.Worktree != nil && s.Worktree.Branch != "" {
 		return s.Worktree.Branch
@@ -174,35 +196,52 @@ func lineText(workspace string, what string, place string, ranMs int64, news str
 	return text + ": " + news
 }
 
-func exitNews(job *waveobj.Job) (string, string) {
-	if job.CmdExitCode != nil && *job.CmdExitCode == 0 {
-		return NewsExited, "exited (0)"
+// lineTextCoded is lineText as the window words it; the workspace and what run are data.
+func lineTextCoded(workspace string, what string, place string, ranMs int64, news *uimsg.Text) *uimsg.Text {
+	head := what
+	if workspace != "" {
+		head = workspace + " · " + what
 	}
-	if job.CmdExitCode != nil {
-		return NewsFailed, fmt.Sprintf("exited with status %d", *job.CmdExitCode)
+	rtn := uimsg.Make("sessions.welcomeback.line", "head", head, "place", "", "ran", "").With("news", news)
+	if place != "" {
+		rtn.With("place", uimsg.Make("sessions.welcomeback.place", "place", place))
 	}
-	if job.CmdExitSignal != "" {
-		return NewsFailed, "ended by " + job.CmdExitSignal
+	if ranMs > 0 {
+		rtn.With("ran", uimsg.Make("sessions.welcomeback.ran").With("duration", runForText(ranMs)))
 	}
-	return NewsExited, "exited"
+	return rtn
 }
 
-func sessionNews(s molten.DurableSession, growth int64) (string, string) {
+func exitNews(job *waveobj.Job) (string, string, *uimsg.Text) {
+	if job.CmdExitCode != nil && *job.CmdExitCode == 0 {
+		return NewsExited, "exited (0)", uimsg.Make("sessions.welcomeback.news.exitedzero")
+	}
+	if job.CmdExitCode != nil {
+		code := fmt.Sprintf("%d", *job.CmdExitCode)
+		return NewsFailed, "exited with status " + code, uimsg.Make("sessions.welcomeback.news.exitedstatus", "status", code)
+	}
+	if job.CmdExitSignal != "" {
+		return NewsFailed, "ended by " + job.CmdExitSignal, uimsg.Make("sessions.welcomeback.news.endedby", "signal", job.CmdExitSignal)
+	}
+	return NewsExited, "exited", uimsg.Make("sessions.welcomeback.news.exited")
+}
+
+func sessionNews(s molten.DurableSession, growth int64) (string, string, *uimsg.Text) {
 	if s.Agent != "" {
 		switch s.AgentState {
 		case molten.AgentStateError:
-			return NewsFailed, "failed"
+			return NewsFailed, "failed", uimsg.Make("sessions.welcomeback.news.failed")
 		case molten.AgentStateWaiting:
-			return NewsWaiting, "waits for you"
+			return NewsWaiting, "waits for you", uimsg.Make("sessions.welcomeback.news.waiting")
 		case molten.AgentStateDone:
-			return NewsFinished, "finished"
+			return NewsFinished, "finished", uimsg.Make("sessions.welcomeback.news.finished")
 		}
 	}
 	// A shell at its prompt redraws it on reconnect: only a running command's output is news.
 	if growth > 0 && !strings.HasSuffix(s.Command, atPromptSuffix) {
-		return NewsOutput, "new output"
+		return NewsOutput, "new output", uimsg.Make("sessions.welcomeback.news.output")
 	}
-	return "", ""
+	return "", "", nil
 }
 
 // BuildWelcomeBack is pure: nothing on a first start (no heartbeat yet), and nothing when no session survived and none
@@ -217,7 +256,7 @@ func BuildWelcomeBack(f WelcomeBackFacts) WelcomeBack {
 			continue
 		}
 		rtn.Survived++
-		news, label := sessionNews(s, f.OutputGrowth[s.Id])
+		news, label, labelText := sessionNews(s, f.OutputGrowth[s.Id])
 		if news == "" {
 			continue
 		}
@@ -228,6 +267,7 @@ func BuildWelcomeBack(f WelcomeBackFacts) WelcomeBack {
 		rtn.Lines = append(rtn.Lines, WelcomeBackLine{
 			News:        news,
 			Text:        lineText(s.WorkspaceName, what, sessionPlace(s), f.Now-s.StartedAt, label),
+			TextText:    lineTextCoded(s.WorkspaceName, what, sessionPlace(s), f.Now-s.StartedAt, labelText),
 			What:        what,
 			JobId:       s.Id,
 			WorkspaceId: s.WorkspaceId,
@@ -240,14 +280,16 @@ func BuildWelcomeBack(f WelcomeBackFacts) WelcomeBack {
 		if job == nil || job.CmdExitTs <= f.ClosedAt || job.CmdStartTs <= 0 || job.CmdStartTs >= f.ClosedAt {
 			continue
 		}
-		news, label := exitNews(job)
+		news, label, labelText := exitNews(job)
 		place := ""
 		if e.Folder != "" {
 			place = filepath.Base(e.Folder)
 		}
+		ranMs := job.CmdExitTs - job.CmdStartTs
 		rtn.Lines = append(rtn.Lines, WelcomeBackLine{
 			News:        news,
-			Text:        lineText(e.WorkspaceName, shellName(job, nil), place, job.CmdExitTs-job.CmdStartTs, label),
+			Text:        lineText(e.WorkspaceName, shellName(job, nil), place, ranMs, label),
+			TextText:    lineTextCoded(e.WorkspaceName, shellName(job, nil), place, ranMs, labelText),
 			What:        shellName(job, nil),
 			JobId:       job.OID,
 			WorkspaceId: e.WorkspaceId,
@@ -281,23 +323,42 @@ func WelcomeBackNotification(wb WelcomeBack, startTs int64) (molten.Notification
 		return molten.NotificationInput{}, false
 	}
 	title := plural(wb.Survived, "session", "sessions") + " kept running while MoltenTerm was closed"
+	titleText := uimsg.Make("sessions.welcomeback.keptother", "count", fmt.Sprintf("%d", wb.Survived))
+	if wb.Survived == 1 {
+		titleText = uimsg.Make("sessions.welcomeback.keptone")
+	}
 	if wb.Survived == 0 {
 		title = plural(len(wb.Lines), "session", "sessions") + " ended while MoltenTerm was closed"
+		titleText = uimsg.Make("sessions.welcomeback.endedother", "count", fmt.Sprintf("%d", len(wb.Lines)))
+		if len(wb.Lines) == 1 {
+			titleText = uimsg.Make("sessions.welcomeback.endedone")
+		}
 	}
 	texts := make([]string, 0, len(wb.Lines))
 	for _, line := range wb.Lines {
 		texts = append(texts, line.Text)
+	}
+	// The lines joined as Message joins them: each join holds a line and the rest of the list.
+	var messageText *uimsg.Text
+	for i := len(wb.Lines) - 1; i >= 0; i-- {
+		if messageText == nil {
+			messageText = wb.Lines[i].TextText
+			continue
+		}
+		messageText = uimsg.Make("sessions.welcomeback.join").With("first", wb.Lines[i].TextText).With("rest", messageText)
 	}
 	kind := "info"
 	if len(wb.Lines) > 0 && (wb.Lines[0].News == NewsFailed || wb.Lines[0].News == NewsWaiting) {
 		kind = "warning"
 	}
 	input := molten.NotificationInput{
-		Key:     fmt.Sprintf("%s%d", welcomeBackKeyPrefix, startTs),
-		Source:  welcomeBackSource,
-		Title:   title,
-		Message: strings.Join(texts, "; "),
-		Kind:    kind,
+		Key:         fmt.Sprintf("%s%d", welcomeBackKeyPrefix, startTs),
+		Source:      welcomeBackSource,
+		Title:       title,
+		TitleText:   titleText,
+		Message:     strings.Join(texts, "; "),
+		MessageText: messageText,
+		Kind:        kind,
 	}
 	for i, line := range wb.Lines {
 		if len(input.Actions) >= welcomeBackPaneActions {
@@ -308,20 +369,22 @@ func WelcomeBackNotification(wb WelcomeBack, startTs int64) (molten.Notification
 			continue
 		}
 		input.Actions = append(input.Actions, molten.NotificationAction{
-			Id:      fmt.Sprintf("show%d", i),
-			Label:   "Show " + clipLabel(line.What),
-			Kind:    "gesture",
-			Gesture: ShowSessionGesture,
-			Args:    map[string]any{"id": line.JobId},
-			Lasting: true,
+			Id:        fmt.Sprintf("show%d", i),
+			Label:     "Show " + clipLabel(line.What),
+			LabelText: uimsg.Make("sessions.welcomeback.show", "what", clipLabel(line.What)),
+			Kind:      "gesture",
+			Gesture:   ShowSessionGesture,
+			Args:      map[string]any{"id": line.JobId},
+			Lasting:   true,
 		})
 	}
 	input.Actions = append(input.Actions, molten.NotificationAction{
-		Id:      "sessions",
-		Label:   "Open Sessions",
-		Kind:    "gesture",
-		Gesture: OpenSessionsGesture,
-		Lasting: true,
+		Id:        "sessions",
+		Label:     "Open Sessions",
+		LabelText: uimsg.Make("sessions.welcomeback.open"),
+		Kind:      "gesture",
+		Gesture:   OpenSessionsGesture,
+		Lasting:   true,
 	})
 	return input, true
 }

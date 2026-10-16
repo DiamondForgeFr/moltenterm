@@ -3,7 +3,33 @@
 
 package agentlaunch
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+)
+
+// StepAsideTextOf is the code of one of the fixed reasons a launch adds nothing (this file's and settings.go's), nil
+// for any other text (#656).
+func StepAsideTextOf(reason string) *uimsg.Text {
+	switch reason {
+	case StepAsideOutsidePane:
+		return uimsg.Make("integration.stepaside.outsidepane")
+	case StepAsideNested:
+		return uimsg.Make("integration.stepaside.nested")
+	case StepAsideTurnedOff:
+		return uimsg.Make("integration.stepaside.turnedoff", "var", IntegrationVarName)
+	case StepAsidePassThrough:
+		return uimsg.Make("integration.stepaside.passthrough")
+	case StepAsideSettingsOff:
+		return uimsg.Make("integration.stepaside.settingsoff", "setting", SettingIntegrate)
+	case StepAsideSettingsAgentOff:
+		return uimsg.Make("integration.stepaside.settingsagentoff", "setting", SettingIntegrateOff)
+	case StepAsideSettingsUnknown:
+		return uimsg.Make("integration.stepaside.settingsunknown")
+	}
+	return nil
+}
 
 // Why a launch adds nothing (DS-SHELL-045): the real binary then runs with the user's arguments unchanged.
 const (

@@ -6,6 +6,7 @@ import {
     badgeCount,
     deliveryFor,
     deliveryOf,
+    notificationSourceLabel,
     parsePrefs,
     shownEntries,
     subjectOf,
@@ -41,6 +42,8 @@ describe("notification toasts (FR-SHELL-055)", () => {
 describe("notification preferences (FR-MC-019)", () => {
     it("files each source under its subject", () => {
         expect(subjectOf("agent")).toBe("agents");
+        expect(subjectOf("sessions")).toBe("agents");
+        expect(notificationSourceLabel("sessions")).toBe("sessions");
         expect(subjectOf("build")).toBe("builds");
         expect(subjectOf("moltenterm")).toBe("updates");
         expect(subjectOf("mod")).toBe("mods");
