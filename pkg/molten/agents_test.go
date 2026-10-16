@@ -492,6 +492,21 @@ func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
 	}
 }
 
+// #789: the agent docs give the canonical heading the Reviews list finds a test report by.
+func TestPipelineGuideGivesTheTestReportHeading(t *testing.T) {
+	pipeline, err := FindGuide(PipelineGuideName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := guideSource(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(source, "first line is exactly `## Test report`") {
+		t.Error("the molten-pipeline guide must give the canonical test report heading")
+	}
+}
+
 func TestEmbeddedClaudeCodeExample(t *testing.T) {
 	part := "examples/test-band/agents/claude-code"
 	for _, name := range []string{"claude-code-parts.md", "examples/test-band/mod.json", "examples/test-band/main.js", part + "/.claude-plugin/plugin.json", part + "/hooks/hooks.json", part + "/hooks/register.tsx", part + "/types/index.d.ts"} {

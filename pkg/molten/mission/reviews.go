@@ -80,7 +80,12 @@ var reviewPendingWords = []string{"PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS"
 
 // A branch named after its ticket without a declared pattern: feature/579-reviews-view, fix/12.
 var defaultTicketBranchRe = regexp.MustCompile(`^[A-Za-z]+/(\d+)(?:[-_]|$)`)
-var testReportHeadingRe = regexp.MustCompile(`(?i)\btest report\b`)
+
+// The usual wordings of a test report heading (#789): sf-workflow prescribes no heading, so agents write "## Test
+// report", "## AI Testing report (PR #763)", "## AI testing (built app, ...)", "## Test results" or the French ones.
+var testReportHeadingRe = regexp.MustCompile(`(?i)\b(?:test(?:ing)?\s+(?:report|results?)|ai[\s-]+testing|rapports?\s+de\s+tests?|r[ée]sultats?\s+(?:des\s+|de\s+)?tests?)\b`)
+var testReportPlanRe = regexp.MustCompile(`(?i)\bplan\b`)
+var leadingBoldRe = regexp.MustCompile(`^(?:\*\*|__)(.+?)(?:\*\*|__)`)
 
 type ReviewsRequest struct {
 	Dir   string `json:"dir"`
@@ -731,17 +736,34 @@ type ghReviewNode struct {
 	Comments ghReviewComments `json:"comments"`
 }
 
-// IsTestReport says whether a comment is a test report: its first markdown heading names one (the sf-workflow test
-// report, "## Test report (#N)").
+// IsTestReport says whether a comment is a test report: its heading names one ("## Test report (#N)", the canonical
+// heading the agent docs prescribe, or a usual wording). Only the heading is read, so a plan saying "the test report
+// will follow" is not one.
 func IsTestReport(body string) bool {
+	heading := reportHeading(body)
+	return heading != "" && testReportHeadingRe.MatchString(heading) && !testReportPlanRe.MatchString(heading)
+}
+
+// reportHeading is a comment's first markdown heading, or its first line when that line opens in bold
+// ("**Test report**"), as agents posting from a plain text box write it.
+func reportHeading(body string) string {
+	firstLine := true
 	for _, line := range strings.Split(body, "\n") {
 		text := strings.TrimSpace(line)
-		if !strings.HasPrefix(text, "#") {
+		if text == "" || strings.HasPrefix(text, "<!--") {
 			continue
 		}
-		return testReportHeadingRe.MatchString(strings.TrimLeft(text, "# "))
+		if strings.HasPrefix(text, "#") {
+			return strings.TrimSpace(strings.TrimLeft(text, "# "))
+		}
+		if firstLine {
+			if m := leadingBoldRe.FindStringSubmatch(text); m != nil {
+				return strings.TrimSpace(m[1])
+			}
+		}
+		firstLine = false
 	}
-	return false
+	return ""
 }
 
 func latestTestReport(comments []ghReviewComment) (string, bool) {
