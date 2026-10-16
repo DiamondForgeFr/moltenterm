@@ -100,14 +100,17 @@ function capture(host: WebContents, guestId?: number): Target {
     watch(host);
     watch(target);
     const owner = contextMenuWindow(host);
-    if (!watchedWindows.has(owner.id)) {
-        watchedWindows.add(owner.id);
+    // Read now: "closed" fires on a destroyed window, whose id getter throws (#734, an uncaught exception at quit).
+    const ownerId = owner.id;
+    if (!watchedWindows.has(ownerId)) {
+        watchedWindows.add(ownerId);
         owner.on("blur", () => {
             for (const contents of webContents.getAllWebContents()) {
-                if (contextMenuWindow(contents)?.id === owner.id) clearFor(contents);
+                const window = contextMenuWindow(contents);
+                if (window != null && !window.isDestroyed() && window.id === ownerId) clearFor(contents);
             }
         });
-        owner.once("closed", () => watchedWindows.delete(owner.id));
+        owner.once("closed", () => watchedWindows.delete(ownerId));
     }
     return {
         host,

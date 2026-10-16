@@ -215,6 +215,10 @@ export class WaveBrowserWindow extends BaseWindow {
         const fullscreenOnLaunch = fullConfig?.settings["window:fullscreenonlaunch"];
         if (fullscreenOnLaunch && opts.foregroundWindow) {
             this.once("show", () => {
+                // MOLTENTERM-PATCH (#734): a window listener may run after "closed", when every call throws
+                if (this.isDestroyed()) {
+                    return;
+                }
                 this.setFullScreen(true);
             });
         }
