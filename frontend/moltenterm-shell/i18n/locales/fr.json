@@ -949,11 +949,10 @@
             },
             "moltenterm:view360": {
                 "label": "Vue 360",
-                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Le bouton 360 de l'onglet l'emporte.",
+                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Son bouton 360 l'active aussi.",
                 "options": {
                     "auto": "Automatique",
-                    "always": "Toujours",
-                    "never": "Jamais"
+                    "always": "Toujours"
                 }
             },
             "review:publishlanguage": {
@@ -3797,16 +3796,25 @@
             "toggleAutoMark": "A",
             "tooltipOn": "La vue 360 est active : la première colonne reste fixe, les autres panneaux défilent latéralement sur le tapis.",
             "tooltipOff": "La vue 360 est désactivée : tous les panneaux se partagent la largeur de l'onglet.",
-            "tooltipAuto": "Automatique : bascule d'elle-même quand un panneau devient trop étroit pour être lu.",
-            "tooltipManual": "Choisi pour cet onglet. Clic droit pour suivre de nouveau le réglage.",
-            "tooltipSetting": "D'après le réglage Vue 360.",
+            "heldManual": "À la demande : activée depuis ce bouton.",
+            "heldAuto": "Automatique : les panneaux ne tiennent plus côte à côte à une largeur lisible.",
+            "heldSetting": "D'après le réglage Vue 360 (Toujours).",
+            "offManual": "Désactivée pour cet onglet. Elle s'active encore d'elle-même quand les panneaux ne tiennent plus côte à côte.",
+            "offAuto": "Automatique : s'active d'elle-même quand les panneaux ne tiennent plus côte à côte.",
+            "clickOn": "Cliquer pour l'activer.",
+            "clickOff": "Cliquer pour la quitter. Si les panneaux ne tiennent qu'en réajustant leurs tailles, une confirmation est demandée d'abord.",
             "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
-            "menuOn": "Activée",
-            "menuOff": "Désactivée",
-            "menuFollow": "Suivre le réglage",
-            "pillText": "Trop étroit pour être lu",
-            "pillAction": "Passer en vue 360",
-            "pillClose": "Masquer jusqu'à l'ajout d'un panneau"
+            "menuOn": "Activer la vue 360",
+            "menuLeave": "Quitter la vue 360",
+            "menuSettings": "Réglages de la vue 360",
+            "readjustTitle": "Quitter la vue 360 ?",
+            "readjustText": "Les panneaux ne tiennent côte à côte que si les terminaux renoncent à la largeur où ils ont été étirés. Toutes les tailles sont réajustées : la largeur minimale des terminaux est effacée et les panneaux se partagent la largeur de l'onglet.",
+            "readjustConfirm": "Réajuster toutes les tailles",
+            "readjustStay": "Rester en vue 360",
+            "blockedTitle": "Fermer d'abord des panneaux",
+            "blockedOne": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez une colonne pour quitter la vue 360.",
+            "blockedMany": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez {count} colonnes pour quitter la vue 360.",
+            "blockedOk": "Rester en vue 360"
         },
         "radar": {
             "label": "Panneaux sur le tapis",

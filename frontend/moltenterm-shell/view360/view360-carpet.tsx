@@ -9,14 +9,12 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
-import { useLocale, useT } from "../i18n/i18n";
-import { MoltenWave } from "../molten-button";
+import { useT } from "../i18n/i18n";
 import { addCarpetPanel } from "./carpet-add";
 import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
-import { View360Text } from "./view360-text";
 import "./view360.css";
 
 function rectStyle(rect: Rect): CSSProperties {
@@ -87,42 +85,6 @@ function CarpetInvites({ layoutModel, layout }: { layoutModel: LayoutModel; layo
     );
 }
 
-// "Too tight to read" (FR-SHELL-066-AC5, DS-SHELL-117): when the developer refused the 360 view and a column is under
-// its readable minimum, a pill floats at the bottom centre of the tab; nothing is resized or closed.
-function TightPill({ layoutModel }: { layoutModel: LayoutModel }) {
-    const view360 = layoutModel.moltenView360;
-    useLocale();
-    const show = useAtomValue(view360.pillAtom);
-    if (!show) {
-        return null;
-    }
-    return (
-        <div className="mt-tight-pill" role="status" data-testid="mt-tight-pill">
-            <span className="mt-tight-pill-dot" aria-hidden="true" />
-            <span className="mt-tight-pill-text">{View360Text.pillText}</span>
-            <button
-                type="button"
-                className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => view360.setManual(true)}
-            >
-                {View360Text.pillAction}
-                <MoltenWave />
-            </button>
-            <button
-                type="button"
-                className="mt-tight-pill-close cursor-pointer"
-                title={View360Text.pillClose}
-                aria-label={View360Text.pillClose}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => view360.dismissPill()}
-            >
-                <i className="fa fa-solid fa-xmark" aria-hidden="true" />
-            </button>
-        </div>
-    );
-}
-
 export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
     const view360 = layoutModel.moltenView360;
     const layout = useAtomValue(view360.layoutAtom);
@@ -180,7 +142,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     }, [active, layoutModel, view360]);
 
     if (layout == null) {
-        return <TightPill layoutModel={layoutModel} />;
+        return null;
     }
     const surface = layout.surface;
     const fadeTop = layout.viewport.top;

@@ -40,6 +40,7 @@ vi.mock("../panel-size/panel-size-store", () => ({
     cachedBlockView: (blockId: string) => (blockId === "b-b" ? "web" : "term"),
     currentPanelSizes: () => ({ web: { width: 700 } }),
     currentTerminalFloorPx: () => terminalFloor.px,
+    clearTerminalFloor: vi.fn(() => (terminalFloor.px = null)),
     isTerminalLeaf: (node: LayoutNode) => !node.children?.length && node.data?.blockId !== "b-b",
     rememberPanelWidth: vi.fn(),
 }));
@@ -59,6 +60,7 @@ function makeModel(on: boolean, rootNode: LayoutNode) {
     const layoutModel = {
         focusedNode: atom(null as LayoutNode),
         updateTree: vi.fn(),
+        treeReducer: vi.fn(),
         treeState: { rootNode },
         displayContainerRef: { current: null },
     } as unknown as LayoutModel;
@@ -441,7 +443,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(model.active).toBe(true);
     });
 
-    it("lets the always and never settings decide, and the tab's manual choice win", () => {
+    it("lets the always setting decide, a stored never read as automatic, and turns on on demand (#733)", () => {
         const root = rowOf(2);
         const { model, tabAtom } = makeModel(null, root);
         model.evaluate(root, boundsOf(1600));
@@ -450,29 +452,108 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(model.active).toBe(true);
         setSetting("never");
         expect(model.active).toBe(false);
+        // A stored "never" no longer turns the automatic decision off.
+        model.evaluate(rowOf(4), boundsOf(1200));
+        expect(model.active).toBe(true);
+        expect(globalStore.get(model.decisionAtom).source).toBe("auto");
+        model.evaluate(root, boundsOf(1600));
+        model.toggle();
+        expect(metaWrites()).toEqual([{ [View360MetaKey]: true }]);
         globalStore.set(tabAtom, { oid: "tab-1", meta: { [View360MetaKey]: true } } as unknown as Tab);
         expect(model.active).toBe(true);
         expect(globalStore.get(model.decisionAtom).source).toBe("manual");
-        model.toggle();
-        expect(metaWrites()).toEqual([{ [View360MetaKey]: false }]);
-        model.setManual(null);
-        expect(metaWrites()[1]).toEqual({ [View360MetaKey]: null });
     });
 
-    it("shows the pill in never mode while a column is too tight, until closed and a column is added", () => {
-        setSetting("never");
-        const { model } = makeModel(null, rowOf(3));
-        model.evaluate(rowOf(3), boundsOf(1000));
+    it("leaves an on-demand view at once when everything fits, back to automatic (#733)", () => {
+        const root = rowOf(2);
+        const { model, layoutModel } = makeModel(true, root);
+        model.evaluate(root, boundsOf(1600));
+        expect(model.active).toBe(true);
+        expect(model.requestLeave()).toEqual({ kind: "leave" });
+        expect(metaWrites()).toEqual([{ [View360MetaKey]: null }]);
+        expect(globalStore.get(model.exitAskAtom)).toBeNull();
+        expect(layoutModel.treeReducer).not.toHaveBeenCalled();
+        expect(layoutModel.updateTree).toHaveBeenCalled();
+    });
+
+    it("turns the always setting off for this tab only while everything fits (#733)", () => {
+        setSetting("always");
+        const root = rowOf(2);
+        const { model } = makeModel(null, root);
+        model.evaluate(root, boundsOf(1600));
+        expect(model.active).toBe(true);
+        model.toggle();
+        expect(metaWrites()).toEqual([{ [View360MetaKey]: false }]);
+    });
+
+    it("leaves an automatic view inside the leaving margin, the automatic state reset (#733)", () => {
+        const root = rowOf(3);
+        const { model } = makeModel(null, root);
+        model.evaluate(root, boundsOf(1200));
+        expect(model.active).toBe(true);
+        // 1240 needed: fits at 1260, though within the margin automatic would stay.
+        model.evaluate(root, boundsOf(1260));
+        expect(model.active).toBe(true);
+        expect(model.requestLeave()).toEqual({ kind: "leave" });
         expect(model.active).toBe(false);
-        expect(globalStore.get(model.pillAtom)).toBe(true);
-        model.dismissPill();
-        expect(globalStore.get(model.pillAtom)).toBe(false);
-        model.evaluate(rowOf(3), boundsOf(900));
-        expect(globalStore.get(model.pillAtom)).toBe(false);
-        model.evaluate(rowOf(4), boundsOf(900));
-        expect(globalStore.get(model.pillAtom)).toBe(true);
-        model.setManual(true);
-        expect(metaWrites()).toContainEqual({ [View360MetaKey]: true });
+        model.evaluate(root, boundsOf(1260));
+        expect(model.active).toBe(false);
+    });
+
+    it("asks before readjusting when only the terminal floor keeps the panels apart (#733)", () => {
+        terminalFloor.px = 900;
+        try {
+            const root = rowOf(2);
+            const { model, layoutModel } = makeModel(true, root);
+            model.evaluate(root, boundsOf(1200));
+            expect(model.requestLeave()).toEqual({ kind: "readjust" });
+            expect(globalStore.get(model.exitAskAtom)).toEqual({ kind: "readjust" });
+            expect(metaWrites()).toEqual([]);
+            // "Stay in 360 view"
+            model.closeExitAsk();
+            expect(globalStore.get(model.exitAskAtom)).toBeNull();
+            expect(model.active).toBe(true);
+            // "Readjust every size": the floor cleared, the columns sharing the width, back to automatic.
+            model.requestLeave();
+            model.readjustAndLeave();
+            expect(terminalFloor.px).toBeNull();
+            expect(globalStore.get(model.exitAskAtom)).toBeNull();
+            expect(layoutModel.treeReducer).toHaveBeenCalledWith({
+                type: LayoutTreeActionType.ResizeNode,
+                resizeOperations: [
+                    { nodeId: "c0", size: 50 },
+                    { nodeId: "c1", size: 50 },
+                ],
+            });
+            expect(metaWrites()).toEqual([{ [View360MetaKey]: null }]);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("widens the fixed zone past half of the window to keep the terminal floor (#733)", () => {
+        terminalFloor.px = 1000;
+        try {
+            const root = rowOf(2);
+            const { model } = makeModel(true, root);
+            model.evaluate(root, boundsOf(1600));
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1000);
+            // No room left for a readable carpet column: half of the window again.
+            expect(model.computeLayout(root, boundsOf(1300)).fixed.width).toBe(650);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("stays in 360 view when the panels do not fit even at their readable minimums (#733)", () => {
+        const root = rowOf(5);
+        const { model, layoutModel } = makeModel(true, root);
+        model.evaluate(root, boundsOf(1300));
+        expect(model.requestLeave()).toEqual({ kind: "blocked", extraColumns: 2 });
+        expect(globalStore.get(model.exitAskAtom)).toEqual({ kind: "blocked", extraColumns: 2 });
+        expect(metaWrites()).toEqual([]);
+        expect(layoutModel.treeReducer).not.toHaveBeenCalled();
+        expect(model.active).toBe(true);
     });
 
     it("lays a panel opened in a single-column tab that wants 360 view on the carpet", () => {

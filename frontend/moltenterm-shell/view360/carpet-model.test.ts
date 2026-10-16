@@ -10,6 +10,7 @@ import {
     CarpetMarginPx,
     CarpetPadTopPx,
     CarpetPadXPx,
+    CarpetReservePx,
     CarpetScrubberPx,
     DefaultCarpetColumnPx,
     FixedColumnGapPx,
@@ -30,6 +31,7 @@ import {
     computeCarpetLayout,
     defaultCarpetWidthPx,
     fitFixedWidths,
+    fixedBoundsPx,
     scrollToRevealColumn,
     splitCarpetColumns,
     visibleCarpetColumnIds,
@@ -245,6 +247,36 @@ describe("widths", () => {
     it("lets half of the width win on a narrow window", () => {
         expect(clampFixedPx(700, 900)).toBe(450);
         expect(clampFixedPx(100, 900)).toBe(450);
+    });
+
+    it("lets the terminal floor lift the half-window cap while a readable carpet column still fits (#733)", () => {
+        expect(CarpetReservePx).toBe(360 + 2 * CarpetPadXPx + 2 * CarpetMarginPx);
+        // 1499 px floor in a 2000 px window: 1499 + 400 fits.
+        expect(fixedBoundsPx(2000, 1499)).toEqual({ min: 1499, max: 1499 });
+        expect(clampFixedPx(974, 2000, 1499)).toBe(1499);
+        expect(clampFixedPx(1700, 2000, 1499)).toBe(1499);
+        // Right at the limit, then one pixel short: the cap stays.
+        expect(fixedBoundsPx(1499 + CarpetReservePx, 1499).max).toBe(1499);
+        expect(fixedBoundsPx(1498 + CarpetReservePx, 1499)).toEqual({ min: 949, max: 949 });
+        // A floor under half of the window only lifts the minimum.
+        expect(fixedBoundsPx(1600, 700)).toEqual({ min: 700, max: 800 });
+        expect(fixedBoundsPx(1600, 0)).toEqual(fixedBoundsPx(1600));
+    });
+
+    it("gives the first column's terminal floor what pinned columns leave at their minimum (#733)", () => {
+        // 1100 px floor in 2000 px: the fixed zone may take 1100 px, less one gap for both columns.
+        const widths = fitFixedWidths(2000, 500, [400], 1100);
+        expect(widths[0]).toBe(1100 - FixedColumnGapPx - PinnedColumnMinPx);
+        expect(widths[1]).toBe(PinnedColumnMinPx);
+        const layout = computeCarpetLayout({
+            width: 2000,
+            height: 900,
+            fixedNodeId: "a",
+            fixedPx: 500,
+            fixedNeedPx: 1100,
+            columns: [{ nodeId: "b", widthPx: 600 }],
+        });
+        expect(layout.fixed.width).toBe(1100);
     });
 
     it("falls back to the minimum for a missing width", () => {

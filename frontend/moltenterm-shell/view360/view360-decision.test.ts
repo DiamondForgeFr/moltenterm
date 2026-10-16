@@ -7,17 +7,20 @@ import {
     anyColumnTooTight,
     autoWants,
     columnMinimumsPx,
+    columnsParent,
     countLeaves,
     decideView360,
+    exitView360,
     FirstColumnMinPx,
     fitsAtCurrentFloors,
     fitsAtReadableMinimums,
     LeaveMarginPx,
     manualChoice,
+    maxReadableColumns,
     minimumsPx,
     normalColumnPxs,
     normalizeView360Setting,
-    showTightPill,
+    sharedColumnSizes,
     SideColumnMinPx,
     topColumns,
 } from "./view360-decision";
@@ -35,7 +38,8 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(normalizeView360Setting(undefined)).toBe("auto");
         expect(normalizeView360Setting("bogus")).toBe("auto");
         expect(normalizeView360Setting("always")).toBe("always");
-        expect(normalizeView360Setting("never")).toBe("never");
+        // "never" was removed (#733): a stored one reads as automatic.
+        expect(normalizeView360Setting("never")).toBe("auto");
         expect(manualChoice(true)).toBe(true);
         expect(manualChoice(false)).toBe(false);
         expect(manualChoice(undefined)).toBeNull();
@@ -124,23 +128,43 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(decideView360({ setting: "auto", manual: true, autoOn: false, columnCount: 1 }).active).toBe(false);
     });
 
-    it("follows the setting, and a manual choice wins over every mode", () => {
+    it("follows the setting, turns on on demand, and the automatic decision cannot be turned off (#733)", () => {
         const base = { autoOn: true, columnCount: 3 };
         expect(decideView360({ ...base, setting: "auto", manual: null })).toEqual({
             active: true,
             wanted: true,
             source: "auto",
         });
-        expect(decideView360({ ...base, setting: "auto", manual: null, autoOn: false }).active).toBe(false);
-        expect(decideView360({ ...base, setting: "always", manual: null, autoOn: false }).active).toBe(true);
-        expect(decideView360({ ...base, setting: "never", manual: null }).active).toBe(false);
+        expect(decideView360({ ...base, setting: "auto", manual: null, autoOn: false })).toEqual({
+            active: false,
+            wanted: false,
+            source: "auto",
+        });
+        expect(decideView360({ ...base, setting: "always", manual: null, autoOn: false })).toEqual({
+            active: true,
+            wanted: true,
+            source: "setting",
+        });
+        // On demand, even when the automatic decision did not trigger it.
+        expect(decideView360({ ...base, setting: "auto", manual: true, autoOn: false })).toEqual({
+            active: true,
+            wanted: true,
+            source: "manual",
+        });
+        // A tab turned off (false) still follows the automatic decision.
         expect(decideView360({ ...base, setting: "auto", manual: false })).toEqual({
+            active: true,
+            wanted: true,
+            source: "auto",
+        });
+        expect(decideView360({ ...base, setting: "always", manual: false }).source).toBe("auto");
+        // Under the always setting, a tab turned off stays off while everything fits.
+        expect(decideView360({ ...base, setting: "always", manual: false, autoOn: false })).toEqual({
             active: false,
             wanted: false,
             source: "manual",
         });
-        expect(decideView360({ ...base, setting: "never", manual: true }).active).toBe(true);
-        expect(decideView360({ ...base, setting: "always", manual: false }).active).toBe(false);
+        expect(decideView360({ ...base, setting: "auto", manual: false, autoOn: false }).active).toBe(false);
     });
 
     it("measures the normal columns and finds the one too tight to read", () => {
@@ -151,15 +175,72 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(anyColumnTooTight(normalColumnPxs([40, 60], 1000))).toBe(true);
         expect(anyColumnTooTight([300])).toBe(false);
     });
+});
 
-    it("shows the pill only when the 360 view was refused and a column is too tight", () => {
-        const base = { active: false, tooTight: true, dismissed: false };
-        expect(showTightPill({ ...base, setting: "never", manual: null })).toBe(true);
-        expect(showTightPill({ ...base, setting: "auto", manual: false })).toBe(true);
-        expect(showTightPill({ ...base, setting: "auto", manual: null })).toBe(false);
-        expect(showTightPill({ ...base, setting: "never", manual: null, dismissed: true })).toBe(false);
-        expect(showTightPill({ ...base, setting: "never", manual: null, tooTight: false })).toBe(false);
-        expect(showTightPill({ ...base, setting: "never", manual: true, active: true })).toBe(false);
+describe("leaving the 360 view (#733)", () => {
+    const isTerm = (n: LayoutNode) => n.data?.blockId?.startsWith("b-t") ?? false;
+
+    it("leaves at once when every column fits at the current floors", () => {
+        // terminal at a 900 px floor beside a browser: 900 + 360 = 1260
+        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        expect(exitView360(mins, 1300)).toEqual({ kind: "leave" });
+        expect(exitView360(mins, 1260)).toEqual({ kind: "leave" });
+        // Without a floor, the readable minimums.
+        expect(exitView360(columnMinimumsPx([leaf("t1"), leaf("browser")], null, isTerm), 900)).toEqual({
+            kind: "leave",
+        });
+    });
+
+    it("asks to readjust when the columns fit only once the terminal floor is cleared", () => {
+        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        expect(exitView360(mins, 1259)).toEqual({ kind: "readjust" });
+        expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx)).toEqual({ kind: "readjust" });
+        expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx + 8, 8)).toEqual({ kind: "readjust" });
+    });
+
+    it("stays when the columns do not fit even at their readable minimums, saying how many are too many", () => {
+        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx - 1)).toEqual({
+            kind: "blocked",
+            extraColumns: 1,
+        });
+        // Five columns in 1300 px: 520 + 2 x 360 = 1240 fit, so 2 columns are too many.
+        const five = columnMinimumsPx([leaf("a"), leaf("b"), leaf("c"), leaf("d"), leaf("e")], null, isTerm);
+        expect(exitView360(five, 1300)).toEqual({ kind: "blocked", extraColumns: 2 });
+        expect(exitView360(five, 1300, 4)).toEqual({ kind: "blocked", extraColumns: 2 });
+        expect(maxReadableColumns(1300)).toBe(3);
+        expect(maxReadableColumns(300)).toBe(1);
+    });
+
+    it("leaves a single column or an unmeasured tab without asking", () => {
+        expect(exitView360([900], 100)).toEqual({ kind: "leave" });
+        expect(exitView360([], 100)).toEqual({ kind: "leave" });
+        expect(exitView360([900, 360], 0)).toEqual({ kind: "leave" });
+    });
+
+    it("finds the node holding the top-level columns", () => {
+        expect(columnsParent(leaf("a"))).toBeNull();
+        expect(columnsParent(row(leaf("a"), leaf("b")))?.id).toBe("root");
+        expect(
+            columnsParent({ id: "w", flexDirection: FlexDirection.Column, size: 10, children: [row(leaf("a"))] })
+        ).toBeNull();
+    });
+
+    it("shares the width again, raising a column whose minimum is above its share", () => {
+        const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+        const equal = sharedColumnSizes([FirstColumnMinPx, SideColumnMinPx], 1600);
+        expect(equal).toEqual([50, 50]);
+        // Three columns in 1300 px: the first needs 520, the two others share the remaining 780.
+        const raised = sharedColumnSizes([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx], 1300);
+        expect(raised.map((s) => Math.round(s * 13))).toEqual([520, 390, 390]);
+        expect(sum(raised)).toBeCloseTo(100);
+        // With gaps, the room is the width less the gaps.
+        const gapped = sharedColumnSizes([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx], 1304, 2);
+        expect(gapped.map((s) => Math.round(s * 13))).toEqual([520, 390, 390]);
+        // Below the minimums, the sizes follow them.
+        const tight = sharedColumnSizes([FirstColumnMinPx, SideColumnMinPx], 600);
+        expect(tight[0] / tight[1]).toBeCloseTo(FirstColumnMinPx / SideColumnMinPx);
+        expect(sharedColumnSizes([], 600)).toEqual([]);
     });
 });
 
