@@ -12,6 +12,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -226,6 +227,8 @@ func Start() {
 	m.integrationOf = attention.AgentIntegration
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
+	m.openFiles = proctree.OpenFiles
+	m.procTable = proctree.Read
 	m.ticketLabels = GhIssueLabels
 	m.publish = publishView
 	m.publishUsage = publishUsage
@@ -236,6 +239,7 @@ func Start() {
 		return &settings
 	}
 	defaultManager = m
+	m.startProcessLinks()
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
 		m.settingsChanged(&config.Settings)

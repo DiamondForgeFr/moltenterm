@@ -1412,6 +1412,7 @@
         },
         "link": {
             "hook": "reliée par le hook de l'agent",
+            "process": "reliée par le processus de l'agent",
             "picked": "choisie",
             "guessed": "devinée",
             "folder": "trouvée par dossier"

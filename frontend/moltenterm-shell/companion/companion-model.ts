@@ -93,7 +93,7 @@ export type CompanionEarlierSession = {
 };
 
 // must match pkg/molten/companion/manager.go and guess.go
-export type CompanionLinkKind = "hook" | "picked" | "discovery" | "guessed";
+export type CompanionLinkKind = "hook" | "process" | "picked" | "discovery" | "guessed";
 export type CompanionGuess = "started" | "activity" | "recent";
 
 export type CompanionSession = {
@@ -490,6 +490,8 @@ export function linkLabel(session: CompanionSession): string {
     switch (session?.linkedby) {
         case "hook":
             return t("companion.link.hook");
+        case "process":
+            return t("companion.link.process");
         case "picked":
             return t("companion.link.picked");
         case "guessed":
