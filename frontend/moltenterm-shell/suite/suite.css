@@ -494,11 +494,14 @@
 
     .df-signature {
         margin: 0;
-        overflow: hidden;
         color: var(--df-text-muted);
         font-size: var(--df-text-meta);
         line-height: 1.4;
-        text-overflow: ellipsis;
+    }
+
+    /* A narrow column breaks the line between the name and the label, never inside either. */
+    .df-signature-product,
+    .df-signature-label {
         white-space: nowrap;
     }
 
