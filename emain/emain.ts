@@ -424,7 +424,7 @@ async function appMain() {
     await electronApp.whenReady();
     getTrustedAppSession();
     initIpcHandlers();
-    initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
+    initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language

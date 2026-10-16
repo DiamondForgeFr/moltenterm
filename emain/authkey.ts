@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // MOLTENTERM-PATCH (#805): private app sessions and registered-frame caller credentials.
 
-import { ipcMain, session, webContents } from "electron";
+import { configurePrivilegedIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { session, webContents } from "electron";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -26,6 +27,7 @@ export const AuthKey = crypto.randomUUID();
 export const CallerSecret = randomBytes(32).toString("hex");
 export const AppOrigin = isDevVite ? new URL(process.env.ELECTRON_RENDERER_URL).origin : "";
 const trustedAppCallers = new TrustedAppCallers();
+configurePrivilegedIpc(isTrustedAppSender);
 const configuredSessions = new WeakSet<Electron.Session>();
 const rendererProof = callerProof(CallerSecret, "renderer");
 const mainProof = callerProof(CallerSecret, "main");
@@ -76,8 +78,8 @@ export function registerTrustedAppContents(contents: Electron.WebContents): void
     });
 }
 
-ipcMain.on("get-auth-key", (event) => {
-    event.returnValue = isTrustedAppSender(event) ? AuthKey : "";
+onAppIpc("get-auth-key", (event) => {
+    event.returnValue = AuthKey;
 });
 
 export function configureAuthKeyRequestInjection(session: Electron.Session) {

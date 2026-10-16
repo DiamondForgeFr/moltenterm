@@ -7,7 +7,7 @@
 // the window's tab switching. A document inside a WebContentsView keeps visibilityState "visible" while the window is
 // unfocused, and while the view only sits off-screen (#68), so the renderer cannot tell these apart on its own.
 
-import { ipcMain } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { globalEvents } from "./emain-events";
 import { getAllWaveWindows, getWaveWindowByWebContentsId, WaveBrowserWindow } from "./emain-window";
 
@@ -59,7 +59,7 @@ function watchWindow(win: WaveBrowserWindow) {
 }
 
 export function initMoltentermTabActivity() {
-    ipcMain.on(WindowActivityGetChannel, (event) => {
+    onAppIpc(WindowActivityGetChannel, (event) => {
         event.returnValue = windowActivityOf(getWaveWindowByWebContentsId(event.sender.id));
     });
     // Emitted for each new window (and on focus, blur and close): the only place a window shows up outside

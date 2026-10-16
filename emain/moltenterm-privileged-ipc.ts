@@ -68,7 +68,14 @@ export function createPrivilegedIpc(registration: Registration, authorize: Autho
     };
 }
 
-const privilegedIpc = createPrivilegedIpc(ipcMain, (event) => applicationAuthorizer(event));
+const privilegedIpc = createPrivilegedIpc(
+    {
+        on: (channel, listener) => ipcMain.on(channel, listener),
+        removeListener: (channel, listener) => ipcMain.removeListener(channel, listener),
+        handle: (channel, handler) => ipcMain.handle(channel, handler),
+    },
+    (event) => applicationAuthorizer(event)
+);
 export const onAppIpc = privilegedIpc.onApp;
 export const handleAppIpc = privilegedIpc.handleApp;
 export const onGuestIpc = privilegedIpc.onGuest;
