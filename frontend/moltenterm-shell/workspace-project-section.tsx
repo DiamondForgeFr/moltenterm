@@ -25,8 +25,7 @@ import {
     unlinkWorkspaceProject,
 } from "./workspace-project-store";
 
-const LinkButtonClass =
-    "cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
+const LinkButtonClass = "molten-btn-secondary cursor-pointer rounded-6 px-2 py-1 text-12";
 
 function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
     const t = useT();

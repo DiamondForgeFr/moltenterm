@@ -95,6 +95,9 @@ const InputClass =
     "h-row max-w-full min-w-0 rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const GhostButton =
     "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
+// A labelled action of a row (Open →, Edit in JSON, Add a language): the calm button, which keeps its outline at rest.
+const SecondaryButton =
+    "molten-btn-secondary inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
 
 // The section each screen was last on, so a remount (a tab switch) keeps it.
 const LastSection = new Map<string, SettingsSectionId>();
@@ -366,7 +369,7 @@ function AddLanguageButton() {
         });
     };
     return (
-        <button type="button" className={GhostButton} title={t("language.addHint")} onClick={onClick}>
+        <button type="button" className={SecondaryButton} title={t("language.addHint")} onClick={onClick}>
             <i className={cn("fa-solid", copied ? "fa-check" : "fa-language")} />
             {copied ? t("language.addCopied") : t("language.add")}
         </button>
@@ -447,7 +450,7 @@ function Control({
             return (
                 <span className="inline-flex items-center gap-2">
                     <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
-                    <button type="button" className={GhostButton} onClick={onOpenJson}>
+                    <button type="button" className={SecondaryButton} onClick={onOpenJson}>
                         {t("settings.editInJson")}
                     </button>
                 </span>
@@ -624,7 +627,7 @@ function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (p
                                     : (f.description ?? "")}
                             </div>
                         </div>
-                        <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
+                        <button type="button" className={SecondaryButton} onClick={() => onOpenFile(f.path)}>
                             {t("common.open")}
                             <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
                         </button>

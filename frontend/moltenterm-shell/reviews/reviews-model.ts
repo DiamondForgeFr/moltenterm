@@ -360,6 +360,12 @@ export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
     return null;
 }
 
+// Only a failed read can come back on a retry alone; the other empty states wait on the user (install gh, log in, add
+// a remote), so their retry is a calm secondary action rather than a call to action that cannot succeed (#744).
+export function reviewsRetryIsPrimary(answer: ReviewsAnswer): boolean {
+    return answer?.state === "error";
+}
+
 export type ReviewsSplit = { ready: ReviewPr[]; drafts: ReviewPr[] };
 
 // The PRs marked ready from MoltenTerm (#687), by rebaseAskKey: when the click was made.

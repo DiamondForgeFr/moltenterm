@@ -123,6 +123,29 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
     });
 });
 
+// Every rule for a selector, the layered (indented) ones included.
+function rules(selector: string): string[] {
+    const re = new RegExp(`\\n\\s*${selector.replace(/[.\-:()]/g, "\\$&")} \\{([^}]*)\\}`, "g");
+    return [...buttonCss.matchAll(re)].map((m) => m[1]);
+}
+
+describe("secondary button (#744)", () => {
+    const rest = [".molten-btn-secondary", ".wave-button.molten-btn-secondary.solid"];
+
+    it.each(rest)("%s keeps a visible line and the main text at rest", (selector) => {
+        const [decls] = rules(selector);
+        expect(decls).toMatch(/border:\s*1px solid var\(--mt-line-2\);/);
+        expect(decls).toMatch(/color:\s*var\(--mt-text-main\);/);
+        expect(decls).not.toMatch(/border-color:\s*transparent/);
+    });
+
+    it.each(rest)("%s changes its fill and line on hover", (selector) => {
+        const [hover] = rules(`${selector}:hover:not(:disabled)`);
+        expect(hover).toMatch(/background-color:\s*var\(--mt-surface-2\);/);
+        expect(hover).toMatch(/border-color:\s*color-mix\(in srgb, var\(--mt-neutral-line\) \d+%, transparent\);/);
+    });
+});
+
 describe("moltenButtonClasses", () => {
     it.each([
         ["", "primary", "molten-btn solid", true],
