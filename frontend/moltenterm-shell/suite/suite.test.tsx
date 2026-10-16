@@ -134,15 +134,16 @@ describe("DiamondForge suite kit (#658)", () => {
         const full = renderToStaticMarkup(
             <SuiteSignature product="MoltenTerm" version="1.0.0" label="A DiamondForge product" className="x" />
         );
-        expect(full).toContain('class="df-signature x"');
-        expect(full).toContain('title="MoltenTerm 1.0.0 · A DiamondForge product"');
-        expect(full).toContain('<span class="df-signature-product">MoltenTerm 1.0.0</span> · A DiamondForge product');
+        expect(full).toBe(
+            '<p class="df-signature x" data-suite-signature=""><span class="df-signature-product">MoltenTerm 1.0.0 ·</span> ' +
+                '<span class="df-signature-label">A DiamondForge product</span></p>'
+        );
         const bare = renderToStaticMarkup(<SuiteSignature label="Un produit DiamondForge" />);
         expect(bare).toBe(
-            '<p class="df-signature" title="Un produit DiamondForge" data-suite-signature="">Un produit DiamondForge</p>'
+            '<p class="df-signature" data-suite-signature=""><span class="df-signature-label">Un produit DiamondForge</span></p>'
         );
         expect(renderToStaticMarkup(<SuiteSignature product="MoltenTerm" label="L" />)).toContain(
-            '<span class="df-signature-product">MoltenTerm</span> · L'
+            '<span class="df-signature-product">MoltenTerm ·</span> <span class="df-signature-label">L</span>'
         );
     });
 

@@ -196,16 +196,14 @@ export function SuiteSignature({
     className?: string;
 }) {
     const name = [product, version].filter(Boolean).join(" ");
-    const text = name ? `${name} · ${label}` : label;
     return (
-        <p className={joinClasses("df-signature", className)} title={text} data-suite-signature="">
+        <p className={joinClasses("df-signature", className)} data-suite-signature="">
             {name ? (
                 <>
-                    <span className="df-signature-product">{name}</span>
-                    {" · "}
+                    <span className="df-signature-product">{name} ·</span>{" "}
                 </>
             ) : null}
-            {label}
+            <span className="df-signature-label">{label}</span>
         </p>
     );
 }
