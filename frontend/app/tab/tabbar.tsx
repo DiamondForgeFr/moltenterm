@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import { OverlayScrollbars } from "overlayscrollbars";
 import { createRef, memo, useCallback, useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
+import { EqualizeButton } from "../../moltenterm-shell/equalize/equalize-button"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
@@ -753,6 +754,8 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             </button>
             <div className="flex-1" />
             <div ref={rightContainerRef} className="flex flex-row gap-1 items-end">
+                {/* MOLTENTERM-PATCH (#825): equalize the tab's panel widths, left of the 360 toggle */}
+                <EqualizeButton />
                 {/* MOLTENTERM-PATCH (#615): the tab's "360" view toggle */}
                 <View360Toggle />
                 {/* MOLTENTERM-PATCH (#45): the notification center's bell */}

@@ -516,6 +516,8 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 
 | `frontend/app/view/waveconfig/waveconfig-model.ts`, `frontend/app/view/waveconfig/secretscontent.tsx` | The Secrets editor requires an explicit draft edit before saving, keeps failed saves retryable, and discards asynchronous editor responses after selection or cancellation. A write lock survives editor cancellation; creation requires a successful names load. List loading and editor operations have independent state; errors retain translation keys and safe summaries for live English/French updates. Both settings renderers use the guarded model. | Prevent unchanged hidden Secrets from being overwritten and localize failure states | #813 |
 
+| `frontend/layout/lib/layoutModel.ts`, `frontend/app/tab/tabbar.tsx`, `frontend/app/store/keymodel.ts` | Equalize panels (`frontend/moltenterm-shell/equalize/`, tab meta `molten:equalizeauto`): the layout model owns an `EqualizeModel`; with the tab's auto mode on, `treeReducer` evens out a new shape of the tree before `updateTree` (`beforeUpdate`) and `updateTree` skips the remembered sizes of #606 for added panels; `onResizeEnd` turns the auto mode off after a divider drag by hand; the tab bar's right container gets the equalize button left of the 360 toggle; `registerGlobalKeys` binds `Ctrl+Shift+B`. All three files already patched | One click (or a long press for auto) gives every panel column the same width | #825 |
+
 ## Known upstream items
 
 - **Font Awesome Pro 6:** resolved by #6 (FR-FORK-004). HEAD ships Font Awesome Free plus `public/moltenterm-icons.css`;

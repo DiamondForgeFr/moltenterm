@@ -1,0 +1,44 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The equalize button (#825) wears the 360 toggle's look (mt-v360-toggle: calm border, lit when on) with the hold
+   gesture's disc, tint and ring of the tab close (DS-SHELL-059) around its glyph. */
+
+.mt-v360-toggle.mt-eq-button {
+    margin-right: 0;
+    padding: 0 5px;
+}
+
+.mt-eq-disc {
+    transition: transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-eq-glyph {
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-eq-button[data-holding] .mt-eq-glyph,
+.mt-eq-button[data-completing] .mt-eq-glyph {
+    color: color-mix(in srgb, var(--mt-accent) 55%, white);
+}
+
+.mt-eq-button[data-holding] .mt-eq-disc {
+    transform: scale(0.92);
+}
+
+.mt-eq-button[data-completing] .molten-hold-tint {
+    animation: molten-hold-flash var(--mt-duration-fast) var(--mt-ease) forwards;
+}
+
+.mt-eq-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, white);
+    outline-offset: 1px;
+}
+
+.prefers-reduced-motion .mt-eq-button .molten-hold-fill {
+    transition-property: stroke-dashoffset !important;
+}
+
+.prefers-reduced-motion .mt-eq-button .molten-hold-tint {
+    transition-property: opacity !important;
+}

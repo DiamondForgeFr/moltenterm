@@ -17,6 +17,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { EqualizeShortcutId } from "../equalize/equalize-actions";
 import { t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
@@ -159,6 +160,15 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
                 run: () => fireAndForget(() => addPanelBeside(blockId, side)),
             })
         ),
+        {
+            id: "footer:equalize",
+            type: "action",
+            label: t("equalize.command"),
+            icon: "table-columns",
+            shortcut: formatShortcutById(EqualizeShortcutId),
+            keywords: ["equalize", "even", "balance", "same width", "columns", "resize"],
+            run: () => layoutModel?.moltenEqualize?.equalize(),
+        },
         {
             id: "footer:magnify",
             type: "action",

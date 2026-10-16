@@ -45,6 +45,8 @@ export type PaletteRun =
     | { kind: "reopenclosed" }
     // The split placement mode on the pane the palette was opened from, or the focused one (#677).
     | { kind: "splitplace" }
+    // Equalize the panel widths of the tab on screen (#825).
+    | { kind: "equalize" }
     // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
     // the panel is also a palette command).
     | { kind: "panelcommands" }

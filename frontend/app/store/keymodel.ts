@@ -27,6 +27,7 @@ import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
@@ -800,6 +801,8 @@ function registerGlobalKeys() {
     registerCommandPaletteKeys(globalKeyMap);
     // MOLTENTERM-PATCH (#617): previous / next panel on the carpet in 360 view (FR-SHELL-068)
     registerCarpetKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#825): equalize the tab's panel widths
+    registerEqualizeKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");
