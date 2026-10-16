@@ -17,6 +17,7 @@ import { currentBuildIdentity, readBuildInfo } from "../build/current-build";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { getLocale, useT } from "../i18n/i18n";
 import { readableSubject } from "../mission/versions";
+import { SuiteSignature } from "../suite/suite";
 import { BuildChanges, BundledReleaseNotes } from "./release-notes-bundle";
 import { entryFor, groupBuildChanges, groupReleases, ReleaseNoteEntry, visibleEntries } from "./release-notes-catalog";
 import { ReleaseNotesModel } from "./release-notes-store";
@@ -260,6 +261,7 @@ export function ReleaseNotesWindow() {
             role="release-notes"
             title={t("releases.title")}
             subtitle={subtitle}
+            belowSubtitle={<SuiteSignature className="mt-0.5" label={t("common.diamondforgeProduct")} />}
             widthClass="w-[780px]"
             trapFocus={true}
             onBackdrop={() => model.close()}

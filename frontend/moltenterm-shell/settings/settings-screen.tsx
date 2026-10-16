@@ -10,11 +10,13 @@
 import { atoms, getApi, globalStore } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
+import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
+import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
@@ -24,7 +26,7 @@ import { languageName } from "../i18n/i18n-core";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
-import { OptionList, OptionRow } from "../suite/suite";
+import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import {
     ProjectMetaKey,
@@ -678,6 +680,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         []
     );
     const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const appVersion = useMemo(() => currentBuildIdentity(getApi().getAboutModalDetails()?.version ?? "").version, []);
     const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
@@ -803,6 +806,12 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                             </button>
                         );
                     })}
+                    <SuiteSignature
+                        className="mt-auto shrink-0 px-2 pt-3 @max-w600:hidden"
+                        product={MoltentermProductName}
+                        version={appVersion}
+                        label={t("common.diamondforgeProduct")}
+                    />
                 </nav>
                 <div ref={contentRef} className="@container/page min-w-0 flex-1 overflow-y-auto">
                     <PageFill width={width}>

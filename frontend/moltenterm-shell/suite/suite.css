@@ -491,4 +491,18 @@
         width: 14px;
         height: 14px;
     }
+
+    .df-signature {
+        margin: 0;
+        overflow: hidden;
+        color: var(--df-text-muted);
+        font-size: var(--df-text-meta);
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .df-signature-product {
+        font-variant-numeric: tabular-nums;
+    }
 }
