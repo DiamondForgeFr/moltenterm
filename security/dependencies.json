@@ -1,0 +1,14 @@
+{
+    "schema": 1,
+    "owner": "AGachet",
+    "scanners": {
+        "npm": "10.9.2",
+        "govulncheck": "v1.9.0"
+    },
+    "additionalRuntimeNpmRoots": ["electron"],
+    "blockingSeverities": ["critical", "high"],
+    "goModules": [".", "tsunami"],
+    "goTargets": ["darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64", "windows/amd64"],
+    "dispositions": [],
+    "exceptions": []
+}
