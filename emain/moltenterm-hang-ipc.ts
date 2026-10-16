@@ -10,6 +10,8 @@ export const HangPongChannel = "moltenterm-hang-pong";
 export const SlowSyncIpcChannel = "moltenterm-slow-sync-ipc";
 export const WindowHangChannel = "moltenterm-window-hang";
 export const HangDiagnosticsChannel = "moltenterm-hang-diagnostics";
+// Electron main writes the clipboard: the page's navigator.clipboard refuses when its document lacks the focus.
+export const HangCopyChannel = "moltenterm-hang-copy";
 
 type SyncSender = {
     sendSync: (channel: string, ...args: any[]) => any;

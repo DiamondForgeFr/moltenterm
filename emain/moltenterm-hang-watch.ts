@@ -5,11 +5,12 @@
 // child process dies, when its own loop was blocked and when a sendSync round trip was slow; the window that stalled
 // is told how long once it answers again, and the diagnostics copy the recent events. Lines start with "hang:".
 
-import { app, ipcMain, powerMonitor, WebContents } from "electron";
+import { app, clipboard, ipcMain, powerMonitor, WebContents } from "electron";
 import { setBackendCallReporter } from "../frontend/moltenterm-shell/backend-call-retry";
 import { getWaveVersion } from "./emain-wavesrv";
 import { getAllWaveWindows } from "./emain-window";
 import {
+    HangCopyChannel,
     HangDiagnosticsChannel,
     HangPingChannel,
     HangPongChannel,
@@ -121,6 +122,12 @@ export function initMoltentermHangWatch() {
         record(`sendSync "${String(channel).slice(0, 80)}" from ${describe(event.sender)} took ${Number(ms)} ms`);
     });
     ipcMain.handle(HangDiagnosticsChannel, () => hangDiagnostics());
+    ipcMain.handle(HangCopyChannel, (_event, text: unknown) => {
+        if (typeof text !== "string") {
+            throw new Error("hang diagnostics: text expected");
+        }
+        clipboard.writeText(text.slice(0, 200000));
+    });
     powerMonitor.on("suspend", () => model.pause());
     powerMonitor.on("resume", () => model.resume());
     setInterval(tick, HangPingMs);
