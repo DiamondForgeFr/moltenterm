@@ -14,8 +14,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
-import { terminalNeedPx } from "../panel-size/panel-size-model";
-import { currentTerminalFloorPx, isTerminalLeaf } from "../panel-size/panel-size-store";
+import { currentFirstColumnFloorPx } from "../panel-size/panel-size-store";
 import { clampFixedPx, DefaultCarpetColumnPx } from "../view360/carpet-model";
 import { normalColumnPxs } from "../view360/view360-decision";
 import { View360FixedPxMetaKey, View360MetaKey } from "../view360/view360-meta";
@@ -75,15 +74,17 @@ function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide)
         width,
         gap
     );
-    const floor = currentTerminalFloorPx();
+    // The floor belongs to whatever ends up first (#848): the first column, or the new one when it goes before it.
+    const floor = currentFirstColumnFloorPx() ?? 0;
+    const insertIndex = insertIndexFor(columnIndex, side);
     const sizes = besideFit(
         columns.map((column, i) => ({
             px: pxs[i],
-            needPx: terminalNeedPx(column, floor, isTerminalLeaf),
+            needPx: i === 0 && insertIndex > 0 ? floor : 0,
             carpetPx: view360?.columnWidthPx(column) ?? DefaultCarpetColumnPx,
         })),
-        insertIndexFor(columnIndex, side),
-        DefaultCarpetColumnPx,
+        insertIndex,
+        insertIndex === 0 ? Math.max(DefaultCarpetColumnPx, floor) : DefaultCarpetColumnPx,
         width,
         gap
     );
@@ -94,8 +95,7 @@ function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide)
     if (side === "left" && columnIndex === 0) {
         return null;
     }
-    const firstNeed = terminalNeedPx(columns[0], floor, isTerminalLeaf);
-    return { place, needs360: true, firstPx: clampFixedPx(pxs[0], width, firstNeed) };
+    return { place, needs360: true, firstPx: clampFixedPx(pxs[0], width, floor) };
 }
 
 // The sides offered for the panel's menus.

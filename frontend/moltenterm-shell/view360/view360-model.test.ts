@@ -40,9 +40,9 @@ function metaWrites(): Record<string, unknown>[] {
 vi.mock("../panel-size/panel-size-store", () => ({
     cachedBlockView: (blockId: string) => (blockId === "b-b" ? "web" : "term"),
     currentPanelSizes: () => ({ web: { width: 700 } }),
-    currentTerminalFloorPx: () => terminalFloor.px,
-    clearTerminalFloor: vi.fn(() => (terminalFloor.px = null)),
-    isTerminalLeaf: (node: LayoutNode) => !node.children?.length && node.data?.blockId !== "b-b",
+    currentFirstColumnFloorPx: () => terminalFloor.px,
+    clearFirstColumnFloor: vi.fn(() => (terminalFloor.px = null)),
+    setFirstColumnFloor: vi.fn((px: number) => (terminalFloor.px = px)),
     rememberPanelWidth: vi.fn(),
 }));
 vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
@@ -430,7 +430,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(globalStore.get(model.signalAtom)).toBe(2);
     });
 
-    it("enters when a panel opened leaves no room for the terminal floor (#731), and reports what fits", () => {
+    it("enters when a panel opened leaves no room for the first column's floor (#731, #848), and reports what fits", () => {
         terminalFloor.px = 900;
         try {
             const { model } = makeModel(null, rowOf(1));
@@ -536,7 +536,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(model.active).toBe(false);
     });
 
-    it("asks before readjusting when only the terminal floor keeps the panels apart (#733)", () => {
+    it("asks before readjusting when only the first column's floor keeps the panels apart (#733)", () => {
         terminalFloor.px = 900;
         try {
             const root = rowOf(2);
@@ -567,7 +567,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         }
     });
 
-    it("widens the fixed zone past half of the window to keep the terminal floor (#733)", () => {
+    it("widens the fixed zone past half of the window to keep the first column's floor (#733)", () => {
         terminalFloor.px = 1000;
         try {
             const root = rowOf(2);
@@ -581,7 +581,24 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         }
     });
 
-    it("lets the grip widen and narrow a fixed zone held past half by the terminal floor (#829)", () => {
+    it("holds a first column that is a browser at the floor: the floor does not depend on its content (#848)", () => {
+        terminalFloor.px = 1000;
+        try {
+            const root: LayoutNode = {
+                id: "root",
+                flexDirection: FlexDirection.Row,
+                size: 10,
+                children: [leaf("b"), leaf("c1")],
+            };
+            const { model } = makeModel(true, root);
+            model.evaluate(root, boundsOf(1600));
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1000);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("lets the grip widen and narrow a fixed zone held past half by the floor, setting the floor (#829, #848)", () => {
         terminalFloor.px = 700;
         try {
             const root = rowOf(2);
@@ -600,8 +617,12 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             expect(model.dragFixedPx).toBe(816);
             expect(model.onResizeMove(grip, 1200)).toBe(true);
             expect(model.dragFixedPx).toBe(1280 - CarpetReservePx);
+            // The grip sets the floor, so it narrows below the current one down to the fixed zone's minimum.
             expect(model.onResizeMove(grip, 300)).toBe(true);
-            expect(model.dragFixedPx).toBe(700);
+            expect(model.dragFixedPx).toBe(520);
+            expect(model.computeLayout(root, boundsOf(1280)).fixed.width).toBe(520);
+            expect(model.onResizeEnd()).toBe(true);
+            expect(terminalFloor.px).toBe(520);
         } finally {
             terminalFloor.px = null;
         }

@@ -25,6 +25,7 @@ import {
     carpetNodeTransform,
     carpetSplitPlace,
     clampColumnPx,
+    clampFixedDragPx,
     clampFixedPx,
     clampScroll,
     columnLeadLeaf,
@@ -33,6 +34,7 @@ import {
     fitFixedWidths,
     fixedBoundsPx,
     fixedCapPx,
+    fixedDragBoundsPx,
     scrollToRevealColumn,
     sideColumnBoundsPx,
     splitCarpetColumns,
@@ -285,6 +287,18 @@ describe("widths", () => {
         expect(fixedBoundsPx(2 * CarpetReservePx)).toEqual({ min: 400, max: 400, noRoom: "window" });
         expect(fixedBoundsPx(600)).toEqual({ min: 300, max: 300, noRoom: "window" });
         expect(clampFixedPx(500, 600)).toBe(300);
+    });
+
+    it("lets the grip narrow below the first column's floor, which it sets, and keeps the cap the floor lifts (#848)", () => {
+        // 1280 px window, 700 px floor: the grip ranges from the zone's minimum to the carpet's reserve.
+        expect(fixedDragBoundsPx(1280, 700)).toEqual({ min: FixedMinPx, max: 1280 - CarpetReservePx });
+        expect(clampFixedDragPx(300, 1280, 700)).toBe(FixedMinPx);
+        expect(clampFixedDragPx(1200, 1280, 700)).toBe(1280 - CarpetReservePx);
+        // A floor under half of the window leaves half as the cap.
+        expect(fixedDragBoundsPx(1600, 700)).toEqual({ min: FixedMinPx, max: 800 });
+        expect(fixedDragBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 800 });
+        // A window that leaves no room says so.
+        expect(fixedDragBoundsPx(600)).toEqual({ min: 300, max: 300, noRoom: "window" });
     });
 
     it("gives a fixed column side by side what the others leave, or says it has no room (#829)", () => {

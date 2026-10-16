@@ -26,14 +26,14 @@ import { fireAndForget } from "@/util/util";
 import { Atom, atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import type { CSSProperties } from "react";
-import { rememberedPanelPx, terminalNeedPx } from "../panel-size/panel-size-model";
+import { rememberedPanelPx } from "../panel-size/panel-size-model";
 import {
     cachedBlockView,
-    clearTerminalFloor,
+    clearFirstColumnFloor,
+    currentFirstColumnFloorPx,
     currentPanelSizes,
-    currentTerminalFloorPx,
-    isTerminalLeaf,
     rememberPanelWidth,
+    setFirstColumnFloor,
 } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import {
@@ -47,14 +47,15 @@ import {
     CarpetScrollVar,
     carpetSplitPlace,
     clampColumnPx,
+    clampFixedDragPx,
     clampFixedPx,
     clampScroll,
     columnLeadLeaf,
     computeCarpetLayout,
     defaultCarpetWidthPx,
     FixedBounds,
-    fixedBoundsPx,
     FixedColumn,
+    fixedDragBoundsPx,
     NoRoomReason,
     PinMode,
     Rect,
@@ -155,7 +156,7 @@ export class View360Model {
     scrollLeft = 0;
     // The fixed zone's width as this window last set it, ahead of the tab meta's round trip.
     savedFixedPx: number = null;
-    // The width the first column's terminals need under the terminal floor at the last pass (#733).
+    // The first column's floor at the last pass (#733, #848), 0 without one.
     fixedNeedPx = 0;
     // Widths being dragged, applied until the drag ends.
     dragFixedPx: number = null;
@@ -169,7 +170,7 @@ export class View360Model {
 
     // The automatic decision's last inputs: a new column count switches at once, a width change once it holds.
     lastColumnCount: number = null;
-    // Each column's minimum at the last pass, terminal floor included (#731), with the width and gap it was measured at.
+    // Each column's minimum at the last pass, the first column's floor included (#731, #848), with the width and gap it was measured at.
     lastColumnMins: number[] = [];
     lastEvalWidth = 0;
     lastEvalGap = 0;
@@ -253,7 +254,7 @@ export class View360Model {
     }
 
     // Turning the view off (#733): left at once when every column fits at the current floors; otherwise the
-    // confirmation (fits once the terminal floor is cleared) or the "close panels first" message, and the view stays.
+    // confirmation (fits once the first column's floor is cleared) or the "close panels first" message, and the view stays.
     requestLeave(): View360Exit {
         const exit = exitView360(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap);
         if (exit.kind === "leave") {
@@ -268,7 +269,7 @@ export class View360Model {
         globalStore.set(this.exitAskAtom, null);
     }
 
-    // "Readjust every size": the terminal floor is cleared and the columns share the width at their readable minimums.
+    // "Readjust every size": the first column's floor is cleared and the columns share the width at their readable minimums.
     // A panel opened meanwhile may leave no room even then: the message says so instead.
     readjustAndLeave(): void {
         const exit = exitView360(readableMinimumsPx(this.lastColumnMins.length), this.lastEvalWidth, this.lastEvalGap);
@@ -277,7 +278,7 @@ export class View360Model {
             return;
         }
         globalStore.set(this.exitAskAtom, null);
-        clearTerminalFloor();
+        clearFirstColumnFloor();
         this.leave(readableMinimumsPx(this.lastColumnMins.length), true);
     }
 
@@ -334,7 +335,7 @@ export class View360Model {
         const count = columns.length;
         const gap = this.gapPx();
         globalStore.set(this.columnCountAtom, count);
-        const columnMins = columnMinimumsPx(columns, currentTerminalFloorPx(), isTerminalLeaf);
+        const columnMins = columnMinimumsPx(count, currentFirstColumnFloorPx());
         this.lastColumnMins = columnMins;
         this.lastEvalWidth = width;
         this.lastEvalGap = gap;
@@ -426,8 +427,10 @@ export class View360Model {
             this.setPlacements({});
             return null;
         }
-        const fixedNeedPx = terminalNeedPx(split.fixed, currentTerminalFloorPx(), isTerminalLeaf);
-        this.fixedNeedPx = fixedNeedPx;
+        const floorPx = currentFirstColumnFloorPx() ?? 0;
+        this.fixedNeedPx = floorPx;
+        // The grip being dragged sets the floor (#848): below the current one, the drag wins until it ends.
+        const fixedNeedPx = this.dragFixedPx != null ? Math.min(floorPx, this.dragFixedPx) : floorPx;
         let fixedPx = this.storedFixedPx();
         if (fixedPx == null) {
             // Entering the view, the fixed zone keeps the first column's normal width, then holds it while panels
@@ -537,7 +540,7 @@ export class View360Model {
     // the other columns side by side leave of it.
     fixedColumnBounds(width: number, column: FixedColumn, sideBySide: FixedColumn[]): FixedBounds {
         if (sideBySide.length <= 1 || this.layout == null) {
-            return fixedBoundsPx(width, this.fixedNeedPx);
+            return fixedDragBoundsPx(width, this.fixedNeedPx);
         }
         return sideColumnBoundsPx(width, this.fixedNeedPx, this.layout.fixed.width - column.rect.width);
     }
@@ -893,7 +896,7 @@ export class View360Model {
                 this.dragPin = { nodeId: column.nodeId, blockId, px };
             }
         } else if (isGrip) {
-            this.dragFixedPx = clampFixedPx(x - CarpetMarginPx / 2, container.width, this.fixedNeedPx);
+            this.dragFixedPx = clampFixedDragPx(x - CarpetMarginPx / 2, container.width, this.fixedNeedPx);
         } else if (isFixedHandle) {
             return true;
         } else {
@@ -931,6 +934,7 @@ export class View360Model {
             if (tabId != null) {
                 fireAndForget(() => setTabFixedPx(tabId, px));
             }
+            setFirstColumnFloor(px);
         }
         if (this.dragColumn != null) {
             rememberPanelWidth(this.dragColumn.kind, this.dragColumn.px);

@@ -4069,7 +4069,7 @@
         "addStart": "Add a panel on the left",
         "addEnd": "Add a panel on the right",
         "grip": {
-            "noRoomFloor": "This column can't be resized here: its terminal needs this width to stay readable, and the carpet needs the rest of the window.",
+            "noRoomFloor": "This column can't be resized here: the first column keeps the width you gave it, and the carpet needs the rest of the window.",
             "noRoomWindow": "This column can't be resized here: the window is too narrow to leave the carpet any room. Widen the window to resize it.",
             "noRoomColumns": "This column can't be widened: the other fixed columns take the rest of the room. Narrow one of them first."
         },
@@ -4090,7 +4090,7 @@
             "menuLeave": "Leave 360 view",
             "menuSettings": "360 view settings",
             "readjustTitle": "Leave 360 view?",
-            "readjustText": "The panels fit side by side only once the terminals give up the width they were dragged to. Every size is readjusted: the terminals' minimum width is cleared and the panels share the tab's width.",
+            "readjustText": "The panels fit side by side only once the first column gives up the width you gave it. Every size is readjusted: the first column's width is cleared and the panels share the tab's width.",
             "readjustConfirm": "Readjust every size",
             "readjustStay": "Stay in 360 view",
             "blockedTitle": "Close panels first",
