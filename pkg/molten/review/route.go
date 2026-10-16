@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -102,6 +103,8 @@ type Service struct {
 	handoff HandoffEnv
 	// restarter: Restart work (FR-REV-011); nil in the tests that do not need it.
 	restarter *Restarter
+	// forecaster: the Reviews list's conflict forecast (FR-REV-023); nil in the tests that do not need it.
+	forecaster *Forecaster
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -193,6 +196,14 @@ func Start() {
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
+		service.forecaster = MakeForecaster(ForecastEnv{
+			Git:      liveForecastGit,
+			StoreDir: filepath.Join(wavebase.GetWaveDataDir(), "molten", "forecast"),
+			Rules:    makeForecastRules(service.merger).Rules,
+			Publish: func(f Forecast) {
+				wps.Broker.Publish(wps.WaveEvent{Event: ForecastEvent, Scopes: []string{f.Dir}, Data: f})
+			},
+		})
 		service.publishNotes = func(notes Notes) {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
@@ -393,6 +404,15 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.store.GetNotes(req.Repo)
+	case ForecastCommand:
+		req, err := decode[ForecastRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.forecaster == nil {
+			return nil, fmt.Errorf("the conflict forecast is not available")
+		}
+		return s.forecaster.Get(req)
 	}
 	switch command {
 	case OpenCommand:
