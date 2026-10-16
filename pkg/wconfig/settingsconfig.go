@@ -208,6 +208,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#615, #733): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
 	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
 
+	// MOLTENTERM-PATCH (#808): outside term:* so live accessibility never reconstructs a terminal.
+	MoltentermTerminalScreenReader string `json:"moltenterm:terminalscreenreader,omitempty" jsonschema:"enum=auto,enum=on,enum=off" jsonschema_description:"Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable"`
+
 	// MOLTENTERM-PATCH (#845): the coding agent MoltenTerm starts, by default for every project (pkg/molten/agentchoice).
 	MoltentermCodingAgent string `json:"moltenterm:codingagent,omitempty" jsonschema:"enum=claude,enum=codex" jsonschema_description:"The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced"`
 

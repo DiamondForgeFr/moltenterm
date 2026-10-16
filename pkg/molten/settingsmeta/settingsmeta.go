@@ -234,6 +234,9 @@ var settings = []Setting{
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
 	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 
+	// Terminal accessibility (#808): append to preserve existing row orders; the screen groups it under Behaviour.
+	{Key: "moltenterm:terminalscreenreader", Section: SectionTerminal, Group: "Behaviour", Label: "Screen reader support", Description: "Automatic follows system detection. On and Off override it, without restarting terminals.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "on", Label: "On"}, {Value: "off", Label: "Off"}}},
+
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.
 	hidden("app:*"),

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { WaveEnv } from "@/app/waveenv/waveenv";
+import type { AccessibilitySnapshot } from "@/moltenterm-shell/terminal-accessibility/screen-reader"; // MOLTENTERM-PATCH (#808)
 import { type Placement } from "@floating-ui/react";
 import type * as jotai from "jotai";
 import type * as rxjs from "rxjs";
@@ -91,6 +92,9 @@ declare global {
         imageToken?: string;
     };
     type ElectronApi = {
+        // MOLTENTERM-PATCH (#808): read-only native detection; explicit settings remain renderer-owned.
+        getAccessibilitySupport: () => AccessibilitySnapshot;
+        onAccessibilitySupportChange: (callback: (snapshot: AccessibilitySnapshot) => void) => () => void;
         revokeContextMenuTarget?: (token: string) => void;
         captureContextMenuTarget?: (guestId?: number) => string;
         executeContextMenuRole?: (token: string, role: string) => void;

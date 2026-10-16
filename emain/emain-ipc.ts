@@ -32,6 +32,7 @@ import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATC
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
+import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
 
 const electronApp = electron.app;
 
@@ -201,6 +202,7 @@ function saveImageFileWithNativeDialog(
 
 // MOLTENTERM-PATCH (#371): owned, captured context-menu actions.
 export function initIpcHandlers() {
+    initMoltentermAccessibility(); // MOLTENTERM-PATCH (#808): read-only OS accessibility state.
     initMoltentermContextMenu(async (host, guest, source, valid) => {
         const result = await getUrlInSession(guest.session, source);
         if (!valid()) {

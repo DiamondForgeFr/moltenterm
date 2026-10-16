@@ -1297,6 +1297,37 @@
             "order": 18
           }
         },
+        "moltenterm:terminalscreenreader": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "description": "Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Screen reader support",
+            "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
+            "control": "select",
+            "options": [
+              {
+                "value": "auto",
+                "label": "Automatic"
+              },
+              {
+                "value": "on",
+                "label": "On"
+              },
+              {
+                "value": "off",
+                "label": "Off"
+              }
+            ],
+            "order": 106
+          }
+        },
         "moltenterm:codingagent": {
           "type": "string",
           "enum": [

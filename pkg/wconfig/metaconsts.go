@@ -128,6 +128,7 @@ const (
 	ConfigKey_MoltentermReleaseNotify        = "moltenterm:releasenotify"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
+	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
 	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
 
 	ConfigKey_WidgetClear                    = "widget:*"
