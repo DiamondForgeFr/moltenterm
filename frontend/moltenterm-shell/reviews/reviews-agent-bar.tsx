@@ -74,12 +74,12 @@ export function useBranchAgent(dir: string, branch: string): AgentBarFacts {
     return useMemo(() => branchAgent(upcoming, states, branch), [upcoming, states, branch]);
 }
 
+// The rail sits on the tile's 1 px border, 1 px to the left (the lists clip at their border edge for it), so the bar
+// keeps one left edge (#738). Idle and background draw none: the tile's border alone.
 const RailClasses: Record<string, string> = {
     working: "bg-[var(--mt-state-working)] mt-beat-blink",
     waiting: "bg-[var(--mt-state-waiting)]",
     done: "bg-[var(--mt-state-done)]",
-    idle: "bg-border",
-    background: "bg-border",
 };
 
 // The row's own controls keep their click and keys: the tile's click opens the review.
@@ -113,7 +113,13 @@ export function AgentBar({ facts }: { facts: AgentBarFacts }) {
             aria-label={[name, stateText, timeText].filter((s) => !!s).join(", ")}
             role="group"
         >
-            <span className={cn("absolute inset-y-0 left-0 w-0.5", RailClasses[facts.state])} aria-hidden />
+            {RailClasses[facts.state] ? (
+                <span
+                    className={cn("absolute inset-y-0 -left-px w-0.5", RailClasses[facts.state])}
+                    data-testid="reviews-agent-rail"
+                    aria-hidden
+                />
+            ) : null}
             <i
                 className={cn(
                     makeIconClass(agentGlyph(facts.agent, presets), true, { defaultIcon: "robot" }),

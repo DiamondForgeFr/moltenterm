@@ -293,7 +293,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                         {t("reviews.noneWaiting")} <code>{answer.target}</code>.
                     </p>
                 ) : (
-                    <div className="overflow-hidden rounded-4 border border-border" role="list">
+                    <div
+                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
+                        role="list"
+                    >
                         {split.ready.map((pr) => (
                             <ReviewRow key={pr.number} {...rowProps(pr)} />
                         ))}
@@ -327,7 +330,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     </p>
                 ) : (
                     <div
-                        className="overflow-hidden rounded-4 border border-border"
+                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
                         role="list"
                         data-testid="reviews-drafts"
                     >
