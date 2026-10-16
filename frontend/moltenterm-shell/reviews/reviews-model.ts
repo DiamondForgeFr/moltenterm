@@ -8,6 +8,7 @@ import { t } from "../i18n/i18n";
 import { serverText, type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
+import type { ReviewMergedPr } from "./reviews-merged-model";
 
 export const MoltentermReviewsView = "molten-reviews";
 
@@ -74,6 +75,8 @@ export type ReviewsAnswer = {
     targetfrom?: string;
     ready: ReviewPr[];
     drafts: ReviewPr[];
+    merged?: ReviewMergedPr[];
+    mergederror?: string;
     prserror?: string;
     githubat?: number;
     refreshing?: boolean;
@@ -359,7 +362,9 @@ export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: strin
     const checks = ci?.checks ?? [];
     const title =
         checks
-            .map((c) => t("reviews.ci.checkLine", { name: c.name, state: t(CheckStateKeys[c.state] ?? CheckStateKeys.neutral) }))
+            .map((c) =>
+                t("reviews.ci.checkLine", { name: c.name, state: t(CheckStateKeys[c.state] ?? CheckStateKeys.neutral) })
+            )
             .join("\n") || t("reviews.ci.noneTitle");
     if (checks.length === 0) {
         return { label: t("reviews.ci.none"), tone: "neutral", title };
