@@ -4109,6 +4109,39 @@
         "openOnGithub": "Open the pull request on GitHub",
         "unpublishedTitle": "Comments written here, not published yet",
         "unpublished": "{count} unpublished",
+        "order": {
+            "aria": "Merge order",
+            "suggested": "Suggested order",
+            "suggestedTitle": "Sorts the pull requests so that merging them one after the other, top to bottom, reruns the fewest CI runs: a pull request reruns its CI only when an earlier merge puts it in conflict and it has to be rebased.",
+            "list": "List order",
+            "listTitle": "The list's own order.",
+            "costSuggested": {
+                "one": "This order: {count} CI run to redo — current order: {other}",
+                "other": "This order: {count} CI runs to redo — current order: {other}"
+            },
+            "costList": {
+                "one": "List order: {count} CI run to redo — suggested order: {other}",
+                "other": "List order: {count} CI runs to redo — suggested order: {other}"
+            },
+            "costTitle": "Counts the pull requests that would have to be rebased, hence rerun their CI, if they were merged one after the other in this order: those an earlier merge puts in conflict, and those already conflicting with the base.",
+            "unknownRule": "(if branches need not be up to date)",
+            "unknownRuleTitle": "Whether this base requires branches to be up to date before merging could not be read (it takes admin rights on the repository). If it does, every merge reruns the CI of the pull requests left, whatever the order.",
+            "upToDate": "Up-to-date branches required here: ordering saves no CI run",
+            "upToDateTitle": "This base requires branches to be up to date before merging: every merge reruns the CI of the pull requests left, whatever the order. The suggested order still puts the fewest of them in conflict.",
+            "greedy": "More than {max} pull requests are linked by conflicts: this order is a close estimate, not the proven best.",
+            "rankTitle": "Position {rank} in the suggested merge order",
+            "reason": {
+                "noImpact": "No impact",
+                "puts": "Puts {prs} in conflict",
+                "rebaseAfter": "Rebase after {prs}",
+                "after": "After {prs}, which it would put in conflict",
+                "conflictsBase": "Already conflicts with {base}: rebase in any order",
+                "missing": "Not forecast yet",
+                "ciFailing": "CI failing",
+                "ciRunning": "CI running",
+                "blocked": "Cannot merge yet"
+            }
+        },
         "forecast": {
             "computing": "Forecasting conflicts…",
             "computingTitle": "Each merge is simulated in a private copy of the repository: nothing is written to your checkout, your branches or GitHub.",
