@@ -62,7 +62,7 @@ func makeMoltentermFixture(t *testing.T) (*Runs, string, string) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the steps run through /bin/sh")
 	}
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_GLOBAL", TestGitConfigPath)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("GIT_AUTHOR_NAME", "Release test")
 	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
