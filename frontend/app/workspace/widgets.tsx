@@ -10,9 +10,9 @@ import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import {
     autoUpdate,
-    FloatingPortal,
-    Placement, // MOLTENTERM-PATCH (#110)
+    FloatingPortal, // MOLTENTERM-PATCH (#110)
     offset,
+    Placement,
     shift,
     useDismiss,
     useFloating,
@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MoltentermAddPanelWidget } from "../../moltenterm-shell/add-panel"; // MOLTENTERM-PATCH (#49)
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 import { MoltentermAddPanel } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#49)
 import { MoltentermDevChannelText } from "../../moltenterm-shell/status-bar-model"; // MOLTENTERM-PATCH (#107)
 
@@ -141,6 +142,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
     const [apps, setApps] = useState<AppInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const env = useWaveEnv<WidgetsEnv>();
+    const t = useT(); // MOLTENTERM-PATCH (#742)
 
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
@@ -204,7 +206,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
                             <i className="fa fa-solid fa-spinner fa-spin text-2xl text-muted"></i>
                         </div>
                     ) : apps.length === 0 ? (
-                        <div className="text-muted text-sm p-4 text-center">No local apps found</div>
+                        <div className="text-muted text-sm p-4 text-center">{t("wave.apps.none")}</div>
                     ) : (
                         <div
                             className="grid gap-3"
@@ -253,7 +255,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement 
                     onClick={handleOpenBuilder}
                 >
                     <i className="fa fa-solid fa-hammer"></i>
-                    Build/Edit Apps
+                    {t("wave.apps.build")}
                 </button>
             </div>
         </FloatingPortal>

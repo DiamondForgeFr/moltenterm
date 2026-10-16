@@ -11,6 +11,8 @@ import { isMacOS } from "@/util/platformutil";
 import { isBlank, makeConnRoute } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
+import { I18nModel, t, useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
+import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#742)
 
 // ---- types ----
 
@@ -75,7 +77,7 @@ export class ProcessViewerViewModel implements ViewModel {
     env: ProcessViewerEnv;
 
     viewIcon = jotai.atom<string>("microchip");
-    viewName = jotai.atom<string>("Processes");
+    viewName = jotai.atom((get) => translate(get(I18nModel.getInstance().localeAtom), "wave.block.viewProcesses")); // MOLTENTERM-PATCH (#742)
     manageConnection = jotai.atom<boolean>(true);
     filterOutNowsh = jotai.atom<boolean>(true);
     noPadding = jotai.atom<boolean>(true);
@@ -390,10 +392,12 @@ export class ProcessViewerViewModel implements ViewModel {
     async sendSignal(pid: number, signal: string, killLabel?: boolean) {
         const conn = globalStore.get(this.connection);
         const route = makeConnRoute(conn);
-        const label = killLabel ? "Killed" : `sent ${signal}`;
+        const message = killLabel
+            ? t("wave.processes.killed", { pid })
+            : t("wave.processes.signalSent", { pid, signal }); // MOLTENTERM-PATCH (#742)
         try {
             await this.env.rpc.RemoteProcessSignalCommand(TabRpcClient, { pid, signal }, { route });
-            this.setActionStatus({ pid, message: `Process #${pid} ${label}`, isError: false });
+            this.setActionStatus({ pid, message, isError: false }); // MOLTENTERM-PATCH (#742)
         } catch (e) {
             this.setActionStatus({ pid, message: String(e), isError: true });
         }
@@ -424,23 +428,23 @@ export class ProcessViewerViewModel implements ViewModel {
         const currentInterval = globalStore.get(this.fetchIntervalAtom);
         return [
             {
-                label: "Refresh Interval",
+                label: t("wave.processes.refreshInterval"), // MOLTENTERM-PATCH (#742)
                 type: "submenu",
                 submenu: [
                     {
-                        label: "1 second",
+                        label: t("wave.processes.seconds.one"), // MOLTENTERM-PATCH (#742)
                         type: "checkbox",
                         checked: currentInterval === 1000,
                         click: () => this.setFetchInterval(1000),
                     },
                     {
-                        label: "2 seconds",
+                        label: t("wave.processes.seconds.other", { count: 2 }), // MOLTENTERM-PATCH (#742)
                         type: "checkbox",
                         checked: currentInterval === 2000,
                         click: () => this.setFetchInterval(2000),
                     },
                     {
-                        label: "5 seconds",
+                        label: t("wave.processes.seconds.other", { count: 5 }), // MOLTENTERM-PATCH (#742)
                         type: "checkbox",
                         checked: currentInterval === 5000,
                         click: () => this.setFetchInterval(5000),
@@ -470,14 +474,22 @@ type ColDef = {
     hideOnPlatform?: string[];
 };
 
+// MOLTENTERM-PATCH (#742): label and tooltip are i18n keys, translated at render
 const Columns: ColDef[] = [
-    { key: "pid", label: "PID", width: "70px", align: "right" },
-    { key: "command", label: "Command", width: "minmax(120px, 4fr)" },
-    { key: "status", label: "Status", width: "75px", hideOnPlatform: ["windows", "darwin"] },
-    { key: "user", label: "User", width: "80px", hideOnPlatform: ["windows"] },
-    { key: "threads", label: "NT", tooltip: "Num Threads", width: "40px", align: "right", hideOnPlatform: ["windows"] },
-    { key: "cpu", label: "CPU%", width: "70px", align: "right" },
-    { key: "mem", label: "Memory", width: "90px", align: "right" },
+    { key: "pid", label: "wave.processes.colPid", width: "70px", align: "right" },
+    { key: "command", label: "wave.processes.colCommand", width: "minmax(120px, 4fr)" },
+    { key: "status", label: "wave.processes.colStatus", width: "75px", hideOnPlatform: ["windows", "darwin"] },
+    { key: "user", label: "wave.processes.colUser", width: "80px", hideOnPlatform: ["windows"] },
+    {
+        key: "threads",
+        label: "wave.processes.colThreads",
+        tooltip: "wave.processes.colThreadsTip",
+        width: "40px",
+        align: "right",
+        hideOnPlatform: ["windows"],
+    },
+    { key: "cpu", label: "wave.processes.colCpu", width: "70px", align: "right" },
+    { key: "mem", label: "wave.processes.colMem", width: "90px", align: "right" },
 ];
 
 function getColumns(platform: string): ColDef[] {
@@ -502,6 +514,7 @@ const StatusIndicator = React.memo(function StatusIndicator({ model }: { model: 
     const paused = jotai.useAtomValue(model.pausedAtom);
     const error = jotai.useAtomValue(model.errorAtom);
     const lastSuccess = jotai.useAtomValue(model.lastSuccessAtom);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
     const [now, setNow] = React.useState(() => Date.now());
 
     React.useEffect(() => {
@@ -513,8 +526,8 @@ const StatusIndicator = React.memo(function StatusIndicator({ model }: { model: 
     if (paused) {
         const tooltipContent = (
             <div className="flex flex-col gap-0.5">
-                <span>Paused</span>
-                <span className="text-muted">Click to resume</span>
+                <span>{tr("wave.processes.paused")}</span>
+                <span className="text-muted">{tr("wave.processes.clickToResume")}</span>
             </div>
         );
         return (
@@ -534,11 +547,13 @@ const StatusIndicator = React.memo(function StatusIndicator({ model }: { model: 
 
     const stalled = lastSuccess > 0 && now - lastSuccess > 5000;
     const circleColor = error != null ? "text-error" : stalled ? "text-warning" : "text-success";
-    const statusLabel = error != null ? "Error" : stalled ? "Stalled" : "Updating";
+    const statusLabel = tr(
+        error != null ? "wave.processes.error" : stalled ? "wave.processes.stalled" : "wave.processes.updating"
+    ); // MOLTENTERM-PATCH (#742)
     const tooltipContent = (
         <div className="flex flex-col gap-0.5">
             <span>{statusLabel}</span>
-            <span className="text-muted">Click to pause</span>
+            <span className="text-muted">{tr("wave.processes.clickToPause")}</span>
         </div>
     );
 
@@ -570,6 +585,7 @@ const TableHeader = React.memo(function TableHeader({
 }) {
     const cols = getColumns(platform);
     const gridTemplate = getGridTemplate(platform);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
     return (
         <div
             className="grid w-full shrink-0 border-b border-white/10 bg-panel text-xs text-secondary font-medium select-none"
@@ -578,12 +594,12 @@ const TableHeader = React.memo(function TableHeader({
             {cols.map((col) => (
                 <Tooltip
                     key={col.key}
-                    content={col.tooltip}
+                    content={col.tooltip ? tr(col.tooltip) : null} // MOLTENTERM-PATCH (#742)
                     disable={!col.tooltip}
                     divClassName={`px-2 py-1 cursor-pointer hover:text-primary hover:bg-white/5 transition-colors truncate flex items-center${col.align === "right" ? " justify-end" : ""}`}
                     divOnClick={() => model.setSort(col.key)}
                 >
-                    <span className="truncate">{col.label}</span>
+                    <span className="truncate">{tr(col.label)}</span>
                     <SortIndicator active={sortBy === col.key} desc={sortDesc} />
                 </Tooltip>
             ))}
@@ -610,6 +626,7 @@ const ProcessRow = React.memo(function ProcessRow({
     const cols = getColumns(platform);
     const visibleKeys = new Set(cols.map((c) => c.key));
     const gridTemplate = getGridTemplate(platform);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
     if (proc.gone) {
         return (
             <div
@@ -621,7 +638,7 @@ const ProcessRow = React.memo(function ProcessRow({
                 <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
                     {proc.pid}
                 </div>
-                <div className="px-2 flex items-center truncate text-muted italic">(gone)</div>
+                <div className="px-2 flex items-center truncate text-muted italic">{tr("wave.processes.gone")}</div>
                 {visibleKeys.has("status") && <div className="px-2 flex items-center truncate" />}
                 {visibleKeys.has("user") && <div className="px-2 flex items-center truncate" />}
                 {visibleKeys.has("threads") && <div className="px-2 flex items-center truncate" />}
@@ -663,6 +680,7 @@ ProcessRow.displayName = "ProcessRow";
 
 const ActionStatusBar = React.memo(function ActionStatusBar({ model }: { model: ProcessViewerViewModel }) {
     const actionStatus = jotai.useAtomValue(model.actionStatusAtom);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
     if (actionStatus == null) return null;
 
     return (
@@ -670,7 +688,9 @@ const ActionStatusBar = React.memo(function ActionStatusBar({ model }: { model: 
             className={`shrink-0 flex items-center px-3 py-1 text-xs border-t border-white/10 ${actionStatus.isError ? "text-error" : "text-secondary"}`}
         >
             <span className="flex-1 truncate">
-                {actionStatus.isError ? `Error: ${actionStatus.message}` : actionStatus.message}
+                {actionStatus.isError
+                    ? tr("wave.processes.actionError", { message: actionStatus.message }) // MOLTENTERM-PATCH (#742)
+                    : actionStatus.message}
             </span>
             {actionStatus.isError && (
                 <button
@@ -695,6 +715,7 @@ type StatusBarProps = {
 
 const StatusBar = React.memo(function StatusBar({ model, data, loading, error, wide }: StatusBarProps) {
     const searchOpen = jotai.useAtomValue(model.searchOpenAtom);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
     const totalCount = data?.totalcount ?? 0;
     const filteredCount = data?.filteredcount ?? 0;
     const summary = data?.summary;
@@ -713,14 +734,22 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
             : loading
               ? "…"
               : error
-                ? "Err"
+                ? tr("wave.processes.errShort") // MOLTENTERM-PATCH (#742)
                 : "";
 
     const hasSummaryLoad = summary != null && summary.load1 != null;
     const hasSummaryMem = summary != null && memUsedFmt != null;
     const hasSummaryCpu = summary != null && cpuPct != null;
 
-    const searchTooltip = isMacOS() ? "Search (Cmd-F)" : "Search (Alt-F)";
+    // MOLTENTERM-PATCH (#742): texts through i18n keys
+    const searchTooltip = tr("wave.processes.search", { shortcut: isMacOS() ? "Cmd-F" : "Alt-F" });
+    const coresTooltip =
+        summary?.numcpu != null
+            ? tr(summary.numcpu === 1 ? "wave.processes.cores.one" : "wave.processes.cores.other", {
+                  count: summary.numcpu,
+                  max: summary.numcpu * 100,
+              })
+            : null;
 
     if (wide) {
         return (
@@ -730,7 +759,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 </div>
                 {hasSummaryLoad && (
                     <span className="shrink-0 whitespace-pre">
-                        Load{" "}
+                        {tr("wave.processes.load")}{" "}
                         <span className="font-mono text-[11px]">
                             {fmtLoad(summary.load1)} {fmtLoad(summary.load5)} {fmtLoad(summary.load15)}
                         </span>
@@ -740,7 +769,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                     <>
                         <div className="w-px self-stretch bg-white/10 shrink-0" />
                         <span className="shrink-0 whitespace-pre">
-                            Mem{" "}
+                            {tr("wave.processes.mem")}{" "}
                             <span className="font-mono text-[11px]">
                                 {memUsedFmt} / {memTotalFmt}
                             </span>
@@ -750,19 +779,17 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 {hasSummaryCpu && (
                     <>
                         <div className="w-px self-stretch bg-white/10 shrink-0" />
-                        <Tooltip
-                            content={`100% per core · ${summary.numcpu} ${summary.numcpu === 1 ? "core" : "cores"} = ${summary.numcpu * 100}% max`}
-                            placement="bottom"
-                        >
+                        <Tooltip content={coresTooltip} placement="bottom">
                             <span className="shrink-0 cursor-default whitespace-pre">
-                                CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>{" "}
+                                {tr("wave.processes.cpu")}
+                                <span className="font-mono text-[11px]">x{summary.numcpu}</span>{" "}
                                 <span className="font-mono text-[11px]">{cpuPct}%</span>
                             </span>
                         </Tooltip>
                     </>
                 )}
                 <span className="ml-auto whitespace-pre">
-                    Procs <span className="font-mono text-[11px]">{procCountValue}</span>
+                    {tr("wave.processes.procs")} <span className="font-mono text-[11px]">{procCountValue}</span>
                 </span>
                 <Tooltip content={searchTooltip} placement="bottom">
                     <button
@@ -785,7 +812,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
             <div className="flex flex-row flex-1 min-w-0 items-center">
                 {hasSummaryLoad && (
                     <div className="flex flex-col shrink-0 w-[100px] mr-1">
-                        <div>Load</div>
+                        <div>{tr("wave.processes.load")}</div>
                         <div className="font-mono text-[11px] whitespace-pre">
                             {fmtLoad(summary.load1)} {fmtLoad(summary.load5)} {fmtLoad(summary.load15)}
                         </div>
@@ -794,7 +821,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 {hasSummaryLoad && <div className="flex-1 max-w-3" />}
                 {hasSummaryMem && (
                     <div className="flex flex-col shrink-0 w-[95px] mr-1">
-                        <div>Mem</div>
+                        <div>{tr("wave.processes.mem")}</div>
                         <div className="font-mono text-[11px] whitespace-pre">
                             {memUsedFmt} / {memTotalFmt}
                         </div>
@@ -803,12 +830,10 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 {hasSummaryMem && <div className="flex-1 max-w-3" />}
                 {hasSummaryCpu && (
                     <div className="flex flex-col shrink-0 w-[55px] mr-1">
-                        <Tooltip
-                            content={`100% per core · ${summary.numcpu} ${summary.numcpu === 1 ? "core" : "cores"} = ${summary.numcpu * 100}% max`}
-                            placement="bottom"
-                        >
+                        <Tooltip content={coresTooltip} placement="bottom">
                             <div className="cursor-default">
-                                CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>
+                                {tr("wave.processes.cpu")}
+                                <span className="font-mono text-[11px]">x{summary.numcpu}</span>
                             </div>
                         </Tooltip>
                         <div className="font-mono text-[11px] whitespace-pre">{cpuPct}%</div>
@@ -817,7 +842,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 {hasSummaryCpu && <div className="flex-1 max-w-3" />}
                 <div className="flex-1" />
                 <div className="flex flex-col w-[38px] shrink-0">
-                    <div>Procs</div>
+                    <div>{tr("wave.processes.procs")}</div>
                     <div className="font-mono text-[11px] whitespace-pre">{procCountValue}</div>
                 </div>
                 <Tooltip content={searchTooltip} placement="bottom">
@@ -838,6 +863,7 @@ const SearchBar = React.memo(function SearchBar({ model }: { model: ProcessViewe
     const searchOpen = jotai.useAtomValue(model.searchOpenAtom);
     const textSearch = jotai.useAtomValue(model.textSearchAtom);
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
 
     React.useEffect(() => {
         if (searchOpen && inputRef.current) {
@@ -854,7 +880,7 @@ const SearchBar = React.memo(function SearchBar({ model }: { model: ProcessViewe
                 ref={inputRef}
                 type="text"
                 value={textSearch}
-                placeholder="Filter processes…"
+                placeholder={tr("wave.processes.filter")} // MOLTENTERM-PATCH (#742)
                 className="flex-1 bg-transparent text-xs text-primary placeholder-secondary outline-none min-w-0"
                 onChange={(e) => model.setTextSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -917,7 +943,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
 
                 const menu: ContextMenuItem[] = [
                     {
-                        label: "Copy PID",
+                        label: t("wave.processes.copyPid"), // MOLTENTERM-PATCH (#742)
                         click: () => navigator.clipboard.writeText(String(pid)),
                     },
                     { type: "separator" },
@@ -925,7 +951,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
 
                 if (!isWindows) {
                     menu.push({
-                        label: "Signal",
+                        label: t("wave.processes.signal"), // MOLTENTERM-PATCH (#742)
                         type: "submenu",
                         submenu: [
                             { label: "SIGTERM", click: () => model.sendSignal(pid, "SIGTERM") },
@@ -938,7 +964,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                     });
                     menu.push({ type: "separator" });
                     menu.push({
-                        label: "Kill Process",
+                        label: t("wave.processes.kill"), // MOLTENTERM-PATCH (#742)
                         click: () => model.sendSignal(pid, "SIGTERM", true),
                     });
                 }

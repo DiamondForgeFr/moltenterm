@@ -1,5 +1,5 @@
 import { createBlock, getApi } from "@/app/store/global";
-import { makeNativeLabel } from "./platformutil";
+import { t } from "../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742): replaces makeNativeLabel, which named the OS file manager
 import { fireAndForget } from "./util";
 import { formatRemoteUri } from "./waveutil";
 
@@ -14,7 +14,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
         // TODO:  resolve correct host path if connection is WSL
         // if the entry is a directory, reveal it in the file manager, if the entry is a file, reveal its parent directory
         menu.push({
-            label: makeNativeLabel(true),
+            label: t("wave.files.showInFolder"), // MOLTENTERM-PATCH (#742)
             click: () => {
                 getApi().openNativePath(finfo.isdir ? finfo.path : finfo.dir);
             },
@@ -22,7 +22,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
         // if the entry is a file, open it in the default application
         if (!finfo.isdir) {
             menu.push({
-                label: makeNativeLabel(false),
+                label: t("wave.files.openDefaultApp"), // MOLTENTERM-PATCH (#742)
                 click: () => {
                     getApi().openNativePath(finfo.path);
                 },
@@ -30,7 +30,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
         }
     } else {
         menu.push({
-            label: "Download File",
+            label: t("wave.files.download"), // MOLTENTERM-PATCH (#742)
             click: () => {
                 const remoteUri = formatRemoteUri(finfo.path, conn);
                 getApi().downloadFile(remoteUri);
@@ -42,7 +42,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
     });
     if (!finfo.isdir) {
         menu.push({
-            label: "Open Preview in New Block",
+            label: t("wave.files.openInNewPanel"), // MOLTENTERM-PATCH (#742)
             click: () =>
                 fireAndForget(async () => {
                     const blockDef: BlockDef = {
@@ -57,7 +57,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
         });
     }
     menu.push({
-        label: "Open Terminal Here",
+        label: t("wave.files.openTerminalHere"), // MOLTENTERM-PATCH (#742)
         click: () => {
             const termBlockDef: BlockDef = {
                 meta: {
