@@ -1,16 +1,21 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
 import {
+    floorFromDraggedTerminals,
+    fullWidthTerminals,
     MinFillPx,
     MinPanelPx,
     panelSizeKind,
     readPanelSizes,
+    readTerminalFloor,
     rememberedPanelPx,
     rememberPanelSize,
     shareRoom,
     sizesForRememberedPanel,
+    terminalNeedPx,
 } from "./panel-size-model";
 
 // Size units per pixel of a parent whose children are `sizes` over `px` pixels.
@@ -246,5 +251,115 @@ describe("sizesForRememberedPanel", () => {
                 0.01
             )
         ).toBeNull();
+    });
+});
+
+function node(id: string, children?: LayoutNode[], dir = FlexDirection.Column): LayoutNode {
+    return { id, flexDirection: dir, size: 10, children, data: children ? undefined : { blockId: `b-${id}` } };
+}
+
+const isTerm = (n: LayoutNode) => n.id.startsWith("t");
+
+describe("terminal floor (#731)", () => {
+    it("reads a positive width, rounded, and nothing else", () => {
+        expect(readTerminalFloor(900.4)).toBe(900);
+        expect(readTerminalFloor(0)).toBeNull();
+        expect(readTerminalFloor(-5)).toBeNull();
+        expect(readTerminalFloor("900")).toBeNull();
+        expect(readTerminalFloor(null)).toBeNull();
+    });
+
+    it("takes the smallest width a drag gave to the terminals it moved", () => {
+        expect(floorFromDraggedTerminals([900.6])).toBe(901);
+        expect(floorFromDraggedTerminals([1100, 480])).toBe(480);
+        expect(floorFromDraggedTerminals([])).toBeNull();
+        expect(floorFromDraggedTerminals([NaN, 0])).toBeNull();
+    });
+
+    it("finds the terminals whose width is the node's own, not those sharing a nested row", () => {
+        expect(fullWidthTerminals(node("t1"), isTerm).map((n) => n.id)).toEqual(["t1"]);
+        expect(fullWidthTerminals(node("browser"), isTerm)).toEqual([]);
+        const stack = node("s", [node("t1"), node("x"), node("t2")]);
+        expect(fullWidthTerminals(stack, isTerm).map((n) => n.id)).toEqual(["t1", "t2"]);
+        const split = node("r", [node("t1"), node("t2")], FlexDirection.Row);
+        expect(fullWidthTerminals(split, isTerm)).toEqual([]);
+    });
+
+    it("needs the floor per terminal side by side, the largest among stacked ones", () => {
+        expect(terminalNeedPx(node("t1"), 900, isTerm)).toBe(900);
+        expect(terminalNeedPx(node("x"), 900, isTerm)).toBe(0);
+        expect(terminalNeedPx(node("t1"), null, isTerm)).toBe(0);
+        const group = node("s", [node("r", [node("t1"), node("t2")], FlexDirection.Row), node("t3")]);
+        expect(terminalNeedPx(group, 500, isTerm)).toBe(1000);
+    });
+
+    it("AC2: a terminal at a 900 px floor stays at 900 px, the new panel shrinks to what is left", () => {
+        // terminal 1500px alone, a browser remembered at 900px opens beside it in a 1500px row
+        const sizes = [10, 10];
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: true, minPx: 900 },
+                { size: 10, fill: false },
+            ],
+            1,
+            900,
+            ratioOf(sizes, 1500)
+        );
+        expect(toPx(next, 1500)).toEqual([900, 600]);
+    });
+
+    it("lets the terminal grow above its floor when there is room", () => {
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: true, minPx: 900 },
+                { size: 10, fill: false },
+            ],
+            1,
+            400,
+            ratioOf([10, 10], 2000)
+        );
+        expect(toPx(next, 2000)).toEqual([1600, 400]);
+    });
+
+    it("keeps every terminal's floor and shares the rest in proportion", () => {
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: true, minPx: 700 },
+                { size: 30, fill: true, minPx: 700 },
+                { size: 10, fill: false },
+            ],
+            2,
+            1000,
+            ratioOf([10, 30, 10], 2000)
+        );
+        expect(toPx(next, 2000)).toEqual([700, 700, 600]);
+    });
+
+    it("drops the floor for this layout when not even the smallest panel fits beside it", () => {
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: true, minPx: 1000 },
+                { size: 10, fill: false },
+            ],
+            1,
+            600,
+            ratioOf([10, 10], 1020)
+        );
+        expect(toPx(next, 1020)).toEqual([420, 600]);
+        const clamped = sizesForRememberedPanel(
+            [
+                { size: 10, fill: true, minPx: 1000 },
+                { size: 10, fill: false },
+            ],
+            1,
+            900,
+            ratioOf([10, 10], 1020)
+        );
+        expect(toPx(clamped, 1020)).toEqual([MinFillPx, 1020 - MinFillPx]);
+    });
+
+    it("shares the room with one minimum per share, scaled down together when the room is short", () => {
+        expect(shareRoom([1, 1], 1000, [700, 200])).toEqual([700, 300]);
+        expect(shareRoom([1, 1], 800, [900, 100])).toEqual([720, 80]);
     });
 });

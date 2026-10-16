@@ -21,6 +21,7 @@ import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./vie
 import { View360Model } from "./view360-model";
 
 const settingAtom = vi.hoisted(() => ({ current: null as unknown }));
+const terminalFloor = vi.hoisted(() => ({ px: null as number }));
 
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
@@ -38,6 +39,8 @@ function metaWrites(): Record<string, unknown>[] {
 vi.mock("../panel-size/panel-size-store", () => ({
     cachedBlockView: (blockId: string) => (blockId === "b-b" ? "web" : "term"),
     currentPanelSizes: () => ({ web: { width: 700 } }),
+    currentTerminalFloorPx: () => terminalFloor.px,
+    isTerminalLeaf: (node: LayoutNode) => !node.children?.length && node.data?.blockId !== "b-b",
     rememberPanelWidth: vi.fn(),
 }));
 vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
@@ -387,6 +390,25 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         model.evaluate(rowOf(2), boundsOf(1200));
         expect(model.active).toBe(false);
         expect(globalStore.get(model.signalAtom)).toBe(2);
+    });
+
+    it("enters when a panel opened leaves no room for the terminal floor (#731), and reports what fits", () => {
+        terminalFloor.px = 900;
+        try {
+            const { model } = makeModel(null, rowOf(1));
+            model.evaluate(rowOf(1), boundsOf(1200));
+            expect(model.active).toBe(false);
+            // 900 (floor) + 360 > 1200, while the readable minimums alone (520 + 360) would fit.
+            model.evaluate(rowOf(2), boundsOf(1200));
+            expect(model.active).toBe(true);
+            expect(model.fitsAtCurrentFloors()).toBe(false);
+            expect(model.fitsAtReadableMinimums()).toBe(true);
+            terminalFloor.px = null;
+            model.evaluate(rowOf(3), boundsOf(1400));
+            expect(model.fitsAtCurrentFloors()).toBe(true);
+        } finally {
+            terminalFloor.px = null;
+        }
     });
 
     it("does not signal the state found when the tab opens", () => {

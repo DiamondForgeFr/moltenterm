@@ -27,7 +27,13 @@ import { Atom, atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import type { CSSProperties } from "react";
 import { rememberedPanelPx } from "../panel-size/panel-size-model";
-import { cachedBlockView, currentPanelSizes, rememberPanelWidth } from "../panel-size/panel-size-store";
+import {
+    cachedBlockView,
+    currentPanelSizes,
+    currentTerminalFloorPx,
+    isTerminalLeaf,
+    rememberPanelWidth,
+} from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import {
     canPinBeside,
@@ -59,8 +65,11 @@ import { PinText } from "./pin-text";
 import {
     anyColumnTooTight,
     autoWants,
+    columnMinimumsPx,
     countLeaves,
     decideView360,
+    fitsAtCurrentFloors,
+    fitsAtReadableMinimums,
     normalColumnPxs,
     normalizeView360Setting,
     ResizeSettleMs,
@@ -149,6 +158,10 @@ export class View360Model {
 
     // The automatic decision's last inputs: a new column count switches at once, a width change once it holds.
     lastColumnCount: number = null;
+    // Each column's minimum at the last pass, terminal floor included (#731), with the width and gap it was measured at.
+    lastColumnMins: number[] = [];
+    lastEvalWidth = 0;
+    lastEvalGap = 0;
     settleTimer360: ReturnType<typeof setTimeout> = null;
     applySettled = false;
     inLayoutPass = false;
@@ -273,10 +286,14 @@ export class View360Model {
             width,
             gap
         );
-        globalStore.set(this.tooTightAtom, anyColumnTooTight(normalPxs));
+        const columnMins = columnMinimumsPx(columns, currentTerminalFloorPx(), isTerminalLeaf);
+        this.lastColumnMins = columnMins;
+        this.lastEvalWidth = width;
+        this.lastEvalGap = gap;
+        globalStore.set(this.tooTightAtom, anyColumnTooTight(normalPxs, columnMins));
 
         const prevOn = globalStore.get(this.autoOnAtom);
-        const want = autoWants(prevOn, count, width, gap);
+        const want = autoWants(prevOn, count, width, gap, columnMins);
         const first = this.lastColumnCount == null;
         const countChanged = !first && count !== this.lastColumnCount;
         this.lastColumnCount = count;
@@ -292,6 +309,16 @@ export class View360Model {
             return;
         }
         this.scheduleSettle();
+    }
+
+    // Whether the tab's columns, as last measured, fit side by side at their minimums with the terminal floor (#733).
+    fitsAtCurrentFloors(marginPx = 0): boolean {
+        return fitsAtCurrentFloors(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap, marginPx);
+    }
+
+    // Whether they would fit at their readable minimums alone, once the terminal floor is cleared (#733).
+    fitsAtReadableMinimums(marginPx = 0): boolean {
+        return fitsAtReadableMinimums(this.lastColumnMins.length, this.lastEvalWidth, this.lastEvalGap, marginPx);
     }
 
     private applyAuto(on: boolean, signal: boolean) {
