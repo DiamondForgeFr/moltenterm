@@ -184,6 +184,7 @@ describe("the session the companion shows (DS-SHELL-060)", () => {
 
     it("says how it was linked", () => {
         expect(linkLabel({ path: "p", linkedby: "hook" })).toBe("linked by the agent's hook");
+        expect(linkLabel({ path: "p", linkedby: "process" })).toBe("linked by the agent's process");
         expect(linkLabel({ path: "p", linkedby: "picked" })).toBe("picked");
         expect(linkLabel({ path: "p", linkedby: "discovery" })).toBe("found by folder");
         expect(linkLabel({ path: "p", linkedby: "guessed" })).toBe("guessed");

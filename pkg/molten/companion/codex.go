@@ -18,8 +18,8 @@ import (
 // Codex keeps one JSONL "rollout" per session in <home>/sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, the home being
 // $CODEX_HOME or ~/.codex. Each line is {timestamp, type, payload}: session_meta (folder, version, source),
 // response_item (the model's messages and tool calls, as sent to the API), event_msg (what the interface shows:
-// prompts, turn starts and ends, approval requests, file changes, and the plan's rate limits of each token_count)
-// and bookkeeping this adapter ignores. The oldest rollouts wrote the response items bare, without the wrapper.
+// prompts, turn starts and ends, approval requests, file changes, settings changes, and the plan's rate limits of
+// each token_count), turn_context (each turn's folder, model and effort) and bookkeeping this adapter ignores. The oldest rollouts wrote the response items bare, without the wrapper.
 
 const codexMaxDays = 7
 
@@ -126,17 +126,26 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 		path := filepath.Join(dir, name)
 		c := Candidate{Path: path, Modified: info.ModTime().UnixMilli()}
 		subagent := false
+		metaSeen := false
 		for _, rec := range readHead(path, 50) {
 			payload := obj(rec, "payload")
 			switch str(rec, "type") {
 			case "session_meta":
+				// A sub-agent's rollout copies its parent's history after its own header, the parent's
+				// session_meta included (#799): only the first one is the rollout's.
+				if metaSeen {
+					continue
+				}
+				metaSeen = true
 				c.cwd = str(payload, "cwd")
 				c.Id = str(payload, "id")
 				c.Started = parseTime(str(payload, "timestamp"))
 				subagent = codexSubagent(payload)
 			case "event_msg":
-				if c.Prompt == "" && str(payload, "type") == "user_message" {
-					c.Prompt = preview(cleanTitleText(str(payload, "message")))
+				if c.Prompt == "" {
+					if text, ok := codexPromptEvent(payload); ok {
+						c.Prompt = preview(cleanTitleText(text))
+					}
 				}
 			}
 			if c.cwd != "" && c.Prompt != "" {
@@ -273,6 +282,11 @@ func (a *CodexAdapter) Parse(rec map[string]any, s *Session) bool {
 	}
 	switch kind {
 	case "session_meta":
+		if s.metaSeen {
+			// The parent's header a sub-agent's rollout copies (discoverDir).
+			return true
+		}
+		s.metaSeen = true
 		if v := str(payload, "cli_version"); v != "" {
 			s.Format = "Codex " + v
 		}
@@ -290,6 +304,7 @@ func (a *CodexAdapter) Parse(rec map[string]any, s *Session) bool {
 		if cwd := str(payload, "cwd"); cwd != "" {
 			s.Cwd = cwd
 		}
+		s.SetModelEffort(codexSettingText(payload["model"]), codexSettingText(payload["effort"]))
 		return true
 	case "response_item":
 		a.parseItem(payload, s, at)
@@ -372,10 +387,19 @@ func codexPlan(items []any) []Todo {
 }
 
 func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
-	switch str(ev, "type") {
-	case "user_message":
+	if text, ok := codexPromptEvent(ev); ok {
 		s.StartTurn(at)
-		s.AddPrompt(cleanTitleText(str(ev, "message")), at)
+		// A version that writes the prompt both as user_message and as a UserMessage item counts it once.
+		if clean := cleanTitleText(text); !s.PromptInTurn(clean) {
+			s.AddPrompt(clean, at)
+		}
+		return
+	}
+	switch str(ev, "type") {
+	case "thread_settings_applied":
+		if settings, ok := codexThreadSettings(ev, s.Id); ok {
+			s.SetModelEffort(settings.Model, settings.Effort)
+		}
 	case "task_started", "turn_started":
 		s.StartTurn(at)
 	case "task_complete", "turn_complete", "turn_aborted":
@@ -415,6 +439,32 @@ func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 			s.SetTodos(todos)
 		}
 	}
+}
+
+// codexPromptEvent reads a prompt of the user from an event: user_message until codex-cli 0.161, an item_completed
+// UserMessage item ({content: [{type: "text", text}]}) since 0.162, which writes no user_message any more (#799).
+func codexPromptEvent(ev map[string]any) (string, bool) {
+	switch str(ev, "type") {
+	case "user_message":
+		return str(ev, "message"), true
+	case "item_completed":
+		item := obj(ev, "item")
+		if str(item, "type") != "UserMessage" {
+			return "", false
+		}
+		var parts []string
+		for _, c := range arr(item, "content") {
+			block := asObj(c)
+			switch str(block, "type") {
+			case "text", "input_text":
+				if text := str(block, "text"); text != "" {
+					parts = append(parts, text)
+				}
+			}
+		}
+		return strings.Join(parts, "\n"), true
+	}
+	return "", false
 }
 
 func codexChangePaths(changes map[string]any) []string {

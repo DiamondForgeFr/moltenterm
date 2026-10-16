@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -42,6 +43,8 @@ const (
 	LinkHook      = "hook"
 	LinkPicked    = "picked"
 	LinkDiscovery = "discovery"
+	// LinkProcess: the agent's own process holds the transcript open (processlink.go, #799).
+	LinkProcess = "process"
 	// LinkGuessed: discovery could not tell, the companion chose the likeliest session (guess.go).
 	LinkGuessed = "guessed"
 )
@@ -162,6 +165,15 @@ type sessionReport struct {
 	at    time.Time
 	// pending: the transcript did not exist yet when the hook reported it (SessionStart after /clear).
 	pending bool
+	// by: LinkHook, or LinkProcess for a transcript the agent's process holds open (processlink.go).
+	by string
+}
+
+func (r sessionReport) linkKind() string {
+	if r.by == "" {
+		return LinkHook
+	}
+	return r.by
 }
 
 type sessionPick struct {
@@ -205,6 +217,10 @@ type Manager struct {
 	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
 	complexities  map[string]*complexityEntry
 	ticketLookups int
+	// The process links and settings follow of the agents' runs (processlink.go), by block, and which rollouts are
+	// sub-agents'.
+	tracks        map[string]*runTrack
+	subagentPaths map[string]bool
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
@@ -218,6 +234,8 @@ type Manager struct {
 	writeGauges   func(agents []string) error
 	writeSetting  func(key string, value any) error
 	adapterFor    func(agent string) Adapter
+	openFiles     func(pid int32) []string
+	procTable     func() (*proctree.Table, error)
 	settings      func() *wconfig.SettingsType
 	now           func() time.Time
 	tick          time.Duration
@@ -236,6 +254,8 @@ func MakeManager() *Manager {
 		statusLines:    map[string]*statusLineGate{},
 		statusLineGap:  statusLineMinGap,
 		idMisses:       map[string]time.Time{},
+		tracks:         map[string]*runTrack{},
+		subagentPaths:  map[string]bool{},
 		adapterFor:     AdapterFor,
 		now:            time.Now,
 		tick:           tickInterval,
@@ -539,7 +559,7 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	if err != nil {
 		return err
 	}
-	if err := m.recordReport(req.BlockId, agent, path, pending); err != nil {
+	if err := m.recordReport(req.BlockId, agent, path, pending, LinkHook); err != nil {
 		return err
 	}
 	if !pending {
@@ -548,7 +568,7 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	return nil
 }
 
-func (m *Manager) recordReport(blockId string, agent string, path string, pending bool) error {
+func (m *Manager) recordReport(blockId string, agent string, path string, pending bool, by string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.reportedByOtherLocked(blockId, path) {
@@ -563,7 +583,7 @@ func (m *Manager) recordReport(blockId string, agent string, path string, pendin
 		// Kept even while no companion is open: the history still offers the session the pane moved on from.
 		m.addEarlierLocked(blockId, EarlierSession{Path: prev.path, Until: now.UnixMilli()})
 	}
-	m.reports[blockId] = sessionReport{agent: agent, path: path, at: now, pending: pending}
+	m.reports[blockId] = sessionReport{agent: agent, path: path, at: now, pending: pending, by: by}
 	if w := m.watchers[blockId]; w != nil {
 		w.poke()
 	}
@@ -996,6 +1016,7 @@ type watcher struct {
 	info          blockInfo
 	infoAt        time.Time
 	discoveredAt  time.Time
+	processAt     time.Time
 	linkedStarted int64
 	// sawRun: the agent states knew this block's agent; a hook report alone then no longer makes a run.
 	sawRun        bool
@@ -1366,8 +1387,11 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			w.waitForReported(report.path)
 			return
 		}
-		w.follow(report.path, LinkHook, 0, "")
+		w.follow(report.path, report.linkKind(), 0, "")
 		w.setEarlier(false, "")
+		return
+	}
+	if w.linkByProcess(run) {
 		return
 	}
 	if picked {
@@ -1409,6 +1433,17 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 	}
 	runs := w.m.sameFolderRuns(run.Agent, w.info.cwd)
+	if now.Sub(time.UnixMilli(run.Started)) < resumeGrace {
+		written = 0
+	}
+	if by, _ := w.linkKind(); w.follower != nil && by == LinkGuessed && current != nil && guessedElsewhere == 0 {
+		// A guess made while discovery could not tell (within the resume grace, before the session's first record)
+		// becomes discovery's link once discovery would choose the same session on its own (#799).
+		if chosen, ambiguous := chooseCandidate(free, written, run.Started, runs); chosen != nil && !ambiguous && chosen.Path == w.path {
+			w.follow(w.path, LinkDiscovery, chosen.Started, "")
+			return
+		}
+	}
 	if by, _ := w.linkKind(); w.follower != nil && by == LinkGuessed {
 		// Several panes of the folder keep a guess from following a /clear by the rule below. A guess moves to a
 		// session started after the linked one only when this pane's agent wrote it as far as its activity tells and
@@ -1438,9 +1473,6 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			w.follow(newer[0].Path, by, newer[0].Started, guess)
 		}
 		return
-	}
-	if now.Sub(time.UnixMilli(run.Started)) < resumeGrace {
-		written = 0
 	}
 	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
 	if chosen != nil && !ambiguous && guessedElsewhere == 0 {

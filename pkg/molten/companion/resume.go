@@ -85,7 +85,7 @@ func (m *Manager) confidentKind(blockId string) string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if r, ok := m.reports[blockId]; ok && m.reportCurrentLocked(blockId, r) {
-		return LinkHook
+		return r.linkKind()
 	}
 	if _, ok := m.picks[blockId]; ok {
 		return LinkPicked

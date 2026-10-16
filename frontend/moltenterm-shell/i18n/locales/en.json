@@ -1412,6 +1412,7 @@
         },
         "link": {
             "hook": "linked by the agent's hook",
+            "process": "linked by the agent's process",
             "picked": "picked",
             "guessed": "guessed",
             "folder": "found by folder"
