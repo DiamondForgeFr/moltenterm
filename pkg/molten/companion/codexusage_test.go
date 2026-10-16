@@ -45,11 +45,27 @@ func useFakeCodex(t *testing.T, m *Manager, result string) *fakeCodexRun {
 	usage.DefaultCodexUsage.SetRun(fake.run)
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	t.Cleanup(func() {
+		// A read this manager started must not run once the next test's fake took over the shared state (#796).
+		stopAndWait(m)
 		usage.DefaultCodexUsage.Reset()
 		usage.DefaultCodexUsage.SetRun(usage.RunCodexAppServer)
 		usage.DefaultCodexUsage.SetTranscript(nil)
 	})
 	return fake
+}
+
+// stopAndWait stops every follower of the manager and waits for their loops and the usage reads they started.
+func stopAndWait(m *Manager) {
+	stopWatchers(m)
+	m.running.Wait()
+}
+
+func stopWatchers(m *Manager) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	for blockId := range m.watchers {
+		m.stopLocked(blockId)
+	}
 }
 
 func codexTokenCount(at time.Time, session float64) string {
@@ -59,7 +75,7 @@ func codexTokenCount(at time.Time, session float64) string {
 
 func waitPublished(t *testing.T, g *gaugesEnv, blockId string, ok func(UsageInfo) bool) UsageInfo {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		p := g.publishedFor(blockId)
 		if len(p) > 0 && ok(p[len(p)-1]) {

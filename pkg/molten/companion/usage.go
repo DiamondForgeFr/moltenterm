@@ -518,7 +518,9 @@ func (m *Manager) codexLimitsChanged(blockId string, first bool) {
 		m.publishBlockUsage(m.usageInfoCtx(usage.WithoutProcess(context.Background()), blockId, "codex", a, settings, usageRead{}))
 		return
 	}
+	m.running.Add(1)
 	go func() {
+		defer m.running.Done()
 		defer func() {
 			panichandler.PanicHandler("molten:companion:usage", recover())
 		}()

@@ -193,6 +193,9 @@ type Manager struct {
 	// The status line relay's reports of each block, at most one a second (statuslinegate.go).
 	statusLines   map[string]*statusLineGate
 	statusLineGap time.Duration
+	// The followers' loops and the usage reads they start: a closed companion's last read may still be running, and
+	// tests wait for it before the next one swaps the shared Codex usage state (#796).
+	running sync.WaitGroup
 	// Whether Codex's plan limits are kept: set when the gauges are turned on or off, before the reloaded settings
 	// say so; until then (limitsUnset) the settings tell.
 	limitsState atomic.Int32
@@ -301,7 +304,11 @@ func (m *Manager) lease(blockId string, viewId string) (*watcher, error) {
 	w = makeWatcher(m, blockId)
 	w.leases[viewId] = until
 	m.watchers[blockId] = w
-	go w.loop()
+	m.running.Add(1)
+	go func() {
+		defer m.running.Done()
+		w.loop()
+	}()
 	return w, nil
 }
 
