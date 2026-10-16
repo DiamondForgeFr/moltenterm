@@ -3530,6 +3530,8 @@
         },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
+            "openPanel": "Open this panel for every new notification",
+            "openPanelHint": "Otherwise it opens by itself only for what needs your answer; the rest shows for a few seconds at the bottom right.",
             "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it."
         },
         "subjects": {
@@ -5324,6 +5326,11 @@
             "undelivered": {
                 "title": "{from}'s handoff to {to} was not delivered",
                 "message": "{detail} The brief is at {path}."
+            },
+            "typed": {
+                "title": "Typed in {receiver}'s prompt: press Enter in its terminal to start",
+                "message": "{from}'s handoff was added after what was already in the prompt. The brief is at {path}.",
+                "goto": "Go to {receiver}"
             }
         },
         "sessions": {

@@ -3530,6 +3530,8 @@
         },
         "settings": {
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
+            "openPanel": "Ouvrir ce panneau à chaque nouvelle notification",
+            "openPanelHint": "Sinon, il ne s'ouvre de lui-même que pour ce qui attend votre réponse ; le reste s'affiche quelques secondes en bas à droite.",
             "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas."
         },
         "subjects": {
@@ -5324,6 +5326,11 @@
             "undelivered": {
                 "title": "Le passage de relais de {from} à {to} n'a pas été remis",
                 "message": "{detail} Le brief se trouve dans {path}."
+            },
+            "typed": {
+                "title": "Tapé dans l'invite de {receiver} : appuyez sur Entrée dans son terminal pour démarrer",
+                "message": "Le passage de relais de {from} a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
+                "goto": "Aller à {receiver}"
             }
         },
         "sessions": {

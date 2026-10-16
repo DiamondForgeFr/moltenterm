@@ -5,7 +5,8 @@
 // attention in every workspace, newest first. A notification opens where it comes from, carries up to two actions,
 // shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. What arrives
 // shows as a toast instead of opening the panel (FR-SHELL-055), each subject says only what the user chose, and the
-// work running in every project shows on top, with a progress ring on the bell.
+// work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
+// on itself in the focused window (#790, notification-attention.ts).
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -20,6 +21,7 @@ import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
+import { checkAnswered } from "./notification-attention";
 import {
     badgeCount,
     Delivery,
@@ -84,6 +86,7 @@ function NotificationRow({
     label,
     now,
     archived,
+    highlighted,
     running,
     error,
     onOpen,
@@ -95,6 +98,7 @@ function NotificationRow({
     label: WorkspaceLabel;
     now: number;
     archived: boolean;
+    highlighted: boolean;
     running: Record<string, boolean>;
     error: string;
     onOpen: () => void;
@@ -110,11 +114,20 @@ function NotificationRow({
     const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid);
     const subject = subjectOf(entry.source);
     const t = useT();
+    const rowRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (highlighted) {
+            rowRef.current?.scrollIntoView({ block: "nearest" });
+        }
+    }, [highlighted]);
     return (
         <div
+            ref={rowRef}
+            data-highlighted={highlighted || undefined}
             className={cn(
                 "group flex w-full items-start gap-2 border-b border-border px-3 py-2 text-left",
                 unread && "bg-line",
+                highlighted && "molten-notification-highlight",
                 resolved && "opacity-60",
                 hasOrigin && "cursor-pointer hover:bg-hover"
             )}
@@ -352,9 +365,23 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
     const t = useT();
     const model = MoltentermNotifications.getInstance();
     const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
+    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
     return (
         <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <div className="pb-1 text-12 text-secondary">{t("notif.settings.intro")}</div>
+            <label className="flex cursor-pointer items-start gap-2 rounded-4 px-2 py-1.5 hover:bg-hover">
+                <input
+                    type="checkbox"
+                    data-testid="notification-panel-policy"
+                    checked={panelPolicy === "all"}
+                    onChange={(e) => model.setPanelPolicy(e.target.checked ? "all" : "answers")}
+                    className="mt-0.5 cursor-pointer accent-[var(--color-accent)]"
+                />
+                <span className="min-w-0 flex-1">
+                    <span className="block text-primary">{t("notif.settings.openPanel")}</span>
+                    <span className="block text-11 text-muted">{t("notif.settings.openPanelHint")}</span>
+                </span>
+            </label>
+            <div className="pt-1 pb-1 text-12 text-secondary">{t("notif.settings.intro")}</div>
             {NotificationSubjects.map((subject) => {
                 const chosen = prefs[subject.id] ?? "notify";
                 return (
@@ -402,12 +429,20 @@ export function NotificationCenter() {
     const listed = useAtomValue(model.shownEntriesAtom, { store: globalStore });
     const unread = useAtomValue(model.unreadCountAtom, { store: globalStore });
     const open = useAtomValue(model.openCountAtom, { store: globalStore });
+    const count = useAtomValue(model.attentionCountAtom, { store: globalStore });
+    const panelRequest = useAtomValue(model.panelRequestAtom, { store: globalStore });
     const running = useAtomValue(model.runningAtom, { store: globalStore });
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
     const [panelOpen, setPanelOpen] = useState(false);
     const [tab, setTab] = useState<"active" | "archived" | "settings">("active");
     const [highlight, setHighlight] = useState<NotificationSubject>(null);
+    // The notifications the panel opened by itself for (#790): highlighted, and it closes once they are answered.
+    const [selfOpenedFor, setSelfOpenedFor] = useState<string[]>([]);
+    const [highlightIds, setHighlightIds] = useState<string[]>([]);
+    // Bumped when the count rises, to replay the badge's arrival pulse.
+    const [pulse, setPulse] = useState(0);
+    const lastCountRef = useRef(count);
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const [now, setNow] = useState(Date.now());
     const currentWorkspace = useAtomValue(atoms.workspace);
@@ -435,6 +470,8 @@ export function NotificationCenter() {
         setPanelOpen(false);
         setTab("active");
         setHighlight(null);
+        setSelfOpenedFor([]);
+        setHighlightIds([]);
         model.settleSeen();
     };
     const closeRef = useRef(close);
@@ -443,8 +480,40 @@ export function NotificationCenter() {
     const openForUser = () => {
         placePanel();
         Toasts.getInstance().clearNotificationToasts();
+        setSelfOpenedFor([]);
+        setHighlightIds([]);
         setPanelOpen(true);
     };
+
+    useEffect(() => {
+        if (count > lastCountRef.current) {
+            setPulse((p) => p + 1);
+        }
+        lastCountRef.current = count;
+    }, [count]);
+
+    // A notification that needs an answer opens the panel on it (notification-toasts.ts decides which, #790). A panel
+    // the user opened stays theirs: the entry is only highlighted.
+    useEffect(() => {
+        if (panelRequest == null || panelRequest.ids.length === 0) {
+            return;
+        }
+        placePanel();
+        Toasts.getInstance().clearNotificationToasts();
+        setTab("active");
+        setSelfOpenedFor((current) =>
+            panelOpen && current.length === 0 ? current : [...new Set([...current, ...panelRequest.ids])]
+        );
+        setHighlightIds(panelRequest.ids);
+        setPanelOpen(true);
+    }, [panelRequest]);
+
+    useEffect(() => {
+        if (!panelOpen || selfOpenedFor.length === 0 || !checkAnswered(entries, selfOpenedFor)) {
+            return;
+        }
+        closeRef.current();
+    }, [panelOpen, selfOpenedFor, entries]);
 
     useEffect(() => {
         if (tab === "archived" && archived.length === 0) {
@@ -500,8 +569,8 @@ export function NotificationCenter() {
     const showWork = tab === "active" && work.length > 0;
 
     const bellLabel = [
-        unread > 0
-            ? t("notif.center.bellUnread", { count: unread })
+        count > 0
+            ? t("notif.center.bellUnread", { count })
             : open > 0
               ? t("notif.center.bellOpen", { count: open })
               : t("notif.center.title"),
@@ -528,22 +597,28 @@ export function NotificationCenter() {
                     }
                     close();
                 }}
-                className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
+                className={cn(
+                    "relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-6 transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary",
+                    count > 0 ? "text-primary" : "text-secondary"
+                )}
             >
                 {work.length > 0 ? <ProgressRing progress={progress} /> : null}
-                <i className="fa fa-regular fa-bell" />
+                <i className={cn("fa fa-bell", count > 0 ? "fa-solid" : "fa-regular")} />
                 {/* The count keeps the accent of the bell's other signals: amber for waiting agents would read as one
                     more agent state next to the tabs' amber dots. */}
-                {unread > 0 ? (
+                {count > 0 ? (
                     <span
+                        key={pulse}
+                        data-testid="notification-count"
                         className={cn(
-                            "molten-notification-count pointer-events-none absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-11 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
+                            "molten-notification-count pointer-events-none absolute flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
+                            pulse > 0 && "molten-notification-count-arrive",
                             // The wider "9+" pill sits further right so it only overlaps the bell's corner; higher,
                             // the window's top edge would cut its ring.
-                            unread > 9 ? "-top-1 -right-2.5" : "-top-1 -right-1.5"
+                            count > 9 ? "-top-1 -right-3" : "-top-1 -right-2"
                         )}
                     >
-                        {badgeCount(unread)}
+                        {badgeCount(count)}
                     </span>
                 ) : open > 0 ? (
                     <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-accent" />
@@ -658,6 +733,7 @@ export function NotificationCenter() {
                                                 )}
                                                 now={now}
                                                 archived={tab === "archived"}
+                                                highlighted={highlightIds.includes(entry.id)}
                                                 running={running}
                                                 error={errors[entry.id]}
                                                 onOpen={() => {

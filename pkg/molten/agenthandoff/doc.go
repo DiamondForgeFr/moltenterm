@@ -42,6 +42,7 @@ const (
 	StatusDelivered       = handoffwire.StatusDelivered
 	StatusTyped           = handoffwire.StatusTyped
 	StatusQueued          = handoffwire.StatusQueued
+	StatusPending         = handoffwire.StatusPending
 	LinkKindTicket        = handoffwire.LinkKindTicket
 	LinkKindPr            = handoffwire.LinkKindPr
 	LinkKindSrs           = handoffwire.LinkKindSrs

@@ -42,7 +42,8 @@ export async function answerAgentHandoff(args: Record<string, any>): Promise<Not
             timeout: AnswerTimeoutMs,
         });
     } catch (e) {
-        // The agent stopped waiting (50 seconds) or MoltenTerm restarted: the request is gone, so is its question.
+        // The request was cancelled or MoltenTerm restarted: the request is gone, so is its question. An agent that
+        // stopped waiting still takes the answer (#790).
         return { ok: false, resolve: true, error: serverErrorText(e) };
     }
     return { ok: true, resolve: true };
