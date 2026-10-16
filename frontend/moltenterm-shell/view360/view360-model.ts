@@ -654,10 +654,19 @@ export class View360Model {
 
     // Called once the layout has placed newly added blocks: the carpet scrolls to the last one laid on it.
     onBlocksAdded(blockIds: string[]): void {
-        if (this.layout == null || !blockIds?.length) {
+        if (!blockIds?.length) {
             return;
         }
-        const node = this.layoutModel.getNodeByBlockId(blockIds[blockIds.length - 1]);
+        this.revealBlock(blockIds[blockIds.length - 1]);
+    }
+
+    // Glides the carpet so the panel's column is fully in view (#747): anything drawn on a panel for the keyboard
+    // (the split placement, find) must never land off-screen. Nothing to do outside 360 view or in the fixed zone.
+    revealBlock(blockId: string): void {
+        if (this.layout == null || !blockId) {
+            return;
+        }
+        const node = this.layoutModel.getNodeByBlockId?.(blockId);
         const columnId = node == null ? null : this.carpetColumnOf(node.id);
         if (columnId != null) {
             this.scrollToColumn(columnId);

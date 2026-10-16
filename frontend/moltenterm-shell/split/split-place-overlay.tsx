@@ -3,7 +3,7 @@
 
 // The split placement mode on one panel (#677): four zones, triangles from the centre to each edge; the zone under the
 // pointer, or the one picked with the arrows, shows the half the new panel would take with its label. A click or Enter
-// splits, Escape or a click outside the panel cancels. The overlay covers the panel only and is announced to screen
+// splits, Escape, a click or a wheel outside the panel cancels. The overlay covers the panel only and is announced to screen
 // readers as a dialog.
 
 import { atoms } from "@/app/store/global";
@@ -53,11 +53,20 @@ function SplitPlaceOverlayInner({ side }: { side: SplitDirection }) {
             }
             cancelSplitPlacement();
         };
+        // A wheel outside the panel may scroll it off the 360 carpet (#747): the mode leaves rather than go on unseen.
+        const onWheel = (e: WheelEvent) => {
+            if (rootRef.current?.contains(e.target as Node)) {
+                return;
+            }
+            cancelSplitPlacement();
+        };
         window.addEventListener("keydown", onKey, true);
         window.addEventListener("pointerdown", onPointerDown, true);
+        window.addEventListener("wheel", onWheel, { capture: true, passive: true });
         return () => {
             window.removeEventListener("keydown", onKey, true);
             window.removeEventListener("pointerdown", onPointerDown, true);
+            window.removeEventListener("wheel", onWheel, { capture: true });
         };
     }, []);
 

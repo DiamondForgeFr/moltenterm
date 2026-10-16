@@ -16,6 +16,7 @@ import {
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
+import { scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
 import { ResizeSettleMs } from "./view360-decision";
 import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
@@ -258,6 +259,41 @@ describe("View360Model", () => {
         const base = { transform: "translate3d(900px, 0px, 0)" };
         expect(model.placeholderTransform("c", rect, base).transform).toContain("var(--mt-carpet-scroll");
         expect(model.placeholderTransform("a", rect, base)).toBe(base);
+    });
+
+    it("brings a panel scrolled off the carpet back into view, never moving for the fixed zone (#747)", () => {
+        const root = rowOf(8);
+        const { model, layoutModel } = makeModel(true, root);
+        const leafs = root.children;
+        Object.assign(layoutModel, {
+            getNodeByBlockId: (blockId: string) => leafs.find((l) => l.data.blockId === blockId) ?? null,
+        });
+        model.evaluate(root, bounds);
+        const layout = model.computeLayout(root, bounds);
+        expect(layout.maxScroll).toBeGreaterThan(0);
+        model.scrollTo(layout.maxScroll);
+        const offCarpet = layout.columns[0].nodeId;
+        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).not.toContain(offCarpet);
+        const glide = vi.spyOn(model, "scrollToColumn");
+
+        model.revealBlock("b-c0");
+        model.revealBlock("b-missing");
+        expect(model.isInFixedZone("c0")).toBe(true);
+        expect(glide).not.toHaveBeenCalled();
+
+        model.revealBlock(`b-${offCarpet}`);
+        expect(glide).toHaveBeenCalledWith(offCarpet);
+        expect(scrollToRevealColumn(layout, offCarpet, layout.maxScroll)).toBeLessThan(layout.maxScroll);
+    });
+
+    it("never scrolls outside 360 view (#747)", () => {
+        const root = rowOf(8);
+        const { model, layoutModel } = makeModel(false, root);
+        Object.assign(layoutModel, { getNodeByBlockId: () => root.children[3] });
+        model.evaluate(root, bounds);
+        const glide = vi.spyOn(model, "scrollToColumn");
+        model.revealBlock("b-c3");
+        expect(glide).not.toHaveBeenCalled();
     });
 
     it("draws a pinned column in the fixed zone and gives it back to the carpet at its place (FR-SHELL-067)", () => {
