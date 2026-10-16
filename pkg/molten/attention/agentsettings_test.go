@@ -43,6 +43,9 @@ func TestAgentSettingsFollowTheRun(t *testing.T) {
 	if run, _ := h.states.runOf("b1"); run.Settings != opus {
 		t.Fatalf("the run carries them: %+v", run)
 	}
+	if runs := h.states.allRuns(); len(runs) != 1 || runs[0].Settings != opus {
+		t.Fatalf("every run carries them too, for molten agent whoami (#847): %+v", runs)
+	}
 	h.states.clearEffort("b1", "claude")
 	if info := h.info("b1"); info.Effort != "" || info.Model != "claude-opus-5-5" {
 		t.Fatalf("a cleared effort keeps the model: %+v", info)
