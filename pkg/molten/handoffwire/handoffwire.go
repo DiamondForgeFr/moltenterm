@@ -29,6 +29,9 @@ const (
 	// Typed without Enter: the receiver's prompt may hold the user's unsent message.
 	StatusTyped  = "typed"
 	StatusQueued = "queued"
+	// The developer had not answered when the sender stopped waiting: the request stays in the notifications, and the
+	// outcome is typed in the sender's terminal once they answer (#790).
+	StatusPending = "pending"
 
 	LinkKindTicket  = "ticket"
 	LinkKindPr      = "pr"

@@ -66,6 +66,7 @@ type Party struct {
 	Folder      string
 	WorkspaceId string
 	Workspace   string
+	TabId       string
 	Tab         string
 }
 

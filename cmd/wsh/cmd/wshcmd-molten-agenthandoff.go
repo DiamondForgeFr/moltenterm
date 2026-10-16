@@ -24,7 +24,8 @@ import (
 
 const (
 	moltenHandoffListTimeoutMs = 8000
-	// The send waits up to 50 seconds for the developer's answer, then types the prompt.
+	// The send waits up to 50 seconds for the developer's answer, then types the prompt, or returns "pending" while the
+	// request stays open (#790).
 	moltenHandoffSendTimeoutMs = 80000
 )
 

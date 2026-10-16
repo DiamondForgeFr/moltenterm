@@ -60,7 +60,10 @@ func AgentTools() []ToolDef {
 				"browser pages by url or by the tabId of your MoltenTerm browser tab). Set reply when you expect an answer: " +
 				"the receiver then answers with send_to_agent. Files outside the receiver's project are copied next to the " +
 				"brief. The first send between two agents asks the user (allow once, always for this pair, block): the call " +
-				"waits up to 50 seconds for the answer. A busy receiver gets the prompt when its prompt is idle.",
+				"waits up to 50 seconds for the answer. Without an answer by then the result's status is \"pending\": the " +
+				"request stays with the user, nothing is sent until they allow it, and MoltenTerm types the outcome in your " +
+				"terminal (a line starting with [MoltenTerm]) once they answer; do not send it again. A busy receiver gets " +
+				"the prompt when its prompt is idle.",
 			InputSchema: objectSchema(map[string]any{
 				"name": map[string]any{"type": "string", "description": "The receiver's first name (see list_agents)."},
 				"brief": objectSchema(map[string]any{

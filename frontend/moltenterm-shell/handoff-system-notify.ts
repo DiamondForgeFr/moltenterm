@@ -1,17 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The handoff question as a system notification (#605): an agent waits 50 seconds for the developer's answer, so when
-// no MoltenTerm window is in front the question also goes to the OS (emain/moltenterm-system-notify.ts decides, from
-// the windows' focus, and shows each question once). Clicking it brings the window forward and shows the question's
-// toast again, with its three answers: a minimised window never showed it.
+// The handoff question as a system notification (#605): an agent waits for the developer's answer, so when no
+// MoltenTerm window is in front the question also goes to the OS (emain/moltenterm-system-notify.ts decides, from the
+// windows' focus, and shows each question once). Clicking it brings the window forward and opens the notification
+// panel on the question, with its three answers (#790): a minimised window never showed it.
 
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { notificationToast } from "./notification-toasts";
 import { MoltentermNotification, notificationMessage, notificationTitle } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
-import { Toasts } from "./toast-store";
 
 // must match NotificationKeyPrefix in pkg/molten/handoffwire/handoffwire.go
 export const HandoffNotificationKeyPrefix = "agenthandoff:";
@@ -84,7 +82,7 @@ export function startHandoffSystemNotifications(
         if (!isOpenHandoffQuestion(entry)) {
             return;
         }
-        Toasts.getInstance().push(notificationToast(entry));
+        model.requestPanel([entry.id]);
     };
 
     update();

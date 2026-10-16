@@ -180,7 +180,14 @@ func (w *inputWatch) input(blockId string, data []byte) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	p := w.paneLocked(blockId, run.Started)
-	p.draft, p.inPaste = ScanDraft(data, p.draft, p.inPaste)
+	draft, inPaste := ScanDraft(data, p.draft, p.inPaste)
+	p.inPaste = inPaste
+	// Keys typed while the agent waits answer its own question ("1", "y" pick a choice without Enter): they leave the
+	// prompt as it was, so a handoff to an empty prompt is still sent with Enter (#790).
+	if run.State == molten.AgentStateWaiting {
+		return
+	}
+	p.draft = draft
 }
 
 func (w *inputWatch) output(blockId string, data []byte) {

@@ -335,3 +335,21 @@ func TestInputWatch(t *testing.T) {
 		t.Fatalf("only Claude Code draws these modes: %+v", st)
 	}
 }
+
+// #790: the key answering the agent's own question is not a draft in its prompt; a draft typed before stays.
+func TestInputWatchIgnoresAnswersToTheAgent(t *testing.T) {
+	run := molten.AgentRunInfo{BlockId: "b1", Agent: "claude", Running: true, Started: 10, State: molten.AgentStateWaiting}
+	w := makeInputWatch(func(string) (molten.AgentRunInfo, bool) { return run, true }, func(string) bool { return true })
+	w.input("b1", []byte("1"))
+	if st := w.state("b1"); st.Draft {
+		t.Fatalf("an answer made a draft: %+v", st)
+	}
+	run.State = molten.AgentStateIdle
+	w.input("b1", []byte("half a message"))
+	run.State = molten.AgentStateWaiting
+	w.input("b1", []byte("y\r"))
+	run.State = molten.AgentStateIdle
+	if st := w.state("b1"); !st.Draft {
+		t.Fatalf("the draft typed before the question was lost: %+v", st)
+	}
+}
