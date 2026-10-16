@@ -51,7 +51,8 @@ describe("the integration of a run (FR-SHELL-040)", () => {
         expect(integrated.detail).not.toContain("hook");
         expect(integrated.detail).toContain("integration links it");
         const plain = statusMessage(view(null, "searching"));
-        expect(plain.detail).toContain("SessionStart hook");
+        expect(plain.detail).toBe("It shows as soon as the agent writes its first message.");
+        expect(plain.detail).not.toMatch(/hook|SessionStart|molten docs/);
     });
 
     it("reads and writes the settings per agent or for every agent", () => {

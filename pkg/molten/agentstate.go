@@ -97,13 +97,13 @@ func AgentCallName(firstName string, id string) string {
 	return AgentDisplayName(id)
 }
 
-// AgentLabel is how a list names a session's agent: "[Jérôme] Claude Code", the agent's name alone without a first
+// AgentLabel is how a list names a session's agent: "Jérôme · Claude Code", the agent's name alone without a first
 // name. Must match agentLabel in frontend/moltenterm-shell/agent-state-model.ts.
 func AgentLabel(firstName string, id string) string {
 	if firstName == "" {
 		return AgentDisplayName(id)
 	}
-	return "[" + firstName + "] " + AgentDisplayName(id)
+	return firstName + " · " + AgentDisplayName(id)
 }
 
 // ValidAgentId accepts the registry's ids and any short lowercase name a hook reports for an agent the registry

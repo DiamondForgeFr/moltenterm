@@ -17,7 +17,15 @@ export const MaxClosedPerKey = 20;
 // Three since #276: the ask-once notification of the sleep policy offers its three modes.
 export const MaxActions = 3;
 
-export type MoltentermNotificationSource = "agent" | "mod" | "moltenterm" | "build" | "ci" | "release" | "deps";
+export type MoltentermNotificationSource =
+    | "agent"
+    | "sessions"
+    | "mod"
+    | "moltenterm"
+    | "build"
+    | "ci"
+    | "release"
+    | "deps";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";
 
 // "open" goes where it points (a workspace, a tab, a block, or a view opened in the active tab); "gesture" runs a
@@ -335,6 +343,26 @@ export function pruneIds(entries: MoltentermNotification[], now: number): string
     return [...drop];
 }
 
+// The open "waiting" notifications an agent's newer notification makes outdated (#748): the same terminal's agent has
+// moved on, so the older one folds into the archive and stops offering its terminal. Must match supersededAgentWaits
+// in pkg/molten/notifications.go.
+export function supersededAgentWaits(
+    existing: MoltentermNotification[],
+    input: MoltentermNotificationInput
+): MoltentermNotification[] {
+    if (input.source !== "agent" || !input.blockid) {
+        return [];
+    }
+    return existing.filter(
+        (e) =>
+            e.source === "agent" &&
+            e.blockid === input.blockid &&
+            e.kind === "warning" &&
+            e.resolved == null &&
+            e.archived == null
+    );
+}
+
 // The update that publishes one notification. With a key and an open notification for it: the same content changes
 // nothing (null), new content updates it in place and makes it unread again. Otherwise a new notification is added,
 // and what the retention rule drops goes with it.
@@ -372,6 +400,9 @@ export function publishUpdate(
         read: !!read,
     };
     const update: MetaUpdate = { [NotificationKeyPrefix + id]: stored(entry) };
+    for (const outdated of supersededAgentWaits(existing, input)) {
+        update[NotificationKeyPrefix + outdated.id] = stored({ ...outdated, resolved: now, archived: now, read: true });
+    }
     for (const dropId of pruneIds([...existing, entry], now)) {
         if (dropId !== id) {
             update[NotificationKeyPrefix + dropId] = null;

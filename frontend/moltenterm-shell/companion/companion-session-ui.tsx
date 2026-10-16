@@ -130,7 +130,7 @@ export function SessionBar({
     onBackToCurrent,
 }: {
     view: CompanionView;
-    // name: the agent's label, with the session's first name ("[Jérôme] Claude Code", FR-CONT-014).
+    // name: the agent's label, with the session's first name ("Jérôme · Claude Code", FR-CONT-014).
     name?: string;
     // The agent's model and effort as it reported them ("Opus · high", #549).
     modelEffort?: string;

@@ -113,12 +113,12 @@ export const AgentStateDotClasses: Record<string, string> = {
     idle: "bg-secondary",
 };
 
-// How a list or a title names a session's agent (FR-CONT-014): "[Jérôme] Claude Code", the agent's name alone without
+// How a list or a title names a session's agent (FR-CONT-014): "Jérôme · Claude Code", the agent's name alone without
 // a first name. Must match AgentLabel in pkg/molten/agentstate.go.
 export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
     const kind = info?.agentname || info?.agent || fallback;
     const first = (info?.firstname ?? "").trim();
-    return first ? `[${first}] ${kind}` : kind;
+    return first ? `${first} · ${kind}` : kind;
 }
 
 // How a sentence names a session's agent: its first name, else the agent's name ("Shared with Jérôme").

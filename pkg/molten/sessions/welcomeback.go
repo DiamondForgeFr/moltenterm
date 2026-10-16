@@ -39,8 +39,9 @@ const (
 	// the last action the Sessions view, which lists them all.
 	welcomeBackPaneActions = 2
 	welcomeBackKeyPrefix   = "sessions:welcomeback:"
-	welcomeBackSource      = "agent"
-	welcomeBackLabelMax    = 24
+	// "sessions", not "agent": the sessions may be plain shells (#748). It shares the agents' subject.
+	welcomeBackSource   = "sessions"
+	welcomeBackLabelMax = 24
 
 	// must match frontend/moltenterm-shell/sessions/sessions-store.ts
 	ShowSessionGesture  = "sessions:show"

@@ -233,6 +233,7 @@ const (
 // The subject of each source, which the user chooses to hear (FR-MC-019).
 var NotificationSubjects = map[string]string{
 	"agent":      "agents",
+	"sessions":   "agents",
 	"build":      "builds",
 	"ci":         "ci",
 	"release":    "releases",
@@ -305,12 +306,39 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 	value["read"] = read
 	entry := storedNotification{id: id, value: value}
 	update := waveobj.MetaMapType{NotificationKeyPrefix + id: value}
+	for _, n := range supersededAgentWaits(entries, input) {
+		folded := map[string]any{}
+		for k, v := range n.value {
+			folded[k] = v
+		}
+		folded["resolved"] = nowMs
+		folded["archived"] = nowMs
+		folded["read"] = true
+		update[NotificationKeyPrefix+n.id] = folded
+	}
 	for _, dropId := range notificationPruneIds(append(entries, entry), now) {
 		if dropId != id {
 			update[NotificationKeyPrefix+dropId] = nil
 		}
 	}
 	return update
+}
+
+// supersededAgentWaits are the open "waiting" notifications an agent's newer notification makes outdated (#748): the
+// same terminal's agent has moved on, so the older one folds into the archive and stops offering its terminal.
+// Must match supersededAgentWaits in frontend/moltenterm-shell/notifications-model.ts.
+func supersededAgentWaits(entries []storedNotification, input NotificationInput) []storedNotification {
+	if input.Source != "agent" || input.BlockId == "" {
+		return nil
+	}
+	var rtn []storedNotification
+	for _, n := range entries {
+		if n.str("source") != "agent" || n.str("blockid") != input.BlockId || n.str("kind") != "warning" || n.closedMark() {
+			continue
+		}
+		rtn = append(rtn, n)
+	}
+	return rtn
 }
 
 // dismissedSame tells whether the newest notification of the input's key was archived by the user and says the same.
