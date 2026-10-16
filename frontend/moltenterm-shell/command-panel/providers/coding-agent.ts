@@ -25,6 +25,7 @@ import { CommandProvider, PanelContext, PanelItem, PanelSection, ScopeBinding } 
 export const CodingAgentViews = new Set([
     "molten-reviews",
     "molten-review",
+    "molten-review-ai",
     "molten-project",
     "molten-timeline",
     "molten-companion",
