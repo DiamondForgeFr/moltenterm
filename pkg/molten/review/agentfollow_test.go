@@ -196,6 +196,19 @@ func TestFollowTellsAStopBeforeThePush(t *testing.T) {
 	}
 }
 
+// A turn short enough to start and end between two reads still counts once the agent says done.
+func TestFollowSeesAShortTurn(t *testing.T) {
+	f, follow, st := followFixture(t)
+	f.commitIn(follow.tree, "c.txt")
+	f.git(follow.tree, "push", "--quiet", "origin", "feature/9-fix-x")
+	f.write(follow.tree, "notes.txt", "draft\n")
+	f.setAgent(molten.AgentStateDone, 10)
+	f.r.followStep(context.Background(), follow, st)
+	if len(f.notes) != 1 || f.notes[0].MessageText.Code != "notif.review.changes" {
+		t.Fatalf("notes %+v", f.notes)
+	}
+}
+
 // With the developer (together), a stop is theirs to see: no notification.
 func TestFollowTogetherDoesNotNotifyAStop(t *testing.T) {
 	f, follow, st := followFixture(t)

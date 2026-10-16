@@ -78,6 +78,10 @@ func GetLayoutIdForTab(ctx context.Context, tabId string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to get layout id for given tab id %s: %w", tabId, err)
 	}
+	// MOLTENTERM-PATCH (#758): a tab that went with its last block (wsh deleteblock, an agent's tab) has no layout
+	if tabObj == nil {
+		return "", fmt.Errorf("tab %s not found", tabId)
+	}
 	return tabObj.LayoutState, nil
 }
 

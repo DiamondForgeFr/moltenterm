@@ -136,7 +136,8 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 		// Waiting for an answer is the agent's own notification (attention), with Go to the terminal.
 		return true
 	}
-	stopped := (st.sawRun && !running) || st.sawWorking
+	// A short turn can start and end between two reads: done says it ended even when working was never seen.
+	stopped := (st.sawRun && !running) || st.sawWorking || run.State == molten.AgentStateDone
 	if !stopped {
 		return true
 	}
