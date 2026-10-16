@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
 import { registerCommandPanelKeys } from "../command-panel/command-panel-keys";
 import { registerCompanionKeys } from "../companion/companion-open";
+import { modalIsOpen } from "../modal-open";
 import { registerShortcutsKeys } from "../shortcuts/shortcuts-keys";
 import { registerPinKeys } from "../view360/view360-pin";
 
@@ -23,10 +24,13 @@ export function closeCommandPalette() {
     );
 }
 
-// The shortcut toggles: pressed again, it closes the palette.
+// The shortcut toggles: pressed again, it closes the palette. Under a modal it opens nothing (#746).
 export function toggleCommandPalette(): boolean {
     if (modalsModel.isModalOpen(CommandPaletteModalName)) {
         closeCommandPalette();
+        return true;
+    }
+    if (modalIsOpen()) {
         return true;
     }
     modalsModel.pushModal(CommandPaletteModalName);

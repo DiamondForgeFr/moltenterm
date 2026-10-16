@@ -7,11 +7,11 @@
 import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { ScrimClass } from "./modal-open";
 import { GlowRing } from "./suite/suite";
 
-// The overlay rule (FR-SHELL-054, DS-SHELL-096): every modal dims the app with this scrim (tokens.css) and no surface
-// draws its own; command surfaces (palette, command panel, menus, popovers) have none, only shadow-command.
-export const ScrimClass = "molten-scrim";
+// The overlay rule and its scrim live in modal-open.ts, which the global keys read without loading React.
+export { modalIsOpen, ScrimClass } from "./modal-open";
 
 // enabled may be a function, read at the key press, for a state the component does not render from.
 export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void) {
@@ -70,6 +70,7 @@ export function DialogFrame({
     subtitleClass,
     subtitleTooltip,
     belowSubtitle,
+    subtitleWraps,
     wide,
     widthClass,
     trapFocus,
@@ -87,6 +88,8 @@ export function DialogFrame({
     subtitleTooltip?: string;
     // A quiet line under the subtitle (the suite signature in the version history).
     belowSubtitle?: React.ReactNode;
+    // A sentence rather than a path or a name: it wraps instead of being cut.
+    subtitleWraps?: boolean;
     wide?: boolean;
     // Replaces the width that `wide` picks.
     widthClass?: string;
@@ -160,8 +163,13 @@ export function DialogFrame({
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-13 leading-5 font-semibold">{title}</div>
                     {subtitle ? (
-                        <div className={cn("mt-0.5 truncate text-muted", subtitleClass ?? "text-12")}
-                            title={subtitleTooltip ?? subtitle}
+                        <div
+                            className={cn(
+                                "mt-0.5 text-muted",
+                                !subtitleWraps && "truncate",
+                                subtitleClass ?? "text-12"
+                            )}
+                            title={subtitleTooltip ?? (subtitleWraps ? undefined : subtitle)}
                         >
                             {subtitle}
                         </div>

@@ -6,6 +6,7 @@
 
 import { getFocusedBlockId, globalStore, refocusNode } from "@/app/store/global";
 import { atom, PrimitiveAtom } from "jotai";
+import { modalIsOpen } from "../modal-open";
 
 export type PanelAnchor =
     | { kind: "rect"; left: number; top: number; right: number; bottom: number }
@@ -145,6 +146,10 @@ export function toggleFocusedCommandPanel(): boolean {
     const model = CommandPanelModel.getInstance();
     if (model.current() != null) {
         model.close();
+        return true;
+    }
+    // Under a modal it opens nothing (#746).
+    if (modalIsOpen()) {
         return true;
     }
     const blockId = getFocusedBlockId();

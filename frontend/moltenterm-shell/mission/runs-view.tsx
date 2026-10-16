@@ -8,8 +8,8 @@
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ScrimClass } from "../dialog-frame";
+import { useRestoreFocus } from "../busy-close";
+import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -47,39 +47,20 @@ export function TrustPrompt({
     onCancel: () => void;
 }) {
     const t = useT();
-    return createPortal(
-        <div
-            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
-            onPointerDown={onCancel}
-        >
-            <div
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[560px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">
-                        {t("mc.trust.title", { project: projectName })}
-                    </div>
-                    <div className="mt-0.5 text-12 text-muted">{t("mc.trust.body", { dir })}</div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-2">
-                    {info.commands.map((c) => (
-                        <div key={`${c.kind}:${c.id}`} className="border-b border-border py-1.5 last:border-b-0">
-                            <div className="text-12">
-                                <span className="mr-1.5 rounded-4 bg-hover px-1 text-11 text-muted uppercase">
-                                    {c.kind}
-                                </span>
-                                {c.title || c.id}
-                            </div>
-                            <code className="block text-11 break-all text-secondary">
-                                {c.cwd ? `${c.cwd}$ ` : ""}
-                                {c.run}
-                            </code>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-                    <button type="button" onClick={onCancel} className={PlainButton}>
+    useRestoreFocus();
+    useEscape(true, onCancel);
+    return (
+        <DialogFrame
+            role="mc-trust"
+            title={t("mc.trust.title", { project: projectName })}
+            subtitle={t("mc.trust.body", { dir })}
+            subtitleWraps
+            widthClass="w-[560px]"
+            trapFocus
+            onBackdrop={onCancel}
+            buttons={
+                <>
+                    <button type="button" onClick={onCancel} className={PlainButton} autoFocus>
                         {t("common.cancel")}
                     </button>
                     <button
@@ -90,10 +71,26 @@ export function TrustPrompt({
                         {t("mc.trust.trustAndRun")}
                         <MoltenWave />
                     </button>
-                </div>
+                </>
+            }
+        >
+            <div>
+                {info.commands.map((c) => (
+                    <div key={`${c.kind}:${c.id}`} className="border-b border-border py-1.5 last:border-b-0">
+                        <div className="text-12">
+                            <span className="mr-1.5 rounded-4 bg-hover px-1 text-11 text-muted uppercase">
+                                {c.kind}
+                            </span>
+                            {c.title || c.id}
+                        </div>
+                        <code className="block text-11 break-all text-secondary">
+                            {c.cwd ? `${c.cwd}$ ` : ""}
+                            {c.run}
+                        </code>
+                    </div>
+                ))}
             </div>
-        </div>,
-        document.body
+        </DialogFrame>
     );
 }
 
