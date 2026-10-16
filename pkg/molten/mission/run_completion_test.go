@@ -140,6 +140,65 @@ func TestRunLogChunksNeverSupplyCompletion(t *testing.T) {
 	}
 }
 
+func TestRunCancellationBeforeSupervisorStartsChild(t *testing.T) {
+	testRunCancellationAtStartup(t, false)
+}
+
+func TestRunCancellationBeforeChildExec(t *testing.T) {
+	testRunCancellationAtStartup(t, true)
+}
+
+func testRunCancellationAtStartup(t *testing.T, beforeExec bool) {
+	t.Helper()
+	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
+	base := t.TempDir()
+	rec := RunRecord{Id: "cancel-before-child", Dir: dir, State: RunStateRunning, Command: "sleep 300"}
+	if err := os.MkdirAll(filepath.Dir(r.completionFile(rec)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := r.supervisedCommand(rec)
+	// Hold the real supervisor before fork, or its child before resetting inherited traps and exec.
+	// Observe the supervisor's trap before releasing the gate: the signal cannot miss the chosen window.
+	cmd.Args[2] = strings.Replace(cmd.Args[2], "interrupted=1", `interrupted=1; : > "$MOLTEN_CANCEL_ACK"`, 1)
+	gate := `: > "$5"
+while [ ! -f "$4" ]; do sleep 0.02; done
+`
+	if beforeExec {
+		cmd.Args[2] = strings.Replace(cmd.Args[2], "    trap - TERM INT\n", gate+"    trap - TERM INT\n", 1)
+	} else {
+		cmd.Args[2] = strings.Replace(cmd.Args[2], "trap cancel_run TERM INT\n", "trap cancel_run TERM INT\n"+gate, 1)
+	}
+	ack, release, ready := filepath.Join(base, "signal"), filepath.Join(base, "release"), filepath.Join(base, "ready")
+	cmd.Args = append(cmd.Args, ack, release, ready)
+	cmd.Env = append(os.Environ(), "MOLTEN_CANCEL_ACK="+ack)
+	detachRun(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	rec.Pid = cmd.Process.Pid
+	finished := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(finished) }()
+	t.Cleanup(func() {
+		completionWrite(t, release, "release")
+		_ = killRunGroup(rec.Pid)
+		<-finished
+		waitRunsIdle(t, r)
+	})
+	if err := r.writeRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	completionPoll(t, func() bool { _, err := os.Stat(ready); return err == nil })
+	if err := r.Cancel(dir, rec.Id); err != nil {
+		t.Fatal(err)
+	}
+	completionPoll(t, func() bool { _, err := os.Stat(ack); return err == nil })
+	completionWrite(t, release, "release")
+	ended := waitRun(t, r, dir, rec.Id)
+	if ended.State != RunStateCancelled || ended.Exit == nil || *ended.Exit == 0 {
+		t.Fatalf("startup cancellation was lost (beforeExec=%t): %+v", beforeExec, ended)
+	}
+}
+
 func TestBuildPreparationUsesItsActualResult(t *testing.T) {
 	r, dir := makeRunsFixture(t, `{"id":"gold","prepare":{"run":"printf 'exit=0\\n'; exit 11"},"run":"echo should-not-run"}`)
 	rec := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
