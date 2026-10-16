@@ -3529,7 +3529,7 @@
             "unlinkMissing": "Délier ce terminal du worktree manquant"
         },
         "hold": {
-            "closeLabel": "Fermer l'onglet, maintenez pour confirmer",
+            "closeLabel": "Fermer l'onglet ; maintenez avec le pointeur ou activez pour confirmer",
             "closeHint": "Maintenez pour fermer"
         },
         "pending": {

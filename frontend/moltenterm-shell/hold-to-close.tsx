@@ -4,9 +4,11 @@
 // FR-SHELL-025 / DS-SHELL-026: a tab's close button closes only after a press-and-hold, so a click that lands slightly
 // too far right on a tab no longer closes it. The deliberate paths (Cmd+W, the menus, middle-click) never go through it.
 // The gesture itself is the shared hold-to-confirm piece (DS-SHELL-059, #354); this file gives it the tab's ×.
+// FR-SHELL-071 amends the hold rule: semantic and keyboard activation confirm through an accessible dialog.
 
 import { cn } from "@/util/util";
-import { forwardRef } from "react";
+import { forwardRef, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import "./hold-to-close.css";
 import {
     announceHoldHint,
@@ -33,6 +35,8 @@ import {
     useHoldSettings,
 } from "./hold-to-confirm";
 import { t, useT } from "./i18n/i18n";
+import { modalIsOpen } from "./modal-open";
+import { TabCloseConfirmation } from "./tab-close-confirmation";
 
 export const HoldToCloseMinMs = HoldMinMs;
 export const HoldToCloseMaxMs = HoldMaxMs;
@@ -40,7 +44,7 @@ export const HoldToCloseDefaultMs = HoldDefaultMs;
 export const HoldToCloseHintMs = HoldHintMs;
 export const HoldToCloseReducedSteps = HoldReducedSteps;
 // English; the button shows shell.hold.closeLabel and shell.hold.closeHint in the interface language.
-export const HoldToCloseLabel = "Close tab, hold to confirm";
+export const HoldToCloseLabel = "Close tab; hold with the pointer or activate to confirm";
 export const HoldToCloseHint = "Hold to close";
 
 export const HoldToCloseFlashMs = HoldFlashMs;
@@ -90,21 +94,48 @@ type HoldToCloseButtonProps = {
 export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButtonProps>(
     ({ onClose, className, plainTitle, plainLabel, as, onMouseDown }, ref) => {
         const t = useT();
+        const [confirming, setConfirming] = useState(false);
+        const intentRef = useRef<{ button: HTMLButtonElement; close: typeof onClose }>(null);
+        const requestConfirmation = (button: HTMLButtonElement) => {
+            if (intentRef.current != null || modalIsOpen()) {
+                return;
+            }
+            intentRef.current = { button, close: onClose };
+            setConfirming(true);
+        };
+        const answer = (confirmed: boolean) => {
+            const intent = intentRef.current;
+            if (intent == null) {
+                return;
+            }
+            intentRef.current = null;
+            // Remove this modal before the existing close pipeline can show the running-process protection.
+            flushSync(() => setConfirming(false));
+            if (confirmed) {
+                intent.close(null);
+            } else if (intent.button.isConnected) {
+                intent.button.focus();
+            }
+        };
         return (
-            <HoldToConfirmButton
-                ref={ref}
-                onConfirm={(event) => onClose(event)}
-                label={t("shell.hold.closeLabel")}
-                hint={t("shell.hold.closeHint")}
-                title={t("shell.hold.closeHint")}
-                glyph={<HoldToCloseGlyph />}
-                className={cn("molten-hold-close", className)}
-                plainTitle={plainTitle}
-                plainLabel={plainLabel}
-                testId="tab-close"
-                as={as}
-                onMouseDown={onMouseDown}
-            />
+            <>
+                <HoldToConfirmButton
+                    ref={ref}
+                    onConfirm={(event) => onClose(event)}
+                    onSemanticActivate={requestConfirmation}
+                    label={t("shell.hold.closeLabel")}
+                    hint={t("shell.hold.closeHint")}
+                    title={t("shell.hold.closeHint")}
+                    glyph={<HoldToCloseGlyph />}
+                    className={cn("molten-hold-close", className)}
+                    plainTitle={plainTitle ?? t("dialog.closeTab.button")}
+                    plainLabel={plainLabel ?? t("dialog.closeTab.button")}
+                    testId="tab-close"
+                    as={as}
+                    onMouseDown={onMouseDown}
+                />
+                {confirming ? <TabCloseConfirmation onAnswer={answer} /> : null}
+            </>
         );
     }
 );

@@ -3529,7 +3529,7 @@
             "unlinkMissing": "Unlink this terminal from the missing worktree"
         },
         "hold": {
-            "closeLabel": "Close tab, hold to confirm",
+            "closeLabel": "Close tab; hold with the pointer or activate to confirm",
             "closeHint": "Hold to close"
         },
         "pending": {
