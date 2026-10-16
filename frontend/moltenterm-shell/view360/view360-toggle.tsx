@@ -14,7 +14,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRestoreFocus } from "../busy-close";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { openSettingsSection } from "../settings/settings-open";
@@ -53,12 +53,12 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     useEffect(() => {
         stayRef.current?.focus();
     }, []);
-    useEscape(true, () => view360.closeExitAsk());
     if (exit.kind === "blocked") {
         const count = exit.extraColumns;
         return (
             <DialogFrame
                 role="molten-view360-blocked"
+                onEscape={() => view360.closeExitAsk()}
                 title={t("view360.ui.blockedTitle")}
                 trapFocus
                 onBackdrop={() => view360.closeExitAsk()}
@@ -84,6 +84,7 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     return (
         <DialogFrame
             role="molten-view360-readjust"
+            onEscape={() => view360.closeExitAsk()}
             title={t("view360.ui.readjustTitle")}
             trapFocus
             onBackdrop={() => view360.closeExitAsk()}

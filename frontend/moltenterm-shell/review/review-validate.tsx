@@ -9,7 +9,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -68,7 +68,6 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const v = useAtomValue(model.validateAtom);
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
-    useEscape(v.open, () => model.closeValidate());
     const storedCleanup = state?.cleanup;
     useEffect(() => {
         ReviewsModel.getInstance().noteCleanupRebases(pr?.dir, storedCleanup);
@@ -96,6 +95,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     return (
         <DialogFrame
             role="review-validate"
+            onEscape={v.open ? () => model.closeValidate() : undefined}
             title={t("review.validate.title", { number: pr.number })}
             subtitle={t("review.validate.subtitle", { head: pr.headref, base: baseref })}
             widthClass="w-[640px]"

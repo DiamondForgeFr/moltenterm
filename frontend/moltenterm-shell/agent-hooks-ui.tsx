@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { AgentHookOffer, hookOfferQueryKey } from "./agent-hooks-model";
 import { AgentHookOffers } from "./agent-hooks-store";
 import { AgentStates } from "./agent-state-store";
-import { DialogFrame, useEscape } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { useProposalRequest } from "./header/header-proposals";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
@@ -60,7 +60,6 @@ function AgentHookOfferDialog({
     const t = useT();
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout>>(null);
-    useEscape(true, onClose);
     useEffect(() => () => clearTimeout(timer.current), []);
     const name = offer.agentname || offer.agent;
     const copy = () =>
@@ -79,6 +78,7 @@ function AgentHookOfferDialog({
     return (
         <DialogFrame
             role="molten-hook-offer-dialog"
+            onEscape={onClose}
             title={t("agent.hooks.title", { name })}
             subtitle={t("agent.hooks.subtitle")}
             wide

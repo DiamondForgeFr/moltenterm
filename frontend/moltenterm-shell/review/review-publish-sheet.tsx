@@ -8,7 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useLocale } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -42,7 +42,6 @@ export function PublishSheet({ model }: { model: ReviewTabModel }) {
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
     const head = useAtomValue(model.headAtom);
-    useEscape(sheet.open && !sheet.posting, () => model.closePublish());
     if (!sheet.open || pr == null) {
         return null;
     }
@@ -54,6 +53,7 @@ export function PublishSheet({ model }: { model: ReviewTabModel }) {
     return (
         <DialogFrame
             role="review-publish"
+            onEscape={sheet.open && !sheet.posting ? () => model.closePublish() : undefined}
             title={PublishText.title(pr.number)}
             subtitle={lang ? PublishText.subtitle(lang.name, shortOid(head)) : PublishText.readingLanguage}
             widthClass="w-[820px]"

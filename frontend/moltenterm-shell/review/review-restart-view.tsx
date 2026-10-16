@@ -9,7 +9,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { AgentStateDotClasses } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
@@ -69,7 +69,6 @@ export function RestartSheet({ model }: { model: ReviewTabModel }) {
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
     const restart = useAtomValue(model.restartAtom);
-    useEscape(open, () => model.closeRestart());
     if (!open || pr == null) {
         return null;
     }
@@ -81,6 +80,7 @@ export function RestartSheet({ model }: { model: ReviewTabModel }) {
     return (
         <DialogFrame
             role="review-restart"
+            onEscape={open ? () => model.closeRestart() : undefined}
             title={t("review.restart.sheet.title", { number: pr.number })}
             subtitle={pr.headref}
             widthClass="w-[560px]"

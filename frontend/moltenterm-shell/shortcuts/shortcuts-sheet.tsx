@@ -7,7 +7,7 @@
 import { globalRefocusWithTimeout } from "@/app/store/keymodel";
 import { isMacOS } from "@/util/platformutil";
 import { useMemo, useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { keyCaps } from "./format";
 import { platformShortcuts, Shortcut, shortcutCategoryLabel, shortcutDisplayLabel } from "./registry";
@@ -101,10 +101,10 @@ export function MoltentermShortcutsSheet() {
         closeShortcutsSheet();
         globalRefocusWithTimeout(10);
     };
-    useEscape(true, close);
     return (
         <DialogFrame
             role="shortcuts-sheet"
+            onEscape={close}
             title={t("shortcuts.sheet.title")}
             subtitle={mac ? undefined : t("shortcuts.sheet.altSubtitle")}
             widthClass="w-[640px]"

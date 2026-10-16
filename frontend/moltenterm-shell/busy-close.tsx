@@ -20,7 +20,7 @@ import {
     visibleRunning,
 } from "./busy-close-model";
 import { BusyCloseRequest, BusyCloseRequestAtom } from "./busy-close-store";
-import { DialogFrame, useEscape } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { workspaceShownName } from "./workspace-default-name";
@@ -117,10 +117,10 @@ function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
             request.answer(false);
         }
     }, [gone]);
-    useEscape(true, () => request.answer(false));
     return (
         <DialogFrame
             role="molten-busy-close"
+            onEscape={() => request.answer(false)}
             title={text.title}
             subtitle={text.subtitle}
             trapFocus

@@ -8,7 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { useRestoreFocus } from "../busy-close";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -141,7 +141,6 @@ export function BranchCleanupDialog({
     useEffect(() => {
         closeRef.current?.focus();
     }, [result]);
-    useEscape(!busy, onClose);
     const clean = () =>
         fireAndForget(async () => {
             setBusy(true);
@@ -158,6 +157,7 @@ export function BranchCleanupDialog({
     return (
         <DialogFrame
             role="branch-cleanup"
+            onEscape={busy ? undefined : onClose}
             title={t("mc.branches.title")}
             subtitle={t("mc.branches.intro", { trunk })}
             subtitleWraps
