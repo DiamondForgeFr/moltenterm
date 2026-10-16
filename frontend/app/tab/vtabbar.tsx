@@ -15,6 +15,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { tabShownName } from "../../moltenterm-shell/project/project-model"; // MOLTENTERM-PATCH (#741)
 import { closeTabAskingFirst } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
 import { UpdateStatusBanner } from "./updatebanner";
@@ -124,6 +125,7 @@ function VTabWrapper({
 }: VTabWrapperProps) {
     const env = useWaveEnv<VTabBarEnv>();
     const [tabData] = env.wos.useWaveObjectValue<Tab>(makeORef("tab", tabId));
+    const t = useT(); // MOLTENTERM-PATCH (#741)
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const renameRef = useRef<(() => void) | null>(null);
     const tabModel = getTabModelByTabId(tabId, env);
@@ -151,7 +153,7 @@ function VTabWrapper({
 
     const tab: VTabItem = {
         id: tabId,
-        name: tabData?.name ?? "",
+        name: tabShownName(tabData, t), // MOLTENTERM-PATCH (#741): the Project tab in the interface language
         badges,
         flagColor,
         agentDot: <AgentTabDot tabId={tabId} />, // MOLTENTERM-PATCH (#109)

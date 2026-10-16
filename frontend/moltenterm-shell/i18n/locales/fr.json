@@ -110,8 +110,15 @@
         }
     },
     "wave": {
+        "launcher": {
+            "searchAria": "Rechercher des widgets",
+            "noneFound": "Aucun widget trouvé. Appuyez sur Échap pour effacer la recherche.",
+            "hintIdle": "Tapez pour filtrer, Entrée pour lancer, flèches pour naviguer",
+            "hintSearching": "Recherche de « {query} », Entrée pour lancer, flèches pour naviguer"
+        },
         "tab": {
             "rename": "Renommer l'onglet",
+            "nameAria": "Nom de l'onglet",
             "copyId": "Copier l'identifiant de l'onglet",
             "flag": "Marquer l'onglet",
             "flagNone": "Aucune",
@@ -345,6 +352,7 @@
         "ariaPalette": "Palette de commandes",
         "ariaSearch": "Rechercher dans la palette de commandes",
         "placeholder": "Ouvrir un agent, un panneau, un dossier…",
+        "noMatch": "Rien ne correspond à « {query} »",
         "footer": {
             "choose": "choisir",
             "open": "ouvrir",
@@ -479,12 +487,15 @@
             "title": "Fichiers JSON",
             "hint": "Modifiés sur place, vérifiés avant d'être enregistrés.",
             "settings": {
+                "name": "Réglages",
                 "description": "Tous les réglages de cet écran, et ceux qu'il n'affiche pas."
             },
             "connections": {
+                "name": "Connexions",
                 "description": "Les hôtes SSH et leurs options."
             },
             "widgets": {
+                "name": "Widgets du rail",
                 "description": "Les outils personnalisés du rail."
             },
             "backgrounds": {
@@ -494,6 +505,13 @@
             "secrets": {
                 "description": "Les valeurs gardées dans le trousseau du système."
             }
+        },
+        "units": {
+            "px": "px",
+            "lines": "lignes",
+            "min": "min",
+            "ms": "ms",
+            "MB": "Mo"
         },
         "shortcuts": {
             "title": "Raccourcis",
@@ -902,7 +920,7 @@
             },
             "power:sleeppolicy": {
                 "label": "Garder l'ordinateur éveillé",
-                "description": "Si les terminaux peuvent garder l'ordinateur éveillé (caffeinate, systemd-inhibit).",
+                "description": "Si un programme lancé dans un terminal peut garder l'ordinateur éveillé.",
                 "unset": "Demander la première fois",
                 "options": {
                     "allow": "Quand un terminal le demande",
@@ -1098,7 +1116,7 @@
             "usage": {
                 "cpu": "{pct} % de CPU au repos",
                 "timers": {
-                    "one": "1 minuteur",
+                    "one": "{count} minuteur",
                     "other": "{count} minuteurs"
                 },
                 "activation": "activation {ms} ms",
@@ -1595,6 +1613,18 @@
     "shortcuts": {
         "then": "puis",
         "or": "ou",
+        "keys": {
+            "enter": "Entrée",
+            "escape": "Échap",
+            "tab": "Tab",
+            "backspace": "Retour arrière",
+            "delete": "Suppr",
+            "pageUp": "Pg préc",
+            "pageDown": "Pg suiv",
+            "home": "Début",
+            "end": "Fin",
+            "space": "Espace"
+        },
         "sheet": {
             "title": "Raccourcis clavier",
             "altSubtitle": "Alt joue le rôle de ⌘ sur ce système",
@@ -3502,8 +3532,14 @@
             "silence": "Ne plus me le dire…",
             "running": "En cours…",
             "rowFailed": "Cette notification n'a pas pu être affichée.",
-            "bellUnread": "Notifications, {count} non lues",
-            "bellOpen": "Notifications, {count} encore ouvertes",
+            "bellUnread": {
+                "one": "Notifications, {count} non lue",
+                "other": "Notifications, {count} non lues"
+            },
+            "bellOpen": {
+                "one": "Notifications, {count} encore ouverte",
+                "other": "Notifications, {count} encore ouvertes"
+            },
             "bellRunning": "{count} en cours",
             "title": "Notifications",
             "archived": "Archivées",
@@ -3589,7 +3625,10 @@
     "rail": {
         "keepAwakeWhileWorking": "Garder cet ordinateur éveillé pendant le travail",
         "keptAwake": "gardé éveillé {condition}",
-        "unread": "{count} non lues",
+        "unread": {
+            "one": "{count} non lue",
+            "other": "{count} non lues"
+        },
         "unsavedWorkspace": "Espace de travail non enregistré",
         "unsavedClickToSave": "Espace de travail non enregistré : cliquez pour l'enregistrer",
         "groupNameTooLong": "Un nom de groupe fait au plus {max} caractères.",
@@ -3723,6 +3762,7 @@
     },
     "project": {
         "viewName": "Projet",
+        "tabName": "Projet",
         "frameTitle": "L'onglet Projet",
         "cardFailed": "{title} n'a pas pu être affiché : {error}",
         "unknownError": "erreur inconnue",
@@ -3909,6 +3949,14 @@
         "commit": "commit {commit}",
         "commitOnBranch": "commit {commit} sur {branch}",
         "dirty": "{line} (modifications non commitées)"
+    },
+    "about": {
+        "tagline": "Le terminal qui prend votre forme.",
+        "version": "Version {version}",
+        "unknownVersion": "inconnue",
+        "releaseNotes": "Notes de version",
+        "basedOn": "Basé sur Wave Terminal {wave} de Command Line Inc. (Apache-2.0)",
+        "copyright": "© {year} DiamondForge. Certaines parties © Command Line Inc."
     },
     "releases": {
         "title": "Notes de version",

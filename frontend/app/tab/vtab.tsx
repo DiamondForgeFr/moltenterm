@@ -6,6 +6,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { cn } from "@/util/util";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOLTENTERM-PATCH (#255)
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#741)
 import { TabBadges } from "./tabbadges";
 
 const RenameFocusDelayMs = 50;
@@ -54,6 +55,7 @@ export function VTab({
     onHoverChanged,
     renameRef,
 }: VTabProps) {
+    const t = useT(); // MOLTENTERM-PATCH (#741)
     const [originalName, setOriginalName] = useState(tab.name);
     const [isEditable, setIsEditable] = useState(false);
     const editableRef = useRef<HTMLDivElement>(null);
@@ -206,7 +208,7 @@ export function VTab({
                 )}
                 contentEditable={isEditable}
                 role="textbox"
-                aria-label="Tab name"
+                aria-label={t("wave.tab.nameAria")} // MOLTENTERM-PATCH (#741)
                 aria-readonly={!isEditable}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}

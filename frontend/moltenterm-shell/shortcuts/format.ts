@@ -40,28 +40,31 @@ const MacKeyGlyphs: Record<string, string> = {
     Tab: "⇥",
     Backspace: "⌫",
     Delete: "⌦",
-    PageUp: "PgUp",
-    PageDown: "PgDn",
-    Home: "Home",
-    End: "End",
-    Space: "Space",
+    PageUp: "⇞",
+    PageDown: "⇟",
+    Home: "↖",
+    End: "↘",
 };
 
-const OtherKeyWords: Record<string, string> = {
+const OtherKeyGlyphs: Record<string, string> = {
     ArrowLeft: "←",
     ArrowRight: "→",
     ArrowUp: "↑",
     ArrowDown: "↓",
-    Enter: "Enter",
-    Escape: "Esc",
-    Tab: "Tab",
-    Backspace: "Backspace",
-    Delete: "Del",
-    PageUp: "PgUp",
-    PageDown: "PgDn",
-    Home: "Home",
-    End: "End",
-    Space: "Space",
+};
+
+// Keys named by a word, in the interface language (#741): shortcuts.keys.<name>.
+const KeyWordNames: Record<string, string> = {
+    Enter: "enter",
+    Escape: "escape",
+    Tab: "tab",
+    Backspace: "backspace",
+    Delete: "delete",
+    PageUp: "pageUp",
+    PageDown: "pageDown",
+    Home: "home",
+    End: "end",
+    Space: "space",
 };
 
 const ElectronKeyNames: Record<string, string> = {
@@ -90,9 +93,12 @@ function keyLabel(key: string, mac: boolean): string {
     if (code) {
         return code[1];
     }
-    const named = (mac ? MacKeyGlyphs : OtherKeyWords)[key];
-    if (named) {
-        return named;
+    const glyph = (mac ? MacKeyGlyphs : OtherKeyGlyphs)[key];
+    if (glyph) {
+        return glyph;
+    }
+    if (KeyWordNames[key]) {
+        return t(`shortcuts.keys.${KeyWordNames[key]}`);
     }
     return key.length === 1 ? key.toUpperCase() : key;
 }

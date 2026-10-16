@@ -43,6 +43,7 @@ import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTER
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
 import { installUnsavedWorkProbe } from "./moltenterm-shell/unsaved-work"; // MOLTENTERM-PATCH (#476)
+import { setWindowTitleTab } from "./moltenterm-shell/window-title"; // MOLTENTERM-PATCH (#741)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -127,7 +128,7 @@ async function reinitWave() {
     await WOS.reloadWaveObject<LayoutState>(WOS.makeORef("layout", initialTab.layoutstate));
     reloadAllWorkspaceTabs(ws);
     TabActivity.getInstance().refreshWindow(); // MOLTENTERM-PATCH (#455)
-    document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
+    setWindowTitleTab(initialTab); // TODO update with tab name change (MOLTENTERM-PATCH #4, #741)
     getApi().setWindowInitStatus("wave-ready");
     globalStore.set(atoms.reinitVersion, globalStore.get(atoms.reinitVersion) + 1);
     globalStore.set(atoms.updaterStatusAtom, getApi().getUpdaterStatus());
@@ -199,7 +200,7 @@ async function initWave(initOpts: WaveInitOpts) {
         TabActivity.getInstance().start(); // MOLTENTERM-PATCH (#455): periodic work follows the view's activity
         installUnsavedWorkProbe(); // MOLTENTERM-PATCH (#476): the tab view budget never destroys unsaved edits
         WOS.wpsSubscribeToObject(WOS.makeORef("workspace", waveWindow.workspaceid));
-        document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
+        setWindowTitleTab(initialTab); // TODO update with tab name change (MOLTENTERM-PATCH #4, #741)
     } catch (e) {
         console.error("Failed initialization error", e);
         getApi().sendLog("Error in initialization (wave.ts, loading required objects) " + e.message + "\n" + e.stack);

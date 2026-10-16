@@ -17,7 +17,7 @@ import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { startAgentSeen } from "./agent-seen";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
-import { t as translateNow, useT } from "./i18n/i18n";
+import { t as translateNow, useT, useTCount } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
@@ -424,6 +424,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
 
 export function NotificationCenter() {
     const t = useT();
+    const tc = useTCount();
     const model = MoltentermNotifications.getInstance();
     const entries = useAtomValue(model.entriesAtom, { store: globalStore });
     const listed = useAtomValue(model.shownEntriesAtom, { store: globalStore });
@@ -570,9 +571,9 @@ export function NotificationCenter() {
 
     const bellLabel = [
         count > 0
-            ? t("notif.center.bellUnread", { count })
+            ? tc("notif.center.bellUnread", count)
             : open > 0
-              ? t("notif.center.bellOpen", { count: open })
+              ? tc("notif.center.bellOpen", open)
               : t("notif.center.title"),
         work.length > 0 ? t("notif.center.bellRunning", { count: work.length }) : null,
     ]

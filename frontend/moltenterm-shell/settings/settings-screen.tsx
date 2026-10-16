@@ -85,6 +85,9 @@ const FileDescriptionKeys: Record<string, string> = {
 
 // Wave's file names in sentence case (DS-SHELL-079).
 const FileNameKeys: Record<string, string> = {
+    "settings.json": "settings.files.settings.name",
+    "connections.json": "settings.files.connections.name",
+    "widgets.json": "settings.files.widgets.name",
     "backgrounds.json": "settings.files.backgrounds.name",
 };
 

@@ -5,6 +5,7 @@ import logoUrl from "@/app/asset/logo.svg?url";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atoms, getSettingsKeyAtom, globalStore, replaceBlock } from "@/app/store/global";
 import { CommandPalette } from "../../../moltenterm-shell/palette/command-palette"; // MOLTENTERM-PATCH (#111)
+import { useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#741)
 import type { TabModel } from "@/app/store/tab-model";
 import { checkKeyPressed, keydownWrapper } from "@/util/keyutil";
 import { isBlank, makeIconClass } from "@/util/util";
@@ -160,6 +161,7 @@ function LauncherView(props: ViewComponentProps<LauncherViewModel>) {
 }
 
 function LauncherTilesView({ blockId, model }: ViewComponentProps<LauncherViewModel>) {
+    const t = useT(); // MOLTENTERM-PATCH (#741)
     // Search and selection state
     const [searchTerm, setSearchTerm] = useAtom(model.searchTerm);
     const [selectedIndex, setSelectedIndex] = useAtom(model.selectedIndex);
@@ -214,7 +216,7 @@ function LauncherTilesView({ blockId, model }: ViewComponentProps<LauncherViewMo
                 onKeyDown={keydownWrapper(model.keyDownHandler.bind(model))}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="sr-only dummy"
-                aria-label="Search widgets"
+                aria-label={t("wave.launcher.searchAria")} // MOLTENTERM-PATCH (#741)
             />
 
             {/* Logo */}
@@ -279,12 +281,13 @@ function LauncherTilesView({ blockId, model }: ViewComponentProps<LauncherViewMo
             {/* Search instructions */}
             <div className="mt-4 text-secondary text-xs">
                 {filteredWidgets.length === 0 ? (
-                    <span>No widgets found. Press Escape to clear search.</span>
+                    <span>{t("wave.launcher.noneFound")}</span>
                 ) : (
-                    // MOLTENTERM-PATCH (#107): sentence case, and the space Wave's hint was missing
+                    // MOLTENTERM-PATCH (#107, #741): sentence case, in the interface language
                     <span>
-                        {searchTerm == "" ? "Type to filter" : `Searching "${searchTerm}"`}, Enter to launch, arrow keys
-                        to navigate
+                        {searchTerm == ""
+                            ? t("wave.launcher.hintIdle")
+                            : t("wave.launcher.hintSearching", { query: searchTerm })}
                     </span>
                 )}
             </div>

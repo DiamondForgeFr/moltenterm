@@ -9,12 +9,13 @@ import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { atoms } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { isDev } from "@/util/isdev";
-import { moltentermProductNameFor, MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
+import { moltentermProductNameFor, MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 import type { BuildIdentity } from "../../moltenterm-shell/build/build-identity";
 import { currentBuildIdentity } from "../../moltenterm-shell/build/current-build";
+import { useT } from "../../moltenterm-shell/i18n/i18n";
 import { ReleaseNotesModel } from "../../moltenterm-shell/releases/release-notes-store";
 import { Modal } from "./modal";
 
@@ -29,6 +30,7 @@ interface MoltentermAboutModalVProps {
 }
 
 const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps) => {
+    const t = useT();
     const currentYear = new Date().getFullYear();
     // About closes first: the version history is a dialog of its own, over the app.
     const openReleaseNotes = () => {
@@ -48,24 +50,22 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                             isDev()
                         )}
                     </div>
-                    <div className="leading-5">{MoltentermTagline}</div>
+                    <div className="leading-5">{t("about.tagline")}</div>
                 </div>
                 <div className="flex flex-col items-center gap-1 self-stretch w-full text-center">
                     <button
                         type="button"
                         onClick={openReleaseNotes}
-                        title="Release notes"
+                        title={t("about.releaseNotes")}
                         className="cursor-pointer text-primary hover:underline"
                     >
-                        Version {identity.version || "unknown"}
+                        {t("about.version", { version: identity.version || t("about.unknownVersion") })}
                     </button>
                     <div className="text-xs text-secondary">{identity.buildLine}</div>
                     {identity.commitLine ? (
                         <div className="text-xs text-secondary font-mono">{identity.commitLine}</div>
                     ) : null}
-                    <div className="mt-2">
-                        Based on Wave Terminal {identity.waveBase} by Command Line Inc. (Apache-2.0)
-                    </div>
+                    <div className="mt-2">{t("about.basedOn", { wave: identity.waveBase })}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-[10px] self-stretch w-full">
                     <button
@@ -73,7 +73,8 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                         onClick={openReleaseNotes}
                         className={cn(linkClassName, "col-span-2 cursor-pointer text-accent")}
                     >
-                        <i className="fa-solid fa-scroll mr-2"></i>Release notes
+                        <i className="fa-solid fa-scroll mr-2"></i>
+                        {t("about.releaseNotes")}
                     </button>
                     <a href={MoltentermRepoUrl} target="_blank" rel="noopener" className={linkClassName}>
                         <i className="fa-brands fa-github mr-2"></i>GitHub
@@ -83,7 +84,7 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                     </a>
                 </div>
                 <div className="items-center gap-4 self-stretch w-full text-center">
-                    &copy; {currentYear} DiamondForge. Portions &copy; Command Line Inc.
+                    {t("about.copyright", { year: currentYear })}
                 </div>
             </div>
         </Modal>

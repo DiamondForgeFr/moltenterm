@@ -1101,7 +1101,7 @@
             "section": "general",
             "group": "Power",
             "label": "Keep the computer awake",
-            "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit).",
+            "description": "Whether a program in a terminal may keep the computer awake.",
             "control": "select",
             "options": [
               {

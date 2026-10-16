@@ -7,6 +7,8 @@
 // only: the code the host runs for it (activate, command handlers, box actions, timer callbacks) and the long
 // animation frames whose scripts come from its module.
 
+import { FallbackLanguage, formatNumber } from "../moltenterm-shell/i18n/i18n-core";
+
 // Idle CPU in % of one core over the window, and the JS heap the mod's activation added.
 export const MoltenBudgetCpuPct = 2;
 export const MoltenBudgetMemoryMB = 20;
@@ -121,9 +123,13 @@ export function judgeBudget(cpuPct: number, heapMB: number): string {
     return reasons.length === 0 ? null : reasons.join("; ");
 }
 
-// budgetReasonText is judgeBudget's verdict in the interface language (#656); reason stays English for
-// `molten mod list` and the console.
-export function budgetReasonText(usage: MoltenModUsage, t: (key: string, vars?: Record<string, string>) => string) {
+// budgetReasonText is judgeBudget's verdict in the interface language (#656), its numbers in locale's notation (#741);
+// reason stays English for `molten mod list` and the console.
+export function budgetReasonText(
+    usage: MoltenModUsage,
+    t: (key: string, vars?: Record<string, string>) => string,
+    locale: string = FallbackLanguage
+) {
     if (usage == null || !usage.over) {
         return "";
     }
@@ -131,7 +137,7 @@ export function budgetReasonText(usage: MoltenModUsage, t: (key: string, vars?: 
     if (usage.cpupct != null && usage.cpupct > MoltenBudgetCpuPct) {
         reasons.push(
             t("molten.budget.cpu", {
-                pct: formatPct(usage.cpupct),
+                pct: formatPct(usage.cpupct, locale),
                 window: String(MoltenBudgetWindowMs / 1000),
                 budget: String(MoltenBudgetCpuPct),
             })
@@ -139,7 +145,10 @@ export function budgetReasonText(usage: MoltenModUsage, t: (key: string, vars?: 
     }
     if (usage.heapmb != null && usage.heapmb > MoltenBudgetMemoryMB) {
         reasons.push(
-            t("molten.budget.memory", { mb: String(round(usage.heapmb, 1)), budget: String(MoltenBudgetMemoryMB) })
+            t("molten.budget.memory", {
+                mb: formatNumber(locale, round(usage.heapmb, 1)),
+                budget: String(MoltenBudgetMemoryMB),
+            })
         );
     }
     return reasons.length === 0 ? (usage.reason ?? "") : reasons.join(t("molten.budget.separator"));
@@ -160,8 +169,8 @@ export function sameUsage(a: MoltenModUsage, b: MoltenModUsage): boolean {
     );
 }
 
-export function formatPct(pct: number): string {
-    return `${pct < 10 ? pct.toFixed(1) : Math.round(pct)} %`;
+export function formatPct(pct: number, locale: string = FallbackLanguage): string {
+    return `${pct < 10 ? formatNumber(locale, pct, 1) : formatNumber(locale, Math.round(pct), 0)} %`;
 }
 
 function round(value: number, digits: number): number {
