@@ -15,6 +15,8 @@ import { openWebLink } from "../open-web-link";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import type { ReleaseCiAwait } from "./branch-ci";
+import { openCicdTab } from "./cicd-open";
 import {
     missionTrust,
     releaseEnd,
@@ -284,11 +286,13 @@ function Detail({
     phase,
     jobs,
     actions,
+    awaits,
 }: {
     run: ReleaseRun;
     phase: Phase;
     jobs: ReleaseGhJob[];
     actions: ReleasePanelActions;
+    awaits?: ReleaseCiAwait;
 }) {
     const t = useT();
     const [notesDirty, setNotesDirty] = useState(false);
@@ -307,6 +311,30 @@ function Detail({
                 <span className="text-11 text-muted">{Says[phase.status]}</span>
             </div>
             <p className="mt-1 text-12 text-secondary">{phase.expect}</p>
+            {awaits != null && phase.id === run.current ? (
+                <div
+                    className="mt-2 flex flex-wrap items-center gap-2 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
+                    data-testid="release-run-awaits-ci"
+                >
+                    <i className="fa fa-solid fa-hourglass-half text-11 text-warning" />
+                    <span className="min-w-0 flex-1">
+                        {t("mc.releaseRun.awaitsCi", {
+                            branch: awaits.branch,
+                            sha: awaits.sha.slice(0, 7),
+                            workflows: (awaits.workflows ?? []).join(", ") || "CI",
+                        })}
+                    </span>
+                    <button
+                        type="button"
+                        className="flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
+                        onClick={() => fireAndForget(() => openCicdTab("remote"))}
+                        data-testid="release-run-show-ci"
+                    >
+                        <i className="fa fa-solid fa-cloud text-11" />
+                        {t("mc.releaseRun.showCi")}
+                    </button>
+                </div>
+            ) : null}
             {phase.cause ? (
                 <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-error">
                     <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
@@ -366,10 +394,13 @@ export function ReleaseRunPanel({
     jobs,
     actions,
     onAbandon,
+    awaits,
 }: {
     run: ReleaseRun;
     jobs: ReleaseGhJob[];
     actions: ReleasePanelActions;
+    // The branch CI a running step waits on (#836), shown with a link to the CI/CD panel.
+    awaits?: ReleaseCiAwait;
     // Stops following it: the release launched from the Project tab ends, a tag cut at the terminal is no longer
     // followed.
     onAbandon?: () => void;
@@ -427,7 +458,7 @@ export function ReleaseRunPanel({
                     </li>
                 ))}
             </ol>
-            <Detail run={run} phase={shown} jobs={jobs} actions={actions} />
+            <Detail run={run} phase={shown} jobs={jobs} actions={actions} awaits={awaits} />
             {onAbandon ? (
                 <div className="mt-3 flex items-center justify-end gap-2 text-11">
                     {confirming ? (
@@ -538,7 +569,13 @@ export function ReleaseRunSection({
         });
     return (
         <>
-            <ReleaseRunPanel run={run} jobs={facts?.jobs ?? []} actions={actions} onAbandon={abandon} />
+            <ReleaseRunPanel
+                run={run}
+                jobs={facts?.jobs ?? []}
+                actions={actions}
+                onAbandon={abandon}
+                awaits={facts?.awaits}
+            />
             {error ? <p className="text-12 text-error">{error}</p> : null}
             {pending != null ? (
                 <TrustPrompt

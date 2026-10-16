@@ -20,13 +20,17 @@ import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
 import { CiJobsTab } from "./ci-jobs-panel";
 import { LocalCiRunner } from "./ci-local-panel";
+import { CicdTabRequestAtom, CicdViewType } from "./cicd-open";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
 import { useMissionRuns } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
 import { tAtom } from "./mission-i18n";
 import { MissionSnapshot, PipelineReport } from "./mission-model";
 
-export const MoltentermCicdView = "molten-cicd";
+export const MoltentermCicdView = CicdViewType;
+
+// A request from elsewhere to show a tab (openCicdTab) counts for this long: a panel created by it reads it on mount.
+const TabRequestFreshMs = 10000;
 
 const Tabs = [
     { id: "local", labelKey: "mc.cicd.tab.local", icon: "laptop-code" },
@@ -114,7 +118,13 @@ function CicdView({ blockId }: ViewComponentProps<CicdViewModel>) {
     // The runs the command panel chose (This panel, else All CI/CD panels) open the tab; a click on a tab stays local.
     const runs = cicdRuns(useAtomValue(getOverrideConfigAtom(blockId, CicdRunsKey as keyof SettingsType)));
     const [tab, setTab] = useState<TabId>(runs);
+    const request = useAtomValue(CicdTabRequestAtom);
     useEffect(() => setTab(runs), [runs]);
+    useEffect(() => {
+        if (request != null && Date.now() - request.at < TabRequestFreshMs) {
+            setTab(request.tab);
+        }
+    }, [request?.at]);
     return (
         <MissionFrame title={t("mc.cicd.frameTitle")}>
             {({ project, snapshot, refresh }) => (
@@ -200,7 +210,9 @@ function CicdContent({
                         trunk={snapshot?.git?.trunk}
                         prTarget={snapshot?.prtarget}
                         dir={project.dir}
+                        githubAt={snapshot?.githubat}
                         onRefresh={refresh}
+                        onShowRelease={() => fireAndForget(showProject)}
                     />
                 ) : null}
                 {tab === "cd" ? (
