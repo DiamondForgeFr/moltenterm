@@ -339,7 +339,7 @@ export function mergeOrderReason(step: MergeOrderStep, base: string, pr?: Review
         }
         if (step.impactsLater.length > 0) {
             parts.push(t("reviews.order.reason.puts", { prs: prsText(step.impactsLater) }));
-        } else if (step.impactsEarlier.length > 0) {
+        } else if (step.impactsEarlier.length > 0 && step.rebaseAfter.length === 0) {
             parts.push(t("reviews.order.reason.after", { prs: prsText(step.impactsEarlier) }));
         }
         if (parts.length === 0) {
