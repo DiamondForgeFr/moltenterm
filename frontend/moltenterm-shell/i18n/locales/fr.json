@@ -1,4 +1,8 @@
 {
+    "terminalAccessibility": {
+        "input": "Saisie du terminal",
+        "tooMuchOutput": "Trop de texte à annoncer. Parcourez les lignes du terminal pour lire la sortie."
+    },
     "language": {
         "name": "Français",
         "system": "Comme le système ({name})",
@@ -700,6 +704,11 @@
             "term:scrollback": {
                 "label": "Historique",
                 "description": "Combien de lignes de sortie un terminal garde."
+            },
+            "moltenterm:terminalscreenreader": {
+                "label": "Prise en charge des lecteurs d’écran",
+                "description": "Automatique suit le système. Activé et Désactivé remplacent la détection, sans redémarrer les terminaux.",
+                "options": { "auto": "Automatique", "on": "Activé", "off": "Désactivé" }
             },
             "term:copyonselect": {
                 "label": "Copier à la sélection",

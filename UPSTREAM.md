@@ -311,6 +311,13 @@ Everything else (directories, lock, socket, menus, About panel, permission promp
 
 ## Patch ledger
 
+Terminal accessibility (#808, FR-SHELL-070) updates already-listed `frontend/app/view/term/termwrap.ts`,
+`emain/emain-ipc.ts`, `emain/preload.ts`, `frontend/types/custom.d.ts`,
+`frontend/preview/mock/preview-electron-api.ts`, `pkg/wconfig/settingsconfig.go`,
+`pkg/wconfig/defaultconfig/settings.json`, generated settings schema/types/constants, and `docs/docs/config.mdx`.
+The `moltenterm:terminalscreenreader` preference stays outside `term:*` so live changes never reconstruct xterm.
+The new terminal-accessibility module binds only its public live option; main exposes read-only native detection.
+
 Every change to a Wave file is listed here and, where the format allows comments, marked with `MOLTENTERM-PATCH` in the
 file. Code that lives in new files is not listed.
 

@@ -1,4 +1,8 @@
 {
+    "terminalAccessibility": {
+        "input": "Terminal input",
+        "tooMuchOutput": "Too much output to announce. Navigate the terminal rows to read the output."
+    },
     "language": {
         "name": "English",
         "system": "Same as the system ({name})",
@@ -579,6 +583,11 @@
             "term:copyonselect": {
                 "label": "Copy on select",
                 "description": "Selecting text copies it."
+            },
+            "moltenterm:terminalscreenreader": {
+                "label": "Screen reader support",
+                "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
+                "options": { "auto": "Automatic", "on": "On", "off": "Off" }
             },
             "term:transparency": {
                 "label": "Transparency",

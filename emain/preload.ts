@@ -6,6 +6,13 @@ import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "ele
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
     getAuthKey: () => ipcRenderer.sendSync("get-auth-key"),
+    // MOLTENTERM-PATCH (#808): revisioned read-only accessibility state.
+    getAccessibilitySupport: () => ipcRenderer.sendSync("moltenterm:get-accessibility-support"),
+    onAccessibilitySupportChange: (callback) => {
+        const listener = (_event, snapshot) => callback(snapshot);
+        ipcRenderer.on("moltenterm:accessibility-support-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm:accessibility-support-changed", listener);
+    },
     getIsDev: () => ipcRenderer.sendSync("get-is-dev"),
     getPlatform: () => ipcRenderer.sendSync("get-platform"),
     getCursorPoint: () => ipcRenderer.sendSync("get-cursor-point"),

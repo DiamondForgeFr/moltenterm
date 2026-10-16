@@ -3,6 +3,8 @@
 
 const previewElectronApi: ElectronApi = {
     getAuthKey: () => "",
+    getAccessibilitySupport: () => ({ available: false, enabled: false, revision: 0 }), // MOLTENTERM-PATCH (#808)
+    onAccessibilitySupportChange: () => () => {},
     getIsDev: () => false,
     getCursorPoint: () => ({ x: 0, y: 0 }) as Electron.Point,
     getPlatform: () => "darwin",

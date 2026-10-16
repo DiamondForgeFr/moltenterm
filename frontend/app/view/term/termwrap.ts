@@ -30,10 +30,7 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
-import {
-    clearSharedTextureAtlas,
-    registerAtlasClearer,
-} from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
+import { clearSharedTextureAtlas, registerAtlasClearer } from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
 import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/term-controller-sync"; // MOLTENTERM-PATCH (#451)
 import {
     decideResize,
@@ -42,6 +39,11 @@ import {
     shouldReleaseHiddenWebgl,
     ShowRepaintFollowUpMs,
 } from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290, #454)
+import {
+    bindTerminalAccessibility,
+    localizeTerminalAccessibility,
+    terminalScreenReaderEnabled,
+} from "../../../moltenterm-shell/terminal-accessibility/model"; // MOLTENTERM-PATCH (#808)
 import { isOffCarpet, offCarpetAtom } from "../../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import {
     handleOsc16162Command,
@@ -107,6 +109,7 @@ export class TermWrap {
     sendDataHandler: (data: string) => void;
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
+    disposeAccessibility: () => void; // MOLTENTERM-PATCH (#808)
     webglAddon: WebglAddon | null = null;
     webglContextLossDisposable: TermTypes.IDisposable | null = null;
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
@@ -168,7 +171,9 @@ export class TermWrap {
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
-        this.terminal = new Terminal(options);
+        // MOLTENTERM-PATCH (#808): enable accessibility before opening xterm, then update its live option.
+        localizeTerminalAccessibility();
+        this.terminal = new Terminal({ ...options, screenReaderMode: terminalScreenReaderEnabled() });
         this.fitAddon = new FitAddon();
         this.serializeAddon = new SerializeAddon();
         this.searchAddon = new SearchAddon();
@@ -309,6 +314,7 @@ export class TermWrap {
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
+        this.disposeAccessibility = bindTerminalAccessibility(this.terminal); // MOLTENTERM-PATCH (#808)
         // MOLTENTERM-PATCH (#119): clean copy in agent terminals and links to the files a terminal mentions.
         this.toDispose.push(...installTermCopy(this));
 
@@ -487,6 +493,7 @@ export class TermWrap {
 
     dispose() {
         this.isDisposed = true; // MOLTENTERM-PATCH (#290)
+        this.disposeAccessibility?.(); // MOLTENTERM-PATCH (#808): detach before xterm is disposed.
         clearTimeout(this.hiddenWebglTimer); // MOLTENTERM-PATCH (#454)
         this.promptMarkers.forEach((marker) => {
             try {
