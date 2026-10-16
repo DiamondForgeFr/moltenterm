@@ -13,7 +13,7 @@
     position: absolute;
     top: 0;
     left: 0;
-    border-radius: var(--mt-radius-14);
+    border-radius: var(--df-radius-lg);
     background: var(--mt-carpet-bg);
     border: 1px solid var(--mt-carpet-edge);
     box-shadow:
@@ -27,7 +27,7 @@
     top: -8px;
     left: 18px;
     padding: 0 6px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--df-radius-sm);
     background: var(--mt-carpet-bg);
     color: var(--mt-text-muted);
     font-family: var(--mt-ui-font);
@@ -55,7 +55,7 @@
     align-items: center;
     justify-content: center;
     border: 1px dashed color-mix(in srgb, var(--mt-neutral-line) 22%, transparent);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--df-radius-md);
     background: transparent;
     color: var(--mt-text-muted);
     font-size: var(--mt-icon-14);
