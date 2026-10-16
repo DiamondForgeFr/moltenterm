@@ -298,13 +298,20 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         repo: answer.repo,
         forecast: shownForecast.rows[pr.number],
         forecastActive: forecastActive === pr.number,
-        onHover: (on: boolean) => setHovered((current) => (on ? pr.number : current === pr.number ? null : current)),
     });
+    // Read from the row under the pointer, not from each row's enter and leave: a scroll under a still pointer
+    // changes the row without a leave.
+    const onPointerOver = (e: React.MouseEvent) => {
+        const row = (e.target as HTMLElement).closest?.("[data-pr]");
+        setHovered(row == null ? null : Number(row.getAttribute("data-pr")));
+    };
     return (
         <div
             ref={listRef}
             className="relative flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3"
             onKeyDown={onKeyDown}
+            onMouseOver={onPointerOver}
+            onMouseLeave={() => setHovered(null)}
             data-role="molten-reviews"
         >
             <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
@@ -517,7 +524,6 @@ export function ReviewRow({
     repo,
     forecast,
     forecastActive,
-    onHover,
 }: {
     pr: ReviewPr;
     selected: boolean;
@@ -531,7 +537,6 @@ export function ReviewRow({
     repo: string;
     forecast?: RowForecast;
     forecastActive?: boolean;
-    onHover?: (on: boolean) => void;
 }) {
     const t = useT();
     useLocale();
@@ -580,8 +585,6 @@ export function ReviewRow({
                 onOpen();
             }}
             onFocus={onSelect}
-            onMouseEnter={() => onHover?.(true)}
-            onMouseLeave={() => onHover?.(false)}
             className={cn(
                 "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60",
@@ -661,11 +664,16 @@ export function ReviewRow({
                 ) : null}
                 {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
                     when it fits, so the link never wraps to a line of its own. */}
-                <div className="@container/link flex min-w-10 grow basis-10 justify-end">
+                <div
+                    className={cn(
+                        "@container/link relative flex min-w-10 grow basis-10 justify-end",
+                        forecast?.note && "[&>button]:invisible"
+                    )}
+                >
                     <AssistedReviewLink number={pr.number} onOpen={onOpen} />
+                    <ForecastNote text={forecast?.note} />
                 </div>
             </div>
-            <ForecastNote text={forecast?.note} />
             <MarkReadyConfirm state={markReady} />
             {outcomeShown ? (
                 <div

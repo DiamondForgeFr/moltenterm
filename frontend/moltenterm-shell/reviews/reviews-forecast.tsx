@@ -65,14 +65,19 @@ export function ForecastMarkChip({ mark, active }: { mark: ForecastMark; active:
     );
 }
 
+// The note lies over the free end of the row's chips line and takes no room: a note that pushed the rows would move
+// another row under a still pointer, which would then become the hovered one, and so on.
 export function ForecastNote({ text }: { text: string }) {
     if (!text) {
         return null;
     }
     return (
-        <div className="flex items-start gap-1.5 text-12 leading-4 text-warning" data-testid="reviews-forecast-note">
-            <i className="fa fa-solid fa-code-merge mt-px text-11" aria-hidden />
-            <span className="min-w-0 break-words">{text}</span>
+        <div
+            className="pointer-events-none absolute inset-y-0 right-0 left-0 flex items-center justify-end gap-1.5 text-12 leading-4 text-warning"
+            data-testid="reviews-forecast-note"
+        >
+            <i className="fa fa-solid fa-code-merge shrink-0 text-11" aria-hidden />
+            <span className="min-w-0 truncate">{text}</span>
         </div>
     );
 }

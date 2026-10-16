@@ -4139,8 +4139,8 @@
                 "one": "la fusionner mettrait 1 pull request en conflit",
                 "other": "la fusionner mettrait {count} pull requests en conflit"
             },
-            "markLine": "#{number} : {paths}",
-            "impacted": "En conflit une fois #{number} fusionnée : {paths}",
+            "markLine": "PR #{number} : {paths}",
+            "impacted": "En conflit une fois la PR #{number} fusionnée : {paths}",
             "pathsMore": "{paths} et {count} de plus"
         },
         "merge": {
