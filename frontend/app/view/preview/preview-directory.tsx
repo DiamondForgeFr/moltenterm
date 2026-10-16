@@ -56,7 +56,7 @@ interface DirectoryTableHeaderCellProps {
 function DirectoryTableHeaderCell({ header }: DirectoryTableHeaderCellProps) {
     return (
         <div
-            className="dir-table-head-cell"
+            className={clsx("dir-table-head-cell", "col-" + header.column.id)} // MOLTENTERM-PATCH (#742)
             key={header.id}
             style={{ width: `calc(var(--header-${header.id}-size) * 1px)` }}
         >
@@ -168,7 +168,7 @@ function DirectoryTable({
                     <span className="dir-table-lastmod">{getLastModifiedTime(info.getValue(), locale)}</span> // MOLTENTERM-PATCH (#742)
                 ),
                 header: () => <span>{tr("wave.files.colModified")}</span>, // MOLTENTERM-PATCH (#742)
-                size: 91,
+                size: 106, // MOLTENTERM-PATCH (#742): room for "16 oct. 10:58"
                 minSize: 65,
                 sortingFn: "datetime",
             }),

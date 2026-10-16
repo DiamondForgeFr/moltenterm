@@ -211,6 +211,8 @@
             "sortName": "Name",
             "sortModified": "Last modified",
             "showHidden": "Show hidden files",
+            "hideHidden": "Hide hidden files",
+            "refresh": "Refresh",
             "on": "On",
             "off": "Off",
             "showInFolder": "Show in folder",

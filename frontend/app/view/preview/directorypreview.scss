@@ -5,7 +5,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    --min-row-width: 35rem;
+    --min-row-width: 30rem; // MOLTENTERM-PATCH (#742): with the shrinking Name column below, a half-width panel shows every column
     .dir-table {
         height: 100%;
         width: 100%;
@@ -184,6 +184,22 @@
             }
         }
     }
+}
+
+// MOLTENTERM-PATCH (#742): the Name column gives up width first, so a narrow panel keeps its Type column in view.
+// The header stops growing to its content's natural width, or its columns would no longer line up with the rows'.
+.dir-table-container .dir-table .dir-table-head {
+    min-width: var(--min-row-width);
+}
+.dir-table-container .dir-table .dir-table-head .dir-table-head-row .dir-table-head-cell.col-name,
+.dir-table-container
+    .dir-table
+    .dir-table-body
+    .dir-table-body-scroll-box
+    .dir-table-body-row
+    .dir-table-body-cell.col-name {
+    flex: 0 1 auto;
+    min-width: 90px;
 }
 
 .entry-manager-overlay {
