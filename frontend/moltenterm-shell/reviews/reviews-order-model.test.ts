@@ -113,6 +113,9 @@ describe("suggested merge order (FR-REV-024)", () => {
         // The list's order: #1 first puts #2 and #3 in conflict.
         expect(order.currentCost).toBe(2);
         expect(order.numbers).toEqual([2, 3, 1, 4]);
+        expect(mergeOrderReason(order.steps[2], "develop", prs[0])).toBe(
+            "After #2, #3, which it would put in conflict"
+        );
     });
 
     it("is optimal on random conflict graphs, checked against every order", () => {
@@ -339,7 +342,7 @@ describe("merge order wording", () => {
         expect(reasons[3]).toBe("No impact · CI running");
         expect(reasons[5]).toBe("No impact");
         expect(reasons[1]).toBe("Puts #2 in conflict");
-        expect(reasons[2]).toBe("Rebase after #1 · After #1, #5, which it would put in conflict");
+        expect(reasons[2]).toBe("Rebase after #1");
         expect(reasons[4]).toBe("Already conflicts with develop: rebase in any order");
         expect(order.steps.map((s) => s.rank)).toEqual([1, 2, 3, 4, 5]);
     });
