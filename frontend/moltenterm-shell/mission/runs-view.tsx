@@ -13,6 +13,7 @@ import { ScrimClass } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathParent } from "../workspace-project";
@@ -208,9 +209,7 @@ export function useRunLog(run: RunRecord): string {
 export function RunStateBadge({ state }: { state: RunState }) {
     return (
         <span className={cn("rounded-4 px-1.5 py-0.5 text-11 font-medium", StateClasses[state])}>
-            {state === "running" ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11 text-accent" />
-            ) : null}
+            {state === "running" ? <DominoLoader className="mr-1 text-accent" /> : null}
             {RunStateLabels[state] ?? state}
         </span>
     );
@@ -231,7 +230,7 @@ function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
         return <i className="fa fa-solid fa-xmark text-11" />;
     }
     if (status === "running") {
-        return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />;
+        return <DominoLoader className="mt-dominos-node" />;
     }
     return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
 }

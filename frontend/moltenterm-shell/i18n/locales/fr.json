@@ -19,6 +19,7 @@
         "off": "Désactivé",
         "open": "Ouvrir",
         "confirm": "Confirmer",
+        "loading": "Chargement",
         "selected": "Sélectionné"
     },
     "i18n": {

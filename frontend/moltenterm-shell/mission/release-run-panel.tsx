@@ -12,6 +12,7 @@ import { useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -64,12 +65,12 @@ export type ReleasePanelActions = {
     saveNotes: (text: string) => Promise<void>;
 };
 
-function StatusIcon({ status }: { status: PhaseStatus }) {
+function StatusIcon({ status, small }: { status: PhaseStatus; small?: boolean }) {
     switch (status) {
         case "done":
             return <i className="fa fa-solid fa-check text-11" />;
         case "running":
-            return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />;
+            return <DominoLoader className={small ? "mt-dominos-icon" : "mt-dominos-node"} />;
         case "waiting":
             return <i className="fa fa-solid fa-hand text-11" />;
         case "failed":
@@ -123,7 +124,7 @@ function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
                                 NodeClasses[status]
                             )}
                         >
-                            <StatusIcon status={status} />
+                            <StatusIcon status={status} small />
                         </span>
                         <span className="min-w-0 flex-1 truncate text-secondary">{job.name}</span>
                         <span className="text-muted tabular-nums">{jobDuration(job, now)}</span>
@@ -181,7 +182,7 @@ function ActionButton({
                     className={plain ? PlainButton : AccentButton}
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
                 >
-                    {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" /> : null}
+                    {busy ? <DominoLoader className="mr-1.5" /> : null}
                     {confirming ? t("common.confirm") : action.label}
                     {plain ? null : <MoltenWave />}
                 </button>

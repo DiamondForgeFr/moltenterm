@@ -41,6 +41,7 @@ import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
@@ -1490,18 +1491,18 @@ function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; a
     );
 }
 
-// A tab's favicon, or a spinner in the working colour while its page loads; a page that failed shows a warning.
+// A tab's favicon, or the falling dominoes in the working colour while its page loads; a page that failed shows a warning.
 function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     const t = useT();
     const [broken, setBroken] = useState<string>(null);
     if (load?.loading) {
         return (
-            <span className="molten-browser-tab-icon flex items-center justify-center">
-                <span
-                    role="progressbar"
-                    aria-label={t("browser.tabs.loading")}
-                    className="molten-browser-tab-spinner h-3 w-3 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
-                />
+            <span
+                role="progressbar"
+                aria-label={t("browser.tabs.loading")}
+                className="molten-browser-tab-icon flex items-center justify-center"
+            >
+                <DominoLoader className="mt-dominos-icon text-[var(--mt-state-working)]" />
             </span>
         );
     }

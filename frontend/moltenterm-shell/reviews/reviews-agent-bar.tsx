@@ -6,7 +6,8 @@
 // working beat (still under reduced motion, #473), waiting's amber, done's green. The text stays quiet (11 px, muted),
 // the first name reads in the main colour, and Go to takes the window to the agent's panel. A background agent (run
 // inside another agent) is "probably active", without Go to, with its parent session when one stands out. The
-// durations follow one minute clock shared by every bar, so the list itself never renders again for them.
+// durations follow one minute clock shared by every bar, so the list itself never renders again for them. A working or
+// background agent also shows the suite's falling dominoes next to its state (#739), so the bar visibly works.
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -16,6 +17,7 @@ import { useEffect, useMemo } from "react";
 import { AgentStates } from "../agent-state-store";
 import { useT } from "../i18n/i18n";
 import { showPanel } from "../review/review-panels";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { agentGlyph } from "../tab-identity";
 import { useWorkingBeat } from "../working-beat";
@@ -142,6 +144,11 @@ export function AgentBar({ facts }: { facts: AgentBarFacts }) {
             >
                 {stateText}
             </span>
+            {facts.state === "working" || facts.state === "background" ? (
+                <DominoLoader
+                    className={facts.state === "working" ? "text-[var(--mt-state-working)]" : "text-secondary"}
+                />
+            ) : null}
             {timeText ? (
                 <span className="min-w-0 truncate" data-testid="reviews-agent-time">
                     <span className="mr-2 opacity-50" aria-hidden>

@@ -14,6 +14,7 @@ import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { SegmentedControl } from "../segmented-control";
+import { DominoLoader } from "../suite/suite";
 import { cleanupLeftovers, cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import { mergedFooter } from "./review-done";
@@ -55,11 +56,7 @@ export function ValidateButton({ model }: { model: ReviewTabModel }) {
             title={t("review.validate.buttonTitle")}
             data-testid="review-validate"
         >
-            {running ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-            ) : (
-                <i className="fa fa-solid fa-code-merge text-11" />
-            )}
+            {running ? <DominoLoader /> : <i className="fa fa-solid fa-code-merge text-11" />}
             {running ? t("review.merge.state.merging") : t("review.validate.button")}
             <MoltenWave />
         </button>

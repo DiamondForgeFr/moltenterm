@@ -12,6 +12,7 @@ import { ScrimClass } from "../dialog-frame";
 import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { ActionSecondaryClass } from "./action-button";
 import {
     branchesAutoDelete,
@@ -160,7 +161,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                     ) : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
+                            <DominoLoader />
                             {t("mc.branches.comparing", { trunk })}
                         </div>
                     ) : null}
@@ -224,11 +225,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                                 "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-error transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
                             )}
                         >
-                            {busy ? (
-                                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                            ) : (
-                                <i className="fa fa-solid fa-trash-can text-11" />
-                            )}
+                            {busy ? <DominoLoader /> : <i className="fa fa-solid fa-trash-can text-11" />}
                             {tCount("mc.branches.delete", going.length)}
                         </button>
                     ) : null}
@@ -275,7 +272,7 @@ function AutoDeleteOffer({
                     onClick={() => onAnswer(true)}
                     className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-60"
                 >
-                    {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11" /> : null}
+                    {busy ? <DominoLoader className="mr-1" /> : null}
                     {t("mc.branches.turnOn")}
                     <MoltenWave />
                 </button>

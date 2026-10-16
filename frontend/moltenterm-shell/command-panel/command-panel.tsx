@@ -23,6 +23,7 @@ import { formatShortcutById } from "../shortcuts/format";
 import { addPanelBeside, besideIcon, besideLabel, besideSides } from "../split/add-beside";
 import { SplitPlaceIcon } from "../split/split-menu";
 import { enterSplitPlacement } from "../split/split-place";
+import { DominoLoader } from "../suite/suite";
 import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import type { PanelPlacement } from "../view360/view360-model";
 import { pinActions, pinActionShortcut, usePanelPlacement } from "../view360/view360-pin";
@@ -500,10 +501,7 @@ function PanelRowView(props: RowProps) {
                 {detail && !row.breadcrumb && <span className="ml-1.5 text-11 text-muted">{detail}</span>}
             </span>
             {props.running != null && props.running === (isOption ? row.option.id : row.item.id) ? (
-                <i
-                    className="fa fa-solid fa-circle-notch fa-spin shrink-0 text-11 text-muted"
-                    aria-label={t("cmdpanel.sending")}
-                />
+                <DominoLoader className="text-muted" label={t("cmdpanel.sending")} />
             ) : digit > 0 ? (
                 <span className="shrink-0 font-mono text-11 text-secondary">⌘{digit}</span>
             ) : (

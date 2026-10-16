@@ -16,6 +16,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText, serverText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { workspaceAgents } from "../project/project-model";
+import { DominoLoader } from "../suite/suite";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { CiIcon, githubRunIconState, LocalCiIcon } from "./ci-icon";
 import {
@@ -112,7 +113,7 @@ function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget
                 className="flex w-fit cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
                 data-testid="ci-job-ask"
             >
-                <i className={cn("fa fa-solid text-11", busy ? "fa-spinner fa-spin" : "fa-wand-magic-sparkles")} />
+                {busy ? <DominoLoader /> : <i className="fa fa-solid fa-wand-magic-sparkles text-11" />}
                 {t("mc.jobs.ui.ask")}
             </button>
             {outcome ? (

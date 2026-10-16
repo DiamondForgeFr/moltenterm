@@ -11,6 +11,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
+import { DominoLoader } from "../suite/suite";
 import {
     BulkAction,
     bulkCommandLabel,
@@ -212,10 +213,7 @@ function ResultMark({ result, running }: { result: BulkResult; running: boolean 
     const t = useT();
     if (result == null) {
         return running ? (
-            <i
-                className={cn(makeIconClass("spinner", true), "w-4 shrink-0 animate-spin text-muted")}
-                aria-label={t("sessions.dialog.runningMark")}
-            />
+            <DominoLoader className="mt-dominos-icon text-muted" label={t("sessions.dialog.runningMark")} />
         ) : (
             <i
                 className={cn(makeIconClass("circle", true), "w-4 shrink-0 text-11 text-muted opacity-50")}

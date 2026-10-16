@@ -14,6 +14,7 @@ import { useProposalRequest } from "../header/header-proposals";
 import { t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { TermUpdateOutcome } from "./termupdate-model";
 import { termupdateMessage } from "./termupdate-text";
 import { TermUpdates } from "./termupdate-store";
@@ -116,7 +117,7 @@ function TermUpdateDialog({
                             disabled={pending}
                             autoFocus
                         >
-                            {pending ? <i className="fa fa-solid fa-spinner fa-spin mr-1.5" /> : null}
+                            {pending ? <DominoLoader className="mr-1.5" /> : null}
                             {t("termupdate.dialog.restart", { agent: name })}
                             <MoltenWave />
                         </button>

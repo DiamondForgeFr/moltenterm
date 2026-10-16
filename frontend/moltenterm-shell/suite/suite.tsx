@@ -82,6 +82,35 @@ export function SectionBlock({
     );
 }
 
+const DominoCount = 8;
+
+export type DominoLoaderProps = {
+    // "inline" fits a button or a line of text in the text colour; "large" is the accent chain of a loading state.
+    size?: "inline" | "large";
+    // Names what works when the loader stands alone (a status); without it the loader is hidden from assistive tech,
+    // because a text next to it already says it.
+    label?: string;
+    className?: string;
+};
+
+// The suite's working indicator, the falling dominoes (#739). Shared source: Notulia's
+// src/components/ui/domino-loader.tsx and the .dominos / .domino-loader rules of its src/index.css, themselves a port
+// of LoaderPiece.vue from the DiamondForge design system. Keep the geometry and timing in step between the apps.
+export function DominoLoader({ size = "inline", label, className }: DominoLoaderProps) {
+    return (
+        <span
+            className={joinClasses(size === "large" ? "df-dominos" : "df-domino-loader", className)}
+            role={label ? "status" : undefined}
+            aria-label={label || undefined}
+            aria-hidden={label ? undefined : true}
+        >
+            {Array.from({ length: DominoCount }, (_, i) => (
+                <span key={i} />
+            ))}
+        </span>
+    );
+}
+
 // Rows flush with the block's edges, divided by hairlines; they close the block.
 export function BlockRows({ children, className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
     return (

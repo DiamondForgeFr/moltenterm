@@ -31,6 +31,7 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         expect(html).toMatch(/cursor-pointer/);
         expect(html).toMatch(/mt-beat-blink/);
         expect(html).not.toMatch(/animate-/);
+        expect(html).toMatch(/class="df-domino-loader text-\[var\(--mt-state-working\)\]" aria-hidden="true"/);
     });
 
     it("lays the state rail on the tile's border, and draws none for idle or background (#738)", () => {
@@ -69,6 +70,7 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         const html = renderToStaticMarkup(<AgentBar facts={facts} />);
         expect(html).toMatch(/text-\[var\(--mt-state-waiting\)\][^>]*>waiting for you</);
         expect(html).not.toMatch(/mt-beat-blink/);
+        expect(html).not.toContain("df-domino-loader");
     });
 
     it("says a background agent is probably active, without Go to, with its parent session", () => {
@@ -84,6 +86,7 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         const html = renderToStaticMarkup(<AgentBar facts={facts} />);
         expect(html).toContain("Background agent");
         expect(html).toContain("probably active");
+        expect(html).toContain('class="df-domino-loader text-secondary" aria-hidden="true"');
         expect(html).toContain("last change 3 min ago");
         expect(html).not.toContain('data-testid="reviews-agent-goto"');
         expect(html).toMatch(/data-testid="reviews-agent-parent"[\s\S]*Valentin&#x27;s session/);
