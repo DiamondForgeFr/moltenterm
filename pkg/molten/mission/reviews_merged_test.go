@@ -154,6 +154,45 @@ func TestReviewsGetReadsShips(t *testing.T) {
 	}
 }
 
+// A refresh's forced ask reads the ships before its fetch brings the tags: the refresh's end reads them again.
+func TestReviewsRefreshedReadsShipsAfterTheFetch(t *testing.T) {
+	dir := makeGitFlowRepo(t)
+	os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
+	commit(t, dir, "e.txt", "fix(#5): merged")
+	oid := gitIn(t, dir, "rev-parse", "HEAD")
+	reviews := MakeReviews(MakeCollector("", plainRunner, nil), plainRunner, nil)
+	snap := reviewsSnapshot(dir, `[]`)
+	snap.GithubAt = time.Now().UnixMilli()
+	snap.Github.Merged = json.RawMessage("[" + mergedPrJson(7, "develop", time.Now().Add(-time.Hour), oid) + "]")
+	ships := func() string {
+		answer := BuildReviews(snap)
+		reviews.applyKnownReports(&answer)
+		return answer.Merged[0].Ships
+	}
+	reviews.Refreshed(snap)
+	if ships() != "" {
+		t.Fatal("no project asked: nothing read")
+	}
+	answer := BuildReviews(snap)
+	if !reviews.prepareShips(&answer, snap, true) {
+		t.Fatal("the first ask reads")
+	}
+	reviews.readShips(dir)
+	if ships() != ReviewShipsNext {
+		t.Fatalf("before the tag: %q", ships())
+	}
+	gitRun(t, dir, "tag", "v1.0.0-4")
+	reviews.Refreshed(snap)
+	if ships() != ReviewShipsNext {
+		t.Fatal("no newer git read: the answer stays")
+	}
+	snap.GitAt = time.Now().Add(time.Second).UnixMilli()
+	reviews.Refreshed(snap)
+	if ships() != ReviewShipsTag {
+		t.Fatalf("after the fetch: %q", ships())
+	}
+}
+
 func waitShipsIdle(t *testing.T, r *Reviews, dir string) {
 	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
