@@ -205,6 +205,25 @@
             "create": "Create new workspace",
             "save": "Save workspace",
             "edit": "Edit workspace"
+        },
+        "editor": {
+            "fontSize": "Editor font size",
+            "fontSizeDefault": "Default ({size}px)",
+            "saveFile": "Save file",
+            "revertFile": "Revert file",
+            "wordWrap": "Word wrap",
+            "tableOfContents": "Table of contents",
+            "refresh": "Refresh"
+        },
+        "search": {
+            "placeholder": "Search",
+            "results": "Search results",
+            "previous": "Previous result (Shift+Enter)",
+            "next": "Next result (Enter)",
+            "close": "Close (Esc)",
+            "regex": "Regular expression",
+            "wholeWord": "Whole word",
+            "caseSensitive": "Match case"
         }
     },
     "menu": {

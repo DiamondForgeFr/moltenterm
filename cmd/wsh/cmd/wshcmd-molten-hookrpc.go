@@ -19,6 +19,12 @@ import (
 // every wsh command, but only the round trips the hook needs. No peer info (only wavesrv's logs read it) and no wsh
 // activity report (a telemetry write in wavesrv for every hook run).
 
+// The terminal has no MoltenTerm token: a shell started outside MoltenTerm, or one without its integration (/bin/sh).
+// English like all CLI output (agents parse it), and without the token's name, which says Wave and SSH (#750).
+func errNotMoltenTerminal() error {
+	return fmt.Errorf("this command must run in a MoltenTerm terminal, and this terminal is not one")
+}
+
 // setupHookRpcClient connects and authenticates like setupRpcClient, without the peer info.
 func setupHookRpcClient(jwtToken string) error {
 	rpcCtx, err := wshutil.ExtractUnverifiedRpcContext(jwtToken)
@@ -46,7 +52,7 @@ func setupHookRpcClient(jwtToken string) error {
 func preRunSetupHookRpcClient(cmd *cobra.Command, args []string) error {
 	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
 	if jwtToken == "" {
-		return fmt.Errorf("wsh must be run inside a Wave-managed SSH session (WAVETERM_JWT not found)")
+		return errNotMoltenTerminal()
 	}
 	return setupHookRpcClient(jwtToken)
 }
@@ -55,7 +61,7 @@ func preRunSetupHookRpcClient(cmd *cobra.Command, args []string) error {
 // (pkg/molten/agenthook).
 func preRunCheckJwt(cmd *cobra.Command, args []string) error {
 	if os.Getenv(wshutil.WaveJwtTokenVarName) == "" {
-		return fmt.Errorf("wsh must be run inside a Wave-managed SSH session (WAVETERM_JWT not found)")
+		return errNotMoltenTerminal()
 	}
 	return nil
 }

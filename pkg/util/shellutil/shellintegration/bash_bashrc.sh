@@ -1,4 +1,8 @@
 
+# MOLTENTERM-PATCH (#750): the system bash prints "The default interactive shell is now zsh" in every new terminal
+# unless this is set by the end of the startup files; a user who picked bash as the shell made that choice already.
+export BASH_SILENCE_DEPRECATION_WARNING=1
+
 # Source /etc/profile if it exists
 if [ -f /etc/profile ]; then
     . /etc/profile

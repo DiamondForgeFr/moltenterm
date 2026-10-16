@@ -353,13 +353,13 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "book",
-                        title: "Table of Contents",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.tableOfContents"), // MOLTENTERM-PATCH (#750)
                         click: () => this.markdownShowTocToggle(),
                     },
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.refresh"), // MOLTENTERM-PATCH (#750)
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -369,7 +369,7 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.refresh"), // MOLTENTERM-PATCH (#750)
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -739,6 +739,7 @@ export class PreviewModel implements ViewModel {
         const loadableSV = globalStore.get(this.loadableSpecializedView);
         const wordWrapAtom = getOverrideConfigAtom(this.blockId, "editor:wordwrap");
         const wordWrap = globalStore.get(wordWrapAtom) ?? false;
+        const locale = globalStore.get(I18nModel.getInstance().localeAtom); // MOLTENTERM-PATCH (#750)
         menuItems.push({ type: "separator" });
         if (loadableSV.state == "hasData" && loadableSV.data.specializedView == "codeedit") {
             const fontSizeSubMenu: ContextMenuItem[] = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(
@@ -757,7 +758,7 @@ export class PreviewModel implements ViewModel {
                 }
             );
             fontSizeSubMenu.unshift({
-                label: "Default (" + defaultFontSize + "px)",
+                label: translate(locale, "wave.editor.fontSizeDefault", { size: defaultFontSize }), // MOLTENTERM-PATCH (#750)
                 type: "checkbox",
                 checked: overrideFontSize == null,
                 click: () => {
@@ -768,23 +769,23 @@ export class PreviewModel implements ViewModel {
                 },
             });
             menuItems.push({
-                label: "Editor Font Size",
+                label: translate(locale, "wave.editor.fontSize"), // MOLTENTERM-PATCH (#750)
                 submenu: fontSizeSubMenu,
             });
             if (globalStore.get(this.newFileContent) != null) {
                 menuItems.push({ type: "separator" });
                 menuItems.push({
-                    label: "Save File",
+                    label: translate(locale, "wave.editor.saveFile"), // MOLTENTERM-PATCH (#750)
                     click: () => fireAndForget(this.handleFileSave.bind(this)),
                 });
                 menuItems.push({
-                    label: "Revert File",
+                    label: translate(locale, "wave.editor.revertFile"), // MOLTENTERM-PATCH (#750)
                     click: () => fireAndForget(this.handleFileRevert.bind(this)),
                 });
             }
             menuItems.push({ type: "separator" });
             menuItems.push({
-                label: "Word Wrap",
+                label: translate(locale, "wave.editor.wordWrap"), // MOLTENTERM-PATCH (#750)
                 type: "checkbox",
                 checked: wordWrap,
                 click: () =>
