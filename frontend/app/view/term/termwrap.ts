@@ -33,6 +33,11 @@ import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell
 import { clearSharedTextureAtlas, registerAtlasClearer } from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
 import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/term-controller-sync"; // MOLTENTERM-PATCH (#451)
 import {
+    nextTermCacheDelayMs,
+    TermCacheBaseDelayMs,
+    TermCacheSlowLogMs,
+} from "../../../moltenterm-shell/term-cache-pace"; // MOLTENTERM-PATCH (#849)
+import {
     decideResize,
     decideWebglLossRecovery,
     HiddenWebglReleaseMs,
@@ -756,26 +761,35 @@ export class TermWrap {
         });
     }
 
-    processAndCacheData() {
+    // MOLTENTERM-PATCH (#849): returns what the save cost, which paces the next one (term-cache-pace.ts)
+    processAndCacheData(): number {
         if (this.dataBytesProcessed < MinDataProcessedForCache) {
-            return;
+            return 0;
         }
+        const start = performance.now();
         const serializedOutput = this.serializeAddon.serialize();
+        const took = performance.now() - start;
         const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
+        if (took >= TermCacheSlowLogMs) {
+            getApi().sendLog(
+                `hang: terminal ${this.blockId.slice(0, 8)} cache save took ${Math.round(took)} ms (${serializedOutput.length} chars)`
+            );
+        }
         fireAndForget(() =>
             services.BlockService.SaveTerminalState(this.blockId, serializedOutput, "full", this.ptyOffset, termSize)
         );
         this.dataBytesProcessed = 0;
+        return took;
     }
 
-    runProcessIdleTimeout() {
+    runProcessIdleTimeout(delayMs: number = TermCacheBaseDelayMs) {
         setTimeout(() => {
             window.requestIdleCallback(() => {
-                this.processAndCacheData();
-                this.runProcessIdleTimeout();
+                const took = this.processAndCacheData();
+                this.runProcessIdleTimeout(nextTermCacheDelayMs(took)); // MOLTENTERM-PATCH (#849)
             });
-        }, 5000);
+        }, delayMs);
     }
 
     async pasteHandler(e?: ClipboardEvent): Promise<void> {

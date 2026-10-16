@@ -6330,5 +6330,12 @@
         "missing": "{agent} is chosen but not installed on this computer: choose another one",
         "automatic": "Automatic: {agent}",
         "noneInstalled": "No supported agent is installed on this computer"
+    },
+    "hang": {
+        "title": "The window did not respond for {seconds} s",
+        "message": "It answers again. If it happens often, copy the diagnostics and attach them to a bug report.",
+        "copy": "Copy diagnostics",
+        "copied": "Diagnostics copied",
+        "copyFailed": "The diagnostics could not be copied"
     }
 }

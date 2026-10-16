@@ -58,6 +58,11 @@ const HttpWriteTimeout = 21 * time.Second
 const HttpMaxHeaderBytes = 60000
 const HttpTimeoutDuration = 21 * time.Second
 
+// MOLTENTERM-PATCH (#849): without it Go closes idle connections after ReadTimeout (5 s), so nearly every click opened
+// a new loopback connection and failed when the machine had no local port left (net::ERR_ADDRESS_INVALID). Longer than
+// Chromium's 5 min idle pool, so the client always closes first and a request never lands on a closing socket.
+const HttpIdleTimeout = 6 * time.Minute
+
 const WSStateReconnectTime = 30 * time.Second
 const WSStatePacketChSize = 20
 
@@ -530,6 +535,7 @@ func RunWebServer(listener net.Listener) {
 	server := &http.Server{
 		ReadTimeout:    HttpReadTimeout,
 		WriteTimeout:   HttpWriteTimeout,
+		IdleTimeout:    HttpIdleTimeout, // MOLTENTERM-PATCH (#849)
 		MaxHeaderBytes: HttpMaxHeaderBytes,
 		Handler:        makeWebHandler(),
 	}
