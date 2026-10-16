@@ -20,6 +20,7 @@ import { AgentStates } from "../agent-state-store";
 import { t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
+import { addPanelBeside, besideIcon, besideLabel, besideSides } from "../split/add-beside";
 import { SplitPlaceIcon } from "../split/split-menu";
 import { enterSplitPlacement } from "../split/split-place";
 import { subscribeWindowWorkspaceChange } from "../tab-workspace";
@@ -146,6 +147,17 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
             refocus: false,
             run: () => enterSplitPlacement(blockId),
         },
+        ...besideSides(blockId).map(
+            (side): FooterAction => ({
+                id: `footer:add-beside-${side}`,
+                type: "action",
+                label: besideLabel(side),
+                icon: besideIcon(side),
+                keywords: ["new panel", "add panel", "column", "360", "carpet"],
+                refocus: false,
+                run: () => fireAndForget(() => addPanelBeside(blockId, side)),
+            })
+        ),
         {
             id: "footer:magnify",
             type: "action",

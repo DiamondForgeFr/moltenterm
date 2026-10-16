@@ -14,6 +14,7 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
+import { besideColumns } from "./add-beside-model";
 import { HalfSplit, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
 
 // The pickers opened by a split and not chosen or cancelled yet (new block id -> source block id). Not persisted: a
@@ -109,12 +110,13 @@ export function insertBlockBeside(
 
 // A new top-level column opening on the picker, like a split (#702: the 360 view's "add a panel" at each end of the
 // carpet). place is read once the block exists, the layout may have changed meanwhile; the picker reads its context
-// (directory, connection) from sourceBlockId, and cancelling it gives the focus back there. Returns the new block id,
+// (directory, connection) from sourceBlockId, and cancelling it gives the focus back there. A place with columnSizes
+// (#732) then sizes the top-level columns, the new one included, before the layout is drawn. Returns the new block id,
 // null when there is no place.
 export async function addPickerColumn(
     layoutModel: LayoutModel,
     sourceBlockId: string,
-    place: () => { targetNodeId: string; position: "before" | "after" }
+    place: () => { targetNodeId: string; position: "before" | "after"; columnSizes?: number[] }
 ): Promise<string> {
     if (layoutModel == null || place() == null) {
         return null;
@@ -145,7 +147,18 @@ export async function addPickerColumn(
         position: where.position,
         focused: true,
     };
-    layoutModel.treeReducer(action);
+    const sizes = where.columnSizes;
+    if (!sizes?.length || besideColumns(rootNode).length !== sizes.length - 1) {
+        layoutModel.treeReducer(action);
+        return newBlockId;
+    }
+    // Both actions before the layout is drawn: the existing columns never show squeezed.
+    layoutModel.treeReducer(action, false);
+    const columns = besideColumns(layoutModel.treeState?.rootNode);
+    layoutModel.treeReducer({
+        type: LayoutTreeActionType.ResizeNode,
+        resizeOperations: columns.map((column, i) => ({ nodeId: column.id, size: sizes[i] ?? column.size })),
+    } as LayoutTreeResizeNodeAction);
     return newBlockId;
 }
 
