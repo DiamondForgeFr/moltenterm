@@ -454,6 +454,7 @@
         }
     },
     "settings": {
+        "retry": "Réessayer",
         "title": "Réglages",
         "default": "Par défaut",
         "auto": "Auto",
@@ -478,7 +479,8 @@
         },
         "error": {
             "folder": "Ce dossier n'a pas pu être utilisé. Vérifiez qu'il existe.",
-            "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé."
+            "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé.",
+            "sliderNotSaved": "Cette valeur n'a pas été enregistrée. Réessayez."
         },
         "reset": {
             "label": "Réinitialiser {label}",

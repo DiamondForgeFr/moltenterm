@@ -454,6 +454,7 @@
         }
     },
     "settings": {
+        "retry": "Retry",
         "groups": {
             "app": "App",
             "keys": "Keys",
@@ -1015,7 +1016,8 @@
         },
         "error": {
             "folder": "This folder could not be used. Check that it exists.",
-            "notSaved": "This value was not saved. Check settings.json under Advanced."
+            "notSaved": "This value was not saved. Check settings.json under Advanced.",
+            "sliderNotSaved": "This value was not saved. Try again."
         },
         "reset": {
             "label": "Reset {label}",
