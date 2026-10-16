@@ -6,9 +6,12 @@ import { describe, expect, it } from "vitest";
 import {
     anyColumnTooTight,
     autoWants,
+    columnMinimumsPx,
     countLeaves,
     decideView360,
     FirstColumnMinPx,
+    fitsAtCurrentFloors,
+    fitsAtReadableMinimums,
     LeaveMarginPx,
     manualChoice,
     minimumsPx,
@@ -157,5 +160,65 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(showTightPill({ ...base, setting: "never", manual: null, dismissed: true })).toBe(false);
         expect(showTightPill({ ...base, setting: "never", manual: null, tooTight: false })).toBe(false);
         expect(showTightPill({ ...base, setting: "never", manual: true, active: true })).toBe(false);
+    });
+});
+
+describe("terminal floor in the 360 decision (#731)", () => {
+    const isTerm = (n: LayoutNode) => n.data?.blockId?.startsWith("b-t") ?? false;
+
+    it("counts max(readable minimum, floor) for a terminal column, the readable minimum for the others", () => {
+        const cols = [leaf("t1"), leaf("browser"), leaf("t2")];
+        expect(columnMinimumsPx(cols, 900, isTerm)).toEqual([900, SideColumnMinPx, 900]);
+        expect(columnMinimumsPx(cols, 200, isTerm)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
+        expect(columnMinimumsPx(cols, null, isTerm)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
+    });
+
+    it("adds the floors of terminals side by side in a column and keeps the largest of stacked ones", () => {
+        const stacked: LayoutNode = {
+            id: "s",
+            flexDirection: FlexDirection.Column,
+            size: 10,
+            children: [leaf("t1"), leaf("x")],
+        };
+        const sideBySide: LayoutNode = {
+            id: "r",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("t2"), leaf("t3"), leaf("y")],
+        };
+        expect(columnMinimumsPx([stacked, sideBySide], 600, isTerm)).toEqual([600, 1200]);
+    });
+
+    it("enters 360 view when the floor of a terminal column no longer fits", () => {
+        // terminal at a 900 px floor beside a browser: 900 + 360 = 1260
+        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        expect(minimumsPx(2, 0, mins)).toBe(1260);
+        expect(autoWants(false, 2, 1500, 0, mins)).toBe(false);
+        expect(autoWants(false, 2, 1259, 0, mins)).toBe(true);
+        // Without the floor the same width still fits.
+        expect(autoWants(false, 2, 1259)).toBe(false);
+        expect(autoWants(true, 2, 1260 + LeaveMarginPx - 1, 0, mins)).toBe(true);
+        expect(autoWants(true, 2, 1260 + LeaveMarginPx, 0, mins)).toBe(false);
+    });
+
+    it("ignores per-column minimums that do not match the column count", () => {
+        expect(minimumsPx(3, 0, [900, 360])).toBe(minimumsPx(3));
+    });
+
+    it("finds a column under the floor too tight", () => {
+        expect(anyColumnTooTight([800, 700], [900, SideColumnMinPx])).toBe(true);
+        expect(anyColumnTooTight([900, 700], [900, SideColumnMinPx])).toBe(false);
+    });
+
+    it("tells whether the columns fit at the current floors or only at the readable minimums", () => {
+        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        expect(fitsAtCurrentFloors(mins, 1300)).toBe(true);
+        expect(fitsAtCurrentFloors(mins, 1200)).toBe(false);
+        expect(fitsAtReadableMinimums(2, 1200)).toBe(true);
+        expect(fitsAtReadableMinimums(2, 800)).toBe(false);
+        expect(fitsAtCurrentFloors(mins, 1300, 0, LeaveMarginPx)).toBe(false);
+        expect(fitsAtReadableMinimums(2, FirstColumnMinPx + SideColumnMinPx + 4, 4)).toBe(true);
+        expect(fitsAtCurrentFloors([900], 100)).toBe(true);
+        expect(fitsAtReadableMinimums(1, 100)).toBe(true);
     });
 });

@@ -4,8 +4,10 @@
 // When a tab shows in 360 view (FR-SHELL-066, DS-SHELL-116): the setting moltenterm:view360, the tab's manual choice,
 // and in automatic the readable minimum of every column against the tab's width, with a margin before leaving so a
 // window dragged around the threshold does not flap. Pure rules, kept apart from the layout so they are tested alone.
+// A terminal column counts the terminal floor (#731) on top of its readable minimum.
 
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
+import { type IsTerminalLeaf, terminalNeedPx } from "../panel-size/panel-size-model";
 import { FixedMinPx } from "./carpet-model";
 
 export const View360SettingKey = "moltenterm:view360";
@@ -60,24 +62,62 @@ export function columnMinPx(index: number): number {
     return index === 0 ? FirstColumnMinPx : SideColumnMinPx;
 }
 
-// The width every column needs at its readable minimum, gaps included.
-export function minimumsPx(columnCount: number, gapPx = 0): number {
+// The readable minimum of each of `columnCount` columns.
+export function readableMinimumsPx(columnCount: number): number[] {
+    return Array.from({ length: Math.max(0, columnCount) }, (_, i) => columnMinPx(i));
+}
+
+// The minimum of each top-level column once the terminal floor (#731) counts: max(readable minimum, the width its
+// terminals need to keep the floor). Without a floor, the readable minimums.
+export function columnMinimumsPx(columns: LayoutNode[], floorPx: number, isTerminal: IsTerminalLeaf): number[] {
+    return columns.map((column, i) => Math.max(columnMinPx(i), terminalNeedPx(column, floorPx, isTerminal)));
+}
+
+// The width every column needs at its minimum, gaps included: the readable minimums of `columnCount` columns, or the
+// given per-column minimums (columnMinimumsPx).
+export function minimumsPx(columnCount: number, gapPx = 0, columnMins?: number[]): number {
     if (columnCount <= 0) {
         return 0;
     }
-    return FirstColumnMinPx + (columnCount - 1) * (SideColumnMinPx + Math.max(0, gapPx || 0));
+    const mins = columnMins?.length === columnCount ? columnMins : readableMinimumsPx(columnCount);
+    return mins.reduce((acc, m) => acc + m, 0) + (columnCount - 1) * Math.max(0, gapPx || 0);
 }
 
 // The automatic decision: enter when the minimums no longer fit, leave only when they fit with the margin.
-export function autoWants(prevOn: boolean, columnCount: number, widthPx: number, gapPx = 0): boolean {
+// `columnMins` (columnMinimumsPx) makes a terminal column count its floor.
+export function autoWants(
+    prevOn: boolean,
+    columnCount: number,
+    widthPx: number,
+    gapPx = 0,
+    columnMins?: number[]
+): boolean {
     if (columnCount < 2 || !(widthPx > 0)) {
         return false;
     }
-    const need = minimumsPx(columnCount, gapPx);
+    const need = minimumsPx(columnCount, gapPx, columnMins);
     if (prevOn) {
         return need + LeaveMarginPx > widthPx;
     }
     return need > widthPx;
+}
+
+// Whether the columns fit side by side at their current minimums, terminal floor included (#733: leave 360 view as is).
+export function fitsAtCurrentFloors(columnMins: number[], widthPx: number, gapPx = 0, marginPx = 0): boolean {
+    const count = columnMins?.length ?? 0;
+    if (count < 2) {
+        return true;
+    }
+    return widthPx > 0 && minimumsPx(count, gapPx, columnMins) + Math.max(0, marginPx) <= widthPx;
+}
+
+// Whether the columns fit at their readable minimums alone, the floor ignored (#733: fits only once the floor is
+// cleared, "Readjust every size").
+export function fitsAtReadableMinimums(columnCount: number, widthPx: number, gapPx = 0, marginPx = 0): boolean {
+    if (columnCount < 2) {
+        return true;
+    }
+    return widthPx > 0 && minimumsPx(columnCount, gapPx) + Math.max(0, marginPx) <= widthPx;
 }
 
 export type View360Inputs = {
@@ -117,12 +157,12 @@ export function normalColumnPxs(sizes: number[], widthPx: number, gapPx = 0): nu
     return sizes.map((s) => ((s > 0 ? s : 0) / total) * room);
 }
 
-export function anyColumnTooTight(columnPxs: number[]): boolean {
+export function anyColumnTooTight(columnPxs: number[], columnMins?: number[]): boolean {
     if (columnPxs.length < 2) {
         return false;
     }
     // Half a pixel of rounding is not "too tight".
-    return columnPxs.some((px, i) => px + 0.5 < columnMinPx(i));
+    return columnPxs.some((px, i) => px + 0.5 < (columnMins?.[i] ?? columnMinPx(i)));
 }
 
 export type TightPillInputs = {
