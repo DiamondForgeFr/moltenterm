@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -53,6 +54,10 @@ type ReviewMergedPr struct {
 	// ReviewShips…, and the tag or branch named.
 	Ships   string `json:"ships,omitempty"`
 	ShipsIn string `json:"shipsin,omitempty"`
+	// Agents: who worked on the PR, the last agent first, from its body's signature block (#847); Reviewed: the
+	// developer's validation MoltenTerm wrote there.
+	Agents   []agentsign.Signature `json:"agents,omitempty"`
+	Reviewed *agentsign.Review     `json:"reviewed,omitempty"`
 }
 
 type ghMergedPr struct {
@@ -75,6 +80,7 @@ type ghMergedPr struct {
 	ClosingIssuesReferences []struct {
 		Number int `json:"number"`
 	} `json:"closingIssuesReferences"`
+	Body string `json:"body"`
 }
 
 var commitOidRe = regexp.MustCompile(`^[0-9a-fA-F]{7,64}$`)
@@ -110,6 +116,9 @@ func buildMerged(raw json.RawMessage, target string, githubAt int64, ticketRes [
 		}
 		if pr.MergedBy != nil {
 			row.MergedBy = pr.MergedBy.Login
+		}
+		if block, ok := agentsign.ParseBlock(pr.Body); ok {
+			row.Agents, row.Reviewed = block.Agents, block.Reviewed
 		}
 		if pr.MergeCommit != nil && commitOidRe.MatchString(pr.MergeCommit.Oid) {
 			row.MergeOid = pr.MergeCommit.Oid

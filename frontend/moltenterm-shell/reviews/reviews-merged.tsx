@@ -14,6 +14,7 @@ import { openWebLink } from "../open-web-link";
 import { useReviewNotes } from "../review/review-notes";
 import { MergedDays, MergedOpenPref, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
 import type { ReviewsAnswer } from "./reviews-model";
+import { PrSignature } from "./pr-signature";
 
 const Chip = "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
 
@@ -131,6 +132,7 @@ function MergedRow({ pr, notes, onShowNotes }: { pr: ReviewMergedPr; notes: numb
                                 : t("reviews.merged.mergedWhen", { when })}
                         </span>
                     </div>
+                    <PrSignature agents={pr.agents} reviewed={pr.reviewed} testId="reviews-merged-signature" />
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {ships ? (
