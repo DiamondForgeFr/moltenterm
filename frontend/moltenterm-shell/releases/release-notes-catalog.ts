@@ -150,19 +150,25 @@ export type BuildChangeGroups = {
     features: MoltentermBuildChange[];
     fixes: MoltentermBuildChange[];
     other: MoltentermBuildChange[];
+    // Counted, not listed: a tester reads what changed for them, not the tooling around it (#753).
+    internal: number;
 };
 
 const TypeRegex = /^([a-z]+)(\([^)]*\))?!?:/;
+const InternalTypes = new Set(["test", "chore", "ci", "build", "refactor", "docs", "style"]);
 
-// "This build": its commits since the last release, as New (feat), Fixed (fix, perf, revert) and Other.
+// "This build": its commits since the last release, as New (feat), Fixed (fix, perf, revert) and Other (untyped
+// subjects); test, tooling and docs commits are only counted.
 export function groupBuildChanges(changes: readonly MoltentermBuildChange[]): BuildChangeGroups {
-    const groups: BuildChangeGroups = { features: [], fixes: [], other: [] };
+    const groups: BuildChangeGroups = { features: [], fixes: [], other: [], internal: 0 };
     for (const change of changes ?? []) {
         const type = TypeRegex.exec(change.subject ?? "")?.[1];
         if (type === "feat") {
             groups.features.push(change);
         } else if (type === "fix" || type === "perf" || type === "revert") {
             groups.fixes.push(change);
+        } else if (InternalTypes.has(type)) {
+            groups.internal++;
         } else {
             groups.other.push(change);
         }

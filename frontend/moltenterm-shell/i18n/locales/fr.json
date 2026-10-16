@@ -3795,7 +3795,9 @@
         "noReleaseNewest": "Pas encore de version : les {count} changements les plus récents.",
         "new": "Nouveau",
         "fixed": "Corrigé",
-        "other": "Autres"
+        "other": "Autres",
+        "internalOne": "Et 1 changement interne (tests, outillage, documentation), non listé.",
+        "internalOther": "Et {count} changements internes (tests, outillage, documentation), non listés."
     },
     "lazy": {
         "loadingEditor": "Chargement de l'éditeur…",
