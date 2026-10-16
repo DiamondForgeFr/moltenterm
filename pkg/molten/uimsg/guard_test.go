@@ -37,6 +37,8 @@ var textFieldNames = map[string]bool{
 var englishFields = map[string]string{
 	"review.MergePlan.Warnings":            "check ids (MergeCheck codes), worded by the Validate sheet",
 	"review.MergeRecord.Error":             "gh's raw error (tokens masked), the detail under Code, which the sheet words",
+	"review.Forecast.Error":                "a code (ForecastError…) the Reviews list words under reviews.forecast.error.*",
+	"review.Forecast.Message":              "git's or gh's raw error (tokens masked), the detail under Error's code",
 	"review.MarkReadyResult.Reason":        "a code (MarkReadyReason…) the Reviews list words",
 	"review.MarkReadyResult.Message":       "gh's raw error, the detail of the reason error",
 	"review.RestartResult.Reason":          "a code (RestartReason…) the Review tab words",
