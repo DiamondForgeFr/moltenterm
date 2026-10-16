@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { t as translate, useT } from "./i18n/i18n";
 import {
     approvalLogText,
+    approvalReasonText,
     approvalSummary,
     coffeeApprovals,
     coffeeCondition,
@@ -243,7 +244,7 @@ const MaxListedApprovals = 8;
 function approvalTitle(a: KeepAwakeApproval): string {
     const what = describeApproval(a);
     return a.outcome === "asked" && a.reason
-        ? `${what}\n${translate("keepawake.leftToYou", { reason: a.reason })}`
+        ? `${what}\n${translate("keepawake.leftToYou", { reason: approvalReasonText(a) })}`
         : what;
 }
 
@@ -277,7 +278,7 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
                             {s.approved
                                 ? t("keepawake.approvedAuto")
                                 : s.reason
-                                  ? t("keepawake.stillAsksYouWhy", { reason: s.reason })
+                                  ? t("keepawake.stillAsksYouWhy", { reason: approvalReasonText(s) })
                                   : t("keepawake.stillAsksYou")}
                         </span>
                     </span>
@@ -294,7 +295,7 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
                         <span className="min-w-0 truncate font-mono text-11 text-secondary">{describeApproval(a)}</span>
                     </span>
                     {a.outcome === "asked" && a.reason ? (
-                        <span className="truncate pl-10 text-11 text-muted">{a.reason}</span>
+                        <span className="truncate pl-10 text-11 text-muted">{approvalReasonText(a)}</span>
                     ) : null}
                 </span>
             ))}

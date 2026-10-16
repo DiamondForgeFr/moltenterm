@@ -6,11 +6,11 @@ package onboarding
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
@@ -80,11 +80,16 @@ func InstallDeclinedAgent(env molten.AgentEnv, id string, version string) (molte
 		return molten.AgentStatus{}, err
 	}
 	if !molten.IsAgentDeclined(env.DataDir, profile.Id) {
-		return molten.AgentStatus{}, fmt.Errorf("%s was not declined: MoltenTerm installs its guides at start", profile.Name)
+		return molten.AgentStatus{}, uimsg.Errorf(uimsg.Make("onboarding.notDeclined", "agent", profile.Name),
+			"%s was not declined: MoltenTerm installs its guides at start", profile.Name)
 	}
 	_, installErr := profile.Install(env, version)
 	if err := molten.SetAgentDeclined(env.DataDir, profile.Id, false); err != nil {
 		installErr = errors.Join(installErr, err)
+	}
+	if installErr != nil {
+		installErr = uimsg.Errorf(uimsg.Make("onboarding.installFailed", "agent", profile.Name, "detail", installErr.Error()),
+			"%w", installErr)
 	}
 	return profile.Status(env), installErr
 }

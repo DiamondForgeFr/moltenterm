@@ -16,6 +16,8 @@ import {
     permissionModeLabel,
 } from "../command-panel/agent-commands";
 import { t } from "../i18n/i18n";
+import { serverErrorText, ServerText } from "../i18n/server-text";
+import { termupdateMessage } from "../termupdate/termupdate-text";
 import { DurableSession, endRunningNote, SessionEndResult } from "./sessions-model";
 
 // must match pkg/molten/termupdate/restart.go
@@ -27,6 +29,7 @@ export type AgentRestartRequest = { blockid: string; agent?: string; mode?: stri
 export type AgentRestartOutcome = {
     status: string;
     message: string;
+    messagetext?: ServerText;
     agent?: string;
     agentname?: string;
     program?: string;
@@ -209,30 +212,32 @@ export function restartResult(id: string, out: AgentRestartOutcome): BulkResult 
     if (out == null) {
         return { id, kind: "failed", message: t("sessions.bulk.unreachable") };
     }
+    const message = termupdateMessage(out);
     switch (out.status) {
         case "restarted":
-            return { id, kind: "done", message: out.message };
+            return { id, kind: "done", message };
         case "agentbusy":
         case "busy":
-            return { id, kind: "skipped", message: out.message };
+            return { id, kind: "skipped", message };
     }
-    return { id, kind: "failed", message: out.message || t("sessions.bulk.notRestarted") };
+    return { id, kind: "failed", message: message || t("sessions.bulk.notRestarted") };
 }
 
 export function sendResult(id: string, out: AgentInputResult): BulkResult {
     if (out == null) {
         return { id, kind: "failed", message: t("sessions.bulk.unreachable") };
     }
+    const message = termupdateMessage(out);
     if (out.result === "sent") {
-        return { id, kind: "done", message: out.message };
+        return { id, kind: "done", message };
     }
     switch (out.reason) {
         case "working":
         case "waiting":
         case "busy":
-            return { id, kind: "skipped", message: out.message };
+            return { id, kind: "skipped", message };
     }
-    return { id, kind: "failed", message: out.message || t("sessions.bulk.nothingTyped") };
+    return { id, kind: "failed", message: message || t("sessions.bulk.nothingTyped") };
 }
 
 export function endResult(id: string, res: SessionEndResult): BulkResult {
@@ -243,7 +248,7 @@ export function endResult(id: string, res: SessionEndResult): BulkResult {
 }
 
 export function errorResult(id: string, e: any): BulkResult {
-    return { id, kind: "failed", message: e?.message ?? String(e) };
+    return { id, kind: "failed", message: serverErrorText(e) };
 }
 
 export type BulkRunners = {

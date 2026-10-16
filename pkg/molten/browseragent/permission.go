@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -38,15 +39,16 @@ type permissionRequest struct {
 	id   string
 	kind string
 	// action says what a sensitive action request asks for (kind action), in the bar's words.
-	action    string
-	sessionId string
-	tabId     int64
-	key       TabKey
-	site      string
-	created   time.Time
-	done      chan struct{}
-	outcome   string
-	waiters   int
+	action     string
+	actionText *uimsg.Text
+	sessionId  string
+	tabId      int64
+	key        TabKey
+	site       string
+	created    time.Time
+	done       chan struct{}
+	outcome    string
+	waiters    int
 }
 
 type recentDecision struct {
@@ -274,7 +276,7 @@ func (m *Manager) pendingPromptLocked(key TabKey) *PermissionPrompt {
 	if oldest == nil {
 		return nil
 	}
-	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site, Kind: oldest.kind, Action: oldest.action}
+	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site, Kind: oldest.kind, Action: oldest.action, ActionText: oldest.actionText}
 }
 
 func validDecision(decision string) bool {
@@ -493,16 +495,17 @@ func (m *Manager) addActionRequest(sessionId string, tabId int64, key TabKey, si
 		return nil
 	}
 	req := &permissionRequest{
-		id:        uuid.NewString(),
-		kind:      PromptAction,
-		action:    actionPromptText(reason),
-		sessionId: sessionId,
-		tabId:     tabId,
-		key:       key,
-		site:      site,
-		created:   m.now(),
-		done:      make(chan struct{}),
-		waiters:   1,
+		id:         uuid.NewString(),
+		kind:       PromptAction,
+		action:     actionPromptText(reason),
+		actionText: actionPromptCode(reason),
+		sessionId:  sessionId,
+		tabId:      tabId,
+		key:        key,
+		site:       site,
+		created:    m.now(),
+		done:       make(chan struct{}),
+		waiters:    1,
 	}
 	m.requests[req.id] = req
 	if reason == reasonDownload {

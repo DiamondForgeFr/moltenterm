@@ -13,6 +13,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { serverErrorText } from "../i18n/server-text";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -115,7 +116,7 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
                         setError(null);
                     }
                 } catch (e) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             });
         },

@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -37,14 +38,16 @@ func KeptWorktreeNoticeKey(path string) string {
 
 func keptWorktreeNotice(path string, workspaceId string, tabId string) molten.NotificationInput {
 	review := molten.NotificationAction{Id: "review", Label: "Review and remove…", Kind: "gesture",
-		Gesture: WorktreeReviewGesture, Args: map[string]any{"path": path}}
+		Gesture: WorktreeReviewGesture, Args: map[string]any{"path": path}, LabelText: uimsg.Make("notif.worktree.review")}
 	return molten.NotificationInput{
-		Key:    KeptWorktreeNoticeKey(path),
-		Source: "moltenterm",
-		Kind:   "info",
-		Title:  fmt.Sprintf("Worktree %s is still on disk", filepath.Base(path)),
+		Key:       KeptWorktreeNoticeKey(path),
+		Source:    "moltenterm",
+		Kind:      "info",
+		Title:     fmt.Sprintf("Worktree %s is still on disk", filepath.Base(path)),
+		TitleText: uimsg.Make("notif.worktree.keptTitle", "name", filepath.Base(path)),
 		Message: fmt.Sprintf("Its terminal closed without MoltenTerm asking (its shell exited, a command closed it, or its "+
 			"window or workspace closed); the worktree and its branch are kept.\n%s", path),
+		MessageText: uimsg.Make("notif.worktree.kept", "path", path),
 		WorkspaceId: workspaceId,
 		TabId:       tabId,
 		Actions:     []molten.NotificationAction{review},

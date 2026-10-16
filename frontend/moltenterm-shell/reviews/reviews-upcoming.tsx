@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { AgentBar, useBranchAgent } from "./reviews-agent-bar";
@@ -53,7 +54,7 @@ export function UpcomingSection({ dir, reviews }: { dir: string; reviews: Review
                 <p
                     className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
                     data-testid="reviews-upcoming-empty"
-                    title={upcoming.error || undefined}
+                    title={serverText(upcoming.errortext, upcoming.error) || undefined}
                 >
                     {t("reviewsAgents.upcoming.none")}
                 </p>

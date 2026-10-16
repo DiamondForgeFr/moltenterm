@@ -5,6 +5,7 @@
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
 
 import { t } from "../i18n/i18n";
+import { serverText, type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 
@@ -184,6 +185,7 @@ export type RebaseResult = {
     agentstate?: string;
     branch?: string;
     message?: string;
+    messagetext?: ServerText;
     worktree?: string;
     agent?: string;
     agentname?: string;
@@ -218,7 +220,7 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
         branch: result.branch ?? "",
         folder: folderOf(result.worktree),
         brief: result.briefpath ?? "",
-        message: result.message ?? "",
+        message: serverText(result.messagetext, result.message ?? ""),
     };
     switch (result.status) {
         case "sent":

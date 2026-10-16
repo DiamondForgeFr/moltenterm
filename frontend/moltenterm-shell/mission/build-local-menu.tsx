@@ -9,6 +9,7 @@ import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
@@ -63,7 +64,7 @@ export function BuildLocalMenu({
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             } finally {
                 if (!cancelled) {

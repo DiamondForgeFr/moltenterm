@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -209,13 +210,14 @@ func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncReques
 	if req.Index != nil {
 		i := *req.Index
 		if i < 0 || i >= len(declared) {
-			return -1, fmt.Errorf("the project declares no dependency %s", DepSyncStepId(i))
+			return -1, uimsg.Errorf(uimsg.Make("mission.depSync.noDependencyId", "id", DepSyncStepId(i)), "the project declares no dependency %s", DepSyncStepId(i))
 		}
 		if project != "" && !molten.SameProjectName(declared[i].Project, project) {
-			return -1, fmt.Errorf("%s is a dependency on %s, not on %s", DepSyncStepId(i), strings.TrimSpace(declared[i].Project), project)
+			on := strings.TrimSpace(declared[i].Project)
+			return -1, uimsg.Errorf(uimsg.Make("mission.depSync.otherProject", "id", DepSyncStepId(i), "project", on, "asked", project), "%s is a dependency on %s, not on %s", DepSyncStepId(i), on, project)
 		}
 		if declared[i].Sync == "" {
-			return -1, fmt.Errorf("no sync command is declared for the dependency on %s: add \"sync\" to it in %s", strings.TrimSpace(declared[i].Project), molten.ProjectPipelineFile)
+			return -1, errNoSyncCommand(strings.TrimSpace(declared[i].Project))
 		}
 		return i, nil
 	}
@@ -231,13 +233,13 @@ func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncReques
 	}
 	switch {
 	case len(named) == 0 && project != "":
-		return -1, fmt.Errorf("the project declares no dependency on %s", project)
+		return -1, uimsg.Errorf(uimsg.Make("mission.depSync.noDependencyOn", "project", project), "the project declares no dependency on %s", project)
 	case len(named) == 0:
-		return -1, errors.New("the project declares no dependency (\"dependson\")")
+		return -1, uimsg.Errorf(uimsg.Make("mission.depSync.noDependency"), "the project declares no dependency (\"dependson\")")
 	case len(withSync) == 0 && project != "":
-		return -1, fmt.Errorf("no sync command is declared for the dependency on %s: add \"sync\" to it in %s", project, molten.ProjectPipelineFile)
+		return -1, errNoSyncCommand(project)
 	case len(withSync) == 0:
-		return -1, fmt.Errorf("no dependency declares a sync command: add \"sync\" to one in %s", molten.ProjectPipelineFile)
+		return -1, uimsg.Errorf(uimsg.Make("mission.depSync.noSyncAny", "file", molten.ProjectPipelineFile), "no dependency declares a sync command: add \"sync\" to one in %s", molten.ProjectPipelineFile)
 	case len(withSync) == 1:
 		return withSync[0], nil
 	case flagged == nil:
@@ -256,7 +258,12 @@ func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncReques
 	for _, i := range withSync {
 		names = append(names, fmt.Sprintf("%s (%s)", strings.TrimSpace(declared[i].Project), DepSyncStepId(i)))
 	}
-	return -1, fmt.Errorf("several dependencies declare a sync, name one: %s", strings.Join(names, ", "))
+	list := strings.Join(names, ", ")
+	return -1, uimsg.Errorf(uimsg.Make("mission.depSync.nameOne", "names", list), "several dependencies declare a sync, name one: %s", list)
+}
+
+func errNoSyncCommand(project string) error {
+	return uimsg.Errorf(uimsg.Make("mission.depSync.noSync", "project", project, "file", molten.ProjectPipelineFile), "no sync command is declared for the dependency on %s: add \"sync\" to it in %s", project, molten.ProjectPipelineFile)
 }
 
 // claimSync holds the dependent for one sync, named by its run id: only that sync releases it, however many times.
@@ -325,7 +332,7 @@ type depSync struct {
 func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	acks, treesDir := g.syncSetup()
 	if g.runs == nil || acks == nil || treesDir == "" {
-		return RunResult{}, errors.New("syncing a dependency is not available")
+		return RunResult{}, uimsg.Errorf(uimsg.Make("mission.depSync.unavailable"), "syncing a dependency is not available")
 	}
 	if err := checkDir(req.Dir); err != nil {
 		return RunResult{}, err
@@ -333,10 +340,7 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	dir := filepath.Clean(req.Dir)
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
-		if !report.Present {
-			return RunResult{}, errors.New("the project has no pipeline (.molten/project.json)")
-		}
-		return RunResult{}, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
+		return RunResult{}, pipelineError(report)
 	}
 	group, member, err := g.memberOf(dir)
 	if err != nil {
@@ -377,12 +381,16 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	state := evaluateAt(index)
 	switch state.State {
 	case DepStateInvalid, DepStateSourceNotFound, DepStateBranchNotFound, DepStateError:
-		return RunResult{}, fmt.Errorf("cannot sync from %s: %s", strings.TrimSpace(declared[index].Project), state.Problem)
+		from := strings.TrimSpace(declared[index].Project)
+		return RunResult{}, &uimsg.Error{
+			Text:    uimsg.Make("mission.depSync.cannotSync", "project", from, "detail", state.Problem),
+			Message: fmt.Sprintf("cannot sync from %s: %s", from, state.Problem),
+		}
 	}
 	now := g.now()
 	runId := newRunId(now)
 	if !g.claimSync(dir, runId) {
-		return RunResult{}, errors.New("a sync of this project is already running")
+		return RunResult{}, uimsg.Errorf(uimsg.Make("mission.depSync.alreadyRunning"), "a sync of this project is already running")
 	}
 	started := false
 	defer func() {

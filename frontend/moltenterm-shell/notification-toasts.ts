@@ -7,7 +7,12 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { toastArrivals, ToastCoalesceMs } from "./notification-rules";
-import { MoltentermNotification, notificationTitle } from "./notifications-model";
+import {
+    MoltentermNotification,
+    notificationActionLabel,
+    notificationMessage,
+    notificationTitle,
+} from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { checkQuestion, goneNotificationToasts, notificationToastId, toastActionsOf, ToastInput } from "./toast-model";
 import { Toasts } from "./toast-store";
@@ -20,11 +25,11 @@ export function notificationToast(entry: MoltentermNotification): ToastInput {
         notificationId: entry.id,
         kind: entry.kind,
         title: notificationTitle(entry),
-        message: entry.message,
+        message: notificationMessage(entry),
         question: checkQuestion(entry),
         actions: toastActionsOf(entry).map((action) => ({
             id: action.id,
-            label: action.label,
+            label: notificationActionLabel(action),
             run: () => model.runAction(entry, action),
         })),
         onOpen: hasOrigin ? () => model.open(entry) : undefined,

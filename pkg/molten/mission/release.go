@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -151,7 +152,7 @@ func releaseVersion(p *molten.Pipeline, tag string) (string, bool, error) {
 	}
 	v, ok := rules.ReleaseOf(tag)
 	if !ok || strings.TrimSpace(tag) != tag {
-		return "", false, fmt.Errorf("%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, rules.TagPrefix, rules.TagPrefix)
+		return "", false, uimsg.Errorf(uimsg.Make("mission.release.notATag", "tag", tag, "prefix", rules.TagPrefix), "%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, rules.TagPrefix, rules.TagPrefix)
 	}
 	return v.Base().String(), v.IsRc(), nil
 }
@@ -223,26 +224,26 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	}
 	steps := channelSteps(p, req.Channel)
 	if len(steps) == 0 {
-		return ReleaseStartResult{}, fmt.Errorf("the pipeline declares no release.%s steps", req.Channel)
+		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.noSteps", "channel", req.Channel), "the pipeline declares no release.%s steps", req.Channel)
 	}
 	version, isRc, err := releaseVersion(p, req.Tag)
 	if err != nil {
 		return ReleaseStartResult{}, err
 	}
 	if isRc && req.Channel == ReleaseChannelPublic {
-		return ReleaseStartResult{}, fmt.Errorf("%s is a release candidate's tag, not a public release's", req.Tag)
+		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.rcTag", "tag", req.Tag), "%s is a release candidate's tag, not a public release's", req.Tag)
 	}
 	if !isRc && req.Channel == ReleaseChannelRc {
-		return ReleaseStartResult{}, fmt.Errorf("%s is a public release's tag, not a release candidate's", req.Tag)
+		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.publicTag", "tag", req.Tag), "%s is a public release's tag, not a release candidate's", req.Tag)
 	}
 	if session, _ := r.ReleaseSessionOf(dir); session != nil {
-		return ReleaseStartResult{}, fmt.Errorf("a release is already on its way: %s", session.Tag)
+		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.onItsWay", "tag", session.Tag), "a release is already on its way: %s", session.Tag)
 	}
 	if running := r.runningOf(dir, RunKindRelease); running != nil {
-		return ReleaseStartResult{}, fmt.Errorf("%s is still running", running.Title)
+		return ReleaseStartResult{}, errStillRunning(running.Title)
 	}
 	if r.tagExists(dir, req.Tag) {
-		return ReleaseStartResult{}, fmt.Errorf("%s is already tagged", req.Tag)
+		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.tagged", "tag", req.Tag), "%s is already tagged", req.Tag)
 	}
 	session := ReleaseSession{Tag: req.Tag, Version: version, Channel: req.Channel, StartedAt: r.now().UnixMilli()}
 	if err := r.writeReleaseSession(dir, session); err != nil {
@@ -264,10 +265,7 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 func (r *Runs) trustedPipeline(dir string) (*molten.Pipeline, *UntrustedInfo, error) {
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
-		if !report.Present {
-			return nil, nil, errors.New("the project has no pipeline (.molten/project.json)")
-		}
-		return nil, nil, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
+		return nil, nil, pipelineError(report)
 	}
 	commands := PipelineCommands(report.Pipeline)
 	hash := CommandsHash(commands)

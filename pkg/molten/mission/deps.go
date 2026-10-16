@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Cross-repo dependencies (FR-MC-029, DS-MC-019): a member declares in `dependson` the files it reads from another
@@ -68,9 +69,10 @@ type DependencyState struct {
 	Ref    string `json:"ref,omitempty"`
 	State  string `json:"state"`
 	// Why the dependency is not evaluated (invalid, source or branch not found, a git error).
-	Problem    string `json:"problem,omitempty"`
-	SourceDir  string `json:"sourcedir,omitempty"`
-	SourceName string `json:"sourcename,omitempty"`
+	Problem     string      `json:"problem,omitempty"`
+	ProblemText *uimsg.Text `json:"problemtext,omitempty"`
+	SourceDir   string      `json:"sourcedir,omitempty"`
+	SourceName  string      `json:"sourcename,omitempty"`
 	// The source's newest commit on the watched branch touching paths, as it landed there (a merge with its own time).
 	Source *DependencyCommit `json:"source,omitempty"`
 	// The dependent's newest commit touching output on its trunk, local or on origin: its last sync. None when it never
@@ -376,16 +378,22 @@ func (g *gitReader) lastSync(trunkRefs []string, specs []string) (*DependencyCom
 
 // findSource resolves a declaration's project among the other members of the dependent's group (FR-MC-029: within
 // the same group only).
-func findSource(group *molten.ProjectGroup, dependentDir string, project string) (molten.GroupMember, string) {
+func findSource(group *molten.ProjectGroup, dependentDir string, project string) (molten.GroupMember, error) {
 	if group == nil {
-		return molten.GroupMember{}, "this project is in no group: add \"group\" to its .molten/project.json and to the source's"
+		return molten.GroupMember{}, uimsg.Errorf(uimsg.Make("mission.deps.noGroup"), "this project is in no group: add \"group\" to its .molten/project.json and to the source's")
 	}
 	for _, member := range group.Members {
 		if member.Dir != dependentDir && molten.SameProjectName(member.Name, project) {
-			return member, ""
+			return member, nil
 		}
 	}
-	return molten.GroupMember{}, fmt.Sprintf("no other project linked to a workspace declares the group %s with the name %q", group.Name, strings.TrimSpace(project))
+	name := strings.TrimSpace(project)
+	return molten.GroupMember{}, uimsg.Errorf(uimsg.Make("mission.deps.noSource", "group", group.Name, "name", name), "no other project linked to a workspace declares the group %s with the name %q", group.Name, name)
+}
+
+// setProblem records why a dependency is not evaluated, with its code for the windows (#656).
+func (s *DependencyState) setProblem(state string, text *uimsg.Text, format string, args ...any) {
+	s.State, s.Problem, s.ProblemText = state, fmt.Sprintf(format, args...), text
 }
 
 // EvaluateDependency evaluates one declaration of the dependent, on its own (FR-MC-029-AC8). prev is its last
@@ -393,17 +401,18 @@ func findSource(group *molten.ProjectGroup, dependentDir string, project string)
 func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGroup, dependentDir string, dependentName string, index int, dep molten.PipelineDependency, now time.Time, prev *DependencyState) DependencyState {
 	state := DependencyState{Index: index, Project: strings.TrimSpace(dep.Project), Paths: dep.Paths, Output: dep.Output, Sync: dep.Sync, Branch: dep.Branch, CheckedAt: now.UnixMilli()}
 	if problems := molten.DependencyShapeProblems(index, dep, dependentName); len(problems) > 0 {
-		state.State, state.Problem = DepStateInvalid, strings.Join(problems, "; ")
+		detail := strings.Join(problems, "; ")
+		state.setProblem(DepStateInvalid, uimsg.Make("mission.deps.invalid", "detail", detail), "%s", detail)
 		return state
 	}
-	source, problem := findSource(group, dependentDir, dep.Project)
-	if problem != "" {
-		state.State, state.Problem = DepStateSourceNotFound, problem
+	source, err := findSource(group, dependentDir, dep.Project)
+	if err != nil {
+		state.setProblem(DepStateSourceNotFound, uimsg.TextOf(err), "%s", err.Error())
 		return state
 	}
 	state.SourceDir, state.SourceName = source.Dir, source.Name
 	if info, err := os.Stat(source.Dir); err != nil || !info.IsDir() {
-		state.State, state.Problem = DepStateSourceNotFound, fmt.Sprintf("the folder of %s no longer exists: %s", source.Name, source.Dir)
+		state.setProblem(DepStateSourceNotFound, uimsg.Make("mission.deps.sourceGone", "name", source.Name, "dir", source.Dir), "the folder of %s no longer exists: %s", source.Name, source.Dir)
 		return state
 	}
 	// A partial clone would fetch the trees it lacks from its remote: the check makes no network call and writes nothing.
@@ -412,26 +421,26 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 	candidates := trunkCandidates(source.Dir)
 	refs, err := src.readDepRefs(append([]string{state.Branch}, candidates...)...)
 	if err != nil {
-		state.State, state.Problem = DepStateError, fmt.Sprintf("reading %s's branches: %v", source.Name, err)
+		state.setProblem(DepStateError, uimsg.Make("mission.deps.readBranches", "name", source.Name, "detail", err.Error()), "reading %s's branches: %v", source.Name, err)
 		return state
 	}
 	if state.Branch == "" {
 		state.Branch = refs.trunk(candidates)
 	}
 	if state.Branch == "" {
-		state.State, state.Problem = DepStateBranchNotFound, fmt.Sprintf("%s has no trunk branch to watch; declare \"branch\"", source.Name)
+		state.setProblem(DepStateBranchNotFound, uimsg.Make("mission.deps.noTrunk", "name", source.Name), "%s has no trunk branch to watch; declare \"branch\"", source.Name)
 		return state
 	}
 	sourceRef := refs.watched(state.Branch)
 	if sourceRef == "" {
-		state.State, state.Problem = DepStateBranchNotFound, fmt.Sprintf("%s has no branch %s, local or on origin", source.Name, state.Branch)
+		state.setProblem(DepStateBranchNotFound, uimsg.Make("mission.deps.noBranch", "name", source.Name, "branch", state.Branch), "%s has no branch %s, local or on origin", source.Name, state.Branch)
 		return state
 	}
 	state.Ref, state.sourceRef = shortRef(sourceRef), sourceRef
 	dependent := &gitReader{ctx: ctx, run: run, dir: dependentDir}
 	trunk, trunkRefs, err := dependent.dependentTrunk()
 	if err != nil {
-		state.State, state.Problem = DepStateError, fmt.Sprintf("reading this project's history: %v", err)
+		state.setProblem(DepStateError, uimsg.Make("mission.deps.readOwnHistory", "detail", err.Error()), "reading this project's history: %v", err)
 		return state
 	}
 	state.Trunk = trunk
@@ -447,13 +456,13 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 	}
 	sourceCommit, err := src.newestTouching(sourceRef, depPathspecs(dep.Paths), true)
 	if err != nil {
-		state.State, state.Problem = DepStateError, fmt.Sprintf("reading %s's history: %v", source.Name, err)
+		state.setProblem(DepStateError, uimsg.Make("mission.deps.readHistory", "name", source.Name, "detail", err.Error()), "reading %s's history: %v", source.Name, err)
 		return state
 	}
 	state.Source = sourceCommit
 	synced, err := dependent.lastSync(trunkRefs, outputSpecs)
 	if err != nil {
-		state.State, state.Problem = DepStateError, fmt.Sprintf("reading this project's history: %v", err)
+		state.setProblem(DepStateError, uimsg.Make("mission.deps.readOwnHistory", "detail", err.Error()), "reading this project's history: %v", err)
 		return state
 	}
 	state.Synced = synced
@@ -468,7 +477,7 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 	}
 	state.Commits, state.MoreCommits, state.Changed, err = src.commitsSince(sourceRef, depPathspecs(dep.Paths), after)
 	if err != nil {
-		state.State, state.Problem = DepStateError, fmt.Sprintf("reading %s's history: %v", source.Name, err)
+		state.setProblem(DepStateError, uimsg.Make("mission.deps.readHistory", "name", source.Name, "detail", err.Error()), "reading %s's history: %v", source.Name, err)
 		return state
 	}
 	// A change made only by a merge (a conflict resolved in paths) lists no other commit: the merge itself is named.

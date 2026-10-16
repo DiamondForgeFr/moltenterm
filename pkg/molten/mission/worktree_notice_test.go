@@ -45,6 +45,11 @@ func TestKeptWorktreeNotice(t *testing.T) {
 	if n.WorkspaceId != "ws1" || n.TabId != "tab1" || !strings.Contains(n.Message, "/repos/app-wt-fix") {
 		t.Fatalf("notice location: %+v", n)
 	}
+	if n.TitleText.Code != "notif.worktree.keptTitle" || n.TitleText.Vars["name"] != "app-wt-fix" ||
+		n.MessageText.Code != "notif.worktree.kept" || n.MessageText.Vars["path"] != "/repos/app-wt-fix" ||
+		n.Actions[0].LabelText.Code != "notif.worktree.review" {
+		t.Fatalf("notice, as a window words it: %+v %+v", n.TitleText, n.MessageText)
+	}
 	if len(n.Actions) != 1 || n.Actions[0].Kind != "gesture" || n.Actions[0].Gesture != WorktreeReviewGesture ||
 		n.Actions[0].Args["path"] != "/repos/app-wt-fix" || n.Actions[0].Label != "Review and remove…" {
 		t.Fatalf("notice action: %+v", n.Actions)

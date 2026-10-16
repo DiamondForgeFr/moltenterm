@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The coffee approvals for Codex (FR-SHELL-064, DS-SHELL-113): a PermissionRequest hook running `molten agent
@@ -74,29 +75,29 @@ func (c codexConfig) managedHooksOnlyWhere() string {
 }
 
 func planCodexPermission(ctx LaunchContext, args codexArgs, config codexConfig, plan *LaunchPlan) []string {
-	skip := func(reason string) []string {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: codexCoffeeSkippedName, Reason: reason})
+	skip := func(reason phrase) []string {
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationCoffeeApproval, say(uimsg.Make("integration.name.coffeeapprovals"), codexCoffeeSkippedName), reason))
 		return nil
 	}
 	if isReviewSession(ctx) {
-		return skip(ReasonReviewSession)
+		return skip(reviewSessionReason)
 	}
 	if ctx.MoltenPath == "" {
-		return skip("MoltenTerm's molten command is not installed")
+		return skip(moltenNotInstalled)
 	}
 	if where := config.managedHooksOnlyWhere(); where != "" {
-		return skip("your organization's " + where + " allows only its own hooks")
+		return skip(say(uimsg.Make("integration.reason.managedhooksonlyin", "where", where), "your organization's "+where+" allows only its own hooks"))
 	}
 	if where := config.hooksOffWhere(args); where != "" {
-		return skip("Codex's hooks are turned off in " + where)
+		return skip(say(uimsg.Make("integration.reason.codexhooksoff", "where", where), "Codex's hooks are turned off in "+where))
 	}
 	if args.overridesKey(codexHooksKey) {
-		return skip("you passed -c " + codexHooksKey + ": only your own hooks run")
+		return skip(say(uimsg.Make("integration.reason.codexhooksflag", "flag", "-c "+codexHooksKey), "you passed -c "+codexHooksKey+": only your own hooks run"))
 	}
 	if where := config.permissionHooksWhere(); where != "" {
 		// A value given for the run could take the place of the developer's own hooks for that event.
-		return skip("you have your own PermissionRequest hooks, in " + where)
+		return skip(say(uimsg.Make("integration.reason.ownpermissionhooks", "where", where), "you have your own PermissionRequest hooks, in "+where))
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: CodexCoffeeApprovalName})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationCoffeeApproval, say(uimsg.Make("integration.name.codexcoffeeapprovals"), CodexCoffeeApprovalName)))
 	return []string{codexConfigFlag, codexPermissionOverrideKey + "=" + codexPermissionHookValue()}
 }

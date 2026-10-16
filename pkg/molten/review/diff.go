@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
@@ -254,7 +255,7 @@ func (d *Differ) baseTip(ctx context.Context, req FilesRequest) (string, error) 
 			return oid, nil
 		}
 	}
-	return "", fmt.Errorf("the base branch %s was not found in the project or on origin", req.BaseRef)
+	return "", uimsg.Errorf(uimsg.Make("review.basemissing", "branch", req.BaseRef), "the base branch %s was not found in the project or on origin", req.BaseRef)
 }
 
 // MergeBase is the merge base of the head with the base branch's tip (DS-REV-002).
@@ -266,7 +267,8 @@ func (d *Differ) MergeBase(ctx context.Context, req FilesRequest, head string) (
 	out, err := d.git(ctx, req.Dir, "merge-base", tip, head)
 	oid := strings.TrimSpace(string(out))
 	if err != nil || !reviewsession.IsOid(oid) {
-		return "", fmt.Errorf("the merge base of %s and the PR's head could not be read: %v", req.BaseRef, err)
+		return "", uimsg.Errorf(uimsg.Make("review.mergebase", "branch", req.BaseRef, "detail", fmt.Sprintf("%v", err)),
+			"the merge base of %s and the PR's head could not be read: %v", req.BaseRef, err)
 	}
 	return oid, nil
 }
@@ -303,7 +305,7 @@ func (d *Differ) Files(ctx context.Context, req FilesRequest) (FilesResult, erro
 	}
 	base := req.From
 	if base != "" && !d.hasCommit(ctx, req.Dir, base) {
-		return FilesResult{}, fmt.Errorf("the earlier head %s is not in the project any more", shortOid(base))
+		return FilesResult{}, uimsg.Errorf(uimsg.Make("review.earlierhead", "head", shortOid(base)), "the earlier head %s is not in the project any more", shortOid(base))
 	}
 	key := req.Dir + "\x00" + base + "\x00" + head
 	if base == "" {
@@ -332,7 +334,7 @@ func (d *Differ) Files(ctx context.Context, req FilesRequest) (FilesResult, erro
 func (d *Differ) listFiles(ctx context.Context, dir string, base string, head string) ([]File, error) {
 	raw, err := d.git(ctx, dir, "diff", "--raw", "--no-abbrev", "-z", "-M", "--no-ext-diff", "--no-textconv", base, head)
 	if err != nil {
-		return nil, fmt.Errorf("the PR's files could not be listed: %w", err)
+		return nil, uimsg.Errorf(uimsg.Make("review.files", "detail", uimsg.Detail(err)), "the PR's files could not be listed: %w", err)
 	}
 	files := ParseRaw(raw)
 	if len(files) == 0 {
@@ -619,7 +621,7 @@ func (d *Differ) blob(ctx context.Context, dir string, oid string) (string, erro
 	}
 	out, err := d.git(ctx, dir, "cat-file", "blob", oid)
 	if err != nil {
-		return "", fmt.Errorf("the file could not be read: %w", err)
+		return "", uimsg.Errorf(uimsg.Make("review.file", "detail", uimsg.Detail(err)), "the file could not be read: %w", err)
 	}
 	text := string(out)
 	d.keepContent(oid, text)
@@ -729,7 +731,7 @@ func (d *Differ) Compare(ctx context.Context, req CompareRequest) (CompareResult
 	}
 	out, err := d.git(ctx, req.Dir, "rev-list", "--count", req.From+".."+to)
 	if err != nil {
-		return CompareResult{}, fmt.Errorf("the new commits could not be counted: %w", err)
+		return CompareResult{}, uimsg.Errorf(uimsg.Make("review.newcommits", "detail", uimsg.Detail(err)), "the new commits could not be counted: %w", err)
 	}
 	count, _ := strconv.Atoi(strings.TrimSpace(string(out)))
 	_, ancestorErr := d.git(ctx, req.Dir, "merge-base", "--is-ancestor", req.From, to)

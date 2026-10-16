@@ -376,6 +376,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			Origin:       t.origin,
 			State:        t.state,
 			Action:       t.action,
+			ActionText:   actionText(t.action),
 			ActionTs:     t.actionTs,
 			Cue:          t.cue,
 			Permission:   m.pendingPromptLocked(key),

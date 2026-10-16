@@ -1053,6 +1053,11 @@
             "fieldPart": "Claude Code part",
             "partWrittenFor": ", written for Claude Code {version}",
             "footer": "The agent can keep editing it without asking again. Undo with molten mod untrust {id}."
+        },
+        "budget": {
+            "cpu": "{pct} CPU while idle over the last {window} s (budget {budget} %)",
+            "memory": "{mb} MB of memory at activation (budget {budget} MB)",
+            "separator": "; "
         }
     },
     "onboarding": {
@@ -1367,7 +1372,8 @@
             "turnOffAgent": "Turn off for {name}",
             "turnOffAll": "Turn off for every agent",
             "turnOn": "Turn back on",
-            "guide": "Open the guide"
+            "guide": "Open the guide",
+            "addedNothing": "MoltenTerm added nothing to this run: {reason}."
         },
         "files": {
             "added": "Added",
@@ -5055,6 +5061,520 @@
             "deleteConfirm": "Delete this note?",
             "byAgent": "Explained by {agent}",
             "openLine": "Open the file at this line, as of the merged PR or the base branch"
+        }
+    },
+    "server": {
+        "review": {
+            "basemissing": "The base branch {branch} was not found in the project or on origin.",
+            "mergebase": "The merge base of {branch} and the pull request's head could not be read: {detail}",
+            "earlierhead": "The earlier head {head} is no longer in the project.",
+            "files": "The pull request's files could not be listed: {detail}",
+            "file": "The file could not be read: {detail}",
+            "newcommits": "The new commits could not be counted: {detail}",
+            "nocomment": "This comment no longer exists.",
+            "commentdropped": "This comment is dropped: restore it to change it.",
+            "commentpublished": "This comment is published on GitHub: it stays as it is.",
+            "toomanycomments": "This review has too many comments ({max} at most).",
+            "commentempty": "The comment is empty.",
+            "commenttoolong": "The comment is too long (64 KB at most).",
+            "selectiontoolarge": "The selection is too large to comment on (64 KB at most).",
+            "onlydraftstaged": "Only a draft can be staged.",
+            "notstaged": "This comment is not staged.",
+            "alreadydropped": "This comment is already dropped.",
+            "onlydroppedrestored": "Only a dropped comment can be restored.",
+            "onlyproposalaccepted": "Only a proposal can be accepted.",
+            "norewrite": "This reply proposes no rewrite.",
+            "rewritedone": "This rewrite was already used or ignored.",
+            "messagetoolong": "The message is too long (64 KB at most).",
+            "nothingtodiscuss": "This comment is published or dropped: there is nothing left to discuss.",
+            "nosession": "MoltenTerm cannot reach the review session.",
+            "nogh": "gh, GitHub's command line, is not available.",
+            "pathoutside": "The path must stay in the project.",
+            "rebaseunavailable": "Ask for a rebase is not available.",
+            "restartunavailable": "Restart work is not available.",
+            "notesfile": "The notes file could not be read: {detail}",
+            "answergone": "This answer is no longer in the pull request's review.",
+            "notenotfound": "This note no longer exists.",
+            "notetitle": "A note needs a title.",
+            "notefiletoolarge": "{path} is too large to open from a note.",
+            "notefilemissing": "{path} is neither in the pull request's merged commit, its head nor the base branch.",
+            "notefileunreadable": "{path} could not be read at {commit}: {detail}",
+            "translationtoolong": "The translation is too long (64 KB at most).",
+            "nosummary": "The review has no summary.",
+            "onlystagedtranslated": "Only a staged comment is translated.",
+            "summarytoolong": "The summary is too long (64 KB at most).",
+            "blocknotintab": "The review panel is not in this tab.",
+            "worktreelist": "The project's worktrees could not be listed: {detail}",
+            "branchmissing": "The branch {branch} was found neither in the project nor on origin.",
+            "worktreecreate": "A worktree on {branch} could not be created: {detail}",
+            "roundunmarked": "The work was restarted, but the round could not be marked: {detail}",
+            "checks": "The checks could not be read: {detail}",
+            "publishing": "This review is being published.",
+            "nothingtopublish": "There is nothing to publish: stage comments first.",
+            "untranslated": "{count} texts are not in {lang} yet: wait for the translations, write them, or post as written.",
+            "readreviews": "The pull request's reviews could not be read: {detail}",
+            "reviewrefused": "GitHub did not take the review: {detail}",
+            "reviewanswer": "GitHub's answer to the review could not be read.",
+            "readreviewcomments": "The review's comments could not be read: {detail}",
+            "readprcomments": "The pull request's comments could not be read: {detail}",
+            "ghanswer": "GitHub's answer could not be read.",
+            "someunposted": "Some comments could not be posted: Post review again posts only those.",
+            "cleanupunavailable": "The cleanup is not available.",
+            "cleanupunrecorded": "The cleanup ran, but its outcome could not be recorded: {detail}",
+            "leftoveronly": "MoltenTerm only removes the folder its cleanup left, not {path}.",
+            "sessionended": "This review session has ended.",
+            "questiongone": "This question is no longer waiting: it was sent or removed."
+        },
+        "handoff": {
+            "notwaiting": "This handoff request is no longer waiting.",
+            "approval": {
+                "title": "{from} wants to hand work to {to}",
+                "message": "{from} → {to}: {goal}. Allowing it types a prompt in {receiver}'s terminal.",
+                "once": "Allow once",
+                "always": "Always for this pair",
+                "block": "Block"
+            },
+            "undelivered": {
+                "title": "{from}'s handoff to {to} was not delivered",
+                "message": "{detail} The brief is at {path}."
+            }
+        },
+        "sessions": {
+            "noid": "No session was given.",
+            "gone": "The session {session} is no longer running.",
+            "endself": "A session cannot end itself: type exit instead.",
+            "notab": "There is no tab to open the session in.",
+            "welcomeback": {
+                "keptone": "1 session kept running while MoltenTerm was closed",
+                "keptother": "{count} sessions kept running while MoltenTerm was closed",
+                "endedone": "1 session ended while MoltenTerm was closed",
+                "endedother": "{count} sessions ended while MoltenTerm was closed",
+                "show": "Show {what}",
+                "open": "Open Sessions"
+            },
+            "cannotshow": {
+                "olderversion": "This session cannot be shown: it was started by an older MoltenTerm and can only be ended.",
+                "ending": "This session cannot be shown: it is being ended.",
+                "other": "This session cannot be shown: {reason}"
+            }
+        },
+        "termupdate": {
+            "unreadable": "This terminal cannot be read: {detail}",
+            "notlocal": "Only a local terminal's shell can be updated.",
+            "cannotsee": "MoltenTerm cannot see what runs in this terminal on this system.",
+            "shellended": "This terminal's shell has ended.",
+            "input": {
+                "busy": "MoltenTerm is already typing in this terminal: try again in a moment.",
+                "cannottype": "MoltenTerm cannot type in terminals yet: nothing was typed.",
+                "unreadable": "This terminal cannot be read: {detail} Nothing was typed.",
+                "notlocal": "Only a local terminal can be typed into: nothing was typed.",
+                "cannotsee": "MoltenTerm cannot see what runs in this terminal on this system: nothing was typed.",
+                "shellended": "This terminal's shell has ended: nothing was typed.",
+                "notforeground": "{program} is in the foreground of this terminal, not {agent}: nothing was typed.",
+                "notforegroundany": "{program} is in the foreground of this terminal, not the agent: nothing was typed.",
+                "noagent": "{agent} no longer runs in this terminal: nothing was typed.",
+                "noagentany": "The agent no longer runs in this terminal: nothing was typed.",
+                "gone": "{agent} is no longer the program in the foreground: nothing was typed.",
+                "nottaken": "The terminal did not take the input: {detail}",
+                "waiting": "{agent} is waiting for your answer: answer it first.",
+                "working": "{agent} is working: wait for its turn to end, or interrupt it.",
+                "draft": "An unsent message in {agent} will be cleared.",
+                "unknowncommand": "{agent} has no command \"{action}\" in MoltenTerm: nothing was typed.",
+                "unknownmodel": "{agent} has no model \"{model}\" that MoltenTerm can switch to: choose it in {agent}'s /model. Nothing was typed.",
+                "unknownmode": "{agent} has no permission mode \"{mode}\": nothing was typed.",
+                "sent": "Sent {text} to {agent}.",
+                "sentinterrupt": "Sent the interrupt key to {agent}.",
+                "alreadymode": "{agent} is already in {mode} mode.",
+                "modenow": "{agent} is now in {mode} mode.",
+                "modeblind": "Sent Shift+Tab once. MoltenTerm cannot see {agent}'s mode, so each click moves one mode on.",
+                "modemissed": "{agent} shows {mode} mode: {target} was not reached."
+            },
+            "effort": {
+                "unknown": "{agent} has no effort level \"{effort}\" here: nothing was typed.",
+                "already": "{agent} already runs at {effort} effort.",
+                "remapped": "Your {agent} settings give the effort shortcuts keys of their own: choose the level in {agent}'s /model. Nothing was typed.",
+                "notknown": "MoltenTerm does not know {agent}'s effort level yet (it reads it at each turn): choose it in {agent}'s /model. Nothing was typed.",
+                "set": "{agent} is set to {effort} effort for this session. MoltenTerm shows it from {agent}'s next turn."
+            },
+            "line": {
+                "none": "There is no line to type: nothing was typed.",
+                "working": "{agent} is working: wait for its turn to end.",
+                "sent": "Sent to {agent}.",
+                "typeddraft": "Typed in {agent}'s prompt without Enter: you may have an unsent message there.",
+                "typed": "Typed in {agent}'s prompt: add what to do and press Enter."
+            },
+            "update": {
+                "programbusy": "Finish or stop {program} first: updating the terminal replaces its shell.",
+                "needconfirm": "Restart {agent} with MoltenTerm's integration? The conversation resumes.",
+                "ready": "The shell is at its prompt: it is replaced in the same folder.",
+                "already": "This terminal is already being updated.",
+                "uptodate": "This terminal is already up to date.",
+                "shellfailed": "The new shell did not start: {detail}",
+                "updated": "Terminal updated.",
+                "agentwaiting": "{agent} is waiting for your answer: answer it, then update the terminal.",
+                "agentworking": "{agent} is working: update the terminal once its turn ends.",
+                "agentgone": "{agent} is no longer the program in the foreground: nothing was typed. Update the terminal again.",
+                "agentstuck": "{agent} did not exit within {seconds} s and is still running. Exit it yourself, then update the terminal.",
+                "noinput": "MoltenTerm could not type in this terminal, so {agent} kept running. Show its pane once, then update the terminal.",
+                "exitedunavailable": "{agent} exited, but the terminal cannot be updated: {detail} Start it again with: {command}",
+                "shellkept": "{agent} exited, but {program} now runs in the terminal, so its shell was kept. Finish it, update the terminal, then start {agent} with: {command}",
+                "exitedshellfailed": "{agent} exited but the new shell did not start: {detail}. Start it again with: {command}",
+                "noprompt": "The new shell did not show a prompt, so {agent} was not started. Start it with: {command}",
+                "notstarted": "The new shell started, but {agent} was not. Start it with: {command}",
+                "startfailed": "The new shell started but {agent} could not be: {detail}. Start it with: {command}",
+                "done": "Terminal updated. {agent} resumes its session ({command}).",
+                "doneguessed": "Terminal updated. MoltenTerm could not tell which {agent} session ran here, so {agent} reopens its most recent one in this folder ({command})."
+            },
+            "restart": {
+                "notlocal": "Only an agent running in a local terminal can be restarted.",
+                "nomodes": "{agent} has no permission mode MoltenTerm can set: nothing was typed.",
+                "agentwaiting": "{agent} is waiting for your answer: answer it, then restart it with the current settings.",
+                "agentworking": "{agent} is working: restart it with the current settings once its turn ends.",
+                "agentgone": "{agent} is no longer the program in the foreground: nothing was typed. Restart it again.",
+                "agentstuck": "{agent} did not exit within {seconds} s and is still running. Exit it yourself, then restart it with the current settings.",
+                "noinput": "MoltenTerm could not type in this terminal, so {agent} kept running. Show its pane once, then restart it with the current settings.",
+                "shellkept": "{agent} exited, but {program} now runs in the terminal, so its shell was kept. Finish it, restart it with the current settings, then start {agent} with: {command}",
+                "done": "Restarted. {agent} resumes its session ({command}).",
+                "doneguessed": "Restarted. MoltenTerm could not tell which {agent} session ran here, so {agent} reopens its most recent one in this folder ({command})."
+            }
+        },
+        "mission": {
+            "noPipeline": "The project has no pipeline (.molten/project.json).",
+            "pipelineProblems": "The pipeline has problems: {detail}",
+            "ci": {
+                "noJobs": "The pipeline declares no CI job (ci.jobs).",
+                "notACommit": "{rev} is not a commit of this project.",
+                "noneOfJobs": "The pipeline declares none of the jobs {jobs}.",
+                "alreadyGreen": "The local CI is already green on this code: choose Run all again to run it anyway.",
+                "inProgress": "A local CI run is in progress ({run}).",
+                "notRunning": "This local CI run is not running.",
+                "worktreeCreate": "The CI worktree could not be created: {detail}",
+                "worktreeMove": "The CI worktree could not move to {commit}: {detail}",
+                "worktreeClean": "The CI worktree could not be cleaned: {detail}",
+                "prepareFailed": "ci.prepare failed (exit {exit}): the end of prepare.log says why."
+            },
+            "run": {
+                "noBuild": "The pipeline declares no build “{id}”.",
+                "noStep": "The pipeline declares no step “{id}”.",
+                "alreadyRunning": "{title} is already running.",
+                "stillRunning": "{title} is still running.",
+                "stillRunningCancel": "{title} is still running: cancel it first.",
+                "notRunning": "{title} is not running.",
+                "startFailed": "{title} could not be started: {detail}"
+            },
+            "deps": {
+                "noGroup": "This project is in no group: add \"group\" to its .molten/project.json and to the source's.",
+                "noSource": "No other project linked to a workspace declares the group {group} with the name “{name}”.",
+                "invalid": "This dependency is declared wrong: {detail}",
+                "sourceGone": "The folder of {name} no longer exists: {dir}",
+                "readBranches": "The branches of {name} could not be read: {detail}",
+                "noTrunk": "{name} has no trunk branch to watch: declare \"branch\".",
+                "noBranch": "{name} has no branch {branch}, local or on origin.",
+                "readOwnHistory": "This project's history could not be read: {detail}",
+                "readHistory": "The history of {name} could not be read: {detail}"
+            },
+            "depSync": {
+                "unavailable": "Syncing a dependency is not available.",
+                "noDependencyId": "The project declares no dependency {id}.",
+                "otherProject": "{id} is a dependency on {project}, not on {asked}.",
+                "noDependencyOn": "The project declares no dependency on {project}.",
+                "noDependency": "The project declares no dependency (\"dependson\").",
+                "noSync": "No sync command is declared for the dependency on {project}: add \"sync\" to it in {file}.",
+                "noSyncAny": "No dependency declares a sync command: add \"sync\" to one in {file}.",
+                "nameOne": "Several dependencies declare a sync, name one: {names}",
+                "cannotSync": "Cannot sync from {project}: {detail}",
+                "alreadyRunning": "A sync of this project is already running."
+            },
+            "release": {
+                "noSteps": "The pipeline declares no release.{channel} steps.",
+                "notATag": "“{tag}” is not a release tag ({prefix}X.Y.Z or {prefix}X.Y.Z-N).",
+                "rcTag": "{tag} is a release candidate's tag, not a public release's.",
+                "publicTag": "{tag} is a public release's tag, not a release candidate's.",
+                "onItsWay": "A release is already on its way: {tag}.",
+                "tagged": "{tag} is already tagged.",
+                "notFollowed": "{tag} is not the release followed.",
+                "noPreparation": "The pipeline declares no preparation.",
+                "noStep": "The pipeline declares no release.{channel} step “{step}”.",
+                "noRerun": "No GitHub run of {tag} to rerun.",
+                "noNotes": "No public notes are drafted for this release.",
+                "notesTooLarge": "{path} is too large to edit here.",
+                "notesLink": "{path} is not a regular file: release notes are not written through a link.",
+                "notesOutside": "{path} is outside the project: release notes are not written there."
+            },
+            "branches": {
+                "noneToDelete": "No branch to delete.",
+                "noTrunk": "The project has no trunk branch to compare with.",
+                "readTrunk": "{ref} could not be read: {detail}",
+                "kept": "{branch}: kept ({reason})",
+                "deleteFailed": "{branch}: {detail}",
+                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}"
+            },
+            "jobs": {
+                "tooLarge": "The file is too large to read.",
+                "badYaml": "unreadable YAML: {detail}",
+                "noMapping": "not a workflow: the file holds no mapping",
+                "noAgent": "No agent was chosen.",
+                "gone": "The job “{job}” is no longer in the project's CI files.",
+                "cannotType": "MoltenTerm cannot type in terminals yet: nothing was sent."
+            },
+            "git": {
+                "noFolder": "The folder {dir} does not exist.",
+                "alreadyRepo": "{dir} is already inside a git repository."
+            },
+            "upcoming": {
+                "noTrees": "The project's worktrees could not be listed."
+            },
+            "work": {
+                "preparing": "preparing"
+            }
+        },
+        "notif": {
+            "railgroups": {
+                "movedTitle": "{workspace} moved to {product}",
+                "moved": "{workspace} now belongs to {product}, declared in its project files, so it left the group {group}. Project groups come first."
+            },
+            "build": {
+                "builtTitle": "{name} is built",
+                "finished": "Build {sha} finished.",
+                "readyTitle": "{name} is ready",
+                "delivered": "Build {sha} delivered to the local builds folder ({count} commit(s) since the previous one).",
+                "stoppedTitle": "The {name} build stopped",
+                "stopped": "Its run card shows at which step, and the end of its log.",
+                "showBuild": "Show the build",
+                "showInFolder": "Show in folder"
+            },
+            "worktree": {
+                "keptTitle": "Worktree {name} is still on disk",
+                "kept": "Its terminal closed without MoltenTerm asking (its shell exited, a command closed it, or its window or workspace closed); the worktree and its branch are kept.\n{path}",
+                "review": "Review and remove…"
+            },
+            "deps": {
+                "behindTitle": "{dependent} is behind {source}",
+                "changed": "{paths} changed on {branch} since the last sync: {count} commit(s){tickets}.",
+                "changedNewest": "{paths} changed on {branch} since the last sync: {count} commit(s){tickets}, newest {newest}.",
+                "neverSynced": "{dependent} was never synced: {count} commit(s) of {source} touch {paths} on {branch}{tickets}.",
+                "neverSyncedNewest": "{dependent} was never synced: {count} commit(s) of {source} touch {paths} on {branch}{tickets}, newest {newest}.",
+                "sync": "Sync",
+                "open": "Open"
+            },
+            "onboarding": {
+                "availableTitle": "Getting started is available",
+                "available": "A short setup: your agent, a first morph, your project. It is also in the app menu and the command palette.",
+                "leftTitle": "Getting started is still here",
+                "left": "Open it again whenever you want, from the app menu or the command palette.",
+                "open": "Open Getting started"
+            }
+        },
+        "companion": {
+            "terminalunreadable": "This terminal could not be read.",
+            "foldernotknown": "This terminal's folder is not known yet.",
+            "newsession": "A new session started. It shows here once the agent writes its first message.",
+            "transcriptinvalid": "The session transcript cannot be read: {detail}",
+            "followedelsewhere": "This session is followed by another terminal.",
+            "transcriptunopened": "The session transcript could not be opened.",
+            "transcriptgone": "The session transcript is no longer readable.",
+            "sessionofother": "This session belongs to another terminal.",
+            "remoteterminal": "There is no companion for a remote terminal.",
+            "toomanyviews": "Too many views of this companion are open.",
+            "toomanycompanions": "Too many companions are open.",
+            "notopen": "The companion of this terminal is not open.",
+            "nosession": "No session is shown.",
+            "noagentruns": "No agent runs in this terminal.",
+            "nocompanionfor": "There is no companion for {agent}.",
+            "answergone": "This answer is no longer kept.",
+            "nofilechange": "This file was not changed in the session."
+        },
+        "integration": {
+            "name": {
+                "statehooks": "Agent state hooks",
+                "statehooksof": "Agent state hooks ({events})",
+                "sessionlink": "Session link",
+                "coffeeapprovals": "Coffee approvals",
+                "coffeeapprovalsyours": "Coffee approvals (your own hook, in {where})",
+                "codexcoffeeapprovals": "Coffee approvals (once you trust MoltenTerm's hook in Codex's /hooks)",
+                "statusline": "Status line relay",
+                "statuslinenone": "Status line relay (you have no status line: nothing is shown)",
+                "statuslinearound": "Status line relay around your status line",
+                "browser": "MoltenTerm browser",
+                "codexnotify": "Done state at each turn's end (notify)",
+                "codexnotifyaround": "Done state at each turn's end (notify, around your own notify)",
+                "codexsessionlink": "Session link (at the end of the first turn)"
+            },
+            "reason": {
+                "managedhooksonly": "your organization's managed settings allow only their own hooks",
+                "managedhooksonlyin": "your organization's {where} allows only its own hooks",
+                "reviewsession": "a review session is read-only: coffee mode never answers its requests",
+                "alreadyyours": "already yours, in {where}",
+                "alreadyyoursflag": "already yours, in your {flag}",
+                "alreadyyoursmcpconfig": "already yours, in your --mcp-config",
+                "alreadyyoursnotify": "already yours, in {where}: it runs as you set it, and the session is linked around it",
+                "managedstatusline": "your organization's managed settings set the status line",
+                "statuslinefileunreadable": "{where} could not be read, so your status line could not be kept",
+                "statuslineunreadable": "the status line in {where} could not be read",
+                "statuslinenotcommand": "your status line is not a command",
+                "statuslinerelayed": "your status line already runs it",
+                "browsernotinstalled": "MoltenTerm's browser server (molten mcp browser) is not installed",
+                "moltennotinstalled": "MoltenTerm's molten command is not installed",
+                "strictmcp": "you passed {flag}: only your own --mcp-config servers run",
+                "mcpconfigunreadable": "your --mcp-config {file} could not be read",
+                "fileunreadable": "{where} could not be read",
+                "browserconfignotwritten": "the server's configuration could not be written",
+                "managedmcp": "your organization's managed MCP configuration decides which servers run",
+                "managedprovided": "already provided by your organization's managed settings",
+                "codexhookstrust": "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust",
+                "codexmcpservers": "you passed {flag}: only your own servers run",
+                "ownnotifyflag": "you passed your own -c notify: it runs as you set it",
+                "profilenotify": "your profile {profile} in {where} sets notify: it runs as you set it",
+                "managednotify": "your organization's {where} sets notify",
+                "projectnotify": "{where} may set notify for this project: it runs as you set it",
+                "rootmarkers": "{where} sets project_root_markers: the project files Codex reads could not be told",
+                "notifynotlist": "the notify of {where} is not a list of strings",
+                "codexhooksoff": "Codex's hooks are turned off in {where}",
+                "codexhooksflag": "you passed {flag}: only your own hooks run",
+                "ownpermissionhooks": "you have your own PermissionRequest hooks, in {where}"
+            },
+            "stepaside": {
+                "outsidepane": "not in a MoltenTerm terminal",
+                "nested": "started by a running agent",
+                "turnedoff": "{var}=0",
+                "passthrough": "a command that starts no session",
+                "settingsoff": "the integration is turned off in MoltenTerm's settings ({setting})",
+                "settingsagentoff": "the integration is turned off for this agent in MoltenTerm's settings ({setting})",
+                "settingsunknown": "MoltenTerm's settings could not be read in time",
+                "disableallhooks": "disableAllHooks is on in {where}: Claude Code runs no hooks and no status line",
+                "notwritten": "the integration could not be written: {detail}"
+            }
+        },
+        "keepawake": {
+            "deny": {
+                "question": "a question only you can answer",
+                "keychain": "reads the keychain",
+                "remove": "deletes outside the session's folder: {detail}",
+                "forcepush": "force push or deletion of a main branch: {detail}",
+                "credential": "reads or writes a credential file: {detail}",
+                "toodeep": "runs a command the rules cannot read: shells nested too deep",
+                "stdin": "runs a command the rules cannot read: {program} reads its program from standard input",
+                "opaque": "runs a command the rules cannot read: {detail}"
+            },
+            "session": {
+                "remote": "it runs on a remote host",
+                "unsupported": "MoltenTerm cannot answer {agent}'s prompts",
+                "nolauncher": "it was started outside MoltenTerm's launcher",
+                "codexuntrusted": "approved once you trust MoltenTerm's hook: type /hooks in Codex and trust molten agent permission",
+                "tooold": "it was started before coffee approvals existed: restart it from MoltenTerm",
+                "review": "a review session is read-only: its requests always ask you"
+            },
+            "why": {
+                "working": "{agent}: working",
+                "background": "{agent}: background work",
+                "anycommand": "A command",
+                "command": "Command: {command}",
+                "mission": "Mission Control run",
+                "more": "{count} more"
+            },
+            "notice": {
+                "asktitle": "A terminal wants to keep this computer awake",
+                "ask": "A program ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "askparent": "{who} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "asktab": "A program in {tab} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "askparenttab": "{who} in {tab} ran {tool}. Choose once what MoltenTerm does with such requests: let them through, keep this computer awake itself until the work ends, or let it sleep.",
+                "allow": "Allow",
+                "untilworkends": "Until work ends",
+                "letsleep": "Let it sleep",
+                "coffeeendtitle": "{name}: work finished, this computer may sleep again",
+                "coffeeendtitleunnamed": "A workspace: work finished, this computer may sleep again",
+                "coffeeend": "Its coffee ended 2 minutes after the last work in the workspace stopped.",
+                "policyendtitle": "Work finished: this computer may sleep again",
+                "policyend": "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped."
+            }
+        },
+        "browser": {
+            "action": {
+                "back": "Went back",
+                "forward": "Went forward",
+                "navigate": "Went to {site}",
+                "readpage": "Read the page",
+                "pagetext": "Read the page's text",
+                "find": "Searched the page",
+                "screenshot": "Took a screenshot",
+                "zoom": "Zoomed into the page",
+                "wait": "Waiting",
+                "opened": "Opened this tab",
+                "engaged": "Working in the tab you shared",
+                "clicked": "Clicked",
+                "clickedon": "Clicked {on}",
+                "rightclicked": "Right-clicked",
+                "rightclickedon": "Right-clicked {on}",
+                "doubleclicked": "Double-clicked",
+                "doubleclickedon": "Double-clicked {on}",
+                "tripleclicked": "Triple-clicked",
+                "tripleclickedon": "Triple-clicked {on}",
+                "hovered": "Hovered over",
+                "hoveredon": "Hovered over {on}",
+                "scrolledto": "Scrolled to",
+                "scrolledtoon": "Scrolled to {on}",
+                "typing": "Typing in",
+                "typingon": "Typing in {on}",
+                "set": "Set",
+                "seton": "Set {on}",
+                "scrolledup": "Scrolled up",
+                "scrolleddown": "Scrolled down",
+                "scrolledleft": "Scrolled left",
+                "scrolledright": "Scrolled right",
+                "pressed": "Pressed {keys}",
+                "dragged": "Dragged from {from} to {to}",
+                "resized": "Resized the page to {size}"
+            },
+            "prompt": {
+                "sensitivefield": "type into a password or payment field",
+                "sensitivefill": "fill in a password or payment field",
+                "framefield": "type into a field inside a frame, which MoltenTerm cannot check",
+                "sensitiveform": "submit a form with a password or payment field",
+                "filechooser": "open a file chooser",
+                "download": "start a download",
+                "sensitive": "do a sensitive action"
+            },
+            "share": {
+                "notui": "Only a MoltenTerm window can share a tab with an agent.",
+                "tabgone": "This tab is no longer in the panel.",
+                "otherengine": "This page is open in another browser: open it in MoltenTerm to share it.",
+                "sessiongone": "This agent's browser session has ended.",
+                "elsewhere": "This agent runs in another workspace.",
+                "othertab": "This agent runs in another tab: share the page from a browser panel in its tab.",
+                "notshared": "This tab is not shared with an agent.",
+                "nopage": "Open a page in this tab first.",
+                "toomanytabs": "This agent already holds too many tabs.",
+                "panelunknown": "MoltenTerm could not read the browser panel."
+            }
+        },
+        "worktree": {
+            "notLinked": "{path} is not a linked worktree.",
+            "notListed": "{path} is not a linked worktree of its repository.",
+            "git": "git could not read the worktree: {detail}",
+            "removeFailed": "git did not remove the worktree: {detail}",
+            "locked": "The worktree is locked (git worktree unlock {path}).",
+            "removeRefused": {
+                "home": "MoltenTerm does not remove {path}: it is the home folder.",
+                "repository": "MoltenTerm does not remove {path}: it holds its repository."
+            },
+            "needsConfirmation": "The worktree holds work or is used by another terminal: removing it needs a second confirmation.",
+            "changedSinceConfirmed": "The worktree changed since you confirmed: read the plan again.",
+            "refused": {
+                "home": "it is the home folder",
+                "repository": "it holds its repository"
+            },
+            "branchKept": {
+                "detached": "no branch (detached HEAD)",
+                "longLived": "{branch} is a long-lived branch",
+                "mergeUnknown": "MoltenTerm could not tell whether {branch} is merged",
+                "notMerged": "{branch} is not merged into {trunk}",
+                "unusualName": "unusual branch name",
+                "git": "git did not delete it ({detail})"
+            }
+        },
+        "onboarding": {
+            "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
+            "installFailed": "The guides of {agent} could not be installed: {detail}"
         }
     }
 }

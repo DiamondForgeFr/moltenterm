@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 )
 
@@ -69,6 +70,8 @@ type LaunchPlan struct {
 	Added     []molten.IntegrationItem
 	Skipped   []molten.IntegrationItem
 	StepAside string
+	// StepAsideText: StepAside's code for the companion (#656).
+	StepAsideText *uimsg.Text
 }
 
 // LaunchAdapter integrates one agent at launch.

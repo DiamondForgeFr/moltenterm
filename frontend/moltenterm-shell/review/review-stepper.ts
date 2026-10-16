@@ -8,6 +8,7 @@
 // written here, through the interface's language.
 
 import type { I18nVars } from "../i18n/i18n-core";
+import { serverText } from "../i18n/server-text";
 import type {
     ReviewCleanupPanel,
     ReviewCleanupPr,
@@ -309,7 +310,7 @@ function mergeStep(
                 ? t("review.validate.cleanup.prNotMerged")
                 : t("review.validate.cleanup.prUnreadable")
         );
-        step.error = pr.error ?? step.error;
+        step.error = pr.error ? serverText(pr.errortext, pr.error) : step.error;
     }
     return step;
 }
@@ -485,7 +486,7 @@ function cleanupRow(t: Translate, step: ReviewCleanupStepResult, branch: string,
         label: t(`review.validate.cleanup.${step.id}.label`),
         state: rowState(step),
         lines: cleanupRowText(t, step, branch, base),
-        error: step.state === "failed" ? step.error : undefined,
+        error: step.state === "failed" && step.error ? serverText(step.errortext, step.error) : undefined,
     };
 }
 
@@ -664,14 +665,14 @@ function othersStep(
             label: `#${pr.number} ${pr.branch}`,
             state: otherPrRowState(pr),
             lines: [otherPrText(t, pr, prBase)],
-            error: pr.error,
+            error: pr.error ? serverText(pr.errortext, pr.error) : undefined,
             url: pr.url,
             startAgent: pr.flag === "needs-agent" ? pr : undefined,
         }));
     if (others.state === "failed" && (others.prs ?? []).length === 0) {
         step.state = "failed";
         step.lines.push(t("review.validate.others.listFailed"));
-        step.error = others.error;
+        step.error = others.error ? serverText(others.errortext, others.error) : undefined;
         return step;
     }
     const summary = otherPrsSummary(t, others, prBase);

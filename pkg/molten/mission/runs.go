@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +23,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -291,14 +291,14 @@ func findCommand(p *molten.Pipeline, kind string, id string) (TrustedCommand, st
 				return TrustedCommand{Kind: kind, Id: id, Title: build.Title, Run: build.Run, Cwd: build.Cwd, Env: build.Env}, build.Artifact, nil
 			}
 		}
-		return TrustedCommand{}, "", fmt.Errorf("the pipeline declares no build %q", id)
+		return TrustedCommand{}, "", uimsg.Errorf(uimsg.Make("mission.run.noBuild", "id", id), "the pipeline declares no build %q", id)
 	case RunKindStep:
 		for _, step := range p.Steps {
 			if step.Id == id {
 				return TrustedCommand{Kind: kind, Id: id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env}, "", nil
 			}
 		}
-		return TrustedCommand{}, "", fmt.Errorf("the pipeline declares no step %q", id)
+		return TrustedCommand{}, "", uimsg.Errorf(uimsg.Make("mission.run.noStep", "id", id), "the pipeline declares no step %q", id)
 	}
 	return TrustedCommand{}, "", fmt.Errorf("running %q steps from MoltenTerm is not available yet", kind)
 }
@@ -311,10 +311,7 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 	dir := filepath.Clean(req.Dir)
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid {
-		if !report.Present {
-			return RunResult{}, errors.New("the project has no pipeline (.molten/project.json)")
-		}
-		return RunResult{}, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
+		return RunResult{}, pipelineError(report)
 	}
 	commands := PipelineCommands(report.Pipeline)
 	hash := CommandsHash(commands)
@@ -326,7 +323,7 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	if running := r.runningOf(dir, req.Kind); running != nil {
-		return RunResult{}, fmt.Errorf("%s is already running", running.Title)
+		return RunResult{}, errAlreadyRunning(running.Title)
 	}
 	if req.Kind == RunKindBuild {
 		rec, err := r.startBuild(dir, findBuild(report.Pipeline, req.Id), req.Version)
@@ -396,7 +393,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	cmd.Stdin = nil
 	detachRun(cmd)
 	if err := cmd.Start(); err != nil {
-		return rec, fmt.Errorf("starting %s: %w", rec.Title, err)
+		return rec, uimsg.Errorf(uimsg.Make("mission.run.startFailed", "title", rec.Title, "detail", err.Error()), "starting %s: %w", rec.Title, err)
 	}
 	rec.Pid = cmd.Process.Pid
 	if err := r.writeRecord(rec); err != nil {
@@ -568,7 +565,7 @@ func (r *Runs) Cancel(dir string, runId string) error {
 		return err
 	}
 	if rec.State != RunStateRunning {
-		return fmt.Errorf("%s is not running", rec.Title)
+		return uimsg.Errorf(uimsg.Make("mission.run.notRunning", "title", rec.Title), "%s is not running", rec.Title)
 	}
 	if r.askCancelWhilePreparing(rec.Id) {
 		return nil
@@ -608,7 +605,7 @@ func (r *Runs) Close(dir string, runId string) error {
 		return err
 	}
 	if rec.State == RunStateRunning {
-		return fmt.Errorf("%s is still running: cancel it first", rec.Title)
+		return uimsg.Errorf(uimsg.Make("mission.run.stillRunningCancel", "title", rec.Title), "%s is still running: cancel it first", rec.Title)
 	}
 	if rec.Closed {
 		return nil

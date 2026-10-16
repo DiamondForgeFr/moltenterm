@@ -223,6 +223,11 @@ func TestFirstSendAsksThenAlwaysIsRemembered(t *testing.T) {
 	if notes[0].BlockId != "blockA" {
 		t.Fatalf("approval block: %q", notes[0].BlockId)
 	}
+	// The windows word the request by its codes (#656).
+	if notes[0].TitleText == nil || notes[0].TitleText.Code != "handoff.approval.title" || notes[0].TitleText.Vars["to"] != "Jérôme" ||
+		notes[0].MessageText == nil || notes[0].MessageText.Vars["goal"] == "" || notes[0].Actions[0].LabelText == nil {
+		t.Fatalf("approval texts: %+v %+v %+v", notes[0].TitleText, notes[0].MessageText, notes[0].Actions[0].LabelText)
+	}
 	lines := env.typedLines()
 	if len(lines) != 1 || lines[0].blockId != "blockB" {
 		t.Fatalf("typed: %+v", lines)

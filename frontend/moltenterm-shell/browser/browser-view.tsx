@@ -35,6 +35,7 @@ import { HeaderCloseButton } from "../header/header-close-button";
 import { Pill } from "../header/pill";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
+import { serverErrorText, serverText } from "../i18n/server-text";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
@@ -894,7 +895,7 @@ export class BrowserViewModel implements ViewModel {
                 title: t(res?.sent ? "browser.share.shared" : "browser.share.sharedNothingTyped", {
                     name: agent.agentName,
                 }),
-                message: res?.message ?? "",
+                message: serverText(res?.messagetext, res?.message ?? ""),
             });
         } catch (e) {
             this.showNotice(t("browser.notice.tellFailed", { error: errorText(e) }));
@@ -1069,7 +1070,7 @@ export class BrowserViewModel implements ViewModel {
 }
 
 function errorText(e: unknown): string {
-    return e instanceof Error ? e.message : String(e);
+    return serverErrorText(e);
 }
 
 function makeBlockAtom(blockId: string): Atom<Block> {

@@ -194,7 +194,7 @@ func chooseMethods(repo repoMethods, rules branchRules, last string) mergeMethod
 // runGhApi runs gh api, which names the repository in its path (it takes no --repo).
 func (m *Merger) runGhApi(ctx context.Context, dir string, path string) ([]byte, error) {
 	if m.gh == nil {
-		return nil, errors.New("gh is not available")
+		return nil, noGhError()
 	}
 	ctx, cancel := context.WithTimeout(ctx, ghCallTimeout)
 	defer cancel()

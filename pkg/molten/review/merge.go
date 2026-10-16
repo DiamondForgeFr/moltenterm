@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -339,7 +340,7 @@ func shortHead(oid string) string {
 // those are the cleanup's (FR-REV-013), which checks them first.
 func (m *Merger) runGh(ctx context.Context, dir string, repo string, args ...string) ([]byte, error) {
 	if m.gh == nil {
-		return nil, fmt.Errorf("gh is not available")
+		return nil, noGhError()
 	}
 	ctx, cancel := context.WithTimeout(ctx, ghCallTimeout)
 	defer cancel()
@@ -508,7 +509,7 @@ func (m *Merger) inputs(ctx context.Context, dir string, k PrKey) (ghMergePr, mi
 	}
 	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
 	if err != nil {
-		return pr, ci, 0, State{}, fmt.Errorf("the checks could not be read: %v", err)
+		return pr, ci, 0, State{}, uimsg.Errorf(uimsg.Make("review.checks", "detail", uimsg.Detail(err)), "the checks could not be read: %v", err)
 	}
 	unpublished, err := m.store.Unpublished(k)
 	if err != nil {

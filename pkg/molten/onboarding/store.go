@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -211,7 +212,8 @@ func CurrentState(ctx context.Context) (State, bool, error) {
 }
 
 func openAction() molten.NotificationAction {
-	return molten.NotificationAction{Id: "open", Label: "Open Getting started", Kind: "gesture", Gesture: OpenGesture, Lasting: true}
+	return molten.NotificationAction{Id: "open", Label: "Open Getting started", Kind: "gesture", Gesture: OpenGesture, Lasting: true,
+		LabelText: uimsg.Make("notif.onboarding.open")}
 }
 
 // NotificationFor is what the notification center says after a start or a leave; ok is false when nothing is said.
@@ -219,21 +221,25 @@ func NotificationFor(announce string) (molten.NotificationInput, bool) {
 	switch announce {
 	case AnnounceAvailable:
 		return molten.NotificationInput{
-			Key:     NotificationKey,
-			Source:  NotificationSource,
-			Kind:    "info",
-			Title:   "Getting started is available",
-			Message: "A short setup: your agent, a first morph, your project. It is also in the app menu and the command palette.",
-			Actions: []molten.NotificationAction{openAction()},
+			Key:         NotificationKey,
+			Source:      NotificationSource,
+			Kind:        "info",
+			Title:       "Getting started is available",
+			TitleText:   uimsg.Make("notif.onboarding.availableTitle"),
+			Message:     "A short setup: your agent, a first morph, your project. It is also in the app menu and the command palette.",
+			MessageText: uimsg.Make("notif.onboarding.available"),
+			Actions:     []molten.NotificationAction{openAction()},
 		}, true
 	case AnnounceLeft:
 		return molten.NotificationInput{
-			Key:     NotificationKey,
-			Source:  NotificationSource,
-			Kind:    "info",
-			Title:   "Getting started is still here",
-			Message: "Open it again whenever you want, from the app menu or the command palette.",
-			Actions: []molten.NotificationAction{openAction()},
+			Key:         NotificationKey,
+			Source:      NotificationSource,
+			Kind:        "info",
+			Title:       "Getting started is still here",
+			TitleText:   uimsg.Make("notif.onboarding.leftTitle"),
+			Message:     "Open it again whenever you want, from the app menu or the command palette.",
+			MessageText: uimsg.Make("notif.onboarding.left"),
+			Actions:     []molten.NotificationAction{openAction()},
 		}, true
 	}
 	return molten.NotificationInput{}, false

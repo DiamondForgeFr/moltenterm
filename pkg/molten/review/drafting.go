@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Drafting review comments (FR-REV-009): a comment is a remark or question for the author (kind comment) or a change
@@ -141,36 +142,36 @@ func restoredState(c *Comment) string {
 // applyAction changes a comment's state, or says why it cannot.
 func applyAction(c *Comment, action string) (string, error) {
 	if c.State == CommentStatePublished {
-		return "", fmt.Errorf("this comment is published on GitHub: it stays as it is")
+		return "", uimsg.Errorf(uimsg.Make("review.commentpublished"), "this comment is published on GitHub: it stays as it is")
 	}
 	switch action {
 	case ActionStage:
 		if c.State != CommentStateDraft {
-			return "", fmt.Errorf("only a draft can be staged (this comment is %s)", c.State)
+			return "", uimsg.Errorf(uimsg.Make("review.onlydraftstaged"), "only a draft can be staged (this comment is %s)", c.State)
 		}
 		c.State = CommentStateStaged
 		return EventStaged, nil
 	case ActionUnstage:
 		if c.State != CommentStateStaged && c.State != CommentStateTranslated {
-			return "", fmt.Errorf("this comment is not staged")
+			return "", uimsg.Errorf(uimsg.Make("review.notstaged"), "this comment is not staged")
 		}
 		c.State = CommentStateDraft
 		return EventUnstaged, nil
 	case ActionDrop:
 		if c.State == CommentStateDropped {
-			return "", fmt.Errorf("this comment is already dropped")
+			return "", uimsg.Errorf(uimsg.Make("review.alreadydropped"), "this comment is already dropped")
 		}
 		c.State = CommentStateDropped
 		return EventDropped, nil
 	case ActionRestore:
 		if c.State != CommentStateDropped {
-			return "", fmt.Errorf("only a dropped comment can be restored")
+			return "", uimsg.Errorf(uimsg.Make("review.onlydroppedrestored"), "only a dropped comment can be restored")
 		}
 		c.State = restoredState(c)
 		return EventRestored, nil
 	case ActionAccept:
 		if c.State != CommentStateProposed {
-			return "", fmt.Errorf("only a proposal can be accepted")
+			return "", uimsg.Errorf(uimsg.Make("review.onlyproposalaccepted"), "only a proposal can be accepted")
 		}
 		c.State = CommentStateStaged
 		c.Author = AuthorAcceptedProposal
@@ -185,7 +186,7 @@ func (s *Store) SetCommentState(req CommentStateRequest) (State, bool, error) {
 	state, changed, err := s.update(req.PrKey, func(state *State) bool {
 		c := findComment(state, req.Id)
 		if c == nil {
-			actErr = fmt.Errorf("no comment has the id %s", req.Id)
+			actErr = noCommentError(req.Id)
 			return false
 		}
 		event, err := applyAction(c, req.Action)
@@ -210,7 +211,7 @@ func (s *Store) UseRewrite(req RewriteRequest) (State, bool, error) {
 	state, changed, err := s.update(req.PrKey, func(state *State) bool {
 		c := findComment(state, req.Id)
 		if c == nil {
-			useErr = fmt.Errorf("no comment has the id %s", req.Id)
+			useErr = noCommentError(req.Id)
 			return false
 		}
 		var msg *CommentMessage
@@ -220,11 +221,11 @@ func (s *Store) UseRewrite(req RewriteRequest) (State, bool, error) {
 			}
 		}
 		if msg == nil || msg.Rewrite == "" {
-			useErr = fmt.Errorf("this reply proposes no rewrite")
+			useErr = uimsg.Errorf(uimsg.Make("review.norewrite"), "this reply proposes no rewrite")
 			return false
 		}
 		if msg.RewriteState != RewriteProposed {
-			useErr = fmt.Errorf("this rewrite was already %s", msg.RewriteState)
+			useErr = uimsg.Errorf(uimsg.Make("review.rewritedone"), "this rewrite was already %s", msg.RewriteState)
 			return false
 		}
 		if !req.Accept {
@@ -232,7 +233,7 @@ func (s *Store) UseRewrite(req RewriteRequest) (State, bool, error) {
 			return true
 		}
 		if !isEditable(c) {
-			useErr = fmt.Errorf("this comment is %s: it cannot be changed", c.State)
+			useErr = lockedError(c)
 			return false
 		}
 		now := s.now().UnixMilli()
@@ -334,7 +335,7 @@ func (s *Store) AddReply(k PrKey, post mcpreview.Post) (State, bool, error) {
 func (s *Service) Discuss(ctx context.Context, req DiscussRequest) (DiscussResult, error) {
 	message := strings.TrimSpace(req.Message)
 	if len(message) > maxCommentBytes {
-		return DiscussResult{}, fmt.Errorf("the message is too long (64 KB at most)")
+		return DiscussResult{}, uimsg.Errorf(uimsg.Make("review.messagetoolong"), "the message is too long (64 KB at most)")
 	}
 	state, err := s.store.Get(req.PrKey)
 	if err != nil {
@@ -342,13 +343,13 @@ func (s *Service) Discuss(ctx context.Context, req DiscussRequest) (DiscussResul
 	}
 	c := findComment(&state, req.Id)
 	if c == nil {
-		return DiscussResult{}, fmt.Errorf("no comment has the id %s", req.Id)
+		return DiscussResult{}, noCommentError(req.Id)
 	}
 	if !isEditable(c) {
-		return DiscussResult{}, fmt.Errorf("this comment is %s: there is nothing left to discuss", c.State)
+		return DiscussResult{}, uimsg.Errorf(uimsg.Make("review.nothingtodiscuss"), "this comment is %s: there is nothing left to discuss", c.State)
 	}
 	if s.discuss == nil {
-		return DiscussResult{}, fmt.Errorf("MoltenTerm cannot reach the review session")
+		return DiscussResult{}, noSessionError()
 	}
 	anchor := c.Anchor
 	sentAt := s.store.now().UnixMilli()

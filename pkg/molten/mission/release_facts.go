@@ -6,8 +6,6 @@ package mission
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // What the release panel reads (FR-MC-016), as Notulia's dev_release_facts: the panel derives the phases from these
@@ -369,7 +368,7 @@ func (r *Runs) checkFollowed(dir string, p *molten.Pipeline, tag string) (Releas
 	defer cancel()
 	session, ok := r.followedRelease(ctx, dir, p)
 	if !ok || session.Tag != tag {
-		return session, fmt.Errorf("%s is not the release followed", tag)
+		return session, errNotFollowed(tag)
 	}
 	return session, nil
 }
@@ -390,13 +389,13 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	if running := r.runningOf(dir, RunKindRelease); running != nil {
-		return RunResult{}, fmt.Errorf("%s is still running", running.Title)
+		return RunResult{}, errStillRunning(running.Title)
 	}
 	steps := channelSteps(p, session.Channel)
 	var rec RunRecord
 	if req.Step == ReleasePreparationStepId {
 		if len(molten.ReleasePreparation(steps)) == 0 {
-			return RunResult{}, errors.New("the pipeline declares no preparation")
+			return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noPreparation"), "the pipeline declares no preparation")
 		}
 		rec, err = r.launchPreparation(dir, steps, session)
 		return RunResult{Run: &rec}, err
@@ -413,7 +412,7 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		rec, err = r.launch(dir, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}
-	return RunResult{}, fmt.Errorf("the pipeline declares no release.%s step %q", session.Channel, req.Step)
+	return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noStep", "channel", session.Channel, "step", req.Step), "the pipeline declares no release.%s step %q", session.Channel, req.Step)
 }
 
 // RerunFailedJobs reruns the failed jobs of the newest GitHub run the release's tag started.
@@ -423,7 +422,7 @@ func (r *Runs) RerunFailedJobs(dir string, tag string) error {
 		return err
 	}
 	if facts.Tag != tag || len(facts.Runs) == 0 {
-		return fmt.Errorf("no GitHub run of %s to rerun", tag)
+		return uimsg.Errorf(uimsg.Make("mission.release.noRerun", "tag", tag), "no GitHub run of %s to rerun", tag)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), releaseFactsTimeout)
 	defer cancel()
@@ -437,10 +436,10 @@ func (r *Runs) releaseNotesPath(dir string, tag string) (string, error) {
 		return "", err
 	}
 	if facts.Tag != tag {
-		return "", fmt.Errorf("%s is not the release followed", tag)
+		return "", errNotFollowed(tag)
 	}
 	if facts.Notes == "" {
-		return "", errors.New("no public notes are drafted for this release")
+		return "", uimsg.Errorf(uimsg.Make("mission.release.noNotes"), "no public notes are drafted for this release")
 	}
 	return facts.Notes, nil
 }
@@ -456,7 +455,7 @@ func (r *Runs) ReadReleaseNotes(dir string, tag string) (ReleaseNotes, error) {
 		return ReleaseNotes{}, err
 	}
 	if len(data) > maxReleaseNotesBytes {
-		return ReleaseNotes{}, fmt.Errorf("%s is too large to edit here", path)
+		return ReleaseNotes{}, uimsg.Errorf(uimsg.Make("mission.release.notesTooLarge", "path", path), "%s is too large to edit here", path)
 	}
 	return ReleaseNotes{Path: path, Text: string(data)}, nil
 }
@@ -486,7 +485,7 @@ func (r *Runs) checkNotesTarget(dir string, path string) (os.FileInfo, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file: release notes are not written through a link", path)
+		return nil, uimsg.Errorf(uimsg.Make("mission.release.notesLink", "path", path), "%s is not a regular file: release notes are not written through a link", path)
 	}
 	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
 	if err != nil {
@@ -497,7 +496,7 @@ func (r *Runs) checkNotesTarget(dir string, path string) (os.FileInfo, error) {
 			return info, nil
 		}
 	}
-	return nil, fmt.Errorf("%s is outside the project: release notes are not written there", path)
+	return nil, uimsg.Errorf(uimsg.Make("mission.release.notesOutside", "path", path), "%s is outside the project: release notes are not written there", path)
 }
 
 // notesRoots: the project and its repository's worktrees, links resolved.

@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // What counts as work (DS-SHELL-025, DS-SHELL-062): an agent in the working state, an agent in any other state whose
@@ -85,22 +87,59 @@ type reason struct {
 	text string
 }
 
+const (
+	agentWorkingSuffix    = ": working"
+	agentBackgroundSuffix = ": background work"
+	anyCommandReason      = "A command"
+	commandReasonPrefix   = "Command: "
+	moreReasonFormat      = "%d more"
+)
+
 func agentReason(agent string, rank int) reason {
 	if rank == reasonAgentBackground {
-		return reason{rank: rank, text: molten.AgentDisplayName(agent) + ": background work"}
+		return reason{rank: rank, text: molten.AgentDisplayName(agent) + agentBackgroundSuffix}
 	}
-	return reason{rank: rank, text: molten.AgentDisplayName(agent) + ": working"}
+	return reason{rank: rank, text: molten.AgentDisplayName(agent) + agentWorkingSuffix}
 }
 
 func commandReason(cmdline string) reason {
 	cmd := strings.Join(strings.Fields(cmdline), " ")
 	if cmd == "" {
-		return reason{rank: reasonCommand, text: "A command"}
+		return reason{rank: reasonCommand, text: anyCommandReason}
 	}
 	if len([]rune(cmd)) > maxReasonCmdLen {
 		cmd = string([]rune(cmd)[:maxReasonCmdLen-1]) + "…"
 	}
-	return reason{rank: reasonCommand, text: "Command: " + cmd}
+	return reason{rank: reasonCommand, text: commandReasonPrefix + cmd}
+}
+
+// reasonsText is the codes of reasons sortReasons kept, for the windows (#656), by position. Each reason is one of
+// the forms this file writes, so it is read back here rather than carried through the sort.
+func reasonsText(reasons []string) []*uimsg.Text {
+	if len(reasons) == 0 {
+		return nil
+	}
+	rtn := make([]*uimsg.Text, len(reasons))
+	for i, r := range reasons {
+		var more int
+		switch {
+		case r == missionReason:
+			rtn[i] = uimsg.Make("keepawake.why.mission")
+		case r == anyCommandReason:
+			rtn[i] = uimsg.Make("keepawake.why.anycommand")
+		case strings.HasPrefix(r, commandReasonPrefix):
+			rtn[i] = uimsg.Make("keepawake.why.command", "command", strings.TrimPrefix(r, commandReasonPrefix))
+		case strings.HasSuffix(r, agentWorkingSuffix):
+			rtn[i] = uimsg.Make("keepawake.why.working", "agent", strings.TrimSuffix(r, agentWorkingSuffix))
+		case strings.HasSuffix(r, agentBackgroundSuffix):
+			rtn[i] = uimsg.Make("keepawake.why.background", "agent", strings.TrimSuffix(r, agentBackgroundSuffix))
+		default:
+			if _, err := fmt.Sscanf(r, moreReasonFormat, &more); err == nil && fmt.Sprintf(moreReasonFormat, more) == r {
+				rtn[i] = uimsg.Make("keepawake.why.more", "count", strconv.Itoa(more))
+			}
+		}
+	}
+	return rtn
 }
 
 // sortReasons orders reasons by rank then text, without repeats, and keeps maxReasons of them; the last one kept
@@ -123,7 +162,7 @@ func sortReasons(list []reason) []string {
 		rtn = append(rtn, r.text)
 	}
 	if len(rtn) > maxReasons {
-		rtn = append(rtn[:maxReasons-1], fmt.Sprintf("%d more", len(rtn)-maxReasons+1))
+		rtn = append(rtn[:maxReasons-1], fmt.Sprintf(moreReasonFormat, len(rtn)-maxReasons+1))
 	}
 	return rtn
 }

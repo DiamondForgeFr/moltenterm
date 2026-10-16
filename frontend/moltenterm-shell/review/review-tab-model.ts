@@ -20,6 +20,7 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import type { AgentStateInfo } from "../agent-state-model";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
@@ -610,7 +611,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 globalStore.set(this.fileAtom, null);
             }
         } catch (e) {
-            globalStore.set(this.filesErrorAtom, String(e?.message ?? e));
+            globalStore.set(this.filesErrorAtom, serverErrorText(e));
         } finally {
             globalStore.set(this.filesLoadingAtom, false);
         }
@@ -644,7 +645,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 globalStore.set(this.worktreeAtom, { state: "ready", worktree });
             }
         } catch (e) {
-            globalStore.set(this.worktreeAtom, { state: "failed", error: String(e?.message ?? e) });
+            globalStore.set(this.worktreeAtom, { state: "failed", error: serverErrorText(e) });
         }
         await this.syncSessionHead();
     }
@@ -694,7 +695,7 @@ export abstract class ReviewTabModel implements ViewModel {
         try {
             this.applyBriefAsk(await askReviewBriefing({ id: session.id }));
         } catch (e) {
-            globalStore.set(this.briefAskAtom, { status: "failed", message: String(e?.message ?? e) });
+            globalStore.set(this.briefAskAtom, { status: "failed", message: serverErrorText(e) });
         }
     }
 
@@ -791,7 +792,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 if (globalStore.get(this.fileAtom)?.key !== key) {
                     return;
                 }
-                globalStore.set(this.fileAtom, { path, key, loading: false, error: String(e?.message ?? e), askedAt });
+                globalStore.set(this.fileAtom, { path, key, loading: false, error: serverErrorText(e), askedAt });
             }
         });
     }
@@ -896,7 +897,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return result.sent || !!result.queued;
         } catch (e) {
             console.log(`[review] ${pr.repo}#${pr.number}: the question could not be sent`, e);
-            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: String(e?.message ?? e) }));
+            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: serverErrorText(e) }));
             return false;
         }
     }
@@ -914,7 +915,7 @@ export abstract class ReviewTabModel implements ViewModel {
             );
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -993,7 +994,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return true;
         } catch (e) {
             globalStore.set(this.composerAtom, (cur) =>
-                cur ? { ...cur, text, kind, saving: false, error: String(e?.message ?? e) } : cur
+                cur ? { ...cur, text, kind, saving: false, error: serverErrorText(e) } : cur
             );
             return false;
         }
@@ -1007,7 +1008,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1023,7 +1024,7 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1035,7 +1036,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1060,7 +1061,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return { result };
         } catch (e) {
             console.log(`[review] ${pr.repo}#${pr.number}: the comment could not be discussed`, e);
-            return { error: String(e?.message ?? e) };
+            return { error: serverErrorText(e) };
         }
     }
 
@@ -1146,7 +1147,7 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             globalStore.set(this.restartAtom, { status: "done", result });
         } catch (e) {
-            globalStore.set(this.restartAtom, { status: "done", error: String(e?.message ?? e) });
+            globalStore.set(this.restartAtom, { status: "done", error: serverErrorText(e) });
         }
     }
 
@@ -1194,7 +1195,7 @@ export abstract class ReviewTabModel implements ViewModel {
             language = await reviewPublishInfo(pr.dir, pr.repo, pr.number);
             globalStore.set(this.publishAtom, (p) => (p.open ? { ...p, language } : p));
         } catch (e) {
-            globalStore.set(this.publishAtom, (p) => ({ ...p, languageError: String(e?.message ?? e) }));
+            globalStore.set(this.publishAtom, (p) => ({ ...p, languageError: serverErrorText(e) }));
             return;
         }
         if (missingTranslations(globalStore.get(this.stateAtom), language.lang) > 0) {
@@ -1235,7 +1236,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 setTranslate({ status: "failed", count: result.count, message: result.message });
             }
         } catch (e) {
-            setTranslate({ status: "failed", message: String(e?.message ?? e) });
+            setTranslate({ status: "failed", message: serverErrorText(e) });
         }
     }
 
@@ -1248,7 +1249,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, await setReviewTranslation(pr.repo, pr.number, id, text, lang));
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1259,7 +1260,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     }
 
@@ -1283,7 +1284,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 await reviewsGet(pr.dir, true);
             });
         } catch (e) {
-            globalStore.set(this.publishAtom, (p) => ({ ...p, error: String(e?.message ?? e) }));
+            globalStore.set(this.publishAtom, (p) => ({ ...p, error: serverErrorText(e) }));
         } finally {
             globalStore.set(this.publishAtom, (p) => ({ ...p, posting: false }));
         }
@@ -1359,7 +1360,7 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: startResultText(result) }));
         } catch (e) {
-            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: String(e?.message ?? e) }));
+            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: serverErrorText(e) }));
         }
     }
 

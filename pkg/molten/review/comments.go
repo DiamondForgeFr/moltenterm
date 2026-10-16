@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Review comments (FR-REV-003, DS-REV-003, DS-REV-007): a comment is anchored where GitHub's review comment API puts
@@ -152,7 +153,7 @@ func checkAnchor(a *mcpreview.Anchor) error {
 		return fmt.Errorf("the anchor must name the head it was made on")
 	}
 	if len(a.Excerpt) > maxCommentBytes {
-		return fmt.Errorf("the selection is too large to comment (64 KB at most)")
+		return uimsg.Errorf(uimsg.Make("review.selectiontoolarge"), "the selection is too large to comment (64 KB at most)")
 	}
 	return nil
 }
@@ -174,10 +175,10 @@ func findComment(state *State, id string) *Comment {
 func (s *Store) SaveComment(req CommentRequest) (State, bool, error) {
 	text := strings.TrimSpace(req.Text)
 	if text == "" {
-		return State{}, false, fmt.Errorf("the comment is empty")
+		return State{}, false, uimsg.Errorf(uimsg.Make("review.commentempty"), "the comment is empty")
 	}
 	if len(text) > maxCommentBytes {
-		return State{}, false, fmt.Errorf("the comment is too long (64 KB at most)")
+		return State{}, false, uimsg.Errorf(uimsg.Make("review.commenttoolong"), "the comment is too long (64 KB at most)")
 	}
 	kind := req.Kind
 	if kind != "" && kind != CommentKindComment && kind != CommentKindChange {
@@ -197,11 +198,11 @@ func (s *Store) SaveComment(req CommentRequest) (State, bool, error) {
 		if req.Id != "" {
 			c := findComment(state, req.Id)
 			if c == nil {
-				saveErr = fmt.Errorf("no comment has the id %s", req.Id)
+				saveErr = noCommentError(req.Id)
 				return false
 			}
 			if !isEditable(c) {
-				saveErr = fmt.Errorf("this comment is %s: it cannot be changed", c.State)
+				saveErr = lockedError(c)
 				return false
 			}
 			if c.Original.Text == text && (kind == "" || kind == c.Kind) {
@@ -226,7 +227,7 @@ func (s *Store) SaveComment(req CommentRequest) (State, bool, error) {
 			return true
 		}
 		if len(state.Comments) >= maxComments {
-			saveErr = fmt.Errorf("this review has too many comments (%d)", maxComments)
+			saveErr = uimsg.Errorf(uimsg.Make("review.toomanycomments", "max", strconv.Itoa(maxComments)), "this review has too many comments (%d)", maxComments)
 			return false
 		}
 		if kind == "" {

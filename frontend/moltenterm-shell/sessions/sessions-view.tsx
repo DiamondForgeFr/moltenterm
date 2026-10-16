@@ -21,6 +21,7 @@ import { AgentStateDot } from "../agent-state-ui";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { sessionRowDragProps } from "../split/drop-zones";
 import { whileShown } from "../tab-activity";
 import { showToast } from "../toast-store";
@@ -759,7 +760,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         try {
             await fn();
         } catch (e) {
-            setNotice({ text: e?.message ?? String(e), error: true });
+            setNotice({ text: serverErrorText(e), error: true });
         } finally {
             setRowBusy(id, null);
         }

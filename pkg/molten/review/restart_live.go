@@ -5,7 +5,6 @@ package review
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
@@ -13,6 +12,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -21,7 +21,7 @@ import (
 // Restart is the developer's click on Restart work; the store's change goes to every Review tab of the PR.
 func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResult, error) {
 	if s.restarter == nil {
-		return RestartResult{}, fmt.Errorf("Restart work is not available")
+		return RestartResult{}, uimsg.Errorf(uimsg.Make("review.restartunavailable"), "Restart work is not available")
 	}
 	result, err := s.restarter.Restart(ctx, req)
 	if result.State != nil {
@@ -33,7 +33,7 @@ func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResul
 // AskRebase is the developer's click on Ask for a rebase in the Reviews list (#683).
 func (s *Service) AskRebase(ctx context.Context, req RebaseRequest) (RestartResult, error) {
 	if s.restarter == nil {
-		return RestartResult{}, fmt.Errorf("Ask for a rebase is not available")
+		return RestartResult{}, rebaseUnavailableError()
 	}
 	return s.restarter.AskRebase(ctx, req)
 }

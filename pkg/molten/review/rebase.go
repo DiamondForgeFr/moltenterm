@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Ask for a rebase (#683): the Reviews list's action on a PR that conflicts with its base. It goes the way Restart work
@@ -111,7 +112,7 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	defer r.release(req.PrKey)
 	trees, err := r.branchTrees(ctx, req)
 	if err != nil {
-		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error()}, nil
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
 	}
 	for _, tree := range trees {
 		result := RestartResult{Branch: req.HeadRef, Worktree: tree}
@@ -129,7 +130,7 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	rreq := req.restartRequest()
 	tree, created, err := r.agentTree(ctx, rreq)
 	if err != nil {
-		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error()}, nil
+		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
 	}
 	result := RestartResult{Branch: req.HeadRef, Worktree: tree, WorktreeCreated: created}
 	line, ok := r.rebaseLine(req, tree, &result)

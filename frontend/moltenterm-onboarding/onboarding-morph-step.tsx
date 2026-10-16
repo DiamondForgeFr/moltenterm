@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { MoltenHost } from "../molten/molten-host";
 import { useT } from "../moltenterm-shell/i18n/i18n";
+import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { OnboardingAgents } from "./onboarding-agent-model";
 import { ensureMorphDir, listOnboardingAgents } from "./onboarding-client";
@@ -141,7 +142,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     useEffect(() => {
         listOnboardingAgents().then(setList, (e) =>
-            setError(t("onboarding.agent.listFailed", { error: `${e?.message ?? e}` }))
+            setError(t("onboarding.agent.listFailed", { error: serverErrorText(e) }))
         );
     }, []);
 
@@ -218,7 +219,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
                 setError(t("onboarding.morph.termFailed", { command: agent.executable }));
             }
         } catch (e) {
-            setError(`${e?.message ?? e}`);
+            setError(serverErrorText(e));
         } finally {
             setOpening(false);
         }

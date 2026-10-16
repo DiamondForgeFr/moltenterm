@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
@@ -461,8 +462,8 @@ func (m *Manager) approve(ctx context.Context, from Party, to Party, b Brief) er
 }
 
 func approvalNotification(key string, id string, from Party, to Party, b Brief) molten.NotificationInput {
-	action := func(actionId string, label string, decision string) molten.NotificationAction {
-		return molten.NotificationAction{Id: actionId, Label: label, Kind: "gesture", Gesture: AnswerGesture,
+	action := func(actionId string, label string, text *uimsg.Text, decision string) molten.NotificationAction {
+		return molten.NotificationAction{Id: actionId, Label: label, LabelText: text, Kind: "gesture", Gesture: AnswerGesture,
 			Args: map[string]any{"requestid": id, "decision": decision}}
 	}
 	fromWhere := from.label()
@@ -473,22 +474,34 @@ func approvalNotification(key string, id string, from Party, to Party, b Brief) 
 	if to.Project != "" {
 		toWhere += " in " + to.Project
 	}
+	goal := cut(cleanLine(b.Goal), 160)
 	return molten.NotificationInput{
-		Key:    key,
-		Source: NotificationSource,
-		Title:  capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
+		Key:       key,
+		Source:    NotificationSource,
+		Title:     capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
+		TitleText: uimsg.Make("handoff.approval.title", "from", from.callName(), "to", to.callName()),
 		Message: fmt.Sprintf("%s → %s: %s. Allowing it types a prompt in %s's terminal.", capitalize(fromWhere), toWhere,
-			cut(cleanLine(b.Goal), 160), to.callName()),
+			goal, to.callName()),
+		// The windows show where each agent works with a separator rather than English's "in".
+		MessageText: uimsg.Make("handoff.approval.message", "from", partWhere(from), "to", partWhere(to), "goal", goal,
+			"receiver", to.callName()),
 		Kind:        "warning",
 		WorkspaceId: from.WorkspaceId,
 		// The asking agent waits on it: the 360 view's radar pulses that panel (FR-SHELL-068).
 		BlockId: from.BlockId,
 		Actions: []molten.NotificationAction{
-			action("once", "Allow once", DecisionOnce),
-			action("always", "Always for this pair", DecisionAlways),
-			action("block", "Block", DecisionBlock),
+			action("once", "Allow once", uimsg.Make("handoff.approval.once"), DecisionOnce),
+			action("always", "Always for this pair", uimsg.Make("handoff.approval.always"), DecisionAlways),
+			action("block", "Block", uimsg.Make("handoff.approval.block"), DecisionBlock),
 		},
 	}
+}
+
+func partWhere(p Party) string {
+	if p.Project == "" {
+		return p.label()
+	}
+	return p.label() + " · " + p.Project
 }
 
 // Answer is the developer's answer from a window.
@@ -503,7 +516,7 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	}
 	p := m.takePending(req.RequestId)
 	if p == nil {
-		return errors.New("This handoff request is no longer waiting")
+		return uimsg.Errorf(uimsg.Make("handoff.notwaiting"), "This handoff request is no longer waiting")
 	}
 	p.answer <- req.Decision
 	return nil
@@ -657,9 +670,12 @@ func (m *Manager) runQueue(blockId string) {
 func (m *Manager) notifyUndelivered(d *delivery, reason string) {
 	m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
 	m.env.Notify(molten.NotificationInput{
-		Source:  NotificationSource,
-		Title:   capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
-		Message: fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
-		Kind:    "error",
+		Source:    NotificationSource,
+		Title:     capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
+		TitleText: uimsg.Make("handoff.undelivered.title", "from", d.from.callName(), "to", d.to.callName()),
+		Message:   fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
+		// reason is the typing path's English: it stays the detail.
+		MessageText: uimsg.Make("handoff.undelivered.message", "detail", reason, "path", d.briefPath),
+		Kind:        "error",
 	})
 }

@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT } from "./i18n/i18n";
+import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
@@ -39,6 +40,8 @@ import {
     formatAge,
     MoltentermNotification,
     NotificationAction,
+    notificationActionLabel,
+    notificationMessage,
     notificationTitle,
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
@@ -143,7 +146,7 @@ function NotificationRow({
                 </div>
                 {entry.message ? (
                     <div className="mt-0.5 line-clamp-3 text-12 text-secondary">
-                        <InlineCodeText text={entry.message} />
+                        <InlineCodeText text={notificationMessage(entry)} />
                     </div>
                 ) : null}
                 <div className="mt-1 flex items-center gap-1.5 text-11 text-muted">
@@ -188,7 +191,9 @@ function NotificationRow({
                                 }}
                                 className={i === 0 ? MainActionClass : OtherActionClass}
                             >
-                                {running[`${entry.id}:${action.id}`] ? t("notif.center.running") : action.label}
+                                {running[`${entry.id}:${action.id}`]
+                                    ? t("notif.center.running")
+                                    : notificationActionLabel(action)}
                             </button>
                         ))}
                     </div>
@@ -301,7 +306,9 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                         {item.detail || elapsed ? <span>·</span> : null}
                     </>
                 ) : null}
-                {item.detail ? <span className="min-w-0 truncate">{item.detail}</span> : null}
+                {item.detail ? (
+                    <span className="min-w-0 truncate">{serverText(item.detailtext, item.detail)}</span>
+                ) : null}
                 {item.detail && elapsed ? <span>·</span> : null}
                 {elapsed ? <span className="shrink-0 tabular-nums">{t("notif.work.started", { elapsed })}</span> : null}
             </div>
@@ -335,7 +342,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                     </button>
                 </div>
             ) : null}
-            {error ? <div className="mt-1 text-12 text-error">{error}</div> : null}
+            {error ? <div className="mt-1 text-12 text-error">{serverErrorText(error)}</div> : null}
         </div>
     );
 }

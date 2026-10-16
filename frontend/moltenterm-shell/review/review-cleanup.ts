@@ -8,6 +8,7 @@
 // back with what it would lose and the risk to confirm.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { ServerText } from "../i18n/server-text";
 import { ReviewRoute } from "./review-client";
 
 // must match pkg/molten/review/cleanup.go
@@ -78,6 +79,7 @@ export type ReviewCleanupPr = {
     flag?: ReviewCleanupPrFlag;
     agent?: string;
     error?: string;
+    errortext?: ServerText;
 };
 
 export type ReviewCleanupStepResult = {
@@ -85,6 +87,7 @@ export type ReviewCleanupStepResult = {
     state: ReviewCleanupStepState;
     code?: string;
     error?: string;
+    errortext?: ServerText;
     ticket?: number;
     branch?: string;
     base?: string;

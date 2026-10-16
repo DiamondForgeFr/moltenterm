@@ -10,6 +10,7 @@ import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { timeAgo } from "../mission/time-format";
 import { citedLine } from "../review/review-answers";
 import { FileLink, parseFileLink } from "../review/review-model";
@@ -165,7 +166,7 @@ function NoteBody({
                 const res = await reviewNoteFile(repo, note.id, dir, link.path);
                 await openFileInPreview({ path: res.file, line: link.line, conn: "" }, blockId);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const run = (action: () => Promise<ReviewNotes>) =>
@@ -174,7 +175,7 @@ function NoteBody({
             try {
                 onNotes(await action());
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const onClickCapture = (e: React.MouseEvent) => {

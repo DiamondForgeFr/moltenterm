@@ -9,6 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
+import { serverErrorText } from "../i18n/server-text";
 import { ReviewRoute } from "./review-client";
 import type { ReviewAnchor } from "./review-session";
 
@@ -160,7 +161,7 @@ export function useReviewNotes(repo: string): { notes: ReviewNotes; error: strin
                 }
             } catch (e) {
                 if (live) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });

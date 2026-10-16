@@ -9,6 +9,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // #662: only a window or Electron main answers a handoff request (an agent cannot approve its own send), even when a
@@ -29,5 +30,10 @@ func TestRouteCallers(t *testing.T) {
 		if _, errStr := routetest.Ask(t, link, from, AnswerCommand, answer); !strings.Contains(errStr, "no longer waiting") {
 			t.Errorf("the answer from %s reached the manager: %q", from.Name, errStr)
 		}
+	}
+	// A window words the refusal by its code (#656).
+	_, errStr := routetest.Ask(t, link, e.Window(), AnswerCommand, answer)
+	if text, _ := uimsg.Unwire(errStr); text == nil || text.Code != "handoff.notwaiting" {
+		t.Errorf("the window got no code: %q", errStr)
 	}
 }

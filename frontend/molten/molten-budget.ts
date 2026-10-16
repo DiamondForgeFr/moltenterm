@@ -121,6 +121,30 @@ export function judgeBudget(cpuPct: number, heapMB: number): string {
     return reasons.length === 0 ? null : reasons.join("; ");
 }
 
+// budgetReasonText is judgeBudget's verdict in the interface language (#656); reason stays English for
+// `molten mod list` and the console.
+export function budgetReasonText(usage: MoltenModUsage, t: (key: string, vars?: Record<string, string>) => string) {
+    if (usage == null || !usage.over) {
+        return "";
+    }
+    const reasons: string[] = [];
+    if (usage.cpupct != null && usage.cpupct > MoltenBudgetCpuPct) {
+        reasons.push(
+            t("molten.budget.cpu", {
+                pct: formatPct(usage.cpupct),
+                window: String(MoltenBudgetWindowMs / 1000),
+                budget: String(MoltenBudgetCpuPct),
+            })
+        );
+    }
+    if (usage.heapmb != null && usage.heapmb > MoltenBudgetMemoryMB) {
+        reasons.push(
+            t("molten.budget.memory", { mb: String(round(usage.heapmb, 1)), budget: String(MoltenBudgetMemoryMB) })
+        );
+    }
+    return reasons.length === 0 ? (usage.reason ?? "") : reasons.join(t("molten.budget.separator"));
+}
+
 export function sameUsage(a: MoltenModUsage, b: MoltenModUsage): boolean {
     if (a == null || b == null) {
         return a == b;

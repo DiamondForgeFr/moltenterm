@@ -5,6 +5,7 @@
 // reports, and the words of the stale flag. The calls themselves are in dep-sync.tsx.
 
 import { t } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import type { NotificationGestureResult } from "../notifications-store";
 import { DependencyState } from "./group-model";
 import { DepSyncOutcome, RunRecord } from "./mission-model";
@@ -128,7 +129,7 @@ export function syncBlocker(dep: DependencyState): string {
         case "branchnotfound":
         case "invalid":
         case "error":
-            return dep.problem || dependencyLabel(dep);
+            return serverText(dep.problemtext, dep.problem) || dependencyLabel(dep);
     }
     return null;
 }

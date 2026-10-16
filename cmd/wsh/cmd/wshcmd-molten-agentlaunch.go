@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -158,17 +159,17 @@ func planMoltenAgentLaunchWith(adapter agentlaunch.LaunchAdapter, real string, a
 	env := append(os.Environ(), agentlaunch.LaunchedVarName+"="+adapter.Id())
 	plan, dataDir, err := moltenLaunchPlanWithin(adapter, args, getenv, moltenAgentLaunchPlanTimeout)
 	if err != nil {
-		report.StepAside = err.Error()
+		report.StepAside, report.StepAsideText = err.Error(), uimsg.TextOf(err)
 		return report, args, env
 	}
 	report.Added, report.Skipped = plan.Added, plan.Skipped
 	if plan.StepAside != "" {
-		report.StepAside, report.Added = plan.StepAside, nil
+		report.StepAside, report.StepAsideText, report.Added = plan.StepAside, plan.StepAsideText, nil
 		return report, args, env
 	}
 	if gate != nil {
 		if reason := gate(); reason != "" {
-			report.StepAside, report.Added, report.Skipped = reason, nil, nil
+			report.StepAside, report.StepAsideText, report.Added, report.Skipped = reason, agentlaunch.StepAsideTextOf(reason), nil, nil
 			return report, args, env
 		}
 	}
@@ -186,6 +187,7 @@ func planMoltenAgentLaunchWith(adapter agentlaunch.LaunchAdapter, real string, a
 		path, created, err := agentlaunch.WriteLaunchFile(dir, f.Prefix, f.Data, now)
 		if err != nil {
 			report.StepAside, report.Added = "the integration could not be written: "+err.Error(), nil
+			report.StepAsideText = uimsg.Make("integration.stepaside.notwritten", "detail", err.Error())
 			return report, args, env
 		}
 		paths = append(paths, path)

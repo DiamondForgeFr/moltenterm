@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The Reviews view's upcoming work and the agents on each branch (#712, FR-REV-022, DS-REV-015). Upcoming: the ticket
@@ -99,6 +100,7 @@ type UpcomingAnswer struct {
 	Branches     []UpcomingBranch `json:"branches"`
 	Agents       []BranchAgent    `json:"agents"`
 	Error        string           `json:"error,omitempty"`
+	ErrorText    *uimsg.Text      `json:"errortext,omitempty"`
 	TicketsError string           `json:"ticketserror,omitempty"`
 	At           int64            `json:"at"`
 }
@@ -255,6 +257,7 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 	trees, err := listTrees(g)
 	if err != nil {
 		answer.Error = err.Error()
+		answer.ErrorText = uimsg.TextOf(err)
 		return answer
 	}
 	ticketRes := branchTicketRes(readBranchNaming(dir))
@@ -349,7 +352,7 @@ func (u *Upcoming) keepTickets(state *upcomingState, key string, tickets map[int
 func listTrees(g *gitReader) ([]treeEntry, error) {
 	out, err := g.out("worktree", "list", "--porcelain")
 	if err != nil {
-		return nil, fmt.Errorf("the project's worktrees could not be listed")
+		return nil, uimsg.Errorf(uimsg.Make("mission.upcoming.noTrees"), "the project's worktrees could not be listed")
 	}
 	trees := parseTrees(out)
 	for i := range trees {

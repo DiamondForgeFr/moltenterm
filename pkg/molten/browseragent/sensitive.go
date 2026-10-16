@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Sensitive actions (FR-BRW-010, DS-BRW-016, NFR-BRW-005): before an input action, emain describes its target with
@@ -74,6 +76,25 @@ func actionPromptText(reason string) string {
 		return "start a download"
 	}
 	return "do a sensitive action"
+}
+
+// actionPromptCode is actionPromptText's code for the window (#656).
+func actionPromptCode(reason string) *uimsg.Text {
+	switch reason {
+	case reasonSensitiveField:
+		return uimsg.Make("browser.prompt.sensitivefield")
+	case reasonSensitiveFill:
+		return uimsg.Make("browser.prompt.sensitivefill")
+	case reasonFrameField:
+		return uimsg.Make("browser.prompt.framefield")
+	case reasonSensitiveForm:
+		return uimsg.Make("browser.prompt.sensitiveform")
+	case reasonFileChooser:
+		return uimsg.Make("browser.prompt.filechooser")
+	case reasonDownload:
+		return uimsg.Make("browser.prompt.download")
+	}
+	return uimsg.Make("browser.prompt.sensitive")
 }
 
 // clickReason: a left click on a submit control of a form holding a sensitive field, or on a file input, asks. Other

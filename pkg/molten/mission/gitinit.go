@@ -5,10 +5,11 @@ package mission
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const gitInitTimeout = 30 * time.Second
@@ -27,12 +28,12 @@ func (c *Collector) InitGit(req GitInitRequest) (Snapshot, error) {
 	dir := filepath.Clean(req.Dir)
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
-		return Snapshot{}, fmt.Errorf("the folder %s does not exist", dir)
+		return Snapshot{}, uimsg.Errorf(uimsg.Make("mission.git.noFolder", "dir", dir), "the folder %s does not exist", dir)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), gitInitTimeout)
 	defer cancel()
 	if _, err := c.run(ctx, dir, "git", "rev-parse", "--git-dir"); err == nil {
-		return Snapshot{}, fmt.Errorf("%s is already inside a git repository", dir)
+		return Snapshot{}, uimsg.Errorf(uimsg.Make("mission.git.alreadyRepo", "dir", dir), "%s is already inside a git repository", dir)
 	}
 	if _, err := c.run(ctx, dir, "git", "init", "--quiet"); err != nil {
 		return Snapshot{}, err

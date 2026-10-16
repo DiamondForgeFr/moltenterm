@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Claude Code at launch (DS-SHELL-047, DS-SHELL-048). `claude --settings <file>` applies above the user's, project and
@@ -308,29 +309,40 @@ type plannedHook struct {
 
 const coffeeApprovalName = "Coffee approvals"
 
+var (
+	coffeeApprovalPhrase = say(uimsg.Make("integration.name.coffeeapprovals"), coffeeApprovalName)
+	sessionLinkName      = say(uimsg.Make("integration.name.sessionlink"), "Session link")
+	reviewSessionReason  = say(uimsg.Make("integration.reason.reviewsession"), ReasonReviewSession)
+)
+
+func alreadyYours(where string) phrase {
+	return say(uimsg.Make("integration.reason.alreadyyours", "where", where), "already yours, in "+where)
+}
+
 // planClaudeHooks adds the state hooks, the session link and the coffee approvals' PermissionRequest hook
 // (FR-SHELL-063), except what the user's files already wire to MoltenTerm.
 func planClaudeHooks(managed settingsSource, sources []settingsSource, review bool, plan *LaunchPlan) []plannedHook {
 	if only, _ := managed.boolKey("allowManagedHooksOnly"); only {
-		reason := "your organization's managed settings allow only their own hooks"
+		reason := say(uimsg.Make("integration.reason.managedhooksonly"), "your organization's managed settings allow only their own hooks")
 		plan.Skipped = append(plan.Skipped,
-			molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: "Agent state hooks", Reason: reason},
-			molten.IntegrationItem{Kind: molten.IntegrationSession, Name: "Session link", Reason: reason},
-			molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName, Reason: reason})
+			skippedItem(molten.IntegrationStateHooks, say(uimsg.Make("integration.name.statehooks"), "Agent state hooks"), reason),
+			skippedItem(molten.IntegrationSession, sessionLinkName, reason),
+			skippedItem(molten.IntegrationCoffeeApproval, coffeeApprovalPhrase, reason))
 		return nil
 	}
 	hooks := planClaudeStateHooks(managed, sources, plan)
 	if review {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName, Reason: ReasonReviewSession})
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationCoffeeApproval, coffeeApprovalPhrase, reviewSessionReason))
 		return hooks
 	}
 	all := append([]settingsSource{managed}, sources...)
 	if where := hookWhere(all, molten.ClaudePermissionHookEvent, molten.IsAgentPermissionHookCommand); where != "" {
 		// The user's own copy answers the prompts just the same: the run is reported as covered, by their hook.
-		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName + " (your own hook, in " + where + ")"})
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationCoffeeApproval,
+			say(uimsg.Make("integration.name.coffeeapprovalsyours", "where", where), coffeeApprovalName+" (your own hook, in "+where+")")))
 		return hooks
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationCoffeeApproval, coffeeApprovalPhrase))
 	return append(hooks, plannedHook{event: molten.ClaudePermissionHookEvent, command: molten.ClaudePermissionHookCommand, timeout: molten.ClaudePermissionHookTimeout})
 }
 
@@ -347,17 +359,21 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 		hooks = append(hooks, plannedHook{event: h.Event, command: h.Command})
 		added = append(added, h.Event)
 	}
+	stateHooks := func(events []string) phrase {
+		list := strings.Join(events, ", ")
+		return say(uimsg.Make("integration.name.statehooksof", "events", list), "Agent state hooks ("+list+")")
+	}
 	if len(added) > 0 {
-		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: "Agent state hooks (" + strings.Join(added, ", ") + ")"})
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationStateHooks, stateHooks(added)))
 	}
 	if len(skipped) > 0 {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: "Agent state hooks (" + strings.Join(skipped, ", ") + ")", Reason: "already yours, in " + skippedIn})
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStateHooks, stateHooks(skipped), alreadyYours(skippedIn)))
 	}
 	if where := hookWhere(all, molten.ClaudeSessionHookEvent, molten.IsAgentSessionHookCommand); where != "" {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationSession, Name: "Session link", Reason: "already yours, in " + where})
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationSession, sessionLinkName, alreadyYours(where)))
 		return hooks
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationSession, Name: "Session link"})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationSession, sessionLinkName))
 	return append(hooks, plannedHook{event: molten.ClaudeSessionHookEvent, command: molten.ClaudeSessionHookCommand})
 }
 
@@ -365,44 +381,46 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 // highest level that sets one, the user's --settings included; the user's other fields (padding...) are kept.
 func planClaudeStatusLine(managed settingsSource, sources []settingsSource, plan *LaunchPlan) map[string]any {
 	const name = "Status line relay"
-	skip := func(reason string) map[string]any {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationStatusLine, Name: name, Reason: reason})
+	skip := func(reason phrase) map[string]any {
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStatusLine, say(uimsg.Make("integration.name.statusline"), name), reason))
 		return nil
 	}
 	if _, ok := managed.keys["statusLine"]; ok || (managed.unreadable && strings.Contains(managed.raw, "statusLine")) {
-		return skip("your organization's managed settings set the status line")
+		return skip(say(uimsg.Make("integration.reason.managedstatusline"), "your organization's managed settings set the status line"))
 	}
 	var line map[string]any
 	for _, s := range sources {
 		if s.unreadable {
-			return skip(s.display + " could not be read, so your status line could not be kept")
+			return skip(say(uimsg.Make("integration.reason.statuslinefileunreadable", "where", s.display),
+				s.display+" could not be read, so your status line could not be kept"))
 		}
 		raw, ok := s.keys["statusLine"]
 		if !ok {
 			continue
 		}
 		if json.Unmarshal(raw, &line) != nil || line == nil {
-			return skip("the status line in " + s.display + " could not be read")
+			return skip(say(uimsg.Make("integration.reason.statuslineunreadable", "where", s.display), "the status line in "+s.display+" could not be read"))
 		}
 		break
 	}
 	if line == nil {
-		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationStatusLine, Name: name + " (you have no status line: nothing is shown)"})
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationStatusLine,
+			say(uimsg.Make("integration.name.statuslinenone"), name+" (you have no status line: nothing is shown)")))
 		return map[string]any{"type": "command", "command": molten.StatusLineRelayCommand("")}
 	}
 	command, _ := line["command"].(string)
 	if line["type"] != "command" || strings.TrimSpace(command) == "" {
-		return skip("your status line is not a command")
+		return skip(say(uimsg.Make("integration.reason.statuslinenotcommand"), "your status line is not a command"))
 	}
 	if molten.IsStatusLineRelayCommand(command) {
-		return skip("your status line already runs it")
+		return skip(say(uimsg.Make("integration.reason.statuslinerelayed"), "your status line already runs it"))
 	}
 	rtn := map[string]any{}
 	for k, v := range line {
 		rtn[k] = v
 	}
 	rtn["command"] = molten.StatusLineRelayCommand(command)
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationStatusLine, Name: name + " around your status line"})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationStatusLine, say(uimsg.Make("integration.name.statuslinearound"), name+" around your status line")))
 	return rtn
 }
 
@@ -420,7 +438,8 @@ func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	}
 	managed, sources := claudeSources(ctx, args, flag)
 	if off, where := effectiveBool(managed, sources, "disableAllHooks"); off {
-		plan.StepAside = "disableAllHooks is on in " + where + ": Claude Code runs no hooks and no status line"
+		plan.setStepAside(say(uimsg.Make("integration.stepaside.disableallhooks", "where", where),
+			"disableAllHooks is on in "+where+": Claude Code runs no hooks and no status line"))
 		return plan, nil
 	}
 	hooks := planClaudeHooks(managed, sources, isReviewSession(ctx), &plan)

@@ -6,6 +6,7 @@
 // themselves are review-stepper.ts.
 
 import { t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
 import { blockingText } from "./review-stepper";
@@ -83,7 +84,7 @@ export function mergeButtonLabel(plan: ReviewMergePlan, method: ReviewMergeMetho
 export function validateErrorText(error: string): string {
     const match = MergeErrorRe.exec(error ?? "");
     if (match == null) {
-        return error;
+        return serverErrorText(error);
     }
     return t(`review.validate.error.${match[1]}`);
 }

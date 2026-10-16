@@ -16,6 +16,7 @@ import (
 	"strconv"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -81,6 +82,8 @@ type Request struct {
 type Outcome struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	// MessageText: Message's code, for the windows (#656).
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 	// Agent: the coding agent the terminal runs (needconfirm, agentbusy, agentstuck, updated).
 	Agent     string `json:"agent,omitempty"`
 	AgentName string `json:"agentname,omitempty"`

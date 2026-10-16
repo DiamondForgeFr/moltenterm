@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { isReviewable } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -310,7 +311,7 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                     truncated: read?.truncated,
                 });
             } catch (e) {
-                setLog({ text: "", error: String(e?.message ?? e) });
+                setLog({ text: "", error: serverErrorText(e) });
             }
         });
     };
@@ -330,7 +331,7 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                 setLogOpen(false);
                 onRefresh();
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }

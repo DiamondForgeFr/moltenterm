@@ -13,6 +13,7 @@ import { atom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { hasKey } from "../i18n/i18n-core";
+import { serverErrorText } from "../i18n/server-text";
 import { Notice, Problem } from "../mission/cicd-panels";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import {
@@ -167,7 +168,7 @@ function ProjectContent({
                         setUntrusted({ branch, info: result.untrusted });
                     }
                 } catch (e) {
-                    setCiError(String(e?.message ?? e));
+                    setCiError(serverErrorText(e));
                 }
             }),
         [dir]
@@ -180,7 +181,7 @@ function ProjectContent({
                 await missionTrust(dir, pending.info.hash);
                 runCi(pending.branch);
             } catch (e) {
-                setCiError(String(e?.message ?? e));
+                setCiError(serverErrorText(e));
             }
         });
     const showRuns = useCallback(

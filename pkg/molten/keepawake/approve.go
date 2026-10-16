@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The coffee approvals (FR-SHELL-063, DS-SHELL-110 to DS-SHELL-112): while a workspace's coffee holds, the agents'
@@ -60,6 +61,8 @@ type Approval struct {
 	Detail        string `json:"detail,omitempty"`
 	Outcome       string `json:"outcome"`
 	Reason        string `json:"reason,omitempty"`
+	// ReasonText: Reason's code for the windows (#656).
+	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
 
 // AutoApproveSession is a terminal of a coffee's workspace where an agent runs, and whether its prompts are answered.
@@ -71,6 +74,8 @@ type AutoApproveSession struct {
 	AgentName   string `json:"agentname"`
 	Approved    bool   `json:"approved"`
 	Reason      string `json:"reason,omitempty"`
+	// ReasonText: Reason's code for the windows (#656).
+	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
 
 // HasCoffee tells whether a workspace's coffee holds now: on, in its grace, or kept on by work.
@@ -145,28 +150,34 @@ const ReasonReviewSession = "a review session is read-only: its requests always 
 // SessionApproval says whether a terminal's agent gets its prompts answered while a coffee holds, and why not.
 // hookRan: the agent's hook reached wavesrv since it started, so the agent runs it (Codex runs it only once trusted).
 func SessionApproval(agent string, remote bool, report molten.AgentIntegrationReport, hasReport bool, hookRan bool) (bool, string) {
+	approved, reason, _ := SessionApprovalText(agent, remote, report, hasReport, hookRan)
+	return approved, reason
+}
+
+// SessionApprovalText is SessionApproval with its reason's code for the windows (#656).
+func SessionApprovalText(agent string, remote bool, report molten.AgentIntegrationReport, hasReport bool, hookRan bool) (bool, string, *uimsg.Text) {
 	name := molten.AgentDisplayName(agent)
 	if remote {
-		return false, "it runs on a remote host"
+		return false, "it runs on a remote host", uimsg.Make("keepawake.session.remote")
 	}
 	switch agent {
 	case molten.AgentIdClaude, molten.AgentIdCodex:
 	default:
-		return false, "MoltenTerm cannot answer " + name + "'s prompts"
+		return false, "MoltenTerm cannot answer " + name + "'s prompts", uimsg.Make("keepawake.session.unsupported", "agent", name)
 	}
 	if !hasReport {
-		return false, "it was started outside MoltenTerm's launcher"
+		return false, "it was started outside MoltenTerm's launcher", uimsg.Make("keepawake.session.nolauncher")
 	}
 	if report.HasCoffeeApproval() {
 		if agent == molten.AgentIdCodex && !hookRan {
-			return false, ReasonCodexHookUntrusted
+			return false, ReasonCodexHookUntrusted, uimsg.Make("keepawake.session.codexuntrusted")
 		}
-		return true, ""
+		return true, "", nil
 	}
 	if skipped := report.CoffeeApprovalSkipped(); skipped != "" {
-		return false, skipped
+		return false, skipped, report.CoffeeApprovalSkippedText()
 	}
-	return false, "it was started before coffee approvals existed: restart it from MoltenTerm"
+	return false, "it was started before coffee approvals existed: restart it from MoltenTerm", uimsg.Make("keepawake.session.tooold")
 }
 
 // hookRuns remembers the agents whose PermissionRequest hook reached wavesrv: for Codex, the sign it is trusted.

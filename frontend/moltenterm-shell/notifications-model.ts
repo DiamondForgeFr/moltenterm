@@ -7,6 +7,7 @@
 // pkg/molten/notifications.go applies the same rules for what wavesrv publishes: keep both in step.
 
 import { t } from "./i18n/i18n";
+import { ServerText, serverText } from "./i18n/server-text";
 
 export const NotificationKeyPrefix = "molten:notif:";
 export const MaxNotifications = 500;
@@ -33,6 +34,8 @@ export type NotificationAction = {
     gesture?: string;
     args?: Record<string, any>;
     lasting?: boolean;
+    // The label as wavesrv words it in the interface language (#656).
+    labeltext?: ServerText;
 };
 
 export type MoltentermNotificationInput = {
@@ -43,7 +46,10 @@ export type MoltentermNotificationInput = {
     // A title wavesrv publishes in English with a code the window translates (#727): titlevars fill its placeholders.
     titlecode?: string;
     titlevars?: Record<string, string>;
+    // A title or message wavesrv wrote itself, with its code (#656).
+    titletext?: ServerText;
     message?: string;
+    messagetext?: ServerText;
     kind?: MoltentermNotificationKind;
     workspaceid?: string;
     tabid?: string;
@@ -89,15 +95,24 @@ export const NotificationTitleKeys: Record<string, string> = {
 
 // The title in the user's language: a known code is translated, anything else is shown as published.
 export function notificationTitle(
-    entry: Pick<MoltentermNotificationInput, "title" | "titlecode" | "titlevars">,
+    entry: Pick<MoltentermNotificationInput, "title" | "titlecode" | "titlevars" | "titletext">,
     translate: (key: string, vars?: Record<string, string>) => string = t
 ): string {
     const code = entry.titlecode ?? "";
     const key = Object.prototype.hasOwnProperty.call(NotificationTitleKeys, code) ? NotificationTitleKeys[code] : null;
     if (key == null) {
-        return entry.title;
+        return serverText(entry.titletext, entry.title);
     }
     return translate(key, entry.titlevars ?? {});
+}
+
+// The message in the user's language when wavesrv wrote it with a code; an agent's words show as they are.
+export function notificationMessage(entry: Pick<MoltentermNotificationInput, "message" | "messagetext">): string {
+    return serverText(entry.messagetext, entry.message ?? "");
+}
+
+export function notificationActionLabel(action: Pick<NotificationAction, "label" | "labeltext">): string {
+    return serverText(action.labeltext, action.label);
 }
 
 export function parseNotifications(meta: Record<string, any>): MoltentermNotification[] {

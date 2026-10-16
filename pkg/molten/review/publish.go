@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewlang"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Post review (FR-REV-010 AC3 to AC6, DS-REV-008): after the developer's click, wavesrv posts one GitHub review (event
@@ -70,21 +71,25 @@ type PublishNote struct {
 	CommentId string `json:"commentid"`
 	Note      string `json:"note"`
 	Message   string `json:"message,omitempty"`
+	// MessageText: Message's code when it is ours (#656); nil for GitHub's own error.
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 }
 
 // PublishRecord is the last Post review's progress and outcome, kept in the review store.
 type PublishRecord struct {
-	RoundId   string        `json:"roundid"`
-	State     string        `json:"state"`
-	Lang      string        `json:"lang"`
-	AsWritten bool          `json:"aswritten,omitempty"`
-	HeadOid   string        `json:"headoid"`
-	ReviewId  int64         `json:"reviewid,omitempty"`
-	Url       string        `json:"url,omitempty"`
-	Message   string        `json:"message,omitempty"`
-	Notes     []PublishNote `json:"notes,omitempty"`
-	StartedAt int64         `json:"startedat"`
-	EndedAt   int64         `json:"endedat,omitempty"`
+	RoundId   string `json:"roundid"`
+	State     string `json:"state"`
+	Lang      string `json:"lang"`
+	AsWritten bool   `json:"aswritten,omitempty"`
+	HeadOid   string `json:"headoid"`
+	ReviewId  int64  `json:"reviewid,omitempty"`
+	Url       string `json:"url,omitempty"`
+	Message   string `json:"message,omitempty"`
+	// MessageText: Message's code (#656), nil for an error of gh that MoltenTerm does not word.
+	MessageText *uimsg.Text   `json:"messagetext,omitempty"`
+	Notes       []PublishNote `json:"notes,omitempty"`
+	StartedAt   int64         `json:"startedat"`
+	EndedAt     int64         `json:"endedat,omitempty"`
 }
 
 type ghReview struct {
@@ -125,14 +130,15 @@ type ghFileCommentInput struct {
 // planned is one comment of the publication: as a line comment of the review, a file comment, or a section of the
 // review's body (its file is not in the PR any more).
 type planned struct {
-	id      string
-	anchor  mcpreview.Anchor
-	text    string
-	as      string
-	note    string
-	message string
-	ghId    int64
-	done    bool
+	id          string
+	anchor      mcpreview.Anchor
+	text        string
+	as          string
+	note        string
+	message     string
+	messageText *uimsg.Text
+	ghId        int64
+	done        bool
 }
 
 func reviewMarker(round string) string {
@@ -304,7 +310,7 @@ func decodeJson(out []byte, v any) error {
 // ghCall runs the developer's gh with a time limit; its error never carries a token.
 func (s *Service) ghCall(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	if s.gh == nil {
-		return nil, fmt.Errorf("gh is not available")
+		return nil, noGhError()
 	}
 	ctx, cancel := context.WithTimeout(ctx, ghPublishTimeout)
 	defer cancel()
@@ -531,7 +537,7 @@ func (s *Service) Publish(ctx context.Context, req PublishRequest) (State, error
 		return State{}, fmt.Errorf("baseoid must be a commit id")
 	}
 	if !s.startPublishing(req.PrKey) {
-		return State{}, fmt.Errorf("this review is being published")
+		return State{}, uimsg.Errorf(uimsg.Make("review.publishing"), "this review is being published")
 	}
 	defer s.endPublishing(req.PrKey)
 	res, err := s.PublicationLanguage(ctx, PublishInfoRequest{PrKey: req.PrKey, Dir: req.Dir})
@@ -553,13 +559,14 @@ func (s *Service) Publish(ctx context.Context, req PublishRequest) (State, error
 		summaryText = text
 	}
 	if len(comments) == 0 && strings.TrimSpace(summaryText) == "" && missing == 0 {
-		return state, fmt.Errorf("there is nothing to publish: stage comments first")
+		return state, uimsg.Errorf(uimsg.Make("review.nothingtopublish"), "there is nothing to publish: stage comments first")
 	}
 	plans, missingComments := planComments(comments, req.HeadOid, res.Lang, req.AsWritten,
 		s.hunksOfHead(ctx, req.Dir, req.BaseOid, req.HeadOid), s.changedPaths(ctx, req.Dir, req.BaseOid, req.HeadOid))
 	missing += missingComments
 	if missing > 0 {
-		return state, fmt.Errorf("%d texts are not in %s yet: wait for the translations, write them, or post as written", missing, res.Name)
+		return state, uimsg.Errorf(uimsg.Make("review.untranslated", "count", strconv.Itoa(missing), "lang", res.Name, "code", res.Lang),
+			"%d texts are not in %s yet: wait for the translations, write them, or post as written", missing, res.Name)
 	}
 	ids := make([]string, 0, len(plans))
 	for _, p := range plans {
@@ -580,6 +587,7 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	fail := func(err error) PublishRecord {
 		record.State = PublishFailed
 		record.Message = maskTokens(err.Error())
+		record.MessageText = uimsg.TextOf(err)
 		// Nothing of this attempt is sure to be on GitHub: where the comments would have gone is not reported.
 		record.Notes = nil
 		return record
@@ -589,11 +597,11 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	if record.ReviewId == 0 {
 		out, err := s.ghCall(ctx, req.Dir, "api", base+"/reviews", "--paginate")
 		if err != nil {
-			return fail(fmt.Errorf("the PR's reviews could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readreviews", "detail", uimsg.Detail(err)), "the PR's reviews could not be read: %w", err))
 		}
 		reviews, err := decodeList[ghReview](out)
 		if err != nil {
-			return fail(fmt.Errorf("the PR's reviews could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readreviews", "detail", uimsg.Detail(err)), "the PR's reviews could not be read: %w", err))
 		}
 		for _, r := range reviews {
 			if markerIn(r.Body, marker) {
@@ -627,11 +635,11 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 			out, err = s.ghPost(ctx, req.Dir, base+"/reviews", input)
 		}
 		if err != nil {
-			return fail(fmt.Errorf("GitHub did not take the review: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.reviewrefused", "detail", uimsg.Detail(err)), "GitHub did not take the review: %w", err))
 		}
 		var created ghReview
 		if err := decodeJson(out, &created); err != nil || created.Id == 0 {
-			return fail(fmt.Errorf("GitHub's answer to the review could not be read"))
+			return fail(uimsg.Errorf(uimsg.Make("review.reviewanswer"), "GitHub's answer to the review could not be read"))
 		}
 		record.ReviewId, record.Url = created.Id, created.HtmlUrl
 		s.changed(s.store.noteReview(req.PrKey, record.RoundId, record.ReviewId, record.Url, refused))
@@ -644,11 +652,11 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	if len(lines) > 0 {
 		out, err := s.ghCall(ctx, req.Dir, "api", fmt.Sprintf("%s/reviews/%d/comments", base, record.ReviewId), "--paginate")
 		if err != nil {
-			return fail(fmt.Errorf("the review's comments could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readreviewcomments", "detail", uimsg.Detail(err)), "the review's comments could not be read: %w", err))
 		}
 		posted, err := decodeList[ghComment](out)
 		if err != nil {
-			return fail(fmt.Errorf("the review's comments could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readreviewcomments", "detail", uimsg.Detail(err)), "the review's comments could not be read: %w", err))
 		}
 		for _, p := range lines {
 			for _, gc := range posted {
@@ -671,11 +679,11 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	if len(files) > 0 {
 		out, err := s.ghCall(ctx, req.Dir, "api", base+"/comments", "--paginate")
 		if err != nil {
-			return fail(fmt.Errorf("the PR's comments could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readprcomments", "detail", uimsg.Detail(err)), "the PR's comments could not be read: %w", err))
 		}
 		existing, err := decodeList[ghComment](out)
 		if err != nil {
-			return fail(fmt.Errorf("the PR's comments could not be read: %w", err))
+			return fail(uimsg.Errorf(uimsg.Make("review.readprcomments", "detail", uimsg.Detail(err)), "the PR's comments could not be read: %w", err))
 		}
 		for _, p := range files {
 			for _, gc := range existing {
@@ -695,12 +703,13 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 			}
 			if err != nil || created.Id == 0 {
 				if err == nil {
-					err = fmt.Errorf("GitHub's answer could not be read")
+					err = uimsg.Errorf(uimsg.Make("review.ghanswer"), "GitHub's answer could not be read")
 				}
 				if p.note == "" {
 					p.note = NoteFailed
 				}
 				p.message = maskTokens(err.Error())
+				p.messageText = uimsg.TextOf(err)
 				continue
 			}
 			p.done, p.ghId = true, created.Id
@@ -710,6 +719,7 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	for _, p := range plans {
 		if !p.done {
 			record.Message = "Some comments could not be posted: Post review again posts only those."
+			record.MessageText = uimsg.Make("review.someunposted")
 		}
 	}
 	return record
@@ -722,7 +732,7 @@ func notesOf(plans []*planned) []PublishNote {
 		if (p.note == "" || p.note == NoteFileLevel) && p.message == "" {
 			continue
 		}
-		rtn = append(rtn, PublishNote{CommentId: p.id, Note: p.note, Message: p.message})
+		rtn = append(rtn, PublishNote{CommentId: p.id, Note: p.note, Message: p.message, MessageText: p.messageText})
 	}
 	return rtn
 }

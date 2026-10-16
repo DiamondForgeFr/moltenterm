@@ -7,6 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { ServerText } from "../i18n/server-text";
 import type { MarkReadyResult } from "../reviews/reviews-model";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
@@ -132,8 +133,9 @@ export type ReviewRestartResult = {
     reason?: string;
     agentstate?: string;
     branch?: string;
-    // wavesrv's English detail.
+    // wavesrv's English detail, and its code when it is one of MoltenTerm's sentences.
     message?: string;
+    messagetext?: ServerText;
     round?: string;
     worktree?: string;
     worktreecreated?: boolean;
@@ -535,7 +537,12 @@ export type ReviewPublishNoteKind =
     | "late"
     | "notinpr"
     | "failed";
-export type ReviewPublishNote = { commentid: string; note: ReviewPublishNoteKind; message?: string };
+export type ReviewPublishNote = {
+    commentid: string;
+    note: ReviewPublishNoteKind;
+    message?: string;
+    messagetext?: ServerText;
+};
 export type ReviewPublishState = "publishing" | "published" | "partial" | "failed";
 export type ReviewPublishRecord = {
     roundid: string;
@@ -546,6 +553,7 @@ export type ReviewPublishRecord = {
     reviewid?: number;
     url?: string;
     message?: string;
+    messagetext?: ServerText;
     notes?: ReviewPublishNote[];
     startedat: number;
     endedat?: number;

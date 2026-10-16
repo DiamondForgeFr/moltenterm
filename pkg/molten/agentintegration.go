@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Agent integration at launch (FR-SHELL-036, DS-SHELL-045 to 048, FR-SHELL-038): in a local MoltenTerm terminal,
@@ -55,11 +57,14 @@ const (
 	IntegrationCoffeeApproval = "coffeeapproval"
 )
 
-// IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words).
+// IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words). NameText and ReasonText
+// are their codes for the companion (#656); the English is what `molten agent integration status` prints.
 type IntegrationItem struct {
-	Kind   string `json:"kind"`
-	Name   string `json:"name"`
-	Reason string `json:"reason,omitempty"`
+	Kind       string      `json:"kind"`
+	Name       string      `json:"name"`
+	NameText   *uimsg.Text `json:"nametext,omitempty"`
+	Reason     string      `json:"reason,omitempty"`
+	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
 
 // AgentIntegrationReport is what the launcher tells of one run. StepAside: nothing was added, and why.
@@ -75,6 +80,8 @@ type AgentIntegrationReport struct {
 	Added     []IntegrationItem `json:"added,omitempty"`
 	Skipped   []IntegrationItem `json:"skipped,omitempty"`
 	StepAside string            `json:"stepaside,omitempty"`
+	// StepAsideText: StepAside's code for the companion (#656).
+	StepAsideText *uimsg.Text `json:"stepasidetext,omitempty"`
 	// At, in Unix milliseconds: set by wavesrv when it receives the report.
 	At int64 `json:"at,omitempty"`
 }
@@ -194,6 +201,19 @@ func (r AgentIntegrationReport) CoffeeApprovalSkipped() string {
 		}
 	}
 	return ""
+}
+
+// CoffeeApprovalSkippedText is CoffeeApprovalSkipped's code, nil when it has none.
+func (r AgentIntegrationReport) CoffeeApprovalSkippedText() *uimsg.Text {
+	if r.StepAside != "" {
+		return r.StepAsideText
+	}
+	for _, it := range r.Skipped {
+		if it.Kind == IntegrationCoffeeApproval {
+			return it.ReasonText
+		}
+	}
+	return nil
 }
 
 // IsStatusLineRelayCommand tells whether a status line command already runs the relay.

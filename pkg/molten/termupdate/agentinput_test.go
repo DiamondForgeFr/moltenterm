@@ -126,6 +126,9 @@ func TestAgentInputRefusals(t *testing.T) {
 		if out.Result != InputRefused || out.Reason != tc.reason || out.Offer != tc.offer || out.Message == "" {
 			t.Errorf("%s: %+v", tc.name, out)
 		}
+		if out.MessageText == nil || out.MessageText.Code == "" {
+			t.Errorf("%s: no code for the window: %+v", tc.name, out)
+		}
 		if len(f.input) != 0 {
 			t.Errorf("%s: typed %q", tc.name, f.input)
 		}
