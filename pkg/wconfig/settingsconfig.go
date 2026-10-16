@@ -127,6 +127,8 @@ type SettingsType struct {
 	ReviewLanguage string `json:"review:language,omitempty" jsonschema_description:"The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the interface language (app:language)"`
 	// MOLTENTERM-PATCH (#588): the language review comments are published in on GitHub when the project declares none (FR-REV-010).
 	ReviewPublishLanguage string `json:"review:publishlanguage,omitempty" jsonschema_description:"The language review comments are published in on GitHub (en, English, fr...) when the project's .saasfoundry.json declares none; unset, detected from the project's pull requests and README, else English"`
+	// MOLTENTERM-PATCH (#847): the developer's first name on the PRs they validate (pkg/molten/review/reviewer.go).
+	ReviewReviewerName string `json:"review:reviewername,omitempty" jsonschema_description:"Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name"`
 	// MOLTENTERM-PATCH (#623): the interface language (FR-I18N-001, frontend/moltenterm-shell/i18n).
 	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
 

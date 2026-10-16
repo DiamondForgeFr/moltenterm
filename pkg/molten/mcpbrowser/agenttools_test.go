@@ -23,14 +23,14 @@ func TestInitializeTellsTheAgentItsFirstName(t *testing.T) {
 	c.send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"claude-code"}}}`)
 	instructions := c.recv()["result"].(map[string]any)["instructions"].(string)
 	if !strings.HasPrefix(instructions, "MoltenTerm browser:") || !strings.Contains(instructions, "your first name is Jérôme") ||
-		!strings.Contains(instructions, "list_agents") {
+		!strings.Contains(instructions, "list_agents") || !strings.Contains(instructions, "molten agent whoami --trailer") {
 		t.Fatalf("instructions = %q", instructions)
 	}
 	plain := startServer(t, &fakeBackend{})
 	defer plain.close()
 	plain.send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
 	instructions = plain.recv()["result"].(map[string]any)["instructions"].(string)
-	if strings.Contains(instructions, "first name is") || !strings.Contains(instructions, "send_to_agent") {
+	if strings.Contains(instructions, "first name is") || strings.Contains(instructions, "whoami") || !strings.Contains(instructions, "send_to_agent") {
 		t.Fatalf("instructions without a name = %q", instructions)
 	}
 }

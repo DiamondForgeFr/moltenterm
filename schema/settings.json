@@ -593,6 +593,18 @@
             "order": 103
           }
         },
+        "review:reviewername": {
+          "type": "string",
+          "description": "Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Code review",
+            "label": "Your first name",
+            "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.",
+            "control": "text",
+            "order": 104
+          }
+        },
         "app:language": {
           "type": "string",
           "description": "The interface language: system (the OS preferred languages, the default), en, fr or an installed language",
@@ -604,7 +616,7 @@
             "control": "select",
             "optionsfrom": "languages",
             "unsetlabel": "Same as the system",
-            "order": 104
+            "order": 105
           }
         },
         "companion:usagegauges": {

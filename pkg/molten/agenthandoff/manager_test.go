@@ -138,7 +138,8 @@ func makeFixture(t *testing.T) (*Manager, *fakeEnv, string, string) {
 	env := &fakeEnv{
 		tokens: map[string]string{"tokA": "blockA", "tokB": "blockB", "tokShell": "blockShell"},
 		runs: map[string]molten.AgentRunInfo{
-			"blockA": {BlockId: "blockA", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Camille"},
+			"blockA": {BlockId: "blockA", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Camille",
+				Settings: molten.AgentSettings{Model: "claude-opus-5-5", ModelName: "Opus 5.5", Effort: "medium"}},
 			"blockB": {BlockId: "blockB", Agent: molten.AgentIdCodex, Running: true, State: molten.AgentStateIdle, FirstName: "Jérôme"},
 			"blockR": {BlockId: "blockR", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Léa"},
 		},
@@ -181,6 +182,9 @@ func TestListMarksYouAndSkipsRemote(t *testing.T) {
 	}
 	if list.You == nil || list.You.FirstName != "Camille" || list.You.AgentName != "Claude Code" || list.You.Project != "projecta" {
 		t.Fatalf("you: %+v", list.You)
+	}
+	if list.You.ModelName != "Opus 5.5" || list.You.Model != "claude-opus-5-5" || list.You.Effort != "medium" {
+		t.Fatalf("you: the run's reported model and effort (#847): %+v", list.You)
 	}
 	var names []string
 	for _, a := range list.Agents {

@@ -84,6 +84,12 @@ func IsAgentTool(name string) bool {
 	return name == ToolListAgents || name == ToolSendToAgent
 }
 
+// SignInstructions: agents use the developer's GitHub account, so their work carries who made it (#847,
+// pkg/molten/agentdocs/pr-signature.md).
+const SignInstructions = " Sign your work: add the trailer `molten agent whoami --trailer` prints to each commit you " +
+	"make (git commit --trailer \"$(molten agent whoami --trailer)\"), and run `molten agent sign-pr <number>` after " +
+	"opening a pull request or pushing to one. Details: pr-signature.md in the folder `molten docs` prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
@@ -91,7 +97,7 @@ func AgentInstructions(firstName string) string {
 		"send_to_agent with a brief the receiver can act on alone."
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
-			"send are signed with it.", firstName) + rtn
+			"send are signed with it.", firstName) + rtn + SignInstructions
 	}
 	return rtn
 }

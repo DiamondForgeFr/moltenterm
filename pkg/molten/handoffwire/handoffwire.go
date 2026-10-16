@@ -62,6 +62,11 @@ type AgentEntry struct {
 	Tab        string `json:"tab,omitempty"`
 	// You: the caller's own agent.
 	You bool `json:"you,omitempty"`
+	// Model, ModelName, Effort: what the agent last reported for this run (#549), "" when unknown; `molten agent whoami`
+	// signs work with them (#847).
+	Model     string `json:"model,omitempty"`
+	ModelName string `json:"modelname,omitempty"`
+	Effort    string `json:"effort,omitempty"`
 }
 
 type ListResult struct {

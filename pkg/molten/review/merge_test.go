@@ -31,6 +31,7 @@ type fakePr struct {
 	MergeState string
 	Checks     []map[string]string
 	MergeOid   string
+	Body       string
 }
 
 func (p fakePr) json() []byte {
@@ -47,6 +48,8 @@ func (p fakePr) json() []byte {
 		"mergeStateStatus":        p.MergeState,
 		"statusCheckRollup":       p.Checks,
 		"closingIssuesReferences": []map[string]int{{"number": 590}},
+		"body":                    p.Body,
+		"author":                  map[string]string{"login": "devlogin"},
 	}
 	if p.MergeOid != "" {
 		data["mergeCommit"] = map[string]string{"oid": p.MergeOid}
