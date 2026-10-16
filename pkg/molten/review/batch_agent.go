@@ -65,10 +65,12 @@ func (b *BatchRunner) makeTree(run BatchRun) (string, error) {
 	return tree, nil
 }
 
-func batchPromptLine(item BatchItem, base string, tree string, result string, brief string) string {
+// batchPromptLine holds the rules that must hold even if the brief is not read; it fits the guarded typing path's 600
+// characters, so the result file is named in the brief only (the brief's path with .result for .md).
+func batchPromptLine(item BatchItem, base string, tree string, brief string) string {
 	return fmt.Sprintf("MoltenTerm batch merge: rebase PR #%d (%s) on origin/%s in %s, resolve the conflicts, run the "+
-		"project's checks, push with --force-with-lease, then write the result to %s. Never merge the PR. Brief: %s",
-		item.Number, item.HeadRef, base, tree, result, brief)
+		"project's checks, push with --force-with-lease, never merge the PR. Follow the brief %s: its last step writes "+
+		"the result.", item.Number, item.HeadRef, base, tree, brief)
 }
 
 func renderBatchBrief(run BatchRun, item BatchItem, tree string, result string) string {
@@ -181,13 +183,17 @@ func (b *BatchRunner) startBatchAgent(ctl *batchCtl, agent *batchAgent, k PrKey,
 		}
 		return batchStop{reason: BatchReasonAgentStart, detail: detail}, false
 	}
+	if err != nil {
+		// The terminal holds no agent: it goes, and Try again starts a new one.
+		if r.env.CloseTerminal != nil {
+			r.env.CloseTerminal(ctx, blockId)
+		}
+		return batchStop{reason: BatchReasonAgentStart, detail: err.Error()}, false
+	}
 	agent.blockId, agent.tabId, agent.agent = blockId, tabId, id
 	b.change(ctl, func(run *BatchRun) {
 		run.Agent, run.AgentName, run.BlockId, run.TabId = id, molten.AgentDisplayName(id), blockId, tabId
 	})
-	if err != nil {
-		return batchStop{reason: BatchReasonAgentStart, detail: fmt.Sprintf("%v; start it in its terminal with: %s", err, command)}, false
-	}
 	return batchStop{}, true
 }
 
@@ -245,7 +251,7 @@ func (b *BatchRunner) rebase(ctl *batchCtl, agent *batchAgent, i int, pr ghMerge
 	if err != nil {
 		return batchStop{reason: BatchReasonAgentStart, detail: fmt.Sprintf("the brief could not be written: %v", err)}, batchStopped
 	}
-	line := batchPromptLine(item, run.Base, agent.tree, result, brief)
+	line := batchPromptLine(item, run.Base, agent.tree, brief)
 	if agent.blockId == "" {
 		if stop, ok := b.startBatchAgent(ctl, agent, k, line); !ok {
 			return stop, batchStopped

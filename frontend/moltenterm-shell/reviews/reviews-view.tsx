@@ -350,6 +350,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         openReview(pr);
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
+        // A dialog the list renders (the batch merge's modal) is portaled out of it: its keys are not the rows'.
+        if (!listRef.current?.contains(e.target as Node)) {
+            return;
+        }
         // The focused row wins over the state: focus moves before React renders the selection it sets.
         const focused = Number((e.target as HTMLElement).closest?.("[data-pr]")?.getAttribute("data-pr"));
         const current = focused || selected;

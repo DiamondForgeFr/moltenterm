@@ -124,7 +124,7 @@ func (b *BatchRunner) notifyStop(ctl *batchCtl, run BatchRun, i int) {
 		Kind:        "warning",
 		Title:       "The batch merge stopped on #" + number,
 		TitleText:   uimsg.Make("notif.review.batch.stoppedTitle", "number", number),
-		Message:     reason + ". The PRs after it wait for your decision in the Reviews list.",
+		Message:     "Reason: " + reason + ". The PRs after it wait for your decision in the Reviews list.",
 		MessageText: uimsg.Make("notif.review.batch.stopped").With("reason", reasonText),
 		WorkspaceId: run.WorkspaceId,
 		Actions:     []molten.NotificationAction{reviewsAction()},

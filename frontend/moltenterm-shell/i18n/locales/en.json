@@ -5805,7 +5805,7 @@
                     "openReviews": "Open the Reviews list",
                     "goTo": "Go to the terminal",
                     "stoppedTitle": "The batch merge stopped on #{number}",
-                    "stopped": "{reason}. The pull requests after it wait for your decision in the Reviews list.",
+                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
                     "doneTitle": "Batch merge: {merged} of {total} PRs merged",
                     "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
                     "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}",

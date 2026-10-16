@@ -90,7 +90,11 @@ func (b *BatchRunner) loop(ctx context.Context, ctl *batchCtl, tabName string) {
 				})
 				continue
 			}
-			b.setItem(ctl, i, func(it *BatchItem) {
+			b.change(ctl, func(run *BatchRun) {
+				if run.State == BatchPaused {
+					run.State = BatchRunning
+				}
+				it := &run.Items[i]
 				it.State, it.ByYou, it.EndedAt = BatchItemSkipped, true, b.env.Now().UnixMilli()
 			})
 			if decision != BatchDecisionSkip {
@@ -112,12 +116,13 @@ func (b *BatchRunner) pause(ctl *batchCtl, i int) string {
 	if b.cancelAsked(ctl) {
 		return BatchDecisionEnd
 	}
-	run := b.change(ctl, func(run *BatchRun) {
+	// The notification goes first: a window that sees the run paused finds it there.
+	b.notifyStop(ctl, b.read(ctl), i)
+	b.change(ctl, func(run *BatchRun) {
 		if !run.CancelAsked {
 			run.State = BatchPaused
 		}
 	})
-	b.notifyStop(ctl, run, i)
 	if b.cancelAsked(ctl) {
 		return BatchDecisionEnd
 	}

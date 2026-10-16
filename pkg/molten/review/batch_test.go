@@ -209,6 +209,7 @@ type noticeLog struct {
 	lock     sync.Mutex
 	inputs   []molten.NotificationInput
 	resolved []string
+	states   []string
 }
 
 func (n *noticeLog) notify(ctx context.Context, input molten.NotificationInput) error {
@@ -216,6 +217,21 @@ func (n *noticeLog) notify(ctx context.Context, input molten.NotificationInput) 
 	defer n.lock.Unlock()
 	n.inputs = append(n.inputs, input)
 	return nil
+}
+
+// published keeps the run states the windows were sent, without repeats.
+func (n *noticeLog) published(run BatchRun) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	if len(n.states) == 0 || n.states[len(n.states)-1] != run.State {
+		n.states = append(n.states, run.State)
+	}
+}
+
+func (n *noticeLog) runStates() []string {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	return append([]string(nil), n.states...)
 }
 
 func (n *noticeLog) resolve(ctx context.Context, prefix string) error {
@@ -237,13 +253,15 @@ func (n *noticeLog) find(keyPart string) *molten.NotificationInput {
 	return nil
 }
 
-var batchLinePattern = regexp.MustCompile(`rebase PR #(\d+) \(([^)]+)\) on origin/(\S+) in (\S+), .* write the result to (\S+?)\. Never`)
+var batchLinePattern = regexp.MustCompile(`rebase PR #(\d+) \(([^)]+)\) on origin/(\S+) in (\S+), .* Follow the brief (\S+)\.md: `)
 
 // fakeBatchAgent stands for the developer's agent: it rebases a PR in its worktree with real git and writes the
 // result line. ambiguous: the PRs whose conflicts it leaves to the developer.
 type fakeBatchAgent struct {
 	t         *testing.T
 	ambiguous map[int]bool
+	// failStarts: how many starts open a terminal where the agent does not start.
+	failStarts int
 
 	lock    sync.Mutex
 	state   string
@@ -276,7 +294,10 @@ func (a *fakeBatchAgent) handle(line string) {
 		return
 	}
 	number, _ := strconv.Atoi(m[1])
-	branch, base, tree, result := m[2], m[3], m[4], m[5]
+	branch, base, tree, result := m[2], m[3], m[4], m[5]+".result"
+	if len(line) > 600 {
+		a.t.Errorf("the prompt does not fit the typing path: %d characters", len(line))
+	}
 	write := func(text string) {
 		if err := os.WriteFile(result, []byte(text+"\n"), 0600); err != nil {
 			a.t.Error(err)
@@ -322,6 +343,11 @@ func (a *fakeBatchAgent) handle(line string) {
 
 func (a *fakeBatchAgent) openTerminal(ctx context.Context, tabId string, after string, meta waveobj.MetaMapType, command string) (string, error) {
 	a.lock.Lock()
+	if a.failStarts > 0 {
+		a.failStarts--
+		a.lock.Unlock()
+		return "block-dead", errors.New("the terminal showed no prompt")
+	}
 	a.started++
 	a.state = molten.AgentStateWorking
 	a.queue = make(chan string, 4)
@@ -451,6 +477,7 @@ func newBatchFixture(t *testing.T, setup func(prs map[int]*hubPr)) *batchFixture
 		ResolveNotices: notices.resolve,
 	})
 	runner := MakeBatchRunner(BatchEnv{
+		Publish:      notices.published,
 		Gh:           hub.run,
 		Merger:       merger,
 		Agents:       restarter,
@@ -614,6 +641,10 @@ func TestBatchStopsOnAFailingCheckAndWaitsForTheDecision(t *testing.T) {
 	if got := f.hub.merged(); !slices.Equal(got, []int{2, 1}) {
 		t.Fatalf("merged %v, want 2 then 1 after skipping 3", got)
 	}
+	// Skipping the PR sets the run going again for the PRs after it.
+	if states := f.notices.runStates(); !slices.Equal(states, []string{BatchRunning, BatchPaused, BatchRunning, BatchDone}) {
+		t.Fatalf("run states %v", states)
+	}
 	three = itemOf(run, 3)
 	if three.State != BatchItemSkipped || !three.ByYou || three.Reason != BatchReasonFailing || run.State != BatchDone {
 		t.Fatalf("run %s, #3 %+v", run.State, three)
@@ -691,6 +722,30 @@ func TestBatchStopsOnAnAmbiguousConflict(t *testing.T) {
 	// The agent aborted its rebase and pushed nothing: its worktree is clean and goes.
 	if !run.Cleaned {
 		t.Fatalf("the agent's worktree should go: kept %q", run.Kept)
+	}
+}
+
+// An agent that does not start stops the run; its empty terminal goes, and Try again starts a new one.
+func TestBatchAgentThatDoesNotStartStopsAndRetryStartsAnother(t *testing.T) {
+	f := newBatchFixture(t, nil)
+	f.agent.failStarts = 1
+	f.start(2, 3)
+	run := f.waitFor("the stop on #3", func(run BatchRun) bool { return run.State == BatchPaused })
+	if three := itemOf(run, 3); three.Reason != BatchReasonAgentStart || run.BlockId != "" {
+		t.Fatalf("#3 %+v, block %q", three, run.BlockId)
+	}
+	f.agent.lock.Lock()
+	closed := slices.Contains(f.agent.closed, "block-dead")
+	f.agent.lock.Unlock()
+	if !closed {
+		t.Fatalf("the terminal without an agent should be closed")
+	}
+	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionRetry}); err != nil {
+		t.Fatal(err)
+	}
+	run = f.waitEnd()
+	if !slices.Equal(f.hub.merged(), []int{2, 3}) || run.State != BatchDone || f.agent.started != 1 {
+		t.Fatalf("state %s, merged %v, started %d", run.State, f.hub.merged(), f.agent.started)
 	}
 }
 

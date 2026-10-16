@@ -4144,16 +4144,16 @@
                     "other": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}"
                 },
                 "done": {
-                    "one": "Fusion groupée terminée : {merged} PR sur {count} fusionnée",
-                    "other": "Fusion groupée terminée : {merged} PR sur {count} fusionnées"
+                    "one": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}"
                 },
                 "cancelled": {
-                    "one": "Fusion groupée annulée : {merged} PR sur {count} fusionnée",
-                    "other": "Fusion groupée annulée : {merged} PR sur {count} fusionnées"
+                    "one": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}"
                 },
                 "interrupted": {
-                    "one": "Fusion groupée interrompue au redémarrage de MoltenTerm : {merged} PR sur {count} fusionnée",
-                    "other": "Fusion groupée interrompue au redémarrage de MoltenTerm : {merged} PR sur {count} fusionnées"
+                    "one": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}",
+                    "other": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}"
                 }
             },
             "step": {
@@ -5805,9 +5805,9 @@
                     "openReviews": "Ouvrir la liste des revues",
                     "goTo": "Aller au terminal",
                     "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
-                    "stopped": "{reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
-                    "doneTitle": "Fusion groupée : {merged} PR sur {total} fusionnées",
-                    "cancelledTitle": "Fusion groupée annulée : {merged} PR sur {total} fusionnées",
+                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
+                    "doneTitle": "Fusion groupée — PR fusionnées : {merged} sur {total}",
+                    "cancelledTitle": "Fusion groupée annulée — PR fusionnées : {merged} sur {total}",
                     "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}",
                     "mergedList": "Fusionnées : {list}. ",
                     "mergedNone": "Rien n'a été fusionné. ",
