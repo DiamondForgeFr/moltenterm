@@ -105,6 +105,8 @@ type Service struct {
 	restarter *Restarter
 	// forecaster: the Reviews list's conflict forecast (FR-REV-023); nil in the tests that do not need it.
 	forecaster *Forecaster
+	// batch: the batch merge by an agent (FR-REV-025); nil in the tests that do not need it.
+	batch *BatchRunner
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -202,6 +204,15 @@ func Start() {
 			Rules:    makeForecastRules(service.merger).Rules,
 			Publish: func(f Forecast) {
 				wps.Broker.Publish(wps.WaveEvent{Event: ForecastEvent, Scopes: []string{f.Dir}, Data: f})
+			},
+		})
+		service.batch = MakeBatchRunner(BatchEnv{
+			Gh:      ExecGh,
+			Merger:  service.merger,
+			Agents:  service.restarter,
+			DataDir: wavebase.GetWaveDataDir(),
+			Publish: func(run BatchRun) {
+				wps.Broker.Publish(wps.WaveEvent{Event: BatchEvent, Scopes: []string{run.Dir}, Data: run})
 			},
 		})
 		service.publishNotes = func(notes Notes) {
@@ -559,6 +570,9 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.MarkReady(ctx, req)
+	case BatchStartCommand, BatchGetCommand, BatchCancelCommand, BatchDecideCommand, BatchDismissCommand:
+		// NFR-REV-003: a batch merge starts and is decided on the developer's clicks in a window only.
+		return s.handleBatch(command, data)
 	case NoteKeepCommand:
 		req, err := decode[NoteKeepRequest](data)
 		if err != nil {

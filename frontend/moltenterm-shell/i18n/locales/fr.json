@@ -4090,6 +4090,143 @@
         }
     },
     "reviews": {
+        "batch": {
+            "tabName": "Fusion groupée",
+            "yourAgent": "Votre agent",
+            "method": {
+                "merge": "commit de fusion",
+                "squash": "squash",
+                "rebase": "rebase",
+                "repository": "la méthode du dépôt"
+            },
+            "select": {
+                "start": "Fusionner plusieurs…",
+                "startTitle": "Sélectionnez des pull requests et confiez-les à votre agent, qui les fusionne l'une après l'autre dans l'ordre suggéré",
+                "count": {
+                    "one": "{count} pull request sélectionnée",
+                    "other": "{count} pull requests sélectionnées"
+                },
+                "merge": {
+                    "one": "Fusionner {count} PR avec un agent…",
+                    "other": "Fusionner {count} PR avec un agent…"
+                },
+                "none": "Sélectionnez d'abord les pull requests à fusionner",
+                "rowAria": "Sélectionner #{number} pour la fusion groupée"
+            },
+            "confirm": {
+                "title": {
+                    "one": "Fusionner {count} pull request avec un agent",
+                    "other": "Fusionner {count} pull requests avec un agent"
+                },
+                "subtitle": "Dans {base}, dans cet ordre · {method}",
+                "cost": {
+                    "one": "Cet ordre devrait relancer {count} CI.",
+                    "other": "Cet ordre devrait relancer {count} CI."
+                },
+                "costUnknown": "La prévision des conflits n'est pas prête : les CI que cet ordre relance ne sont pas encore connues.",
+                "costUpToDate": "Cette base exige des branches à jour : chaque fusion relance la CI des pull requests restantes.",
+                "what": "Pour chaque pull request à son tour : celle qui fusionne encore proprement avec des checks au vert est fusionnée tout de suite, sans rebase ni nouvelle CI. Celle qui est en conflit part à votre agent, hors de vue dans sa propre copie du dépôt : il la rebase sur {base} à jour, résout les conflits et pousse, puis MoltenTerm la fusionne une fois ses checks passés.",
+                "stops": "Une pull request dont les checks échouent n'est jamais fusionnée : la fusion groupée s'arrête dessus et vous demande, et les suivantes attendent. Annuler arrête la fusion groupée après l'étape en cours.",
+                "checkout": "Votre checkout principal n'est pas touché.",
+                "start": "Lancer la fusion groupée"
+            },
+            "banner": {
+                "running": {
+                    "one": "Un agent fusionne {count} PR — {position} sur {count}",
+                    "other": "Un agent fusionne {count} PR — {position} sur {count}"
+                },
+                "cancelling": {
+                    "one": "Annulation après l'étape en cours — {position} sur {count}",
+                    "other": "Annulation après l'étape en cours — {position} sur {count}"
+                },
+                "paused": {
+                    "one": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}",
+                    "other": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}"
+                },
+                "done": {
+                    "one": "Fusion groupée terminée : {merged} PR sur {count} fusionnée",
+                    "other": "Fusion groupée terminée : {merged} PR sur {count} fusionnées"
+                },
+                "cancelled": {
+                    "one": "Fusion groupée annulée : {merged} PR sur {count} fusionnée",
+                    "other": "Fusion groupée annulée : {merged} PR sur {count} fusionnées"
+                },
+                "interrupted": {
+                    "one": "Fusion groupée interrompue au redémarrage de MoltenTerm : {merged} PR sur {count} fusionnée",
+                    "other": "Fusion groupée interrompue au redémarrage de MoltenTerm : {merged} PR sur {count} fusionnées"
+                }
+            },
+            "step": {
+                "queued": "Attend son tour",
+                "checking": "Lecture de son état sur GitHub",
+                "rebasing": "{name} la rebase sur {base}",
+                "waiting": "{name} attend votre réponse dans son terminal",
+                "waitingChecks": "Attend ses checks",
+                "waitingRebased": "Attend ses checks sur la tête rebasée",
+                "merging": "Fusion en cours",
+                "merged": "Fusionnée"
+            },
+            "why": {
+                "failing": "Checks en échec : {names}",
+                "ambiguous": "Un conflit que votre agent vous laisse",
+                "ambiguousNote": "Un conflit que votre agent vous laisse : {note}",
+                "conflict": "Toujours en conflit avec {base} après un rebase",
+                "agentexited": "La session de l'agent s'est terminée avant qu'il pousse",
+                "agenttimeout": "L'agent n'a pas fini le rebase à temps",
+                "noagent": "Aucun agent de code n'est installé pour le rebase",
+                "agentstart": "L'agent n'a pas pu être lancé : {detail}",
+                "blocked": "GitHub bloque la fusion (une revue ou une règle)",
+                "warnings": "Des commentaires non publiés ou un travail en cours dessus",
+                "citimeout": "Ses checks n'ont pas fini à temps",
+                "unknown": "GitHub n'a pas dit si elle fusionne proprement",
+                "mergefailed": "La fusion a échoué : {detail}",
+                "read": "GitHub n'a pas pu être lu : {detail}",
+                "headmoved": "Sa branche n'a pas cessé de bouger",
+                "draft": "C'est un brouillon",
+                "mergedaway": "Déjà fusionnée",
+                "closed": "Fermée",
+                "notreached": "Pas atteinte",
+                "cancelled": "Annulée",
+                "interrupted": "MoltenTerm a redémarré"
+            },
+            "decide": {
+                "retry": "Réessayer",
+                "override": "Fusionner quand même",
+                "skip": "Passer cette PR",
+                "end": "Terminer la fusion groupée"
+            },
+            "waitsForYou": "Les pull requests suivantes vous attendent :",
+            "goTo": "Aller à l'agent",
+            "goToTitle": "Afficher le terminal de {name}",
+            "cancel": "Annuler",
+            "cancelling": "Annulation…",
+            "cancelTitle": "Arrêter la fusion groupée après l'étape en cours ; rien de plus n'est fusionné",
+            "dismiss": "Masquer",
+            "kept": {
+                "changes": "La copie de l'agent a des fichiers non commités : elle est gardée.",
+                "unpushed": "La copie de l'agent a des commits non poussés : elle est gardée.",
+                "rebasing": "L'agent s'est arrêté au milieu d'un rebase : sa copie est gardée.",
+                "working": "L'agent travaille encore : son terminal est gardé.",
+                "unread": "La copie de l'agent n'a pas pu être lue : elle est gardée."
+            },
+            "summary": {
+                "merged": "Fusionnées : {list}.",
+                "mergedNone": "Rien n'a été fusionné.",
+                "skipped": "Passées : {list}.",
+                "skippedItem": "#{number} ({reason})",
+                "ciRuns": {
+                    "one": "{count} CI relancée.",
+                    "other": "{count} CI relancées."
+                }
+            },
+            "row": {
+                "merged": "Fusionnée par le lot",
+                "stopped": "A arrêté le lot",
+                "skipped": "Passée par le lot",
+                "queued": "Lot : {rank}",
+                "current": "Lot : en cours"
+            }
+        },
         "viewName": "Revues",
         "into": "vers",
         "intoTitle": "Pull requests vers {target} ({from})",
@@ -5018,6 +5155,7 @@
             },
             "others": {
                 "plan": "Les autres pull requests ouvertes sur {base} restent telles quelles ; celles que ce merge met en conflit partent à leur agent pour un rebase.",
+                "batch": "Dans la fusion groupée : rebasée à son tour",
                 "none": "Rien à faire : aucune autre pull request ouverte sur {base}.",
                 "unaffectedCount": {
                     "one": "1 non concernée",
@@ -5320,6 +5458,10 @@
     },
     "server": {
         "review": {
+            "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
+            "batchrunning": "Une fusion groupée tourne déjà dans ce projet.",
+            "batchgone": "Cette fusion groupée ne tourne plus.",
+            "batchnotstopped": "La fusion groupée n'attend pas de décision.",
             "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",
             "mergebase": "La base de fusion de {branch} et du head de la PR n'a pas pu être lue : {detail}",
             "earlierhead": "L'ancien head {head} n'est plus dans le projet.",
@@ -5658,7 +5800,50 @@
                 "changes": "{name} a poussé, mais sa copie de {branch} a des fichiers non commités ({count}) : {names}",
                 "commits": "Commits non poussés sur {branch} : {count}.",
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
-                "openReview": "Ouvrir la revue"
+                "openReview": "Ouvrir la revue",
+                "batch": {
+                    "openReviews": "Ouvrir la liste des revues",
+                    "goTo": "Aller au terminal",
+                    "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
+                    "stopped": "{reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
+                    "doneTitle": "Fusion groupée : {merged} PR sur {total} fusionnées",
+                    "cancelledTitle": "Fusion groupée annulée : {merged} PR sur {total} fusionnées",
+                    "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}",
+                    "mergedList": "Fusionnées : {list}. ",
+                    "mergedNone": "Rien n'a été fusionné. ",
+                    "skippedFirst": "Passées : #{number} ({reason}){rest}. ",
+                    "skippedNext": ", #{number} ({reason}){rest}",
+                    "kept": {
+                        "changes": " La copie de l'agent a des fichiers non commités : elle est gardée.",
+                        "unpushed": " La copie de l'agent a des commits non poussés : elle est gardée.",
+                        "rebasing": " L'agent s'est arrêté au milieu d'un rebase : sa copie est gardée.",
+                        "working": " L'agent travaille encore : son terminal est gardé.",
+                        "unread": " La copie de l'agent n'a pas pu être lue : elle est gardée."
+                    },
+                    "why": {
+                        "failing": "checks en échec : {names}",
+                        "ambiguous": "un conflit que votre agent vous laisse",
+                        "ambiguousNote": "un conflit que votre agent vous laisse : {note}",
+                        "conflict": "toujours en conflit avec {base} après un rebase",
+                        "agentexited": "la session de l'agent s'est terminée avant qu'il pousse",
+                        "agenttimeout": "l'agent n'a pas fini le rebase à temps",
+                        "noagent": "aucun agent de code n'est installé pour le rebase",
+                        "agentstart": "l'agent n'a pas pu être lancé : {detail}",
+                        "blocked": "GitHub bloque la fusion (une revue ou une règle)",
+                        "warnings": "des commentaires non publiés ou un travail en cours dessus",
+                        "citimeout": "ses checks n'ont pas fini à temps",
+                        "unknown": "GitHub n'a pas dit si elle fusionne proprement",
+                        "mergefailed": "la fusion a échoué : {detail}",
+                        "read": "GitHub n'a pas pu être lu : {detail}",
+                        "headmoved": "sa branche n'a pas cessé de bouger",
+                        "draft": "c'est un brouillon",
+                        "mergedaway": "déjà fusionnée",
+                        "closed": "fermée",
+                        "cancelled": "annulée",
+                        "interrupted": "MoltenTerm a redémarré",
+                        "notreached": "pas atteinte"
+                    }
+                }
             }
         },
         "companion": {
@@ -5904,6 +6089,7 @@
     "agentOrigin": {
         "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",
         "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
-        "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}"
+        "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
+        "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}"
     }
 }

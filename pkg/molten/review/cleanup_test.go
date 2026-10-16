@@ -452,6 +452,23 @@ func TestCleanupAfterMerge(t *testing.T) {
 	}
 }
 
+// A batch merge's own PRs (FR-REV-025) are left to the batch: their agents are not asked for a rebase.
+func TestCleanupLeavesTheBatchPrsToTheBatch(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
+	f.openPrs = `[{"number":9,"headRefName":"feature/9-idle","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}]`
+
+	result := f.cleanup(CleanupRequest{BatchPrs: []int{9}})
+
+	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateDone)
+	if pr := otherPrsByNumber(others)[9]; pr.State != CleanupStateDone || pr.Flag != CleanupFlagBatch {
+		t.Errorf("batch PR: %+v", pr)
+	}
+	if len(f.typed) != 0 || f.opened != 0 {
+		t.Errorf("no agent is reached for a batch PR: typed %v opened %d", f.typed, f.opened)
+	}
+}
+
 // A PR GitHub has not computed by the bound is reported still checking, and nothing is asked for it.
 func TestCleanupOtherPrStillChecking(t *testing.T) {
 	f := makeCleanupFixture(t, true)

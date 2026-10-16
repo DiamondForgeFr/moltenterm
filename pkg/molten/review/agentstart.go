@@ -24,6 +24,8 @@ const (
 	// AgentOriginKind…: what the agent was started for.
 	AgentOriginRebase  = "rebase"
 	AgentOriginRestart = "restart"
+	// AgentOriginBatch: the batch merge's agent (FR-REV-025, batch_agent.go), for Count PRs into Base.
+	AgentOriginBatch = "batch"
 
 	// OriginMetaKey: the AgentOrigin of a terminal MoltenTerm started; must match
 	// frontend/moltenterm-shell/reviews/agent-origin.ts.
@@ -42,6 +44,7 @@ type AgentOrigin struct {
 	// MergedPr: the merge that put the PR in conflict (#691); Round: the review round handed over (Restart work).
 	MergedPr int    `json:"mergedpr,omitempty"`
 	Round    int    `json:"round,omitempty"`
+	Count    int    `json:"count,omitempty"`
 	Mode     string `json:"mode"`
 	// At: when the developer asked, Unix milliseconds.
 	At int64 `json:"at"`

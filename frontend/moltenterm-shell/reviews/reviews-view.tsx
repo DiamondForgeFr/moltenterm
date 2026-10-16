@@ -8,12 +8,14 @@
 // End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
@@ -23,6 +25,18 @@ import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
+import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
+import { BatchRuns, useBatchRun } from "./reviews-batch-client";
+import {
+    batchActive,
+    batchPlan,
+    BatchRowMark,
+    batchRowMark,
+    batchSelectable,
+    batchShown,
+    batchStartRequest,
+    toggleBatchSelection,
+} from "./reviews-batch-model";
 import { useReviews } from "./reviews-client";
 import {
     ForecastLinks,
@@ -268,6 +282,41 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         [forecast, split, forecastActive]
     );
     const status = forecastStatus(forecast, forecastReq);
+    // The batch merge (FR-REV-025): the PRs selected for it, the confirmation modal, and the run wavesrv publishes.
+    const batchRun = useBatchRun(dir);
+    const [selecting, setSelecting] = useState(false);
+    const [batchSelected, setBatchSelected] = useState<number[]>([]);
+    const [confirming, setConfirming] = useState(false);
+    const batchRunning = batchActive(batchRun);
+    const plannedBatch = useMemo(
+        () =>
+            confirming
+                ? batchPlan(
+                      forecast,
+                      listSplit.ready.filter((pr) => batchSelected.includes(pr.number)),
+                      [...listSplit.ready, ...listSplit.drafts],
+                      answer.target
+                  )
+                : null,
+        [confirming, forecast, listSplit, batchSelected, answer.target, locale]
+    );
+    const endSelection = () => {
+        setSelecting(false);
+        setBatchSelected([]);
+        setConfirming(false);
+    };
+    const startBatch = async (): Promise<string> => {
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        try {
+            await BatchRuns.getInstance().start(
+                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, workspaceId)
+            );
+        } catch (e) {
+            return serverErrorText(e);
+        }
+        endSelection();
+        return "";
+    };
     useEffect(() => {
         if (focus == null || focus.dir !== dir) {
             return;
@@ -291,7 +340,15 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         }
         listRef.current?.querySelector<HTMLElement>(`[data-pr="${selected}"]`)?.scrollIntoView?.({ block: "nearest" });
     }, [selected, draftsOpen]);
-    const open = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
+    const openReview = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
+    // While PRs are being selected for a batch, a row's click and Enter select it instead of opening its review.
+    const open = (pr: ReviewPr) => {
+        if (selecting && batchSelectable(pr)) {
+            setBatchSelected((current) => toggleBatchSelection(current, pr.number));
+            return;
+        }
+        openReview(pr);
+    };
     const onKeyDown = (e: React.KeyboardEvent) => {
         // The focused row wins over the state: focus moves before React renders the selection it sets.
         const focused = Number((e.target as HTMLElement).closest?.("[data-pr]")?.getAttribute("data-pr"));
@@ -325,6 +382,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         forecast: shownForecast.rows[pr.number],
         forecastActive: forecastActive === pr.number,
         order: rowOrders[pr.number],
+        batchCheck: selecting && batchSelectable(pr) ? batchSelected.includes(pr.number) : null,
+        batchMark: batchRowMark(batchRun, pr.number),
     });
     // Read from the row under the pointer, not from each row's enter and leave: a scroll under a still pointer
     // changes the row without a leave.
@@ -353,7 +412,38 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     {t("reviews.waiting")}
                     <span className="text-12 font-normal text-muted">{split.ready.length}</span>
                     <ForecastStatusLine status={status} />
+                    {split.ready.length > 1 && !selecting && !batchRunning ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelecting(true);
+                                setBatchSelected([]);
+                            }}
+                            className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 self-center rounded-4 border border-border px-1.5 py-0.5 text-11 leading-4 font-normal text-secondary hover:bg-hover hover:text-primary"
+                            title={t("reviews.batch.select.startTitle")}
+                            data-testid="reviews-batch-start"
+                        >
+                            <i className="fa fa-solid fa-layer-group text-10" aria-hidden />
+                            {t("reviews.batch.select.start")}
+                        </button>
+                    ) : null}
                 </h2>
+                {batchShown(batchRun) ? <BatchBanner run={batchRun} /> : null}
+                {selecting ? (
+                    <BatchSelectBar
+                        count={batchSelected.length}
+                        onMerge={() => setConfirming(true)}
+                        onCancel={endSelection}
+                    />
+                ) : null}
+                {confirming && plannedBatch != null ? (
+                    <BatchConfirmDialog
+                        plan={plannedBatch}
+                        base={answer.target}
+                        onStart={startBatch}
+                        onCancel={() => setConfirming(false)}
+                    />
+                ) : null}
                 {forecastReq != null && split.ready.length > 1 ? (
                     <MergeOrderBar choice={orderChoice} header={orderHeader} />
                 ) : null}
@@ -555,6 +645,8 @@ export function ReviewRow({
     forecast,
     forecastActive,
     order,
+    batchCheck,
+    batchMark,
 }: {
     pr: ReviewPr;
     selected: boolean;
@@ -569,6 +661,9 @@ export function ReviewRow({
     forecast?: RowForecast;
     forecastActive?: boolean;
     order?: RowOrder;
+    // batchCheck: the row's box while PRs are selected for a batch merge, null otherwise; batchMark: its place in the run.
+    batchCheck?: boolean;
+    batchMark?: BatchRowMark;
 }) {
     const t = useT();
     useLocale();
@@ -635,6 +730,7 @@ export function ReviewRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate text-13 leading-5 font-medium">
+                        {batchCheck != null ? <BatchCheckbox checked={batchCheck} number={pr.number} /> : null}
                         <MergeOrderRank order={order} />
                         {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
                         {head.title}
@@ -674,6 +770,7 @@ export function ReviewRow({
                 )}
                 <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
                 <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
+                <BatchRowChip mark={batchMark} />
                 {pr.unpublished > 0 ? (
                     <span className={cn(Chip, ToneClasses.pending)} title={t("reviews.unpublishedTitle")}>
                         <i className="fa fa-solid fa-comment text-11" />

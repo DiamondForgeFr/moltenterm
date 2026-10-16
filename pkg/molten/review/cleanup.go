@@ -56,6 +56,8 @@ const (
 	CleanupFlagNeedsAgent  = "needs-agent"
 	CleanupFlagNeedsRebase = "needs-rebase"
 	CleanupFlagChecking    = "checking"
+	// batch: a PR the running batch merge rebases itself in turn (FR-REV-025).
+	CleanupFlagBatch = "batch"
 
 	// What a step did or why it was skipped (#672: the sheet writes the sentences from these codes and the data).
 	CleanupCodeMerged        = "merged"
@@ -132,6 +134,8 @@ type CleanupRequest struct {
 	PlannedAgentTree string `json:"plannedagenttree,omitempty"`
 	// Leftover: Remove again on a folder a worktree step left (CleanupCodeLeftover); only the one the step recorded.
 	Leftover string `json:"leftover,omitempty"`
+	// BatchPrs: the PRs a batch merge still has to merge (FR-REV-025): the batch rebases those itself.
+	BatchPrs []int `json:"batchprs,omitempty"`
 }
 
 // CleanupPanel is a terminal still open in a worktree: the cleanup never pulls a folder from under it (#672).
@@ -935,6 +939,9 @@ func (r *cleanupRun) checkOtherPrs() CleanupStepResult {
 	for _, pr := range prs {
 		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName, Url: pr.Url, Title: pr.Title, HeadOid: pr.HeadRefOid}
 		switch {
+		case pr.conflicting() && slices.Contains(r.req.BatchPrs, pr.Number):
+			step.Conflicting++
+			item.State, item.Flag = CleanupStateDone, CleanupFlagBatch
 		case pr.conflicting():
 			step.Conflicting++
 			r.askRebase(pr, &item)

@@ -591,6 +591,8 @@ export function otherPrText(t: Translate, pr: ReviewCleanupPr, base: string): st
             return t("review.validate.others.notAsked", vars);
         case "checking":
             return t("review.validate.others.checking", vars);
+        case "batch":
+            return t("review.validate.others.batch", vars);
     }
     return t("review.validate.others.unaffected");
 }
@@ -599,6 +601,7 @@ function otherPrRowState(pr: ReviewCleanupPr): StepState {
     switch (pr.flag) {
         case "rebase-asked":
         case "rebase-typed":
+        case "batch":
             return "done";
         case "agent-busy":
         case "needs-agent":

@@ -195,6 +195,8 @@ type MergePlan struct {
 	CreatedAt int64    `json:"createdat"`
 
 	ciNames []string
+	// batch: the PRs a batch merge still has to merge after this one (FR-REV-025).
+	batch []int
 }
 
 type MergeRequest struct {
@@ -204,6 +206,9 @@ type MergeRequest struct {
 	Override bool `json:"override,omitempty"`
 	// Method: one of the plan's Methods; empty takes the plan's default.
 	Method string `json:"method,omitempty"`
+	// Batch: the PRs a batch merge (FR-REV-025) still has to merge after this one; the cleanup after this merge does
+	// not ask their agents for a rebase, the batch does it.
+	Batch []int `json:"batch,omitempty"`
 }
 
 // MergeRecord is the merge's progress and outcome, kept in the review store (AC5).
@@ -587,7 +592,7 @@ func (p MergePlan) mergedPr(head string, merged string) MergedPr {
 	if head == "" {
 		head = p.HeadOid
 	}
-	pr := MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged}
+	pr := MergedPr{Dir: p.Dir, Repo: p.Repo, Number: p.Number, Ticket: p.Ticket, Url: p.Url, HeadRef: p.HeadRef, BaseRef: p.BaseRef, HeadOid: head, MergedOid: merged, BatchPrs: p.batch}
 	for _, step := range p.Cleanup {
 		if step.Id == CleanupStepAgentTree && step.Code == CleanupCodeWillRemove {
 			pr.AgentTree = step.Path
@@ -630,6 +635,7 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	if req.Method != "" {
 		plan.Method = req.Method
 	}
+	plan.batch = req.Batch
 	delete(m.plans, k)
 	run := &runningMerge{planId: plan.Id}
 	done := make(chan struct{})

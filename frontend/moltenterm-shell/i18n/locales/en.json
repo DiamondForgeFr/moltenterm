@@ -4090,6 +4090,143 @@
         }
     },
     "reviews": {
+        "batch": {
+            "tabName": "Batch merge",
+            "yourAgent": "Your agent",
+            "method": {
+                "merge": "merge commit",
+                "squash": "squash",
+                "rebase": "rebase",
+                "repository": "the repository's method"
+            },
+            "select": {
+                "start": "Merge several…",
+                "startTitle": "Select pull requests and hand them to your agent, which merges them one after the other in the suggested order",
+                "count": {
+                    "one": "{count} pull request selected",
+                    "other": "{count} pull requests selected"
+                },
+                "merge": {
+                    "one": "Merge {count} PR with an agent…",
+                    "other": "Merge {count} PRs with an agent…"
+                },
+                "none": "Select the pull requests to merge first",
+                "rowAria": "Select #{number} for the batch merge"
+            },
+            "confirm": {
+                "title": {
+                    "one": "Merge {count} pull request with an agent",
+                    "other": "Merge {count} pull requests with an agent"
+                },
+                "subtitle": "Into {base}, in this order · {method}",
+                "cost": {
+                    "one": "This order should redo {count} CI run.",
+                    "other": "This order should redo {count} CI runs."
+                },
+                "costUnknown": "The conflict forecast is not ready: the CI runs this order redoes are not known yet.",
+                "costUpToDate": "This base requires branches to be up to date: each merge reruns the CI of the pull requests left.",
+                "what": "For each pull request in turn: one that still merges cleanly with green checks is merged at once, with no rebase and no new CI run. One that conflicts goes to your agent, out of sight in its own copy of the repository: it rebases it on the updated {base}, resolves the conflicts and pushes, and MoltenTerm merges it once its checks pass.",
+                "stops": "A pull request whose checks fail is never merged: the batch stops on it and asks you, and the ones after it wait. Cancel stops the batch after the current step.",
+                "checkout": "Your main checkout is not touched.",
+                "start": "Start the batch merge"
+            },
+            "banner": {
+                "running": {
+                    "one": "An agent is merging {count} PR — {position} of {count}",
+                    "other": "An agent is merging {count} PRs — {position} of {count}"
+                },
+                "cancelling": {
+                    "one": "Cancelling after the current step — {position} of {count}",
+                    "other": "Cancelling after the current step — {position} of {count}"
+                },
+                "paused": {
+                    "one": "The batch merge stopped on #{number} — {position} of {count}",
+                    "other": "The batch merge stopped on #{number} — {position} of {count}"
+                },
+                "done": {
+                    "one": "Batch merge done: {merged} of {count} PR merged",
+                    "other": "Batch merge done: {merged} of {count} PRs merged"
+                },
+                "cancelled": {
+                    "one": "Batch merge cancelled: {merged} of {count} PR merged",
+                    "other": "Batch merge cancelled: {merged} of {count} PRs merged"
+                },
+                "interrupted": {
+                    "one": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PR merged",
+                    "other": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PRs merged"
+                }
+            },
+            "step": {
+                "queued": "Waits its turn",
+                "checking": "Reading its state on GitHub",
+                "rebasing": "{name} rebases it on {base}",
+                "waiting": "{name} waits for your answer in its terminal",
+                "waitingChecks": "Waiting for its checks",
+                "waitingRebased": "Waiting for its checks on the rebased head",
+                "merging": "Merging",
+                "merged": "Merged"
+            },
+            "why": {
+                "failing": "Checks failing: {names}",
+                "ambiguous": "A conflict your agent left to you",
+                "ambiguousNote": "A conflict your agent left to you: {note}",
+                "conflict": "Still conflicts with {base} after a rebase",
+                "agentexited": "The agent's session ended before it pushed",
+                "agenttimeout": "The agent did not finish the rebase in time",
+                "noagent": "No coding agent is installed for the rebase",
+                "agentstart": "The agent could not be started: {detail}",
+                "blocked": "GitHub blocks the merge (a review or a rule)",
+                "warnings": "Unpublished comments or work in progress on it",
+                "citimeout": "Its checks did not finish in time",
+                "unknown": "GitHub did not say whether it merges cleanly",
+                "mergefailed": "The merge failed: {detail}",
+                "read": "GitHub could not be read: {detail}",
+                "headmoved": "Its branch kept moving",
+                "draft": "It is a draft",
+                "mergedaway": "Already merged",
+                "closed": "Closed",
+                "notreached": "Not reached",
+                "cancelled": "Cancelled",
+                "interrupted": "MoltenTerm restarted"
+            },
+            "decide": {
+                "retry": "Try again",
+                "override": "Merge anyway",
+                "skip": "Skip this PR",
+                "end": "End the batch"
+            },
+            "waitsForYou": "The pull requests after it wait for you:",
+            "goTo": "Go to the agent",
+            "goToTitle": "Show {name}'s terminal",
+            "cancel": "Cancel",
+            "cancelling": "Cancelling…",
+            "cancelTitle": "Stop the batch merge after the current step; nothing more is merged",
+            "dismiss": "Hide",
+            "kept": {
+                "changes": "The agent's copy has uncommitted files: it is kept.",
+                "unpushed": "The agent's copy has commits not pushed: it is kept.",
+                "rebasing": "The agent stopped in the middle of a rebase: its copy is kept.",
+                "working": "The agent is still working: its terminal is kept.",
+                "unread": "The agent's copy could not be read: it is kept."
+            },
+            "summary": {
+                "merged": "Merged: {list}.",
+                "mergedNone": "Nothing merged.",
+                "skipped": "Skipped: {list}.",
+                "skippedItem": "#{number} ({reason})",
+                "ciRuns": {
+                    "one": "{count} CI run redone.",
+                    "other": "{count} CI runs redone."
+                }
+            },
+            "row": {
+                "merged": "Merged by the batch",
+                "stopped": "Stopped the batch",
+                "skipped": "Skipped by the batch",
+                "queued": "Batch: {rank}",
+                "current": "Batch: in progress"
+            }
+        },
         "viewName": "Reviews",
         "into": "into",
         "intoTitle": "Pull requests into {target} ({from})",
@@ -5018,6 +5155,7 @@
             },
             "others": {
                 "plan": "The other open pull requests on {base} are left as they are; those this merge puts in conflict go to their agent for a rebase.",
+                "batch": "In the batch merge: rebased in its turn",
                 "none": "Nothing to do: no other open pull request on {base}.",
                 "unaffectedCount": {
                     "one": "1 unaffected",
@@ -5320,6 +5458,10 @@
     },
     "server": {
         "review": {
+            "batchempty": "Select the pull requests to merge first.",
+            "batchrunning": "A batch merge already runs in this project.",
+            "batchgone": "This batch merge no longer runs.",
+            "batchnotstopped": "The batch merge is not waiting for a decision.",
             "basemissing": "The base branch {branch} was not found in the project or on origin.",
             "mergebase": "The merge base of {branch} and the pull request's head could not be read: {detail}",
             "earlierhead": "The earlier head {head} is no longer in the project.",
@@ -5658,7 +5800,50 @@
                 "changes": "{name} pushed, but its copy of {branch} has uncommitted files ({count}): {names}",
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
-                "openReview": "Open the review"
+                "openReview": "Open the review",
+                "batch": {
+                    "openReviews": "Open the Reviews list",
+                    "goTo": "Go to the terminal",
+                    "stoppedTitle": "The batch merge stopped on #{number}",
+                    "stopped": "{reason}. The pull requests after it wait for your decision in the Reviews list.",
+                    "doneTitle": "Batch merge: {merged} of {total} PRs merged",
+                    "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
+                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}",
+                    "mergedList": "Merged: {list}. ",
+                    "mergedNone": "Nothing merged. ",
+                    "skippedFirst": "Skipped: #{number} ({reason}){rest}. ",
+                    "skippedNext": ", #{number} ({reason}){rest}",
+                    "kept": {
+                        "changes": " The agent's copy has uncommitted files: it is kept.",
+                        "unpushed": " The agent's copy has commits not pushed: it is kept.",
+                        "rebasing": " The agent stopped in the middle of a rebase: its copy is kept.",
+                        "working": " The agent is still working: its terminal is kept.",
+                        "unread": " The agent's copy could not be read: it is kept."
+                    },
+                    "why": {
+                        "failing": "checks failing: {names}",
+                        "ambiguous": "a conflict your agent left to you",
+                        "ambiguousNote": "a conflict your agent left to you: {note}",
+                        "conflict": "still conflicts with {base} after a rebase",
+                        "agentexited": "the agent's session ended before it pushed",
+                        "agenttimeout": "the agent did not finish the rebase in time",
+                        "noagent": "no coding agent is installed for the rebase",
+                        "agentstart": "the agent could not be started: {detail}",
+                        "blocked": "GitHub blocks the merge (a review or a rule)",
+                        "warnings": "unpublished comments or work in progress on it",
+                        "citimeout": "its checks did not finish in time",
+                        "unknown": "GitHub did not say whether it merges cleanly",
+                        "mergefailed": "the merge failed: {detail}",
+                        "read": "GitHub could not be read: {detail}",
+                        "headmoved": "its branch kept moving",
+                        "draft": "it is a draft",
+                        "mergedaway": "already merged",
+                        "closed": "closed",
+                        "cancelled": "cancelled",
+                        "interrupted": "MoltenTerm restarted",
+                        "notreached": "not reached"
+                    }
+                }
             }
         },
         "companion": {
@@ -5904,6 +6089,7 @@
     "agentOrigin": {
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
-        "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}"
+        "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
+        "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}"
     }
 }

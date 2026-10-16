@@ -11,13 +11,15 @@ import { useLocale, useT } from "../i18n/i18n";
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
-    kind: "rebase" | "restart";
+    kind: "rebase" | "restart" | "batch";
     repo: string;
     number: number;
     branch: string;
     base?: string;
     mergedpr?: number;
     round?: number;
+    // count: the PRs of a batch merge (FR-REV-025).
+    count?: number;
     mode: string;
     at: number;
 };
@@ -33,7 +35,7 @@ export function readOrigin(value: any): AgentOrigin {
     ) {
         return null;
     }
-    if (value.kind !== "rebase" && value.kind !== "restart") {
+    if (value.kind !== "rebase" && value.kind !== "restart" && value.kind !== "batch") {
         return null;
     }
     return value as AgentOrigin;
@@ -50,7 +52,11 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
         base: origin.base ?? "",
         merged: origin.mergedpr ?? 0,
         round: origin.round ?? 0,
+        count: origin.count ?? 0,
     };
+    if (origin.kind === "batch") {
+        return translate("agentOrigin.batch", vars);
+    }
     if (origin.kind === "restart") {
         return translate("agentOrigin.restart", vars);
     }
