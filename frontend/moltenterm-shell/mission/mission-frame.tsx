@@ -23,13 +23,14 @@ import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFa
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
 import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
+import { useMissionScope } from "./mission-scope";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
 export function useActiveProject(): ActiveProject {
     const workspace = useAtomValue(atoms.workspace);
     const dir = readWorkspaceProject(workspace).dir;
-    const [facts, setFacts] = useState<ProjectFacts>(null);
+    const { value: facts, setValue: setFacts } = useMissionScope<ProjectFacts>(dir, null);
     useEffect(() => {
         setFacts(null);
         if (dir === "") {
@@ -45,7 +46,7 @@ export function useActiveProject(): ActiveProject {
         return () => {
             cancelled = true;
         };
-    }, [dir]);
+    }, [dir, setFacts]);
     return { workspace, dir, facts };
 }
 
@@ -242,10 +243,20 @@ export function MissionFrame({
         );
     }
     if (snapshot?.giterror && snapshot.git == null) {
-        return <GitProblemState project={project} gitError={snapshot.giterror} refresh={refresh} />;
+        return (
+            <GitProblemState
+                key={JSON.stringify([project.workspace.oid, project.dir])}
+                project={project}
+                gitError={snapshot.giterror}
+                refresh={refresh}
+            />
+        );
     }
     return (
-        <div className="@container flex h-full w-full flex-col overflow-hidden tabular-nums">
+        <div
+            key={JSON.stringify([project.workspace.oid, project.dir])}
+            className="@container flex h-full w-full flex-col overflow-hidden tabular-nums"
+        >
             {children({ project, snapshot, refresh })}
         </div>
     );
