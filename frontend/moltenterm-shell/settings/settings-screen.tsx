@@ -61,6 +61,7 @@ import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { SecretsSection } from "./settings-secrets";
+import { SettingsSlider, useSliderWrites } from "./settings-slider";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -281,52 +282,6 @@ function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unkn
     );
 }
 
-// The slider writes at most every 60 ms while it moves, and always its last value.
-function Slider({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
-    const saved = Number(value ?? entry.range?.min ?? 0);
-    const [draft, setDraft] = useState<number>(null);
-    const timer = useRef<ReturnType<typeof setTimeout>>(null);
-    const last = useRef(0);
-    useEffect(() => () => clearTimeout(timer.current), []);
-    const shown = draft ?? saved;
-    const write = (v: number) => {
-        setDraft(v);
-        clearTimeout(timer.current);
-        const wait = 60 - (Date.now() - last.current);
-        const run = () => {
-            last.current = Date.now();
-            fireAndForget(async () => {
-                await onSet(v);
-                setDraft(null);
-            });
-        };
-        if (wait <= 0) {
-            run();
-        } else {
-            timer.current = setTimeout(run, wait);
-        }
-    };
-    const range = entry.range ?? { min: 0, max: 1, step: 0.05 };
-    const percent = range.max <= 1;
-    return (
-        <span className="inline-flex items-center gap-2">
-            <input
-                type="range"
-                aria-label={entry.label}
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                value={shown}
-                onChange={(e) => write(Number(e.target.value))}
-                className="h-4 w-28 cursor-pointer accent-[var(--mt-accent)]"
-            />
-            <span className="w-10 text-right text-12 tabular-nums text-secondary">
-                {percent ? `${Math.round(shown * 100)} %` : shown}
-            </span>
-        </span>
-    );
-}
-
 function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
     const chosen = Array.isArray(value) ? (value as string[]) : [];
     return (
@@ -388,12 +343,14 @@ function Control({
     themes,
     onSet,
     onOpenJson,
+    flushSlider,
 }: {
     entry: SettingEntry;
     value: unknown;
     themes: SettingOption[];
     onSet: (v: unknown) => void;
     onOpenJson: () => void;
+    flushSlider: () => void;
 }) {
     const t = useT();
     const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
@@ -429,7 +386,7 @@ function Control({
         case "number":
             return <NumberField entry={entry} value={value} onSet={onSet} />;
         case "slider":
-            return <Slider entry={entry} value={shown} onSet={onSet} />;
+            return <SettingsSlider entry={entry} value={shown} onSet={onSet} flush={flushSlider} />;
         case "text":
             return (
                 <TextField
@@ -537,10 +494,16 @@ function ChoiceRows({
 const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
     const t = useT();
     const [errorKey, setErrorKey] = useState<string>(null);
+    const { writer, state } = useSliderWrites(entry, value, (v) => writeValue(entry, v));
     const choices = useChoices(entry);
-    const changed = isChanged(entry, value);
-    const error = errorKey != null ? t(errorKey) : null;
+    const shownValue = state.intent != null ? state.intent.value : value;
+    const changed = isChanged(entry, shownValue);
+    const error = state.failed ? t("settings.error.sliderNotSaved") : errorKey != null ? t(errorKey) : null;
     const set = async (v: unknown) => {
+        if (writer != null) {
+            writer.select(v as number);
+            return;
+        }
         setErrorKey(null);
         try {
             await writeValue(entry, v);
@@ -564,6 +527,7 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
         <div
             id={rowId}
             data-setting={entry.key}
+            aria-busy={state.intent != null && !state.failed ? true : undefined}
             className={cn(
                 "molten-settings-row flex flex-col transition-colors duration-240 ease-mt",
                 highlighted && "bg-surface-2"
@@ -587,6 +551,11 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                     {error ? (
                         <div role="alert" className="text-12 text-danger">
                             {error}
+                            {state.failed ? (
+                                <button type="button" className={GhostButton} onClick={writer.retry}>
+                                    {t("settings.retry")}
+                                </button>
+                            ) : null}
                         </div>
                     ) : null}
                 </div>
@@ -594,7 +563,14 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                     {reset}
                     {choices == null ? (
                         <span data-setting-control className="contents">
-                            <Control entry={entry} value={value} themes={themes} onSet={set} onOpenJson={onOpenJson} />
+                            <Control
+                                entry={entry}
+                                value={shownValue}
+                                themes={themes}
+                                onSet={set}
+                                onOpenJson={onOpenJson}
+                                flushSlider={writer?.flush}
+                            />
                         </span>
                     ) : entry.optionsFrom === LanguagesOptions ? (
                         <AddLanguageButton />
