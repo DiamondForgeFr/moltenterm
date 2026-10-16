@@ -136,11 +136,10 @@ export function BranchCleanupDialog({
         });
     const closeRef = useRef<HTMLButtonElement>(null);
     useRestoreFocus();
-    // The delete button that had the focus is gone once the result shows: Close takes it, so Enter still answers.
+    // Cancel takes the focus after useRestoreFocus noted where it was (autoFocus would come first), so Enter keeps
+    // every branch; once the result shows, the delete button that had it is gone and Close takes it.
     useEffect(() => {
-        if (result) {
-            closeRef.current?.focus();
-        }
+        closeRef.current?.focus();
     }, [result]);
     useEscape(!busy, onClose);
     const clean = () =>
@@ -167,7 +166,7 @@ export function BranchCleanupDialog({
             onBackdrop={onClose}
             buttons={
                 <>
-                    <button ref={closeRef} type="button" onClick={onClose} className={PlainButton} autoFocus>
+                    <button ref={closeRef} type="button" onClick={onClose} className={PlainButton}>
                         {result || nothingToDelete ? t("common.close") : t("common.cancel")}
                     </button>
                     {/* No button with nothing to delete: a disabled red "Delete 0 branches" still looks clickable. */}

@@ -47,7 +47,12 @@ export function TrustPrompt({
     onCancel: () => void;
 }) {
     const t = useT();
+    const cancelRef = useRef<HTMLButtonElement>(null);
     useRestoreFocus();
+    // After useRestoreFocus noted where the focus was: autoFocus would come first.
+    useEffect(() => {
+        cancelRef.current?.focus();
+    }, []);
     useEscape(true, onCancel);
     return (
         <DialogFrame
@@ -60,7 +65,7 @@ export function TrustPrompt({
             onBackdrop={onCancel}
             buttons={
                 <>
-                    <button type="button" onClick={onCancel} className={PlainButton} autoFocus>
+                    <button ref={cancelRef} type="button" onClick={onCancel} className={PlainButton}>
                         {t("common.cancel")}
                     </button>
                     <button

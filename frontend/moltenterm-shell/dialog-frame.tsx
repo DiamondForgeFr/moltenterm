@@ -5,7 +5,7 @@
 // subtitle, the content, then the buttons; Escape answers like the dialog's cancel.
 
 import { cn } from "@/util/util";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "./modal-open";
 import { GlowRing } from "./suite/suite";
@@ -105,7 +105,9 @@ export function DialogFrame({
     const backdropPressed = useRef(false);
     const dialogRef = useRef<HTMLDivElement>(null);
     const lastInside = useRef<HTMLElement>(null);
-    useEffect(() => {
+    // A layout effect: a dialog opened from a pane (branch cleaning, #746) sees the pane take its focus back in the
+    // same click, before a passive effect would be listening.
+    useLayoutEffect(() => {
         if (!trapFocus) {
             return;
         }
