@@ -238,9 +238,12 @@ ipcMain.on("get-is-dev", (event) => {
 ipcMain.on("get-platform", (event, url) => {
     event.returnValue = unamePlatform;
 });
+// MOLTENTERM-PATCH (#849): os.userInfo() asks the directory service, which can be slow on a loaded machine while the
+// page waits on this sendSync; the name does not change while the app runs.
+let cachedUserName: string = null;
 ipcMain.on("get-user-name", (event) => {
-    const userInfo = os.userInfo();
-    event.returnValue = userInfo.username;
+    cachedUserName ??= os.userInfo().username;
+    event.returnValue = cachedUserName;
 });
 ipcMain.on("get-host-name", (event) => {
     event.returnValue = os.hostname();

@@ -6319,5 +6319,12 @@
         "missing": "{agent} est choisi mais n'est pas installé sur cet ordinateur : choisissez-en un autre",
         "automatic": "Automatique : {agent}",
         "noneInstalled": "Aucun agent pris en charge n'est installé sur cet ordinateur"
+    },
+    "hang": {
+        "title": "La fenêtre n'a pas répondu pendant {seconds} s",
+        "message": "Elle répond de nouveau. Si cela arrive souvent, copiez les diagnostics et joignez-les à un rapport de bug.",
+        "copy": "Copier les diagnostics",
+        "copied": "Diagnostics copiés",
+        "copyFailed": "Les diagnostics n'ont pas pu être copiés"
     }
 }
