@@ -127,8 +127,8 @@ describe("conflict forecast model", () => {
         const mark = forecastMark(impactsOf(forecast, pr(1), Prs));
         expect(mark.label).toBe("2");
         expect(mark.title).toContain("2 other pull requests in conflict");
-        expect(mark.title).toContain("#2: src/a.ts");
-        expect(mark.title).toContain("#4: a, b, c, d and 1 more");
+        expect(mark.title).toContain("PR #2: src/a.ts");
+        expect(mark.title).toContain("PR #4: a, b, c, d and 1 more");
         expect(mark.aria).toBe("merging it would put 2 pull requests in conflict");
     });
 
@@ -145,7 +145,9 @@ describe("conflict forecast model", () => {
     it("names the PRs whose merge would put one in conflict", () => {
         const forecast = forecastOf(Prs);
         expect(impactedBy(forecast, pr(1), Prs)).toEqual([{ number: 2, paths: ["src/a.ts"], pathcount: 1 }]);
-        expect(impactedNote(impactedBy(forecast, pr(4), Prs))).toBe("Conflicts once #1 is merged: a, b, c and 2 more");
+        expect(impactedNote(impactedBy(forecast, pr(4), Prs))).toBe(
+            "Conflicts once PR #1 is merged: a, b, c and 2 more"
+        );
         expect(impactedNote([])).toBe("");
     });
 
@@ -160,7 +162,7 @@ describe("conflict forecast model", () => {
         const shown = listForecast(forecast, ready, Prs, 1);
         expect(shown.targets).toEqual([2, 4]);
         expect(shown.rows[1].mark.count).toBe(2);
-        expect(shown.rows[2]).toMatchObject({ linked: true, note: "Conflicts once #1 is merged: src/a.ts" });
+        expect(shown.rows[2]).toMatchObject({ linked: true, note: "Conflicts once PR #1 is merged: src/a.ts" });
         expect(shown.rows[3]).toMatchObject({ linked: false, note: "", mark: null });
         expect(shown.rows[4].mark).toBeNull();
         expect(listForecast(forecast, ready, Prs, null).targets).toEqual([]);

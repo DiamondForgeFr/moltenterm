@@ -4045,8 +4045,8 @@
                 "one": "merging it would put 1 pull request in conflict",
                 "other": "merging it would put {count} pull requests in conflict"
             },
-            "markLine": "#{number}: {paths}",
-            "impacted": "Conflicts once #{number} is merged: {paths}",
+            "markLine": "PR #{number}: {paths}",
+            "impacted": "Conflicts once PR #{number} is merged: {paths}",
             "pathsMore": "{paths} and {count} more"
         },
         "merge": {
