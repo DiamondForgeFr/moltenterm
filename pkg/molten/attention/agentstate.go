@@ -745,7 +745,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, FirstName: rec.firstName})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName})
 	}
 	return rtn
 }
