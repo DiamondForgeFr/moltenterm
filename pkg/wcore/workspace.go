@@ -334,11 +334,10 @@ func DeleteTab(ctx context.Context, workspaceId string, tabId string, recursive 
 	// if the tab is active, determine new active tab
 	newActiveTabId := ws.ActiveTabId
 	if ws.ActiveTabId == tabId {
-		if len(ws.TabIds) > 0 {
-			newActiveTabId = ws.TabIds[max(0, min(tabIdx-1, len(ws.TabIds)-1))]
-		} else {
-			newActiveTabId = ""
-		}
+		// MOLTENTERM-PATCH (#758): never a hidden agent tab, unless only those remain (then they are revealed)
+		newActiveTabId = moltenNextActiveTab(ws, tabIdx)
+	} else {
+		moltenForgetClosedTabs(ws) // MOLTENTERM-PATCH (#758)
 	}
 	ws.ActiveTabId = newActiveTabId
 
@@ -377,6 +376,7 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 			return fmt.Errorf("tab %q is not in workspace %q", tabId, workspaceId)
 		}
 		workspace.ActiveTabId = tabId
+		moltenRevealTab(workspace, tabId) // MOLTENTERM-PATCH (#758): a hidden agent tab shown is a tab like any other
 		wstore.DBUpdate(ctx, workspace)
 	}
 	return nil
@@ -394,7 +394,7 @@ func UpdateWorkspaceTabIds(ctx context.Context, workspaceId string, tabIds []str
 	if ws == nil {
 		return fmt.Errorf("workspace not found: %q", workspaceId)
 	}
-	ws.TabIds = tabIds
+	ws.TabIds = moltenKeepHiddenTabs(ws, tabIds) // MOLTENTERM-PATCH (#758): the tab bars send no hidden tab
 	wstore.DBUpdate(ctx, ws)
 	return nil
 }

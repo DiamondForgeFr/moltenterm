@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { closeTabAskingFirst } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
@@ -194,7 +195,8 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
     const activeTabId = useAtomValue(env.atoms.staticTabId);
     const reinitVersion = useAtomValue(env.atoms.reinitVersion);
     const documentHasFocus = useAtomValue(env.atoms.documentHasFocus);
-    const tabIds = workspace?.tabids ?? [];
+    const tabIds = visibleTabIds(workspace); // MOLTENTERM-PATCH (#758): an agent working out of sight has no tab here
+    const tabIdsKey = tabIds.join(",");
 
     const [orderedTabIds, setOrderedTabIds] = useState<string[]>(tabIds);
     const [dragTabId, setDragTabId] = useState<string | null>(null);
@@ -212,11 +214,11 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
 
     useEffect(() => {
         setOrderedTabIds(tabIds);
-    }, [workspace?.tabids]);
+    }, [tabIdsKey]); // MOLTENTERM-PATCH (#758)
 
     useEffect(() => {
         if (reinitVersion > 0) {
-            setOrderedTabIds(workspace?.tabids ?? []);
+            setOrderedTabIds(visibleTabIds(workspace)); // MOLTENTERM-PATCH (#758)
         }
     }, [reinitVersion]);
 

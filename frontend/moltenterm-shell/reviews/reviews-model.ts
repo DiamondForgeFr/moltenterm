@@ -191,13 +191,16 @@ export type RebaseResult = {
     agentname?: string;
     firstname?: string;
     briefpath?: string;
+    tabid?: string;
+    hidden?: boolean;
 };
 
-// asked: the agent has it (name), note when the developer still has a step; offer: no agent on the branch, the row
-// offers to start one; info and failed: a line.
+// asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
+// agent on the branch, the developer chooses how one starts (agent: the one that would); info and failed: a line.
 export type RebaseOutcome = {
     kind: "asked" | "offer" | "info" | "failed";
     name?: string;
+    agent?: string;
     text: string;
     note?: boolean;
 };
@@ -223,13 +226,17 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
         message: serverText(result.messagetext, result.message ?? ""),
     };
     switch (result.status) {
-        case "sent":
         case "started":
+            if (result.hidden) {
+                return { kind: "asked", name, text: t("reviews.rebase.startedHidden", vars), note: true };
+            }
+            return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
+        case "sent":
             return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
         case "typed":
             return { kind: "asked", name, text: t("reviews.rebase.typed", vars), note: true };
         case "offer":
-            return { kind: "offer", text: t("reviews.rebase.offer", vars) };
+            return { kind: "offer", text: t("reviews.rebase.offer", vars), agent: result.agentname ?? "" };
         case "noagent":
             return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
         case "busy":

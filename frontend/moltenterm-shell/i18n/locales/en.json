@@ -4182,7 +4182,8 @@
             "notready": "{name} cannot take the rebase now: {message}",
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
-            "failed": "The rebase could not be asked: {message}"
+            "failed": "The rebase could not be asked: {message}",
+            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you."
         },
         "ready": {
             "button": "Mark ready for review",
@@ -5239,7 +5240,7 @@
             "sheet": {
                 "title": "Restart work · #{number}",
                 "what": "Review round {round}'s {count} published comments go to an agent in the worktree of {branch}: it applies them, commits in the project's format, pushes and replies on each thread.",
-                "who": "An idle agent already working there gets them; otherwise your agent starts in a new terminal of this tab, with your usual permissions.",
+                "who": "An idle agent already working there gets them; otherwise you choose how your agent starts: out of sight, or in a tab of its own, with your usual permissions.",
                 "ticket": "The ticket keeps its status. Nothing starts until you click Restart work.",
                 "again": "This round was already handed over: a new click hands it again.",
                 "cancel": "Cancel"
@@ -5259,7 +5260,8 @@
                 "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
                 "notstarted": "The agent was not started: {message}",
                 "nottyped": "The comments could not be sent to {agent}: {message}",
-                "failed": "Restart work failed: {message}"
+                "failed": "Restart work failed: {message}",
+                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you."
             }
         },
         "notes": {
@@ -5612,6 +5614,18 @@
                 "leftTitle": "Getting started is still here",
                 "left": "Open it again whenever you want, from the app menu or the command palette.",
                 "open": "Open Getting started"
+            },
+            "review": {
+                "rebasedTitle": "#{number} rebased on {base} by {name}, ready for review",
+                "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}, ready for review",
+                "needsTitle": "{name} needs you on #{number}",
+                "stopped": "{name} stopped before pushing {branch}: its terminal says what it needs.",
+                "exited": "{name}'s session ended before {branch} was pushed.",
+                "midRebase": "{name} stopped in the middle of the rebase of {branch}: its terminal says what it needs.",
+                "changes": "{name} pushed, but its copy of {branch} has uncommitted files ({count}): {names}",
+                "commits": "Commits not pushed on {branch}: {count}.",
+                "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
+                "openReview": "Open the review"
             }
         },
         "companion": {
@@ -5825,5 +5839,38 @@
             "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
             "installFailed": "The guides of {agent} could not be installed: {detail}"
         }
+    },
+    "agentChoice": {
+        "title": {
+            "rebase": "Rebase #{number} with an agent",
+            "restart": "Restart work on #{number} with an agent"
+        },
+        "subtitle": "{branch} → {base}",
+        "what": {
+            "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
+            "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread."
+        },
+        "background": {
+            "button": "Let the agent handle it",
+            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in Reviews or in Sessions; a notification tells you when it is done or needs you."
+        },
+        "together": {
+            "rebase": "Go through the rebase with the agent",
+            "restart": "Go through the work with the agent",
+            "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
+        },
+        "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
+        "default": "Default",
+        "yourAgent": "Your agent",
+        "tab": {
+            "rebase": "Rebase #{number}",
+            "restart": "Restart #{number}"
+        },
+        "noReview": "The pull request to open is not known."
+    },
+    "agentOrigin": {
+        "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
+        "rebase": "Started by you at {time} to rebase #{number} on {base}",
+        "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}"
     }
 }

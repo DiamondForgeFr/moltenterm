@@ -292,7 +292,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         onSelect: () => setSelected(pr.number),
         onOpen: () => open(pr),
         onValidate: () => model.openValidate(dir, pr, answer.repo, blockId),
-        onAskRebase: (start: boolean) => model.askRebase(dir, pr, answer.repo, start),
+        onAskRebase: () => model.askRebase(dir, pr, answer.repo),
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,
         repo: answer.repo,
@@ -531,7 +531,7 @@ export function ReviewRow({
     onSelect: () => void;
     onOpen: () => void;
     onValidate: () => void;
-    onAskRebase: (start: boolean) => Promise<RebaseOutcome>;
+    onAskRebase: () => Promise<RebaseOutcome>;
     rebaseAsk: RebaseAsk;
     dir: string;
     repo: string;
@@ -554,7 +554,7 @@ export function ReviewRow({
     useEffect(() => {
         setOutcome(null);
     }, [pr.headoid]);
-    const askRebase = (e: React.MouseEvent, start: boolean) => {
+    const askRebase = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (asking) {
             return;
@@ -563,7 +563,7 @@ export function ReviewRow({
         setOutcome(null);
         fireAndForget(async () => {
             try {
-                setOutcome(await onAskRebase(start));
+                setOutcome(await onAskRebase());
             } finally {
                 setAsking(false);
             }
@@ -651,7 +651,7 @@ export function ReviewRow({
                 {conflicts && !asked ? (
                     <button
                         type="button"
-                        onClick={(e) => askRebase(e, false)}
+                        onClick={askRebase}
                         onKeyDown={stopRow}
                         aria-busy={asking || undefined}
                         className={cn(SecondaryButton, "py-0.5 text-11")}
@@ -685,31 +685,6 @@ export function ReviewRow({
                     data-testid="reviews-rebase-outcome"
                 >
                     <span className="min-w-0">{outcome.text}</span>
-                    {outcome.kind === "offer" ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={(e) => askRebase(e, true)}
-                                onKeyDown={stopRow}
-                                className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                                data-testid="reviews-rebase-start"
-                            >
-                                {t("reviews.rebase.start")}
-                                <MoltenWave />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOutcome(null);
-                                }}
-                                onKeyDown={stopRow}
-                                className={SecondaryButton}
-                            >
-                                {t("common.cancel")}
-                            </button>
-                        </>
-                    ) : null}
                 </div>
             ) : null}
             <RowAgentBar dir={dir} branch={pr.branch} />

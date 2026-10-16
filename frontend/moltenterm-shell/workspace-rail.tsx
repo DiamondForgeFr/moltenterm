@@ -62,7 +62,6 @@ import {
 import { RailConnectState, RailDropToGroup, RailProduct, WorstDot } from "./rail-product";
 import { RailTools } from "./rail-tools";
 import { installRailTrayExits, RailTray, RailTrayPrimary, showRailMenu, useRailTrayHost } from "./rail-tray";
-import { installReviewHandoff } from "./reviews/reviews-handoff";
 import {
     railEditLabel,
     railMoreLabel,
@@ -71,6 +70,8 @@ import {
     RailTrayModel,
     railWorkspaceMenu,
 } from "./rail-tray-model";
+import { AgentChoiceHost } from "./reviews/agent-choice";
+import { installReviewHandoff } from "./reviews/reviews-handoff";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
@@ -816,6 +817,7 @@ export function WorkspaceRail() {
             <ProjectTabKeeper />
             <PaneFocusKeeper />
             <WorktreeCloseHost />
+            <AgentChoiceHost />
             <WorkspaceResetHost />
             <WorkspaceEditHost entries={entries} />
         </nav>

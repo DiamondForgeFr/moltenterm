@@ -158,7 +158,13 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                         onRemoveLeftover: (step) => fireAndForget(() => model.removeLeftover(step)),
                     }}
                     onStartAgent={(other) =>
-                        ReviewsModel.getInstance().startCleanupAgent(pr.dir, pr.repo, cleanup?.base || baseref, other)
+                        ReviewsModel.getInstance().startCleanupAgent(
+                            pr.dir,
+                            pr.repo,
+                            cleanup?.base || baseref,
+                            other,
+                            pr.number
+                        )
                     }
                 />
                 {record == null && plan != null && !plan.canmerge ? (

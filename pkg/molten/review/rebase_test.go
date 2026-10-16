@@ -18,7 +18,7 @@ const rebaseHead = "0123456789abcdef0123456789abcdef01234567"
 func (f *restartFixture) rebaseRequest(start bool) RebaseRequest {
 	req := RebaseRequest{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x", BaseRef: "develop", HeadOid: rebaseHead, Title: "Fix x", Start: start}
 	if start {
-		req.TabId = "tab-1"
+		req.Mode, req.WorkspaceId = AgentModeTogether, "ws-1"
 	}
 	return req
 }
@@ -140,6 +140,8 @@ func TestAskRebaseNeedsTheBranchesAndATabToStart(t *testing.T) {
 		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x"},
 		{PrKey: f.k, Dir: f.dir, BaseRef: "develop"},
 		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x", BaseRef: "develop", Start: true},
+		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x", BaseRef: "develop", Start: true, Mode: AgentModeBackground},
+		{PrKey: f.k, Dir: f.dir, HeadRef: "feature/9-fix-x", BaseRef: "develop", Start: true, Mode: "review", WorkspaceId: "ws-1"},
 		{PrKey: f.k, Dir: f.dir, HeadRef: "-x", BaseRef: "develop"},
 	} {
 		if _, err := f.r.AskRebase(context.Background(), req); err == nil {
