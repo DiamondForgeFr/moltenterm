@@ -99,8 +99,10 @@ describe("runs", () => {
         expect(latestRun([], "build")).toBeNull();
     });
 
-    it("shows the last lines of a log without colours or the exit marker", () => {
-        expect(logTail("\x1b[32mok\x1b[0m\n\nstep 2\r\nexit=0\n", 5)).toEqual(["ok", "step 2"]);
+    it("shows the last lines without colours and preserves ordinary exit text", () => {
+        expect(logTail("\x1b[32mok\x1b[0m\n\nstep 2\r\nexit=0\nexit=1\n", 5)).toEqual([
+            "ok", "step 2", "exit=0", "exit=1",
+        ]);
         expect(logTail("a\nb\nc", 2)).toEqual(["b", "c"]);
     });
 

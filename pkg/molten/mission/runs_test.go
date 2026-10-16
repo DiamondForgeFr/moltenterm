@@ -140,7 +140,7 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 		t.Fatalf("finished run: %+v", rec)
 	}
 	chunk, err := r.ReadLog(dir, rec.Id, 0)
-	if err != nil || !strings.Contains(chunk.Text, "working") || !strings.Contains(chunk.Text, "exit=0") || chunk.Size != int64(len(chunk.Text)) {
+	if err != nil || !strings.Contains(chunk.Text, "working") || strings.Contains(chunk.Text, "exit=0") || chunk.Size != int64(len(chunk.Text)) {
 		t.Fatalf("log: %+v, %v", chunk, err)
 	}
 	tree, _ := filepath.EvalSymlinks(r.buildTreeDir(dir))

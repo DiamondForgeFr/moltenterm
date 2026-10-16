@@ -149,25 +149,44 @@ func (b *buildLog) say(format string, args ...any) {
 }
 
 func (b *buildLog) refresh() {
+	b.persist()
+	if b.r.publish != nil {
+		b.r.publish(*b.rec)
+	}
+}
+
+func (b *buildLog) persist() {
+	lock := b.r.recordLock(b.rec.Dir, b.rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
 	b.rec.Cancelled = b.rec.Cancelled || b.cancelled()
 	b.r.update(b.rec)
 	b.r.settle(b.rec)
 	b.r.writeRecord(*b.rec)
-	if b.r.publish != nil {
-		b.r.publish(*b.rec)
-	}
 }
 
 func (b *buildLog) cancelled() bool {
 	return b.r.checkCancelAsked(b.rec.Id)
 }
 
-// finish ends a build that stopped before its command: the exit line is how every reader knows the outcome.
+// finish ends a build that stopped before its command, using the preparation's known result.
 func (b *buildLog) finish(code int) {
+	b.finishRecord(code)
+	if b.r.publish != nil {
+		b.r.publish(*b.rec)
+	}
+}
+
+func (b *buildLog) finishRecord(code int) {
+	lock := b.r.recordLock(b.rec.Dir, b.rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
 	b.rec.Cancelled = b.cancelled()
-	fmt.Fprintf(b.file, "exit=%d\n", code)
+	b.r.update(b.rec)
 	b.rec.Preparing = false
-	b.refresh()
+	b.r.complete(b.rec, code)
+	b.r.settle(b.rec)
+	b.r.writeRecord(*b.rec)
 }
 
 func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
@@ -360,7 +379,7 @@ func runBuildCommand(cwd string, run string, env map[string]string, rec RunRecor
 }
 
 func (r *Runs) launchBuild(b *buildLog, tree string, build molten.PipelineBuild) {
-	cmd := exec.Command("/bin/sh", "-c", `( `+b.rec.Command+` ); echo "exit=$?"`)
+	cmd := r.supervisedCommand(*b.rec)
 	cmd.Dir = filepath.Join(tree, build.Cwd)
 	cmd.Env = buildEnv(build.Env, *b.rec)
 	cmd.Stdout = b.file
@@ -374,16 +393,23 @@ func (r *Runs) launchBuild(b *buildLog, tree string, build molten.PipelineBuild)
 	}
 	b.rec.Pid = cmd.Process.Pid
 	b.rec.Preparing = false
-	r.writeRecord(*b.rec)
-	if r.endPreparing(b.rec.Id) || b.rec.Cancelled {
-		b.rec.Cancelled = true
-		r.writeRecord(*b.rec)
-		stopRunGroup(b.rec.Pid)
-	}
 	go cmd.Wait()
+	r.handoffBuild(b.rec)
 	r.watch(*b.rec)
 	if r.publish != nil {
 		r.publish(*b.rec)
+	}
+}
+
+func (r *Runs) handoffBuild(rec *RunRecord) {
+	lock := r.recordLock(rec.Dir, rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
+	r.writeRecord(*rec)
+	if r.endPreparing(rec.Id) || rec.Cancelled {
+		rec.Cancelled = true
+		r.writeRecord(*rec)
+		stopRunGroup(rec.Pid)
 	}
 }
 

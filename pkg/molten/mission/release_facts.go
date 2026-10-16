@@ -176,7 +176,7 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 		fact := ReleaseStepFact{RunId: rec.Id, State: rec.State, Running: rec.State == RunStateRunning, Exit: rec.Exit, Phases: rec.Phases, Tail: []string{}}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimRight(line, "\r")
-			if strings.TrimSpace(line) == "" || exitRegex.MatchString(line) || notesRegex.MatchString(line) {
+			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) {
 				continue
 			}
 			fact.Tail = append(fact.Tail, line)
