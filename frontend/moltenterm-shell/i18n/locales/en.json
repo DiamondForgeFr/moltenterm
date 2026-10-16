@@ -842,11 +842,10 @@
             },
             "moltenterm:view360": {
                 "label": "360 view",
-                "description": "When a tab fixes its first column and lays the others on a sideways carpet. The tab's 360 toggle wins.",
+                "description": "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
                 "options": {
                     "auto": "Automatic",
-                    "always": "Always",
-                    "never": "Never"
+                    "always": "Always"
                 }
             },
             "review:publishlanguage": {
@@ -3797,16 +3796,25 @@
             "toggleAutoMark": "A",
             "tooltipOn": "360 view is on: the first column stays fixed, the other panels scroll sideways on the carpet.",
             "tooltipOff": "360 view is off: every panel shares the tab's width.",
-            "tooltipAuto": "Automatic: switches by itself when a panel gets too narrow to read.",
-            "tooltipManual": "Chosen for this tab. Right-click to follow the setting again.",
-            "tooltipSetting": "From the 360 view setting.",
+            "heldManual": "On demand: turned on from this button.",
+            "heldAuto": "Automatic: the panels no longer fit side by side at a readable width.",
+            "heldSetting": "From the 360 view setting (Always).",
+            "offManual": "Turned off for this tab. It still turns on by itself when the panels no longer fit side by side.",
+            "offAuto": "Automatic: turns on by itself when the panels no longer fit side by side.",
+            "clickOn": "Click to turn it on.",
+            "clickOff": "Click to leave it. If the panels only fit with their sizes readjusted, you are asked first.",
             "tooltipSingle": "360 view needs a second panel beside the first one.",
-            "menuOn": "On",
-            "menuOff": "Off",
-            "menuFollow": "Follow the setting",
-            "pillText": "Too tight to read",
-            "pillAction": "Switch to 360",
-            "pillClose": "Hide until a panel is added"
+            "menuOn": "Turn on 360 view",
+            "menuLeave": "Leave 360 view",
+            "menuSettings": "360 view settings",
+            "readjustTitle": "Leave 360 view?",
+            "readjustText": "The panels fit side by side only once the terminals give up the width they were dragged to. Every size is readjusted: the terminals' minimum width is cleared and the panels share the tab's width.",
+            "readjustConfirm": "Readjust every size",
+            "readjustStay": "Stay in 360 view",
+            "blockedTitle": "Close panels first",
+            "blockedOne": "The panels don't fit side by side, even at their smallest readable width. Close one column to leave 360 view.",
+            "blockedMany": "The panels don't fit side by side, even at their smallest readable width. Close {count} columns to leave 360 view.",
+            "blockedOk": "Stay in 360 view"
         },
         "radar": {
             "label": "Panels on the carpet",

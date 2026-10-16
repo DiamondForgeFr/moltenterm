@@ -1263,15 +1263,14 @@
           "type": "string",
           "enum": [
             "auto",
-            "always",
-            "never"
+            "always"
           ],
-          "description": "When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. never: panels squeeze, and a pill says when one is too tight to read. A tab's own 360 toggle wins over this setting",
+          "description": "When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand",
           "x-moltenterm": {
             "section": "appearance",
             "group": "360 view",
             "label": "360 view",
-            "description": "When a tab fixes its first column and lays the others on a sideways carpet. The tab's 360 toggle wins.",
+            "description": "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
             "control": "select",
             "options": [
               {
@@ -1281,10 +1280,6 @@
               {
                 "value": "always",
                 "label": "Always"
-              },
-              {
-                "value": "never",
-                "label": "Never"
               }
             ],
             "order": 18

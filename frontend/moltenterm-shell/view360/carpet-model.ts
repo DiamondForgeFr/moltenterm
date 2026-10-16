@@ -10,7 +10,7 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { LegacyTimelineView, MoltentermProjectView } from "../project/project-model";
 
 // The fixed zone keeps this width at least, and never more than half of the tab's width (half wins on a narrow
-// window: the carpet must stay usable).
+// window: the carpet must stay usable). The terminal floor lifts both while a carpet column still fits (fixedBoundsPx).
 export const FixedMinPx = 520;
 export const FixedMaxShare = 0.5;
 // Room around the carpet surface, so it reads as a recessed area beside the fixed zone.
@@ -30,6 +30,10 @@ export const PinnedColumnMinPx = 320;
 export const FixedColumnGapPx = CarpetMarginPx;
 // The "add a panel" invitation laid at each end of the carpet (#702): a slim column, a column gap from its neighbour.
 export const CarpetInvitePx = 44;
+// The readable minimum of a column other than the first (FR-SHELL-066's automatic decision counts it too).
+export const ReadableCarpetColumnPx = 360;
+// What the carpet needs to show one column at its readable minimum: the column, the carpet's padding and margins.
+export const CarpetReservePx = ReadableCarpetColumnPx + 2 * CarpetPadXPx + 2 * CarpetMarginPx;
 
 // The width a column takes on the carpet when none is remembered for its kind.
 const DefaultCarpetWidths: Record<string, number> = {
@@ -102,6 +106,8 @@ export type CarpetLayoutInput = {
     columns: { nodeId: string; widthPx: number }[];
     // The columns pinned to the fixed zone, in the tree's order; widthPx is only used beside.
     pins?: { nodeId: string; mode: PinMode; widthPx: number }[];
+    // The width the first column's terminals need to keep the terminal floor (#731, #733), 0 without one.
+    fixedNeedPx?: number;
 };
 
 // The tab's columns in 360 view, or null when there is nothing to lay out (no tree, or a single panel).
@@ -157,13 +163,17 @@ export function defaultCarpetWidthPx(kind: string): number {
     return DefaultCarpetWidths[kind] ?? DefaultCarpetColumnPx;
 }
 
-export function fixedBoundsPx(width: number): { min: number; max: number } {
-    const max = Math.max(0, Math.floor(width * FixedMaxShare));
-    return { min: Math.min(FixedMinPx, max), max };
+// The fixed zone's bounds. needPx (the terminal floor of its terminals, #733) lifts both the minimum and the half-window
+// cap, as long as one carpet column at its readable minimum still fits beside it; otherwise the cap stays.
+export function fixedBoundsPx(width: number, needPx = 0): { min: number; max: number } {
+    const half = Math.max(0, Math.floor(width * FixedMaxShare));
+    const need = Number.isFinite(needPx) && needPx > 0 ? Math.ceil(needPx) : 0;
+    const max = need > half && need + CarpetReservePx <= width ? need : half;
+    return { min: Math.min(Math.max(FixedMinPx, need), max), max };
 }
 
-export function clampFixedPx(px: number, width: number): number {
-    const { min, max } = fixedBoundsPx(width);
+export function clampFixedPx(px: number, width: number, needPx = 0): number {
+    const { min, max } = fixedBoundsPx(width, needPx);
     const want = Number.isFinite(px) && px > 0 ? px : min;
     return Math.round(Math.min(Math.max(want, min), max));
 }
@@ -189,14 +199,17 @@ export function canPinBeside(width: number, besideCount: number): boolean {
 // The widths of the fixed zone's columns side by side, the first one then those pinned beside it, within half of the
 // window. When they do not fit, the pinned columns shrink to their minimum first, then the first column; below every
 // minimum (a very narrow window) they share the half in proportion, so the carpet never loses its space.
-export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[]): number[] {
+// needPx: the first column's terminal floor (#733), kept while the pinned columns can still shrink to their minimum.
+export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[], needPx = 0): number[] {
     if (!pinnedPx.length) {
-        return [clampFixedPx(firstPx, width)];
+        return [clampFixedPx(firstPx, width, needPx)];
     }
-    const avail = Math.max(0, fixedBoundsPx(width).max - FixedColumnGapPx * pinnedPx.length);
+    const avail = Math.max(0, fixedBoundsPx(width, needPx).max - FixedColumnGapPx * pinnedPx.length);
     const want = (px: number, fallback: number) =>
         Math.max(PinnedColumnMinPx, Number.isFinite(px) && px > 0 ? px : fallback);
-    let first = want(firstPx, FixedMinPx);
+    const need = Number.isFinite(needPx) && needPx > 0 ? needPx : 0;
+    const firstMin = Math.max(PinnedColumnMinPx, Math.min(need, avail - PinnedColumnMinPx * pinnedPx.length));
+    let first = Math.max(want(firstPx, FixedMinPx), firstMin);
     let pins = pinnedPx.map((px) => want(px, DefaultCarpetColumnPx));
     let over = first + sumPx(pins) - avail;
     if (over > 0) {
@@ -208,7 +221,7 @@ export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[
         over -= take;
     }
     if (over > 0) {
-        const take = Math.min(over, first - PinnedColumnMinPx);
+        const take = Math.max(0, Math.min(over, first - firstMin));
         first -= take;
         over -= take;
     }
@@ -229,7 +242,8 @@ function layoutFixedColumns(input: CarpetLayoutInput, width: number, height: num
     const widths = fitFixedWidths(
         width,
         input.fixedPx,
-        beside.map((p) => p.widthPx)
+        beside.map((p) => p.widthPx),
+        input.fixedNeedPx
     );
     const rows = stacked.length + 1;
     const rowHeight = Math.max(0, (height - FixedColumnGapPx * stacked.length) / rows);

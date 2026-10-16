@@ -243,59 +243,6 @@
     }
 }
 
-/* "Too tight to read" (FR-SHELL-066-AC5): a calm pill floating at the bottom centre of the tab's panels. */
-.mt-tight-pill {
-    position: absolute;
-    left: 50%;
-    bottom: var(--mt-space-16);
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    gap: var(--mt-space-8);
-    padding: 5px 6px 5px 12px;
-    transform: translateX(-50%);
-    border: 1px solid var(--mt-line-2);
-    border-radius: 999px;
-    background: var(--mt-surface-2);
-    box-shadow: var(--mt-shadow-e2);
-    color: var(--mt-text-main);
-    font-family: var(--mt-ui-font);
-    font-size: var(--mt-text-12);
-    font-weight: var(--mt-weight-medium);
-    white-space: nowrap;
-    pointer-events: auto;
-}
-
-.mt-tight-pill-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--mt-accent);
-}
-
-.mt-tight-pill .molten-btn {
-    border-radius: 999px;
-}
-
-.mt-tight-pill-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    color: var(--mt-text-muted);
-    font-size: var(--mt-icon-14);
-    transition:
-        color var(--mt-duration-fast) var(--mt-ease),
-        background-color var(--mt-duration-fast) var(--mt-ease);
-}
-
-.mt-tight-pill-close:hover {
-    color: var(--mt-text-main);
-    background: var(--mt-line-1);
-}
-
 /* A panel pinned to the fixed zone (FR-SHELL-067): an accent-tinted border and, in its header, a filled pin and a
    small "pinned" badge, so it reads as taken off the carpet. */
 .tile-layout .tile-node.mt-pinned-node .block.block-frame-default .block-mask {

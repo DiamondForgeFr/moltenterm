@@ -12,7 +12,6 @@ import {
     Cloud,
     ExternalLink,
     Eye,
-    EyeOff,
     Laptop,
     PanelLeft,
     PanelTop,
@@ -82,7 +81,7 @@ const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
     "preview:defaultsort": { name: ArrowDownAZ, modtime: Clock },
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },
     "term:cursor": { block: Square, bar: TextCursor, underline: Underline },
-    "moltenterm:view360": { auto: Wand2, always: Eye, never: EyeOff },
+    "moltenterm:view360": { auto: Wand2, always: Eye },
 };
 
 export function settingsOptionIcon(key: string, value: string): SuiteIcon {

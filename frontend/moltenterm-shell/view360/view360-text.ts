@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Every string the 360 view's toggle and pill show (FR-SHELL-066), read through the interface's keys (FR-I18N-001) at
+// Every string the 360 view's toggle and its leave dialogs show (FR-SHELL-066, #733), read through the interface's keys (FR-I18N-001) at
 // each access: the components that show them call useLocale() so a language switch redraws them.
 
 import { t } from "../i18n/i18n";
@@ -11,16 +11,23 @@ const Keys = [
     "toggleAutoMark",
     "tooltipOn",
     "tooltipOff",
-    "tooltipAuto",
-    "tooltipManual",
-    "tooltipSetting",
+    "heldManual",
+    "heldAuto",
+    "heldSetting",
+    "offManual",
+    "offAuto",
+    "clickOn",
+    "clickOff",
     "tooltipSingle",
     "menuOn",
-    "menuOff",
-    "menuFollow",
-    "pillText",
-    "pillAction",
-    "pillClose",
+    "menuLeave",
+    "menuSettings",
+    "readjustTitle",
+    "readjustText",
+    "readjustConfirm",
+    "readjustStay",
+    "blockedTitle",
+    "blockedOk",
 ] as const;
 
 export const View360Text = {} as Record<(typeof Keys)[number], string>;
