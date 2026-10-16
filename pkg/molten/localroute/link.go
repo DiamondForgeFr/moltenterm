@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -270,6 +271,10 @@ func (l *Link) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
 	if err != nil {
 		resp.Error = err.Error()
+		// Only the windows word a coded error themselves (#656): a terminal's `molten` and agents read the English.
+		if caller.IsWindow {
+			resp.Error = uimsg.Wire(err)
+		}
 	} else {
 		resp.Data = data
 	}
