@@ -74,17 +74,25 @@ describe("release notes catalog", () => {
         expect(visibleEntries(entries, "gold")).toHaveLength(5);
     });
 
-    it("groups This build's changes as New, Fixed and Other", () => {
+    it("groups This build's changes as New, Fixed and Other, and only counts internal ones", () => {
         const groups = groupBuildChanges([
             { sha: "a", subject: "feat(#1): a thing" },
             { sha: "b", subject: "fix(#2): a crash" },
             { sha: "c", subject: "perf: faster" },
             { sha: "d", subject: "docs(#3): words" },
             { sha: "e", subject: "Merge something" },
+            { sha: "f", subject: "test(#4): assert behaviour, not wall time" },
+            { sha: "g", subject: "chore(release): v1.0.0-3 (rc)" },
+            { sha: "h", subject: "ci: cache go modules" },
+            { sha: "i", subject: "refactor(#5)!: split the model" },
+            { sha: "j", subject: "build(#6): bump electron" },
+            { sha: "k", subject: "style(#7): spacing" },
+            { sha: "l", subject: "wip: something untyped" },
         ]);
         expect(groups.features.map((c) => c.sha)).toEqual(["a"]);
         expect(groups.fixes.map((c) => c.sha)).toEqual(["b", "c"]);
-        expect(groups.other.map((c) => c.sha)).toEqual(["d", "e"]);
+        expect(groups.other.map((c) => c.sha)).toEqual(["e", "l"]);
+        expect(groups.internal).toBe(7);
     });
 });
 

@@ -3763,7 +3763,9 @@
         "noReleaseNewest": "No release yet: the newest {count} changes.",
         "new": "New",
         "fixed": "Fixed",
-        "other": "Other"
+        "other": "Other",
+        "internalOne": "And 1 internal change (tests, tooling, docs), not listed.",
+        "internalOther": "And {count} internal changes (tests, tooling, docs), not listed."
     },
     "lazy": {
         "loadingEditor": "Loading editor…",

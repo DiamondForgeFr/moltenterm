@@ -161,6 +161,13 @@ function ThisBuildPane({ identity }: { identity: BuildIdentity }) {
                     <ChangeList title={t("releases.new")} changes={groups.features} />
                     <ChangeList title={t("releases.fixed")} changes={groups.fixes} />
                     <ChangeList title={t("releases.other")} changes={groups.other} />
+                    {groups.internal > 0 ? (
+                        <div className="text-11 text-muted" data-testid="release-notes-internal">
+                            {groups.internal === 1
+                                ? t("releases.internalOne")
+                                : t("releases.internalOther", { count: groups.internal })}
+                        </div>
+                    ) : null}
                 </>
             )}
         </article>
