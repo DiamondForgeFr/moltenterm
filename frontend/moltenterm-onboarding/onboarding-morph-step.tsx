@@ -252,6 +252,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
                 {alternatives.map((request) => (
                     <CopyLine key={request} text={request} />
                 ))}
+                <StepText className="text-12 text-muted">{t("onboarding.morph.requestsNote")}</StepText>
             </div>
             <StepText className="text-12 text-muted">
                 {withCodes(t("onboarding.morph.waiting"), { command: "molten undo" })}

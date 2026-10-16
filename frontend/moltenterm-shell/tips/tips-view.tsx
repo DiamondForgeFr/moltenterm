@@ -18,13 +18,14 @@ import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 
 export const MoltentermTipsView = "tips";
 
-type Tip = { id: string; code?: string; icon?: string };
+type Tip = { id: string; code?: string; placeholder?: string; icon?: string };
 
-// Titles and texts are keys (tips.items.<id>.title and .text), translated where shown.
+// Titles and texts are keys (tips.items.<id>.title and .text), translated where shown. A command is shown here, not
+// pasted, so its placeholder (tips.placeholders.<placeholder>) is translated too (#749).
 const ReshapeTips: Tip[] = [
-    { id: "morph", code: "/morph <what you want>" },
+    { id: "morph", code: "/morph", placeholder: "request" },
     { id: "undo", code: "molten undo" },
-    { id: "copy", code: "molten copy <text>" },
+    { id: "copy", code: "molten copy", placeholder: "text" },
     { id: "help", code: "molten help" },
 ];
 
@@ -56,6 +57,13 @@ export class TipsViewModel implements ViewModel {
     }
 }
 
+export function tipCode(tip: Tip, translate: (key: string) => string): string {
+    if (!tip.placeholder) {
+        return tip.code;
+    }
+    return `${tip.code} <${translate(`tips.placeholders.${tip.placeholder}`)}>`;
+}
+
 function TipRow({ tip }: { tip: Tip }) {
     const t = useT();
     return (
@@ -71,7 +79,7 @@ function TipRow({ tip }: { tip: Tip }) {
             </div>
             {tip.code ? (
                 <code className="shrink-0 rounded-4 bg-surface-2 px-1.5 py-0.5 font-mono text-11 text-primary @max-w600:hidden">
-                    {tip.code}
+                    {tipCode(tip, t)}
                 </code>
             ) : null}
         </div>

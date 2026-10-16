@@ -171,8 +171,11 @@ func moltenProjectLinkRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	update := map[string]any{molten.ProjectMetaKey: dir}
-	logo := moltenMetaString(meta, molten.ProjectLogoMetaKey)
+	update := map[string]any{
+		molten.ProjectMetaKey:                dir,
+		molten.WorkspaceRecentFoldersMetaKey: molten.PushRecentFolder(meta[molten.WorkspaceRecentFoldersMetaKey], dir),
+	}
+	logo :=moltenMetaString(meta, molten.ProjectLogoMetaKey)
 	// A logo chosen for another project would now stand for the wrong one.
 	if moltenMetaString(meta, molten.ProjectMetaKey) != dir || moltenProjectNoLogo {
 		logo = ""

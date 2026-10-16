@@ -131,3 +131,18 @@ func TestBlockMetaInFolder(t *testing.T) {
 		t.Errorf("without a folder nothing changes")
 	}
 }
+
+// #749: linking a project puts its folder first in the recent folders the command palette offers.
+func TestPushRecentFolder(t *testing.T) {
+	got := PushRecentFolder([]any{"/a", "/proj", 3, "", "/b"}, "/proj")
+	if !reflect.DeepEqual(got, []string{"/proj", "/a", "/b"}) {
+		t.Errorf("got %v", got)
+	}
+	if got := PushRecentFolder(nil, "/proj"); !reflect.DeepEqual(got, []string{"/proj"}) {
+		t.Errorf("from nothing %v", got)
+	}
+	many := []any{"/1", "/2", "/3", "/4", "/5", "/6", "/7", "/8"}
+	if got := PushRecentFolder(many, "/new"); len(got) != MaxRecentFolders || got[0] != "/new" || got[7] != "/7" {
+		t.Errorf("capped %v", got)
+	}
+}

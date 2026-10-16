@@ -1147,7 +1147,7 @@
             "guideOutdated": "v{version}, updated at the next start",
             "guideMissing": "not installed yet",
             "guideForeign": "a file MoltenTerm did not write is at its place; it is left alone",
-            "notFound": "Not found",
+            "notFound": "Not installed",
             "install": "Install",
             "declined": "Declined",
             "found": "Found",
@@ -1156,7 +1156,7 @@
             "genericTitle": "Another coding agent",
             "genericInstalled": "Any agent can follow MoltenTerm's instruction file at {path}. Point your agent to it with:",
             "genericMissing": "Any agent can follow MoltenTerm's instruction file: {command} writes it to {path}. Point your agent to it with:",
-            "requestPlaceholder": "<what you want MoltenTerm to do>",
+            "genericPaste": "Paste this line into your agent as is, with {placeholder} replaced by your request, in any language.",
             "noneFound": "MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. None of the agents MoltenTerm supports is on this computer's PATH. Install one, then look again, or skip this step: Getting started offers it again.",
             "lookAgain": "Look again",
             "integration": "When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm integrates that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
@@ -1186,6 +1186,7 @@
             "openBeside": "Open {name} beside this guide",
             "firstRequest": "Your first request",
             "alternatives": "Or one of these",
+            "requestsNote": "Paste a request as is; your own requests can be in any language.",
             "waiting": "Waiting for a new mod… Nothing changes in your projects: {command} takes any morph back."
         },
         "project": {
@@ -1200,7 +1201,8 @@
             "editWorkspace": "Edit workspace",
             "chooseFolder": "Choose a folder…",
             "scan": "Find my git repositories",
-            "scanEmpty": "No git repository two levels under your home folder.",
+            "scanning": "Searching your folders…",
+            "scanEmpty": "No git repository found in your folders. Choose your project folder instead.",
             "done": "Done",
             "chooseFirst": "Choose a folder first"
         }
@@ -1560,6 +1562,10 @@
         "shortcuts": {
             "title": "Shortcuts",
             "hint": "The same list as Settings > Keyboard."
+        },
+        "placeholders": {
+            "request": "what you want",
+            "text": "text"
         },
         "items": {
             "morph": {
