@@ -66,6 +66,14 @@ what is missing, and only after the user agreed.
 The first run of a pipeline (or of a changed one) asks the user to trust its commands: `molten ci run` then says so
 and exits; ask the user to start the CI once from Mission Control (CI/CD › CI local), then run it again.
 
+## Reporting your tests
+
+When you have tested a change (the harness's AI Testing step, or any test run you report before a review), post the
+report as a comment on the pull request or its ticket whose first line is exactly `## Test report` (details after it,
+for example `## Test report (PR #12)`). MoltenTerm's Reviews list and review sessions find the report by that heading;
+other wordings ("AI Testing report", "Rapport de test") are recognised too, but `## Test report` is the one to write.
+Only the heading counts: a plan that says the report will follow is not a report.
+
 ## Rules
 
 - `.molten/project.json` describes commands; it never holds a secret, a token or a password. Commands use the
