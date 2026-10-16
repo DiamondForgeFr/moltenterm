@@ -4015,6 +4015,40 @@
         "openOnGithub": "Ouvrir la pull request sur GitHub",
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
         "unpublished": "{count} non publié(s)",
+        "forecast": {
+            "computing": "Prévision des conflits…",
+            "computingTitle": "Chaque fusion est simulée dans une copie privée du dépôt : rien n'est écrit dans votre copie de travail, vos branches ou GitHub.",
+            "stale": "Mise à jour de la prévision des conflits…",
+            "staleTitle": "Une pull request ou la base a bougé : la prévision est recalculée. Les marques toujours valables restent affichées.",
+            "failed": "Prévision des conflits indisponible",
+            "error": {
+                "nogit": "Le dossier du projet n'est pas un dépôt git.",
+                "base": "Le commit de base est introuvable dans le projet comme sur origin.",
+                "failed": "git n'a pas pu simuler les fusions.",
+                "toomany": "Trop de pull requests ouvertes pour la prévision (plus de {max})."
+            },
+            "ready": "Prévision des conflits · {method}",
+            "readyTitle": "Chaque pull request en attente de revue est fusionnée sur la base par {method}, puis chaque autre pull request ouverte par-dessus le résultat, dans une copie privée du dépôt.",
+            "method": {
+                "merge": "commit de fusion",
+                "squash": "squash",
+                "rebase": "rebase"
+            },
+            "approximate": "Un rebase est simulé comme une seule fusion des changements de la pull request : quand ses commits n'entrent en conflit qu'un par un, le résultat peut différer.",
+            "upToDateRequired": "Cette base exige des branches à jour avant la fusion : chaque fusion oblige les autres pull requests à se rebaser, quel que soit l'ordre.",
+            "missing": "Certaines têtes de pull request n'ont pas pu être lues : leur prévision attend la prochaine actualisation.",
+            "markTitle": {
+                "one": "Fusionner cette pull request mettrait 1 autre pull request en conflit :",
+                "other": "Fusionner cette pull request mettrait {count} autres pull requests en conflit :"
+            },
+            "markAria": {
+                "one": "la fusionner mettrait 1 pull request en conflit",
+                "other": "la fusionner mettrait {count} pull requests en conflit"
+            },
+            "markLine": "#{number} : {paths}",
+            "impacted": "En conflit une fois #{number} fusionnée : {paths}",
+            "pathsMore": "{paths} et {count} de plus"
+        },
         "merge": {
             "clean": "prête à fusionner",
             "cleanTitle": "Aucun conflit : peut être rebasée et fusionnée telle quelle.",

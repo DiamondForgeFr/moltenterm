@@ -24,6 +24,17 @@ import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { useReviews } from "./reviews-client";
+import {
+    ForecastLinks,
+    ForecastMarkChip,
+    ForecastNote,
+    ForecastStatusLine,
+    linkedRowClass,
+    listForecast,
+    RowForecast,
+} from "./reviews-forecast";
+import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
+import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
 import {
     ciLabel,
@@ -217,9 +228,20 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const [draftsOpen, setDraftsOpen] = useState(true);
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
+    const [hovered, setHovered] = useState<number>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const split = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     const rows = navigableRows(split, draftsOpen);
+    // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
+    const forecastReq = useMemo(() => forecastRequestOf(answer, split), [answer, split]);
+    useForecastWatch(dir, forecastReq);
+    const forecast = useForecastAnswer(dir);
+    const forecastActive = hovered ?? selected;
+    const shownForecast = useMemo(
+        () => listForecast(forecast, split.ready, [...split.ready, ...split.drafts], forecastActive),
+        [forecast, split, forecastActive]
+    );
+    const status = forecastStatus(forecast, forecastReq);
     useEffect(() => {
         if (focus == null || focus.dir !== dir) {
             return;
@@ -274,14 +296,18 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,
         repo: answer.repo,
+        forecast: shownForecast.rows[pr.number],
+        forecastActive: forecastActive === pr.number,
+        onHover: (on: boolean) => setHovered((current) => (on ? pr.number : current === pr.number ? null : current)),
     });
     return (
         <div
             ref={listRef}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3"
+            className="relative flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3"
             onKeyDown={onKeyDown}
             data-role="molten-reviews"
         >
+            <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
             {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
             {answer.reportserror ? (
                 <div className="text-11 text-muted" title={answer.reportserror}>
@@ -289,9 +315,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 </div>
             ) : null}
             <section className="flex flex-col gap-2" aria-label={t("reviews.waiting")}>
-                <h2 className="text-13 leading-5 font-semibold">
+                <h2 className="flex items-baseline gap-2 text-13 leading-5 font-semibold">
                     {t("reviews.waiting")}
-                    <span className="ml-2 text-12 font-normal text-muted">{split.ready.length}</span>
+                    <span className="text-12 font-normal text-muted">{split.ready.length}</span>
+                    <ForecastStatusLine status={status} />
                 </h2>
                 {split.ready.length === 0 ? (
                     <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
@@ -488,6 +515,9 @@ export function ReviewRow({
     rebaseAsk,
     dir,
     repo,
+    forecast,
+    forecastActive,
+    onHover,
 }: {
     pr: ReviewPr;
     selected: boolean;
@@ -499,6 +529,9 @@ export function ReviewRow({
     rebaseAsk: RebaseAsk;
     dir: string;
     repo: string;
+    forecast?: RowForecast;
+    forecastActive?: boolean;
+    onHover?: (on: boolean) => void;
 }) {
     const t = useT();
     useLocale();
@@ -540,17 +573,20 @@ export function ReviewRow({
             role="listitem"
             tabIndex={0}
             data-pr={pr.number}
-            aria-label={reviewAriaLabel(pr)}
+            aria-label={[reviewAriaLabel(pr), forecast?.mark?.aria, forecast?.note].filter(Boolean).join(", ")}
             aria-current={selected || undefined}
             onClick={() => {
                 onSelect();
                 onOpen();
             }}
             onFocus={onSelect}
+            onMouseEnter={() => onHover?.(true)}
+            onMouseLeave={() => onHover?.(false)}
             className={cn(
                 "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60",
-                marked && "ring-2 ring-accent/70 ring-inset"
+                marked && "ring-2 ring-accent/70 ring-inset",
+                linkedRowClass(forecast?.linked)
             )}
         >
             <div className="flex items-start justify-between gap-3">
@@ -592,6 +628,7 @@ export function ReviewRow({
                     <ToneChip label={report.label} tone={report.tone} title={report.title} testId="reviews-report" />
                 )}
                 <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
+                <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
                 {pr.unpublished > 0 ? (
                     <span className={cn(Chip, ToneClasses.pending)} title={t("reviews.unpublishedTitle")}>
                         <i className="fa fa-solid fa-comment text-11" />
@@ -628,6 +665,7 @@ export function ReviewRow({
                     <AssistedReviewLink number={pr.number} onOpen={onOpen} />
                 </div>
             </div>
+            <ForecastNote text={forecast?.note} />
             <MarkReadyConfirm state={markReady} />
             {outcomeShown ? (
                 <div

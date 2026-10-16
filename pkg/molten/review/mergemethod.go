@@ -47,6 +47,8 @@ type ghRule struct {
 	Parameters struct {
 		AllowedMergeMethods []string `json:"allowed_merge_methods"`
 		MergeMethod         string   `json:"merge_method"`
+		// required_status_checks: branches must be up to date before merging (FR-REV-023's forecast, #780).
+		StrictPolicy bool `json:"strict_required_status_checks_policy"`
 	} `json:"parameters"`
 }
 
@@ -59,6 +61,7 @@ type branchRules struct {
 	allowed []string
 	linear  bool
 	queue   string
+	strict  bool
 }
 
 // mergeMethods is the plan's part about the method.
@@ -131,6 +134,8 @@ func parseBranchRules(out []byte) (branchRules, error) {
 		switch r.Type {
 		case "required_linear_history":
 			rtn.linear = true
+		case "required_status_checks":
+			rtn.strict = rtn.strict || r.Parameters.StrictPolicy
 		case "merge_queue":
 			if m := strings.ToLower(r.Parameters.MergeMethod); ValidMergeMethod(m) {
 				rtn.queue = m
@@ -260,23 +265,29 @@ func (m *Merger) readRepoMethods(ctx context.Context, dir string, repo string) r
 }
 
 func (m *Merger) readBranchRules(ctx context.Context, dir string, repo string, base string) branchRules {
+	r, _ := m.readBranchRulesOk(ctx, dir, repo, base)
+	return r
+}
+
+// readBranchRulesOk also says whether GitHub answered (false: no rules known, not "no rules").
+func (m *Merger) readBranchRulesOk(ctx context.Context, dir string, repo string, base string) (branchRules, bool) {
 	if !reviewsession.ValidRef(base) {
-		return branchRules{}
+		return branchRules{}, false
 	}
 	key := repo + "\x00" + base
 	if r, ok := m.cachedRules(key); ok {
-		return r
+		return r, true
 	}
 	out, err := m.runGhApi(ctx, dir, "repos/"+repo+"/rules/branches/"+url.PathEscape(base))
 	if err != nil {
-		return branchRules{}
+		return branchRules{}, false
 	}
 	r, err := parseBranchRules(out)
 	if err != nil {
-		return branchRules{}
+		return branchRules{}, false
 	}
 	m.keepRules(key, r)
-	return r
+	return r, true
 }
 
 func (m *Merger) planMethods(ctx context.Context, dir string, repo string, base string) mergeMethods {

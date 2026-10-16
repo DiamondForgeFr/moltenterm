@@ -4015,6 +4015,40 @@
         "openOnGithub": "Open the pull request on GitHub",
         "unpublishedTitle": "Comments written here, not published yet",
         "unpublished": "{count} unpublished",
+        "forecast": {
+            "computing": "Forecasting conflicts…",
+            "computingTitle": "Each merge is simulated in a private copy of the repository: nothing is written to your checkout, your branches or GitHub.",
+            "stale": "Updating the conflict forecast…",
+            "staleTitle": "A pull request or the base moved: the forecast is computed again. The marks that still hold stay shown.",
+            "failed": "Conflict forecast unavailable",
+            "error": {
+                "nogit": "The project folder is not a git repository.",
+                "base": "The base commit could not be found in the project or on origin.",
+                "failed": "git could not simulate the merges.",
+                "toomany": "Too many open pull requests to forecast (more than {max})."
+            },
+            "ready": "Conflict forecast · {method}",
+            "readyTitle": "Each pull request waiting for review is merged onto the base by {method}, then every other open pull request on top of the result, in a private copy of the repository.",
+            "method": {
+                "merge": "merge commit",
+                "squash": "squash",
+                "rebase": "rebase"
+            },
+            "approximate": "A rebase is simulated as one merge of the pull request's changes: when its commits conflict only one by one, the result may differ.",
+            "upToDateRequired": "This base requires branches to be up to date before merging: every merge makes the other pull requests rebase, whatever the order.",
+            "missing": "Some pull request heads could not be read: their forecast waits for the next refresh.",
+            "markTitle": {
+                "one": "Merging this pull request would put 1 other pull request in conflict:",
+                "other": "Merging this pull request would put {count} other pull requests in conflict:"
+            },
+            "markAria": {
+                "one": "merging it would put 1 pull request in conflict",
+                "other": "merging it would put {count} pull requests in conflict"
+            },
+            "markLine": "#{number}: {paths}",
+            "impacted": "Conflicts once #{number} is merged: {paths}",
+            "pathsMore": "{paths} and {count} more"
+        },
         "merge": {
             "clean": "ready to merge",
             "cleanTitle": "No conflict: can be rebased and merged as it is.",
