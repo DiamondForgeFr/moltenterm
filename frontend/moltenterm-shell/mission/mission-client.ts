@@ -7,7 +7,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { serverErrorText, ServerText } from "../i18n/server-text";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -24,6 +24,8 @@ import {
     ProjectGroup,
 } from "./group-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
+import { MissionRequests } from "./mission-requests";
+import { useMissionScope } from "./mission-scope";
 import { ReleaseChannel, ReleaseMilestone, ReleaseSession } from "./release-model";
 import { ReleaseFacts } from "./release-run";
 
@@ -100,7 +102,10 @@ export function missionGroups(dir?: string): Promise<GroupsAnswer> {
 // answer when the tab opens, then every model it publishes (each event carries all the groups). No poll and no
 // collection of its own (FR-MC-028-AC6).
 export function useMissionGroup(workspaceId: string, dir: string): ProjectGroup {
-    const [group, setGroup] = useState<ProjectGroup>(null);
+    const { value: group, setValue: setGroup } = useMissionScope<ProjectGroup>(
+        JSON.stringify([workspaceId, dir]),
+        null
+    );
     useEffect(() => {
         setGroup(null);
         if (!workspaceId || !dir) {
@@ -111,6 +116,9 @@ export function useMissionGroup(workspaceId: string, dir: string): ProjectGroup 
         const unsubscribe = waveEventSubscribeSingle({
             eventType: MissionGroupsEvent as WaveEventName,
             handler: (event) => {
+                if (cancelled) {
+                    return;
+                }
                 heard = true;
                 setGroup(productGroupOfWorkspace((event.data as GroupsAnswer)?.groups, workspaceId));
             },
@@ -129,7 +137,7 @@ export function useMissionGroup(workspaceId: string, dir: string): ProjectGroup 
             cancelled = true;
             unsubscribe();
         };
-    }, [workspaceId, dir]);
+    }, [workspaceId, dir, setGroup]);
     return group;
 }
 
@@ -175,53 +183,58 @@ export type MissionState = {
 };
 
 export function useMissionSnapshot(dir: string): MissionState {
-    const [snapshot, setSnapshot] = useState<MissionSnapshot>(null);
-    const [error, setError] = useState<string>(null);
     const panelId = usePanelBlockId();
-    const ask = useCallback(
-        (fn: (dir: string) => Promise<MissionSnapshot>) => {
-            if (!dir) {
+    const {
+        scope,
+        value,
+        setValue,
+        reload: refresh,
+    } = useMissionScope<Pick<MissionState, "snapshot" | "error">>(JSON.stringify([dir, panelId]), null);
+    useEffect(() => {
+        setValue(null);
+        if (!dir) {
+            return;
+        }
+        const requests = new MissionRequests();
+        const ask = (fn: (dir: string) => Promise<MissionSnapshot>) => {
+            const request = requests.begin();
+            if (!request) {
                 return;
             }
             fireAndForget(async () => {
                 try {
                     const snap = await fn(dir);
-                    if (snap?.dir === dir) {
-                        setSnapshot(snap);
-                        setError(null);
+                    if (requests.accepts(request, true) && snap?.dir === dir) {
+                        setValue({ snapshot: snap, error: null });
                     }
                 } catch (e) {
-                    setError(serverErrorText(e));
+                    if (requests.accepts(request, true)) {
+                        setValue((current) => ({ snapshot: current?.snapshot ?? null, error: serverErrorText(e) }));
+                    }
                 }
             });
-        },
-        [dir]
-    );
-    useEffect(() => {
-        setSnapshot(null);
-        setError(null);
-        if (!dir) {
-            return;
-        }
+        };
+        scope.reload = () => ask(missionRefresh);
         const unsubscribe = waveEventSubscribeSingle({
             eventType: MissionUpdateEvent as WaveEventName,
             scope: dir,
             handler: (event) => {
                 const snap = event.data as MissionSnapshot;
-                if (snap?.dir === dir) {
-                    setSnapshot(snap);
+                if (snap?.dir === dir && requests.hear()) {
+                    setValue({ snapshot: snap, error: null });
                 }
             },
         });
         ask((d) => missionGet(d));
         const stop = everyInPanel(panelId, whileShown(MissionPollMs), () => ask((d) => missionGet(d)), "mission");
         return () => {
+            requests.dispose();
+            scope.reload = () => {};
             unsubscribe();
             stop();
         };
-    }, [dir, ask, panelId]);
-    const refresh = useCallback(() => ask(missionRefresh), [ask]);
-    return { snapshot, error, refresh };
+    }, [dir, scope, setValue, panelId]);
+    return { snapshot: value?.snapshot ?? null, error: value?.error ?? null, refresh };
 }
 
 function missionCall<T>(command: string, data: any): Promise<T> {
@@ -250,35 +263,49 @@ export function missionTrust(dir: string, hash: string): Promise<void> {
 
 // The project's runs, newest first, kept current by the collector's run events.
 export function useMissionRuns(dir: string): RunRecord[] {
-    const [runs, setRuns] = useState<RunRecord[]>([]);
+    const { value: runs, setValue: setRuns } = useMissionScope<RunRecord[]>(dir, null);
     useEffect(() => {
         setRuns([]);
         if (!dir) {
             return;
         }
-        let cancelled = false;
-        fireAndForget(async () => {
-            const list = await missionCall<RunRecord[]>(MissionRunsCommand, { dir });
-            if (!cancelled) {
-                setRuns(list ?? []);
-            }
-        });
+        const requests = new MissionRequests();
+        let pending = true;
+        const events = new Map<string, RunRecord>();
         const unsubscribe = waveEventSubscribeSingle({
             eventType: MissionRunEvent as WaveEventName,
             scope: dir,
             handler: (event) => {
                 const run = event.data as RunRecord;
-                if (run?.dir === dir) {
+                if (run?.dir === dir && requests.hear()) {
+                    if (pending) {
+                        events.set(run.id, run);
+                    }
                     setRuns((current) => upsertRun(current, run));
                 }
             },
         });
+        const request = requests.begin();
+        fireAndForget(async () => {
+            try {
+                const list = await missionCall<RunRecord[]>(MissionRunsCommand, { dir });
+                if (requests.accepts(request)) {
+                    setRuns(
+                        [...events.values()].reduce<RunRecord[]>((current, run) => upsertRun(current, run), list ?? [])
+                    );
+                }
+            } finally {
+                pending = false;
+                events.clear();
+            }
+        });
         return () => {
-            cancelled = true;
+            requests.dispose();
+            events.clear();
             unsubscribe();
         };
-    }, [dir]);
-    return runs;
+    }, [dir, setRuns]);
+    return runs ?? [];
 }
 
 export type CiRunResult = { run?: CiRunRecord; untrusted?: UntrustedInfo };
@@ -318,52 +345,71 @@ export function ciCancel(dir: string, runid: string): Promise<void> {
 // The project's local CI: runs kept current by the runner's events; branches and their verdicts reread when a run
 // ends.
 export function useCiState(dir: string): { state: CiState; reload: () => void } {
-    const [state, setState] = useState<CiState>(null);
-    const load = useCallback(() => {
-        if (!dir) {
-            return;
-        }
-        fireAndForget(async () => {
-            const next = await missionCall<CiState>(MissionCiStateCommand, { dir });
-            setState(next);
-        });
-    }, [dir]);
+    const { scope, value: state, setValue: setState, reload } = useMissionScope<CiState>(dir, null);
     useEffect(() => {
         setState(null);
         if (!dir) {
             return;
         }
-        load();
+        const requests = new MissionRequests();
+        let events: CiRunRecord[] = [];
+        let pending = false;
+        const applyRun = (current: CiState, run: CiRunRecord): CiState =>
+            current == null
+                ? current
+                : {
+                      ...current,
+                      runs: upsertCiRun(current.runs, run),
+                      running: run.status === "running" ? run.id : current.running === run.id ? null : current.running,
+                  };
+        const load = () => {
+            const request = requests.begin();
+            if (!request) {
+                return;
+            }
+            events = [];
+            pending = true;
+            fireAndForget(async () => {
+                try {
+                    const next = await missionCall<CiState>(MissionCiStateCommand, { dir });
+                    if (requests.accepts(request)) {
+                        setState(events.reduce(applyRun, next));
+                    }
+                } finally {
+                    if (requests.accepts(request)) {
+                        pending = false;
+                        events = [];
+                    }
+                }
+            });
+        };
+        scope.reload = load;
         const unsubscribe = waveEventSubscribeSingle({
             eventType: MissionCiEvent as WaveEventName,
             scope: dir,
             handler: (event) => {
                 const run = event.data as CiRunRecord;
-                if (run?.dir !== dir) {
+                if (run?.dir !== dir || !requests.hear()) {
                     return;
                 }
-                setState((current) =>
-                    current == null
-                        ? current
-                        : {
-                              ...current,
-                              runs: upsertCiRun(current.runs, run),
-                              running:
-                                  run.status === "running"
-                                      ? run.id
-                                      : current.running === run.id
-                                        ? null
-                                        : current.running,
-                          }
-                );
+                if (pending) {
+                    events.push(run);
+                }
+                setState((current) => applyRun(current, run));
                 if (run.status !== "running") {
                     load();
                 }
             },
         });
-        return () => unsubscribe();
-    }, [dir, load]);
-    return { state, reload: load };
+        load();
+        return () => {
+            requests.dispose();
+            scope.reload = () => {};
+            events = [];
+            unsubscribe();
+        };
+    }, [dir, scope, setState]);
+    return { state, reload };
 }
 
 export function missionBuilds(dir: string, fresh: boolean): Promise<BuildsFacts> {
@@ -385,26 +431,47 @@ const ReleaseSessionPollMs = 30000;
 
 // The release on its way, read again every half minute and whenever the caller asks (after a start, a run's end).
 export function useReleaseSession(dir: string): { session: ReleaseSession; reload: () => void } {
-    const [session, setSession] = useState<ReleaseSession>(null);
     const panelId = usePanelBlockId();
-    const load = useCallback(() => {
+    const {
+        scope,
+        value: session,
+        setValue: setSession,
+        reload,
+    } = useMissionScope<ReleaseSession>(JSON.stringify([dir, panelId]), null);
+    useEffect(() => {
+        setSession(null);
         if (!dir) {
             return;
         }
-        fireAndForget(async () => {
-            try {
-                setSession(await missionCall<ReleaseSession>(MissionReleaseCommand, { dir }));
-            } catch {
-                setSession(null);
+        const requests = new MissionRequests();
+        const load = () => {
+            const request = requests.begin();
+            if (!request) {
+                return;
             }
-        });
-    }, [dir]);
-    useEffect(() => {
-        setSession(null);
+            fireAndForget(async () => {
+                try {
+                    const next = await missionCall<ReleaseSession>(MissionReleaseCommand, { dir });
+                    if (requests.accepts(request)) {
+                        setSession(next);
+                    }
+                } catch {
+                    if (requests.accepts(request)) {
+                        setSession(null);
+                    }
+                }
+            });
+        };
+        scope.reload = load;
         load();
-        return everyInPanel(panelId, whileShown(ReleaseSessionPollMs), load, "mission-release-session");
-    }, [load, panelId]);
-    return { session, reload: load };
+        const stop = everyInPanel(panelId, whileShown(ReleaseSessionPollMs), load, "mission-release-session");
+        return () => {
+            requests.dispose();
+            scope.reload = () => {};
+            stop();
+        };
+    }, [dir, scope, setSession, panelId]);
+    return { session, reload };
 }
 
 // Reading the facts fetches the tags and asks GitHub: slower than the other calls.
@@ -440,18 +507,18 @@ export function releaseMilestone(dir: string, version: string): Promise<ReleaseM
 // The facts of the release followed: read again every 15 s while one is, every 2 min otherwise, and whenever `bump`
 // changes (a release step ran or ended).
 export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFacts; reload: () => void } {
-    const [facts, setFacts] = useState<ReleaseFacts>(null);
+    const { scope, value: facts, setValue: setFacts, reload } = useMissionScope<ReleaseFacts>(dir, null);
     const [tick, setTick] = useState(0);
     const panelId = usePanelBlockId();
-    const reload = useCallback(() => setTick((t) => t + 1), []);
     useEffect(() => {
         setFacts(null);
-    }, [dir]);
+    }, [dir, setFacts]);
     useEffect(() => {
         if (!dir) {
             return;
         }
         let cancelled = false;
+        scope.reload = () => setTick((t) => t + 1);
         fireAndForget(async () => {
             try {
                 const next = await releaseCall<ReleaseFacts>(MissionReleaseFactsCommand, { dir });
@@ -464,19 +531,30 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
         });
         return () => {
             cancelled = true;
+            scope.reload = () => {};
         };
-    }, [dir, bump, tick]);
+    }, [dir, bump, tick, scope, setFacts]);
     const followed = !!facts?.tag;
-    useEffect(
-        () =>
-            everyInPanel(
-                panelId,
-                whileShown(followed ? ReleaseFactsPollMs : ReleaseIdlePollMs),
-                reload,
-                "mission-release-facts"
-            ),
-        [followed, reload, panelId]
-    );
+    useEffect(() => {
+        if (!dir) {
+            return;
+        }
+        let active = true;
+        const stop = everyInPanel(
+            panelId,
+            whileShown(followed ? ReleaseFactsPollMs : ReleaseIdlePollMs),
+            () => {
+                if (active) {
+                    reload();
+                }
+            },
+            "mission-release-facts"
+        );
+        return () => {
+            active = false;
+            stop();
+        };
+    }, [dir, followed, reload, panelId]);
     return { facts, reload };
 }
 
