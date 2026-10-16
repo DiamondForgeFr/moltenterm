@@ -636,3 +636,37 @@ func TestAdmissionReleaseWithoutPreparationSurvivesAliasRestart(t *testing.T) {
 		t.Fatalf("ended session survived: %+v, %v", session, err)
 	}
 }
+
+func TestAdmissionKeepsIgnoredTagsAcrossHistoricalAliases(t *testing.T) {
+	r, dir := makeReleaseFixture(t, releasePipeline)
+	alias := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range []string{dir, alias} {
+		writeLegacyAdmissionRecord(t, r, project, "history", 0)
+	}
+	for project, data := range map[string]string{dir: `["v1.2.0-1"]`, alias: `["v1.1.0-1","v1.2.0-1"]`} {
+		file := filepath.Join(r.baseDir, projectKey(project), ReleaseIgnoredFileName)
+		if err := os.WriteFile(file, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(file, time.Unix(1, 0), time.Unix(1, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	if tags := restarted.ignoredReleases(dir); strings.Join(tags, ",") != "v1.1.0-1,v1.2.0-1" {
+		t.Fatalf("historical ignored tags hidden: %+v", tags)
+	}
+	if err := restarted.IgnoreRelease(dir, "v1.3.0-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(restarted.projectDir(dir), ReleaseIgnoredFileName), time.Unix(2, 0), time.Unix(2, 0)); err != nil {
+		t.Fatal(err)
+	}
+	last := MakeRuns(r.baseDir, r.trust, nil)
+	if tags := last.ignoredReleases(alias); strings.Join(tags, ",") != "v1.1.0-1,v1.2.0-1,v1.3.0-1" {
+		t.Fatalf("ignored choices lost after restart: %+v", tags)
+	}
+}
