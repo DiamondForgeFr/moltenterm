@@ -6,9 +6,9 @@
 // before deleting it: the plan shown is not trusted blindly.
 
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { ScrimClass } from "../dialog-frame";
+import { useEffect, useRef, useState } from "react";
+import { useRestoreFocus } from "../busy-close";
+import { DialogFrame, useEscape } from "../dialog-frame";
 import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -81,7 +81,15 @@ export function cleanResultLine(result: BranchesCleanResult): string {
         : tCount("mc.branches.result", result.deleted.length);
 }
 
-function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose: () => void; onCleaned: () => void }) {
+export function BranchCleanupDialog({
+    dir,
+    onClose,
+    onCleaned,
+}: {
+    dir: string;
+    onClose: () => void;
+    onCleaned: () => void;
+}) {
     const t = useT();
     const tCount = useTCount();
     const [plan, setPlan] = useState<BranchesPlan>(null);
@@ -126,6 +134,15 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 setOfferBusy(false);
             }
         });
+    const closeRef = useRef<HTMLButtonElement>(null);
+    useRestoreFocus();
+    // The delete button that had the focus is gone once the result shows: Close takes it, so Enter still answers.
+    useEffect(() => {
+        if (result) {
+            closeRef.current?.focus();
+        }
+    }, [result]);
+    useEscape(!busy, onClose);
     const clean = () =>
         fireAndForget(async () => {
             setBusy(true);
@@ -139,80 +156,18 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 setBusy(false);
             }
         });
-    return createPortal(
-        <div
-            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
-            onPointerDown={onClose}
-        >
-            <div
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[620px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
-                data-testid="branch-cleanup"
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">{t("mc.branches.title")}</div>
-                    <div className="mt-0.5 text-12 text-muted">{t("mc.branches.intro", { trunk })}</div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-12">
-                    {error ? (
-                        <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error">
-                            {error}
-                        </div>
-                    ) : null}
-                    {plan == null && error == null ? (
-                        <div className="flex items-center gap-2 text-muted">
-                            <DominoLoader />
-                            {t("mc.branches.comparing", { trunk })}
-                        </div>
-                    ) : null}
-                    {result ? (
-                        <div className="flex flex-col gap-1">
-                            <p className="text-13 leading-5 text-primary" data-testid="cleanup-result">
-                                {cleanResultLine(result)}
-                            </p>
-                            {cleanErrorLines(result, trunk).map((e, i) => (
-                                <p key={i} className="text-muted">
-                                    {e}
-                                </p>
-                            ))}
-                        </div>
-                    ) : plan ? (
-                        <div className="flex flex-col gap-4">
-                            {plan.autodeleteoffer && offerAnswer !== "later" ? (
-                                <AutoDeleteOffer done={offerAnswer === "on"} busy={offerBusy} onAnswer={answerOffer} />
-                            ) : null}
-                            <div>
-                                <div className="mb-1.5 font-medium text-muted">
-                                    {t("mc.branches.wouldGo", { count: going.length })}
-                                </div>
-                                {going.length === 0 ? <p className="text-muted">{t("mc.branches.nothing")}</p> : null}
-                                {going.map((b) => (
-                                    <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                        <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
-                                        <code>{branchLabel(b)}</code>
-                                        {b.reason ? (
-                                            <span className="text-muted">— {branchReason(b, trunk)}</span>
-                                        ) : null}
-                                    </div>
-                                ))}
-                            </div>
-                            <div>
-                                <div className="mb-1.5 font-medium text-muted">
-                                    {t("mc.branches.stay", { count: staying.length })}
-                                </div>
-                                {staying.map((b) => (
-                                    <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                        <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
-                                        <code>{branchLabel(b)}</code>
-                                        <span className="text-muted">— {branchReason(b, trunk)}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : null}
-                </div>
-                <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-                    <button type="button" onClick={onClose} className={PlainButton}>
+    return (
+        <DialogFrame
+            role="branch-cleanup"
+            title={t("mc.branches.title")}
+            subtitle={t("mc.branches.intro", { trunk })}
+            subtitleWraps
+            widthClass="w-[620px]"
+            trapFocus
+            onBackdrop={onClose}
+            buttons={
+                <>
+                    <button ref={closeRef} type="button" onClick={onClose} className={PlainButton} autoFocus>
                         {result || nothingToDelete ? t("common.close") : t("common.cancel")}
                     </button>
                     {/* No button with nothing to delete: a disabled red "Delete 0 branches" still looks clickable. */}
@@ -229,10 +184,66 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             {tCount("mc.branches.delete", going.length)}
                         </button>
                     ) : null}
-                </div>
+                </>
+            }
+        >
+            <div data-testid="branch-cleanup">
+                {error ? (
+                    <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error">
+                        {error}
+                    </div>
+                ) : null}
+                {plan == null && error == null ? (
+                    <div className="flex items-center gap-2 text-muted">
+                        <DominoLoader />
+                        {t("mc.branches.comparing", { trunk })}
+                    </div>
+                ) : null}
+                {result ? (
+                    <div className="flex flex-col gap-1">
+                        <p className="text-13 leading-5 text-primary" data-testid="cleanup-result">
+                            {cleanResultLine(result)}
+                        </p>
+                        {cleanErrorLines(result, trunk).map((e, i) => (
+                            <p key={i} className="text-muted">
+                                {e}
+                            </p>
+                        ))}
+                    </div>
+                ) : plan ? (
+                    <div className="flex flex-col gap-4">
+                        {plan.autodeleteoffer && offerAnswer !== "later" ? (
+                            <AutoDeleteOffer done={offerAnswer === "on"} busy={offerBusy} onAnswer={answerOffer} />
+                        ) : null}
+                        <div>
+                            <div className="mb-1.5 font-medium text-muted">
+                                {t("mc.branches.wouldGo", { count: going.length })}
+                            </div>
+                            {going.length === 0 ? <p className="text-muted">{t("mc.branches.nothing")}</p> : null}
+                            {going.map((b) => (
+                                <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
+                                    <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
+                                    <code>{branchLabel(b)}</code>
+                                    {b.reason ? <span className="text-muted">— {branchReason(b, trunk)}</span> : null}
+                                </div>
+                            ))}
+                        </div>
+                        <div>
+                            <div className="mb-1.5 font-medium text-muted">
+                                {t("mc.branches.stay", { count: staying.length })}
+                            </div>
+                            {staying.map((b) => (
+                                <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
+                                    <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
+                                    <code>{branchLabel(b)}</code>
+                                    <span className="text-muted">— {branchReason(b, trunk)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
             </div>
-        </div>,
-        document.body
+        </DialogFrame>
     );
 }
 
