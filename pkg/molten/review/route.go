@@ -127,9 +127,11 @@ type Service struct {
 
 func MakeService(dataDir string, git reviewsession.GitRunner, publish func(k PrKey, state State)) *Service {
 	store := MakeStore(dataDir)
+	merger := MakeMerger(store, ExecGh, publish)
+	merger.reviewer = ReviewerName
 	return &Service{
 		differ: MakeDiffer(git), store: store, git: git, dataDir: dataDir, publish: publish,
-		merger: MakeMerger(store, ExecGh, publish), gh: ExecGh, readFile: readProjectFile, treeLocks: map[string]*sync.Mutex{},
+		merger: merger, gh: ExecGh, readFile: readProjectFile, treeLocks: map[string]*sync.Mutex{},
 	}
 }
 

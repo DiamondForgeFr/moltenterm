@@ -1102,6 +1102,10 @@
                     "claude": "Claude Code",
                     "codex": "Codex"
                 }
+            },
+            "review:reviewername": {
+                "label": "Votre prénom",
+                "description": "Écrit en « Reviewed by » dans les pull requests que vous validez ; vide : d'après le nom d'utilisateur git du projet."
             }
         },
         "mods": {
@@ -4372,6 +4376,16 @@
         "assistedReviewAria": "Ouvrir la revue assistée de la PR #{number}",
         "opened": "ouverte {when}",
         "updated": "mise à jour {when}",
+        "signature": {
+            "unknown": "agent inconnu",
+            "unknownTitle": "Aucun agent n'a signé cette pull request : aucun commit ne porte de trailer Molten-Agent et sa description n'a pas de signature. Les agents lancés hors de MoltenTerm ne signent pas.",
+            "title": "Agents de cette pull request, le dernier en premier :\n{list}",
+            "more": {
+                "one": "+{count} agent",
+                "other": "+{count} agents"
+            },
+            "aria": "Faite par {who}"
+        },
         "openOnGithub": "Ouvrir la pull request sur GitHub",
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
         "unpublished": "{count} non publié(s)",

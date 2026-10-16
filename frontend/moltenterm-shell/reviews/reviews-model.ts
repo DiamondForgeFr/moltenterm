@@ -61,7 +61,12 @@ export type ReviewPr = {
     ci: ReviewCi;
     report: ReviewReport;
     unpublished: number;
+    // who worked on the PR, the last agent first (#847); absent: unknown agent
+    agents?: AgentSignature[];
 };
+
+// must match Signature in pkg/molten/agentsign/agentsign.go
+export type AgentSignature = { firstname?: string; agent?: string; model?: string; effort?: string };
 
 // must match ReviewsAnswer in pkg/molten/mission/reviews.go
 export type ReviewsAnswer = {

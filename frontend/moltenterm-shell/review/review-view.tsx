@@ -16,6 +16,7 @@ import { useT } from "../i18n/i18n";
 import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { PrSignature, usePrAgents } from "../reviews/pr-signature";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import { isReviewDone } from "./review-done";
@@ -93,6 +94,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
     const aiPaneId = useAtomValue(model.aiPaneIdAtom);
     // A finished PR (#686) has nothing left to publish, restart or validate: only GitHub and the AI panel stay.
     const finished = isReviewDone(useAtomValue(model.doneAtom));
+    const agents = usePrAgents(pr?.dir, pr?.number);
     const aiOpen = aiPaneId != null;
     const sideBySide = sideBySideOf(sideBySideToggle, inlineDiff);
     const since = state?.since;
@@ -121,6 +123,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                             </>
                         ) : null}
                     </div>
+                    {agents != null ? <PrSignature agents={agents} testId="review-signature" /> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {newCommits != null ? (

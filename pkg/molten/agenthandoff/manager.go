@@ -269,6 +269,7 @@ func (m *Manager) activeParties(ctx context.Context) []activeAgent {
 			continue
 		}
 		e := activeAgent{AgentEntry: entryOf(m.party(run.BlockId, run, true, loc), run.State), blockId: run.BlockId}
+		e.Model, e.ModelName, e.Effort = run.Settings.Model, run.Settings.ModelName, run.Settings.Effort
 		rtn = append(rtn, e)
 	}
 	sort.Slice(rtn, func(i, j int) bool {

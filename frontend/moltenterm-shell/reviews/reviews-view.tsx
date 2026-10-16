@@ -24,6 +24,7 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
+import { PrSignature } from "./pr-signature";
 import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
@@ -860,6 +861,7 @@ export function ReviewRow({
                 </div>
             ) : null}
             <RowAgentBar dir={dir} branch={pr.branch} />
+            <PrSignature agents={pr.agents} testId="reviews-signature" />
         </div>
     );
 }
