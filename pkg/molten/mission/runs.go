@@ -55,6 +55,9 @@ const (
 var phaseRegex = regexp.MustCompile(`(?m)^\s*▶ phase:\s*(.+?)\s*$`)
 
 type RunRecord struct {
+	// Runtime storage identity stays stable if the requested symlink is retargeted. The folder's project.json
+	// persists it across restarts; Dir remains the user's requested path in the API and work listings.
+	project    string
 	Id         string   `json:"id"`
 	Dir        string   `json:"dir"`
 	Kind       string   `json:"kind"`
@@ -109,14 +112,16 @@ type LogChunk struct {
 }
 
 type Runs struct {
-	recordLocks sync.Map
-	lock        sync.Mutex
-	baseDir     string
-	trust       *TrustStore
-	publish     func(RunRecord)
-	now         func() time.Time
-	watching    map[string]bool
-	preparing   map[string]bool
+	recordLocks    sync.Map
+	lock           sync.Mutex
+	admitting      map[admissionKey]*runAdmission
+	projectStorage map[string][]string
+	baseDir        string
+	trust          *TrustStore
+	publish        func(RunRecord)
+	now            func() time.Time
+	watching       map[string]bool
+	preparing      map[string]bool
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
 	git         Runner
@@ -147,7 +152,7 @@ func RunsDir(dataDir string) string {
 }
 
 func (r *Runs) projectDir(dir string) string {
-	return filepath.Join(r.baseDir, projectKey(dir))
+	return r.projectDirs(dir)[0]
 }
 
 func projectKey(dir string) string {
@@ -261,7 +266,10 @@ func currentBranch(run Runner, dir string) string {
 }
 
 func (r *Runs) writeRecord(rec RunRecord) error {
-	dir := filepath.Join(r.projectDir(rec.Dir), rec.Id)
+	dir := r.recordDir(rec.storageProject(), rec.Id)
+	if err := r.identifyProject(rec.storageProject()); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
 		return err
@@ -275,16 +283,19 @@ func (r *Runs) writeRecord(rec RunRecord) error {
 
 func (r *Runs) readRecord(dir string, runId string) (RunRecord, error) {
 	var rec RunRecord
-	data, err := os.ReadFile(filepath.Join(r.projectDir(dir), runId, RunFileName))
+	data, err := os.ReadFile(filepath.Join(r.recordDir(dir, runId), RunFileName))
 	if err != nil {
 		return rec, err
 	}
 	err = json.Unmarshal(data, &rec)
+	if err == nil {
+		rec.project = canonicalRunDir(dir)
+	}
 	return rec, err
 }
 
 func (r *Runs) logFile(dir string, runId string) string {
-	return filepath.Join(r.projectDir(dir), runId, LogFileName)
+	return filepath.Join(r.recordDir(dir, runId), LogFileName)
 }
 
 // findCommand resolves what a request asks to run from the project's valid pipeline.
@@ -314,7 +325,8 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	report := molten.ValidatePipeline(dir)
+	project := canonicalRunDir(dir)
+	report := molten.ValidatePipeline(project)
 	if !report.Valid {
 		return RunResult{}, pipelineError(report)
 	}
@@ -327,17 +339,27 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
-	if running := r.runningOf(dir, req.Kind); running != nil {
+	title := command.Title
+	if title == "" {
+		title = command.Id
+	}
+	release, held := r.reserveAdmission(project, req.Kind, title)
+	if release == nil {
+		return RunResult{}, errAlreadyRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	if running := r.runningOf(project, req.Kind); running != nil {
 		return RunResult{}, errAlreadyRunning(running.Title)
 	}
 	if req.Kind == RunKindBuild {
-		rec, err := r.startBuild(dir, findBuild(report.Pipeline, req.Id), req.Version)
+		rec, err := r.startBuildAt(dir, project, findBuild(report.Pipeline, req.Id), req.Version)
 		if err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{Run: &rec}, nil
 	}
-	rec, err := r.launch(dir, command, artifact, req.Version, "")
+	rec, err := r.launchAt(dir, project, command, artifact, req.Version, "")
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -354,12 +376,19 @@ func (r *Runs) runningOf(dir string, kind string) *RunRecord {
 }
 
 func (r *Runs) launch(dir string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	return r.launchAt(dir, project, command, artifact, version, tag)
+}
+
+func (r *Runs) launchAt(dir, project string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
 	now := r.now()
-	expanded, err := expandCommand(command.Run, withBranch(versionVars(dir, version), currentBranch(r.git, dir)))
+	expanded, err := expandCommand(command.Run, withBranch(versionVars(project, version), currentBranch(r.git, project)))
 	if err != nil {
 		return RunRecord{}, err
 	}
 	rec := RunRecord{
+		project:   project,
 		Id:        newRunId(now),
 		Dir:       dir,
 		Kind:      command.Kind,
@@ -367,7 +396,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		Title:     command.Title,
 		Command:   expanded,
 		Cwd:       command.Cwd,
-		Artifact:  artifactPath(dir, artifact),
+		Artifact:  artifactPath(project, artifact),
 		StartedAt: now.UnixMilli(),
 		State:     RunStateRunning,
 		Phases:    []string{},
@@ -376,7 +405,10 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	if rec.Title == "" {
 		rec.Title = command.Id
 	}
-	runDir := filepath.Join(r.projectDir(dir), rec.Id)
+	runDir := filepath.Join(r.projectDir(project), rec.Id)
+	if err := r.identifyProject(project); err != nil {
+		return rec, err
+	}
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return rec, err
 	}
@@ -387,13 +419,13 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	defer logFile.Close()
 	// The supervisor records the run's end separately, even after a MoltenTerm restart.
 	cmd := r.supervisedCommand(rec)
-	cmd.Dir = filepath.Join(dir, rec.Cwd)
+	cmd.Dir = filepath.Join(project, rec.Cwd)
 	cmd.Env = commandEnv()
 	for k, v := range command.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 	if r.agentEnv != nil {
-		cmd.Env = append(cmd.Env, r.agentEnv(dir)...)
+		cmd.Env = append(cmd.Env, r.agentEnv(project)...)
 	}
 	cmd.Env = append(cmd.Env, "MOLTEN_RUN_ID="+rec.Id)
 	cmd.Stdout = logFile
@@ -409,7 +441,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		stopRunGroup(rec.Pid)
 		return rec, err
 	}
-	r.prune(dir)
+	r.prune(project)
 	r.watch(rec)
 	if r.publish != nil {
 		r.publish(rec)
@@ -422,7 +454,7 @@ func (r *Runs) update(rec *RunRecord) bool {
 	if rec.State != RunStateRunning {
 		return false
 	}
-	data, _ := os.ReadFile(r.logFile(rec.Dir, rec.Id))
+	data, _ := os.ReadFile(r.logFile(rec.storageProject(), rec.Id))
 	changed := int64(len(data)) != rec.LogSize
 	rec.LogSize = int64(len(data))
 	phases := []string{}
@@ -483,7 +515,7 @@ func (r *Runs) watch(rec RunRecord) {
 		defer r.stopWatching(rec.Id)
 		for rec.State == RunStateRunning {
 			time.Sleep(runPollInterval)
-			current, changed, err := r.refreshRecord(rec.Dir, rec.Id)
+			current, changed, err := r.refreshRecord(rec.storageProject(), rec.Id)
 			if err != nil {
 				continue
 			}
@@ -498,15 +530,18 @@ func (r *Runs) watch(rec RunRecord) {
 // List returns the project's runs, newest first; runs still going after a MoltenTerm restart are followed again.
 func (r *Runs) List(dir string) []RunRecord {
 	dir = filepath.Clean(dir)
-	entries, err := os.ReadDir(r.projectDir(dir))
-	if err != nil {
-		return []RunRecord{}
+	var entries []os.DirEntry
+	for _, storage := range r.projectDirs(dir) {
+		stored, _ := os.ReadDir(storage)
+		entries = append(entries, stored...)
 	}
 	runs := []RunRecord{}
+	seen := map[string]bool{}
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || seen[entry.Name()] {
 			continue
 		}
+		seen[entry.Name()] = true
 		rec, _, err := r.refreshRecord(dir, entry.Name())
 		if err != nil {
 			continue
@@ -532,7 +567,7 @@ func (r *Runs) prune(dir string) {
 		if session != nil && rec.Kind == RunKindRelease && rec.Tag == session.Tag {
 			continue
 		}
-		os.RemoveAll(filepath.Join(r.projectDir(dir), rec.Id))
+		os.RemoveAll(r.recordDir(dir, rec.Id))
 	}
 }
 

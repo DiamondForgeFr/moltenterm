@@ -104,14 +104,14 @@ func (r *Runs) settle(rec *RunRecord) {
 	if r.notify == nil || rec.Told || !runEnded(*rec) || rec.Kind != RunKindBuild || !r.claimTold(rec.Id) {
 		return
 	}
-	pipeline := molten.ValidatePipeline(rec.Dir).Pipeline
-	projectName := filepath.Base(rec.Dir)
+	pipeline := molten.ValidatePipeline(rec.storageProject()).Pipeline
+	projectName := filepath.Base(rec.storageProject())
 	var manifest *BuildManifest
 	if pipeline != nil {
 		if pipeline.Name != "" {
 			projectName = pipeline.Name
 		}
-		manifest = readBuildManifest(buildManifestPath(rec.Dir, findBuild(pipeline, rec.StepId)))
+		manifest = readBuildManifest(buildManifestPath(rec.storageProject(), findBuild(pipeline, rec.StepId)))
 	}
 	input, ok := buildNotice(*rec, manifest, projectName, r.now())
 	rec.Told = true
