@@ -41,6 +41,27 @@ describe("the tray's one state (FR-SHELL-045-AC1, AC4, DS-SHELL-081)", () => {
         expect(model.getOpen()).toBeNull();
     });
 
+    it("opens no tray on an item that appears under a resting pointer after a press on the rail (#751)", () => {
+        const model = RailTrayModel.getInstance();
+        model.hush();
+        model.pointerEnter("new", 1000);
+        vi.advanceTimersByTime(RailTrayDwellMs * 4);
+        expect(model.getOpen()).toBeNull();
+        // A real move on the same item keeps it folded until it is left.
+        model.pointerMoved();
+        model.pointerEnter("new", 2000);
+        vi.advanceTimersByTime(RailTrayDwellMs * 4);
+        expect(model.getOpen()).toBeNull();
+        model.pointerLeave("new", 3000);
+        model.pointerEnter("other", 10_000);
+        vi.advanceTimersByTime(RailTrayDwellMs);
+        expect(model.getOpen()).toEqual({ key: "other", via: "pointer" });
+        model.pointerLeave("other", 11_000);
+        model.pointerEnter("new", 20_000);
+        vi.advanceTimersByTime(RailTrayDwellMs);
+        expect(model.getOpen()).toEqual({ key: "new", via: "pointer" });
+    });
+
     it("hands over to the next item at once, and never keeps two open", () => {
         const model = RailTrayModel.getInstance();
         model.open("a", "pointer");

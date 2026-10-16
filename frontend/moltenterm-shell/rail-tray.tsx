@@ -170,7 +170,15 @@ export function installRailTrayExits(nav: HTMLElement): () => void {
             itemOf(host)?.focus();
         }
     };
+    const onPointerMove = (e: PointerEvent) => {
+        if (model.hushed && (e.movementX !== 0 || e.movementY !== 0)) {
+            model.pointerMoved();
+        }
+    };
     const onPointerDown = (e: PointerEvent) => {
+        if (nav.contains(e.target as Node)) {
+            model.hush();
+        }
         const open = model.getOpen();
         if (open == null) {
             return;
@@ -213,12 +221,14 @@ export function installRailTrayExits(nav: HTMLElement): () => void {
     const closeAll = () => model.closeAll();
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointermove", onPointerMove, true);
     nav.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("blur", closeAll);
     return () => {
         unsubscribe();
         document.removeEventListener("keydown", onKeyDown, true);
         document.removeEventListener("pointerdown", onPointerDown, true);
+        document.removeEventListener("pointermove", onPointerMove, true);
         nav.removeEventListener("scroll", onScroll);
         window.removeEventListener("blur", closeAll);
         model.closeAll();

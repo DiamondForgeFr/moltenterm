@@ -36,6 +36,9 @@ export class RailTrayModel {
     suppressedKey: string = null;
     // A rail item is being dragged: no tray opens under the pointer.
     dragging = false;
+    // A press on the rail: until the pointer really moves, no tray opens under it (#751). The rail's "+" adds an item
+    // under the resting pointer, and Chromium's boundary events then "enter" it: its tray opened over a magnified panel.
+    hushed = false;
 
     private constructor() {}
 
@@ -103,7 +106,22 @@ export class RailTrayModel {
         }
     }
 
+    hush() {
+        this.hushed = true;
+    }
+
+    // A pointer move of the user's, not one Chromium makes up when the layout changes under a resting pointer.
+    pointerMoved() {
+        this.hushed = false;
+    }
+
     pointerEnter(key: string, now = Date.now()) {
+        if (this.hushed) {
+            // The item that appeared under the pointer keeps its tray folded until it is left, as after Escape.
+            this.cancelDwell();
+            this.suppressedKey = key;
+            return;
+        }
         if (this.dragging || this.suppressedKey === key) {
             return;
         }
