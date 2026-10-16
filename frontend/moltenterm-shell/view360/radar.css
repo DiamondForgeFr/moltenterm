@@ -136,7 +136,7 @@
 .mt-radar-hit:focus-visible {
     outline: 1px solid color-mix(in srgb, var(--mt-accent) 70%, transparent);
     outline-offset: -2px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--df-radius-lg);
 }
 
 .mt-radar-hit[data-attention] .mt-radar-tick {
@@ -181,7 +181,7 @@
     position: absolute;
     bottom: calc(100% + 6px);
     padding: 9px 11px;
-    border-radius: var(--mt-radius-10);
+    border-radius: var(--df-radius-lg);
     background: #1c1c1e;
     border: 1px solid #333336;
     box-shadow: 0 10px 24px rgb(0 0 0 / 0.6);

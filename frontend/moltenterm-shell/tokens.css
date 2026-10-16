@@ -69,8 +69,6 @@
     --mt-radius-4: 4px;
     --mt-radius-6: 6px;
     --mt-radius-10: 10px;
-    /* The 360 view's carpet (DS-SHELL-115): a soft, recessed surface, the one radius above 10 px. */
-    --mt-radius-14: 14px;
 
     /* Each surface keeps the `color-mix(in srgb, var(--mt-accent) N%, rgb(...))` recipe of the warm neutrals:
        moltenterm-shell.test.ts holds text at 4.5:1 on each of them for every workspace colour. Surface 1 and 3 are
