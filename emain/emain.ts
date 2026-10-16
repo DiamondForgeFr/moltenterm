@@ -9,7 +9,7 @@ import { sprintf } from "sprintf-js";
 import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
 import { fireAndForget, sleep } from "../frontend/util/util";
-import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
+import { getTrustedAppSession, nativeBackendHeaders } from "./authkey";
 import {
     getActivityState,
     getAndClearTermCommandsDurable,
@@ -421,7 +421,7 @@ async function appMain() {
     const ready = await getWaveSrvReady();
     console.log("wavesrv ready signal received", ready, Date.now() - startTs, "ms");
     await electronApp.whenReady();
-    configureAuthKeyRequestInjection(electron.session.defaultSession);
+    getTrustedAppSession();
     initIpcHandlers();
     initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
@@ -432,7 +432,7 @@ async function appMain() {
     await sleep(10); // wait a bit for wavesrv to be ready
     try {
         initElectronWshClient();
-        initElectronWshrpc(ElectronWshClient, { authKey: AuthKey });
+        await initElectronWshrpc(ElectronWshClient, { headers: nativeBackendHeaders() });
         initMenuEventSubscriptions();
         initMoltentermKeepAwake(); // MOLTENTERM-PATCH (#276): the system sleep blocker wavesrv asks for (sleep policy, coffee)
     } catch (e) {

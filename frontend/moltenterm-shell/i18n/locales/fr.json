@@ -195,6 +195,7 @@
             "actionError": "Erreur : {message}"
         },
         "files": {
+            "pdfUnavailable": "L’aperçu du PDF est indisponible.",
             "colName": "Nom",
             "colPerm": "Droits",
             "colModified": "Modifié le",

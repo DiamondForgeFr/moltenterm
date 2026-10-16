@@ -7,7 +7,7 @@ import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { Rectangle, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
-import { configureAuthKeyRequestInjection } from "./authkey";
+import { getTrustedAppSession, registerTrustedAppContents } from "./authkey";
 import { setWasActive } from "./emain-activity";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import {
@@ -140,6 +140,7 @@ export class WaveTabView extends WebContentsView {
         console.log("createBareTabView");
         super({
             webPreferences: {
+                session: getTrustedAppSession(),
                 preload: path.join(getElectronAppBasePath(), "preload", "index.cjs"),
                 webviewTag: true,
             },
@@ -162,6 +163,7 @@ export class WaveTabView extends WebContentsView {
         });
         const wcId = this.webContents.id;
         wcIdToWaveTabMap.set(wcId, this);
+        registerTrustedAppContents(this.webContents);
         if (isDevVite) {
             this.webContents.loadURL(`${process.env.ELECTRON_RENDERER_URL}/index.html`);
         } else {
@@ -303,6 +305,5 @@ export async function getOrCreateWebViewForTab(
     tabView.webContents.on("blur", () => {
         handleCtrlShiftFocus(tabView.webContents, false);
     });
-    configureAuthKeyRequestInjection(tabView.webContents.session);
     return [tabView, false];
 }

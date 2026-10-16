@@ -61,7 +61,7 @@ var WebSocketUpgrader = websocket.Upgrader{
 	ReadBufferSize:   4 * 1024,
 	WriteBufferSize:  32 * 1024,
 	HandshakeTimeout: 1 * time.Second,
-	CheckOrigin:      func(r *http.Request) bool { return true },
+	CheckOrigin:      func(r *http.Request) bool { return authkey.ValidateIncomingRequest(r) == nil },
 }
 
 func HandleWs(w http.ResponseWriter, r *http.Request) {

@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { BrowserWindow } from "electron";
 import { globalEvents } from "emain/emain-events";
 import path from "path";
+import { getTrustedAppSession, registerTrustedAppContents } from "./authkey";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import { calculateWindowBounds, MinWindowHeight, MinWindowWidth } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
@@ -65,11 +66,13 @@ export async function createBuilderWindow(appId: string): Promise<BuilderWindowT
         show: false,
         backgroundColor: "#222222",
         webPreferences: {
+            session: getTrustedAppSession(),
             preload: path.join(getElectronAppBasePath(), "preload", "index.cjs"),
             webviewTag: true,
         },
     });
 
+    registerTrustedAppContents(builderWindow.webContents);
     if (isDevVite) {
         await builderWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/index.html`);
     } else {

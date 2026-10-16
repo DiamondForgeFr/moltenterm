@@ -72,6 +72,12 @@ export function permitsCredentialResource(resourceType: string): boolean {
     return resourceType !== "mainFrame" && resourceType !== "subFrame";
 }
 
+export function isPDFPreviewDestination(url: string, endpoint: string): boolean {
+    if (!isBackendDestination(url, [endpoint])) return false;
+    const parsed = new URL(url);
+    return /^\/wave\/preview-resource\/[a-f0-9]{64}$/.test(parsed.pathname) && !parsed.search;
+}
+
 export function stripBackendCredentials(headers: Record<string, string>): Record<string, string> {
     const stripped = { ...headers };
     for (const name of Object.keys(stripped)) {
