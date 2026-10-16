@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
+import { handleAppIpc } from "./moltenterm-privileged-ipc";
 import {
     MoltentermChoosePathChannel,
     MoltentermChoosePathOpts,
@@ -13,7 +14,7 @@ import { mt } from "./moltenterm-i18n";
 // Answers the chosen path, or null when the user cancels. The dialog is attached to the asking window, so it stays
 // in front of it.
 export function initMoltentermDialogs() {
-    electron.ipcMain.handle(MoltentermChoosePathChannel, async (event, opts: MoltentermChoosePathOpts) => {
+    handleAppIpc(MoltentermChoosePathChannel, async (event, opts: MoltentermChoosePathOpts) => {
         const win = electron.BrowserWindow.fromWebContents(event.sender);
         const workspaceIcon = opts?.kind === "workspaceicon";
         const image = opts?.kind === "image" || workspaceIcon;

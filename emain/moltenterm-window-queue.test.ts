@@ -98,6 +98,7 @@ class FakeWebContents {
     static nextId = 1;
     id = FakeWebContents.nextId++;
     destroyed = false;
+    mainFrame = { url: "file:///fixture/index.html" };
     listeners = new Map<string, ((...args: any[]) => void)[]>();
     sent: { channel: string; args: any[]; t: number }[] = [];
 
@@ -120,6 +121,14 @@ class FakeWebContents {
         this.sent.push({ channel, args, t: Date.now() });
         if (channel === "wave-init") {
             h.scheduleRender(this, args[0]);
+        }
+        if (channel === "moltenterm-busy-ask") {
+            // This queue fixture has no running terminal. Reply through the real guarded channel now that
+            // IPC events carry a real fixture contents object instead of the previous id-only placeholder.
+            h.ipc.get("moltenterm-busy-reply")(
+                { sender: this, senderFrame: this.mainFrame },
+                { requestid: args[0].requestid, phase: "result", outcome: "none" }
+            );
         }
     }
     close() {
@@ -563,8 +572,13 @@ async function loadModules() {
         checkReusedTabViewPainted: () => {},
         noteTabViewLeftScreen: () => {},
     }));
+    const { configurePrivilegedIpc } = await import("./moltenterm-privileged-ipc");
+    configurePrivilegedIpc((event) => event.sender instanceof FakeWebContents && !event.sender.isDestroyed() &&
+        event.senderFrame === event.sender.mainFrame);
     h.tabviewModule = await import("./emain-tabview");
     mod = await import("./emain-window");
+    const { initBusyCloseReplies } = await import("./moltenterm-busy-close");
+    initBusyCloseReplies();
     h.priorityModule = await import("./moltenterm-tabview-priority");
 }
 
@@ -581,7 +595,8 @@ beforeAll(async () => {
 }, 60_000);
 
 function senderEvent() {
-    return { sender: { id: win.activeTabView.webContents.id } };
+    const sender = win.activeTabView.webContents;
+    return { sender, senderFrame: sender.mainFrame };
 }
 
 function ipc(channel: string, ...args: any[]) {
@@ -865,7 +880,7 @@ function viewsForTab(tabId: string): any[] {
 }
 
 function pendingAction(view: any, action: string) {
-    h.ipc.get("moltenterm-view-pending-action")({ sender: { id: view.webContents.id } }, action);
+    h.ipc.get("moltenterm-view-pending-action")({ sender: view.webContents, senderFrame: view.webContents.mainFrame }, action);
 }
 
 describe("window action queue: one readiness deadline, one retry (#449, #450)", () => {

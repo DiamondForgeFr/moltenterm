@@ -7,6 +7,7 @@ function contents(id: number, host?: any) {
         id,
         hostWebContents: host,
         destroyed: false,
+        mainFrame: { url: "file:///fixture/index.html" },
         url: "http://fixture.test/image",
         isDestroyed: () => contents.destroyed,
         getType: () => (host ? "webview" : "window"),
@@ -44,12 +45,15 @@ async function setup() {
     vi.doMock("./emain-window", () => ({ getWaveWindowByWebContentsId: (id) => (id === host.id ? owner : null) }));
     vi.doMock("./emain-builder", () => ({ getBuilderWindowByWebContentsId: () => null }));
     const bridge = await import("./moltenterm-contextmenu");
+    const { configurePrivilegedIpc } = await import("./moltenterm-privileged-ipc");
+    configurePrivilegedIpc((event) => [host, other].includes(event.sender) &&
+        !event.sender.isDestroyed() && event.senderFrame === event.sender.mainFrame);
     const save = vi.fn(async (_host: any, _guest: any, _source: string, _valid: () => boolean) => {});
     bridge.initMoltentermContextMenu(save);
     function call(channel: string, sender: any, ...args: any[]) {
         let reply: any;
         let replied = false;
-        const event = { sender } as any;
+        const event = { sender, senderFrame: sender.mainFrame } as any;
         Object.defineProperty(event, "returnValue", {
             set(value) {
                 if (replied) return;

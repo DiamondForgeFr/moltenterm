@@ -3,6 +3,7 @@
 
 import { EventEmitter } from "events";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { configurePrivilegedIpc } from "./moltenterm-privileged-ipc";
 
 const Mocks = vi.hoisted(() => {
     const sessions: any[] = [];
@@ -56,6 +57,7 @@ function contents(type: string, url: string, host?: any): any {
     wc.id = nextId++;
     wc.getType = () => type;
     wc.getURL = () => url;
+    wc.mainFrame = { url };
     wc.isDestroyed = () => false;
     wc.hostWebContents = host;
     wc.sent = [] as any[][];
@@ -69,7 +71,7 @@ function request(wc: any, permission: string, details: any = {}): Promise<boolea
 }
 
 function answer(sender: any, requestId: string, decision: string): void {
-    Mocks.ipcListeners.get(SitePermissionAnswerChannel)({ sender }, requestId, decision);
+    Mocks.ipcListeners.get(SitePermissionAnswerChannel)({ sender, senderFrame: sender.mainFrame }, requestId, decision);
 }
 
 function lastAsk(host: any): any[] {
@@ -88,6 +90,9 @@ async function waitFor(cond: () => boolean): Promise<void> {
 }
 
 beforeAll(() => {
+    configurePrivilegedIpc((event) => Mocks.contents.get(event.sender.id) === event.sender &&
+        event.sender.getType() === "browserView" && event.senderFrame === event.sender.mainFrame &&
+        event.senderFrame.url === "file:///app/index.html");
     installMoltentermSitePermissionHandlers();
 });
 

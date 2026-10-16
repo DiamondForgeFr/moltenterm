@@ -14,6 +14,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { randomUUID } from "crypto";
 import * as electron from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import {
     checkPermission,
     classifyPermissionRequest,
@@ -211,7 +212,7 @@ export function initMoltentermSitePermissions(fullConfig: FullConfigType): void 
 export function installMoltentermSitePermissionHandlers(): void {
     hookSession(electron.session.defaultSession);
     electron.app.on("session-created", (session) => hookSession(session));
-    electron.ipcMain.on(SitePermissionAnswerChannel, (event, requestId: unknown, decision: unknown) => {
+    onAppIpc(SitePermissionAnswerChannel, (event, requestId: unknown, decision: unknown) => {
         if (typeof requestId !== "string") {
             return;
         }
