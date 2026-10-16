@@ -120,7 +120,7 @@ export function EmptyStateDetails({ text }: { text: string }) {
     const t = useT();
     return (
         <details className="group mt-2 w-full text-left" data-testid="empty-state-details">
-            <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-4 px-1.5 py-0.5 text-11 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+            <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-4 px-1.5 py-0.5 text-11 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring) [&::-webkit-details-marker]:hidden">
                 <i
                     className="fa fa-solid fa-chevron-right text-11 transition-transform duration-120 ease-mt group-open:rotate-90"
                     aria-hidden

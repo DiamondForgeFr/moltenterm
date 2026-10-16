@@ -338,3 +338,24 @@ describe("design tokens v2: motion (FR-SHELL-044 AC4, NFR-SHELL-027)", () => {
         }
     });
 });
+
+describe("focus ring in the workspace accent (#751)", () => {
+    it("draws --mt-focus-ring on every control without a ring of its own, at zero specificity", () => {
+        expect(shellCss).toMatch(/:where\(:focus-visible\) \{\s*outline: 2px solid var\(--mt-focus-ring\);/);
+        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus-ring: rgb\(255, 124, 13\);/);
+    });
+
+    it("leaves no MoltenTerm focus ring in the raw accent or in white", () => {
+        const root = fileURLToPath(new URL(".", import.meta.url));
+        const offenders: string[] = [];
+        for (const file of readdirSync(root, { recursive: true }) as string[]) {
+            if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
+                continue;
+            }
+            if (/focus-visible:(outline|ring)-(accent|primary)\b/.test(readFileSync(join(root, file), "utf8"))) {
+                offenders.push(file);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+});

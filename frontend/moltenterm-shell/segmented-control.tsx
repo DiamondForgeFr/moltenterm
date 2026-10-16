@@ -59,7 +59,7 @@ export function SegmentedControl<T extends string>({
                         onClick={() => onSelect(segment.value)}
                         className={cn(
                             "cursor-pointer rounded-6 px-2 py-0.5 text-12 whitespace-nowrap transition-colors duration-120 ease-mt motion-reduce:transition-none",
-                            "outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+                            "outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--mt-focus-ring)",
                             checked ? "bg-hover text-primary" : "text-muted hover:text-primary"
                         )}
                     >

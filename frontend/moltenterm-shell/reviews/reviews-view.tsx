@@ -389,7 +389,7 @@ const AssistedLinkClasses =
     "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-0.5 text-12 leading-5 font-medium text-accent outline-none " +
     "translate-x-1 opacity-0 transition-[opacity,translate] duration-120 ease-mt " +
     "group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 " +
-    "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/70 " +
+    "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-(--mt-focus-ring) " +
     "hover:underline motion-reduce:translate-x-0";
 
 // The row's click opens the assisted review (the PR's Review tab); this link names it on hover and keyboard focus

@@ -19,6 +19,7 @@
 :root {
     --mt-accent: rgb(255, 124, 13);
     --mt-accent-fg: #000000;
+    --mt-focus-ring: rgb(255, 124, 13);
     --accent-color: var(--mt-accent);
     --form-element-primary-color: var(--mt-accent);
     --toggle-checked-bg-color: var(--mt-accent);
@@ -35,6 +36,14 @@
     --color-accent-900: color-mix(in srgb, var(--mt-accent) 28%, black);
     --color-accentbg: color-mix(in srgb, var(--mt-accent) 50%, transparent);
     --color-accenthover: color-mix(in srgb, var(--mt-accent) 80%, white);
+}
+
+/* The keyboard focus ring follows the workspace accent (#751), lightened by accent.ts where a dark accent would not
+   read on the panels. Without this, a control with no ring of its own showed Chromium's, in the system's highlight
+   colour (amber in a teal workspace). :where() keeps it at zero specificity: every component ring still wins. */
+:where(:focus-visible) {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 1px;
 }
 
 /* Text on a solid accent stays readable whatever the workspace colour (NFR-SHELL-003).
@@ -208,7 +217,7 @@
 
 .molten-rail-tray-button:focus-visible,
 .molten-rail-item:focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--mt-focus-ring);
     outline-offset: -2px;
 }
 

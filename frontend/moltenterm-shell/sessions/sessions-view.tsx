@@ -324,7 +324,7 @@ function SessionRow({
             {...sessionRowDragProps(session, sessionWhat(session))}
             className={cn(
                 RowGrid,
-                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
                 checked && "bg-accent/10",
                 focused && !checked && "bg-hover/60"
             )}

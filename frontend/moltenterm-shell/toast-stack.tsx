@@ -116,7 +116,7 @@ function ToastItem({ toast }: { toast: Toast }) {
                     <button
                         type="button"
                         onClick={() => run("open", toast.onOpen)}
-                        className="block w-full min-w-0 cursor-pointer rounded-4 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        className="block w-full min-w-0 cursor-pointer rounded-4 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)"
                     >
                         {body}
                     </button>
