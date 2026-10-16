@@ -19,6 +19,10 @@ body.nohover .tab.active .close.molten-hold-close,
     pointer-events: auto;
 }
 
+.molten-hold-close:focus-visible {
+    opacity: 1;
+}
+
 /* #271: the × has a circular hover surface of its own (the shared look is in hold-to-confirm.css). */
 .molten-hold-close:hover .molten-hold-disc {
     background-color: var(--color-hover);
