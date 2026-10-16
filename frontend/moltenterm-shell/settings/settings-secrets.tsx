@@ -48,13 +48,19 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
     const value = useAtomValue(model.newSecretValueAtom);
     const setName = useSetAtom(model.newSecretNameAtom);
     const setValue = useSetAtom(model.newSecretValueAtom);
+    const canAdd = useAtomValue(model.secretCanAddAtom);
     return (
         <PageCard
             title={t("settings.secrets.new.title")}
             icon={suiteIcon("secrets")}
             hint={t("settings.secrets.new.hint")}
         >
-            <div className="flex flex-col gap-3 px-5 py-3">
+            <div
+                className="flex flex-col gap-3 px-5 py-3"
+                onKeyDown={(event) => {
+                    if (event.key === "Escape") model.cancelAddingSecret();
+                }}
+            >
                 <label className="flex flex-col gap-1 text-12 text-secondary">
                     {t("settings.secrets.name")}
                     <input
@@ -62,6 +68,7 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
                         type="text"
                         value={name}
                         spellCheck={false}
+                        disabled={busy}
                         placeholder="GITHUB_TOKEN"
                         onChange={(e) => setName(e.target.value)}
                         className={cn(InputClass, "font-mono")}
@@ -73,6 +80,7 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
                     <textarea
                         value={value}
                         spellCheck={false}
+                        disabled={busy}
                         onChange={(e) => setValue(e.target.value)}
                         className={ValueClass}
                     />
@@ -83,7 +91,7 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
                     </button>
                     <button
                         type="button"
-                        disabled={busy}
+                        disabled={!canAdd}
                         className={PrimaryButton}
                         onClick={() => fireAndForget(() => model.addNewSecret())}
                     >
@@ -100,11 +108,17 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
     const t = useT();
     const value = useAtomValue(model.secretValueAtom);
     const shown = useAtomValue(model.secretShownAtom);
-    const setValue = useSetAtom(model.secretValueAtom);
+    const edited = useAtomValue(model.secretEditedAtom);
+    const canSave = useAtomValue(model.secretCanSaveAtom);
     const [confirmDelete, setConfirmDelete] = useState(false);
     return (
         <PageCard title={name} titleCase="as-is" icon={suiteIcon("secrets")} hint={t("settings.secrets.detail.hint")}>
-            <div className="flex flex-col gap-3 px-5 py-3">
+            <div
+                className="flex flex-col gap-3 px-5 py-3"
+                onKeyDown={(event) => {
+                    if (event.key === "Escape") model.closeSecretView();
+                }}
+            >
                 <textarea
                     ref={(ref) => {
                         model.secretValueRef = ref;
@@ -113,12 +127,7 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
                     spellCheck={false}
                     disabled={busy}
                     placeholder={shown ? "" : t("settings.secrets.detail.placeholder")}
-                    onChange={(e) => setValue(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                            model.closeSecretView();
-                        }
-                    }}
+                    onChange={(e) => model.editSecretValue(e.target.value)}
                     className={ValueClass}
                     data-testid="secret-value"
                 />
@@ -128,7 +137,7 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
                         {t("settings.secrets.detail.hidden")}
                         <button
                             type="button"
-                            disabled={busy}
+                            disabled={busy || edited}
                             className="cursor-pointer text-accent hover:underline"
                             onClick={() => fireAndForget(() => model.showSecret())}
                         >
@@ -169,7 +178,7 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
                     </button>
                     <button
                         type="button"
-                        disabled={busy}
+                        disabled={!canSave}
                         className={PrimaryButton}
                         onClick={() => fireAndForget(() => model.saveSecret())}
                     >
@@ -186,8 +195,10 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
     const t = useT();
     const names = useAtomValue(model.secretNamesAtom);
     const selected = useAtomValue(model.selectedSecretAtom);
-    const busy = useAtomValue(model.isLoadingAtom);
-    const error = useAtomValue(model.errorMessageAtom);
+    const busy = useAtomValue(model.secretOperationBusyAtom);
+    const loading = useAtomValue(model.secretsLoadingAtom);
+    const namesReady = useAtomValue(model.secretNamesReadyAtom);
+    const error = useAtomValue(model.secretErrorAtom);
     const backendError = useAtomValue(model.storageBackendErrorAtom);
     const adding = useAtomValue(model.isAddingNewAtom);
     const sorted = useMemo(() => [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())), [names]);
@@ -195,6 +206,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
     useEffect(() => {
         fireAndForget(() => model.checkStorageBackend());
         fireAndForget(() => model.refreshSecrets());
+        return () => model.closeSecretView();
     }, [model]);
 
     if (backendError) {
@@ -222,6 +234,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                     !adding ? (
                         <button
                             type="button"
+                            disabled={!namesReady || loading}
                             className={PrimaryButton}
                             onClick={() => model.startAddingSecret()}
                             data-testid="secret-add"
@@ -236,7 +249,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                 {sorted.length === 0 ? (
                     <div className="flex items-center gap-3 px-5 py-4 text-12 text-muted">
                         <i className="fa fa-solid fa-key text-icon-14" aria-hidden />
-                        {busy ? t("settings.secrets.loading") : t("settings.secrets.none")}
+                        {loading ? t("settings.secrets.loading") : t("settings.secrets.none")}
                     </div>
                 ) : (
                     sorted.map((name) => (

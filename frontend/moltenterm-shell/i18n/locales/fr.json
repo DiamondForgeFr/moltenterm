@@ -1124,6 +1124,19 @@
             }
         },
         "secrets": {
+            "errors": {
+                "storageUnavailable": "Aucun coffre de secrets sécurisé n'est disponible. Les secrets ne peuvent pas être gérés en toute sécurité.",
+                "storageCheck": "Impossible de vérifier le coffre de secrets. Réessayez.",
+                "list": "Impossible de charger les secrets. Réessayez.",
+                "missing": "Secret introuvable : {name}",
+                "reveal": "Impossible d'afficher le secret. Réessayez.",
+                "save": "Impossible d'enregistrer le secret. Vos modifications sont conservées ; réessayez.",
+                "delete": "Impossible de supprimer le secret. Réessayez.",
+                "add": "Impossible d'ajouter le secret. Vos modifications sont conservées ; réessayez.",
+                "emptyName": "Saisissez un nom de secret.",
+                "invalidName": "Commencez le nom du secret par une lettre et utilisez uniquement des lettres, des chiffres et des tirets bas.",
+                "duplicate": "Un secret nommé {name} existe déjà."
+            },
             "new": {
                 "title": "Nouveau secret",
                 "hint": "Une lettre d'abord, puis des lettres, des chiffres et des tirets bas.",
