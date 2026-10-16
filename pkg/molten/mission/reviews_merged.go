@@ -192,7 +192,9 @@ func (r *Reviews) prepareShips(answer *ReviewsAnswer, snap Snapshot, force bool)
 		}
 		ship, ok := state.ships[row.MergeOid]
 		age := now.Sub(ship.at)
-		if !ok || (ship.ships != ReviewShipsTag &&(age >= reviewShipsMaxAge || (force && age >= reviewShipsMinInterval))) {
+		// A git read newer than the answer (its fetch brings the tags): a refresh's forced ask comes before its fetch.
+		gitNewer := snap.GitAt > 0 && time.UnixMilli(snap.GitAt).After(ship.at)
+		if !ok || (ship.ships != ReviewShipsTag && (age >= reviewShipsMaxAge || gitNewer || (force && age >= reviewShipsMinInterval))) {
 			due = append(due, row.MergeOid)
 		}
 	}
@@ -210,6 +212,25 @@ func (r *Reviews) prepareShips(answer *ReviewsAnswer, snap Snapshot, force bool)
 		state.release = ""
 	}
 	return true
+}
+
+// Refreshed follows a collector refresh of a project the view asked about: a refresh's forced ask reads where the
+// merged PRs ship before its fetch brings the tags, so the git read that ends it is looked at again.
+func (r *Reviews) Refreshed(snap Snapshot) {
+	if r == nil || !r.shipsAsked(snap.Dir) {
+		return
+	}
+	answer := BuildReviews(snap)
+	if r.prepareShips(&answer, snap, false) {
+		r.readShips(snap.Dir)
+	}
+}
+
+func (r *Reviews) shipsAsked(dir string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	_, ok := r.ships[dir]
+	return ok
 }
 
 func (r *Reviews) evictShipsLocked() {

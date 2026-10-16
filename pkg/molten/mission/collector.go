@@ -603,9 +603,12 @@ func Start() {
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups
+	// Where the merged PRs ship (#843) follows a git read: its fetch brings the tags.
+	var reviews *Reviews
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, func(snap Snapshot) {
 		publishSnapshot(snap)
 		go groups.Refreshed()
+		go reviews.Refreshed(snap)
 	})
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
 	runs := MakeRuns(RunsDir(dataDir), trust, func(rec RunRecord) {
@@ -646,7 +649,7 @@ func Start() {
 	})
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
-	reviews := MakeReviews(collector, ExecRunner, publishReviews)
+	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups, reviews); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
