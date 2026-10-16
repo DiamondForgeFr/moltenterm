@@ -7,6 +7,7 @@
         "addHint": "Paste the copied /morph request into your coding agent and name the language: it writes the translation and installs it as a mod."
     },
     "common": {
+        "diamondforgeProduct": "A DiamondForge product",
         "cancel": "Cancel",
         "close": "Close",
         "ok": "OK",

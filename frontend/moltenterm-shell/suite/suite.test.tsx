@@ -5,7 +5,16 @@ import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BlockRows, GlowRing, nextToggleIndex, OptionList, OptionRow, SectionBlock, ToggleGroup } from "./suite";
+import {
+    BlockRows,
+    GlowRing,
+    nextToggleIndex,
+    OptionList,
+    OptionRow,
+    SectionBlock,
+    SuiteSignature,
+    ToggleGroup,
+} from "./suite";
 import { suiteIcon, SuiteIcons } from "./suite-icons";
 
 const KitDir = __dirname;
@@ -119,6 +128,22 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(nextToggleIndex("ArrowLeft", 0, 3)).toBe(2);
         expect(nextToggleIndex("End", 0, 3)).toBe(2);
         expect(nextToggleIndex("a", 0, 3)).toBe(-1);
+    });
+
+    it("signs with the product, its version and the caller's label, or the label alone (#740)", () => {
+        const full = renderToStaticMarkup(
+            <SuiteSignature product="MoltenTerm" version="1.0.0" label="A DiamondForge product" className="x" />
+        );
+        expect(full).toContain('class="df-signature x"');
+        expect(full).toContain('title="MoltenTerm 1.0.0 · A DiamondForge product"');
+        expect(full).toContain('<span class="df-signature-product">MoltenTerm 1.0.0</span> · A DiamondForge product');
+        const bare = renderToStaticMarkup(<SuiteSignature label="Un produit DiamondForge" />);
+        expect(bare).toBe(
+            '<p class="df-signature" title="Un produit DiamondForge" data-suite-signature="">Un produit DiamondForge</p>'
+        );
+        expect(renderToStaticMarkup(<SuiteSignature product="MoltenTerm" label="L" />)).toContain(
+            '<span class="df-signature-product">MoltenTerm</span> · L'
+        );
     });
 
     it("maps each concept to one Lucide icon, Notulia's where it has one", () => {

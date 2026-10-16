@@ -68,6 +68,7 @@ export function DialogFrame({
     title,
     subtitle,
     subtitleClass,
+    belowSubtitle,
     wide,
     widthClass,
     trapFocus,
@@ -81,6 +82,8 @@ export function DialogFrame({
     subtitle?: string;
     // Replaces the subtitle's text style (a path is mono 11).
     subtitleClass?: string;
+    // A quiet line under the subtitle (the suite signature in the version history).
+    belowSubtitle?: React.ReactNode;
     wide?: boolean;
     // Replaces the width that `wide` picks.
     widthClass?: string;
@@ -158,6 +161,7 @@ export function DialogFrame({
                             {subtitle}
                         </div>
                     ) : null}
+                    {belowSubtitle}
                 </div>
                 {suite ? <GlowRing on /> : null}
                 <div

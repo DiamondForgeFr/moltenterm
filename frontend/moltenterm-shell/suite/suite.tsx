@@ -181,6 +181,35 @@ export function nextToggleIndex(key: string, from: number, count: number): numbe
     }
 }
 
+// The suite's signature (#740): "MoltenTerm 1.0.0 · A DiamondForge product", muted and small, in the app's quiet
+// places (the end of Settings' sidebar, under the version in the version history), never on a work surface. Each app
+// passes its name, its version and its translation of the label.
+export function SuiteSignature({
+    product,
+    version,
+    label,
+    className,
+}: {
+    product?: string;
+    version?: string;
+    label: string;
+    className?: string;
+}) {
+    const name = [product, version].filter(Boolean).join(" ");
+    const text = name ? `${name} · ${label}` : label;
+    return (
+        <p className={joinClasses("df-signature", className)} title={text} data-suite-signature="">
+            {name ? (
+                <>
+                    <span className="df-signature-product">{name}</span>
+                    {" · "}
+                </>
+            ) : null}
+            {label}
+        </p>
+    );
+}
+
 // Exclusive choices as separate bordered rectangles, the chosen one outlined in the accent; one tab stop.
 export function ToggleGroup<T extends string>({
     label,
