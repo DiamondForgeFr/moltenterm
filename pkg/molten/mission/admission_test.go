@@ -336,7 +336,7 @@ func TestAdmissionFailuresReleaseReservation(t *testing.T) {
 			request := RunRequest{Dir: dir, Kind: RunKindStep, Id: "one"}
 			switch failure {
 			case "validation":
-				request.Id = "missing"
+				request.Version = "invalid;version"
 			case "record":
 				if err := os.WriteFile(r.baseDir, nil, 0600); err != nil {
 					t.Fatal(err)
@@ -354,7 +354,7 @@ func TestAdmissionFailuresReleaseReservation(t *testing.T) {
 			}
 			switch failure {
 			case "validation":
-				request.Id = "one"
+				request.Version = ""
 			case "record":
 				if err := os.Remove(r.baseDir); err != nil {
 					t.Fatal(err)
