@@ -670,3 +670,94 @@ func TestAdmissionKeepsIgnoredTagsAcrossHistoricalAliases(t *testing.T) {
 		t.Fatalf("ignored choices lost after restart: %+v", tags)
 	}
 }
+
+func TestAdmissionFindsOriginalLegacySessionAfterCanonicalCache(t *testing.T) {
+	r, dir := makeReleaseFixture(t, releasePipeline)
+	alias := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	storage := filepath.Join(r.baseDir, projectKey(alias))
+	if err := os.MkdirAll(storage, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(storage, ReleaseSessionFileName), []byte(`{"tag":"v1.2.0-3","channel":"rc","version":"1.2.0"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	canonical := canonicalRunDir(dir)
+	want := ReleaseSession{Tag: "v1.2.0-3", Channel: ReleaseChannelRc, Version: "1.2.0"}
+	if session, err := r.ReleaseSessionOf(canonical); err != nil || session != nil {
+		t.Fatalf("unknown alias session should remain undiscoverable: %+v, %v", session, err)
+	}
+	for _, requested := range []string{alias, canonical} {
+		if session, err := r.ReleaseSessionOf(requested); err != nil || session == nil || *session != want {
+			t.Fatalf("original alias did not enrich cached identity: %s: %+v, %v", requested, session, err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(storage, runProjectFile))
+	var identity string
+	if err != nil || json.Unmarshal(data, &identity) != nil || identity != canonical {
+		t.Fatalf("identity was not backfilled beside the actual session: %q, %v", data, err)
+	}
+	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	if session, err := restarted.ReleaseSessionOf(canonical); err != nil || session == nil || *session != want {
+		t.Fatalf("backfilled session identity lost after restart: %+v, %v", session, err)
+	}
+	_, other := makeReleaseFixture(t, releasePipeline)
+	if err := os.Remove(alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, alias); err != nil {
+		t.Fatal(err)
+	}
+	retargeted := MakeRuns(r.baseDir, r.trust, nil)
+	if session, err := retargeted.ReleaseSessionOf(alias); err != nil || session != nil {
+		t.Fatalf("backfilled old session attached to retargeted alias: %+v, %v", session, err)
+	}
+	if session, err := retargeted.ReleaseSessionOf(canonical); err != nil || session == nil || *session != want {
+		t.Fatalf("retargeting lost original project's session: %+v, %v", session, err)
+	}
+	if err := restarted.EndRelease(canonical); err != nil {
+		t.Fatal(err)
+	}
+	if session, err := restarted.ReleaseSessionOf(alias); err != nil || session != nil {
+		t.Fatalf("ended legacy session survived: %+v, %v", session, err)
+	}
+}
+
+func TestAdmissionBackfillsSecondaryRecordBeforeRetarget(t *testing.T) {
+	r, dir := makeReleaseFixture(t, admissionPipeline)
+	_, other := makeReleaseFixture(t, admissionPipeline)
+	alias := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	writeLegacyAdmissionRecord(t, r, dir, "canonical", 0)
+	writeLegacyAdmissionRecord(t, r, alias, "secondary", 0)
+	if records := r.List(dir); len(records) != 2 {
+		t.Fatalf("legacy records missing before retarget: %+v", records)
+	}
+	var identity string
+	data, err := os.ReadFile(filepath.Join(r.baseDir, projectKey(alias), runProjectFile))
+	if err != nil || json.Unmarshal(data, &identity) != nil || identity != canonicalRunDir(dir) {
+		t.Fatalf("secondary record's actual folder was not identified: %q, %v", data, err)
+	}
+	if err := os.Remove(alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, alias); err != nil {
+		t.Fatal(err)
+	}
+	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	if records := restarted.List(alias); len(records) != 0 {
+		t.Fatalf("retargeted alias inherited another project's history: %+v", records)
+	}
+	records := restarted.List(dir)
+	seen := map[string]bool{}
+	for _, record := range records {
+		seen[record.Id] = record.State == RunStateLost
+	}
+	if len(records) != 2 || !seen["canonical"] || !seen["secondary"] {
+		t.Fatalf("backfilled history lost after restart: %+v", records)
+	}
+}

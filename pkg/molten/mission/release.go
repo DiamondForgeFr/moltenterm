@@ -74,7 +74,11 @@ func (r *Runs) ReleaseSessionOf(dir string) (*ReleaseSession, error) {
 	if err := checkDir(dir); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(r.releaseSessionFile(filepath.Clean(dir)))
+	dir = filepath.Clean(dir)
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	file := r.releaseSessionFile(project)
+	data, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -87,7 +91,7 @@ func (r *Runs) ReleaseSessionOf(dir string) (*ReleaseSession, error) {
 	}
 	// Visiting an older session through its original path makes it discoverable through future aliases too.
 	// An inability to backfill this identity must not hide a readable session.
-	r.identifyProject(dir)
+	r.identifyStorage(filepath.Dir(file), project)
 	return &session, nil
 }
 
