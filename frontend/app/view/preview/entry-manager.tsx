@@ -4,12 +4,20 @@
 import { Button } from "@/app/element/button";
 import { Input } from "@/app/element/input";
 import React, { memo, useState } from "react";
+import { useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 
 export enum EntryManagerType {
     NewFile = "New File",
     NewDirectory = "New Folder",
     EditName = "Rename",
 }
+
+// MOLTENTERM-PATCH (#742): the overlay's title through i18n keys
+const EntryManagerTitleKeys: Record<EntryManagerType, string> = {
+    [EntryManagerType.NewFile]: "wave.files.newFile",
+    [EntryManagerType.NewDirectory]: "wave.files.newFolder",
+    [EntryManagerType.EditName]: "wave.files.rename",
+};
 
 export type EntryManagerOverlayProps = {
     forwardRef?: React.Ref<HTMLDivElement>;
@@ -32,9 +40,10 @@ export const EntryManagerOverlay = memo(
         getReferenceProps,
     }: EntryManagerOverlayProps) => {
         const [value, setValue] = useState(startingValue);
+        const t = useT(); // MOLTENTERM-PATCH (#742)
         return (
             <div className="entry-manager-overlay" ref={forwardRef} style={style} {...(getReferenceProps?.() ?? {})}>
-                <div className="entry-manager-type">{entryManagerType}</div>
+                <div className="entry-manager-type">{t(EntryManagerTitleKeys[entryManagerType])}</div>
                 <div className="entry-manager-input">
                     <Input
                         value={value}
@@ -51,10 +60,10 @@ export const EntryManagerOverlay = memo(
                 </div>
                 <div className="entry-manager-buttons">
                     <Button className="py-[4px]" onClick={() => onSave(value)}>
-                        Save
+                        {t("wave.files.save")}
                     </Button>
                     <Button className="py-[4px] red outlined" onClick={onCancel}>
-                        Cancel
+                        {t("wave.files.cancel")}
                     </Button>
                 </div>
             </div>

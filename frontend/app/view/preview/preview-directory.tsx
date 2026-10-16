@@ -29,10 +29,10 @@ import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
+import { t, useLocale, useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
 import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
-    cleanMimetype,
     getBestUnit,
     getLastModifiedTime,
     getSortIcon,
@@ -42,6 +42,7 @@ import {
     makeDirectoryDefaultMenuItems,
     mergeError,
     overwriteError,
+    typeLabel, // MOLTENTERM-PATCH (#742)
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
@@ -115,6 +116,8 @@ function DirectoryTable({
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
+    const locale = useLocale(); // MOLTENTERM-PATCH (#742)
     const getIconFromMimeType = useCallback(
         (mimeType: string): string => {
             while (mimeType.length > 0) {
@@ -148,42 +151,44 @@ function DirectoryTable({
             }),
             columnHelper.accessor("name", {
                 cell: (info) => <span className="dir-table-name ellipsis">{info.getValue()}</span>,
-                header: () => <span className="dir-table-head-name">Name</span>,
+                header: () => <span className="dir-table-head-name">{tr("wave.files.colName")}</span>, // MOLTENTERM-PATCH (#742)
                 sortingFn: "alphanumeric",
                 size: 200,
                 minSize: 90,
             }),
             columnHelper.accessor("modestr", {
                 cell: (info) => <span className="dir-table-modestr">{info.getValue()}</span>,
-                header: () => <span>Perm</span>,
+                header: () => <span>{tr("wave.files.colPerm")}</span>, // MOLTENTERM-PATCH (#742)
                 size: 91,
                 minSize: 90,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("modtime", {
-                cell: (info) => <span className="dir-table-lastmod">{getLastModifiedTime(info.getValue())}</span>,
-                header: () => <span>Last Modified</span>,
+                cell: (info) => (
+                    <span className="dir-table-lastmod">{getLastModifiedTime(info.getValue(), locale)}</span> // MOLTENTERM-PATCH (#742)
+                ),
+                header: () => <span>{tr("wave.files.colModified")}</span>, // MOLTENTERM-PATCH (#742)
                 size: 91,
                 minSize: 65,
                 sortingFn: "datetime",
             }),
             columnHelper.accessor("size", {
                 cell: (info) => <span className="dir-table-size">{getBestUnit(info.getValue())}</span>,
-                header: () => <span className="dir-table-head-size">Size</span>,
+                header: () => <span className="dir-table-head-size">{tr("wave.files.colSize")}</span>, // MOLTENTERM-PATCH (#742)
                 size: 55,
                 minSize: 50,
                 sortingFn: "auto",
             }),
             columnHelper.accessor("mimetype", {
-                cell: (info) => <span className="dir-table-type ellipsis">{cleanMimetype(info.getValue() ?? "")}</span>,
-                header: () => <span className="dir-table-head-type">Type</span>,
+                cell: (info) => <span className="dir-table-type ellipsis">{typeLabel(info.getValue(), tr)}</span>, // MOLTENTERM-PATCH (#742)
+                header: () => <span className="dir-table-head-type">{tr("wave.files.colType")}</span>, // MOLTENTERM-PATCH (#742)
                 size: 97,
                 minSize: 97,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("path", {}),
         ],
-        [fullConfig]
+        [fullConfig, tr, locale] // MOLTENTERM-PATCH (#742)
     );
 
     const setEntryManagerProps = useSetAtom(entryManagerOverlayPropsAtom);
@@ -327,6 +332,7 @@ function TableBody({
     const warningBoxRef = useRef<HTMLDivElement>(null);
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
+    const tr = useT(); // MOLTENTERM-PATCH (#742)
 
     useEffect(() => {
         if (focusIndex === null || !bodyRef.current || !osRef) {
@@ -368,21 +374,22 @@ function TableBody({
                 return;
             }
             const fileName = finfo.path.split("/").pop();
+            // MOLTENTERM-PATCH (#742): labels through i18n keys
             const menu: ContextMenuItem[] = [
                 {
-                    label: "New File",
+                    label: t("wave.files.newFile"),
                     click: () => {
                         table.options.meta.newFile();
                     },
                 },
                 {
-                    label: "New Folder",
+                    label: t("wave.files.newFolder"),
                     click: () => {
                         table.options.meta.newDirectory();
                     },
                 },
                 {
-                    label: "Rename",
+                    label: t("wave.files.rename"),
                     click: () => {
                         table.options.meta.updateName(finfo.path, finfo.isdir);
                     },
@@ -391,19 +398,19 @@ function TableBody({
                     type: "separator",
                 },
                 {
-                    label: "Copy File Name",
+                    label: t("wave.files.copyName"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
                 },
                 {
-                    label: "Copy Full File Name",
+                    label: t("wave.files.copyPath"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(finfo.path)),
                 },
                 {
-                    label: "Copy File Name (Shell Quoted)",
+                    label: t("wave.files.copyNameQuoted"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([fileName]))),
                 },
                 {
-                    label: "Copy Full File Name (Shell Quoted)",
+                    label: t("wave.files.copyPathQuoted"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
                 },
             ];
@@ -413,14 +420,14 @@ function TableBody({
                     type: "separator",
                 },
                 {
-                    label: "Default Settings",
+                    label: t("wave.files.defaultSettings"), // MOLTENTERM-PATCH (#742)
                     submenu: makeDirectoryDefaultMenuItems(model),
                 },
                 {
                     type: "separator",
                 },
                 {
-                    label: "Delete",
+                    label: t("wave.files.delete"), // MOLTENTERM-PATCH (#742)
                     click: () => handleFileDelete(model, finfo.path, false, setErrorMsg),
                 }
             );
@@ -437,7 +444,8 @@ function TableBody({
         <div className="dir-table-body" ref={bodyRef}>
             {(searchActive || search !== "") && (
                 <div className="flex rounded-[3px] py-1 px-2 bg-warning text-black" ref={warningBoxRef}>
-                    <span>{search === "" ? "Type to search (Esc to cancel)" : `Searching for "${search}"`}</span>
+                    <span>{search === "" ? tr("wave.files.searchHint") : tr("wave.files.searching", { search })}</span>
+                    {/* MOLTENTERM-PATCH (#742) */}
                     <div
                         className="ml-auto bg-transparent flex justify-center items-center flex-col p-0.5 rounded-md hover:bg-hoverbg focus:bg-hoverbg focus-within:bg-hoverbg cursor-pointer"
                         onClick={() => {
@@ -607,7 +615,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 } catch (e) {
                     console.error("Directory Read Error", e);
                     setErrorMsg({
-                        status: "Cannot Read Directory",
+                        status: t("wave.files.cannotRead"), // MOLTENTERM-PATCH (#742)
                         text: `${e}`,
                     });
                 }
@@ -722,19 +730,19 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 let errorMsg: ErrorMsg;
                 if (allowRetry) {
                     errorMsg = {
-                        status: "Confirm Overwrite File(s)",
-                        text: "This copy operation will overwrite an existing file. Would you like to continue?",
+                        status: t("wave.files.confirmOverwrite"), // MOLTENTERM-PATCH (#742)
+                        text: t("wave.files.confirmOverwriteText"), // MOLTENTERM-PATCH (#742)
                         level: "warning",
                         buttons: [
                             {
-                                text: "Delete Then Copy",
+                                text: t("wave.files.deleteThenCopy"), // MOLTENTERM-PATCH (#742)
                                 onClick: async () => {
                                     data.opts.overwrite = true;
                                     await handleDropCopy(data, isDir);
                                 },
                             },
                             {
-                                text: "Sync",
+                                text: t("wave.files.sync"), // MOLTENTERM-PATCH (#742)
                                 onClick: async () => {
                                     data.opts.merge = true;
                                     await handleDropCopy(data, isDir);
@@ -744,7 +752,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     };
                 } else {
                     errorMsg = {
-                        status: "Copy Failed",
+                        status: t("wave.files.copyFailed"), // MOLTENTERM-PATCH (#742)
                         text: copyError,
                         level: "error",
                     };
@@ -840,13 +848,13 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             e.stopPropagation();
             const menu: ContextMenuItem[] = [
                 {
-                    label: "New File",
+                    label: t("wave.files.newFile"), // MOLTENTERM-PATCH (#742)
                     click: () => {
                         newFile();
                     },
                 },
                 {
-                    label: "New Folder",
+                    label: t("wave.files.newFolder"), // MOLTENTERM-PATCH (#742)
                     click: () => {
                         newDirectory();
                     },
