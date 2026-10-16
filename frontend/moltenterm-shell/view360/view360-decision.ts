@@ -4,11 +4,11 @@
 // When a tab shows in 360 view (FR-SHELL-066, DS-SHELL-116): the setting moltenterm:view360, the tab's manual choice,
 // and in automatic the readable minimum of every column against the tab's width, with a margin before leaving so a
 // window dragged around the threshold does not flap. Pure rules, kept apart from the layout so they are tested alone.
-// A terminal column counts the terminal floor (#731) on top of its readable minimum. The automatic decision cannot be
-// turned off (#733): the tab's button only adds an on-demand 360 view, and leaving is guarded (exitView360).
+// The first column counts its floor (#731, #848) on top of its readable minimum, whatever it holds. The automatic
+// decision cannot be turned off (#733): the tab's button only adds an on-demand 360 view, and leaving is guarded
+// (exitView360).
 
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
-import { type IsTerminalLeaf, terminalNeedPx } from "../panel-size/panel-size-model";
 import { FixedMinPx, ReadableCarpetColumnPx } from "./carpet-model";
 
 export const View360SettingKey = "moltenterm:view360";
@@ -71,10 +71,12 @@ export function readableMinimumsPx(columnCount: number): number[] {
     return Array.from({ length: Math.max(0, columnCount) }, (_, i) => columnMinPx(i));
 }
 
-// The minimum of each top-level column once the terminal floor (#731) counts: max(readable minimum, the width its
-// terminals need to keep the floor). Without a floor, the readable minimums.
-export function columnMinimumsPx(columns: LayoutNode[], floorPx: number, isTerminal: IsTerminalLeaf): number[] {
-    return columns.map((column, i) => Math.max(columnMinPx(i), terminalNeedPx(column, floorPx, isTerminal)));
+// The minimum of each of `columnCount` top-level columns once the first column's floor (#731, #848) counts: the first
+// column at max(readable minimum, floor) whatever it holds, the others at their readable minimum. Without a floor,
+// the readable minimums.
+export function columnMinimumsPx(columnCount: number, floorPx: number): number[] {
+    const floor = floorPx > 0 ? floorPx : 0;
+    return readableMinimumsPx(columnCount).map((min, i) => (i === 0 ? Math.max(min, floor) : min));
 }
 
 // The width every column needs at its minimum, gaps included: the readable minimums of `columnCount` columns, or the
@@ -88,7 +90,7 @@ export function minimumsPx(columnCount: number, gapPx = 0, columnMins?: number[]
 }
 
 // The automatic decision: enter when the minimums no longer fit, leave only when they fit with the margin.
-// `columnMins` (columnMinimumsPx) makes a terminal column count its floor.
+// `columnMins` (columnMinimumsPx) makes the first column count its floor.
 export function autoWants(
     prevOn: boolean,
     columnCount: number,
@@ -106,7 +108,7 @@ export function autoWants(
     return need > widthPx;
 }
 
-// Whether the columns fit side by side at their current minimums, terminal floor included (#733: leave 360 view as is).
+// Whether the columns fit side by side at their current minimums, first column floor included (#733: leave 360 view as is).
 export function fitsAtCurrentFloors(columnMins: number[], widthPx: number, gapPx = 0, marginPx = 0): boolean {
     const count = columnMins?.length ?? 0;
     if (count < 2) {
@@ -153,7 +155,7 @@ export function decideView360(inputs: View360Inputs): View360Decision {
 }
 
 // Turning the 360 view off (#733): "leave" when every column fits at the current floors; "readjust" when they fit only
-// once the terminal floor is cleared (the developer confirms first); "blocked" when they do not fit even at the
+// once the first column floor is cleared (the developer confirms first); "blocked" when they do not fit even at the
 // readable minimums, with how many columns are too many.
 export type View360Exit = { kind: "leave" } | { kind: "readjust" } | { kind: "blocked"; extraColumns: number };
 

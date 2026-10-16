@@ -10,7 +10,7 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { LegacyTimelineView, MoltentermProjectView } from "../project/project-model";
 
 // The fixed zone keeps this width at least, and never more than half of the tab's width (half wins on a narrow
-// window: the carpet must stay usable). The terminal floor lifts both while a carpet column still fits (fixedBoundsPx),
+// window: the carpet must stay usable). The first column's floor lifts both while a carpet column still fits (fixedBoundsPx),
 // and a minimum above half lets the zone grow up to what leaves the carpet one readable column (#829).
 export const FixedMinPx = 520;
 export const FixedMaxShare = 0.5;
@@ -107,7 +107,7 @@ export type CarpetLayoutInput = {
     columns: { nodeId: string; widthPx: number }[];
     // The columns pinned to the fixed zone, in the tree's order; widthPx is only used beside.
     pins?: { nodeId: string; mode: PinMode; widthPx: number }[];
-    // The width the first column's terminals need to keep the terminal floor (#731, #733), 0 without one.
+    // The first column's floor (#731, #733, #848), whatever it holds, 0 without one.
     fixedNeedPx?: number;
 };
 
@@ -164,7 +164,7 @@ export function defaultCarpetWidthPx(kind: string): number {
     return DefaultCarpetWidths[kind] ?? DefaultCarpetColumnPx;
 }
 
-// Why a fixed column's handle cannot move (#829): the terminal floor takes all the room the carpet leaves, the window is
+// Why a fixed column's handle cannot move (#829): the first column's floor takes all the room the carpet leaves, the window is
 // too narrow, or the other fixed columns take the rest.
 export type NoRoomReason = "floor" | "window" | "columns";
 
@@ -174,15 +174,15 @@ function floorPx(needPx: number): number {
     return Number.isFinite(needPx) && needPx > 0 ? Math.ceil(needPx) : 0;
 }
 
-// The cap of the fixed zone holding columns side by side (FR-SHELL-067): half of the window, lifted to the terminal
-// floor (#733) as long as one carpet column at its readable minimum still fits beside it.
+// The cap of the fixed zone holding columns side by side (FR-SHELL-067): half of the window, lifted to the first
+// column's floor (#733, #848) as long as one carpet column at its readable minimum still fits beside it.
 export function fixedCapPx(width: number, needPx = 0): number {
     const half = Math.max(0, Math.floor(width * FixedMaxShare));
     const need = floorPx(needPx);
     return need > half && need + CarpetReservePx <= width ? need : half;
 }
 
-// The drag range of the fixed zone alone. It keeps FixedMinPx and the terminal floor (#733) at least, and half of the
+// The drag range of the fixed zone alone. It keeps FixedMinPx and the first column's floor (#733) at least, and half of the
 // window at most. When that minimum does not fit under half (a floor above half, a window under 2 × FixedMinPx), the
 // cap rises to what leaves the carpet one readable column, so the zone can still be widened and narrowed (#829); a
 // minimum past even that cap falls back to half of the window. min == max only when the window leaves no room.
@@ -197,6 +197,20 @@ export function fixedBoundsPx(width: number, needPx = 0): FixedBounds {
         return { min, max };
     }
     return { min, max, noRoom: need > 0 && need >= max ? "floor" : "window" };
+}
+
+// The drag range of the grip of the fixed zone alone. The grip sets the first column's floor (#848), so it can narrow
+// the zone below the current floor down to FixedMinPx; the floor still lifts the cap (fixedBoundsPx).
+export function fixedDragBoundsPx(width: number, needPx = 0): FixedBounds {
+    const max = fixedBoundsPx(width, needPx).max;
+    const min = Math.min(fixedBoundsPx(width).min, max);
+    return min < max ? { min, max } : { min, max, noRoom: "window" };
+}
+
+export function clampFixedDragPx(px: number, width: number, needPx = 0): number {
+    const { min, max } = fixedDragBoundsPx(width, needPx);
+    const want = Number.isFinite(px) && px > 0 ? px : min;
+    return Math.round(Math.min(Math.max(want, min), max));
 }
 
 // The drag range of one of the fixed columns side by side: it takes what the others leave of the zone's cap, never
@@ -234,7 +248,7 @@ export function canPinBeside(width: number, besideCount: number): boolean {
 // The widths of the fixed zone's columns side by side, the first one then those pinned beside it, within half of the
 // window. When they do not fit, the pinned columns shrink to their minimum first, then the first column; below every
 // minimum (a very narrow window) they share the half in proportion, so the carpet never loses its space.
-// needPx: the first column's terminal floor (#733), kept while the pinned columns can still shrink to their minimum.
+// needPx: the first column's floor (#733, #848), kept while the pinned columns can still shrink to their minimum.
 export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[], needPx = 0): number[] {
     if (!pinnedPx.length) {
         return [clampFixedPx(firstPx, width, needPx)];

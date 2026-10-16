@@ -4086,7 +4086,7 @@
         "addStart": "Ajouter un panneau à gauche",
         "addEnd": "Ajouter un panneau à droite",
         "grip": {
-            "noRoomFloor": "Cette colonne ne peut pas être redimensionnée ici : son terminal a besoin de cette largeur pour rester lisible, et le tapis a besoin du reste de la fenêtre.",
+            "noRoomFloor": "Cette colonne ne peut pas être redimensionnée ici : la première colonne garde la largeur que vous lui avez donnée, et le tapis a besoin du reste de la fenêtre.",
             "noRoomWindow": "Cette colonne ne peut pas être redimensionnée ici : la fenêtre est trop étroite pour laisser de la place au tapis. Élargissez la fenêtre pour la redimensionner.",
             "noRoomColumns": "Cette colonne ne peut pas être élargie : les autres colonnes fixes prennent le reste de la place. Rétrécissez-en une d'abord."
         },
@@ -4107,7 +4107,7 @@
             "menuLeave": "Quitter la vue 360",
             "menuSettings": "Réglages de la vue 360",
             "readjustTitle": "Quitter la vue 360 ?",
-            "readjustText": "Les panneaux ne tiennent côte à côte que si les terminaux renoncent à la largeur où ils ont été étirés. Toutes les tailles sont réajustées : la largeur minimale des terminaux est effacée et les panneaux se partagent la largeur de l'onglet.",
+            "readjustText": "Les panneaux ne tiennent côte à côte que si la première colonne renonce à la largeur que vous lui avez donnée. Toutes les tailles sont réajustées : la largeur de la première colonne est effacée et les panneaux se partagent la largeur de l'onglet.",
             "readjustConfirm": "Réajuster toutes les tailles",
             "readjustStay": "Rester en vue 360",
             "blockedTitle": "Fermer d'abord des panneaux",
