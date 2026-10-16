@@ -210,6 +210,8 @@
             "sortName": "Nom",
             "sortModified": "Date de modification",
             "showHidden": "Afficher les fichiers cachés",
+            "hideHidden": "Masquer les fichiers cachés",
+            "refresh": "Actualiser",
             "on": "Oui",
             "off": "Non",
             "showInFolder": "Afficher dans le dossier",
