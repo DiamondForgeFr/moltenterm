@@ -146,6 +146,34 @@ func TestNotificationRetention(t *testing.T) {
 	}
 }
 
+func TestNotificationAgentDoneFoldsItsWaiting(t *testing.T) {
+	now := time.UnixMilli(1000)
+	meta := waveobj.MetaMapType{
+		"molten:notif:wait":  notif(map[string]any{"source": "agent", "kind": "warning", "blockid": "b1", "title": "Margaux is waiting for you"}),
+		"molten:notif:other": notif(map[string]any{"source": "agent", "kind": "warning", "blockid": "b2"}),
+		"molten:notif:shell": notif(map[string]any{"source": "sessions", "kind": "warning", "blockid": "b1"}),
+	}
+	update := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Kind: "success", Title: "Margaux finished", BlockId: "b1"}, now, "done")
+	var keys []string
+	for k := range update {
+		keys = append(keys, strings.TrimPrefix(k, NotificationKeyPrefix))
+	}
+	if want := []string{"done", "wait"}; !reflect.DeepEqual(sortedStrings(keys), want) {
+		t.Fatalf("update touches %v, want %v", keys, want)
+	}
+	folded, _ := update["molten:notif:wait"].(map[string]any)
+	if folded["resolved"] != float64(1000) || folded["archived"] != float64(1000) || folded["read"] != true || folded["title"] != "Margaux is waiting for you" {
+		t.Fatalf("the outdated waiting is folded: %v", folded)
+	}
+}
+
+func TestNotificationSessionsShareTheAgentsSubject(t *testing.T) {
+	meta := waveobj.MetaMapType{NotificationPrefsMetaKey: map[string]any{"agents": "off"}}
+	if update := NotificationPublishUpdate(meta, NotificationInput{Source: "sessions", Kind: "info", Title: "kept"}, time.UnixMilli(1), "a"); update != nil {
+		t.Fatalf("agents are off, the sessions' news follows: %v", update)
+	}
+}
+
 func TestNotificationActionsCapped(t *testing.T) {
 	input := NotificationInput{Source: "build", Title: "t", Actions: []NotificationAction{{Id: "a", Label: "A", Kind: "open"}, {Id: "b", Label: "B", Kind: "open"}, {Id: "c", Label: "C", Kind: "open"}, {Id: "d", Label: "D", Kind: "open"}}}
 	value := NotificationPublishUpdate(nil, input, time.UnixMilli(1), "x")["molten:notif:x"].(map[string]any)

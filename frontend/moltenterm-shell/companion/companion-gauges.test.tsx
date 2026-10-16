@@ -158,10 +158,11 @@ describe("plan usage rules", () => {
 });
 
 describe("plan usage section", () => {
-    it("is one compact row offering Show plan usage when off", () => {
+    it("is one compact row offering Show plan usage when off, without saying it twice (#748)", () => {
         const html = markup({ ...enabled, gauges: "off", snapshot: undefined });
         expect(html).toContain('data-state="off"');
-        expect(html).toContain(">Show plan usage</button>");
+        expect(html).toContain("<span>Plan usage</span>");
+        expect(html).toMatch(/aria-label="Show plan usage"[^>]*>Show<\/button>/);
         expect(html).toContain("cursor-pointer");
         expect(html).not.toContain("Experimental");
     });
@@ -234,7 +235,7 @@ describe("plan usage section", () => {
         expect(html).toContain('data-state="unavailable"');
         expect(html).toContain('title="Not on a Pro or Max plan"');
         expect(html).toContain("Plan usage unavailable");
-        expect(html).toContain(">Hide plan usage</button>");
+        expect(html).toMatch(/aria-label="Hide plan usage"[^>]*>Hide<\/button>/);
         expect(html).not.toContain('role="meter"');
     });
 

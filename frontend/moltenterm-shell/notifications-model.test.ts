@@ -105,6 +105,19 @@ describe("updates", () => {
         expect(readUpdate(list, ["a"])["molten:notif:a"].id).toBeUndefined();
         expect(Object.keys(readAllUpdate(list)).sort()).toEqual(["molten:notif:a", "molten:notif:b"]);
     });
+
+    it("folds an agent's outdated waiting entry into its newer one (#748)", () => {
+        const waiting = entry("w", 1, { kind: "warning", blockid: "b1" });
+        const otherBlock = entry("o", 2, { kind: "warning", blockid: "b2" });
+        const shell = entry("s", 3, { kind: "warning", blockid: "b1", source: "sessions" });
+        const done = { source: "agent" as const, kind: "success" as const, title: "Done", blockid: "b1" };
+        const update = publishUpdate([waiting, otherBlock, shell], done, 10, "d");
+        expect(Object.keys(update).sort()).toEqual(["molten:notif:d", "molten:notif:w"]);
+        expect(update["molten:notif:w"]).toMatchObject({ resolved: 10, archived: 10, read: true, title: "tw" });
+        const folded = parseNotifications(update).find((e) => e.id === "w");
+        expect(visibleActions({ ...folded, actions: [{ id: "a", label: "A", kind: "open" }] })).toEqual([]);
+        expect(Object.keys(publishUpdate([waiting], { ...done, blockid: "b2" }, 10, "d"))).toEqual(["molten:notif:d"]);
+    });
 });
 
 describe("situations (FR-MC-010)", () => {
