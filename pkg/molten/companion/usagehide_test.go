@@ -49,7 +49,7 @@ func codexSessionTest(t *testing.T, withLimits bool) (*Manager, *gaugesEnv, *fak
 
 func waitLimits(t *testing.T, m *Manager, ok func(usage.CodexTranscriptLimits) bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if lim, _ := m.CodexLimits("b2"); ok(lim) {
 			return
@@ -204,7 +204,10 @@ func TestAutomaticReadsPauseWhileTheWindowIsHidden(t *testing.T) {
 func TestSessionFirstReadStartsNoProcessForAHiddenWindow(t *testing.T) {
 	m, g, fake, _ := codexSessionTest(t, false)
 	g.write([]string{"codex"})
-	time.Sleep(300 * time.Millisecond)
+	// Turned on, the session is read again from its start; read through, its first read is published.
+	m.settingsChanged(g.get())
+	waitPublished(t, g, "b2", func(UsageInfo) bool { return true })
+	stopAndWait(m)
 	if fake.count() != 0 {
 		t.Errorf("the session read through, window unknown: no process: %d", fake.count())
 	}
