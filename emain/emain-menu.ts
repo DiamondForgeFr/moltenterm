@@ -519,7 +519,10 @@ electron.ipcMain.on(
             };
             const retire = () => {
                 cleanup();
-                menu.closePopup(window);
+                // MOLTENTERM-PATCH (#734): the tab's contents can be destroyed after its window, and closePopup reads window.id
+                if (!window.isDestroyed()) {
+                    menu.closePopup(window);
+                }
             };
             const revoke = (host: electron.WebContents, lease: string) => {
                 if (host === webContents && lease === target) retire();
