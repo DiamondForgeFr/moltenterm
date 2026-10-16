@@ -21,6 +21,7 @@ import {
     resolveMoltentermNotification,
 } from "../notifications-store";
 import { TabActivity, whileShown } from "../tab-activity";
+import { workspaceShownName } from "../workspace-default-name";
 import {
     installedSince,
     shouldOffer,
@@ -254,7 +255,7 @@ export async function readTerminals(): Promise<TerminalSummary> {
             }
             const tabIndex = workspace?.tabids?.indexOf(block.tabid) ?? -1;
             sources.push({
-                workspace: workspace?.name || t("update.unsavedWorkspace"),
+                workspace: workspaceShownName(workspace?.name, t) || t("update.unsavedWorkspace"),
                 tab: tabIndex >= 0 ? `T${tabIndex + 1}` : "",
                 shellState: rtInfo?.["shell:state"] ?? "",
                 lastCommand: rtInfo?.["shell:lastcmd"] ?? "",

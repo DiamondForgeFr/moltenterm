@@ -3225,6 +3225,10 @@
         }
     },
     "workspace": {
+        "defaultName": {
+            "starter": "Starter workspace",
+            "new": "New workspace ({id})"
+        },
         "edit": {
             "emptyName": "A workspace needs a name. The previous name is kept.",
             "deleteLabel": "Delete workspace",

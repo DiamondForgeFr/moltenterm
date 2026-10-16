@@ -27,6 +27,7 @@ import {
     PresetColourChoices,
     PresetGradientChoices,
 } from "./workspace-colour";
+import { workspaceShownName } from "./workspace-default-name";
 import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import {
     checkWorkspaceName,
@@ -435,10 +436,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             live = false;
         };
     }, [projectDir]);
-    const name = draft ?? ws.name ?? "";
+    const stored = draft ?? ws.name ?? "";
+    const name = draft ?? workspaceShownName(ws.name, t) ?? "";
     const invalid = checkWorkspaceName(name) == null;
     const save = (next: { name?: string; icon?: string; color?: string }) => {
-        const saved = checkWorkspaceName(next.name ?? name) ?? ws.name;
+        const saved = checkWorkspaceName(next.name ?? stored) ?? ws.name;
         fireAndForget(() =>
             WorkspaceService.UpdateWorkspace(ws.oid, saved, next.icon ?? ws.icon, next.color ?? ws.color, false)
         );
@@ -454,7 +456,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             await setWorkspaceGradient(ws.oid, stops.length > 1 ? stops.join(",") : null);
             await WorkspaceService.UpdateWorkspace(
                 ws.oid,
-                checkWorkspaceName(name) ?? ws.name,
+                checkWorkspaceName(stored) ?? ws.name,
                 ws.icon,
                 stops[0],
                 false

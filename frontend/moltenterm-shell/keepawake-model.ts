@@ -7,6 +7,7 @@
 
 import { t } from "./i18n/i18n";
 import { ServerText, serverText, serverTexts } from "./i18n/server-text";
+import { workspaceShownName } from "./workspace-default-name";
 
 export const KeepAwakeRoute = "molten:keepawake";
 export const KeepAwakeEvent = "molten:keepawake";
@@ -224,7 +225,7 @@ export type KeepAwakeSession = {
 };
 
 function sessionLabel(tabname: string, workspacename: string): string {
-    const parts = [tabname, workspacename].filter((p) => p);
+    const parts = [tabname, workspaceShownName(workspacename, t)].filter((p) => p);
     return parts.length > 0 ? parts.join(" · ") : t("keepawake.aTerminal");
 }
 

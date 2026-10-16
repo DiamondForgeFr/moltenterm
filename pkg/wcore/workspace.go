@@ -87,6 +87,8 @@ func UpdateWorkspace(ctx context.Context, workspaceId string, name string, icon 
 		ws.Name = name
 		updated = true
 	} else if applyDefaults && ws.Name == "" {
+		// MOLTENTERM-PATCH (#743): the windows show this name in the interface language; must match NewWorkspacePattern in
+		// frontend/moltenterm-shell/workspace-default-name.ts
 		ws.Name = fmt.Sprintf("New Workspace (%s)", ws.OID[0:5])
 		updated = true
 	}

@@ -29,7 +29,7 @@ export type WorkspaceEditRequest = {
 
 // MoltenTerm's own preload function (emain/preload.ts), typed here so custom.d.ts stays Wave's.
 type MoltentermWorkspaceMenuApi = {
-    onMoltentermEditWorkspace?: (callback: () => void) => void;
+    onMoltentermEditWorkspace?: (callback: (workspaceId?: string) => void) => void;
 };
 
 function focusedElement(): HTMLElement {
@@ -172,13 +172,27 @@ export function pickUpWorkspaceEdit(): boolean {
     return true;
 }
 
+// A workspace just created (#743): handed over like a double-click, so the tab view that shows it opens the sheet, here
+// or in another view once it has taken the workspace over.
+export function editNewWorkspace(workspaceId: string): void {
+    handOverWorkspaceEdit(workspaceId);
+    pickUpWorkspaceEdit();
+}
+
 let menuListening = false;
 
-// The app menu's Workspace › Edit Workspace… (emain/moltenterm-workspace-menu.ts) reaches the active tab's renderer.
+// The app menu's Workspace › Edit Workspace… (emain/moltenterm-workspace-menu.ts) reaches the active tab's renderer
+// without a workspace; a workspace just created comes with its id.
 export function listenWorkspaceMenu(): void {
     if (menuListening) {
         return;
     }
     menuListening = true;
-    (getApi() as unknown as MoltentermWorkspaceMenuApi)?.onMoltentermEditWorkspace?.(openCurrentWorkspaceEditor);
+    (getApi() as unknown as MoltentermWorkspaceMenuApi)?.onMoltentermEditWorkspace?.((workspaceId) => {
+        if (workspaceId) {
+            editNewWorkspace(workspaceId);
+            return;
+        }
+        openCurrentWorkspaceEditor();
+    });
 }

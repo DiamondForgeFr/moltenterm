@@ -3225,6 +3225,10 @@
         }
     },
     "workspace": {
+        "defaultName": {
+            "starter": "Espace de départ",
+            "new": "Nouvel espace de travail ({id})"
+        },
         "edit": {
             "emptyName": "Un espace de travail a besoin d'un nom. Le nom précédent est conservé.",
             "deleteLabel": "Supprimer l'espace de travail",

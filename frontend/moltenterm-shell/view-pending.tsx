@@ -10,6 +10,7 @@ import { getApi, globalStore } from "@/app/store/global";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { EmptyState } from "./empty-state";
 import { useT } from "./i18n/i18n";
+import { workspaceShownName } from "./workspace-default-name";
 
 export type ViewPendingPhase = "loading" | "retrying" | "failed";
 
@@ -73,8 +74,9 @@ type PendingSurfaceProps = {
     onDismiss?: () => void;
 };
 
-export function PendingSurface({ phase, workspaceName, onReload, onDismiss }: PendingSurfaceProps) {
+export function PendingSurface({ phase, workspaceName: storedName, onReload, onDismiss }: PendingSurfaceProps) {
     const t = useT();
+    const workspaceName = workspaceShownName(storedName, t);
     if (phase === "failed") {
         return (
             <EmptyState
