@@ -10,7 +10,7 @@
 # A rehearsal (#508) builds the same files from any branch without a tag, and publishes nothing: started by hand or by
 # `molten release rehearse` (the rehearse step of .molten/project.json), it keeps the files as the run's artifacts
 # for 14 days, to install and check before cutting a release candidate. A pull request that changes this workflow
-# runs its first job only, which also makes GitHub know the workflow, so that it can be dispatched before it is on
+# runs its metadata and security jobs, which also makes GitHub know the workflow, so it can be dispatched before it is on
 # main.
 #
 # macOS builds are ad-hoc signed and not notarized until a Developer ID exists; the release text says how to open
@@ -35,6 +35,18 @@ on:
     pull_request:
         paths:
             - .github/workflows/release.yml
+            - .github/workflows/security-scan.yml
+            - .github/workflows/dependency-security.yml
+            - security/**
+            - scripts/security/**
+            - package.json
+            - package-lock.json
+            - docs/package.json
+            - tsunami/frontend/package.json
+            - go.mod
+            - go.sum
+            - tsunami/go.mod
+            - tsunami/go.sum
             - scripts/moltenterm-release-files.sh
             - scripts/moltenterm-release-sign.sh
             - scripts/moltenterm-release-sign-test.sh
@@ -53,6 +65,12 @@ env:
     NODE_OPTIONS: --max-old-space-size=4096
 
 jobs:
+    security:
+        name: Dependency security
+        uses: ./.github/workflows/security-scan.yml
+        permissions:
+            contents: read
+
     meta:
         name: Release tag
         runs-on: ubuntu-latest
@@ -134,7 +152,7 @@ jobs:
 
     macos:
         name: macOS (arm64, x64)
-        needs: meta
+        needs: [meta, security]
         if: needs.meta.outputs.mode != 'check'
         # Both architectures on one runner: electron-builder writes one latest-mac.yml listing both.
         runs-on: macos-latest
@@ -158,6 +176,22 @@ jobs:
               with:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Native Go dependency security
+              run: node scripts/security/scan.mjs --native-only --out native-security-report
+            - name: Native security summary
+              if: always()
+              run: if [ -f native-security-report/report.md ]; then cat native-security-report/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              if: always()
+              with:
+                  name: native-security-macos-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: |
+                      native-security-report/report.json
+                      native-security-report/report.md
+                      native-security-report/manifest.json
+                      native-security-report/raw/
+                  if-no-files-found: error
+                  retention-days: 30
             - run: npm ci --no-audit --no-fund
             # Ad hoc (`-`): an unsigned arm64 app does not start at all, an ad-hoc one opens once Gatekeeper is told to.
             # The github publish provider only makes electron-builder write latest-mac.yml: `-p never` uploads nothing.
@@ -192,7 +226,7 @@ jobs:
 
     linux:
         name: Linux (${{ matrix.arch }})
-        needs: meta
+        needs: [meta, security]
         if: needs.meta.outputs.mode != 'check'
         # wavesrv's CGO build targets the runner's own architecture (Taskfile.yml, build:server:linux).
         runs-on: ${{ matrix.runner }}
@@ -226,6 +260,22 @@ jobs:
             - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
               with:
                   version: 0.16.0
+            - name: Native Go dependency security
+              run: node scripts/security/scan.mjs --native-only --out native-security-report
+            - name: Native security summary
+              if: always()
+              run: if [ -f native-security-report/report.md ]; then cat native-security-report/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              if: always()
+              with:
+                  name: native-security-linux-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: |
+                      native-security-report/report.json
+                      native-security-report/report.md
+                      native-security-report/manifest.json
+                      native-security-report/raw/
+                  if-no-files-found: error
+                  retention-days: 30
             # electron-builder's bundled fpm has no arm64 build: the deb is made with the system's (USE_SYSTEM_FPM).
             - name: Packaging tools
               run: |
@@ -256,7 +306,7 @@ jobs:
 
     rehearsal:
         name: Rehearsal files
-        needs: [meta, macos, linux]
+        needs: [meta, security, macos, linux]
         if: needs.meta.outputs.mode == 'rehearsal'
         runs-on: ubuntu-latest
         timeout-minutes: 20
@@ -313,7 +363,7 @@ jobs:
 
     publish:
         name: GitHub release
-        needs: [meta, macos, linux]
+        needs: [meta, security, macos, linux]
         if: needs.meta.outputs.mode == 'release'
         runs-on: ubuntu-latest
         timeout-minutes: 20

@@ -4,8 +4,41 @@ MoltenTerm scans the complete npm workspace lockfile and both Go module graphs. 
 its severity, npm dependency flag or Go call-graph trace alone does not establish an exploitable product defect.
 The release gate must nevertheless fail when a potentially high-impact finding has not been reviewed.
 
-`dependencies.json` is the reviewed inventory and disposition policy. Scanner orchestration and policy evaluation
-are delivered under #860; the initial empty dispositions are not a claim that the baseline passes the gate.
+`dependencies.json` is the reviewed inventory and disposition policy. Empty dispositions are not a claim that the
+baseline passes the gate: every unmatched finding requires review, including lower-severity and tooling findings.
+
+## Run and read a scan
+
+Use Node 22, npm **10.9.2** and the exact Go toolchain selected by `scripts/moltenterm-go-toolchain.mjs`:
+
+```sh
+task security:test
+node scripts/security/scan.mjs --out artifacts/security-review
+task security:runtime
+```
+
+The output directory must be new. The scanner does not install the application or run npm lifecycle scripts; it
+retrieves the full npm workspace audit and installs the exact pinned govulncheck into that report's tools directory.
+`security:runtime` separately requires installed application dependencies. Each subprocess has a timeout and its own
+stdout/stderr, arguments, exit status and retrieval timestamps in `manifest.json`. `report.json` retains original npm
+parent/meta-vulnerability relationships, leaf advisory metadata/occurrences and Go traces, config and SBOM. `report.md`
+is the escaped human summary. Metadata fingerprints deliberately invalidate a review when an advisory changes.
+
+Exit **0** is `reported-only`: no blocking findings remain under current reviews. Exit **1** is `blocked-policy`:
+findings need review/remediation or a review/exception expired. Exit **2** is `scanner-input-failure`: setup, retrieval,
+protocol, policy or completeness failed. A failure report/raw output is retained; it never means clean. Only leaf npm
+advisories become normalized findings, while npm's meta-vulnerability graph remains evidence. npm aggregates ranges
+across installed occurrences, so the normalizer conservatively associates each reported leaf with every occurrence
+named in that entry; it does not silently drop a potentially affected version using a second range implementation.
+
+CI runs the full scan on every PR (drafts included) and every push to `develop`/`main`, so dependency/policy changes are
+always covered. The Required gate explicitly requires its reusable job to succeed. Weekly/manual scans report newly
+published advisories. Release builds and publication depend on the same secret-free reusable job. Each packaging
+runner adds `--native-only` CGO-enabled scans before packaging; this supplement does not replace full npm/cross-target
+coverage. Reports/raw output are uploaded even on policy/scanner failure. Tools binaries/caches are not artifacts.
+
+Advisory retrieval happens during each run. The Go database's `db_last_modified` is the upstream database publication
+time, not the time this scan retrieved it; both are recorded. Scanner pin/protocol/DB changes require policy updates.
 
 ## Shipped and development surfaces
 
@@ -50,9 +83,16 @@ when it finds vulnerabilities, so findings must be parsed rather than inferred f
 
 Scan root `cmd`/`pkg` packages and standalone `tsunami`; the local replacement does not substitute for reviewing its
 own graph. Record Go version, GOOS/GOARCH, CGO/build tags, scanner version and advisory database timestamp. Declared
-targets cover the published macOS/Linux architectures and supported Windows CLI source. Cross-target source scans
+targets cover the published macOS/Linux architectures and remote-helper Windows/MIPS source. Desktop targets scan
+`./cmd/... ./pkg/...`; remote-only targets scan `./cmd/wsh/...`. Standalone Tsunami scans `./...` for every declared
+target. Cross-target source scans
 must disclose CGO exclusions and be complemented by native builds and relevant native scans. Go vulnerability data
-does not cover all C/native libraries or the bundled Chromium runtime.
+does not cover all C/native libraries or the bundled Chromium runtime. Full scans use CGO=0 on each declared target
+plus CGO=1 on the host. Release packaging adds native CGO=1 coverage on the actual macOS/Linux runner; a macOS arm64
+source scan does not claim native amd64 CGO coverage. Source scans cannot substitute for native artifact verification.
+Build tags are recorded as the default empty set in source-scan coverage; the package build's SQLite/osuser tags do
+not silently alter this scan. The release's single macOS runner contributes only its own architecture's native CGO
+analysis; the other Darwin architecture retains cross-target CGO=0 coverage and its separately built artifact.
 
 Use exact supported, patched runtime versions after checking official releases and advisories. Keep macOS 12 support
 when selecting a maintained Electron line: Electron 44 requires macOS 13. Do not change historical performance

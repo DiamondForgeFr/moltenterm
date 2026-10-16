@@ -6,9 +6,23 @@
         "govulncheck": "v1.9.0"
     },
     "additionalRuntimeNpmRoots": ["electron"],
+    "npmWorkspaces": {
+        "docs": "docs-only",
+        "tsunami/frontend": "shipped-runtime"
+    },
     "blockingSeverities": ["critical", "high"],
     "goModules": [".", "tsunami"],
-    "goTargets": ["darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64", "windows/amd64"],
+    "goTargets": [
+        { "target": "darwin/arm64", "packages": ["./cmd/...", "./pkg/..."] },
+        { "target": "darwin/amd64", "packages": ["./cmd/...", "./pkg/..."] },
+        { "target": "linux/arm64", "packages": ["./cmd/...", "./pkg/..."] },
+        { "target": "linux/amd64", "packages": ["./cmd/...", "./pkg/..."] },
+        { "target": "windows/amd64", "packages": ["./cmd/wsh/..."] },
+        { "target": "windows/arm64", "packages": ["./cmd/wsh/..."] },
+        { "target": "linux/mips", "packages": ["./cmd/wsh/..."] },
+        { "target": "linux/mips64", "packages": ["./cmd/wsh/..."] }
+    ],
+    "nativeGoTargets": ["darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64"],
     "dispositions": [],
     "exceptions": []
 }

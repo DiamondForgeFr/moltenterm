@@ -1,8 +1,8 @@
 # Copyright 2026, DiamondForge
 # SPDX-License-Identifier: Apache-2.0
 
-# Builds and tests pull requests to develop and main, and pushes to them. A draft pull request runs only the quick
-# checks; marking it ready for review runs everything, and returning it to draft cancels that run. See UPSTREAM.md,
+# Builds and tests pull requests to develop and main, and pushes to them. A draft pull request runs the quick
+# checks and security scan; marking it ready runs everything, and returning it to draft cancels that run. See UPSTREAM.md,
 # "Continuous integration".
 
 name: CI
@@ -26,6 +26,10 @@ env:
     NODE_VERSION: 22
 
 jobs:
+    security:
+        name: Dependency security
+        uses: ./.github/workflows/security-scan.yml
+
     quick:
         name: Quick checks
         runs-on: ubuntu-latest
@@ -72,6 +76,8 @@ jobs:
               run: npx eslint . --quiet
             - name: Unit tests
               run: npx vitest run
+            - name: Runtime dependency integration
+              run: node scripts/security/runtime-check.mjs
             - name: Build
               run: npm run build:prod
 
@@ -193,7 +199,7 @@ jobs:
               run: |
                   heavy=success
                   if [ "$DRAFT" = "true" ]; then heavy=skipped; fi
-                  want="{\"Quick checks\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\", \"Perf budgets\": \"$heavy\"}"
+                  want="{\"Quick checks\": \"success\", \"Dependency security / Scan dependencies\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\", \"Perf budgets\": \"$heavy\"}"
                   verdict="wait"
                   while [ "$verdict" = "wait" ]; do
                       sleep 10
