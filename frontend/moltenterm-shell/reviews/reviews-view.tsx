@@ -37,6 +37,7 @@ import {
     batchStartRequest,
     toggleBatchSelection,
 } from "./reviews-batch-model";
+import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { useReviews } from "./reviews-client";
 import {
     ForecastLinks,
@@ -49,8 +50,8 @@ import {
 } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
-import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
+import { MergedSection } from "./reviews-merged";
 import {
     ciLabel,
     mergeLabelOf,
@@ -72,7 +73,7 @@ import {
     Tone,
     validateBlocked,
 } from "./reviews-model";
-import { NotesSection } from "./reviews-notes-view";
+import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
 import { mergeOrderHeader, mergeOrderReason, orderedPrs, suggestedMergeOrder } from "./reviews-order-model";
 import { ReviewsModel } from "./reviews-store";
@@ -246,6 +247,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
+    const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
@@ -506,7 +508,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 )}
             </section>
             <UpcomingSection dir={dir} reviews={answer} />
-            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} /> : null}
+            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} /> : null}
+            {answer.repo ? (
+                <MergedSection answer={answer} onShowNotes={(filter) => setNotesAsk({ filter, at: Date.now() })} />
+            ) : null}
         </div>
     );
 }

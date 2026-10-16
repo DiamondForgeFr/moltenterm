@@ -138,13 +138,13 @@ type ReviewPr struct {
 	TicketTitle string `json:"tickettitle,omitempty"`
 	TicketUrl   string `json:"ticketurl,omitempty"`
 	// GitHub's mergeable and mergeStateStatus as read, and what the review makes of them (ReviewMerge…).
-	Mergeable  string       `json:"mergeable,omitempty"`
-	MergeState string       `json:"mergestate,omitempty"`
-	Merge      string       `json:"merge"`
+	Mergeable  string `json:"mergeable,omitempty"`
+	MergeState string `json:"mergestate,omitempty"`
+	Merge      string `json:"merge"`
 	// GitHub's reviewDecision (APPROVED, REVIEW_REQUIRED, CHANGES_REQUESTED, or empty), why a PR is blocked (#797).
-	ReviewDecision string `json:"reviewdecision,omitempty"`
-	Ci         ReviewCi     `json:"ci"`
-	Report     ReviewReport `json:"report"`
+	ReviewDecision string       `json:"reviewdecision,omitempty"`
+	Ci             ReviewCi     `json:"ci"`
+	Report         ReviewReport `json:"report"`
 	// Comments written in MoltenTerm and not published yet; the review store (DS-REV-007) fills it.
 	Unpublished int `json:"unpublished"`
 }
@@ -162,6 +162,9 @@ type ReviewsAnswer struct {
 	TargetFrom string     `json:"targetfrom,omitempty"`
 	Ready      []ReviewPr `json:"ready"`
 	Drafts     []ReviewPr `json:"drafts"`
+	// The PRs merged into the target lately (#843), and why they could not be read.
+	Merged      []ReviewMergedPr `json:"merged"`
+	MergedError string           `json:"mergederror,omitempty"`
 	// The pull requests could not be read (the collector's prs section).
 	PrsError     string `json:"prserror,omitempty"`
 	GithubAt     int64  `json:"githubat,omitempty"`
@@ -507,7 +510,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 // BuildReviews derives the review list from a collector snapshot (DS-REV-001): open PRs of the repository itself
 // whose base is the target branch, newest update first, drafts apart. Reports stay unknown here.
 func BuildReviews(snap Snapshot) ReviewsAnswer {
-	answer := ReviewsAnswer{Dir: snap.Dir, Missing: snap.Missing, Ready: []ReviewPr{}, Drafts: []ReviewPr{}, GithubAt: snap.GithubAt, Refreshing: snap.Refreshing}
+	answer := ReviewsAnswer{Dir: snap.Dir, Missing: snap.Missing, Ready: []ReviewPr{}, Drafts: []ReviewPr{}, Merged: []ReviewMergedPr{}, GithubAt: snap.GithubAt, Refreshing: snap.Refreshing}
 	answer.Target, answer.TargetFrom = reviewTarget(snap)
 	gh := snap.Github
 	if gh == nil {
@@ -515,6 +518,13 @@ func BuildReviews(snap Snapshot) ReviewsAnswer {
 	}
 	answer.State, answer.Message, answer.Repo, answer.Url = gh.State, gh.Message, gh.Repo, gh.Url
 	answer.PrsError = gh.Errors["prs"]
+	ticketRes := branchTicketRes(readBranchNaming(snap.Dir))
+	answer.MergedError = gh.Errors["merged"]
+	if merged, err := buildMerged(gh.Merged, answer.Target, snap.GithubAt, ticketRes); err != nil {
+		answer.MergedError = "the merged pull requests could not be read: " + err.Error()
+	} else {
+		answer.Merged = merged
+	}
 	var prs []ghReviewPr
 	if len(gh.Prs) > 0 {
 		if err := json.Unmarshal(gh.Prs, &prs); err != nil {
@@ -522,7 +532,6 @@ func BuildReviews(snap Snapshot) ReviewsAnswer {
 			return answer
 		}
 	}
-	ticketRes := branchTicketRes(readBranchNaming(snap.Dir))
 	for _, pr := range prs {
 		if pr.IsCrossRepository || pr.BaseRefName != answer.Target {
 			continue
@@ -568,6 +577,8 @@ type Reviews struct {
 	now       func() time.Time
 	publish   func(ReviewsAnswer)
 	reports   map[string]*reviewReportsState
+	// Where the merged PRs ship, by project (#843).
+	ships map[string]*reviewShipsState
 	// The upcoming work and the agents on each branch (#712), made on the first ask.
 	upcoming *Upcoming
 	// notify tells a rerun's outcome (#797); rerunEvery: how often a rerun run is read (rerunFollowEvery when 0).
@@ -576,7 +587,7 @@ type Reviews struct {
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
-	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}}
+	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {
@@ -636,6 +647,9 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 	if start := r.prepareReports(&answer, req.Force); start {
 		go r.readReports(dir)
 	}
+	if start := r.prepareShips(&answer, snap, req.Force); start {
+		go r.readShips(dir)
+	}
 	return answer, nil
 }
 
@@ -643,6 +657,7 @@ func (r *Reviews) applyKnownReports(answer *ReviewsAnswer) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(answer, r.reports[answer.Dir])
+	r.applyShipsLocked(answer)
 }
 
 // prepareReports fills the answer with the reports known and says whether a query starts now.
@@ -768,6 +783,7 @@ func (r *Reviews) answerOf(snap Snapshot) ReviewsAnswer {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(&answer, r.reports[snap.Dir])
+	r.applyShipsLocked(&answer)
 	return answer
 }
 
