@@ -95,7 +95,7 @@ export function BatchCheckbox({ checked, number }: { checked: boolean; number: n
             )}
             data-testid="reviews-batch-check"
         >
-            {checked ? <i className="fa fa-solid fa-check text-[9px]" aria-hidden /> : null}
+            {checked ? <i className="fa fa-solid fa-check text-10" aria-hidden /> : null}
         </span>
     );
 }
@@ -158,8 +158,9 @@ export function BatchConfirmDialog({
             if (answer == null) {
                 return;
             }
-            // A button with the focus answers Enter itself.
-            if (answer === "start" && (e.target as HTMLElement)?.tagName === "BUTTON") {
+            // Another button with the focus (Cancel) answers Enter itself.
+            const target = e.target as HTMLElement;
+            if (answer === "start" && target?.tagName === "BUTTON" && target !== startRef.current) {
                 return;
             }
             e.stopPropagation();

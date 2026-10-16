@@ -406,7 +406,7 @@ export function batchRowMark(run: BatchRun, number: number): BatchRowMark {
         return null;
     }
     const item = run.items[index];
-    const current = index === run.current && batchActive(run);
+    const current = index === run.current && batchActive(run) && item.state !== "stopped";
     const step = batchStepText(run, item);
     switch (item.state) {
         case "merged":
