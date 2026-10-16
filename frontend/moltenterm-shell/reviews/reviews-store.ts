@@ -8,14 +8,24 @@ import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
-import { AgentMode, askReviewRebase, markReviewReady, openReviewTab, ReviewPrInfo } from "../review/review-client";
+import {
+    AgentMode,
+    askReviewInvestigate,
+    askReviewRebase,
+    markReviewReady,
+    openReviewTab,
+    ReviewPrInfo,
+} from "../review/review-client";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
-import { reviewsGet } from "./reviews-client";
+import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
 import {
+    checkNames,
+    checksOf,
     cleanupRebaseAsks,
     markReadyError,
     MoltentermReviewsView,
@@ -188,6 +198,76 @@ export class ReviewsModel {
         mergedPr?: number
     ): Promise<RebaseOutcome> {
         return this.askRebase(dir, reviewPrOfCleanup(pr, base), repo, mergedPr);
+    }
+
+    // Investigate (#797), on a row whose check failed: the agent on the PR's branch reads the failed checks; with none
+    // there, the developer chooses how one starts, as for a rebase. Nothing starts before that click.
+    async investigate(dir: string, pr: ReviewPr, repo: string): Promise<RebaseOutcome> {
+        const outcome = await this.investigateOnce(dir, pr, repo, null);
+        if (outcome?.kind !== "offer") {
+            return outcome;
+        }
+        const mode = await askAgentChoice({
+            kind: "investigate",
+            number: pr.number,
+            branch: pr.branch,
+            base: pr.base,
+            agent: outcome.agent,
+            checks: checkNames(checksOf(pr.ci, "failure")),
+        });
+        if (mode == null) {
+            return null;
+        }
+        return this.investigateOnce(dir, pr, repo, mode);
+    }
+
+    private async investigateOnce(dir: string, pr: ReviewPr, repo: string, mode: AgentMode): Promise<RebaseOutcome> {
+        const repoName = repo || repoOfPrUrl(pr?.url);
+        if (!dir || pr == null || !repoName) {
+            return null;
+        }
+        try {
+            const result = await askReviewInvestigate({
+                repo: repoName,
+                number: pr.number,
+                dir,
+                headref: pr.branch,
+                baseref: pr.base,
+                headoid: pr.headoid,
+                title: pr.tickettitle || pr.title,
+                url: pr.url,
+                ticket: pr.ticket,
+                checks: checksOf(pr.ci, "failure").map((c) => ({
+                    name: c.name,
+                    workflow: c.workflow,
+                    url: c.url,
+                    runid: c.runid,
+                    jobid: c.jobid,
+                })),
+                ...(mode != null ? agentStartOf("investigate", pr.number, mode) : {}),
+            });
+            showStartedAgent(mode, result);
+            return rebaseOutcome(result, null, "investigate");
+        } catch (e) {
+            return rebaseOutcome(null, serverErrorText(e), "investigate");
+        }
+    }
+
+    // Rerun failed jobs (#797), after the row's confirmation: wavesrv reruns the runs of the failed checks and tells
+    // their outcome by a notification; the list reads GitHub again. Answers the error in plain words, "" on success.
+    async rerunFailed(dir: string, number: number): Promise<{ error: string; checks: string[] }> {
+        if (!dir || !number) {
+            return { error: t("reviews.ci.rerun.failed", { message: "" }), checks: [] };
+        }
+        try {
+            const result = await reviewsRerunFailed(dir, number);
+            fireAndForget(async () => {
+                await reviewsGet(dir, true);
+            });
+            return { error: "", checks: result?.checks ?? [] };
+        } catch (e) {
+            return { error: t("reviews.ci.rerun.failed", { message: serverErrorText(e) }), checks: [] };
+        }
     }
 
     // Mark ready for review (#687), from a draft's row or its Review tab: gh pr ready, then the list moves the PR to

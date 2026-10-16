@@ -358,7 +358,7 @@ func commandTimeout(command string) time.Duration {
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand, RebaseCommand:
+	case RestartCommand, RebaseCommand, InvestigateCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -563,6 +563,13 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskRebase(ctx, req)
+	case InvestigateCommand:
+		// The developer's click on Investigate (#797): like Ask for a rebase, never an agent's from a terminal.
+		req, err := decode[InvestigateRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskInvestigate(ctx, req)
 	case MarkReadyCommand:
 		// The developer's click on Mark ready for review (#687): GitHub notifies the reviewers, so never a terminal's.
 		req, err := decode[MarkReadyRequest](data)

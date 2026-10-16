@@ -4,11 +4,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import {
+    blockedReasons,
     ciLabel,
     isReviewable,
     markReadyError,
     mergeableNow,
     mergeLabel,
+    mergeLabelOf,
     navigableRows,
     nextRow,
     railCountText,
@@ -137,9 +139,78 @@ describe("reviews model", () => {
                 { name: "local-ci", state: "success" as const, local: true },
             ],
         };
-        expect(ciLabel(ci)).toMatchObject({ label: "CI 1 failing, 2 running, 3 passed", tone: "failure" });
-        expect(ciLabel(ci).title).toContain("local-ci: success");
+        expect(ciLabel(ci)).toMatchObject({ label: "CI: build failed", tone: "failure" });
+        expect(ciLabel(ci).title).toContain("local-ci: passed");
+        expect(ciLabel(ci).title).toContain("build: failed");
         expect(ciLabel(pr(1).ci)).toMatchObject({ label: "no checks", tone: "neutral" });
+        const running = {
+            state: "pending" as const,
+            success: 3,
+            failure: 0,
+            pending: 2,
+            checks: [{ name: "Backend", state: "pending" as const }],
+        };
+        expect(ciLabel(running)).toMatchObject({ label: "CI 2 running, 3 passed", tone: "pending" });
+    });
+
+    // #797: the chip names the failed checks, the first two, then how many more.
+    it("names the failed checks on the chip", () => {
+        const failed = (names: string[]) => ({
+            state: "failure" as const,
+            success: 4,
+            failure: names.length,
+            pending: 0,
+            checks: [
+                ...names.map((name) => ({ name, state: "failure" as const })),
+                { name: "Frontend", state: "success" as const },
+            ],
+        });
+        expect(ciLabel(failed(["Backend"])).label).toBe("CI: Backend failed");
+        expect(ciLabel(failed(["Backend", "Required gate"])).label).toBe("CI: Backend, Required gate failed");
+        expect(ciLabel(failed(["A", "B", "C", "D"])).label).toBe("CI: A, B +2 failed");
+    });
+
+    // #797: blocked says why: failed and running checks, a conflict, the review decision, else a branch rule.
+    it("explains a blocked merge", () => {
+        const ci = {
+            state: "failure" as const,
+            success: 1,
+            failure: 1,
+            pending: 1,
+            checks: [
+                { name: "Backend", state: "failure" as const, runid: 9, jobid: 1 },
+                { name: "Perf", state: "pending" as const },
+            ],
+        };
+        const blocked = pr(1, { merge: "blocked", ci, reviewdecision: "REVIEW_REQUIRED" });
+        expect(blockedReasons(blocked)).toEqual([
+            "Backend failed",
+            "checks still running: Perf",
+            "an approving review is required",
+        ]);
+        expect(mergeLabelOf(blocked)).toMatchObject({
+            label: "blocked",
+            tone: "failure",
+            title: "GitHub blocks the merge: Backend failed; checks still running: Perf; an approving review is required.",
+        });
+        expect(validateBlocked(blocked)).toBe(mergeLabelOf(blocked).title);
+        expect(blockedReasons(pr(1, { merge: "blocked", reviewdecision: "CHANGES_REQUESTED" }))).toEqual([
+            "changes were requested",
+        ]);
+        expect(blockedReasons(pr(1, { merge: "blocked" }))).toEqual([
+            "a branch rule (a required check or review) is not met",
+        ]);
+        expect(mergeLabelOf(pr(1, { merge: "clean" })).title).toBe(mergeLabel("clean", "develop").title);
+    });
+
+    it("words an investigation's outcome (#797)", () => {
+        expect(rebaseOutcome({ status: "sent", firstname: "Rita" }, null, "investigate")).toMatchObject({
+            kind: "asked",
+            note: true,
+            text: "Rita investigates the failed CI: its findings and proposal come in its terminal.",
+        });
+        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("The investigation could not be asked: boom");
+        expect(rebaseOutcome({ status: "sent", firstname: "Rita" }).note).toBeFalsy();
     });
 
     it("says where the test report is, or that it is missing", () => {
@@ -295,6 +366,20 @@ describe("reviews model", () => {
             expect(reviewsRailLabel({ toreview: 5, mergeable: 4 })).toBe("Revues — 5 à relire, 4 prêtes à fusionner");
             expect(reviewsRailLabel({ toreview: 1, mergeable: 1 })).toBe("Revues — 1 à relire, 1 prête à fusionner");
             expect(reviewsRailLabel({ toreview: 0, mergeable: 11 })).toBe("Revues — 11 prêtes à fusionner");
+        });
+
+        it("names a failed check and why the merge is blocked (#797)", () => {
+            const ci = {
+                state: "failure" as const,
+                success: 5,
+                failure: 1,
+                pending: 0,
+                checks: [{ name: "Backend", state: "failure" as const }],
+            };
+            expect(ciLabel(ci).label).toBe("CI : Backend en échec");
+            expect(mergeLabelOf(pr(1, { merge: "blocked", ci })).title).toBe(
+                "GitHub bloque la fusion : Backend en échec."
+            );
         });
     });
 });

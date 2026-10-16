@@ -11,7 +11,7 @@ import { useLocale, useT } from "../i18n/i18n";
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
-    kind: "rebase" | "restart" | "batch";
+    kind: "rebase" | "restart" | "batch" | "investigate";
     repo: string;
     number: number;
     branch: string;
@@ -24,6 +24,8 @@ export type AgentOrigin = {
     at: number;
 };
 
+const OriginKinds: AgentOrigin["kind"][] = ["rebase", "restart", "batch", "investigate"];
+
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
 export function readOrigin(value: any): AgentOrigin {
@@ -35,7 +37,7 @@ export function readOrigin(value: any): AgentOrigin {
     ) {
         return null;
     }
-    if (value.kind !== "rebase" && value.kind !== "restart" && value.kind !== "batch") {
+    if (!OriginKinds.includes(value.kind)) {
         return null;
     }
     return value as AgentOrigin;
@@ -59,6 +61,9 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
     }
     if (origin.kind === "restart") {
         return translate("agentOrigin.restart", vars);
+    }
+    if (origin.kind === "investigate") {
+        return translate("agentOrigin.investigate", vars);
     }
     if (origin.mergedpr) {
         return translate("agentOrigin.rebaseAfterMerge", vars);

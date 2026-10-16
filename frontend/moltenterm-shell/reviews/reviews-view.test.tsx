@@ -130,3 +130,52 @@ describe("Reviews row (#708)", () => {
         expect(html).toContain('data-testid="reviews-assisted-review"');
     });
 });
+
+describe("Reviews row on a failed CI (#797)", () => {
+    const failedRow = (runid: number) =>
+        renderToStaticMarkup(
+            <ReviewRow
+                pr={pr(5, {
+                    merge: "blocked",
+                    ci: {
+                        state: "failure",
+                        success: 5,
+                        failure: 1,
+                        pending: 0,
+                        checks: [{ name: "Backend", state: "failure", runid, jobid: runid ? 7 : 0 }],
+                    },
+                })}
+                selected={false}
+                marked={false}
+                onSelect={() => {}}
+                onOpen={() => {}}
+                onValidate={() => {}}
+                onAskRebase={async () => null}
+                onInvestigate={async () => null}
+                rebaseAsk={null}
+                dir="/p"
+                repo="a/b"
+            />
+        );
+
+    it("names the failed check, says why it is blocked, and offers Rerun failed jobs and Investigate", () => {
+        const html = failedRow(38921294428);
+        expect(html).toMatch(/data-testid="reviews-ci"[^>]*>.*CI: Backend failed/);
+        expect(html).toContain('title="GitHub blocks the merge: Backend failed."');
+        expect(html).toContain('data-testid="reviews-rerun"');
+        expect(html).toContain('data-testid="reviews-investigate"');
+        expect(html).not.toContain('data-testid="reviews-rerun-confirm"');
+    });
+
+    it("offers no rerun for a check that is no GitHub Actions run", () => {
+        const html = failedRow(0);
+        expect(html).not.toContain('data-testid="reviews-rerun"');
+        expect(html).toContain('data-testid="reviews-investigate"');
+    });
+
+    it("offers neither on a green CI", () => {
+        const html = rowHtml(pr(6));
+        expect(html).not.toContain('data-testid="reviews-rerun"');
+        expect(html).not.toContain('data-testid="reviews-investigate"');
+    });
+});

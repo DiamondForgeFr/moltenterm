@@ -31,6 +31,45 @@ describe("checks", () => {
         expect(summarizeChecks(null)).toEqual([]);
     });
 
+    // #797: the draft's run that skipped Backend comes after the ready run where it failed; the latest start wins.
+    it("keeps the run that started last, per workflow", () => {
+        const checks = summarizeChecks([
+            {
+                name: "Backend",
+                workflowName: "CI",
+                status: "COMPLETED",
+                conclusion: "FAILURE",
+                startedAt: "2026-10-16T15:07:05Z",
+            },
+            {
+                name: "Backend",
+                workflowName: "CI",
+                status: "COMPLETED",
+                conclusion: "SKIPPED",
+                startedAt: "2026-10-16T15:06:25Z",
+            },
+            { name: "Backend", workflowName: "Nightly", status: "COMPLETED", conclusion: "SUCCESS" },
+            {
+                name: "Frontend",
+                workflowName: "CI",
+                status: "QUEUED",
+                startedAt: "0001-01-01T00:00:00Z",
+            },
+            {
+                name: "Frontend",
+                workflowName: "CI",
+                status: "COMPLETED",
+                conclusion: "SUCCESS",
+                startedAt: "2026-10-16T15:07:05Z",
+            },
+        ]);
+        expect(checks.map((c) => [c.name, c.state])).toEqual([
+            ["Backend", "failure"],
+            ["Backend", "success"],
+            ["Frontend", "pending"],
+        ]);
+    });
+
     it("labels merge states with the project's base branch", () => {
         expect(mergeStateLabel("DIRTY", "develop")).toEqual({ label: "conflicts with develop", tone: "failure" });
         expect(mergeStateLabel(null, "main").tone).toBe("pending");

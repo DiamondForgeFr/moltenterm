@@ -49,10 +49,11 @@ import {
 } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
+import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
 import {
     ciLabel,
-    mergeLabel,
+    mergeLabelOf,
     MoltentermReviewsView,
     navigableRows,
     nextRow,
@@ -380,6 +381,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         onOpen: () => open(pr),
         onValidate: () => model.openValidate(dir, pr, answer.repo, blockId),
         onAskRebase: () => model.askRebase(dir, pr, answer.repo),
+        onInvestigate: () => model.investigate(dir, pr, answer.repo),
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,
         repo: answer.repo,
@@ -643,6 +645,7 @@ export function ReviewRow({
     onOpen,
     onValidate,
     onAskRebase,
+    onInvestigate,
     rebaseAsk,
     dir,
     repo,
@@ -659,6 +662,7 @@ export function ReviewRow({
     onOpen: () => void;
     onValidate: () => void;
     onAskRebase: () => Promise<RebaseOutcome>;
+    onInvestigate?: () => Promise<RebaseOutcome>;
     rebaseAsk: RebaseAsk;
     dir: string;
     repo: string;
@@ -676,12 +680,14 @@ export function ReviewRow({
     const head = reviewHeadline(pr);
     const ci = ciLabel(pr.ci);
     const report = reportLabel(pr.report);
-    const merge = mergeLabel(pr.merge, pr.base);
+    const merge = mergeLabelOf(pr);
     const blocked = validateBlocked(pr);
     const asked = rebaseAskShown(rebaseAsk, pr);
     const conflicts = pr.merge === "conflicts";
     const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
     const markReady = useMarkReady(dir, pr.number, repo);
+    const rerun = useRerunFailed(dir, pr.number);
+    const [investigating, setInvestigating] = useState(false);
     useEffect(() => {
         setOutcome(null);
     }, [pr.headoid]);
@@ -697,6 +703,20 @@ export function ReviewRow({
                 setOutcome(await onAskRebase());
             } finally {
                 setAsking(false);
+            }
+        });
+    };
+    const investigate = () => {
+        if (investigating || onInvestigate == null) {
+            return;
+        }
+        setInvestigating(true);
+        setOutcome(null);
+        fireAndForget(async () => {
+            try {
+                setOutcome(await onInvestigate());
+            } finally {
+                setInvestigating(false);
             }
         });
     };
@@ -805,6 +825,9 @@ export function ReviewRow({
                         {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
                     </button>
                 ) : null}
+                {onInvestigate != null ? (
+                    <CiFailureButtons pr={pr} rerun={rerun} investigating={investigating} onInvestigate={investigate} />
+                ) : null}
                 {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
                     when it fits, so the link never wraps to a line of its own. */}
                 <div
@@ -818,6 +841,7 @@ export function ReviewRow({
                 </div>
             </div>
             <MarkReadyConfirm state={markReady} />
+            <RerunConfirm pr={pr} state={rerun} />
             {outcomeShown ? (
                 <div
                     className={cn(

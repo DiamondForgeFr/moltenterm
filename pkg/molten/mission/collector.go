@@ -647,6 +647,7 @@ func Start() {
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
 	reviews := MakeReviews(collector, ExecRunner, publishReviews)
+	reviews.notify = attention.PublishNotification
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups, reviews); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
