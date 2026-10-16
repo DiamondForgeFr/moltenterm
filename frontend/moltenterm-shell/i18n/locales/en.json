@@ -5131,7 +5131,10 @@
             "cleanupunrecorded": "The cleanup ran, but its outcome could not be recorded: {detail}",
             "leftoveronly": "MoltenTerm only removes the folder its cleanup left, not {path}.",
             "sessionended": "This review session has ended.",
-            "questiongone": "This question is no longer waiting: it was sent or removed."
+            "questiongone": "This question is no longer waiting: it was sent or removed.",
+            "readpr": "The pull request could not be read on GitHub: {detail}",
+            "headnotcommit": "The head {head} is not a commit id.",
+            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}."
         },
         "handoff": {
             "notwaiting": "This handoff request is no longer waiting.",
