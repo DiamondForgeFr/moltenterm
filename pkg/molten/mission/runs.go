@@ -267,7 +267,7 @@ func currentBranch(run Runner, dir string) string {
 
 func (r *Runs) writeRecord(rec RunRecord) error {
 	dir := r.recordDir(rec.storageProject(), rec.Id)
-	if err := r.identifyProject(rec.storageProject()); err != nil {
+	if err := r.identifyStorage(filepath.Dir(dir), rec.storageProject()); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(rec, "", "  ")

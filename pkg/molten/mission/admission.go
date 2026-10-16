@@ -68,7 +68,7 @@ func (r *Runs) projectDirsAt(dir, project string) []string {
 	cached := r.projectStorage[project]
 	r.lock.Unlock()
 	if cached != nil {
-		return cached
+		return r.includeRequestedStorage(dir, project, cached)
 	}
 	primary := filepath.Join(r.baseDir, projectKey(dir))
 	if identity := r.storedProject(primary); identity != "" && identity != project {
@@ -91,15 +91,45 @@ func (r *Runs) projectDirsAt(dir, project string) []string {
 		dirs[0], dirs[1] = dirs[1], dirs[0]
 	}
 	r.lock.Lock()
-	defer r.lock.Unlock()
 	if r.projectStorage == nil {
 		r.projectStorage = make(map[string][]string)
 	}
 	if cached = r.projectStorage[project]; cached != nil {
-		return cached
+		r.lock.Unlock()
+		return r.includeRequestedStorage(dir, project, cached)
 	}
 	r.projectStorage[project] = dirs
+	r.lock.Unlock()
 	return dirs
+}
+
+// A prior canonical lookup cannot discover a pathless old session under an unknown alias hash. When the original
+// path is subsequently requested, include its storage too. Check the on-disk identity outside the map lock, and
+// never attach a marked folder belonging to the previous target of a retargeted alias.
+func (r *Runs) includeRequestedStorage(dir, project string, cached []string) []string {
+	candidate := filepath.Join(r.baseDir, projectKey(dir))
+	for _, storage := range cached {
+		if storage == candidate {
+			return cached
+		}
+	}
+	if info, err := os.Stat(candidate); err != nil || !info.IsDir() {
+		return cached
+	}
+	if identity := r.storedProject(candidate); identity != "" && identity != project {
+		return cached
+	}
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	current := r.projectStorage[project]
+	for _, storage := range current {
+		if storage == candidate {
+			return current
+		}
+	}
+	updated := append(append([]string(nil), current...), candidate)
+	r.projectStorage[project] = updated
+	return updated
 }
 
 func (r *Runs) storedProject(dir string) string {
@@ -122,8 +152,10 @@ func (r *Runs) storedProject(dir string) string {
 }
 
 func (r *Runs) identifyProject(dir string) error {
-	storage := r.projectDir(dir)
-	project := canonicalRunDir(dir)
+	return r.identifyStorage(r.projectDir(dir), canonicalRunDir(dir))
+}
+
+func (r *Runs) identifyStorage(storage, project string) error {
 	if r.storedProjectIdentity(storage) == project {
 		return nil
 	}
