@@ -230,7 +230,7 @@ var settings = []Setting{
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
-	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews and release notes when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.

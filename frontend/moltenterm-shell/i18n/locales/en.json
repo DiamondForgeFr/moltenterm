@@ -978,7 +978,7 @@
             },
             "moltenterm:codingagent": {
                 "label": "Default coding agent",
-                "description": "The agent MoltenTerm starts for reviews and release notes when a project chose none.",
+                "description": "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.",
                 "unset": "The first installed",
                 "options": {
                     "claude": "Claude Code",

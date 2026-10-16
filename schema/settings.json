@@ -1291,12 +1291,12 @@
             "claude",
             "codex"
           ],
-          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced",
+          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced",
           "x-moltenterm": {
             "section": "agents",
             "group": "Coding agent",
             "label": "Default coding agent",
-            "description": "The agent MoltenTerm starts for reviews and release notes when a project chose none.",
+            "description": "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.",
             "control": "select",
             "options": [
               {

@@ -1095,7 +1095,7 @@
             },
             "moltenterm:codingagent": {
                 "label": "Agent de code par défaut",
-                "description": "L'agent que MoltenTerm lance pour les revues et les notes de version quand un projet n'en a choisi aucun.",
+                "description": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon quand un projet n'en a choisi aucun.",
                 "unset": "Le premier installé",
                 "options": {
                     "claude": "Claude Code",
