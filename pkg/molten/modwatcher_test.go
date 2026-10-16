@@ -10,7 +10,123 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
+
+func TestModWatcherPermissionChanges(t *testing.T) {
+	requireUnixModes(t)
+	f := makeHistoryFixture(t)
+	f.write("m/helper.sh", "helper")
+	f.write("m/.ignored", "hidden")
+	f.write("m/agents/claude-code/.claude-plugin/types/index.ts", "generated")
+	f.setState(`{"enabled":["m"]}`)
+	path := filepath.Join(f.modsDir, "m/helper.sh")
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	f.record(HistoryKindStart)
+	rec := &publishRecorder{}
+	// Drive events and flush synchronously so negative assertions do not depend on elapsed time.
+	mw, err := MakeModWatcher(f.modsDir, f.stateFile, filepath.Join(t.TempDir(), TrustFileName), time.Hour, rec.publish)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mw.Close()
+	mw.history = f.h
+	if err := os.WriteFile(mw.trustFile, []byte(`{"trusted":{}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	chmodEvent := func(path string) { mw.handleEvent(fsnotify.Event{Name: path, Op: fsnotify.Chmod}) }
+	assertQuiet := func() {
+		t.Helper()
+		mw.flush()
+		if calls := rec.take(); len(calls) != 0 {
+			t.Fatalf("metadata without supported permission changes reloaded mods: %v", calls)
+		}
+		entries, err := f.h.Entries()
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("unexpected history: %v, %v", entries, err)
+		}
+	}
+	chmodEvent(path)
+	assertQuiet()
+	for _, ignored := range []string{f.modsDir, filepath.Join(f.modsDir, "m"), f.stateFile, mw.trustFile,
+		filepath.Join(f.modsDir, "m/.ignored"), filepath.Join(f.modsDir, "m/agents/claude-code/.claude-plugin/types/index.ts")} {
+		if err := os.Chmod(ignored, 0700); err != nil {
+			t.Fatal(err)
+		}
+		chmodEvent(ignored)
+	}
+	assertQuiet()
+	if err := os.Chmod(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+	chmodEvent(path)
+	chmodEvent(path)
+	mw.flush()
+	if calls := rec.take(); len(calls) != 1 || strings.Join(calls[0], ",") != "m" {
+		t.Fatalf("permission change publications = %v", calls)
+	}
+	entries, err := f.h.Entries()
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("permission change must record once: %v, %v", entries, err)
+	}
+	chmodEvent(path)
+	mw.flush()
+	if calls := rec.take(); len(calls) != 0 {
+		t.Fatalf("repeated permission metadata caused a reload loop: %v", calls)
+	}
+	f.undo()
+	assertFileMode(t, path, 0644)
+}
+
+func TestModWatcherPermissionChangeOnDisk(t *testing.T) {
+	requireUnixModes(t)
+	f := makeHistoryFixture(t)
+	f.write("m/helper.sh", "helper")
+	path := filepath.Join(f.modsDir, "m/helper.sh")
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	f.record(HistoryKindStart)
+	rec := &publishRecorder{}
+	mw, err := MakeModWatcher(f.modsDir, f.stateFile, filepath.Join(t.TempDir(), TrustFileName), time.Hour, rec.publish)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mw.Close()
+	mw.history = f.h
+	if err := os.Chmod(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.NewTimer(time.Minute)
+	defer deadline.Stop()
+	for {
+		select {
+		case event := <-mw.watcher.Events:
+			mw.handleEvent(event)
+			if filepath.Clean(event.Name) != path || !event.Op.Has(fsnotify.Chmod) {
+				continue
+			}
+			mw.flush()
+			if calls := rec.take(); len(calls) != 1 || strings.Join(calls[0], ",") != "m" {
+				t.Fatalf("on-disk chmod publications = %v", calls)
+			}
+			entries, err := f.h.Entries()
+			if err != nil || len(entries) != 2 {
+				t.Fatalf("on-disk chmod history = %v, %v", entries, err)
+			}
+			f.undo()
+			assertFileMode(t, path, 0644)
+			return
+		case err := <-mw.watcher.Errors:
+			t.Fatal(err)
+		case <-deadline.C:
+			t.Fatal("watcher did not receive the permission change")
+		}
+	}
+}
 
 func TestModIdForPath(t *testing.T) {
 	modsDir := filepath.Join("/cfg", "mods")

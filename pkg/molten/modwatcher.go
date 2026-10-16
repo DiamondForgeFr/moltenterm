@@ -54,6 +54,8 @@ type ModWatcher struct {
 	timer     *time.Timer
 	// Last seen content of mods.json and trust.json, so that a change to them reloads only the mods it concerns.
 	lastState map[string]string
+	// Chmod also signals unrelated metadata changes on some platforms; only ordinary file permissions count.
+	lastModes map[string]fs.FileMode
 }
 
 func MakeModWatcher(modsDir string, stateFile string, trustFile string, debounce time.Duration, publish func(ids []string)) (*ModWatcher, error) {
@@ -69,6 +71,7 @@ func MakeModWatcher(modsDir string, stateFile string, trustFile string, debounce
 		debounce:  debounce,
 		publish:   publish,
 		pending:   make(map[string]bool),
+		lastModes: make(map[string]fs.FileMode),
 	}
 	mw.lastState = mw.readStateSnapshot()
 	for _, dir := range []string{mw.modsDir, filepath.Dir(mw.stateFile), filepath.Dir(mw.trustFile)} {
@@ -157,11 +160,18 @@ func (mw *ModWatcher) Close() error {
 
 func (mw *ModWatcher) addTree(root string) {
 	filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() {
+		if err != nil {
 			return nil
 		}
 		if path != root && mw.ignoredPath(path) {
-			return filepath.SkipDir
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !entry.IsDir() {
+			mw.permissionsChanged(path)
+			return nil
 		}
 		if addErr := mw.watcher.Add(path); addErr != nil {
 			log.Printf("molten: cannot watch %s: %v\n", path, addErr)
@@ -199,16 +209,20 @@ func ModIdForPath(modsDir string, path string) (string, bool) {
 }
 
 func (mw *ModWatcher) handleEvent(event fsnotify.Event) {
-	if event.Op == fsnotify.Chmod {
-		return
-	}
 	path := filepath.Clean(event.Name)
 	if path == mw.stateFile || path == mw.trustFile {
+		if event.Op == fsnotify.Chmod {
+			return
+		}
 		mw.queue(mw.stateChanges()...)
 		return
 	}
 	id, ok := ModIdForPath(mw.modsDir, path)
 	if !ok {
+		return
+	}
+	changed := mw.permissionsChanged(path)
+	if event.Op == fsnotify.Chmod && !changed {
 		return
 	}
 	if event.Op.Has(fsnotify.Create) {
@@ -217,6 +231,26 @@ func (mw *ModWatcher) handleEvent(event fsnotify.Event) {
 		}
 	}
 	mw.queue(id)
+}
+
+func (mw *ModWatcher) permissionsChanged(path string) bool {
+	info, err := os.Stat(path)
+	mw.lock.Lock()
+	defer mw.lock.Unlock()
+	if err != nil || !info.Mode().IsRegular() {
+		if errors.Is(err, os.ErrNotExist) {
+			for known := range mw.lastModes {
+				if known == path || strings.HasPrefix(known, path+string(filepath.Separator)) {
+					delete(mw.lastModes, known)
+				}
+			}
+		}
+		return false
+	}
+	mode := info.Mode().Perm()
+	prev, exists := mw.lastModes[path]
+	mw.lastModes[path] = mode
+	return !exists || prev != mode
 }
 
 func (mw *ModWatcher) queue(ids ...string) {

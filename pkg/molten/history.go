@@ -272,6 +272,7 @@ func (h *History) restore(seq int) ([]string, error) {
 		}
 		tmp := filepath.Join(h.ModsDir, ".restore-"+id)
 		os.RemoveAll(tmp)
+		defer os.RemoveAll(tmp)
 		err = copyModsTree(filepath.Join(snapMods, id), tmp)
 		if err != nil {
 			return nil, err
@@ -408,11 +409,19 @@ func copyFile(src string, dest string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dest)
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	// Apply the exact ordinary permissions after copying: creation permissions alone are masked by umask.
+	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	_, err = io.Copy(out, in)
+	if err == nil {
+		err = out.Chmod(info.Mode().Perm())
+	}
 	closeErr := out.Close()
 	if err != nil {
 		return err
@@ -441,6 +450,14 @@ func treeHash(root string, extraFiles ...string) (string, error) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		// mods.json is restored as state data, not as a permission-preserving mod file.
+		if !strings.HasPrefix(name, "\x00") {
+			info, err := os.Stat(files[name])
+			if err != nil {
+				return "", err
+			}
+			fmt.Fprintf(hasher, "%03o\x00", info.Mode().Perm())
+		}
 		data, err := os.ReadFile(files[name])
 		if err != nil {
 			return "", err
