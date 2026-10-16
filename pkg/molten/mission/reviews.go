@@ -98,6 +98,11 @@ type ReviewCheck struct {
 	Name  string `json:"name"`
 	State string `json:"state"`
 	Local bool   `json:"local,omitempty"`
+	// The GitHub Actions workflow, the check's page, and the run and job ids its page names (#797).
+	Workflow string `json:"workflow,omitempty"`
+	Url      string `json:"url,omitempty"`
+	RunId    int64  `json:"runid,omitempty"`
+	JobId    int64  `json:"jobid,omitempty"`
 }
 
 type ReviewCi struct {
@@ -136,6 +141,8 @@ type ReviewPr struct {
 	Mergeable  string       `json:"mergeable,omitempty"`
 	MergeState string       `json:"mergestate,omitempty"`
 	Merge      string       `json:"merge"`
+	// GitHub's reviewDecision (APPROVED, REVIEW_REQUIRED, CHANGES_REQUESTED, or empty), why a PR is blocked (#797).
+	ReviewDecision string `json:"reviewdecision,omitempty"`
 	Ci         ReviewCi     `json:"ci"`
 	Report     ReviewReport `json:"report"`
 	// Comments written in MoltenTerm and not published yet; the review store (DS-REV-007) fills it.
@@ -164,11 +171,16 @@ type ReviewsAnswer struct {
 }
 
 type ghReviewRollup struct {
-	Name       string `json:"name"`
-	Context    string `json:"context"`
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
-	State      string `json:"state"`
+	Name         string `json:"name"`
+	Context      string `json:"context"`
+	Status       string `json:"status"`
+	Conclusion   string `json:"conclusion"`
+	State        string `json:"state"`
+	WorkflowName string `json:"workflowName"`
+	StartedAt    string `json:"startedAt"`
+	CompletedAt  string `json:"completedAt"`
+	DetailsUrl   string `json:"detailsUrl"`
+	TargetUrl    string `json:"targetUrl"`
 }
 
 type ghReviewPr struct {
@@ -185,6 +197,7 @@ type ghReviewPr struct {
 	UpdatedAt         string `json:"updatedAt"`
 	Mergeable         string `json:"mergeable"`
 	MergeStateStatus  string `json:"mergeStateStatus"`
+	ReviewDecision    string `json:"reviewDecision"`
 	Author            struct {
 		Login string `json:"login"`
 	} `json:"author"`
@@ -222,10 +235,45 @@ func containsWord(words []string, word string) bool {
 	return false
 }
 
+var actionsJobUrlRe = regexp.MustCompile(`/actions/runs/(\d+)(?:/job/(\d+))?`)
+
+// reviewCheckIds reads the run and job ids of a GitHub Actions check from its page.
+func reviewCheckIds(url string) (int64, int64) {
+	m := actionsJobUrlRe.FindStringSubmatch(url)
+	if m == nil {
+		return 0, 0
+	}
+	var run, job int64
+	fmt.Sscanf(m[1], "%d", &run)
+	if m[2] != "" {
+		fmt.Sscanf(m[2], "%d", &job)
+	}
+	return run, job
+}
+
+// rollupStartedAt orders an entry's check among the runs of the head. GitHub prints the zero time
+// (0001-01-01T00:00:00Z) for a check not started yet: a queued check is the newest attempt.
+func rollupStartedAt(entry ghReviewRollup) string {
+	started := entry.StartedAt
+	if strings.HasPrefix(started, "0001-") {
+		started = ""
+	}
+	if started == "" && entry.Status != "" && !strings.EqualFold(entry.Status, "COMPLETED") {
+		return "9999"
+	}
+	if started == "" && !strings.HasPrefix(entry.CompletedAt, "0001-") {
+		return entry.CompletedAt
+	}
+	return started
+}
+
 // SummarizeReviewChecks folds a PR's checks the way the CI remote tab does (summarizeChecks in github.ts): GitHub's
-// jobs and the local-* statuses, each name once (the latest wins), GitHub's first.
+// jobs and the local-* statuses, each check once, GitHub's first. A check is its workflow and its name, and the run
+// that started last wins (#797): the rollup holds every run of the head (a draft's run that skipped a job, then the
+// ready one where it failed, then its rerun) in no order of time.
 func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
-	byName := map[string]ReviewCheck{}
+	byKey := map[string]ReviewCheck{}
+	startedAt := map[string]string{}
 	for _, entry := range rollup {
 		name := entry.Name
 		if name == "" {
@@ -234,10 +282,23 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 		if name == "" {
 			continue
 		}
-		byName[name] = ReviewCheck{Name: name, State: reviewCheckState(entry), Local: strings.HasPrefix(name, "local-")}
+		key := entry.WorkflowName + "\x00" + name
+		started := rollupStartedAt(entry)
+		if prev, ok := startedAt[key]; ok && started < prev {
+			continue
+		}
+		startedAt[key] = started
+		url := entry.DetailsUrl
+		if url == "" {
+			url = entry.TargetUrl
+		}
+		check := ReviewCheck{Name: name, State: reviewCheckState(entry), Local: strings.HasPrefix(name, "local-"),
+			Workflow: entry.WorkflowName, Url: url}
+		check.RunId, check.JobId = reviewCheckIds(url)
+		byKey[key] = check
 	}
 	ci := ReviewCi{State: ReviewCheckNone, Checks: []ReviewCheck{}}
-	for _, check := range byName {
+	for _, check := range byKey {
 		ci.Checks = append(ci.Checks, check)
 		switch check.State {
 		case ReviewCheckSuccess:
@@ -253,7 +314,10 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 		if a.Local != b.Local {
 			return !a.Local
 		}
-		return a.Name < b.Name
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.Workflow < b.Workflow
 	})
 	switch {
 	case ci.Failure > 0:
@@ -423,6 +487,8 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 		Merge:      ReviewMergeOfPr(pr.Mergeable, pr.MergeStateStatus),
 		Ci:         SummarizeReviewChecks(pr.StatusCheckRollup),
 		Report:     ReviewReport{State: ReviewReportUnknown},
+		// A snapshot cached before the field was asked reads as no decision.
+		ReviewDecision: pr.ReviewDecision,
 	}
 	for _, ref := range pr.ClosingIssuesReferences {
 		if ref.Number > 0 {
@@ -504,6 +570,9 @@ type Reviews struct {
 	reports   map[string]*reviewReportsState
 	// The upcoming work and the agents on each branch (#712), made on the first ask.
 	upcoming *Upcoming
+	// notify tells a rerun's outcome (#797); rerunEvery: how often a rerun run is read (rerunFollowEvery when 0).
+	notify     func(ctx context.Context, input molten.NotificationInput) error
+	rerunEvery time.Duration
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {

@@ -17,7 +17,7 @@ import (
 // The GitHub side of a project, read through the user's own gh (DS-MC-004): Moltenterm stores no token. The JSON
 // fields are gh's, passed through untouched, so the panels read them as Notulia's Dev › CI does.
 
-const prFields = "number,title,body,author,headRefName,baseRefName,headRefOid,baseRefOid,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeable,mergeStateStatus,statusCheckRollup,closingIssuesReferences"
+const prFields = "number,title,body,author,headRefName,baseRefName,headRefOid,baseRefOid,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,closingIssuesReferences"
 const runFields = "databaseId,workflowName,event,status,conclusion,headBranch,headSha,displayTitle,createdAt,updatedAt,url"
 const releaseFields = "tagName,name,isDraft,isPrerelease,isLatest,publishedAt,createdAt"
 const maxWorkflowFileBytes = 256 * 1024

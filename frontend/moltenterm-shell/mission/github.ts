@@ -18,6 +18,9 @@ export type RollupEntry = {
     status?: string;
     conclusion?: string;
     state?: string;
+    workflowName?: string;
+    startedAt?: string;
+    completedAt?: string;
 };
 
 export type PullRequest = {
@@ -102,17 +105,39 @@ function stateOf(entry: RollupEntry): CheckState {
     return "neutral";
 }
 
-// A pull request's checks, GitHub's first, each once (the latest wins).
+// startedOf orders an entry among the runs of the head; GitHub prints the zero time for a check not started yet, the
+// newest attempt (as pkg/molten/mission/reviews.go's rollupStartedAt).
+function startedOf(entry: RollupEntry): string {
+    const started = (entry.startedAt ?? "").startsWith("0001-") ? "" : (entry.startedAt ?? "");
+    if (!started && entry.status && entry.status.toUpperCase() !== "COMPLETED") {
+        return "9999";
+    }
+    if (!started && !(entry.completedAt ?? "").startsWith("0001-")) {
+        return entry.completedAt ?? "";
+    }
+    return started;
+}
+
+// A pull request's checks, GitHub's first, each once. A check is its workflow and its name, and the run that started
+// last wins (#797): the rollup holds every run of the head in no order of time.
 export function summarizeChecks(rollup: readonly RollupEntry[]): CheckSummary[] {
-    const byName = new Map<string, CheckSummary>();
+    const byKey = new Map<string, { started: string; check: CheckSummary }>();
     for (const entry of rollup ?? []) {
-        const name = entry.name ?? entry.context ?? "";
+        const name = entry.name || entry.context || "";
         if (!name) {
             continue;
         }
-        byName.set(name, { name, state: stateOf(entry), local: /^local-/.test(name) });
+        const key = `${entry.workflowName ?? ""}\u0000${name}`;
+        const started = startedOf(entry);
+        const prev = byKey.get(key);
+        if (prev != null && started < prev.started) {
+            continue;
+        }
+        byKey.set(key, { started, check: { name, state: stateOf(entry), local: /^local-/.test(name) } });
     }
-    return [...byName.values()].sort((a, b) => Number(a.local) - Number(b.local) || a.name.localeCompare(b.name));
+    return [...byKey.values()]
+        .map((v) => v.check)
+        .sort((a, b) => Number(a.local) - Number(b.local) || a.name.localeCompare(b.name));
 }
 
 export function mergeStateLabel(state: string, base: string): { label: string; tone: CheckState } {

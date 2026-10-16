@@ -16,7 +16,15 @@ export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failin
 export type ReviewReportState = "present" | "missing" | "unknown";
 export type ReviewCheckState = CheckState | "none";
 
-export type ReviewCheck = { name: string; state: CheckState; local?: boolean };
+export type ReviewCheck = {
+    name: string;
+    state: CheckState;
+    local?: boolean;
+    workflow?: string;
+    url?: string;
+    runid?: number;
+    jobid?: number;
+};
 
 export type ReviewCi = {
     state: ReviewCheckState;
@@ -48,6 +56,7 @@ export type ReviewPr = {
     mergeable?: string;
     mergestate?: string;
     merge: ReviewMerge;
+    reviewdecision?: string;
     ci: ReviewCi;
     report: ReviewReport;
     unpublished: number;
@@ -104,6 +113,44 @@ export function mergeLabel(merge: ReviewMerge, base: string): { label: string; t
     return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
 }
 
+// blockedReasons says why GitHub blocks a PR's merge (#797), from what the row knows: its failed and running checks, a
+// conflict, the review decision; else a branch rule the list cannot read.
+export function blockedReasons(pr: ReviewPr): string[] {
+    const reasons: string[] = [];
+    const failed = checksOf(pr.ci, "failure");
+    if (failed.length > 0) {
+        reasons.push(t("reviews.merge.why.failed", { names: checkNames(failed) }));
+    }
+    const running = checksOf(pr.ci, "pending");
+    if (running.length > 0) {
+        reasons.push(t("reviews.merge.why.pending", { names: checkNames(running) }));
+    }
+    if (pr.merge === "conflicts") {
+        reasons.push(t("reviews.merge.why.conflicts", { base: pr.base }));
+    }
+    switch ((pr.reviewdecision ?? "").toUpperCase()) {
+        case "REVIEW_REQUIRED":
+            reasons.push(t("reviews.merge.why.review"));
+            break;
+        case "CHANGES_REQUESTED":
+            reasons.push(t("reviews.merge.why.changes"));
+            break;
+    }
+    if (reasons.length === 0) {
+        reasons.push(t("reviews.merge.why.rule"));
+    }
+    return reasons;
+}
+
+// mergeLabelOf is a row's merge chip; blocked says why on hover (#797).
+export function mergeLabelOf(pr: ReviewPr): { label: string; tone: Tone; title: string } {
+    const label = mergeLabel(pr.merge, pr.base);
+    if (pr.merge !== "blocked") {
+        return label;
+    }
+    return { ...label, title: t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") }) };
+}
+
 // validateBlocked is why a row's Validate cannot open the sheet, "" when it can (#683). It names the checks the Validate
 // plan fails on and the row already knows (pkg/molten/review/merge.go's evaluate); running checks and a merge state
 // still computing do not block: the sheet waits for them.
@@ -115,7 +162,7 @@ export function validateBlocked(pr: ReviewPr): string {
         return t("reviews.validate.conflicts", { base: pr.base });
     }
     if (pr.merge === "blocked") {
-        return t("reviews.validate.blocked");
+        return t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") });
     }
     if (pr.ci?.state === "failure") {
         return t("reviews.validate.failing", { count: pr.ci.failure });
@@ -210,9 +257,30 @@ function folderOf(path: string): string {
     return parts[parts.length - 1] ?? "";
 }
 
-export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutcome {
+// The sentences that name what was asked (a rebase, or an investigation of the CI, #797); the others are shared.
+const OutcomeKeys = {
+    rebase: {
+        asked: "reviews.rebase.asked",
+        startedHidden: "reviews.rebase.startedHidden",
+        offer: "reviews.rebase.offer",
+        failed: "reviews.rebase.failed",
+    },
+    investigate: {
+        asked: "reviews.ci.investigate.asked",
+        startedHidden: "reviews.ci.investigate.startedHidden",
+        offer: "reviews.ci.investigate.offer",
+        failed: "reviews.ci.investigate.failed",
+    },
+};
+
+export function rebaseOutcome(
+    result: RebaseResult,
+    error?: string,
+    what: keyof typeof OutcomeKeys = "rebase"
+): RebaseOutcome {
+    const keys = OutcomeKeys[what];
     if (error) {
-        return { kind: "failed", text: t("reviews.rebase.failed", { message: error }) };
+        return { kind: "failed", text: t(keys.failed, { message: error }) };
     }
     if (result == null) {
         return null;
@@ -228,15 +296,15 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
     switch (result.status) {
         case "started":
             if (result.hidden) {
-                return { kind: "asked", name, text: t("reviews.rebase.startedHidden", vars), note: true };
+                return { kind: "asked", name, text: t(keys.startedHidden, vars), note: true };
             }
-            return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
+            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
         case "sent":
-            return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
+            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
         case "typed":
             return { kind: "asked", name, text: t("reviews.rebase.typed", vars), note: true };
         case "offer":
-            return { kind: "offer", text: t("reviews.rebase.offer", vars), agent: result.agentname ?? "" };
+            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "" };
         case "noagent":
             return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
         case "busy":
@@ -260,19 +328,47 @@ export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutco
         case "terminal":
             return { kind: "failed", text: t("reviews.rebase.terminal") };
     }
-    return { kind: "failed", text: t("reviews.rebase.failed", vars) };
+    return { kind: "failed", text: t(keys.failed, vars) };
 }
 
+const CheckStateKeys: Record<CheckState, string> = {
+    success: "reviews.ci.state.success",
+    failure: "reviews.ci.state.failure",
+    pending: "reviews.ci.state.pending",
+    neutral: "reviews.ci.state.neutral",
+};
+
+// The checks shown by name before "+N" (#797).
+const NamedChecks = 2;
+
+export function checksOf(ci: ReviewCi, state: CheckState): ReviewCheck[] {
+    return (ci?.checks ?? []).filter((c) => c.state === state);
+}
+
+// checkNames names the first checks, then how many more.
+export function checkNames(checks: readonly ReviewCheck[]): string {
+    const names = checks.slice(0, NamedChecks).map((c) => c.name);
+    if (checks.length <= NamedChecks) {
+        return names.join(", ");
+    }
+    return t("reviews.ci.more", { names: names.join(", "), count: checks.length - NamedChecks });
+}
+
+// #797: a failed check is named on the chip (CI: Backend failed); the title lists every check with its state.
 export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: string } {
     const checks = ci?.checks ?? [];
-    const title = checks.map((c) => `${c.name}: ${c.state}`).join("\n") || t("reviews.ci.noneTitle");
+    const title =
+        checks
+            .map((c) => t("reviews.ci.checkLine", { name: c.name, state: t(CheckStateKeys[c.state] ?? CheckStateKeys.neutral) }))
+            .join("\n") || t("reviews.ci.noneTitle");
     if (checks.length === 0) {
         return { label: t("reviews.ci.none"), tone: "neutral", title };
     }
-    const parts: string[] = [];
-    if (ci.failure > 0) {
-        parts.push(t("reviews.ci.failing", { count: ci.failure }));
+    const failed = checksOf(ci, "failure");
+    if (failed.length > 0) {
+        return { label: t("reviews.ci.failedLabel", { names: checkNames(failed) }), tone: "failure", title };
     }
+    const parts: string[] = [];
     if (ci.pending > 0) {
         parts.push(t("reviews.ci.running", { count: ci.pending }));
     }

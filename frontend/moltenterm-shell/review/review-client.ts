@@ -648,6 +648,30 @@ export function askReviewRebase(
     return call(RebaseCommand, req, RestartTimeoutMs);
 }
 
+const InvestigateCommand = "moltenreviewinvestigate";
+
+// must match InvestigateCheck in pkg/molten/review/investigate.go
+export type InvestigateCheck = { name: string; workflow?: string; url?: string; runid?: number; jobid?: number };
+
+// askReviewInvestigate is the developer's click on Investigate (#797): the agent on the PR's branch, or a new one once
+// the developer chose how (Start), reads the failed checks and proposes what to do.
+export function askReviewInvestigate(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        checks: InvestigateCheck[];
+    } & AgentStart
+): Promise<ReviewRestartResult> {
+    return call(InvestigateCommand, req, RestartTimeoutMs);
+}
+
 const MarkReadyCommand = "moltenreviewmarkready";
 
 // markReviewReady is the developer's click on Mark ready for review (#687): gh pr ready on the draft PR.

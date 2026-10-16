@@ -4373,7 +4373,16 @@
             "failing": "checks failing",
             "failingTitle": "Mergeable, but some checks fail.",
             "pending": "checking…",
-            "pendingTitle": "GitHub is still computing whether it merges cleanly."
+            "pendingTitle": "GitHub is still computing whether it merges cleanly.",
+            "blockedWhy": "GitHub blocks the merge: {reasons}.",
+            "why": {
+                "failed": "{names} failed",
+                "pending": "checks still running: {names}",
+                "conflicts": "conflicts with {base}",
+                "review": "an approving review is required",
+                "changes": "changes were requested",
+                "rule": "a branch rule (a required check or review) is not met"
+            }
         },
         "validate": {
             "button": "Validate",
@@ -4428,7 +4437,34 @@
             "running": "{count} running",
             "passed": "{count} passed",
             "skipped": "{count} skipped",
-            "label": "CI {parts}"
+            "label": "CI {parts}",
+            "failedLabel": "CI: {names} failed",
+            "more": "{names} +{count}",
+            "checkLine": "{name}: {state}",
+            "state": {
+                "success": "passed",
+                "failure": "failed",
+                "pending": "running",
+                "neutral": "skipped"
+            },
+            "rerun": {
+                "button": "Rerun failed jobs",
+                "buttonTitle": "Run the failed jobs of {names} again on GitHub",
+                "confirm": "GitHub runs the failed jobs of {names} again; a notification tells you the outcome.",
+                "confirmButton": "Rerun",
+                "sending": "Rerunning…",
+                "started": "Rerunning on GitHub: {names}. A notification tells you the outcome.",
+                "failed": "The failed jobs could not be rerun: {message}"
+            },
+            "investigate": {
+                "button": "Investigate",
+                "buttonTitle": "A work agent reads the failed logs of {names}, says whether this pull request caused it, and proposes a rerun, a fix or a ticket",
+                "asking": "Asking…",
+                "asked": "{name} investigates the failed CI: its findings and proposal come in its terminal.",
+                "startedHidden": "{name} investigates the failed CI of {branch} out of sight: a notification tells you when its findings are ready.",
+                "offer": "No agent works on {branch}. Start one to investigate the failed CI?",
+                "failed": "The investigation could not be asked: {message}"
+            }
         },
         "report": {
             "present": "test report",
@@ -5759,6 +5795,11 @@
                 "cannotSync": "Cannot sync from {project}: {detail}",
                 "alreadyRunning": "A sync of this project is already running."
             },
+            "reviews": {
+                "rerunUnknown": "MoltenTerm has not read #{number} on GitHub yet: refresh the list, then try again.",
+                "rerunNothing": "No GitHub Actions check of #{number} failed: nothing to rerun.",
+                "rerunFailed": "The failed jobs could not be rerun: {detail}"
+            },
             "release": {
                 "noSteps": "The pipeline declares no release.{channel} steps.",
                 "notATag": "“{tag}” is not a release tag ({prefix}X.Y.Z or {prefix}X.Y.Z-N).",
@@ -5849,6 +5890,13 @@
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
+                "investigatedTitle": "{name} investigated the CI of #{number}",
+                "investigated": "Its findings and what it proposes are in its terminal: answer there.",
+                "rerun": {
+                    "passedTitle": "#{number}: the rerun jobs passed",
+                    "failedTitle": "#{number}: failed again after the rerun",
+                    "failed": "Still failing: {names}. Investigate from the pull request's row in Reviews."
+                },
                 "batch": {
                     "openReviews": "Open the Reviews list",
                     "goTo": "Go to the terminal",
@@ -6109,12 +6157,14 @@
     "agentChoice": {
         "title": {
             "rebase": "Rebase #{number} with an agent",
-            "restart": "Restart work on #{number} with an agent"
+            "restart": "Restart work on #{number} with an agent",
+            "investigate": "Investigate the failed CI of #{number} with an agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
-            "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread."
+            "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
+            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch}, says whether the pull request caused the failure or a flaky or unrelated test did, and proposes a rerun, a fix on the branch or a ticket. It changes nothing until you choose."
         },
         "background": {
             "button": "Let the agent handle it",
@@ -6123,14 +6173,17 @@
         "together": {
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
+            "investigate": "Go through the investigation with the agent",
             "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
+        "checkoutInvestigate": "Your main checkout is not touched. The agent's terminal stays open with its findings until you close it.",
         "default": "Default",
         "yourAgent": "Your agent",
         "tab": {
             "rebase": "Rebase #{number}",
-            "restart": "Restart #{number}"
+            "restart": "Restart #{number}",
+            "investigate": "CI #{number}"
         },
         "noReview": "The pull request to open is not known."
     },
@@ -6138,6 +6191,7 @@
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
-        "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}"
+        "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
+        "investigate": "Started by you at {time} to investigate the failed CI of #{number}"
     }
 }

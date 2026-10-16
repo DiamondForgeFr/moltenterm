@@ -24,6 +24,8 @@ const (
 	// AgentOriginKind…: what the agent was started for.
 	AgentOriginRebase  = "rebase"
 	AgentOriginRestart = "restart"
+	// AgentOriginInvestigate: the agent reads a PR's failed checks and proposes what to do (#797).
+	AgentOriginInvestigate = "investigate"
 	// AgentOriginBatch: the batch merge's agent (FR-REV-025, batch_agent.go), for Count PRs into Base.
 	AgentOriginBatch = "batch"
 
@@ -58,6 +60,9 @@ func validMode(mode string) bool {
 func defaultAgentTabName(kind string, number int) string {
 	if kind == AgentOriginRestart {
 		return "Restart #" + strconv.Itoa(number)
+	}
+	if kind == AgentOriginInvestigate {
+		return "CI #" + strconv.Itoa(number)
 	}
 	return "Rebase #" + strconv.Itoa(number)
 }

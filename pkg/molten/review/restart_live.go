@@ -44,6 +44,13 @@ func (s *Service) AskRebase(ctx context.Context, req RebaseRequest) (RestartResu
 	return s.restarter.AskRebase(ctx, req)
 }
 
+func (s *Service) AskInvestigate(ctx context.Context, req InvestigateRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskInvestigate(ctx, req)
+}
+
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {

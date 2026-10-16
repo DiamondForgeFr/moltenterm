@@ -73,7 +73,9 @@ type ciInfo struct {
 	Failure int      `json:"failure,omitempty"`
 	Pending int      `json:"pending,omitempty"`
 	Failing []string `json:"failing,omitempty"`
-	Why     string   `json:"why,omitempty"`
+	// Checks: the failed checks with their run's page, and where their log's excerpt is (#797).
+	Checks []checkInfo `json:"checks,omitempty"`
+	Why    string      `json:"why,omitempty"`
 }
 
 type commitInfo struct {
@@ -94,6 +96,8 @@ type untrustedText struct {
 	Plan           string        `json:"plan,omitempty"`
 	TestReport     string        `json:"testreport,omitempty"`
 	TicketComments []commentText `json:"ticketcomments,omitempty"`
+	// CiLogs: the failed checks' log excerpts; a test's output may print what the PR's code chose.
+	CiLogs []ciLogText `json:"cilogs,omitempty"`
 }
 
 // prSources is what the PR's sources gave, kept per session and head.
@@ -196,7 +200,7 @@ func latestComment(comments []ghComment, match func(string) bool) (ghComment, bo
 	return ghComment{}, false
 }
 
-func summarizeCi(rollup []mission.ReviewRollup) ciInfo {
+func (m *Manager) summarizeCi(ctx context.Context, rec record, rollup []mission.ReviewRollup, text *untrustedText) ciInfo {
 	ci := mission.SummarizeReviewChecks(rollup)
 	rtn := ciInfo{State: ci.State, Success: ci.Success, Failure: ci.Failure, Pending: ci.Pending}
 	for _, check := range ci.Checks {
@@ -204,6 +208,7 @@ func summarizeCi(rollup []mission.ReviewRollup) ciInfo {
 			rtn.Failing = append(rtn.Failing, check.Name)
 		}
 	}
+	rtn.Checks, text.CiLogs = m.failedChecks(ctx, rec, ci)
 	return rtn
 }
 
@@ -219,7 +224,7 @@ func (m *Manager) readSources(ctx context.Context, rec record, base string) *prS
 		src.ci = ciInfo{State: SourceUnknown, Why: src.prBody.Why}
 	} else {
 		src.url = pr.Url
-		src.ci = summarizeCi(pr.StatusCheckRollup)
+		src.ci = m.summarizeCi(ctx, rec, pr.StatusCheckRollup, &src.text)
 		if strings.TrimSpace(pr.Body) == "" {
 			src.prBody = sourceInfo{State: SourceMissing, Why: "the pull request has no description"}
 		} else {

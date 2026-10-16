@@ -110,45 +110,53 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	if err := req.check(); err != nil {
 		return RestartResult{}, err
 	}
-	if !r.claim(req.PrKey) {
-		return RestartResult{Status: RestartBusy, Reason: RestartReasonInFlight, Message: "An agent is already being reached for this PR."}, nil
+	origin := r.origin(req.restartRequest(), AgentOriginRebase)
+	origin.MergedPr = req.MergedPr
+	return r.askOnBranch(ctx, req.restartRequest(), origin, func(tree string, result *RestartResult) (string, bool) {
+		return r.rebaseLine(req, tree, result)
+	}), nil
+}
+
+// askOnBranch hands a prompt to the agent on the PR's branch (its linked worktrees, then the main checkout), or, with
+// Start, to a new one in the branch's worktree; without Start and with no agent there, it answers the offer. line
+// writes the brief for a tree and returns the prompt.
+func (r *Restarter) askOnBranch(ctx context.Context, rreq RestartRequest, origin AgentOrigin, line func(tree string, result *RestartResult) (string, bool)) RestartResult {
+	if !r.claim(rreq.PrKey) {
+		return RestartResult{Status: RestartBusy, Reason: RestartReasonInFlight, Message: "An agent is already being reached for this PR."}
 	}
-	defer r.release(req.PrKey)
-	linked, main, err := r.branchTrees(ctx, req.Dir, req.HeadRef)
+	defer r.release(rreq.PrKey)
+	linked, main, err := r.branchTrees(ctx, rreq.Dir, rreq.HeadRef)
 	if err != nil {
-		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: rreq.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}
 	}
 	trees := linked
 	if main != "" {
 		trees = append(trees, main)
 	}
 	for _, tree := range trees {
-		result := RestartResult{Branch: req.HeadRef, Worktree: tree}
-		line, ok := r.rebaseLine(req, tree, &result)
+		result := RestartResult{Branch: rreq.HeadRef, Worktree: tree}
+		prompt, ok := line(tree, &result)
 		if !ok {
-			return result, nil
+			return result
 		}
-		if r.reuseAgent(ctx, tree, line, &result) {
-			return result, nil
+		if r.reuseAgent(ctx, tree, prompt, &result) {
+			return result
 		}
 	}
-	rreq := req.restartRequest()
-	if !req.Start {
-		return r.offer(ctx, rreq, ""), nil
+	if !rreq.Start {
+		return r.offer(ctx, rreq, "")
 	}
 	tree, created, err := r.agentTree(ctx, rreq)
 	if err != nil {
-		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
+		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: rreq.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}
 	}
-	result := RestartResult{Branch: req.HeadRef, Worktree: tree, WorktreeCreated: created}
-	line, ok := r.rebaseLine(req, tree, &result)
+	result := RestartResult{Branch: rreq.HeadRef, Worktree: tree, WorktreeCreated: created}
+	prompt, ok := line(tree, &result)
 	if !ok {
-		return result, nil
+		return result
 	}
-	origin := r.origin(rreq, AgentOriginRebase)
-	origin.MergedPr = req.MergedPr
-	r.startAgent(ctx, rreq, origin, tree, created, line, &result)
-	return result, nil
+	r.startAgent(ctx, rreq, origin, tree, created, prompt, &result)
+	return result
 }
 
 func restartTreeReason(err error) string {

@@ -4373,7 +4373,16 @@
             "failing": "vérifications en échec",
             "failingTitle": "Fusionnable, mais certaines vérifications échouent.",
             "pending": "vérification…",
-            "pendingTitle": "GitHub calcule encore si elle fusionne sans conflit."
+            "pendingTitle": "GitHub calcule encore si elle fusionne sans conflit.",
+            "blockedWhy": "GitHub bloque la fusion : {reasons}.",
+            "why": {
+                "failed": "{names} en échec",
+                "pending": "vérifications encore en cours : {names}",
+                "conflicts": "conflits avec {base}",
+                "review": "une revue approuvée est requise",
+                "changes": "des modifications ont été demandées",
+                "rule": "une règle de branche (vérification ou revue requise) n'est pas remplie"
+            }
         },
         "validate": {
             "button": "Valider",
@@ -4428,7 +4437,34 @@
             "running": "{count} en cours",
             "passed": "{count} réussie(s)",
             "skipped": "{count} ignorée(s)",
-            "label": "CI {parts}"
+            "label": "CI {parts}",
+            "failedLabel": "CI : {names} en échec",
+            "more": "{names} +{count}",
+            "checkLine": "{name} : {state}",
+            "state": {
+                "success": "réussie",
+                "failure": "en échec",
+                "pending": "en cours",
+                "neutral": "ignorée"
+            },
+            "rerun": {
+                "button": "Relancer les jobs en échec",
+                "buttonTitle": "Relancer sur GitHub les jobs en échec de {names}",
+                "confirm": "GitHub relance les jobs en échec de {names} ; une notification vous donne le résultat.",
+                "confirmButton": "Relancer",
+                "sending": "Relance…",
+                "started": "Relancé sur GitHub : {names}. Une notification vous donne le résultat.",
+                "failed": "Les jobs en échec n'ont pas pu être relancés : {message}"
+            },
+            "investigate": {
+                "button": "Analyser l'échec",
+                "buttonTitle": "Un agent de travail lit les logs en échec de {names}, dit si cette pull request en est la cause et propose une relance, un correctif ou un ticket",
+                "asking": "Demande…",
+                "asked": "{name} analyse l'échec de la CI : ses conclusions et sa proposition arrivent dans son terminal.",
+                "startedHidden": "{name} analyse hors de vue l'échec de la CI de {branch} : une notification vous prévient quand ses conclusions sont prêtes.",
+                "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour analyser l'échec de la CI ?",
+                "failed": "L'analyse n'a pas pu être demandée : {message}"
+            }
         },
         "report": {
             "present": "rapport de test",
@@ -5759,6 +5795,11 @@
                 "cannotSync": "Impossible de synchroniser depuis {project} : {detail}",
                 "alreadyRunning": "Une synchronisation de ce projet est déjà en cours."
             },
+            "reviews": {
+                "rerunUnknown": "MoltenTerm n'a pas encore lu #{number} sur GitHub : actualisez la liste, puis réessayez.",
+                "rerunNothing": "Aucune vérification GitHub Actions de #{number} n'a échoué : rien à relancer.",
+                "rerunFailed": "Les jobs en échec n'ont pas pu être relancés : {detail}"
+            },
             "release": {
                 "noSteps": "Le pipeline ne déclare aucune étape release.{channel}.",
                 "notATag": "« {tag} » n'est pas un tag de version ({prefix}X.Y.Z ou {prefix}X.Y.Z-N).",
@@ -5849,6 +5890,13 @@
                 "commits": "Commits non poussés sur {branch} : {count}.",
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
+                "investigatedTitle": "{name} a analysé la CI de #{number}",
+                "investigated": "Ses conclusions et sa proposition sont dans son terminal : répondez-y.",
+                "rerun": {
+                    "passedTitle": "#{number} : les jobs relancés ont réussi",
+                    "failedTitle": "#{number} : encore en échec après la relance",
+                    "failed": "Toujours en échec : {names}. Analysez l'échec depuis la ligne de la pull request dans Revues."
+                },
                 "batch": {
                     "openReviews": "Ouvrir la liste des revues",
                     "goTo": "Aller au terminal",
@@ -6109,12 +6157,14 @@
     "agentChoice": {
         "title": {
             "rebase": "Rebaser #{number} avec un agent",
-            "restart": "Relancer le travail sur #{number} avec un agent"
+            "restart": "Relancer le travail sur #{number} avec un agent",
+            "investigate": "Analyser l'échec de la CI de #{number} avec un agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebase {branch} sur {base} dans une copie isolée de la branche, résout les conflits, lance les vérifications du projet et pousse avec lease.",
-            "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil."
+            "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil.",
+            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch}, dit si la pull request a causé l'échec ou si un test instable ou sans rapport l'a fait, et propose une relance, un correctif sur la branche ou un ticket. Il ne change rien avant votre choix."
         },
         "background": {
             "button": "Laisser l'agent s'en charger",
@@ -6123,14 +6173,17 @@
         "together": {
             "rebase": "Faire le rebase avec l'agent",
             "restart": "Faire le travail avec l'agent",
+            "investigate": "Faire l'analyse avec l'agent",
             "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend."
         },
         "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
+        "checkoutInvestigate": "Votre copie principale n'est pas touchée. Le terminal de l'agent reste ouvert avec ses conclusions jusqu'à ce que vous le fermiez.",
         "default": "Par défaut",
         "yourAgent": "Votre agent",
         "tab": {
             "rebase": "Rebase #{number}",
-            "restart": "Relance #{number}"
+            "restart": "Relance #{number}",
+            "investigate": "CI #{number}"
         },
         "noReview": "La pull request à ouvrir n'est pas connue."
     },
@@ -6138,6 +6191,7 @@
         "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",
         "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
         "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
-        "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}"
+        "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
+        "investigate": "Lancé par vous à {time} pour analyser l'échec de la CI de #{number}"
     }
 }

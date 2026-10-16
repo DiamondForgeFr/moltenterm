@@ -22,14 +22,41 @@ import { AgentMode, AgentStart, openReviewTab, ReviewPrInfo, ReviewRestartResult
 export const ReviewOpenGesture = "review:open";
 
 export type AgentChoiceRequest = {
-    kind: "rebase" | "restart";
+    kind: "rebase" | "restart" | "investigate";
     number: number;
     branch: string;
     base: string;
     // The agent that would start (its name), "" when wavesrv named none.
     agent?: string;
     round?: number;
+    // checks: the failed checks an investigation reads (#797), named.
+    checks?: string;
 };
+
+const ChoiceKeys: Record<AgentChoiceRequest["kind"], { title: string; what: string; together: string; tab: string; checkout: string }> =
+    {
+        rebase: {
+            title: "agentChoice.title.rebase",
+            what: "agentChoice.what.rebase",
+            together: "agentChoice.together.rebase",
+            tab: "agentChoice.tab.rebase",
+            checkout: "agentChoice.checkout",
+        },
+        restart: {
+            title: "agentChoice.title.restart",
+            what: "agentChoice.what.restart",
+            together: "agentChoice.together.restart",
+            tab: "agentChoice.tab.restart",
+            checkout: "agentChoice.checkout",
+        },
+        investigate: {
+            title: "agentChoice.title.investigate",
+            what: "agentChoice.what.investigate",
+            together: "agentChoice.together.investigate",
+            tab: "agentChoice.tab.investigate",
+            checkout: "agentChoice.checkoutInvestigate",
+        },
+    };
 
 type PendingChoice = AgentChoiceRequest & { answer: (mode: AgentMode) => void };
 
@@ -71,7 +98,7 @@ export function askAgentChoice(req: AgentChoiceRequest): Promise<AgentMode> {
 
 // agentTabName: the agent's tab, named in the interface language.
 export function agentTabName(kind: AgentChoiceRequest["kind"], number: number): string {
-    return t(kind === "restart" ? "agentChoice.tab.restart" : "agentChoice.tab.rebase", { number });
+    return t(ChoiceKeys[kind].tab, { number });
 }
 
 // agentStartOf is what a request carries once the developer chose: the tab goes in this window's workspace.
@@ -137,12 +164,13 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [pending]);
-    const restart = pending.kind === "restart";
+    const keys = ChoiceKeys[pending.kind];
     const vars = {
         number: pending.number,
         branch: pending.branch,
         base: pending.base,
         round: pending.round ?? 0,
+        checks: pending.checks ?? "",
         agent: pending.agent || t("agentChoice.yourAgent"),
         tab: agentTabName(pending.kind, pending.number),
     };
@@ -156,7 +184,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     return (
         <DialogFrame
             role="agent-choice"
-            title={t(restart ? "agentChoice.title.restart" : "agentChoice.title.rebase", vars)}
+            title={t(keys.title, vars)}
             subtitle={t("agentChoice.subtitle", vars)}
             widthClass="w-[520px]"
             trapFocus
@@ -176,7 +204,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
                         onClick={() => pending.answer("together")}
                         data-testid="agent-choice-together"
                     >
-                        {t(restart ? "agentChoice.together.restart" : "agentChoice.together.rebase")}
+                        {t(keys.together)}
                     </button>
                     <button
                         ref={defaultRef}
@@ -193,7 +221,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
         >
             <div className="flex flex-col gap-3 text-12 leading-5" onKeyDown={onKeyDown} data-testid="agent-choice">
                 <p className="text-secondary">
-                    {t(restart ? "agentChoice.what.restart" : "agentChoice.what.rebase", vars)}
+                    {t(keys.what, vars)}
                 </p>
                 <Option
                     icon="fa-eye-slash"
@@ -203,10 +231,10 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
                 />
                 <Option
                     icon="fa-terminal"
-                    title={t(restart ? "agentChoice.together.restart" : "agentChoice.together.rebase")}
+                    title={t(keys.together)}
                     text={t("agentChoice.together.text", vars)}
                 />
-                <p className="text-muted">{t("agentChoice.checkout", vars)}</p>
+                <p className="text-muted">{t(keys.checkout, vars)}</p>
             </div>
         </DialogFrame>
     );
