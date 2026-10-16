@@ -16,6 +16,7 @@ import {
     impactedNote,
     impactsOf,
 } from "./reviews-forecast-model";
+import { DominoLoader } from "../suite/suite";
 import "./reviews-forecast.css";
 import type { ReviewPr } from "./reviews-model";
 
@@ -98,14 +99,17 @@ export function ForecastStatusLine({ status }: { status: ForecastStatus }) {
             data-testid="reviews-forecast-status"
             data-kind={status.kind}
         >
-            <i
-                className={cn(
-                    "fa fa-solid text-10",
-                    busy ? "fa-circle-notch fa-spin mt-step-spin" : "fa-code-merge",
-                    status.kind === "failed" && "fa-triangle-exclamation"
-                )}
-                aria-hidden
-            />
+            {busy ? (
+                <DominoLoader />
+            ) : (
+                <i
+                    className={cn(
+                        "fa fa-solid text-10",
+                        status.kind === "failed" ? "fa-triangle-exclamation" : "fa-code-merge"
+                    )}
+                    aria-hidden
+                />
+            )}
             <span className="truncate">{status.text}</span>
         </span>
     );
