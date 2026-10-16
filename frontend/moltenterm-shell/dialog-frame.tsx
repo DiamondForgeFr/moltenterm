@@ -68,6 +68,7 @@ export function DialogFrame({
     title,
     subtitle,
     subtitleClass,
+    subtitleTooltip,
     belowSubtitle,
     wide,
     widthClass,
@@ -82,6 +83,8 @@ export function DialogFrame({
     subtitle?: string;
     // Replaces the subtitle's text style (a path is mono 11).
     subtitleClass?: string;
+    // The subtitle's hover text when it says more than the subtitle (a folder's full path under its name).
+    subtitleTooltip?: string;
     // A quiet line under the subtitle (the suite signature in the version history).
     belowSubtitle?: React.ReactNode;
     wide?: boolean;
@@ -157,7 +160,9 @@ export function DialogFrame({
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-13 leading-5 font-semibold">{title}</div>
                     {subtitle ? (
-                        <div className={cn("mt-0.5 truncate text-muted", subtitleClass ?? "text-12")} title={subtitle}>
+                        <div className={cn("mt-0.5 truncate text-muted", subtitleClass ?? "text-12")}
+                            title={subtitleTooltip ?? subtitle}
+                        >
                             {subtitle}
                         </div>
                     ) : null}

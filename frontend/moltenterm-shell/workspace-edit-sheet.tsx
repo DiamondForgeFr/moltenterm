@@ -61,7 +61,7 @@ const GhostButtonClass =
     "shrink-0 cursor-pointer rounded-3 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 
 const FocusRingClass =
-    "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+    "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
 
 // Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
 function Section({
@@ -92,6 +92,7 @@ function RadioGrid({
     selected,
     onSelect,
     renderOption,
+    columns,
 }: {
     label: string;
     // Named for screen readers only, where the field above already names it on screen.
@@ -101,6 +102,8 @@ function RadioGrid({
     selected: string;
     onSelect: (value: string) => void;
     renderOption: (value: string, checked: boolean, tabIndex: number) => React.ReactNode;
+    // A grid of this many columns instead of rows that wrap where the width ends.
+    columns?: number;
 }) {
     const labelId = useId();
     const groupRef = useRef<HTMLDivElement>(null);
@@ -126,7 +129,8 @@ function RadioGrid({
                 role="radiogroup"
                 aria-labelledby={labelId}
                 onKeyDown={onKeyDown}
-                className="flex min-w-0 flex-wrap gap-1"
+                className={cn("min-w-0 gap-1", columns ? "grid w-fit" : "flex flex-wrap")}
+                style={columns ? { gridTemplateColumns: `repeat(${columns}, max-content)` } : undefined}
             >
                 {options.map((value, i) => (
                     <Fragment key={value}>{renderOption(value, value === selected, i === tabStop ? 0 : -1)}</Fragment>
@@ -630,6 +634,18 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     );
 }
 
+// The symbols are laid out in even rows (#751): wrapping where the width ended left the last one alone on a row.
+export const IconGridMaxColumns = 7;
+
+// Columns for `count` items in as few rows as `max` columns allow, the rows as even as they can be (14 by 7: 7 + 7).
+export function balancedColumns(count: number, max: number): number {
+    if (count <= 0 || max <= 0) {
+        return 1;
+    }
+    const rows = Math.ceil(count / max);
+    return Math.ceil(count / rows);
+}
+
 export function IconChoices({
     icons,
     selected,
@@ -649,6 +665,7 @@ export function IconChoices({
             options={icons}
             selected={selected}
             onSelect={onSelect}
+            columns={balancedColumns(icons.length, IconGridMaxColumns)}
             renderOption={(icon, checked, tabIndex) => (
                 <button
                     type="button"
@@ -951,12 +968,15 @@ export function WorkspaceEditSheet({
     if (ws == null) {
         return null;
     }
+    // The folder's name under the title, its full path on hover (#751): a long path was cut to its start.
+    const folder = effectiveWorkspaceFolder(ws);
     return (
         <DialogFrame
             role="workspace-edit"
             title={t("workspace.edit.title")}
-            subtitle={effectiveWorkspaceFolder(ws) || undefined}
+            subtitle={pathBaseName(folder) || undefined}
             subtitleClass="font-mono text-11"
+            subtitleTooltip={folder || undefined}
             widthClass="w-fit max-w-[min(560px,calc(100vw-32px))]"
             trapFocus
             suite
