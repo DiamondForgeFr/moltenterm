@@ -10,6 +10,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Effort levels from the command panel (#549), the way each agent takes them, through the same guarded input as the
@@ -24,10 +25,14 @@ func (u *Updater) setEffort(req AgentInputRequest, st shellState, cmd agentconti
 	target := req.Effort
 	levels := u.effortLevels(st.agent.Agent, run.Settings.Model)
 	if !slices.Contains(levels, target) {
-		return refused(InputReasonUnknownAction, fmt.Sprintf("%s has no effort level %q here: nothing was typed.", name, target))
+		return refused(InputReasonUnknownAction, uimsg.Make("termupdate.effort.unknown", "agent", name, "effort", target),
+			fmt.Sprintf("%s has no effort level %q here: nothing was typed.", name, target))
 	}
 	if run.Settings.Effort == target {
-		return AgentInputResult{Result: InputSent, Effort: target, Message: fmt.Sprintf("%s already runs at %s effort.", name, target)}
+		rtn := sentResult(uimsg.Make("termupdate.effort.already", "agent", name, "effort", target),
+			fmt.Sprintf("%s already runs at %s effort.", name, target))
+		rtn.Effort = target
+		return rtn
 	}
 	if cmd.Text != "" {
 		return u.typeEffortCommand(req, st, cmd, name, target)
@@ -39,21 +44,25 @@ func (u *Updater) typeEffortCommand(req AgentInputRequest, st shellState, cmd ag
 	text := cmd.Text + " " + target
 	sent, err := u.sendToForegroundAgent(req.BlockId, st.agent, st.shell.Pid, []string{keyClearLine, text, "\r"})
 	if err != nil {
-		return refused(InputReasonUnavailable, fmt.Sprintf("The terminal did not take the input: %v", err))
+		return refusedNotTaken(err)
 	}
 	if !sent {
-		return refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name))
+		return refusedGone(name)
 	}
-	return AgentInputResult{Result: InputSent, Effort: target, Message: fmt.Sprintf("Sent %s to %s.", text, name)}
+	rtn := sentResult(uimsg.Make("termupdate.input.sent", "agent", name, "text", text), fmt.Sprintf("Sent %s to %s.", text, name))
+	rtn.Effort = target
+	return rtn
 }
 
 func (u *Updater) pressEffortKeys(req AgentInputRequest, st shellState, cmd agentcontinuity.AgentCommand, name string, current string, levels []string, target string) AgentInputResult {
 	if u.env.EffortKeysRemapped != nil && u.env.EffortKeysRemapped(st.agent.Agent) {
-		return refused(InputReasonEffortUnknown, fmt.Sprintf("Your %s settings give the effort shortcuts keys of their own: choose the level in %s's /model. Nothing was typed.", name, name))
+		return refused(InputReasonEffortUnknown, uimsg.Make("termupdate.effort.remapped", "agent", name),
+			fmt.Sprintf("Your %s settings give the effort shortcuts keys of their own: choose the level in %s's /model. Nothing was typed.", name, name))
 	}
 	from := slices.Index(levels, current)
 	if from < 0 {
-		return refused(InputReasonEffortUnknown, fmt.Sprintf("MoltenTerm does not know %s's effort level yet (it reads it at each turn): choose it in %s's /model. Nothing was typed.", name, name))
+		return refused(InputReasonEffortUnknown, uimsg.Make("termupdate.effort.notknown", "agent", name),
+			fmt.Sprintf("MoltenTerm does not know %s's effort level yet (it reads it at each turn): choose it in %s's /model. Nothing was typed.", name, name))
 	}
 	steps := slices.Index(levels, target) - from
 	key := cmd.KeyRaise
@@ -67,17 +76,18 @@ func (u *Updater) pressEffortKeys(req AgentInputRequest, st shellState, cmd agen
 	sent, err := u.sendToForegroundAgent(req.BlockId, st.agent, st.shell.Pid, keys)
 	if err != nil {
 		u.clearEffort(req.BlockId, st.agent.Agent)
-		return refused(InputReasonUnavailable, fmt.Sprintf("The terminal did not take the input: %v", err))
+		return refusedNotTaken(err)
 	}
 	if !sent {
-		return refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name))
+		return refusedGone(name)
 	}
 	u.clearEffort(req.BlockId, st.agent.Agent)
 	return AgentInputResult{
-		Result:  InputSent,
-		Effort:  target,
-		Presses: steps,
-		Message: fmt.Sprintf("%s is set to %s effort for this session. MoltenTerm shows it from %s's next turn.", name, target, name),
+		Result:      InputSent,
+		Effort:      target,
+		Presses:     steps,
+		Message:     fmt.Sprintf("%s is set to %s effort for this session. MoltenTerm shows it from %s's next turn.", name, target, name),
+		MessageText: uimsg.Make("termupdate.effort.set", "agent", name, "effort", target),
 	}
 }
 

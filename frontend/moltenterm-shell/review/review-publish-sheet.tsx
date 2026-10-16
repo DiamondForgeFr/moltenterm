@@ -10,6 +10,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useLocale } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ReviewComment, ReviewCommentText, ReviewPublishRecord, ReviewState, ReviewSummaryId } from "./review-client";
@@ -383,7 +384,9 @@ function PublishOutcome({
                     </button>
                 ) : null}
             </div>
-            {record?.message && !running ? <div className="text-muted">{record.message}</div> : null}
+            {record?.message && !running ? (
+                <div className="text-muted">{serverText(record.messagetext, record.message)}</div>
+            ) : null}
             {notes.length > 0 && !running ? (
                 <ul className="flex flex-col gap-1" data-testid="publish-notes">
                     {notes.map((n) => {
@@ -394,7 +397,9 @@ function PublishOutcome({
                                     {c ? `${c.anchor.path} ${linesLabel(c)}` : n.commentid}
                                 </span>
                                 : {PublishText.note[n.note] ?? n.note}
-                                {n.message ? <span className="text-error"> ({n.message})</span> : null}
+                                {n.message ? (
+                                    <span className="text-error"> ({serverText(n.messagetext, n.message)})</span>
+                                ) : null}
                             </li>
                         );
                     })}

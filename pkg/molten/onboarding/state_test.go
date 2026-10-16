@@ -251,6 +251,9 @@ func TestNotificationFor(t *testing.T) {
 		if !ok || input.Key != NotificationKey || len(input.Actions) != 1 || input.Actions[0].Gesture != OpenGesture {
 			t.Errorf("notification for %q: %+v", what, input)
 		}
+		if input.TitleText == nil || input.MessageText == nil || input.Actions[0].LabelText == nil {
+			t.Errorf("notification for %q has no code for a window: %+v", what, input)
+		}
 	}
 }
 

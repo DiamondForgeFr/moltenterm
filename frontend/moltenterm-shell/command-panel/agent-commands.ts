@@ -8,6 +8,8 @@
 
 import { agentCallName, agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
+import type { ServerText } from "../i18n/server-text";
+import { termupdateMessage } from "../termupdate/termupdate-text";
 import {
     PanelActionResult,
     PanelChoice,
@@ -48,6 +50,7 @@ export type AgentInputResult = {
     reason?: AgentInputReason;
     offer?: "interrupt" | "goto";
     message: string;
+    messagetext?: ServerText;
     agent?: string;
     agentname?: string;
     program?: string;
@@ -468,7 +471,7 @@ export function feedbackFor(
     if (result.result === "sent") {
         if (action === EffortAction && result.presses > 0) {
             // Codex's effort keys: the header shows the level from the agent's next turn, and says nothing until then.
-            return { id: "agent:effort", tone: "muted", role: "alert", message: result.message };
+            return { id: "agent:effort", tone: "muted", role: "alert", message: termupdateMessage(result) };
         }
         if (action !== PermissionModeAction) {
             return "close";
@@ -477,7 +480,7 @@ export function feedbackFor(
             return "close";
         }
         // One press with the mode unseen, or a target not reached: the panel stays on the modes with the outcome.
-        return { id: "agent:mode", tone: "muted", role: "alert", message: result.message };
+        return { id: "agent:mode", tone: "muted", role: "alert", message: termupdateMessage(result) };
     }
     switch (result.reason) {
         case "working":
@@ -485,7 +488,7 @@ export function feedbackFor(
                 id: "agent:working",
                 tone: "warning",
                 role: "alert",
-                message: result.message,
+                message: termupdateMessage(result),
                 actions: [
                     { id: "interrupt", label: t("cmdpanel.agent.interrupt"), primary: true, run: handlers.interrupt },
                 ],
@@ -495,7 +498,7 @@ export function feedbackFor(
                 id: "agent:waiting",
                 tone: "warning",
                 role: "alert",
-                message: result.message,
+                message: termupdateMessage(result),
                 actions: [{ id: "goto", label: t("cmdpanel.agent.gotoQuestion"), primary: true, run: () => "close" }],
             };
         case "draft":
@@ -503,7 +506,7 @@ export function feedbackFor(
                 id: "agent:draft",
                 tone: "warning",
                 role: "alertdialog",
-                message: result.message,
+                message: termupdateMessage(result),
                 actions: [
                     { id: "cancel", label: t("common.cancel"), run: () => "dismiss" },
                     {
@@ -519,7 +522,7 @@ export function feedbackFor(
                 id: "agent:effortunknown",
                 tone: "warning",
                 role: "alert",
-                message: result.message,
+                message: termupdateMessage(result),
                 actions: handlers.openModel
                     ? [{ id: "model", label: t("cmdpanel.agent.openModel"), primary: true, run: handlers.openModel }]
                     : undefined,
@@ -529,7 +532,7 @@ export function feedbackFor(
                 id: `agent:${result.reason ?? "refused"}`,
                 tone: "danger",
                 role: "alert",
-                message: result.message,
+                message: termupdateMessage(result),
             };
     }
 }

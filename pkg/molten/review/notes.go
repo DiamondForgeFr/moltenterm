@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Kept explanations (FR-REV-008, DS-REV-007): the answers the developer keeps, one notes file per project under
@@ -158,7 +159,7 @@ func (s *Store) readNotes(repo string) (Notes, error) {
 	}
 	// Unlike a PR's state, a notes file that does not read is never replaced: the developer's notes stay on disk.
 	if err := json.Unmarshal(data, &rtn); err != nil {
-		return Notes{Repo: repo, Notes: []Note{}}, fmt.Errorf("the notes file could not be read: %v", err)
+		return Notes{Repo: repo, Notes: []Note{}}, uimsg.Errorf(uimsg.Make("review.notesfile", "detail", uimsg.Detail(err)), "the notes file could not be read: %v", err)
 	}
 	rtn.Repo = repo
 	if rtn.Notes == nil {
@@ -264,7 +265,7 @@ func (s *Store) KeepNote(req NoteKeepRequest) (Notes, bool, error) {
 	}
 	i := slices.IndexFunc(state.Explanations, func(e Explanation) bool { return e.Id == req.ExplanationId })
 	if i < 0 {
-		return Notes{}, false, fmt.Errorf("the answer is no longer in the PR's review")
+		return Notes{}, false, uimsg.Errorf(uimsg.Make("review.answergone"), "the answer is no longer in the PR's review")
 	}
 	e := state.Explanations[i]
 	return s.updateNotes(req.Repo, func(notes *Notes) (bool, error) {
@@ -294,7 +295,7 @@ func (s *Store) KeepNote(req NoteKeepRequest) (Notes, bool, error) {
 func noteIndex(notes *Notes, id string) (int, error) {
 	i := slices.IndexFunc(notes.Notes, func(n Note) bool { return n.Id == id })
 	if id == "" || i < 0 {
-		return -1, fmt.Errorf("the note was not found")
+		return -1, uimsg.Errorf(uimsg.Make("review.notenotfound"), "the note was not found")
 	}
 	return i, nil
 }
@@ -303,7 +304,7 @@ func noteIndex(notes *Notes, id string) (int, error) {
 func (s *Store) RenameNote(req NoteRenameRequest) (Notes, bool, error) {
 	title := cleanTitle(req.Title)
 	if title == "" {
-		return Notes{}, false, fmt.Errorf("a note needs a title")
+		return Notes{}, false, uimsg.Errorf(uimsg.Make("review.notetitle"), "a note needs a title")
 	}
 	return s.updateNotes(req.Repo, func(notes *Notes) (bool, error) {
 		i, err := noteIndex(notes, req.Id)
@@ -359,7 +360,7 @@ func (s *Service) NoteFile(ctx context.Context, req NoteFileRequest) (NoteFileRe
 	}
 	rel := cleanNotePath(req.Path)
 	if rel == "" {
-		return NoteFileResult{}, fmt.Errorf("the path must stay in the project")
+		return NoteFileResult{}, pathOutsideError()
 	}
 	notes, err := s.store.GetNotes(req.Repo)
 	if err != nil {
@@ -398,7 +399,7 @@ func (s *Service) NoteFile(ctx context.Context, req NoteFileRequest) (NoteFileRe
 			continue
 		}
 		if bytes > maxNoteFileBytes {
-			return NoteFileResult{}, fmt.Errorf("%s is too large to open from a note", rel)
+			return NoteFileResult{}, uimsg.Errorf(uimsg.Make("review.notefiletoolarge", "path", rel), "%s is too large to open from a note", rel)
 		}
 		file, err := s.noteSnapshot(ctx, req.Dir, req.Repo, oid, rel)
 		if err != nil {
@@ -406,14 +407,14 @@ func (s *Service) NoteFile(ctx context.Context, req NoteFileRequest) (NoteFileRe
 		}
 		return NoteFileResult{File: file, Commit: oid, From: c.from}, nil
 	}
-	return NoteFileResult{}, fmt.Errorf("%s is neither in the PR's merged commit, its head nor the base branch", rel)
+	return NoteFileResult{}, uimsg.Errorf(uimsg.Make("review.notefilemissing", "path", rel), "%s is neither in the PR's merged commit, its head nor the base branch", rel)
 }
 
 func (s *Service) noteSnapshot(ctx context.Context, dir string, repo string, oid string, rel string) (string, error) {
 	root := filepath.Join(s.store.dir, RepoKey(repo), noteFilesDir, oid)
 	file := filepath.Join(root, filepath.FromSlash(rel))
 	if !strings.HasPrefix(file, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("the path must stay in the project")
+		return "", pathOutsideError()
 	}
 	// A commit's file never changes: a snapshot already written is the same.
 	if _, err := os.Stat(file); err == nil {
@@ -421,7 +422,8 @@ func (s *Service) noteSnapshot(ctx context.Context, dir string, repo string, oid
 	}
 	content, err := s.git(ctx, dir, "cat-file", "blob", oid+":"+rel)
 	if err != nil {
-		return "", fmt.Errorf("%s could not be read at %s: %v", rel, oid[:7], err)
+		return "", uimsg.Errorf(uimsg.Make("review.notefileunreadable", "path", rel, "commit", oid[:7], "detail", uimsg.Detail(err)),
+			"%s could not be read at %s: %v", rel, oid[:7], err)
 	}
 	if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
 		return "", err

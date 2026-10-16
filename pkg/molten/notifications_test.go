@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -48,6 +49,22 @@ func TestNotificationPublishAddsAndUpdatesByKey(t *testing.T) {
 	got, _ := changed["molten:notif:a"].(map[string]any)
 	if len(changed) != 1 || got["message"] != "Build 1234567" || got["read"] != false || got["updated"] != float64(3000) || got["time"] != float64(1000) {
 		t.Fatalf("changed content updates in place and is unread again: %+v", changed)
+	}
+}
+
+func TestNotificationUpdateDropsTheCodesItReplaces(t *testing.T) {
+	now := time.UnixMilli(1000)
+	coded := NotificationInput{Key: "k", Source: "build", Title: "Gold is built", TitleText: uimsg.Make("notif.build.builtTitle", "name", "Gold"),
+		Message: "Build 1 finished.", MessageText: uimsg.Make("notif.build.finished", "sha", "1")}
+	meta := roundTrip(t, waveobj.MetaMapType(NotificationPublishUpdate(nil, coded, now, "a")))
+	stored, _ := meta["molten:notif:a"].(map[string]any)
+	if stored["titletext"] == nil || stored["messagetext"] == nil {
+		t.Fatalf("the codes are stored with the notification: %+v", stored)
+	}
+	plain := NotificationInput{Key: "k", Source: "build", Title: "Gold", Message: "an agent's words"}
+	got, _ := NotificationPublishUpdate(meta, plain, now.Add(time.Second), "b")["molten:notif:a"].(map[string]any)
+	if got == nil || got["title"] != "Gold" || got["titletext"] != nil || got["messagetext"] != nil {
+		t.Fatalf("an update without codes keeps none of the old ones: %+v", got)
 	}
 }
 

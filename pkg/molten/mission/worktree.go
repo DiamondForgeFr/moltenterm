@@ -5,8 +5,6 @@ package mission
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -81,7 +80,8 @@ type WorktreePlan struct {
 	Terminals []WorktreeTerminal `json:"terminals"`
 	// Refused: MoltenTerm will not remove this folder whatever the answer (the home folder, a folder holding its
 	// repository).
-	Refused string `json:"refused,omitempty"`
+	Refused     string      `json:"refused,omitempty"`
+	RefusedText *uimsg.Text `json:"refusedtext,omitempty"`
 }
 
 // WorktreeRisk is what the user confirmed a second time; the removal is refused when the worktree holds more.
@@ -105,10 +105,11 @@ type WorktreeRemoveResult struct {
 	Removed bool   `json:"removed"`
 	Real    string `json:"real,omitempty"`
 	// Gone: someone removed it first (another terminal's close, git outside MoltenTerm).
-	Gone          bool   `json:"gone,omitempty"`
-	Forced        bool   `json:"forced,omitempty"`
-	BranchDeleted string `json:"branchdeleted,omitempty"`
-	BranchKept    string `json:"branchkept,omitempty"`
+	Gone           bool        `json:"gone,omitempty"`
+	Forced         bool        `json:"forced,omitempty"`
+	BranchDeleted  string      `json:"branchdeleted,omitempty"`
+	BranchKept     string      `json:"branchkept,omitempty"`
+	BranchKeptText *uimsg.Text `json:"branchkepttext,omitempty"`
 	// git unregistered the worktree but could not delete its whole folder (#716): the leftovers were removed after
 	// (LeftoversRemoved), or the folder stays (Leftover, LeftoverError why).
 	LeftoversRemoved bool   `json:"leftoversremoved,omitempty"`
@@ -299,6 +300,23 @@ func (w *Worktrees) refusal(path string, main string) string {
 	return worktreeRefusal(path, main, w.home)
 }
 
+// refusalText is worktreeRefusal's answer as the windows word it.
+func refusalText(refused string) *uimsg.Text {
+	switch refused {
+	case "":
+		return nil
+	case refusalHome:
+		return uimsg.Make("worktree.refused.home")
+	case refusalRepository:
+		return uimsg.Make("worktree.refused.repository")
+	}
+	return nil
+}
+
+func gitFailed(err error) error {
+	return uimsg.Errorf(uimsg.Make("worktree.git", "detail", err.Error()), "%w", err)
+}
+
 func protectedBranches(dir string, trunk string) map[string]bool {
 	configured := ConfiguredBranches(dir)
 	protected := map[string]bool{trunk: true, "HEAD": true}
@@ -364,27 +382,28 @@ func (w *Worktrees) plan(ctx context.Context, path string, closing []string) (Wo
 	g := &gitReader{ctx: ctx, run: w.run, dir: path}
 	out, err := g.out("rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
-		return plan, err
+		return plan, gitFailed(err)
 	}
 	gitDir, common, linked := molten.ParseGitDirs(out)
 	if !linked || !worktreeBacklinked(path, gitDir, common) {
-		return plan, fmt.Errorf("%s is not a linked worktree", path)
+		return plan, uimsg.Errorf(uimsg.Make("worktree.notLinked", "path", path), "%s is not a linked worktree", path)
 	}
 	plan.Main = molten.MainCheckoutOf(common)
 	list, err := g.out("worktree", "list", "--porcelain")
 	if err != nil {
-		return plan, err
+		return plan, gitFailed(err)
 	}
 	found, isMain, locked := listedWorktree(list, path)
 	if !found || isMain {
-		return plan, fmt.Errorf("%s is not a linked worktree of its repository", path)
+		return plan, uimsg.Errorf(uimsg.Make("worktree.notListed", "path", path), "%s is not a linked worktree of its repository", path)
 	}
 	plan.Locked = locked
 	plan.Refused = w.refusal(path, plan.Main)
+	plan.RefusedText = refusalText(plan.Refused)
 	// Ignored files go with the worktree without git asking (a .env, a build): the plan names them.
 	status, err := g.out("status", "--porcelain=v2", "--branch", "--untracked-files=normal", "--ignored=traditional")
 	if err != nil {
-		return plan, err
+		return plan, gitFailed(err)
 	}
 	st := parsePaneStatus(status)
 	plan.Branch, plan.Sha, plan.Detached = st.branch, st.sha, st.detached
@@ -487,24 +506,28 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 		return WorktreeRemoveResult{Gone: true, Real: plan.Real}, nil
 	}
 	if plan.Locked {
-		return WorktreeRemoveResult{}, fmt.Errorf("the worktree is locked (git worktree unlock %s)", path)
+		return WorktreeRemoveResult{}, uimsg.Errorf(uimsg.Make("worktree.locked", "path", path), "the worktree is locked (git worktree unlock %s)", path)
 	}
 	if plan.Refused != "" {
-		return WorktreeRemoveResult{}, fmt.Errorf("MoltenTerm does not remove %s: %s", path, plan.Refused)
+		code := uimsg.Make("worktree.removeRefused.repository", "path", path)
+		if plan.Refused == refusalHome {
+			code = uimsg.Make("worktree.removeRefused.home", "path", path)
+		}
+		return WorktreeRemoveResult{}, uimsg.Errorf(code, "MoltenTerm does not remove %s: %s", path, plan.Refused)
 	}
 	if plan.NeedsConfirmation() {
 		if req.Confirmed == nil {
-			return WorktreeRemoveResult{}, errors.New("the worktree holds work or is used by another terminal: removing it needs a second confirmation")
+			return WorktreeRemoveResult{}, uimsg.Errorf(uimsg.Make("worktree.needsConfirmation"), "the worktree holds work or is used by another terminal: removing it needs a second confirmation")
 		}
 		if plan.grewSince(*req.Confirmed) {
-			return WorktreeRemoveResult{}, errors.New("the worktree changed since you confirmed: read the plan again")
+			return WorktreeRemoveResult{}, uimsg.Errorf(uimsg.Make("worktree.changedSinceConfirmed"), "the worktree changed since you confirmed: read the plan again")
 		}
 	}
 	// Only uncommitted changes make git refuse; commits stay on their branch.
 	forced := plan.ChangeCount > 0
 	removal, err := w.RemoveTree(ctx, plan.Main, path, forced)
 	if err != nil {
-		return WorktreeRemoveResult{}, err
+		return WorktreeRemoveResult{}, uimsg.Errorf(uimsg.Make("worktree.removeFailed", "detail", err.Error()), "%w", err)
 	}
 	result := WorktreeRemoveResult{Removed: true, Forced: forced, Real: plan.Real, LeftoversRemoved: removal.LeftoversRemoved,
 		Leftover: removal.Leftover, LeftoverError: removal.LeftoverError}
@@ -514,14 +537,19 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	switch {
 	case plan.Branch == "":
 		result.BranchKept = "no branch (detached HEAD)"
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.detached")
 	case plan.Protected:
 		result.BranchKept = plan.Branch + " is a long-lived branch"
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.longLived", "branch", plan.Branch)
 	case plan.Merged == nil:
 		result.BranchKept = "could not tell whether " + plan.Branch + " is merged"
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.mergeUnknown", "branch", plan.Branch)
 	case !*plan.Merged:
 		result.BranchKept = plan.Branch + " is not merged into " + plan.Trunk
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.notMerged", "branch", plan.Branch, "trunk", plan.Trunk)
 	case strings.HasPrefix(plan.Branch, "-") || !branchNameRegex.MatchString(plan.Branch):
 		result.BranchKept = "unusual branch name"
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.unusualName")
 	}
 	if result.BranchKept != "" {
 		return result, nil
@@ -529,6 +557,7 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	// -D: a branch merged by rebase or squash is not an ancestor of the trunk; its content was checked instead.
 	if _, err := w.run(ctx, plan.Main, "git", "branch", "-D", plan.Branch); err != nil {
 		result.BranchKept = err.Error()
+		result.BranchKeptText = uimsg.Make("worktree.branchKept.git", "detail", err.Error())
 		return result, nil
 	}
 	result.BranchDeleted = plan.Branch

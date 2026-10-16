@@ -5,7 +5,6 @@ package browseragent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Sharing a tab the user opened with an agent in the same workspace tab (FR-BRW-011, DS-BRW-017). Only a MoltenTerm window can
@@ -80,6 +80,8 @@ type ShareTellRequest struct {
 type ShareTellResult struct {
 	Sent    bool   `json:"sent"`
 	Message string `json:"message"`
+	// MessageText: Message's code for the window (#656).
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 }
 
 type sessionRef struct {
@@ -108,6 +110,34 @@ func (m *Manager) paneOf(ctx context.Context, blockId string) (BlockLocation, bo
 	return loc, true
 }
 
+// shareError is one of the errShare sentences as the window shows it, by its code (#656).
+func shareError(msg string) error {
+	var text *uimsg.Text
+	switch msg {
+	case errShareNotUi:
+		text = uimsg.Make("browser.share.notui")
+	case errShareTabGone:
+		text = uimsg.Make("browser.share.tabgone")
+	case errShareOtherEngine:
+		text = uimsg.Make("browser.share.otherengine")
+	case errShareSessionGone:
+		text = uimsg.Make("browser.share.sessiongone")
+	case errShareElsewhere:
+		text = uimsg.Make("browser.share.elsewhere")
+	case errShareOtherTab:
+		text = uimsg.Make("browser.share.othertab")
+	case errShareNotShared:
+		text = uimsg.Make("browser.share.notshared")
+	case errShareNoPage:
+		text = uimsg.Make("browser.share.nopage")
+	case errShareTooManyTabs:
+		text = uimsg.Make("browser.share.toomanytabs")
+	case errSharePanelUnknown:
+		text = uimsg.Make("browser.share.panelunknown")
+	}
+	return &uimsg.Error{Text: text, Message: msg}
+}
+
 // shareRefusal: why the session's pane cannot take a tab of the panel, "" when it can. Only an agent beside the panel,
 // in the same tab, is offered the page (#594): the user cannot see an agent of another tab next to it.
 func (m *Manager) shareRefusal(ctx context.Context, blockId string, panel Panel) string {
@@ -125,11 +155,11 @@ func (m *Manager) shareRefusal(ctx context.Context, blockId string, panel Panel)
 // agent restarted without a bye leaves an older one until its route goes).
 func (m *Manager) ListSessions(ctx context.Context, source string, req ListRequest) (ListResult, error) {
 	if !isUiSource(source) {
-		return ListResult{}, errors.New(errShareNotUi)
+		return ListResult{}, shareError(errShareNotUi)
 	}
 	panel, found, err := m.env.ReadPanel(ctx, req.BlockId)
 	if err != nil || !found {
-		return ListResult{}, errors.New(errSharePanelUnknown)
+		return ListResult{}, shareError(errSharePanelUnknown)
 	}
 	newest := make(map[string]sessionRef)
 	for _, ref := range m.sessionRefs() {
@@ -153,25 +183,25 @@ func (m *Manager) ListSessions(ctx context.Context, source string, req ListReque
 // agreement; the call in flight of the agent that loses it is cancelled.
 func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (ShareResult, error) {
 	if !isUiSource(source) {
-		return ShareResult{}, errors.New(errShareNotUi)
+		return ShareResult{}, shareError(errShareNotUi)
 	}
 	panel, found, err := m.env.ReadPanel(ctx, req.BlockId)
 	if err != nil || !found {
-		return ShareResult{}, errors.New(errSharePanelUnknown)
+		return ShareResult{}, shareError(errSharePanelUnknown)
 	}
 	page, ok := panel.findTab(req.BrowserTabId)
 	if !ok {
-		return ShareResult{}, errors.New(errShareTabGone)
+		return ShareResult{}, shareError(errShareTabGone)
 	}
 	if page.Engine != "" {
-		return ShareResult{}, errors.New(errShareOtherEngine)
+		return ShareResult{}, shareError(errShareOtherEngine)
 	}
 	s, ok := m.sessionById(req.SessionId)
 	if !ok {
-		return ShareResult{}, errors.New(errShareSessionGone)
+		return ShareResult{}, shareError(errShareSessionGone)
 	}
 	if refusal := m.shareRefusal(ctx, s.blockId, panel); refusal != "" {
-		return ShareResult{}, errors.New(refusal)
+		return ShareResult{}, shareError(refusal)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
 	outcome := m.shareTab(s.id, key, req.Move)
@@ -179,9 +209,9 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 	case shareHeld:
 		return ShareResult{Result: ShareResultMove, AgentName: s.agentName, Holder: outcome.holder.agentName}, nil
 	case shareGone:
-		return ShareResult{}, errors.New(errShareSessionGone)
+		return ShareResult{}, shareError(errShareSessionGone)
 	case shareFull:
-		return ShareResult{}, errors.New(errShareTooManyTabs)
+		return ShareResult{}, shareError(errShareTooManyTabs)
 	}
 	if outcome.moved {
 		m.env.SetControl(key, false)
@@ -313,28 +343,28 @@ func (m *Manager) holderOf(key TabKey) (sessionInfo, bool) {
 // line comes from the panel's own copy of the tab, never from the window's request.
 func (m *Manager) ShareTell(ctx context.Context, source string, req ShareTellRequest) (ShareTellResult, error) {
 	if !isUiSource(source) {
-		return ShareTellResult{}, errors.New(errShareNotUi)
+		return ShareTellResult{}, shareError(errShareNotUi)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
 	holder, ok := m.holderOf(key)
 	if !ok {
-		return ShareTellResult{}, errors.New(errShareNotShared)
+		return ShareTellResult{}, shareError(errShareNotShared)
 	}
 	panel, found, err := m.env.ReadPanel(ctx, req.BlockId)
 	if err != nil || !found {
-		return ShareTellResult{}, errors.New(errSharePanelUnknown)
+		return ShareTellResult{}, shareError(errSharePanelUnknown)
 	}
 	page, ok := panel.findTab(req.BrowserTabId)
 	if !ok {
-		return ShareTellResult{}, errors.New(errShareTabGone)
+		return ShareTellResult{}, shareError(errShareTabGone)
 	}
 	line, ok := shareLine(page)
 	if !ok {
-		return ShareTellResult{}, errors.New(errShareNoPage)
+		return ShareTellResult{}, shareError(errShareNoPage)
 	}
 	out := m.env.TypeLine(ctx, holder.blockId, line)
 	m.logf("%s session=%s agent=%q sharetell=%v\n", logPrefix, shortId(holder.id), holder.agentName, out.Sent)
-	return ShareTellResult{Sent: out.Sent, Message: out.Message}, nil
+	return ShareTellResult{Sent: out.Sent, Message: out.Message, MessageText: out.MessageText}, nil
 }
 
 func stripControls(text string) string {

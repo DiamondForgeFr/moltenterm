@@ -365,6 +365,11 @@ func TestDependencyNoticesKeepErrors(t *testing.T) {
 		!strings.Contains(notice.Message, "#2, #1") || !strings.Contains(notice.Message, "develop, main") {
 		t.Fatalf("both declarations told together: %s", notice.Message)
 	}
+	if text := notice.MessageText; text == nil || !strings.HasPrefix(text.Code, "notif.deps.neverSynced") ||
+		text.Vars["paths"] != "a/x, b/y" || text.Vars["count"] != "2" || text.Vars["tickets"] != " (#2, #1)" ||
+		text.Vars["branch"] != "develop, main" || notice.TitleText.Code != "notif.deps.behindTitle" {
+		t.Fatalf("the message a window words: %+v %+v", text, notice.TitleText)
+	}
 	if len(notice.Actions) != 2 || notice.Actions[0].Args["index"] != 3 || !notice.KeepDismissed {
 		t.Fatalf("Sync runs the declaration that has a sync command: %+v", notice)
 	}

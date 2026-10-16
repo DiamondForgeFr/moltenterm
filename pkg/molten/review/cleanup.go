@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010 steps 2 to 5): the ticket closed and Done, the review worktree and
@@ -155,6 +156,8 @@ type CleanupPr struct {
 	Flag  string `json:"flag,omitempty"`
 	Agent string `json:"agent,omitempty"`
 	Error string `json:"error,omitempty"`
+	// ErrorText: Error's code when it is one of MoltenTerm's sentences (#656), nil for a tool's raw error.
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
 }
 
 type CleanupStepResult struct {
@@ -162,12 +165,14 @@ type CleanupStepResult struct {
 	State string `json:"state"`
 	// Code: what the step did or why it was skipped (CleanupCode…), written by the sheet from the data below; Error:
 	// the raw error of a failed step (or of the fetch after the merge check).
-	Code   string `json:"code,omitempty"`
-	Error  string `json:"error,omitempty"`
-	Ticket int    `json:"ticket,omitempty"`
-	Branch string `json:"branch,omitempty"`
-	Base   string `json:"base,omitempty"`
-	Path   string `json:"path,omitempty"`
+	Code  string `json:"code,omitempty"`
+	Error string `json:"error,omitempty"`
+	// ErrorText: Error's code when it is one of MoltenTerm's sentences (#656), nil for git's or gh's raw error.
+	ErrorText *uimsg.Text `json:"errortext,omitempty"`
+	Ticket    int         `json:"ticket,omitempty"`
+	Branch    string      `json:"branch,omitempty"`
+	Base      string      `json:"base,omitempty"`
+	Path      string      `json:"path,omitempty"`
 	// Loss: what removing the worktree or the branch loses (kept), or the ignored files that went with it (removed).
 	Loss *WorktreeLoss `json:"loss,omitempty"`
 	// Confirm: the kept agent worktree's risk, sent back as WorktreeConfirmed to remove it and lose its work.
@@ -327,7 +332,7 @@ func skipped(id string, code string) CleanupStepResult {
 }
 
 func failed(id string, err error) CleanupStepResult {
-	return CleanupStepResult{Id: id, State: CleanupStateFailed, Error: err.Error()}
+	return CleanupStepResult{Id: id, State: CleanupStateFailed, Error: err.Error(), ErrorText: uimsg.TextOf(err)}
 }
 
 func (req CleanupRequest) check() error {
@@ -816,7 +821,7 @@ func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 // Validate sheet read.
 func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResult, error) {
 	if s.cleaner == nil {
-		return CleanupResult{}, errors.New("the cleanup is not available")
+		return CleanupResult{}, uimsg.Errorf(uimsg.Make("review.cleanupunavailable"), "the cleanup is not available")
 	}
 	if req.Leftover != "" {
 		if err := s.checkLeftover(req); err != nil {
@@ -829,7 +834,7 @@ func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResul
 	}
 	state, changed, err := s.store.SetCleanup(result)
 	if _, err := s.changed(state, changed, err); err != nil {
-		return result, fmt.Errorf("the cleanup ran but its outcome could not be recorded: %w", err)
+		return result, uimsg.Errorf(uimsg.Make("review.cleanupunrecorded", "detail", uimsg.Detail(err)), "the cleanup ran but its outcome could not be recorded: %w", err)
 	}
 	return result, nil
 }
@@ -847,7 +852,7 @@ func (s *Service) checkLeftover(req CleanupRequest) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("MoltenTerm only removes the folder its cleanup left, not %s", req.Leftover)
+	return uimsg.Errorf(uimsg.Make("review.leftoveronly", "path", req.Leftover), "MoltenTerm only removes the folder its cleanup left, not %s", req.Leftover)
 }
 
 // otherPrs reads the other open PRs on the base, and reads them again while GitHub has not told whether some still
@@ -880,7 +885,8 @@ func (r *cleanupRun) otherPrs(base string) ([]openPrFacts, error) {
 // (rebase.go): a busy agent is not interrupted, and with no agent nothing starts; the window offers to start one.
 func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	if r.c.env.AskRebase == nil {
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, "Ask for a rebase is not available"
+		err := rebaseUnavailableError()
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error(), uimsg.TextOf(err)
 		return
 	}
 	res, err := r.c.env.AskRebase(r.ctx, RebaseRequest{
@@ -899,7 +905,7 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	}
 	switch {
 	case err != nil:
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error()
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error(), uimsg.TextOf(err)
 	case res.Status == RestartSent || res.Status == RestartStarted:
 		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseAsked
 	case res.Status == RestartTyped:
@@ -909,7 +915,7 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 	case res.Status == RebaseOffer:
 		item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
 	default:
-		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message
+		item.State, item.Flag, item.Error, item.ErrorText = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message, res.MessageText
 		if item.Error == "" {
 			item.Error = res.Status
 		}

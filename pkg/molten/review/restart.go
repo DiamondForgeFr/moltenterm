@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -86,7 +87,9 @@ type RestartResult struct {
 	AgentState string `json:"agentstate,omitempty"`
 	Branch     string `json:"branch,omitempty"`
 	Message    string `json:"message,omitempty"`
-	Round      string `json:"round,omitempty"`
+	// MessageText: Message's code when it is one of ours (#656), nil for a tool's or the agent's own words.
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
+	Round       string      `json:"round,omitempty"`
 	// Worktree: the folder the agent works in; WorktreeCreated: MoltenTerm made it for this restart.
 	Worktree        string `json:"worktree,omitempty"`
 	WorktreeCreated bool   `json:"worktreecreated,omitempty"`
@@ -198,7 +201,7 @@ type treeEntry struct {
 func (r *Restarter) worktrees(ctx context.Context, dir string) ([]treeEntry, error) {
 	out, err := r.git(ctx, dir, "worktree", "list", "--porcelain")
 	if err != nil {
-		return nil, fmt.Errorf("the project's worktrees could not be listed: %w", err)
+		return nil, uimsg.Errorf(uimsg.Make("review.worktreelist", "detail", uimsg.Detail(err)), "the project's worktrees could not be listed: %w", err)
 	}
 	var rtn []treeEntry
 	for _, line := range strings.Split(out, "\n") {
@@ -299,12 +302,13 @@ func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, 
 	args := []string{"worktree", "add", "--quiet", tree, req.HeadRef}
 	if _, err := r.git(ctx, req.Dir, "rev-parse", "--verify", "--quiet", ref); err != nil {
 		if _, err := r.git(ctx, req.Dir, "rev-parse", "--verify", "--quiet", remote); err != nil {
-			return "", false, fmt.Errorf("the branch %s was found neither in the project nor on origin", req.HeadRef)
+			return "", false, uimsg.Errorf(uimsg.Make("review.branchmissing", "branch", req.HeadRef), "the branch %s was found neither in the project nor on origin", req.HeadRef)
 		}
 		args = []string{"worktree", "add", "--quiet", "--track", "-b", req.HeadRef, tree, "origin/" + req.HeadRef}
 	}
 	if _, err := r.git(ctx, req.Dir, args...); err != nil {
-		return "", false, fmt.Errorf("a worktree on %s could not be created: %w", req.HeadRef, err)
+		return "", false, uimsg.Errorf(uimsg.Make("review.worktreecreate", "branch", req.HeadRef, "detail", uimsg.Detail(err)),
+			"a worktree on %s could not be created: %w", req.HeadRef, err)
 	}
 	return tree, true, nil
 }
@@ -385,7 +389,7 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		if errors.As(err, &main) {
 			reason = RestartReasonMainCheckout
 		}
-		return RestartResult{Status: RestartFailed, Reason: reason, Branch: req.HeadRef, Message: err.Error(), Round: roundId}, nil
+		return RestartResult{Status: RestartFailed, Reason: reason, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err), Round: roundId}, nil
 	}
 	result := RestartResult{Round: roundId, Worktree: tree, WorktreeCreated: created}
 	ticket := restartTicket(req)
@@ -418,7 +422,7 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		return false
 	})
 	if err != nil {
-		return result, fmt.Errorf("the work was restarted but the round could not be marked: %w", err)
+		return result, uimsg.Errorf(uimsg.Make("review.roundunmarked", "detail", uimsg.Detail(err)), "the work was restarted but the round could not be marked: %w", err)
 	}
 	if changed {
 		result.State = &marked

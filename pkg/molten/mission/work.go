@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Running work across every project (FR-MC-019), for the notification center: the builds, release and adapter steps
@@ -31,8 +32,10 @@ type WorkItem struct {
 	// The workspace linked to the project, empty when none is: the panel shows it beside the work.
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Title       string `json:"title"`
-	Detail      string `json:"detail,omitempty"`
-	StartedAt   int64  `json:"startedat"`
+	// Detail: the phase or job running, as the project names it, or a sentence of ours with its code in DetailText.
+	Detail     string      `json:"detail,omitempty"`
+	DetailText *uimsg.Text `json:"detailtext,omitempty"`
+	StartedAt  int64       `json:"startedat"`
 	// From 0 to 1, or -1 when the work does not say.
 	Progress float64 `json:"progress"`
 }
@@ -44,6 +47,7 @@ func runWork(rec RunRecord) WorkItem {
 	}
 	if rec.Preparing {
 		item.Detail = "preparing"
+		item.DetailText = uimsg.Make("mission.work.preparing")
 	}
 	return item
 }

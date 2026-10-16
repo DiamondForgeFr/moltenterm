@@ -10,6 +10,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Codex at launch (FR-SHELL-038, DS-SHELL-050; codex --help and source, codex-cli 0.160.1). `-c key=value` overrides
@@ -37,6 +38,12 @@ const (
 
 // The notify wrapper: <molten> agent notify --agent codex -- <the user's notify argv>; Codex appends the payload.
 // --session-only: the user's notify already reports the state, the wrapper only links the session.
+var (
+	codexNotifyPhrase  = say(uimsg.Make("integration.name.codexnotify"), codexNotifyItemName)
+	codexSessionPhrase = say(uimsg.Make("integration.name.codexsessionlink"), codexSessionItemName)
+	moltenNotInstalled = say(uimsg.Make("integration.reason.moltennotinstalled"), "MoltenTerm's molten command is not installed")
+)
+
 var codexNotifyWrapper = []string{"agent", "notify", "--agent", CodexAgentId, "--"}
 var codexSessionOnlyWrapper = []string{"agent", "notify", "--agent", CodexAgentId, NotifySessionOnlyFlag, "--"}
 
@@ -167,7 +174,7 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	args := parseCodexArgs(ctx.Args)
 	config := readCodexConfig(ctx)
 	if config.unreadable != "" {
-		plan.StepAside = config.unreadable + " could not be read"
+		plan.setStepAside(say(uimsg.Make("integration.reason.fileunreadable", "where", config.unreadable), config.unreadable+" could not be read"))
 		return plan, nil
 	}
 	extra := planCodexBrowser(ctx, args, config, &plan)
@@ -176,8 +183,8 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	permission := planCodexPermission(ctx, args, config, &plan)
 	plan.ShownArgs = append(plan.ShownArgs, permission...)
 	extra = append(extra, permission...)
-	plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: codexHooksItemName,
-		Reason: "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust"})
+	plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationStateHooks, say(uimsg.Make("integration.name.statehooks"), codexHooksItemName),
+		say(uimsg.Make("integration.reason.codexhookstrust"), "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust")))
 	if len(extra) == 0 {
 		plan.ShownArgs = nil
 		return plan, nil
@@ -192,24 +199,25 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 }
 
 func planCodexBrowser(ctx LaunchContext, args codexArgs, config codexConfig, plan *LaunchPlan) []string {
-	skip := func(reason string) []string {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationBrowser, Name: claudeBrowserItemName, Reason: reason})
+	skip := func(reason phrase) []string {
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationBrowser, browserItemPhrase, reason))
 		return nil
 	}
 	if ctx.MoltenPath == "" {
-		return skip("MoltenTerm's browser server (molten mcp browser) is not installed")
+		return skip(browserNotInstalled)
 	}
 	key := codexMcpServersKey + "." + mcpbrowser.ServerName
 	if args.overridesKey(key) {
-		return skip("already yours, in your -c " + key)
+		return skip(say(uimsg.Make("integration.reason.alreadyyoursflag", "flag", "-c "+key), "already yours, in your -c "+key))
 	}
 	if _, whole := args.overrides[codexMcpServersKey]; whole {
-		return skip("you passed -c " + codexMcpServersKey + ": only your own servers run")
+		return skip(say(uimsg.Make("integration.reason.codexmcpservers", "flag", "-c "+codexMcpServersKey),
+			"you passed -c "+codexMcpServersKey+": only your own servers run"))
 	}
 	if where := config.browserWhere(); where != "" {
-		return skip("already yours, in " + where)
+		return skip(alreadyYours(where))
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationBrowser, Name: claudeBrowserItemName})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationBrowser, browserItemPhrase))
 	return []string{
 		codexConfigFlag, key + ".command=" + tomlString(ctx.MoltenPath),
 		codexConfigFlag, key + ".args=" + tomlArray([]string{"mcp", "browser"}),
@@ -217,17 +225,17 @@ func planCodexBrowser(ctx LaunchContext, args codexArgs, config codexConfig, pla
 }
 
 func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan *LaunchPlan) []string {
-	skip := func(reason string) []string {
+	skip := func(reason phrase) []string {
 		plan.Skipped = append(plan.Skipped,
-			molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyItemName, Reason: reason},
-			molten.IntegrationItem{Kind: molten.IntegrationSession, Name: codexSessionItemName, Reason: reason})
+			skippedItem(molten.IntegrationNotify, codexNotifyPhrase, reason),
+			skippedItem(molten.IntegrationSession, codexSessionPhrase, reason))
 		return nil
 	}
 	if ctx.MoltenPath == "" {
-		return skip("MoltenTerm's molten command is not installed")
+		return skip(moltenNotInstalled)
 	}
 	if args.overridesKey(codexNotifyKey) {
-		return skip("you passed your own -c notify: it runs as you set it")
+		return skip(say(uimsg.Make("integration.reason.ownnotifyflag"), "you passed your own -c notify: it runs as you set it"))
 	}
 	// The --profile option wins over a -c profile, which wins over the files.
 	profile := args.profile
@@ -238,34 +246,37 @@ func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan
 		profile = config.profile()
 	}
 	if where := config.profileNotify(profile); where != "" {
-		return skip("your profile " + profile + " in " + where + " sets notify: it runs as you set it")
+		return skip(say(uimsg.Make("integration.reason.profilenotify", "profile", profile, "where", where),
+			"your profile "+profile+" in "+where+" sets notify: it runs as you set it"))
 	}
 	if where := config.managedSetsNotify(); where != "" {
-		return skip("your organization's " + where + " sets notify")
+		return skip(say(uimsg.Make("integration.reason.managednotify", "where", where), "your organization's "+where+" sets notify"))
 	}
 	if where := config.projectSetsNotify(); where != "" {
-		return skip(where + " may set notify for this project: it runs as you set it")
+		return skip(say(uimsg.Make("integration.reason.projectnotify", "where", where), where+" may set notify for this project: it runs as you set it"))
 	}
 	if where := config.projectRootMarkers(); where != "" {
-		return skip(where + " sets project_root_markers: the project files Codex reads could not be told")
+		return skip(say(uimsg.Make("integration.reason.rootmarkers", "where", where),
+			where+" sets project_root_markers: the project files Codex reads could not be told"))
 	}
 	user, where, ok := config.userNotify()
 	if !ok {
-		return skip("the notify of " + where + " is not a list of strings")
+		return skip(say(uimsg.Make("integration.reason.notifynotlist", "where", where), "the notify of "+where+" is not a list of strings"))
 	}
 	wrapper := codexNotifyWrapper
 	switch {
 	case molten.IsAgentStateHookCommand(strings.Join(user, " ")):
 		// The setup agent-states.md offers (#221) already reports done: the wrapper then only links the session.
 		wrapper = codexSessionOnlyWrapper
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyItemName,
-			Reason: "already yours, in " + where + ": it runs as you set it, and the session is linked around it"})
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationNotify, codexNotifyPhrase,
+			say(uimsg.Make("integration.reason.alreadyyoursnotify", "where", where),
+				"already yours, in "+where+": it runs as you set it, and the session is linked around it")))
 	case len(user) > 0:
-		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyAroundItemName})
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationNotify, say(uimsg.Make("integration.name.codexnotifyaround"), codexNotifyAroundItemName)))
 	default:
-		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyItemName})
+		plan.Added = append(plan.Added, addedItem(molten.IntegrationNotify, codexNotifyPhrase))
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationSession, Name: codexSessionItemName})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationSession, codexSessionPhrase))
 	argv := append([]string{ctx.MoltenPath}, wrapper...)
 	key := codexNotifyKey + "="
 	plan.ShownArgs = append(plan.ShownArgs, codexConfigFlag, key+tomlArray(argv)[:len(tomlArray(argv))-1]+codexShownUserNotify(user)+"]")

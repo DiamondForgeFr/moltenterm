@@ -12,6 +12,8 @@ package keepawake
 import (
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
@@ -72,6 +74,8 @@ type Coffee struct {
 	EndsAt  int64 `json:"endsat,omitempty"`
 	// Reasons: what works in the workspace now, the most telling first ("Claude Code: background work"), while Working.
 	Reasons []string `json:"reasons,omitempty"`
+	// ReasonsText: Reasons' codes for the windows, by position (#656).
+	ReasonsText []*uimsg.Text `json:"reasonstext,omitempty"`
 }
 
 // Attempt is one block attempt a shim reported, while its process lives.
@@ -111,6 +115,8 @@ type State struct {
 	PolicyEndsAt  int64 `json:"policyendsat,omitempty"`
 	// PolicyReasons: what works on this computer now, while PolicyWorking.
 	PolicyReasons []string `json:"policyreasons,omitempty"`
+	// PolicyReasonsText: PolicyReasons' codes for the windows, by position (#656).
+	PolicyReasonsText []*uimsg.Text `json:"policyreasonstext,omitempty"`
 	// Coffees, oldest first.
 	Coffees   []Coffee   `json:"coffees"`
 	Attempts  []Attempt  `json:"attempts"`

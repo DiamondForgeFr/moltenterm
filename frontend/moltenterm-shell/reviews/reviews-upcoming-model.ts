@@ -7,6 +7,7 @@
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { TFunction } from "../i18n/i18n";
+import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
 import type { ReviewsAnswer } from "./reviews-model";
 
@@ -47,6 +48,7 @@ export type UpcomingAnswer = {
     branches: UpcomingBranch[];
     agents: BranchAgent[];
     error?: string;
+    errortext?: ServerText;
     ticketserror?: string;
     at: number;
 };

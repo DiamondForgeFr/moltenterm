@@ -29,12 +29,20 @@ func TestBuildNotice(t *testing.T) {
 	if len(input.Actions) != 2 || input.Actions[0].Gesture != "path:reveal" || !input.Actions[0].Lasting || input.Actions[1].View != "molten-project" {
 		t.Fatalf("delivered actions: %+v", input.Actions)
 	}
+	if input.TitleText == nil || input.TitleText.Code != "notif.build.readyTitle" || input.TitleText.Vars["name"] != "Notulia Gold" ||
+		input.MessageText == nil || input.MessageText.Code != "notif.build.delivered" ||
+		input.MessageText.Vars["sha"] != "9c425c4" || input.MessageText.Vars["count"] != "12" ||
+		input.Actions[0].LabelText == nil || input.Actions[0].LabelText.Code != "notif.build.showInFolder" ||
+		input.Actions[1].LabelText == nil || input.Actions[1].LabelText.Code != "notif.build.showBuild" {
+		t.Fatalf("delivered, as a window words it: %+v %+v %+v", input.TitleText, input.MessageText, input.Actions)
+	}
 	if built, _ := buildNotice(rec, nil, "Notulia", now); built.Title != "Notulia Gold is built" {
 		t.Fatalf("a success without this run's manifest still says it: %+v", built)
 	}
 	failed := rec
 	failed.State = RunStateLost
-	if stopped, ok := buildNotice(failed, nil, "Notulia", now); !ok || stopped.Kind != "error" || stopped.Title != "The Notulia Gold build stopped" || len(stopped.Actions) != 1 {
+	if stopped, ok := buildNotice(failed, nil, "Notulia", now); !ok || stopped.Kind != "error" || stopped.Title != "The Notulia Gold build stopped" || len(stopped.Actions) != 1 ||
+		stopped.TitleText.Code != "notif.build.stoppedTitle" || stopped.MessageText.Code != "notif.build.stopped" {
 		t.Fatalf("stopped: %+v", stopped)
 	}
 	cancelled := rec

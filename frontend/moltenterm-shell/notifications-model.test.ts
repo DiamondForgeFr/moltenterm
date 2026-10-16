@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "./i18n/i18n";
+import { translate } from "./i18n/i18n-core";
 import {
     activeEntries,
     archivedEntries,
@@ -15,7 +17,9 @@ import {
     MaxNotifications,
     MoltentermNotification,
     NotificationAction,
+    notificationActionLabel,
     notificationLocation,
+    notificationMessage,
     notificationTabToActivate,
     notificationTitle,
     openCount,
@@ -29,7 +33,6 @@ import {
     unreadCount,
     visibleActions,
 } from "./notifications-model";
-import { translate } from "./i18n/i18n-core";
 
 function entry(id: string, time: number, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
     return { id, time, updated: time, title: `t${id}`, source: "agent", kind: "info", read: false, ...extra };
@@ -279,6 +282,27 @@ describe("notificationTitle (#727)", () => {
         expect(notificationTitle({ title: "A terminal needs your attention", titlecode: "bell" }, fr)).toBe(
             "Un terminal demande votre attention"
         );
+    });
+
+    it("words what wavesrv wrote itself with a code (#656), and leaves an agent's words alone", () => {
+        const built = {
+            title: "Gold is built",
+            titletext: { code: "notif.build.builtTitle", vars: { name: "Gold" } },
+            message: "Build 9c425c4 finished.",
+            messagetext: { code: "notif.build.finished", vars: { sha: "9c425c4" } },
+        };
+        const action = { label: "Show in folder", labeltext: { code: "notif.build.showInFolder" } };
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(notificationTitle(built, fr)).toBe("Gold est compilé");
+            expect(notificationMessage(built)).toBe("Le build 9c425c4 est terminé.");
+            expect(notificationActionLabel(action)).toBe("Afficher dans le dossier");
+            expect(notificationMessage({ message: "Done: tests pass" })).toBe("Done: tests pass");
+            expect(notificationMessage({})).toBe("");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+        expect(notificationMessage(built)).toBe("Build 9c425c4 finished.");
     });
 
     it("shows a title without a known code as published", () => {

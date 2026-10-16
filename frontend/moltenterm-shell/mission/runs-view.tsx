@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -111,7 +112,7 @@ export function useStartRun(dir: string, projectName: string) {
             }
             return "";
         } catch (e) {
-            return String(e?.message ?? e);
+            return serverErrorText(e);
         }
     };
     const start = (kind: string, id: string) =>
@@ -129,7 +130,7 @@ export function useStartRun(dir: string, projectName: string) {
                 await missionTrust(dir, run.info.hash);
                 await missionRun(dir, run.kind, run.id);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const prompt =

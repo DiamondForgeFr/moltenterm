@@ -6,6 +6,7 @@
 // (pkg/molten/keepawake); this file holds the rules the views need, apart from the components so they can be tested.
 
 import { t } from "./i18n/i18n";
+import { ServerText, serverText, serverTexts } from "./i18n/server-text";
 
 export const KeepAwakeRoute = "molten:keepawake";
 export const KeepAwakeEvent = "molten:keepawake";
@@ -27,6 +28,7 @@ export type KeepAwakeCoffee = {
     endsat?: number;
     // What works in the workspace now, the most telling first ("Claude Code: background work"), while working.
     reasons?: string[];
+    reasonstext?: ServerText[];
 };
 
 // must match Attempt in pkg/molten/keepawake/keepawake.go
@@ -63,6 +65,7 @@ export type KeepAwakeState = {
     policyworking?: boolean;
     policyendsat?: number;
     policyreasons?: string[];
+    policyreasonstext?: ServerText[];
     coffees: KeepAwakeCoffee[];
     attempts: KeepAwakeAttempt[];
     overrides: KeepAwakeOverride[];
@@ -79,6 +82,7 @@ export type KeepAwakeAutoApprove = {
     agentname: string;
     approved: boolean;
     reason?: string;
+    reasontext?: ServerText;
 };
 
 // must match Approval in pkg/molten/keepawake/approve.go
@@ -95,6 +99,7 @@ export type KeepAwakeApproval = {
     detail?: string;
     outcome: "approved" | "asked";
     reason?: string;
+    reasontext?: ServerText;
 };
 
 export const EmptyKeepAwakeState: KeepAwakeState = {
@@ -161,14 +166,21 @@ export function coffeeCondition(coffee: KeepAwakeCoffee, now: number): string {
     return t("keepawake.endingIn", { time: formatCountdown(coffee.endsat, now) });
 }
 
-// Why the computer is kept awake, in one line: the reasons wavesrv sent, joined (#493).
-export function reasonsText(reasons: string[]): string {
-    return (reasons ?? []).filter((r) => r).join(", ");
+// Why the computer is kept awake, in one line: the reasons wavesrv sent, joined (#493), worded by their codes (#656).
+export function reasonsText(reasons: string[], texts?: ServerText[]): string {
+    return serverTexts(texts, reasons ?? [])
+        .filter((r) => r)
+        .join(", ");
 }
 
 // What keeps a coffee on now; "" in its grace.
 export function coffeeReason(coffee: KeepAwakeCoffee): string {
-    return coffee.working ? reasonsText(coffee.reasons) : "";
+    return coffee.working ? reasonsText(coffee.reasons, coffee.reasonstext) : "";
+}
+
+// Why a session's prompts still ask the person, or why a request was left to them; "" without a reason.
+export function approvalReasonText(item: { reason?: string; reasontext?: ServerText }): string {
+    return item?.reason ? serverText(item.reasontext, item.reason) : "";
 }
 
 // The coffee bud's tooltip while on (DS-SHELL-062), and the one line the rail item adds.
@@ -187,7 +199,7 @@ export function policyHoldingLine(state: KeepAwakeState, platform: string, now: 
         return "";
     }
     if (state.policyworking || !state.policyendsat) {
-        const why = state.policyworking ? reasonsText(state.policyreasons) : "";
+        const why = state.policyworking ? reasonsText(state.policyreasons, state.policyreasonstext) : "";
         return why ? t("keepawake.holdingWhy", { why }) : t("keepawake.holding");
     }
     return t("keepawake.holdingEnding", { time: formatCountdown(state.policyendsat, now) });
@@ -310,7 +322,8 @@ export function coffeeApprovalLines(state: KeepAwakeState, workspaceId: string):
         lines.push(t("keepawake.approves", { sessions: approved.map(sessionWhere).join(", ") }));
     }
     for (const s of asking) {
-        const where = `${sessionWhere(s)}${s.reason ? ` (${s.reason})` : ""}`;
+        const reason = approvalReasonText(s);
+        const where = `${sessionWhere(s)}${reason ? ` (${reason})` : ""}`;
         lines.push(t("keepawake.stillAsks", { where }));
     }
     return lines;

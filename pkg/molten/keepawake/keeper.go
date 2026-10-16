@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Env is what the keeper needs from wavesrv, injected so tests run without it.
@@ -246,20 +247,33 @@ func askNotification(tool string, parentName string, wsId string, tabName string
 	}
 	message := fmt.Sprintf("%s%s ran %s. Choose once what MoltenTerm does with such requests: let them through, keep "+
 		"%s awake itself until the work ends, or let it sleep.", who, where, tool, computerName())
-	action := func(id string, label string, policy string) molten.NotificationAction {
-		return molten.NotificationAction{Id: id, Label: label, Kind: "gesture", Gesture: PolicyGesture, Args: map[string]any{"policy": policy}}
+	var messageText *uimsg.Text
+	switch {
+	case parentName != "" && tabName != "":
+		messageText = uimsg.Make("keepawake.notice.askparenttab", "who", parentName, "tab", tabName, "tool", tool)
+	case parentName != "":
+		messageText = uimsg.Make("keepawake.notice.askparent", "who", parentName, "tool", tool)
+	case tabName != "":
+		messageText = uimsg.Make("keepawake.notice.asktab", "tab", tabName, "tool", tool)
+	default:
+		messageText = uimsg.Make("keepawake.notice.ask", "tool", tool)
+	}
+	action := func(id string, label string, labelText *uimsg.Text, policy string) molten.NotificationAction {
+		return molten.NotificationAction{Id: id, Label: label, LabelText: labelText, Kind: "gesture", Gesture: PolicyGesture, Args: map[string]any{"policy": policy}}
 	}
 	return molten.NotificationInput{
 		Key:         AskNotificationKey,
 		Source:      NotificationSource,
 		Title:       "A terminal wants to keep " + computerName() + " awake",
+		TitleText:   uimsg.Make("keepawake.notice.asktitle"),
 		Message:     message,
+		MessageText: messageText,
 		Kind:        "warning",
 		WorkspaceId: wsId,
 		Actions: []molten.NotificationAction{
-			action("allow", "Allow", PolicyAllow),
-			action("untilworkends", "Until work ends", PolicyUntilWorkEnds),
-			action("letsleep", "Let it sleep", PolicyLetSleep),
+			action("allow", "Allow", uimsg.Make("keepawake.notice.allow"), PolicyAllow),
+			action("untilworkends", "Until work ends", uimsg.Make("keepawake.notice.untilworkends"), PolicyUntilWorkEnds),
+			action("letsleep", "Let it sleep", uimsg.Make("keepawake.notice.letsleep"), PolicyLetSleep),
 		},
 	}
 }
@@ -436,13 +450,17 @@ func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, 
 }
 
 func coffeeEndNotice(wsId string, name string) molten.NotificationInput {
+	titleText := uimsg.Make("keepawake.notice.coffeeendtitle", "name", name)
 	if name == "" {
 		name = "A workspace"
+		titleText = uimsg.Make("keepawake.notice.coffeeendtitleunnamed")
 	}
 	return molten.NotificationInput{
 		Source:      NotificationSource,
 		Title:       fmt.Sprintf("%s: work finished, %s may sleep again", name, computerName()),
+		TitleText:   titleText,
 		Message:     "Its coffee ended 2 minutes after the last work in the workspace stopped.",
+		MessageText: uimsg.Make("keepawake.notice.coffeeend"),
 		Kind:        noticeKindInfo,
 		WorkspaceId: wsId,
 	}
@@ -450,10 +468,12 @@ func coffeeEndNotice(wsId string, name string) molten.NotificationInput {
 
 func policyEndNotice() molten.NotificationInput {
 	return molten.NotificationInput{
-		Source:  NotificationSource,
-		Title:   fmt.Sprintf("Work finished: %s may sleep again", computerName()),
-		Message: "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped.",
-		Kind:    noticeKindInfo,
+		Source:      NotificationSource,
+		Title:       fmt.Sprintf("Work finished: %s may sleep again", computerName()),
+		TitleText:   uimsg.Make("keepawake.notice.policyendtitle"),
+		Message:     "Until work ends kept it awake while work ran; MoltenTerm released its block 2 minutes after the last work stopped.",
+		MessageText: uimsg.Make("keepawake.notice.policyend"),
+		Kind:        noticeKindInfo,
 	}
 }
 
@@ -480,11 +500,13 @@ func (k *Keeper) buildLocked() State {
 	}
 	if state.PolicyWorking {
 		state.PolicyReasons = append([]string(nil), k.policyReasons...)
+		state.PolicyReasonsText = reasonsText(state.PolicyReasons)
 	}
 	for id, rec := range k.coffees {
 		c := Coffee{WorkspaceId: id, WorkspaceName: rec.name, Since: rec.since, Working: rec.working}
 		if rec.working {
 			c.Reasons = append([]string(nil), rec.reasons...)
+			c.ReasonsText = reasonsText(c.Reasons)
 		}
 		if !rec.working && !rec.graceStart.IsZero() {
 			c.EndsAt = rec.graceStart.Add(GracePeriod).UnixMilli()

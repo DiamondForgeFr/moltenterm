@@ -7,6 +7,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText, serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { whileShown } from "../tab-activity";
@@ -186,7 +187,7 @@ function RunDetail({
                     {t("mc.ciLocal.tree")} {shortSha(run.tree)} · {run.id}
                 </div>
             </div>
-            {run.error ? <Problem text={run.error} /> : null}
+            {run.error ? <Problem text={serverText(run.errortext, run.error)} /> : null}
             <div className="flex flex-wrap gap-1.5">
                 <button
                     type="button"
@@ -255,7 +256,7 @@ function RunRow({
                 await onRerun();
                 setConfirming(false);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }
@@ -368,7 +369,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
             try {
                 await launch(onBranch, forceRun);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }
@@ -382,7 +383,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
                 await missionTrust(dir, pending.info.hash);
                 startOn(pending.branch, pending.force);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const showLogs = (id: string) => {

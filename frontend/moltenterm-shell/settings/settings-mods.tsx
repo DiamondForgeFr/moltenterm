@@ -9,6 +9,7 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect } from "react";
 import {
+    budgetReasonText,
     MoltenBudgetCpuPct,
     MoltenBudgetMemoryMB,
     MoltenBudgetWindowMs,
@@ -67,7 +68,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                     </Pill>
                 ) : null}
                 {over ? (
-                    <Pill className="bg-warning/10 text-warning" title={mod.usage.reason}>
+                    <Pill className="bg-warning/10 text-warning" title={budgetReasonText(mod.usage, t)}>
                         {t("settings.mods.overBudget")}
                     </Pill>
                 ) : null}
@@ -86,7 +87,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                     {formatModUsage(mod.usage, t)}
                 </div>
             ) : null}
-            {over ? <div className="text-11 text-warning">{mod.usage.reason}</div> : null}
+            {over ? <div className="text-11 text-warning">{budgetReasonText(mod.usage, t)}</div> : null}
         </div>
     );
 });

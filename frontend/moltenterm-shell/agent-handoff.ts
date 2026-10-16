@@ -7,6 +7,7 @@
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { t } from "./i18n/i18n";
+import { serverErrorText } from "./i18n/server-text";
 import { NotificationGestureResult } from "./notifications-store";
 
 // must match pkg/molten/handoffwire/handoffwire.go
@@ -42,7 +43,7 @@ export async function answerAgentHandoff(args: Record<string, any>): Promise<Not
         });
     } catch (e) {
         // The agent stopped waiting (50 seconds) or MoltenTerm restarted: the request is gone, so is its question.
-        return { ok: false, resolve: true, error: e?.message ?? String(e) };
+        return { ok: false, resolve: true, error: serverErrorText(e) };
     }
     return { ok: true, resolve: true };
 }

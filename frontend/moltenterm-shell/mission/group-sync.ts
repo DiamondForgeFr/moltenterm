@@ -7,6 +7,7 @@
 // does, this answers what the notification center answers for an action it does not know.
 
 import { t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { notificationGesture, NotificationGestureResult, UnknownGestureError } from "../notifications-store";
 import { SyncArgs } from "./group-strip-model";
 
@@ -21,6 +22,6 @@ export async function startDependencySync(args: SyncArgs): Promise<NotificationG
     try {
         return (await gesture({ ...args })) ?? { ok: false, error: t("mc.common.unknownError") };
     } catch (e) {
-        return { ok: false, error: String(e?.message ?? e) };
+        return { ok: false, error: serverErrorText(e) };
     }
 }

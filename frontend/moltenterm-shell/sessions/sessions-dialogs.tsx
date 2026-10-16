@@ -8,6 +8,7 @@ import { cn, makeIconClass } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
 import {
@@ -108,7 +109,7 @@ export function EndSessionDialog({
         try {
             await onEnd();
         } catch (e) {
-            setError(e?.message ?? String(e));
+            setError(serverErrorText(e));
             setBusy(false);
         }
     };
@@ -155,7 +156,7 @@ export function CleanupDialog({
         try {
             await onEnd();
         } catch (e) {
-            setError(e?.message ?? String(e));
+            setError(serverErrorText(e));
             setBusy(false);
         }
     };

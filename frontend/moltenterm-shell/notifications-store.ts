@@ -15,6 +15,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { t } from "./i18n/i18n";
+import { serverErrorText } from "./i18n/server-text";
 import {
     Delivery,
     deliveryOf,
@@ -265,7 +266,9 @@ export class MoltentermNotifications {
             if (!result?.ok) {
                 this.setError(
                     entry.id,
-                    t("notif.action.failed", { error: result?.error ?? t("notif.action.unknownError") })
+                    t("notif.action.failed", {
+                        error: result?.error ? serverErrorText(result.error) : t("notif.action.unknownError"),
+                    })
                 );
                 return;
             }
@@ -273,7 +276,7 @@ export class MoltentermNotifications {
                 this.resolve(entry.key);
             }
         } catch (e) {
-            this.setError(entry.id, t("notif.action.failed", { error: e?.message ?? String(e) }));
+            this.setError(entry.id, t("notif.action.failed", { error: serverErrorText(e) }));
         } finally {
             this.setRunning(runKey, false);
         }

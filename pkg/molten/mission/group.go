@@ -16,6 +16,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -205,11 +206,14 @@ func railGroupNotices(displaced []railorder.Displaced) []molten.NotificationInpu
 	rtn := make([]molten.NotificationInput, 0, len(displaced))
 	for _, d := range displaced {
 		rtn = append(rtn, molten.NotificationInput{
-			Key:         RailGroupNoticeKeyPrefix + d.GroupId + ":" + d.WorkspaceId,
-			Source:      "moltenterm",
-			Kind:        "info",
-			Title:       fmt.Sprintf("%s moved to %s", d.WorkspaceName, d.ProductName),
-			Message:     fmt.Sprintf("%s now belongs to %s, declared in its project files, so it left the group %s. Project groups come first.", d.WorkspaceName, d.ProductName, d.GroupName),
+			Key:       RailGroupNoticeKeyPrefix + d.GroupId + ":" + d.WorkspaceId,
+			Source:    "moltenterm",
+			Kind:      "info",
+			Title:     fmt.Sprintf("%s moved to %s", d.WorkspaceName, d.ProductName),
+			TitleText: uimsg.Make("notif.railgroups.movedTitle", "workspace", d.WorkspaceName, "product", d.ProductName),
+			Message:   fmt.Sprintf("%s now belongs to %s, declared in its project files, so it left the group %s. Project groups come first.", d.WorkspaceName, d.ProductName, d.GroupName),
+			MessageText: uimsg.Make("notif.railgroups.moved", "workspace", d.WorkspaceName, "product", d.ProductName,
+				"group", d.GroupName),
 			WorkspaceId: d.WorkspaceId,
 		})
 	}

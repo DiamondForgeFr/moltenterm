@@ -11,6 +11,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { NotificationGestureResult, registerNotificationGesture } from "../notifications-store";
 import { always, TabActivity } from "../tab-activity";
 import { pathBaseName } from "../workspace-project";
@@ -106,7 +107,7 @@ export class DepSyncModel {
             const tail = ended.state === "success" ? [] : await readLogTail(dir, ended.id);
             return depSyncResultOf(ended, tail);
         } catch (e) {
-            return { ok: false, error: String(e?.message ?? e) };
+            return { ok: false, error: serverErrorText(e) };
         } finally {
             this.setRunning(key, false);
         }

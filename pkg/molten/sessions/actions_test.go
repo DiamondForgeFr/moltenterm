@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 type fakeOps struct {
@@ -243,6 +244,39 @@ func TestShowAtPlacesTheReattachedPane(t *testing.T) {
 	}
 	if got := ops.trace(); got != "create tabA cwd=/home/me/app conn=; copy detached newblock; attach detached newblock; insert tabA newblock down of blockT" {
 		t.Fatalf("a dropped session opens beside its panel: %s", got)
+	}
+}
+
+// The windows word the refusals by their codes (#656); `molten session` reads the English.
+func TestRefusalCodes(t *testing.T) {
+	ending := molten.DurableSession{Id: "ending", Reason: molten.SessionReasonEnding}
+	a, _, _ := makeTestActions(shownB, olderS, ending, detachedS)
+	ctx := context.Background()
+	codeOf := func(err error) string {
+		if text := uimsg.TextOf(err); text != nil {
+			return text.Code
+		}
+		return ""
+	}
+	_, err := a.End(ctx, "shown", "blockB")
+	if codeOf(err) != "sessions.endself" {
+		t.Errorf("own session: %v", err)
+	}
+	_, err = a.End(ctx, "gone", "")
+	if codeOf(err) != "sessions.gone" || uimsg.TextOf(err).Vars["session"] == "" {
+		t.Errorf("gone session: %v %+v", err, uimsg.TextOf(err))
+	}
+	_, err = a.Show(ctx, "older", "tabA")
+	if codeOf(err) != "sessions.cannotshow.olderversion" || err.Error() != "this session cannot be shown: it was started by an older MoltenTerm and can only be ended" {
+		t.Errorf("older version: %v", err)
+	}
+	_, err = a.Show(ctx, "ending", "tabA")
+	if codeOf(err) != "sessions.cannotshow.ending" {
+		t.Errorf("ending: %v", err)
+	}
+	_, err = a.Show(ctx, "detached", "")
+	if codeOf(err) != "sessions.notab" {
+		t.Errorf("no tab: %v", err)
 	}
 }
 

@@ -22,7 +22,7 @@ import {
     turnOffForEveryAgent,
     turnOnForAgent,
 } from "./companion-integration-model";
-import { CompanionIntegrationItem, CompanionView } from "./companion-model";
+import { CompanionIntegrationItem, CompanionView, integrationItemText } from "./companion-model";
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -49,12 +49,15 @@ export function IntegratedBadge({ onOpen, className }: { onOpen: () => void; cla
 function ItemList({ items, testId }: { items: CompanionIntegrationItem[]; testId: string }) {
     return (
         <ul className="flex flex-col gap-1" data-testid={testId}>
-            {items.map((item, i) => (
-                <li key={`${item.kind}:${i}`} className="text-12 leading-5 text-primary">
-                    {item.name}
-                    {item.reason ? <span className="text-muted">: {item.reason}</span> : null}
-                </li>
-            ))}
+            {items.map((item, i) => {
+                const text = integrationItemText(item);
+                return (
+                    <li key={`${item.kind}:${i}`} className="text-12 leading-5 text-primary">
+                        {text.name}
+                        {text.reason ? <span className="text-muted">: {text.reason}</span> : null}
+                    </li>
+                );
+            })}
         </ul>
     );
 }

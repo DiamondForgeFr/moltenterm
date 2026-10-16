@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -336,7 +337,7 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
                 await missionGitInit(dir);
                 onDone();
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
                 setBusy(false);
             }
         });

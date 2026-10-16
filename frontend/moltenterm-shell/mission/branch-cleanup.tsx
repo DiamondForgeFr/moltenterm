@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
+import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { ActionSecondaryClass } from "./action-button";
 import {
@@ -54,6 +55,25 @@ export function branchReason(b: BranchPlan, trunk: string): string {
     return key ? t(key) : (b.reason ?? "");
 }
 
+// cleanErrorLines words the branches the cleaning could not delete; a kept branch's reason is worded as the list does.
+export function cleanErrorLines(result: BranchesCleanResult, trunk: string): string[] {
+    return (result?.errors ?? []).map((english, i) => {
+        const text: ServerText = result.errorstext?.[i];
+        if (text?.code !== "mission.branches.kept") {
+            return serverText(text, english);
+        }
+        const vars = text.vars ?? {};
+        const plan = {
+            name: vars.branch,
+            remote: false,
+            action: "keep",
+            reason: vars.reason,
+            pr: Number(vars.pr) || 0,
+        };
+        return serverText({ ...text, vars: { ...vars, reason: branchReason(plan as BranchPlan, trunk) } }, english);
+    });
+}
+
 export function cleanResultLine(result: BranchesCleanResult): string {
     return result.failed
         ? t("mc.branches.resultFailed", { deleted: result.deleted.length, failed: result.failed })
@@ -79,7 +99,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 }
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });
@@ -98,7 +118,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 await branchesAutoDelete(dir, enable);
                 setOfferAnswer(enable ? "on" : "later");
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setOfferBusy(false);
             }
@@ -111,7 +131,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 setResult(await branchesClean(dir, [...new Set(going.map((b) => b.name))]));
                 onCleaned();
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }
@@ -147,8 +167,8 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             <p className="text-13 leading-5 text-primary" data-testid="cleanup-result">
                                 {cleanResultLine(result)}
                             </p>
-                            {(result.errors ?? []).map((e) => (
-                                <p key={e} className="text-muted">
+                            {cleanErrorLines(result, trunk).map((e, i) => (
+                                <p key={i} className="text-muted">
                                     {e}
                                 </p>
                             ))}

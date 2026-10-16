@@ -8,6 +8,7 @@ import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import { askReviewRebase, markReviewReady, openReviewTab, ReviewPrInfo } from "../review/review-client";
@@ -133,7 +134,7 @@ export class ReviewsModel {
             });
             outcome = rebaseOutcome(result);
         } catch (e) {
-            outcome = rebaseOutcome(null, String(e?.message ?? e));
+            outcome = rebaseOutcome(null, serverErrorText(e));
         }
         if (outcome?.kind === "asked") {
             const key = rebaseAskKey(dir, pr.number);
@@ -173,7 +174,7 @@ export class ReviewsModel {
         try {
             error = markReadyError(await markReviewReady({ repo, number, dir }));
         } catch (e) {
-            error = markReadyError(null, String(e?.message ?? e));
+            error = markReadyError(null, serverErrorText(e));
         }
         if (error) {
             return error;

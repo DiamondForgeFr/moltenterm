@@ -25,7 +25,7 @@ import {
     MoltenNotificationKind,
     MoltenNotificationOptions,
 } from "./molten-api";
-import { MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
+import { budgetReasonText, MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
 import {
     isDataOnlyMod,
     MoltenManifestFileName,
@@ -924,7 +924,7 @@ export class MoltenHost {
             console.warn(`[molten:${id}] over budget: ${usage.reason}`);
             this.notify({
                 title: t("molten.notify.overBudgetTitle", { id }),
-                message: t("molten.notify.overBudgetMessage", { reason: usage.reason, id }),
+                message: t("molten.notify.overBudgetMessage", { reason: budgetReasonText(usage, t), id }),
                 kind: "warning",
             });
         }

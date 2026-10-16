@@ -5,11 +5,11 @@ package sessions
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Ops are the changes the actions make, wavesrv's in the app (ops.go), recorded in tests.
@@ -67,14 +67,15 @@ func (a *Actions) fresh(id string) (molten.DurableSession, bool, error) {
 
 func (a *Actions) find(id string) (molten.DurableSession, error) {
 	if id == "" {
-		return molten.DurableSession{}, fmt.Errorf("no session id given")
+		return molten.DurableSession{}, uimsg.Errorf(uimsg.Make("sessions.noid"), "no session id given")
 	}
 	s, ok, err := a.fresh(id)
 	if err != nil {
 		return s, err
 	}
 	if !ok {
-		return s, fmt.Errorf("the session %s is no longer running", molten.ShortSessionId(id))
+		short := molten.ShortSessionId(id)
+		return s, uimsg.Errorf(uimsg.Make("sessions.gone", "session", short), "the session %s is no longer running", short)
 	}
 	return s, nil
 }
@@ -92,7 +93,7 @@ func (a *Actions) End(ctx context.Context, id string, callerBlockId string) (mol
 		return molten.DurableSessionEndResult{}, err
 	}
 	if callerBlockId != "" && s.BlockId == callerBlockId {
-		return molten.DurableSessionEndResult{}, fmt.Errorf("a session cannot end itself: type exit instead")
+		return molten.DurableSessionEndResult{}, uimsg.Errorf(uimsg.Make("sessions.endself"), "a session cannot end itself: type exit instead")
 	}
 	defer a.rebuild()
 	return a.end(ctx, s)
@@ -160,7 +161,7 @@ func (a *Actions) ShowAt(ctx context.Context, id string, tabId string, place mol
 		return molten.SessionLocation{}, err
 	}
 	if !s.CanShow {
-		return molten.SessionLocation{}, fmt.Errorf("this session cannot be shown: %s", reasonText(s.Reason))
+		return molten.SessionLocation{}, cannotShow(s.Reason)
 	}
 	if s.Shown {
 		return a.showShown(ctx, s, tabId)
@@ -168,14 +169,14 @@ func (a *Actions) ShowAt(ctx context.Context, id string, tabId string, place mol
 	return a.reattach(ctx, s, tabId, place)
 }
 
-func reasonText(reason string) string {
+func cannotShow(reason string) error {
 	switch reason {
 	case molten.SessionReasonOlderVersion:
-		return "it was started by an older MoltenTerm and can only be ended"
+		return uimsg.Errorf(uimsg.Make("sessions.cannotshow.olderversion"), "this session cannot be shown: it was started by an older MoltenTerm and can only be ended")
 	case molten.SessionReasonEnding:
-		return "it is being ended"
+		return uimsg.Errorf(uimsg.Make("sessions.cannotshow.ending"), "this session cannot be shown: it is being ended")
 	}
-	return reason
+	return uimsg.Errorf(uimsg.Make("sessions.cannotshow.other", "reason", reason), "this session cannot be shown: %s", reason)
 }
 
 func (a *Actions) showShown(ctx context.Context, s molten.DurableSession, callerTabId string) (molten.SessionLocation, error) {
@@ -202,7 +203,7 @@ func (a *Actions) showShown(ctx context.Context, s molten.DurableSession, caller
 
 func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId string, place molten.PanePlacement) (molten.SessionLocation, error) {
 	if tabId == "" {
-		return molten.SessionLocation{}, fmt.Errorf("no tab to open the session in")
+		return molten.SessionLocation{}, uimsg.Errorf(uimsg.Make("sessions.notab"), "no tab to open the session in")
 	}
 	wsId, err := a.ops.WorkspaceOfTab(ctx, tabId)
 	if err != nil {

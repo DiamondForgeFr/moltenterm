@@ -14,6 +14,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 )
 
@@ -102,66 +103,78 @@ func claudeBrowserConfigJSON(moltenPath string) ([]byte, error) {
 
 // planClaudeBrowser returns the --mcp-config file to add, or nil with the reason in Skipped.
 func planClaudeBrowser(ctx LaunchContext, managed settingsSource, plan *LaunchPlan) []byte {
-	skip := func(reason string) []byte {
-		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationBrowser, Name: claudeBrowserItemName, Reason: reason})
+	skip := func(reason phrase) []byte {
+		plan.Skipped = append(plan.Skipped, skippedItem(molten.IntegrationBrowser, browserItemPhrase, reason))
 		return nil
 	}
 	if ctx.MoltenPath == "" {
-		return skip("MoltenTerm's browser server (molten mcp browser) is not installed")
+		return skip(browserNotInstalled)
 	}
 	mcpArgs := parseClaudeMcpArgs(ctx.Args)
 	if mcpArgs.strict {
-		return skip("you passed " + claudeStrictMcpFlag + ": only your own --mcp-config servers run")
+		return skip(say(uimsg.Make("integration.reason.strictmcp", "flag", claudeStrictMcpFlag),
+			"you passed "+claudeStrictMcpFlag+": only your own --mcp-config servers run"))
 	}
-	if reason := managedMcpReason(ctx, managed); reason != "" {
+	if reason := managedMcpReason(ctx, managed); reason.english != "" {
 		return skip(reason)
 	}
 	for _, value := range mcpArgs.configs {
 		doc, err := readUserMcpConfig(value, ctx.Cwd)
 		if err != nil {
-			return skip("your --mcp-config " + value + " could not be read")
+			return skip(say(uimsg.Make("integration.reason.mcpconfigunreadable", "file", value), "your --mcp-config "+value+" could not be read"))
 		}
 		if doc.hasBrowser() {
-			return skip("already yours, in your --mcp-config")
+			return skip(say(uimsg.Make("integration.reason.alreadyyoursmcpconfig"), "already yours, in your --mcp-config"))
 		}
 	}
 	if where, err := claudeBrowserInGlobalConfig(ctx); err != nil || where != "" {
 		if err != nil {
-			return skip(err.Error())
+			return skip(say(uimsg.TextOf(err), err.Error()))
 		}
-		return skip("already yours, in " + where)
+		return skip(alreadyYours(where))
 	}
 	if where, err := claudeBrowserInProjectFiles(ctx); err != nil || where != "" {
 		if err != nil {
-			return skip(err.Error())
+			return skip(say(uimsg.TextOf(err), err.Error()))
 		}
-		return skip("already yours, in " + where)
+		return skip(alreadyYours(where))
 	}
 	data, err := claudeBrowserConfigJSON(ctx.MoltenPath)
 	if err != nil {
-		return skip("the server's configuration could not be written")
+		return skip(say(uimsg.Make("integration.reason.browserconfignotwritten"), "the server's configuration could not be written"))
 	}
-	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationBrowser, Name: claudeBrowserItemName})
+	plan.Added = append(plan.Added, addedItem(molten.IntegrationBrowser, browserItemPhrase))
 	return data
+}
+
+var (
+	browserItemPhrase   = say(uimsg.Make("integration.name.browser"), claudeBrowserItemName)
+	browserNotInstalled = say(uimsg.Make("integration.reason.browsernotinstalled"), "MoltenTerm's browser server (molten mcp browser) is not installed")
+)
+
+// unreadableFile is the error of a configuration file that could not be read, display: its path as the user knows it.
+func unreadableFile(display string) error {
+	return uimsg.Errorf(uimsg.Make("integration.reason.fileunreadable", "where", display), "%s could not be read", display)
 }
 
 // managedMcpReason: a managed-mcp.json next to the managed settings has exclusive control (Claude Code then ignores
 // other servers), and a managed managedMcpServers naming molten-browser is the organization's own.
-func managedMcpReason(ctx LaunchContext, managed settingsSource) string {
+func managedMcpReason(ctx LaunchContext, managed settingsSource) phrase {
 	managedPath := ctx.ManagedSettings
 	if managedPath == "" {
 		managedPath = molten.ClaudeManagedSettingsPath()
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(managedPath), claudeManagedMcpFile)); err == nil {
-		return "your organization's managed MCP configuration decides which servers run"
+		return say(uimsg.Make("integration.reason.managedmcp"), "your organization's managed MCP configuration decides which servers run")
 	}
+	provided := say(uimsg.Make("integration.reason.managedprovided"), "already provided by your organization's managed settings")
 	if managed.unreadable && strings.Contains(managed.raw, mcpbrowser.ServerName) {
-		return "already provided by your organization's managed settings"
+		return provided
 	}
 	if raw, ok := managed.keys["managedMcpServers"]; ok && bytes.Contains(raw, []byte(`"`+mcpbrowser.ServerName+`"`)) {
-		return "already provided by your organization's managed settings"
+		return provided
 	}
-	return ""
+	return phrase{}
 }
 
 // readUserMcpConfig reads one --mcp-config value as Claude Code does: a JSON object, inline or in a file.
@@ -203,7 +216,7 @@ func claudeBrowserInGlobalConfig(ctx LaunchContext) (string, error) {
 		return "", nil
 	}
 	if err != nil {
-		return "", errors.New(display + " could not be read")
+		return "", unreadableFile(display)
 	}
 	if !bytes.Contains(data, []byte(`"`+mcpbrowser.ServerName+`"`)) {
 		return "", nil
@@ -213,7 +226,7 @@ func claudeBrowserInGlobalConfig(ctx LaunchContext) (string, error) {
 		Projects map[string]claudeMcpDoc `json:"projects"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return "", errors.New(display + " could not be read")
+		return "", unreadableFile(display)
 	}
 	if parsed.hasBrowser() {
 		return display, nil
@@ -256,13 +269,13 @@ func claudeBrowserInProjectFiles(ctx LaunchContext) (string, error) {
 			var doc claudeMcpDoc
 			if json.Unmarshal(data, &doc) != nil {
 				if bytes.Contains(data, []byte(mcpbrowser.ServerName)) {
-					return "", errors.New(display + " could not be read")
+					return "", unreadableFile(display)
 				}
 			} else if doc.hasBrowser() {
 				return display, nil
 			}
 		} else if !errors.Is(err, fs.ErrNotExist) {
-			return "", errors.New(display + " could not be read")
+			return "", unreadableFile(display)
 		}
 		if dir == filepath.Dir(dir) {
 			return "", nil

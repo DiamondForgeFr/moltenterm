@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -44,15 +45,20 @@ type NotificationAction struct {
 	Gesture     string         `json:"gesture,omitempty"`
 	Args        map[string]any `json:"args,omitempty"`
 	Lasting     bool           `json:"lasting,omitempty"`
+	LabelText   *uimsg.Text    `json:"labeltext,omitempty"`
 }
 
 type NotificationInput struct {
-	Key         string               `json:"key,omitempty"`
-	Source      string               `json:"source"`
-	Title       string               `json:"title"`
-	TitleCode   string               `json:"titlecode,omitempty"`
-	TitleVars   map[string]string    `json:"titlevars,omitempty"`
+	Key       string            `json:"key,omitempty"`
+	Source    string            `json:"source"`
+	Title     string            `json:"title"`
+	TitleCode string            `json:"titlecode,omitempty"`
+	TitleVars map[string]string `json:"titlevars,omitempty"`
+	// TitleText, MessageText: the title and message as the windows word them (#656), for what wavesrv writes itself.
+	// An agent's words in Message are data and carry none.
+	TitleText   *uimsg.Text          `json:"titletext,omitempty"`
 	Message     string               `json:"message,omitempty"`
+	MessageText *uimsg.Text          `json:"messagetext,omitempty"`
 	Kind        string               `json:"kind,omitempty"`
 	WorkspaceId string               `json:"workspaceid,omitempty"`
 	TabId       string               `json:"tabid,omitempty"`
@@ -275,7 +281,14 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 			for k, v := range n.value {
 				value[k] = v
 			}
-			for k, v := range inputValue(input) {
+			next := inputValue(input)
+			// An update without a code must not keep the code of the text it replaces.
+			for _, k := range []string{"titlecode", "titlevars", "titletext", "messagetext"} {
+				if _, ok := next[k]; !ok {
+					delete(value, k)
+				}
+			}
+			for k, v := range next {
 				value[k] = v
 			}
 			value["updated"] = nowMs

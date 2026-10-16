@@ -9,6 +9,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { whileShown } from "../tab-activity";
@@ -156,7 +157,7 @@ function ActionButton({
                 await actions.run(action);
                 setConfirming(false);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }
@@ -211,7 +212,7 @@ function NotesEditor({
                 setText(next);
                 setSaved(next);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     useEffect(load, [actions]);
@@ -240,7 +241,7 @@ function NotesEditor({
                                 try {
                                     await actions.run(rewrite);
                                 } catch (e) {
-                                    setError(String(e?.message ?? e));
+                                    setError(serverErrorText(e));
                                 } finally {
                                     setBusy(false);
                                 }
@@ -262,7 +263,7 @@ function NotesEditor({
                                 await actions.saveNotes(text);
                                 setSaved(text);
                             } catch (e) {
-                                setError(String(e?.message ?? e));
+                                setError(serverErrorText(e));
                             } finally {
                                 setBusy(false);
                             }
@@ -531,7 +532,7 @@ export function ReleaseRunSection({
                 await missionTrust(dir, next.info.hash);
                 await actions.run(next.action);
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     return (

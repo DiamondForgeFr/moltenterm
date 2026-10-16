@@ -10,6 +10,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { addMoltentermNotification } from "../notifications-store";
 import {
     applyOutdated,
@@ -134,7 +135,7 @@ export class TermUpdates {
             try {
                 results.push({ blockid: term.blockid, outcome: await this.run(term.blockid, false) });
             } catch (e) {
-                results.push({ blockid: term.blockid, outcome: { status: "failed", message: String(e) } });
+                results.push({ blockid: term.blockid, outcome: { status: "failed", message: serverErrorText(e) } });
             }
         }
         const summary = updateAllSummary(results);

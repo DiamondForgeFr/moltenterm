@@ -13,6 +13,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
+import { ServerText, serverText } from "../i18n/server-text";
 
 // must match pkg/molten/mcpbrowser/wire.go
 export const BrowserAgentRouteId = "molten:browseragent";
@@ -48,7 +49,13 @@ export const ActionCueMs = 1500;
 
 // A request waiting on a tab: a site permission, or one sensitive action, whose words say what (must match
 // PermissionPrompt in pkg/molten/browseragent/env.go).
-export type AgentPermission = { requestid: string; site: string; kind?: string; action?: string };
+export type AgentPermission = {
+    requestid: string;
+    site: string;
+    kind?: string;
+    action?: string;
+    actiontext?: ServerText;
+};
 
 // The viewport size the agent emulates (resize), shown on the control bar.
 export type AgentViewport = { width: number; height: number };
@@ -63,6 +70,7 @@ export type AgentTab = {
     origin: string;
     state: string;
     action?: string;
+    actiontext?: ServerText;
     actionts?: number;
     cue?: AgentActionCue;
     permission?: AgentPermission;
@@ -73,7 +81,7 @@ export type AgentTab = {
 
 // must match ShareResult, ShareTellResult and SessionEntry in pkg/molten/browseragent/share.go
 export type ShareResult = { result: "shared" | "move"; agentname?: string; holder?: string };
-export type ShareTellResult = { sent: boolean; message: string };
+export type ShareTellResult = { sent: boolean; message: string; messagetext?: ServerText };
 export type AgentSession = { sessionid: string; blockid: string; agentname: string };
 
 export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
@@ -142,7 +150,7 @@ export function controlBarView(tab: AgentTab): ControlBarView {
     return {
         takenOver: false,
         title: t("browser.agent.controlling", { name }),
-        detail: tab.action ?? "",
+        detail: serverText(tab.actiontext, tab.action ?? ""),
         viewport,
         buttons: [{ label: t("browser.agent.stop"), action: "stop", primary: false }],
     };
@@ -166,10 +174,10 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
         return null;
     }
     if (tab.permission.kind === PromptKindAction) {
-        const what = tab.permission.action?.trim();
-        if (!what) {
+        if (!tab.permission.action?.trim()) {
             return null;
         }
+        const what = serverText(tab.permission.actiontext, tab.permission.action.trim());
         const site = tab.permission.site ?? "";
         return {
             requestId: tab.permission.requestid,

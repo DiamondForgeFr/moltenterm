@@ -57,15 +57,20 @@ func waitFor(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+const (
+	refusalHome       = "the home folder"
+	refusalRepository = "it holds its repository"
+)
+
 // worktreeRefusal names a folder MoltenTerm never removes, whatever git says: the home folder or one of its parents,
 // the root, or a folder holding the repository's main checkout.
 func worktreeRefusal(path string, main string, home string) string {
 	real := realPath(path)
 	if home != "" && pathInside(realPath(home), real) {
-		return "the home folder"
+		return refusalHome
 	}
 	if real == "/" || (main != "" && pathInside(realPath(main), real)) {
-		return "it holds its repository"
+		return refusalRepository
 	}
 	return ""
 }

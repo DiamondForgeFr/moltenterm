@@ -8,6 +8,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
+import { serverErrorText, ServerText } from "../i18n/server-text";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { BuildsFacts } from "./builds-model";
@@ -190,7 +191,7 @@ export function useMissionSnapshot(dir: string): MissionState {
                         setError(null);
                     }
                 } catch (e) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             });
         },
@@ -497,7 +498,13 @@ export type BranchPlan = {
     pr?: number;
 };
 export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
-export type BranchesCleanResult = { deleted: string[]; failed: number; errors?: string[] };
+export type BranchesCleanResult = {
+    deleted: string[];
+    failed: number;
+    errors?: string[];
+    // The codes of errors, by position (#656).
+    errorstext?: ServerText[];
+};
 
 export function branchesPlan(dir: string): Promise<BranchesPlan> {
     return releaseCall(MissionBranchesPlanCommand, { dir });

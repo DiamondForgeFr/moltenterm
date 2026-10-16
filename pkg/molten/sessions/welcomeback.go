@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -281,8 +282,16 @@ func WelcomeBackNotification(wb WelcomeBack, startTs int64) (molten.Notification
 		return molten.NotificationInput{}, false
 	}
 	title := plural(wb.Survived, "session", "sessions") + " kept running while MoltenTerm was closed"
+	titleText := uimsg.Make("sessions.welcomeback.keptother", "count", fmt.Sprintf("%d", wb.Survived))
+	if wb.Survived == 1 {
+		titleText = uimsg.Make("sessions.welcomeback.keptone")
+	}
 	if wb.Survived == 0 {
 		title = plural(len(wb.Lines), "session", "sessions") + " ended while MoltenTerm was closed"
+		titleText = uimsg.Make("sessions.welcomeback.endedother", "count", fmt.Sprintf("%d", len(wb.Lines)))
+		if len(wb.Lines) == 1 {
+			titleText = uimsg.Make("sessions.welcomeback.endedone")
+		}
 	}
 	texts := make([]string, 0, len(wb.Lines))
 	for _, line := range wb.Lines {
@@ -293,11 +302,12 @@ func WelcomeBackNotification(wb WelcomeBack, startTs int64) (molten.Notification
 		kind = "warning"
 	}
 	input := molten.NotificationInput{
-		Key:     fmt.Sprintf("%s%d", welcomeBackKeyPrefix, startTs),
-		Source:  welcomeBackSource,
-		Title:   title,
-		Message: strings.Join(texts, "; "),
-		Kind:    kind,
+		Key:       fmt.Sprintf("%s%d", welcomeBackKeyPrefix, startTs),
+		Source:    welcomeBackSource,
+		Title:     title,
+		TitleText: titleText,
+		Message:   strings.Join(texts, "; "),
+		Kind:      kind,
 	}
 	for i, line := range wb.Lines {
 		if len(input.Actions) >= welcomeBackPaneActions {
@@ -308,20 +318,22 @@ func WelcomeBackNotification(wb WelcomeBack, startTs int64) (molten.Notification
 			continue
 		}
 		input.Actions = append(input.Actions, molten.NotificationAction{
-			Id:      fmt.Sprintf("show%d", i),
-			Label:   "Show " + clipLabel(line.What),
-			Kind:    "gesture",
-			Gesture: ShowSessionGesture,
-			Args:    map[string]any{"id": line.JobId},
-			Lasting: true,
+			Id:        fmt.Sprintf("show%d", i),
+			Label:     "Show " + clipLabel(line.What),
+			LabelText: uimsg.Make("sessions.welcomeback.show", "what", clipLabel(line.What)),
+			Kind:      "gesture",
+			Gesture:   ShowSessionGesture,
+			Args:      map[string]any{"id": line.JobId},
+			Lasting:   true,
 		})
 	}
 	input.Actions = append(input.Actions, molten.NotificationAction{
-		Id:      "sessions",
-		Label:   "Open Sessions",
-		Kind:    "gesture",
-		Gesture: OpenSessionsGesture,
-		Lasting: true,
+		Id:        "sessions",
+		Label:     "Open Sessions",
+		LabelText: uimsg.Make("sessions.welcomeback.open"),
+		Kind:      "gesture",
+		Gesture:   OpenSessionsGesture,
+		Lasting:   true,
 	})
 	return input, true
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewlang"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The publication language and the translations (FR-REV-010 AC1, AC2, DS-REV-008). The publication language is the
@@ -215,7 +216,7 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Translat
 		return rtn, nil
 	}
 	if s.translate == nil {
-		return TranslateResult{}, fmt.Errorf("MoltenTerm cannot reach the review session")
+		return TranslateResult{}, noSessionError()
 	}
 	ask, err := s.translate(ctx, mcpreview.TranslateRequest{
 		SessionKey: mcpreview.SessionKey{Repo: req.Repo, Number: req.Number},
@@ -233,7 +234,7 @@ func (s *Service) Translate(ctx context.Context, req TranslateRequest) (Translat
 func (s *Store) SetTranslation(k PrKey, id string, text string, lang string, byUser bool) (State, bool, error) {
 	text = strings.TrimSpace(text)
 	if len(text) > maxCommentBytes {
-		return State{}, false, fmt.Errorf("the translation is too long (64 KB at most)")
+		return State{}, false, uimsg.Errorf(uimsg.Make("review.translationtoolong"), "the translation is too long (64 KB at most)")
 	}
 	if id == "" {
 		return State{}, false, fmt.Errorf("the comment's id is required")
@@ -251,7 +252,7 @@ func (s *Store) SetTranslation(k PrKey, id string, text string, lang string, byU
 		if id == mcpreview.SummaryId {
 			sum := state.Summary
 			if sum == nil {
-				setErr = fmt.Errorf("the review has no summary")
+				setErr = uimsg.Errorf(uimsg.Make("review.nosummary"), "the review has no summary")
 				return false
 			}
 			if !byUser && sum.Translation != nil && sum.Translation.EditedByUser {
@@ -271,12 +272,12 @@ func (s *Store) SetTranslation(k PrKey, id string, text string, lang string, byU
 		}
 		c := findComment(state, id)
 		if c == nil {
-			setErr = fmt.Errorf("no comment has the id %s", id)
+			setErr = noCommentError(id)
 			return false
 		}
 		if c.State != CommentStateStaged && c.State != CommentStateTranslated {
 			if byUser {
-				setErr = fmt.Errorf("only a staged comment is translated (this one is %s)", c.State)
+				setErr = uimsg.Errorf(uimsg.Make("review.onlystagedtranslated"), "only a staged comment is translated (this one is %s)", c.State)
 			}
 			return false
 		}
@@ -314,7 +315,7 @@ func (s *Store) SetTranslation(k PrKey, id string, text string, lang string, byU
 func (s *Store) SetSummary(req SummaryRequest) (State, bool, error) {
 	text := strings.TrimSpace(req.Text)
 	if len(text) > maxCommentBytes {
-		return State{}, false, fmt.Errorf("the summary is too long (64 KB at most)")
+		return State{}, false, uimsg.Errorf(uimsg.Make("review.summarytoolong"), "the summary is too long (64 KB at most)")
 	}
 	return s.update(req.PrKey, func(state *State) bool {
 		if text == "" {

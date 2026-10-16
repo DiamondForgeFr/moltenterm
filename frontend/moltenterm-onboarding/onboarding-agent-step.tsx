@@ -10,6 +10,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../moltenterm-shell/i18n/i18n";
+import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { openSettingsSection } from "../moltenterm-shell/settings/settings-open";
 import {
@@ -207,7 +208,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             setList(await listOnboardingAgents());
         } catch (e) {
-            setError(t("onboarding.agent.listFailed", { error: `${e?.message ?? e}` }));
+            setError(t("onboarding.agent.listFailed", { error: serverErrorText(e) }));
         } finally {
             setBusy(false);
         }
@@ -223,7 +224,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             await installDeclinedAgent(id);
         } catch (e) {
-            setError(`${e?.message ?? e}`);
+            setError(serverErrorText(e));
         } finally {
             setBusy(false);
         }
@@ -258,7 +259,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
     const keepChosen = () =>
         ctx.setData({ [ChosenAgentKey]: chosen.id }).then(
             () => ctx.complete(),
-            (e) => setError(`${e?.message ?? e}`)
+            (e) => setError(serverErrorText(e))
         );
 
     return (

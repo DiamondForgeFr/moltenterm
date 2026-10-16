@@ -5,7 +5,6 @@ package mission
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"gopkg.in/yaml.v3"
 )
 
@@ -75,6 +75,7 @@ type CatalogueWorkflow struct {
 	Triggers    []WorkflowTrigger `json:"triggers"`
 	Jobs        []CatalogueJob    `json:"jobs"`
 	Error       string            `json:"error,omitempty"`
+	ErrorText   *uimsg.Text       `json:"errortext,omitempty"`
 }
 
 type CatalogueLocalJob struct {
@@ -118,6 +119,8 @@ type JobDescribeResult struct {
 	Sent      bool   `json:"sent"`
 	Submitted bool   `json:"submitted,omitempty"`
 	Message   string `json:"message"`
+	// MessageText: Message's code, for the windows (#656).
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 }
 
 // AgentLine types a line into the prompt of the agent running in a terminal through the guarded agent input
@@ -180,10 +183,10 @@ func ReadCiCatalogue(dir string) (*CiCatalogue, error) {
 		path := filepath.Join(dir, workflowsDir, entry.Name())
 		data, err := os.ReadFile(path)
 		if err == nil && len(data) > maxWorkflowFileBytes {
-			err = errors.New("the file is too large to read")
+			err = uimsg.Errorf(uimsg.Make("mission.jobs.tooLarge"), "the file is too large to read")
 		}
 		if err != nil {
-			cat.Workflows = append(cat.Workflows, CatalogueWorkflow{File: entry.Name(), Path: path, Triggers: []WorkflowTrigger{}, Jobs: []CatalogueJob{}, Error: err.Error()})
+			cat.Workflows = append(cat.Workflows, CatalogueWorkflow{File: entry.Name(), Path: path, Triggers: []WorkflowTrigger{}, Jobs: []CatalogueJob{}, Error: err.Error(), ErrorText: uimsg.TextOf(err)})
 			continue
 		}
 		wf := ParseWorkflow(entry.Name(), string(data))
@@ -445,10 +448,12 @@ func ParseWorkflow(file string, text string) CatalogueWorkflow {
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(text), &doc); err != nil {
 		wf.Error = "unreadable YAML: " + err.Error()
+		wf.ErrorText = uimsg.Make("mission.jobs.badYaml", "detail", err.Error())
 		return wf
 	}
 	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
 		wf.Error = "not a workflow: the file holds no mapping"
+		wf.ErrorText = uimsg.Make("mission.jobs.noMapping")
 		return wf
 	}
 	root := doc.Content[0]
@@ -501,13 +506,13 @@ func describeLine(cat *CiCatalogue, req JobDescribeRequest) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("the job %q is no longer in the project's CI files", req.Job)
+	return "", uimsg.Errorf(uimsg.Make("mission.jobs.gone", "job", req.Job), "the job %q is no longer in the project's CI files", req.Job)
 }
 
 // DescribeJob asks the agent of a terminal to describe a job in its file.
 func DescribeJob(ctx context.Context, req JobDescribeRequest) (JobDescribeResult, error) {
 	if req.BlockId == "" {
-		return JobDescribeResult{}, errors.New("no agent was chosen")
+		return JobDescribeResult{}, uimsg.Errorf(uimsg.Make("mission.jobs.noAgent"), "no agent was chosen")
 	}
 	cat, err := ReadCiCatalogue(req.Dir)
 	if err != nil {
@@ -519,7 +524,7 @@ func DescribeJob(ctx context.Context, req JobDescribeRequest) (JobDescribeResult
 	}
 	typeLine := getAgentLine()
 	if typeLine == nil {
-		return JobDescribeResult{Message: "MoltenTerm cannot type in terminals yet: nothing was sent."}, nil
+		return JobDescribeResult{Message: "MoltenTerm cannot type in terminals yet: nothing was sent.", MessageText: uimsg.Make("mission.jobs.cannotType")}, nil
 	}
 	return typeLine(ctx, req.BlockId, line), nil
 }

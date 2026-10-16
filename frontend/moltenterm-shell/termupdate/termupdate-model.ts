@@ -5,6 +5,8 @@
 // header chip, its dialog and the palette use. Pure functions, tested without the app.
 
 import { t } from "../i18n/i18n";
+import type { ServerText } from "../i18n/server-text";
+import { termupdateMessage } from "./termupdate-text";
 
 // must match pkg/molten/termupdate/termupdate.go
 export const TermUpdateRoute = "molten:termupdate";
@@ -42,6 +44,7 @@ export type TermUpdateStatus =
 export type TermUpdateOutcome = {
     status: TermUpdateStatus;
     message: string;
+    messagetext?: ServerText;
     agent?: string;
     agentname?: string;
     program?: string;
@@ -112,7 +115,9 @@ export function updateAllSummary(results: { blockid: string; outcome: TermUpdate
         return { title, message: "", kind: "success" };
     }
     // Terminals left for the same reason (several running Claude Code) make one sentence.
-    const reasons = Array.from(new Set(left.map((r) => r.outcome?.message || t("termupdate.summary.couldNotUpdate"))));
+    const reasons = Array.from(
+        new Set(left.map((r) => termupdateMessage(r.outcome) || t("termupdate.summary.couldNotUpdate")))
+    );
     const lead =
         left.length === 1 ? t("termupdate.summary.leftOne") : t("termupdate.summary.leftOther", { count: left.length });
     return {

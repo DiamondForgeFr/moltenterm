@@ -106,6 +106,13 @@ func TestBuildWelcomeBackOrderAndText(t *testing.T) {
 	if len(input.Actions) != 3 || input.Actions[0].Args["id"] != "waiting" || input.Actions[1].Args["id"] != "done" || input.Actions[2].Gesture != OpenSessionsGesture {
 		t.Errorf("actions %+v", input.Actions)
 	}
+	// The windows word the title and the buttons by their codes (#656).
+	if input.TitleText == nil || input.TitleText.Code != "sessions.welcomeback.keptother" || input.TitleText.Vars["count"] != "5" {
+		t.Errorf("title text %+v", input.TitleText)
+	}
+	if input.Actions[0].LabelText == nil || input.Actions[0].LabelText.Code != "sessions.welcomeback.show" || input.Actions[2].LabelText.Code != "sessions.welcomeback.open" {
+		t.Errorf("action texts %+v %+v", input.Actions[0].LabelText, input.Actions[2].LabelText)
+	}
 	if len(input.Actions) > molten.MaxNotificationActions {
 		t.Errorf("%d actions over the cap", len(input.Actions))
 	}

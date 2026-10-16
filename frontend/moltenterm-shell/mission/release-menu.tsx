@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
@@ -88,7 +89,7 @@ export function ReleaseMenu({
                 setVersion(next.publicVersion ?? "");
             } catch (e) {
                 if (!cancelled) {
-                    setError(String(e?.message ?? e));
+                    setError(serverErrorText(e));
                 }
             }
         });
@@ -117,7 +118,7 @@ export function ReleaseMenu({
                     }
                 } catch (e) {
                     if (!cancelled) {
-                        setMilestone({ version: shipped, warning: null, error: String(e?.message ?? e) });
+                        setMilestone({ version: shipped, warning: null, error: serverErrorText(e) });
                     }
                 }
             });
@@ -154,7 +155,7 @@ export function ReleaseMenu({
                 setOpen(false);
                 onStarted();
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             } finally {
                 setBusy(false);
             }
@@ -167,7 +168,7 @@ export function ReleaseMenu({
                 await missionTrust(dir, info.hash);
                 launch();
             } catch (e) {
-                setError(String(e?.message ?? e));
+                setError(serverErrorText(e));
             }
         });
     const publicTitle =
