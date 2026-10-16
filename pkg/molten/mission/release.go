@@ -131,8 +131,38 @@ func (r *Runs) endRelease(dir string) error {
 }
 
 func (r *Runs) ignoredReleases(dir string) []string {
+	var combined []string
+	type ignoredHistory struct {
+		tags     []string
+		modified time.Time
+	}
+	var histories []ignoredHistory
+	// Preserve choices in older alias histories. File modification order is the only historical recency available;
+	// the caller's current alias must not reorder these choices or drop recent tags at the retention bound.
+	for _, storage := range r.projectDirs(dir) {
+		file := filepath.Join(storage, ReleaseIgnoredFileName)
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		history := ignoredHistory{modified: info.ModTime()}
+		readJson(file, &history.tags)
+		histories = append(histories, history)
+	}
+	sort.SliceStable(histories, func(i, j int) bool { return histories[i].modified.Before(histories[j].modified) })
+	for _, history := range histories {
+		combined = append(combined, history.tags...)
+	}
+	latest := map[string]int{}
+	for i, tag := range combined {
+		latest[tag] = i
+	}
 	var tags []string
-	readJson(filepath.Join(r.projectDir(dir), ReleaseIgnoredFileName), &tags)
+	for i, tag := range combined {
+		if latest[tag] == i {
+			tags = append(tags, tag)
+		}
+	}
 	return tags
 }
 
