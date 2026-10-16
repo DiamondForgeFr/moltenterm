@@ -26,6 +26,9 @@ const WireMark = "uimsg:"
 type Text struct {
 	Code string            `json:"code"`
 	Vars map[string]string `json:"vars,omitempty"`
+	// Parts are placeholders that are sentences of ours (a duration, a state, the rest of a list): the window words
+	// each one first, then puts it in its placeholder (#750).
+	Parts map[string]*Text `json:"parts,omitempty"`
 }
 
 // Make is the Text of code with its vars as name, value pairs. The code must be a string literal, so that the guard
@@ -39,6 +42,18 @@ func Make(code string, pairs ...string) *Text {
 		rtn.Vars[pairs[i]] = pairs[i+1]
 	}
 	return rtn
+}
+
+// With sets the placeholder name to part, worded by the window; a nil part leaves the Text unchanged.
+func (t *Text) With(name string, part *Text) *Text {
+	if part == nil {
+		return t
+	}
+	if t.Parts == nil {
+		t.Parts = make(map[string]*Text)
+	}
+	t.Parts[name] = part
+	return t
 }
 
 // Error is an error a window words by its Text; Error() is the English.

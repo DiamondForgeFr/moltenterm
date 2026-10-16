@@ -5191,7 +5191,28 @@
                 "endedone": "1 session s'est terminée pendant que MoltenTerm était fermé",
                 "endedother": "{count} sessions se sont terminées pendant que MoltenTerm était fermé",
                 "show": "Afficher {what}",
-                "open": "Ouvrir Sessions"
+                "open": "Ouvrir Sessions",
+                "line": "{head}{place}{ran} : {news}",
+                "place": " · dans {place}",
+                "ran": ", en cours depuis {duration}",
+                "join": "{first} ; {rest}",
+                "duration": {
+                    "underminute": "moins d'une minute",
+                    "min": "{m} min",
+                    "h": "{h} h",
+                    "hmin": "{h} h {m} min",
+                    "d": "{d} j"
+                },
+                "news": {
+                    "failed": "échec",
+                    "waiting": "vous attend",
+                    "finished": "terminé",
+                    "output": "nouvelle sortie",
+                    "exitedzero": "terminée (0)",
+                    "exitedstatus": "terminée avec le code {status}",
+                    "endedby": "arrêtée par {signal}",
+                    "exited": "terminée"
+                }
             },
             "cannotshow": {
                 "olderversion": "Cette session ne peut pas être affichée : elle a été lancée par une ancienne version de MoltenTerm et ne peut qu'être terminée.",

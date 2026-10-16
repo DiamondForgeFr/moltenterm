@@ -24,6 +24,14 @@ describe("serverText", () => {
         expect(serverText({ code: "test.unknown" }, "English")).toBe("English");
     });
 
+    it("words parts first, and shows the English when a part's code is unknown (#750)", () => {
+        const part = { code: "test.known", vars: { n: "3" } };
+        expect(serverText({ code: "test.known", vars: { a: "x" }, parts: { p: part } }, "English")).toBe(
+            `[server.test.known ${JSON.stringify({ a: "x", p: '[server.test.known {"n":"3"}]' })}]`
+        );
+        expect(serverText({ code: "test.known", parts: { p: { code: "test.unknown" } } }, "English")).toBe("English");
+    });
+
     it("words lists by position", () => {
         expect(serverTexts([{ code: "test.known" }, null], ["a", "b"])).toEqual(["[server.test.known {}]", "b"]);
         expect(serverTexts(null, ["a"])).toEqual(["a"]);
