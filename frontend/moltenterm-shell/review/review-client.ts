@@ -140,12 +140,21 @@ export type ReviewRestartResult = {
     worktree?: string;
     worktreecreated?: boolean;
     blockid?: string;
+    // The new agent's own tab, hidden when it works out of sight (#758).
+    tabid?: string;
+    hidden?: boolean;
     agent?: string;
     agentname?: string;
     firstname?: string;
     briefpath?: string;
     state?: ReviewState;
 };
+
+// How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
+export type AgentMode = "background" | "together";
+
+// The start of a new agent the developer chose: its tab goes in the workspace, named in the interface language.
+export type AgentStart = { start?: boolean; mode?: AgentMode; workspaceid?: string; tabname?: string };
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
 
@@ -604,37 +613,38 @@ export function publishReview(req: {
 }
 
 // restartReviewWork is the developer's click on Restart work (FR-REV-011): the last published round goes to an agent in
-// the worktree of the PR's branch; a new agent terminal goes in tabid, right of afterblockid.
-export function restartReviewWork(req: {
-    repo: string;
-    number: number;
-    dir: string;
-    headref: string;
-    baseref?: string;
-    title?: string;
-    url?: string;
-    ticket?: number;
-    tabid: string;
-    afterblockid?: string;
-}): Promise<ReviewRestartResult> {
+// the worktree of the PR's branch; with no agent there it answers offer, and start starts one the chosen way (#758).
+export function restartReviewWork(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
     return call(RestartCommand, req, RestartTimeoutMs);
 }
 
 // askReviewRebase is the developer's click on Ask for a rebase in the Reviews list (#683): the agent on the PR's branch
-// gets the rebase; with start, a new agent starts in the Review tab tabid when none works there.
-export function askReviewRebase(req: {
-    repo: string;
-    number: number;
-    dir: string;
-    headref: string;
-    baseref: string;
-    headoid?: string;
-    title?: string;
-    url?: string;
-    ticket?: number;
-    start?: boolean;
-    tabid?: string;
-}): Promise<ReviewRestartResult> {
+// gets the rebase; with start, a new agent starts the chosen way (#758) when none works there.
+export function askReviewRebase(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        mergedpr?: number;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
     return call(RebaseCommand, req, RestartTimeoutMs);
 }
 

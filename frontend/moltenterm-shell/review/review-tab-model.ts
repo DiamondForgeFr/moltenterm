@@ -22,6 +22,7 @@ import type { AgentStateInfo } from "../agent-state-model";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
+import { agentStartOf, askAgentChoice, showStartedAgent } from "../reviews/agent-choice";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -89,7 +90,7 @@ import {
 } from "./review-model";
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
-import { ReviewRestartState } from "./review-restart";
+import { lastPublished, ReviewRestartState } from "./review-restart";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
@@ -133,7 +134,6 @@ export type ReviewFileView = {
 export type ReviewNewCommits = { to: string; baseoid?: string; commits: number; rewritten?: boolean };
 
 export type ReviewWorktreeState = { state: "pending" | "ready" | "failed"; worktree?: ReviewWorktree; error?: string };
-
 
 // What asking the session for the translations did (FR-REV-010 AC1).
 export type ReviewTranslateStatus = "idle" | "asking" | "sent" | "typed" | "busy" | "nosession" | "none" | "failed";
@@ -1122,26 +1122,42 @@ export abstract class ReviewTabModel implements ViewModel {
     }
 
     // Restart work (FR-REV-011) is the developer's click: wavesrv hands the last published round to an agent in the
-    // worktree of the PR's branch and marks the round; the ticket's status is not touched.
+    // worktree of the PR's branch and marks the round; the ticket's status is not touched. With no agent there, the
+    // developer chooses how one starts (#758): out of sight, or in its own tab; never this Review tab.
     async restartWork() {
         const pr = this.pr();
         if (pr == null || globalStore.get(this.restartAtom).status === "restarting") {
             return;
         }
         globalStore.set(this.restartAtom, { status: "restarting" });
+        const req = {
+            repo: pr.repo,
+            number: pr.number,
+            dir: pr.dir,
+            headref: pr.headref,
+            baseref: pr.baseref,
+            title: pr.title,
+            url: pr.url,
+            ticket: pr.ticket,
+        };
         try {
-            const result = await restartReviewWork({
-                repo: pr.repo,
-                number: pr.number,
-                dir: pr.dir,
-                headref: pr.headref,
-                baseref: pr.baseref,
-                title: pr.title,
-                url: pr.url,
-                ticket: pr.ticket,
-                tabid: globalStore.get(atoms.staticTabId),
-                afterblockid: globalStore.get(this.aiPaneIdAtom) ?? this.blockId,
-            });
+            let result = await restartReviewWork(req);
+            if (result.status === "offer") {
+                const mode = await askAgentChoice({
+                    kind: "restart",
+                    number: pr.number,
+                    branch: pr.headref,
+                    base: pr.baseref,
+                    agent: result.agentname,
+                    round: lastPublished(globalStore.get(this.stateAtom))?.number,
+                });
+                if (mode == null) {
+                    globalStore.set(this.restartAtom, { status: "idle" });
+                    return;
+                }
+                result = await restartReviewWork({ ...req, ...agentStartOf("restart", pr.number, mode) });
+                showStartedAgent(mode, result);
+            }
             if (result.state != null) {
                 this.applyState(result.state);
             }

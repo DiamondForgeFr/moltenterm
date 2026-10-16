@@ -11,8 +11,9 @@ import { atom, PrimitiveAtom } from "jotai";
 import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
-import { askReviewRebase, markReviewReady, openReviewTab, ReviewPrInfo } from "../review/review-client";
+import { AgentMode, askReviewRebase, markReviewReady, openReviewTab, ReviewPrInfo } from "../review/review-client";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
+import { agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { reviewsGet } from "./reviews-client";
 import {
     cleanupRebaseAsks,
@@ -102,20 +103,37 @@ export class ReviewsModel {
         globalStore.set(this.validateSheetAtom, null);
     }
 
-    // A row's Ask for a rebase (#683): the agent on the PR's branch gets it; with start, the developer accepted to start
-    // one, in the PR's Review tab (Restart work's flow). An agent reached marks the row until the PR's head changes.
-    async askRebase(dir: string, pr: ReviewPr, repo: string, start: boolean): Promise<RebaseOutcome> {
+    // A row's Ask for a rebase (#683): the agent on the PR's branch gets it. With none there, the developer chooses how
+    // one starts (#758): out of sight, or in its own tab shown by this window; never the PR's Review tab. An agent
+    // reached marks the row until the PR's head changes. mergedPr: the merge that put the PR in conflict (#691).
+    async askRebase(dir: string, pr: ReviewPr, repo: string, mergedPr?: number): Promise<RebaseOutcome> {
+        const outcome = await this.askRebaseOnce(dir, pr, repo, null, mergedPr);
+        if (outcome?.kind !== "offer") {
+            return outcome;
+        }
+        const mode = await askAgentChoice({
+            kind: "rebase",
+            number: pr.number,
+            branch: pr.branch,
+            base: pr.base,
+            agent: outcome.agent,
+        });
+        if (mode == null) {
+            return null;
+        }
+        return this.askRebaseOnce(dir, pr, repo, mode, mergedPr);
+    }
+
+    private async askRebaseOnce(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        mode: AgentMode,
+        mergedPr?: number
+    ): Promise<RebaseOutcome> {
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName) {
             return null;
-        }
-        let tabid: string;
-        if (start) {
-            const workspaceId = globalStore.get(atoms.workspace)?.oid;
-            if (!workspaceId) {
-                return null;
-            }
-            tabid = await openPullRequestTab(workspaceId, dir, pr, repoName);
         }
         let outcome: RebaseOutcome;
         try {
@@ -129,9 +147,10 @@ export class ReviewsModel {
                 title: pr.tickettitle || pr.title,
                 url: pr.url,
                 ticket: pr.ticket,
-                start: start || undefined,
-                tabid,
+                mergedpr: mergedPr || undefined,
+                ...(mode != null ? agentStartOf("rebase", pr.number, mode) : {}),
             });
+            showStartedAgent(mode, result);
             outcome = rebaseOutcome(result);
         } catch (e) {
             outcome = rebaseOutcome(null, serverErrorText(e));
@@ -159,9 +178,16 @@ export class ReviewsModel {
         }
     }
 
-    // Start an agent on a PR the merge put in conflict (#691), from the Validate sheet: Ask for a rebase with start.
-    startCleanupAgent(dir: string, repo: string, base: string, pr: ReviewCleanupPr): Promise<RebaseOutcome> {
-        return this.askRebase(dir, reviewPrOfCleanup(pr, base), repo, true);
+    // Start an agent on a PR the merge of mergedPr put in conflict (#691), from the Validate sheet: Ask for a rebase,
+    // with the same choice (#758).
+    startCleanupAgent(
+        dir: string,
+        repo: string,
+        base: string,
+        pr: ReviewCleanupPr,
+        mergedPr?: number
+    ): Promise<RebaseOutcome> {
+        return this.askRebase(dir, reviewPrOfCleanup(pr, base), repo, mergedPr);
     }
 
     // Mark ready for review (#687), from a draft's row or its Review tab: gh pr ready, then the list moves the PR to

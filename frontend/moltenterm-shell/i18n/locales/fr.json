@@ -4148,7 +4148,8 @@
             "notready": "{name} ne peut pas prendre le rebase maintenant : {message}",
             "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",
             "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
-            "failed": "Le rebase n'a pas pu être demandé : {message}"
+            "failed": "Le rebase n'a pas pu être demandé : {message}",
+            "startedHidden": "{name} rebase {branch} hors de vue : suivez-le ci-dessous ou dans Sessions. Une notification vous prévient quand il a fini ou a besoin de vous."
         },
         "ready": {
             "button": "Prête pour la revue",
@@ -5205,7 +5206,7 @@
             "sheet": {
                 "title": "Relancer le travail · #{number}",
                 "what": "Les {count} commentaires publiés du tour de revue {round} vont à un agent dans le worktree de {branch} : il les applique, commite au format du projet, pousse et répond sur chaque fil.",
-                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon votre agent démarre dans un nouveau terminal de cet onglet, avec vos permissions habituelles.",
+                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon vous choisissez comment votre agent démarre : hors de vue, ou dans son propre onglet, avec vos permissions habituelles.",
                 "ticket": "Le ticket garde son statut. Rien ne démarre avant votre clic sur Relancer le travail.",
                 "again": "Ce tour a déjà été confié : un nouveau clic le confie à nouveau.",
                 "cancel": "Annuler"
@@ -5225,7 +5226,8 @@
                 "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
                 "notstarted": "L'agent n'a pas démarré : {message}",
                 "nottyped": "Les commentaires n'ont pas pu être envoyés à {agent} : {message}",
-                "failed": "La relance du travail a échoué : {message}"
+                "failed": "La relance du travail a échoué : {message}",
+                "startedHidden": "{agent} travaille sur la passe hors de vue dans {folder} : une notification vous prévient quand il a fini ou a besoin de vous."
             }
         },
         "notes": {
@@ -5578,6 +5580,18 @@
                 "leftTitle": "Premiers pas est toujours là",
                 "left": "Rouvrez-le quand vous voulez, depuis le menu de l'application ou la palette de commandes.",
                 "open": "Ouvrir Premiers pas"
+            },
+            "review": {
+                "rebasedTitle": "#{number} rebasée sur {base} par {name}, prête pour la revue",
+                "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}, prête pour la revue",
+                "needsTitle": "{name} a besoin de vous sur #{number}",
+                "stopped": "{name} s'est arrêté avant de pousser {branch} : son terminal dit ce qu'il attend.",
+                "exited": "La session de {name} s'est terminée avant que {branch} soit poussée.",
+                "midRebase": "{name} s'est arrêté au milieu du rebase de {branch} : son terminal dit ce qu'il attend.",
+                "changes": "{name} a poussé, mais sa copie de {branch} a des fichiers non commités ({count}) : {names}",
+                "commits": "Commits non poussés sur {branch} : {count}.",
+                "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
+                "openReview": "Ouvrir la revue"
             }
         },
         "companion": {
@@ -5791,5 +5805,38 @@
             "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
             "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}"
         }
+    },
+    "agentChoice": {
+        "title": {
+            "rebase": "Rebaser #{number} avec un agent",
+            "restart": "Relancer le travail sur #{number} avec un agent"
+        },
+        "subtitle": "{branch} → {base}",
+        "what": {
+            "rebase": "{agent} rebase {branch} sur {base} dans une copie isolée de la branche, résout les conflits, lance les vérifications du projet et pousse avec lease.",
+            "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil."
+        },
+        "background": {
+            "button": "Laisser l'agent s'en charger",
+            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans Revues ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
+        },
+        "together": {
+            "rebase": "Faire le rebase avec l'agent",
+            "restart": "Faire le travail avec l'agent",
+            "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend."
+        },
+        "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
+        "default": "Par défaut",
+        "yourAgent": "Votre agent",
+        "tab": {
+            "rebase": "Rebase #{number}",
+            "restart": "Relance #{number}"
+        },
+        "noReview": "La pull request à ouvrir n'est pas connue."
+    },
+    "agentOrigin": {
+        "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",
+        "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
+        "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}"
     }
 }

@@ -46,7 +46,7 @@ export function restartOutcome(result: ReviewRestartResult, error?: string): str
     };
     switch (result.reason || result.status) {
         case "started":
-            return t("review.restart.outcome.started", vars);
+            return t(result.hidden ? "review.restart.outcome.startedHidden" : "review.restart.outcome.started", vars);
         case "sent":
             return t("review.restart.outcome.sent", vars);
         case "typed":

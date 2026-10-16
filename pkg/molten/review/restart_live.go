@@ -5,6 +5,7 @@ package review
 
 import (
 	"context"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
@@ -15,8 +16,13 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
+
+// liveFollowEvery: how often an agent MoltenTerm started is read on its way to its clean end (agentfollow.go); while
+// it works only its in-memory state is.
+const liveFollowEvery = 5 * time.Second
 
 // Restart is the developer's click on Restart work; the store's change goes to every Review tab of the PR.
 func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResult, error) {
@@ -70,6 +76,18 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		SessionAgent: reviewsession.SessionAgent,
 		Conventions: func(dir string) *molten.ProjectConventions {
 			return molten.ReadProject(dir).Conventions
+		},
+		AgentTab:    wcore.CreateAgentTab,
+		CloseTab:    wcore.CloseAgentTab,
+		FollowEvery: liveFollowEvery,
+		BlockExists: func(ctx context.Context, blockId string) bool {
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			return err == nil && block != nil
+		},
+		CloseTerminal: wcore.CloseAgentTerminal,
+		Notify:        attention.PublishNotification,
+		ResolveNotices: func(ctx context.Context, keyPrefix string) error {
+			return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
 		},
 	}
 }

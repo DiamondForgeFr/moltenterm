@@ -17,15 +17,16 @@ import (
 
 // Ask for a rebase (#683): the Reviews list's action on a PR that conflicts with its base. It goes the way Restart work
 // goes (restart.go): an agent running on the PR's branch gets the prompt through the guarded typing path of the
-// handoffs (#595); when none does, the window offers to start one, and on the developer's confirmation an agent starts
-// in the worktree of the branch, from the PR's Review tab. The brief, in MoltenTerm's data folder, asks for a rebase on
-// the base (never a merge of the base into the branch) and a push with lease; the agent never merges the PR.
+// handoffs (#595); when none does, the window offers to start one, and on the developer's choice (out of sight or with
+// them, #758) an agent starts in the worktree of the branch, in a tab of its own. The brief, in MoltenTerm's data folder,
+// asks for a rebase on the base (never a merge of the base into the branch) and a push with lease; the agent never
+// merges the PR.
 
 const (
 	RebaseCommand = "moltenreviewrebase"
 
 	// RebaseOffer: no agent runs on the branch; the window offers to start one (Start).
-	RebaseOffer = "offer"
+	RebaseOffer = RestartOffer
 
 	rebaseDirName = "rebase"
 )
@@ -41,9 +42,11 @@ type RebaseRequest struct {
 	Ticket  int    `json:"ticket,omitempty"`
 	// MergedPr: the merge that made this PR conflict, when the cleanup after a merge asks (#691); 0 for a row's click.
 	MergedPr int `json:"mergedpr,omitempty"`
-	// Start: the developer accepted to start an agent; it goes in the Review tab TabId.
-	Start bool   `json:"start,omitempty"`
-	TabId string `json:"tabid,omitempty"`
+	// Start: the developer chose how a new agent works (Mode, #758); its tab goes in WorkspaceId, named TabName.
+	Start       bool   `json:"start,omitempty"`
+	Mode        string `json:"mode,omitempty"`
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	TabName     string `json:"tabname,omitempty"`
 }
 
 func (req RebaseRequest) check() error {
@@ -59,45 +62,46 @@ func (req RebaseRequest) check() error {
 	if !reviewsession.ValidRef(req.BaseRef) {
 		return fmt.Errorf("baseref must be the PR's base branch")
 	}
-	if req.Start && req.TabId == "" {
-		return fmt.Errorf("tabid is required to start an agent")
-	}
-	return nil
+	return req.restartRequest().checkStart()
 }
 
 func (req RebaseRequest) restartRequest() RestartRequest {
 	return RestartRequest{
-		PrKey:   req.PrKey,
-		Dir:     req.Dir,
-		HeadRef: req.HeadRef,
-		BaseRef: req.BaseRef,
-		Title:   req.Title,
-		Url:     req.Url,
-		Ticket:  req.Ticket,
-		TabId:   req.TabId,
+		PrKey:       req.PrKey,
+		Dir:         req.Dir,
+		HeadRef:     req.HeadRef,
+		BaseRef:     req.BaseRef,
+		Title:       req.Title,
+		Url:         req.Url,
+		Ticket:      req.Ticket,
+		Start:       req.Start,
+		Mode:        req.Mode,
+		WorkspaceId: req.WorkspaceId,
+		TabName:     req.TabName,
 	}
 }
 
-// branchTrees: the folders where the branch is checked out, linked worktrees first. An agent already working in the
-// main checkout on the branch is reached there; MoltenTerm only never starts one there.
-func (r *Restarter) branchTrees(ctx context.Context, req RebaseRequest) ([]string, error) {
-	entries, err := r.worktrees(ctx, req.Dir)
+// branchTrees: the linked worktrees where the branch is checked out, and the main checkout when it is there. An agent
+// already working in the main checkout on the branch is reached there for a rebase; MoltenTerm never starts one there.
+func (r *Restarter) branchTrees(ctx context.Context, dir string, headRef string) ([]string, string, error) {
+	entries, err := r.worktrees(ctx, dir)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	ref := "refs/heads/" + req.HeadRef
-	var linked, main []string
+	ref := "refs/heads/" + headRef
+	var linked []string
+	main := ""
 	for i, e := range entries {
 		if e.branch != ref || !pathExists(e.path) {
 			continue
 		}
 		if i == 0 {
-			main = append(main, e.path)
+			main = e.path
 		} else {
 			linked = append(linked, e.path)
 		}
 	}
-	return append(linked, main...), nil
+	return linked, main, nil
 }
 
 // AskRebase hands the rebase to the agent on the PR's branch, or, with Start, to a new one (the developer's click, a
@@ -110,9 +114,13 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 		return RestartResult{Status: RestartBusy, Reason: RestartReasonInFlight, Message: "An agent is already being reached for this PR."}, nil
 	}
 	defer r.release(req.PrKey)
-	trees, err := r.branchTrees(ctx, req)
+	linked, main, err := r.branchTrees(ctx, req.Dir, req.HeadRef)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: RestartReasonWorktree, Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
+	}
+	trees := linked
+	if main != "" {
+		trees = append(trees, main)
 	}
 	for _, tree := range trees {
 		result := RestartResult{Branch: req.HeadRef, Worktree: tree}
@@ -124,10 +132,10 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 			return result, nil
 		}
 	}
-	if !req.Start {
-		return RestartResult{Status: RebaseOffer, Branch: req.HeadRef}, nil
-	}
 	rreq := req.restartRequest()
+	if !req.Start {
+		return r.offer(ctx, rreq, ""), nil
+	}
 	tree, created, err := r.agentTree(ctx, rreq)
 	if err != nil {
 		return RestartResult{Status: RestartFailed, Reason: restartTreeReason(err), Branch: req.HeadRef, Message: err.Error(), MessageText: uimsg.TextOf(err)}, nil
@@ -137,7 +145,9 @@ func (r *Restarter) AskRebase(ctx context.Context, req RebaseRequest) (RestartRe
 	if !ok {
 		return result, nil
 	}
-	r.startAgent(ctx, rreq, tree, line, &result)
+	origin := r.origin(rreq, AgentOriginRebase)
+	origin.MergedPr = req.MergedPr
+	r.startAgent(ctx, rreq, origin, tree, created, line, &result)
 	return result, nil
 }
 

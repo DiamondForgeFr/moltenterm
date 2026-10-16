@@ -27,6 +27,7 @@ import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
@@ -302,7 +303,7 @@ function switchBlockInDirection(direction: NavigateDirection) {
 }
 
 function getAllTabs(ws: Workspace): string[] {
-    return ws.tabids ?? [];
+    return visibleTabIds(ws); // MOLTENTERM-PATCH (#758): the keys skip the tabs of agents working out of sight
 }
 
 function switchTabAbs(index: number) {
