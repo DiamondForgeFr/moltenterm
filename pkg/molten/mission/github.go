@@ -23,7 +23,7 @@ import (
 const prFields = "number,title,body,author,headRefName,baseRefName,headRefOid,baseRefOid,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,closingIssuesReferences"
 
 // The merged pull requests of the Reviews view's Recently merged (#843): the window's, plus a day for the time zones.
-const mergedPrFields = "number,title,url,author,headRefName,baseRefName,isCrossRepository,mergedAt,mergedBy,mergeCommit,closingIssuesReferences"
+const mergedPrFields = "number,title,url,author,headRefName,baseRefName,isCrossRepository,mergedAt,mergedBy,mergeCommit,closingIssuesReferences,body"
 const mergedPrsListLimit = "30"
 const mergedPrsSearchDays = ReviewMergedDays + 1
 const runFields = "databaseId,workflowName,event,status,conclusion,headBranch,headSha,displayTitle,createdAt,updatedAt,url"

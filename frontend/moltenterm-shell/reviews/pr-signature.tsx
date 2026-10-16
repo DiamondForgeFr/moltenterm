@@ -44,16 +44,25 @@ export function usePrAgents(dir: string, num: number): AgentSignature[] {
 
 export function PrSignature({
     agents,
+    reviewed,
     className,
     testId = "pr-signature",
 }: {
     agents: AgentSignature[];
+    // the developer's validation, on a merged PR (#843's Recently merged)
+    reviewed?: { name: string; date: string };
     className?: string;
     testId?: string;
 }) {
     const t = useT();
     const tCount = useTCount();
     const last = agents?.[0];
+    const reviewedBy =
+        reviewed?.name != null && reviewed.name !== "" ? (
+            <span className="shrink-0 not-italic" data-testid={`${testId}-reviewed`}>
+                · {t("reviews.signature.reviewedBy", { name: reviewed.name })}
+            </span>
+        ) : null;
     if (last == null) {
         return (
             <div
@@ -64,6 +73,7 @@ export function PrSignature({
             >
                 <i className="fa fa-solid fa-robot text-10" aria-hidden="true" />
                 <span className="truncate">{t("reviews.signature.unknown")}</span>
+                {reviewedBy}
             </div>
         );
     }
@@ -81,6 +91,7 @@ export function PrSignature({
             {others > 0 ? (
                 <span className="shrink-0 text-secondary">{tCount("reviews.signature.more", others)}</span>
             ) : null}
+            {reviewedBy}
         </div>
     );
 }

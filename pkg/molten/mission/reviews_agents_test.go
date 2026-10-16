@@ -33,6 +33,25 @@ func agentLines(agents []agentsign.Signature) string {
 	return strings.Join(lines, " | ")
 }
 
+func TestMergedPrsCarryTheirSignature(t *testing.T) {
+	readAt := time.Date(2026, 10, 16, 18, 0, 0, 0, time.UTC)
+	body := agentsign.WithReview(agentsign.WithAgent(agentsign.WithAgent("Resolves #7", signJerome), signValentin),
+		agentsign.Review{Name: "Anthony", Date: "2026-10-16"})
+	signed := strings.TrimSuffix(mergedPrJson(1, "develop", readAt.Add(-time.Hour), "aaaaaaa"), "}")
+	quoted, _ := json.Marshal(body)
+	rows := "[" + signed + `,"body":` + string(quoted) + "}," + mergedPrJson(2, "develop", readAt.Add(-2*time.Hour), "bbbbbbb") + "]"
+	got, err := buildMerged(json.RawMessage(rows), "develop", readAt.UnixMilli(), nil)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("merged: %+v %v", got, err)
+	}
+	if agentLines(got[0].Agents) != signValentin.Line()+" | "+signJerome.Line() || got[0].Reviewed == nil || got[0].Reviewed.Name != "Anthony" {
+		t.Fatalf("signed row: %+v", got[0])
+	}
+	if len(got[1].Agents) != 0 || got[1].Reviewed != nil {
+		t.Fatalf("unsigned row: %+v", got[1])
+	}
+}
+
 func TestReviewsAgentsFromBodyThenCommits(t *testing.T) {
 	dir := reviewsProject(t, reviewsSfManifest)
 	answer := BuildReviews(reviewsSnapshot(dir, signedPrs(t)))

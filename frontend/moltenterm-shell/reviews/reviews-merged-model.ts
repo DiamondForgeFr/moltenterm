@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
 import type { ReviewNote } from "../review/review-notes";
+import type { AgentSignature } from "./reviews-model";
 
 // must match ReviewMergedDays in pkg/molten/mission/reviews_merged.go
 export const MergedDays = 7;
@@ -31,6 +32,9 @@ export type ReviewMergedPr = {
     ticketfrom?: "closing" | "branch";
     ships?: MergedShips;
     shipsin?: string;
+    // from the body's signature block (#847): the last agent first, and the developer's validation
+    agents?: AgentSignature[];
+    reviewed?: { name: string; date: string; url?: string };
 };
 
 export type ShipsLabel = { label: string; tone: "success" | "neutral"; title: string };

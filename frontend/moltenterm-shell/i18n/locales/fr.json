@@ -4383,7 +4383,8 @@
                 "one": "+{count} agent",
                 "other": "+{count} agents"
             },
-            "aria": "Faite par {who}"
+            "aria": "Faite par {who}",
+            "reviewedBy": "revue par {name}"
         },
         "openOnGithub": "Ouvrir la pull request sur GitHub",
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
