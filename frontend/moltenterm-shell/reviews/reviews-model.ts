@@ -389,7 +389,7 @@ export function splitReviews(answer: ReviewsAnswer, readied?: ReadiedPrs): Revie
     };
 }
 
-export type ReviewCounts = { waiting: number; mergeable: number };
+export type ReviewCounts = { toreview: number; mergeable: number };
 
 // mergeableNow: GitHub says the PR merges cleanly (#683) and no check fails or still runs.
 export function mergeableNow(pr: ReviewPr): boolean {
@@ -400,30 +400,35 @@ export function mergeableNow(pr: ReviewPr): boolean {
     return ci === "success" || ci === "none";
 }
 
-// The rail's counts (#688): the PRs waiting for review (the list's ready group) and those of them that can merge
-// now. Nothing while GitHub could not be read: no badge then.
+// The rail's counts (#688, #775): the PRs waiting for review (the list's ready group) split in two disjoint sets that
+// add up to them, those that cannot merge yet and those that can merge now. Nothing while GitHub could not be read:
+// no badge then.
 export function reviewCounts(answer: ReviewsAnswer, readied?: ReadiedPrs): ReviewCounts {
     if (answer?.state !== "ok") {
-        return { waiting: 0, mergeable: 0 };
+        return { toreview: 0, mergeable: 0 };
     }
     const ready = splitReviews(answer, readied).ready;
-    return { waiting: ready.length, mergeable: ready.filter(mergeableNow).length };
+    const mergeable = ready.filter(mergeableNow).length;
+    return { toreview: ready.length - mergeable, mergeable };
 }
 
 export function railCountText(count: number): string {
-    return count > 9 ? "9+" : String(count);
+    return count > 99 ? "99+" : String(count);
 }
 
 function plural(n: number, key: string): string {
     return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
-// The Reviews icon's tooltip and accessible name: "Reviews — 3 waiting for review, 1 ready to merge".
+// The Reviews icon's tooltip and accessible name: "Reviews — 5 to review, 4 ready to merge".
 export function reviewsRailLabel(counts: ReviewCounts): string {
-    if (counts == null || counts.waiting === 0) {
+    if (counts == null || (counts.toreview === 0 && counts.mergeable === 0)) {
         return t("rail.tools.reviews");
     }
-    const parts = [plural(counts.waiting, "rail.tools.reviewsCount.waiting")];
+    const parts: string[] = [];
+    if (counts.toreview > 0) {
+        parts.push(plural(counts.toreview, "rail.tools.reviewsCount.toReview"));
+    }
     if (counts.mergeable > 0) {
         parts.push(plural(counts.mergeable, "rail.tools.reviewsCount.mergeable"));
     }

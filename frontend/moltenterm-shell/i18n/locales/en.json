@@ -3464,9 +3464,9 @@
             "reviews": "Reviews · pull requests waiting for your review",
             "reviewsCounts": "Reviews — {counts}",
             "reviewsCount": {
-                "waiting": {
-                    "one": "1 waiting for review",
-                    "other": "{count} waiting for review"
+                "toReview": {
+                    "one": "1 to review",
+                    "other": "{count} to review"
                 },
                 "mergeable": {
                     "one": "1 ready to merge",

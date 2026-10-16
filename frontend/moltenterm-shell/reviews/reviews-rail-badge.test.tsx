@@ -5,35 +5,45 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReviewsRailBadges } from "./reviews-rail-badge";
 
-function badges(html: string): { waiting: string; mergeable: string } {
+function badges(html: string): { toreview: string; mergeable: string } {
     const read = (cls: string) => new RegExp(`${cls}[^"]*"[^>]*>([^<]*)<`).exec(html)?.[1] ?? null;
-    return { waiting: read("molten-reviews-waiting"), mergeable: read("molten-reviews-mergeable") };
+    return { toreview: read("molten-reviews-toreview"), mergeable: read("molten-reviews-mergeable") };
 }
 
-describe("ReviewsRailBadges (#688 AC4)", () => {
+describe("ReviewsRailBadges (#688 AC4, #775)", () => {
     it("draws nothing for 0", () => {
-        expect(renderToStaticMarkup(<ReviewsRailBadges counts={{ waiting: 0, mergeable: 0 }} />)).toBe("");
+        expect(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 0, mergeable: 0 }} />)).toBe("");
         expect(renderToStaticMarkup(<ReviewsRailBadges counts={null} />)).toBe("");
     });
 
-    it("draws the waiting count on top and the mergeable count at the bottom in the success colour", () => {
-        const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ waiting: 3, mergeable: 1 }} />);
-        expect(badges(html)).toEqual({ waiting: "3", mergeable: "1" });
-        expect(html).toMatch(/molten-reviews-waiting[^"]*top-0/);
+    it("draws the count to review on top and the mergeable count at the bottom in the success colour", () => {
+        const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 5, mergeable: 4 }} />);
+        expect(badges(html)).toEqual({ toreview: "5", mergeable: "4" });
+        expect(html).toMatch(/molten-reviews-toreview[^"]*top-0/);
         expect(html).toMatch(/molten-reviews-mergeable[^"]*bottom-0[^"]*bg-success/);
         expect(html).not.toMatch(/animate-/);
         expect(html.match(/aria-hidden="true"/g)).toHaveLength(2);
     });
 
-    it("draws one badge when nothing can merge yet", () => {
-        expect(badges(renderToStaticMarkup(<ReviewsRailBadges counts={{ waiting: 1, mergeable: 0 }} />))).toEqual({
-            waiting: "1",
+    it("draws one badge when one count is 0", () => {
+        expect(badges(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 1, mergeable: 0 }} />))).toEqual({
+            toreview: "1",
             mergeable: null,
+        });
+        expect(badges(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 0, mergeable: 3 }} />))).toEqual({
+            toreview: null,
+            mergeable: "3",
         });
     });
 
-    it("caps both counts at 9+", () => {
-        const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ waiting: 12, mergeable: 10 }} />);
-        expect(badges(html)).toEqual({ waiting: "9+", mergeable: "9+" });
+    it("shows real numbers up to 99", () => {
+        expect(badges(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 2, mergeable: 11 }} />))).toEqual({
+            toreview: "2",
+            mergeable: "11",
+        });
+        expect(badges(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 120, mergeable: 99 }} />))).toEqual({
+            toreview: "99+",
+            mergeable: "99",
+        });
     });
 });

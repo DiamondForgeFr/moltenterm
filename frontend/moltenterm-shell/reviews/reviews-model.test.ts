@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import {
     ciLabel,
     isReviewable,
@@ -241,27 +242,51 @@ describe("reviews model", () => {
             ],
             drafts: [pr(3, { draft: true }), pr(4, { draft: true })],
         });
-        expect(reviewCounts(a)).toEqual({ waiting: 5, mergeable: 1 });
+        expect(reviewCounts(a)).toEqual({ toreview: 4, mergeable: 1 });
         // A draft marked ready here counts at once (#687), mergeable when GitHub found it clean.
-        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 2000 })).toEqual({ waiting: 6, mergeable: 2 });
-        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 500 })).toEqual({ waiting: 5, mergeable: 1 });
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 2000 })).toEqual({ toreview: 4, mergeable: 2 });
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 500 })).toEqual({ toreview: 4, mergeable: 1 });
         expect(mergeableNow(pr(9))).toBe(true);
         expect(mergeableNow(pr(9, { draft: true }))).toBe(false);
         for (const state of ["nogh", "loggedout", "norepo", "error", ""] as const) {
-            expect(reviewCounts(answer({ state }))).toEqual({ waiting: 0, mergeable: 0 });
+            expect(reviewCounts(answer({ state }))).toEqual({ toreview: 0, mergeable: 0 });
         }
-        expect(reviewCounts(null)).toEqual({ waiting: 0, mergeable: 0 });
+        expect(reviewCounts(null)).toEqual({ toreview: 0, mergeable: 0 });
     });
 
-    it("words the rail's counts with plurals and caps them at 9+ (#688 AC1)", () => {
-        expect(reviewsRailLabel({ waiting: 0, mergeable: 0 })).toBe("Reviews · pull requests waiting for your review");
-        expect(reviewsRailLabel({ waiting: 3, mergeable: 1 })).toBe("Reviews — 3 waiting for review, 1 ready to merge");
-        expect(reviewsRailLabel({ waiting: 1, mergeable: 0 })).toBe("Reviews — 1 waiting for review");
-        expect(reviewsRailLabel({ waiting: 12, mergeable: 10 })).toBe(
-            "Reviews — 12 waiting for review, 10 ready to merge"
-        );
+    it("splits the PRs waiting for review into two counts that add up to them (#775 AC1, AC2)", () => {
+        const failing = { state: "failure" as const, success: 0, failure: 1, pending: 0, checks: [] };
+        const waiting = (total: number, mergeable: number) =>
+            answer({
+                ready: Array.from({ length: total }, (_, i) =>
+                    i < mergeable ? pr(i + 1) : pr(i + 1, i % 2 ? { merge: "conflicts" } : { ci: failing })
+                ),
+            });
+        expect(reviewCounts(waiting(9, 4))).toEqual({ toreview: 5, mergeable: 4 });
+        expect(reviewCounts(waiting(13, 11))).toEqual({ toreview: 2, mergeable: 11 });
+        expect(reviewCounts(waiting(4, 4))).toEqual({ toreview: 0, mergeable: 4 });
+    });
+
+    it("words the rail's counts with plurals and shows real numbers up to 99 (#688 AC1, #775 AC2, AC3)", () => {
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 0 })).toBe("Reviews · pull requests waiting for your review");
+        expect(reviewsRailLabel({ toreview: 5, mergeable: 4 })).toBe("Reviews — 5 to review, 4 ready to merge");
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0 })).toBe("Reviews — 1 to review");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 1 })).toBe("Reviews — 1 ready to merge");
+        expect(reviewsRailLabel({ toreview: 2, mergeable: 11 })).toBe("Reviews — 2 to review, 11 ready to merge");
         expect(railCountText(1)).toBe("1");
-        expect(railCountText(9)).toBe("9");
-        expect(railCountText(10)).toBe("9+");
+        expect(railCountText(11)).toBe("11");
+        expect(railCountText(99)).toBe("99");
+        expect(railCountText(100)).toBe("99+");
+    });
+
+    describe("in French", () => {
+        beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
+        afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+        it("words the rail's counts (#775 AC3)", () => {
+            expect(reviewsRailLabel({ toreview: 5, mergeable: 4 })).toBe("Revues — 5 à relire, 4 prêtes à fusionner");
+            expect(reviewsRailLabel({ toreview: 1, mergeable: 1 })).toBe("Revues — 1 à relire, 1 prête à fusionner");
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 11 })).toBe("Revues — 11 prêtes à fusionner");
+        });
     });
 });
