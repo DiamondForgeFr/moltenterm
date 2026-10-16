@@ -131,6 +131,21 @@ func TestRcFilesPutTheAgentLaunchersFirst(t *testing.T) {
 	}
 }
 
+func TestBashRcSilencesTheDeprecationBanner(t *testing.T) {
+	home := t.TempDir()
+	makeIntegrationDirs(t, home)
+	if err := InitRcFiles(home, filepath.Join(home, "bin")); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(home, BashIntegrationDir, ".bashrc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\nexport BASH_SILENCE_DEPRECATION_WARNING=1\n") {
+		t.Errorf("the bash integration must export BASH_SILENCE_DEPRECATION_WARNING=1")
+	}
+}
+
 func TestMoltenOpenPath(t *testing.T) {
 	dataDir := t.TempDir()
 	saved := wavebase.DataHome_VarCache

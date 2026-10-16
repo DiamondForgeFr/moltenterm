@@ -22,6 +22,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import RemarkFlexibleToc, { TocItem } from "remark-flexible-toc";
 import remarkGfm from "remark-gfm";
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#750)
 import { openLink } from "../store/global";
 import { IconButton } from "./iconbutton";
 import "./markdown.scss";
@@ -320,6 +321,7 @@ const Markdown = ({
     rehype = true,
     onClickExecute,
 }: MarkdownProps) => {
+    const t = useT(); // MOLTENTERM-PATCH (#750)
     const textAtomValue = useAtomValueSafe<string>(textAtom);
     const tocRef = useRef<TocItem[]>([]);
     const showToc = useAtomValueSafe(showTocAtom) ?? false;
@@ -498,7 +500,8 @@ const Markdown = ({
             {toc && (
                 <OverlayScrollbarsComponent className="toc mt-1" options={{ scrollbars: { autoHide: "leave" } }}>
                     <div className="toc-inner">
-                        <h4 className="font-bold">Table of Contents</h4>
+                        {/* MOLTENTERM-PATCH (#750) */}
+                        <h4 className="font-bold">{t("wave.editor.tableOfContents")}</h4>
                         {toc}
                     </div>
                 </OverlayScrollbarsComponent>

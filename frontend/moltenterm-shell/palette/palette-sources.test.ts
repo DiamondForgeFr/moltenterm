@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { formatShortcutById } from "../shortcuts/format";
 import {
     actionEntries,
     agentCopyEntries,
@@ -16,8 +17,6 @@ import {
     pushRecentFolder,
     readAgentPresets,
     recentFolderList,
-    shellPath,
-    shellQuote,
     tildePath,
 } from "./palette-sources";
 
@@ -58,7 +57,7 @@ describe("agent presets", () => {
 });
 
 describe("panels", () => {
-    it("lists the default widgets in display order with full names and wsh launch", () => {
+    it("lists the default widgets in display order with full names, the terminal with its shortcut, no wsh", () => {
         const panels = panelEntries(DefaultWidgets, "ws1");
         expect(panels.map((p) => p.label)).toEqual([
             "Terminal",
@@ -69,7 +68,10 @@ describe("panels", () => {
             "System info",
             "Processes",
         ]);
-        expect(panels[3].cli).toBe("wsh launch defwidget@cicd");
+        expect(panels.map((p) => p.cli).filter((c) => c)).toEqual([]);
+        expect(panels[0].hint).toBe(formatShortcutById("new-panel"));
+        expect(panels[0].hint).not.toBe("");
+        expect(panels[3].hint).toBeUndefined();
         expect(panels[0].run).toEqual({ kind: "widget", blockdef: DefaultWidgets["defwidget@terminal"].blockdef });
     });
 
@@ -102,9 +104,9 @@ describe("recent folders", () => {
         expect(e).toMatchObject({
             label: "My Project",
             detail: "~/APPS/My Project",
-            cli: "wsh term ~/'APPS/My Project'",
             run: { kind: "folder", path: "/Users/me/APPS/My Project" },
         });
+        expect(e.cli).toBeUndefined();
     });
 });
 
@@ -128,7 +130,9 @@ describe("workspace actions", () => {
         ]);
         expect(actions[2].run).toEqual({ kind: "splitplace" });
         expect(actions[5].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
-        expect(actions[8].cli).toBe("wsh editconfig");
+        expect(actions.filter((a) => a.cli?.startsWith("wsh "))).toEqual([]);
+        expect(actions[0].hint).toBe(formatShortcutById("new-tab"));
+        expect(actions[1].hint).toBe(formatShortcutById("reopen-closed"));
     });
 
     it("gives each workspace entry the rail's badge, imported image and logo included (FR-SHELL-031 AC8)", () => {
@@ -217,20 +221,6 @@ describe("agent copy commands", () => {
 });
 
 describe("helpers", () => {
-    it("quotes shell arguments only when needed", () => {
-        expect(shellQuote("defwidget@web")).toBe("defwidget@web");
-        expect(shellQuote("~/a b")).toBe("'~/a b'");
-        expect(shellQuote("it's")).toBe(`'it'\\''s'`);
-        expect(shellQuote("")).toBe("''");
-    });
-
-    it("keeps ~ outside the quotes of a shell path", () => {
-        expect(shellPath("/Users/me/a b", "/Users/me")).toBe("~/'a b'");
-        expect(shellPath("/Users/me/ab", "/Users/me")).toBe("~/ab");
-        expect(shellPath("/Users/me", "/Users/me")).toBe("~");
-        expect(shellPath("/tmp/a b", "/Users/me")).toBe("'/tmp/a b'");
-    });
-
     it("shortens the home folder to ~", () => {
         expect(tildePath("/Users/me/x", "/Users/me")).toBe("~/x");
         expect(tildePath("/Users/me", "/Users/me/")).toBe("~");

@@ -204,6 +204,25 @@
             "create": "Créer un espace de travail",
             "save": "Enregistrer l'espace de travail",
             "edit": "Modifier l'espace de travail"
+        },
+        "editor": {
+            "fontSize": "Taille de police de l'éditeur",
+            "fontSizeDefault": "Par défaut ({size} px)",
+            "saveFile": "Enregistrer le fichier",
+            "revertFile": "Revenir à la version enregistrée",
+            "wordWrap": "Retour à la ligne automatique",
+            "tableOfContents": "Table des matières",
+            "refresh": "Actualiser"
+        },
+        "search": {
+            "placeholder": "Rechercher",
+            "results": "Résultats de la recherche",
+            "previous": "Résultat précédent (Maj+Entrée)",
+            "next": "Résultat suivant (Entrée)",
+            "close": "Fermer (Échap)",
+            "regex": "Expression régulière",
+            "wholeWord": "Mot entier",
+            "caseSensitive": "Respecter la casse"
         }
     },
     "menu": {
