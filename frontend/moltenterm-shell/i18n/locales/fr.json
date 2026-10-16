@@ -1704,7 +1704,8 @@
             "palette-right": "Ouvrir l'entrée de la palette à droite",
             "carpet-previous": "Panneau précédent sur le tapis (vue 360)",
             "carpet-next": "Panneau suivant sur le tapis (vue 360)",
-            "pin-panel": "Épingler le panneau dans la zone fixe, ou le désépingler"
+            "pin-panel": "Épingler le panneau dans la zone fixe, ou le désépingler",
+            "equalize-panels": "Égaliser la largeur des panneaux"
         }
     },
     "tips": {
@@ -4045,6 +4046,22 @@
         "freshShell": "Un nouveau shell a démarré : celui qui a été fermé ne peut pas revenir.",
         "freshShellIn": "Un nouveau shell a démarré dans {path} : celui qui a été fermé ne peut pas revenir.",
         "failed": "Le dernier panneau fermé n'a pas pu être rouvert"
+    },
+    "equalize": {
+        "command": "Égaliser les panneaux",
+        "commandDetail": "toutes les colonnes de panneaux de l'onglet à la même largeur",
+        "autoOn": "Égalisation auto activée",
+        "autoOff": "Égalisation auto désactivée",
+        "autoOffNotice": "Égalisation auto désactivée : vous avez ajusté un panneau à la main",
+        "button": {
+            "label": "Égaliser les panneaux",
+            "title": "Égaliser les panneaux",
+            "click": "Clic : donne la même largeur à toutes les colonnes",
+            "hold": "Appui long : les garde égales après chaque changement (auto)",
+            "autoOn": "Égalisation auto activée : les colonnes gardent la même largeur après chaque changement",
+            "turnOff": "Clic ou appui long : désactiver l'auto",
+            "disabled": "Égaliser les panneaux : il faut deux panneaux côte à côte"
+        }
     },
     "view360": {
         "carpet": "tapis",

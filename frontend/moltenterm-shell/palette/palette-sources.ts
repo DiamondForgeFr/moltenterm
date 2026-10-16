@@ -245,6 +245,16 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             run: { kind: "splitplace" },
         },
         {
+            id: "action:equalize",
+            group: "actions",
+            label: t("equalize.command"),
+            detail: t("equalize.commandDetail"),
+            icon: "table-columns",
+            hint: formatShortcutById("equalize-panels") || undefined,
+            keywords: ["equalize", "even", "balance", "same width", "columns", "resize", "panels"],
+            run: { kind: "equalize" },
+        },
+        {
             id: "action:newworkspace",
             group: "actions",
             label: t("palette.actions.newWorkspace"),

@@ -120,6 +120,7 @@ describe("workspace actions", () => {
             "New tab",
             "Reopen the last closed pane or tab",
             "Split the panel…",
+            "Equalize panels",
             "New workspace",
             "Edit workspace…",
             "Switch to Notulia",
@@ -129,7 +130,9 @@ describe("workspace actions", () => {
             "Keyboard shortcuts",
         ]);
         expect(actions[2].run).toEqual({ kind: "splitplace" });
-        expect(actions[5].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
+        expect(actions[3].run).toEqual({ kind: "equalize" });
+        expect(actions[3].hint).toBe(formatShortcutById("equalize-panels"));
+        expect(actions[6].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
         expect(actions.filter((a) => a.cli?.startsWith("wsh "))).toEqual([]);
         expect(actions[0].hint).toBe(formatShortcutById("new-tab"));
         expect(actions[1].hint).toBe(formatShortcutById("reopen-closed"));
@@ -189,6 +192,7 @@ describe("workspace actions", () => {
             "New tab",
             "Reopen the last closed pane or tab",
             "Split the panel…",
+            "Equalize panels",
             "New workspace",
             "Edit workspace…",
             "Getting started",
