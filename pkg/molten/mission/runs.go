@@ -13,11 +13,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +28,7 @@ import (
 // Runs of a project's declared commands (DS-MC-005): MoltenTerm starts them in the project folder, in a session of
 // their own (a build goes on if MoltenTerm restarts), keeps each run's log and state under
 // <data>/molten/runs/<project>/<run>/, and follows the log for the phases a step announces (`▶ phase: <name>`, as in
-// Notulia) and for its exit code.
+// Notulia). A separate supervisor record supplies the exit code.
 
 const (
 	RunKindBuild = "build"
@@ -55,7 +53,6 @@ const (
 )
 
 var phaseRegex = regexp.MustCompile(`(?m)^\s*▶ phase:\s*(.+?)\s*$`)
-var exitRegex = regexp.MustCompile(`(?m)^exit=(-?\d+)\s*$`)
 
 type RunRecord struct {
 	Id         string   `json:"id"`
@@ -112,13 +109,14 @@ type LogChunk struct {
 }
 
 type Runs struct {
-	lock      sync.Mutex
-	baseDir   string
-	trust     *TrustStore
-	publish   func(RunRecord)
-	now       func() time.Time
-	watching  map[string]bool
-	preparing map[string]bool
+	recordLocks sync.Map
+	lock        sync.Mutex
+	baseDir     string
+	trust       *TrustStore
+	publish     func(RunRecord)
+	now         func() time.Time
+	watching    map[string]bool
+	preparing   map[string]bool
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
 	git         Runner
@@ -387,8 +385,8 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		return rec, err
 	}
 	defer logFile.Close()
-	// The exit line is how the run's end is known, even after a MoltenTerm restart.
-	cmd := exec.Command("/bin/sh", "-c", `( `+rec.Command+` ); echo "exit=$?"`)
+	// The supervisor records the run's end separately, even after a MoltenTerm restart.
+	cmd := r.supervisedCommand(rec)
 	cmd.Dir = filepath.Join(dir, rec.Cwd)
 	cmd.Env = commandEnv()
 	for k, v := range command.Env {
@@ -406,10 +404,11 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		return rec, uimsg.Errorf(uimsg.Make("mission.run.startFailed", "title", rec.Title, "detail", err.Error()), "starting %s: %w", rec.Title, err)
 	}
 	rec.Pid = cmd.Process.Pid
+	go cmd.Wait()
 	if err := r.writeRecord(rec); err != nil {
+		stopRunGroup(rec.Pid)
 		return rec, err
 	}
-	go cmd.Wait()
 	r.prune(dir)
 	r.watch(rec)
 	if r.publish != nil {
@@ -418,12 +417,12 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	return rec, nil
 }
 
-// update reads what the run's log says since last time; it reports whether the record changed.
+// update follows output and authoritative completion independently; even a missing log cannot hide completion.
 func (r *Runs) update(rec *RunRecord) bool {
-	data, err := os.ReadFile(r.logFile(rec.Dir, rec.Id))
-	if err != nil {
+	if rec.State != RunStateRunning {
 		return false
 	}
+	data, _ := os.ReadFile(r.logFile(rec.Dir, rec.Id))
 	changed := int64(len(data)) != rec.LogSize
 	rec.LogSize = int64(len(data))
 	phases := []string{}
@@ -434,24 +433,19 @@ func (r *Runs) update(rec *RunRecord) bool {
 		rec.Phases = phases
 		changed = true
 	}
-	if m := exitRegex.FindAllSubmatch(data, -1); len(m) > 0 {
-		code, _ := strconv.Atoi(string(m[len(m)-1][1]))
-		rec.Exit = &code
-		rec.FinishedAt = r.now().UnixMilli()
-		switch {
-		case rec.Cancelled:
-			rec.State = RunStateCancelled
-		case code == 0:
-			rec.State = RunStateSuccess
-		default:
-			rec.State = RunStateFailure
-		}
-		return true
-	}
 	if rec.Preparing {
 		return changed
 	}
+	if code, ok := r.completion(*rec); ok {
+		r.complete(rec, code)
+		return true
+	}
 	if !processAlive(rec.Pid) {
+		// The supervisor may have published between the first read and its process exiting.
+		if code, ok := r.completion(*rec); ok {
+			r.complete(rec, code)
+			return true
+		}
 		rec.FinishedAt = r.now().UnixMilli()
 		rec.State = RunStateLost
 		if rec.Cancelled {
@@ -489,19 +483,12 @@ func (r *Runs) watch(rec RunRecord) {
 		defer r.stopWatching(rec.Id)
 		for rec.State == RunStateRunning {
 			time.Sleep(runPollInterval)
-			// The record on disk is the reference: a build's preparation fills in its commit and process first.
-			if current, err := r.readRecord(rec.Dir, rec.Id); err == nil {
-				rec = current
-			}
-			if rec.Preparing {
+			current, changed, err := r.refreshRecord(rec.Dir, rec.Id)
+			if err != nil {
 				continue
 			}
-			if !r.update(&rec) {
-				continue
-			}
-			r.settle(&rec)
-			r.writeRecord(rec)
-			if r.publish != nil {
+			rec = current
+			if changed && r.publish != nil {
 				r.publish(rec)
 			}
 		}
@@ -520,31 +507,12 @@ func (r *Runs) List(dir string) []RunRecord {
 		if !entry.IsDir() {
 			continue
 		}
-		rec, err := r.readRecord(dir, entry.Name())
+		rec, _, err := r.refreshRecord(dir, entry.Name())
 		if err != nil {
 			continue
 		}
-		if rec.State == RunStateRunning && rec.Preparing && r.checkPreparing(rec.Id) {
-			// Its preparation alone writes the record until the build command starts.
-			runs = append(runs, rec)
-			continue
-		}
-		if rec.State == RunStateRunning && rec.Preparing {
-			// wavesrv stopped while it fetched, verified or prepared the build.
-			rec.Preparing = false
-			rec.State = RunStateLost
-			rec.FinishedAt = r.now().UnixMilli()
-			r.settle(&rec)
-			r.writeRecord(rec)
-		}
-		if rec.State == RunStateRunning {
-			if r.update(&rec) {
-				r.settle(&rec)
-				r.writeRecord(rec)
-			}
-			if rec.State == RunStateRunning {
-				r.watch(rec)
-			}
+		if rec.State == RunStateRunning && !rec.Preparing {
+			r.watch(rec)
 		}
 		runs = append(runs, rec)
 	}
@@ -570,6 +538,9 @@ func (r *Runs) prune(dir string) {
 
 func (r *Runs) Cancel(dir string, runId string) error {
 	dir = filepath.Clean(dir)
+	lock := r.recordLock(dir, runId)
+	lock.Lock()
+	defer lock.Unlock()
 	rec, err := r.readRecord(dir, runId)
 	if err != nil {
 		return err
@@ -610,24 +581,29 @@ func (r *Runs) Close(dir string, runId string) error {
 		return err
 	}
 	dir = filepath.Clean(dir)
-	rec, err := r.readRecord(dir, runId)
-	if err != nil {
-		return err
-	}
-	if rec.State == RunStateRunning {
-		return uimsg.Errorf(uimsg.Make("mission.run.stillRunningCancel", "title", rec.Title), "%s is still running: cancel it first", rec.Title)
-	}
-	if rec.Closed {
-		return nil
-	}
-	rec.Closed = true
-	if err := r.writeRecord(rec); err != nil {
-		return err
-	}
-	if r.publish != nil {
+	rec, err := r.closeRecord(dir, runId)
+	if err == nil && r.publish != nil {
 		r.publish(rec)
 	}
-	return nil
+	return err
+}
+
+func (r *Runs) closeRecord(dir, runId string) (RunRecord, error) {
+	lock := r.recordLock(dir, runId)
+	lock.Lock()
+	defer lock.Unlock()
+	rec, err := r.readRecord(dir, runId)
+	if err != nil {
+		return rec, err
+	}
+	if rec.State == RunStateRunning {
+		return rec, uimsg.Errorf(uimsg.Make("mission.run.stillRunningCancel", "title", rec.Title), "%s is still running: cancel it first", rec.Title)
+	}
+	if rec.Closed {
+		return rec, nil
+	}
+	rec.Closed = true
+	return rec, r.writeRecord(rec)
 }
 
 // ReadLog returns the log from a byte offset, at most maxLogRead bytes, and the offset to ask next.

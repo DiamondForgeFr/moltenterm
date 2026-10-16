@@ -358,12 +358,12 @@ export function latestRun(runs: readonly RunRecord[], kind: string): RunRecord {
 // eslint-disable-next-line no-control-regex
 const AnsiRegex = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
 
-// The last lines a run printed, without colours or the exit marker the runner adds.
+// The last lines a run printed, without terminal colours.
 export function logTail(text: string, lines: number): string[] {
     return (text ?? "")
         .replace(AnsiRegex, "")
         .split(/\r?\n|\r/)
-        .filter((l) => l.trim() !== "" && !/^exit=-?\d+$/.test(l.trim()))
+        .filter((l) => l.trim() !== "")
         .slice(-lines);
 }
 

@@ -277,6 +277,12 @@ pull requests only and allows merge commits only (repository admins can bypass i
 
 ## Files Moltenterm owns
 
+Mission Control local commands use a detached shell supervisor and an atomically published `completion` control
+file alongside `run.json` and `output.log` (#812). Output is never lifecycle authority, including `exit=N` lines.
+Restart recovery reads that control file; a legacy running record stays running while its process exists, then
+becomes lost without a known result. Existing terminal history is retained. Build preparation records its known
+result directly before handing execution to the same supervisor.
+
 | Path                                                                                                               | Policy when merging                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CLAUDE.md`                                                                                                        | Keep ours. Re-sync its "Codebase conventions (upstream Wave)" section with upstream's `CLAUDE.md`.                                                    |
