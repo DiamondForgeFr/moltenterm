@@ -6,6 +6,8 @@ import {
     accentForeground,
     applyAccent,
     contrastRatio,
+    focusRingColor,
+    FocusRingMinContrast,
     gradientForeground,
     mixColor,
     normaliseColourChoice,
@@ -57,6 +59,7 @@ describe("applyAccent", () => {
             "--mt-accent-mid": "rgb(191, 85, 236)",
             "--mt-accent-end": "rgb(191, 85, 236)",
             "--mt-accent-fg": "#000000",
+            "--mt-focus-ring": "rgb(191, 85, 236)",
         });
     });
 
@@ -68,6 +71,7 @@ describe("applyAccent", () => {
             "--mt-accent-mid": "rgb(255, 124, 13)",
             "--mt-accent-end": "rgb(255, 124, 13)",
             "--mt-accent-fg": "#000000",
+            "--mt-focus-ring": "rgb(255, 124, 13)",
         });
     });
 
@@ -79,10 +83,38 @@ describe("applyAccent", () => {
             "--mt-accent-mid": "rgb(33, 206, 237)",
             "--mt-accent-end": "rgb(66, 157, 255)",
             "--mt-accent-fg": "#000000",
+            "--mt-focus-ring": "rgb(0, 255, 219)",
         });
         applyAccent("#ffc53d", style, ["#ffc53d", "#ff7c0d", "#ff453a"]);
         expect(style.props["--mt-accent-mid"]).toBe("rgb(255, 124, 13)");
         expect(style.props["--mt-accent-end"]).toBe("rgb(255, 69, 58)");
+    });
+});
+
+describe("focus ring (#751)", () => {
+    const panel = { r: 60, g: 60, b: 60 };
+
+    it("is the accent itself when it reads on the panels", () => {
+        for (const accent of ["#ff7c0d", "#00ffdb", "#58c142", "#ffc53d"]) {
+            expect(focusRingColor(parseColor(accent))).toEqual(parseColor(accent));
+        }
+    });
+
+    it("lightens a dark accent until it reads at 3:1 on the lightest panel", () => {
+        for (const accent of ["#1e3a8a", "#7f1d1d", "#3e2c8c", "#000000", "#4b5563"]) {
+            const ring = focusRingColor(parseColor(accent));
+            expect(contrastRatio(ring, panel)).toBeGreaterThanOrEqual(FocusRingMinContrast);
+            expect(ring).not.toEqual({ r: 255, g: 255, b: 255 });
+        }
+    });
+
+    it("is set with the accent", () => {
+        const style = fakeStyle();
+        applyAccent("#1e3a8a", style);
+        const ring = parseColor(style.props["--mt-focus-ring"]);
+        expect(contrastRatio(ring, panel)).toBeGreaterThanOrEqual(FocusRingMinContrast);
+        applyAccent("#00ffdb", style);
+        expect(style.props["--mt-focus-ring"]).toBe("rgb(0, 255, 219)");
     });
 });
 
