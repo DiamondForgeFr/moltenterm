@@ -5123,7 +5123,10 @@
             "cleanupunrecorded": "Le nettoyage a eu lieu, mais son résultat n'a pas pu être enregistré : {detail}",
             "leftoveronly": "MoltenTerm ne supprime que le dossier laissé par son nettoyage, pas {path}.",
             "sessionended": "Cette session de revue est terminée.",
-            "questiongone": "Cette question n'attend plus : elle a été envoyée ou retirée."
+            "questiongone": "Cette question n'attend plus : elle a été envoyée ou retirée.",
+            "readpr": "La pull request n'a pas pu être lue sur GitHub : {detail}",
+            "headnotcommit": "La tête {head} n'est pas un identifiant de commit.",
+            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}."
         },
         "handoff": {
             "notwaiting": "Cette demande de passage de relais n'est plus en attente.",

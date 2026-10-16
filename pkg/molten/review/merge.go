@@ -505,6 +505,9 @@ func ticketOf(req int, pr ghMergePr) int {
 func (m *Merger) inputs(ctx context.Context, dir string, k PrKey) (ghMergePr, mission.ReviewCi, int, State, error) {
 	pr, err := m.viewPr(ctx, dir, k)
 	if err != nil {
+		if uimsg.TextOf(err) == nil {
+			err = uimsg.Errorf(uimsg.Make("review.readpr", "detail", err.Error()), "%w", err)
+		}
 		return pr, mission.ReviewCi{}, 0, State{}, err
 	}
 	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
