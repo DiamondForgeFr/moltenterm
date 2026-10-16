@@ -19,6 +19,46 @@ Coding agents live in the terminal. The tools around them do not fit the people 
 Every developer's ideal workspace is different. Today the developer adapts to the tool.
 **MoltenTerm turns this around: the tool adapts to the developer.**
 
+## Mission: the terminal is to AI what the browser is to the web
+
+When the web arrived, every company built its own closed door to it: Netscape, Internet Explorer, portals that
+wanted people to stay inside. Firefox, open source and free, helped turn browsing into a standard that nobody
+owns.
+
+AI is in the same phase. Each lab builds the best interface it can to keep developers at home: its own app, its own
+CLI, its own IDE. Developers, meanwhile, use several agents and will keep switching as models, prices and quality
+change. They need a client that belongs to none of the labs.
+
+**MoltenTerm wants to be that client: the open, neutral home for every AI agent.** DiamondForge wants to play, for
+AI, the part Mozilla played for the web.
+
+- **Standards over lock-in.** MoltenTerm follows the open agent standards as they emerge (MCP for tools and
+  context, the Agent Client Protocol for agents in a client, `AGENTS.md` for project instructions) and helps them
+  grow. An agent that speaks the standard works in MoltenTerm without special treatment.
+- **Win the standard, not only the market.** Firefox made the web open and later lost most of its market share.
+  MoltenTerm's success is measured by how open working with AI agents becomes, and its sustainability never
+  depends on a single payer.
+- **Part of the DiamondForge suite**, and mostly free (see "How MoltenTerm stays free").
+
+## Three fights
+
+AI makes developers faster. It also brings new problems that no lab has a reason to solve. MoltenTerm takes
+them on.
+
+1. **Keep technical knowledge alive.** When agents write most of the code, people stop reading it and skills fade.
+   MoltenTerm makes code review the most engaging part of the day: a game with grades, progress and things to
+   learn in every pull request, so there is always a reason to review
+   ([#788](https://github.com/DiamondForgeFr/moltenterm/issues/788)).
+2. **A healthy use of AI.** AI is becoming what screens became with smartphones: hard to stop. Phones now measure
+   screen time and let people set limits; MoltenTerm does the same for AI: time with agents measured honestly,
+   limits and quiet hours the developer chooses, reminders that never block without consent
+   ([#832](https://github.com/DiamondForgeFr/moltenterm/issues/832)).
+3. **The most out of every subscription.** Developers pay for plans they do not fully use, or hit a limit and
+   are blocked for hours. MoltenTerm shows the pace, warns before a limit, suggests what to do with a budget about
+   to reset, and hands work to another agent instead of stopping
+   ([#833](https://github.com/DiamondForgeFr/moltenterm/issues/833),
+   [#556](https://github.com/DiamondForgeFr/moltenterm/issues/556)).
+
 ## The idea
 
 MoltenTerm is a terminal workspace (terminals, a built-in browser, dashboards) that can **change shape**.
@@ -149,6 +189,23 @@ contributes:
 3. MoltenTerm reloads the mod. The change is recorded in your morph history.
 4. You don't like it: `molten undo`. It broke something: restart in safe mode.
 5. You like it: `molten publish` *(planned)*.
+
+## How MoltenTerm stays free
+
+MoltenTerm is mostly free, and its core is never put behind a paywall: terminals, agents, the Dashboard, code
+review, mods and the three fights above are free for every developer.
+
+DiamondForge funds it the way an open project can, without breaking the principles:
+
+- **Optional paid services** around the free core: teams (shared settings, review leagues, organisation budgets),
+  cloud agents, sync and history, enterprise policies and audit
+  ([#783](https://github.com/DiamondForgeFr/moltenterm/issues/783)).
+- **Transparent partnerships**, the way Firefox proposes a default search engine: MoltenTerm may propose a provider
+  when a developer sets up an agent, always visible, always changeable, never a condition.
+- **Public funding for open-source infrastructure**, where it fits.
+
+What it will not do: resell model access or proxy tokens (Principle 1), sell usage data, or make the free version
+worse to push the paid one.
 
 ## Foundation
 
