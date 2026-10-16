@@ -3612,9 +3612,9 @@
             "reviews": "Revues · pull requests qui attendent votre revue",
             "reviewsCounts": "Revues — {counts}",
             "reviewsCount": {
-                "waiting": {
-                    "one": "1 en attente de revue",
-                    "other": "{count} en attente de revue"
+                "toReview": {
+                    "one": "1 à relire",
+                    "other": "{count} à relire"
                 },
                 "mergeable": {
                     "one": "1 prête à fusionner",
