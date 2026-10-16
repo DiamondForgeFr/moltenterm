@@ -4,6 +4,7 @@
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
 // MOLTENTERM-PATCH (#849): every sendSync is timed, and the page answers Electron main's heartbeat
 import {
+    HangCopyChannel,
     HangDiagnosticsChannel,
     HangPingChannel,
     HangPongChannel,
@@ -182,6 +183,7 @@ contextBridge.exposeInMainWorld("api", {
         return () => ipcRenderer.removeListener(WindowHangChannel, listener);
     },
     moltentermHangDiagnostics: () => ipcRenderer.invoke(HangDiagnosticsChannel),
+    moltentermHangCopy: (text: string) => ipcRenderer.invoke(HangCopyChannel, text),
 });
 
 // Custom event for "new-window"

@@ -25,6 +25,7 @@ type HangApi = {
     sendLog?: (log: string) => void;
     onMoltentermWindowHang?: (callback: (hang: { ms: number; at: number }) => void) => () => void;
     moltentermHangDiagnostics?: () => Promise<MainHangDiagnostics>;
+    moltentermHangCopy?: (text: string) => Promise<void>;
 };
 
 const limiter = new LongTaskLimiter();
@@ -114,7 +115,8 @@ async function copyDiagnostics(hang: { ms: number; at: number }) {
         userAgent: navigator.userAgent,
     });
     try {
-        await navigator.clipboard.writeText(text);
+        const copy = api().moltentermHangCopy;
+        await (copy != null ? copy(text) : navigator.clipboard.writeText(text));
         showToast({ id: WindowHangToastId, kind: "success", title: t("hang.copied") });
     } catch (e) {
         console.log("hang report: copy failed", e);
