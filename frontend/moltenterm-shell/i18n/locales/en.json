@@ -213,7 +213,13 @@
             "revertFile": "Revert file",
             "wordWrap": "Word wrap",
             "tableOfContents": "Table of contents",
-            "refresh": "Refresh"
+            "refresh": "Refresh",
+            "loading": "Loading…",
+            "readOnly": "Read only",
+            "readOnlyTitle": "This file is read-only",
+            "save": "Save",
+            "preview": "Preview",
+            "edit": "Edit"
         },
         "search": {
             "placeholder": "Search",
