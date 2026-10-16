@@ -40,6 +40,7 @@ import {
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    reviewsRetryIsPrimary,
     splitReviews,
     Tone,
     validateBlocked,
@@ -176,12 +177,15 @@ function ReviewsBody({
     }
     const empty = reviewsEmptyState(answer);
     if (empty != null) {
+        const retry = { label: t("reviews.tryAgain"), onClick: refresh };
+        const retryPrimary = reviewsRetryIsPrimary(answer);
         return (
             <EmptyState
                 icon={empty.icon}
                 title={empty.title}
                 hint={empty.hint}
-                primary={{ label: t("reviews.tryAgain"), onClick: refresh }}
+                primary={retryPrimary ? retry : undefined}
+                secondary={retryPrimary ? undefined : retry}
                 details={empty.details}
                 testId={`reviews-empty-${answer.state}`}
             />

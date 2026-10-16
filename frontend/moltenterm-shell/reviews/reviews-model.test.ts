@@ -21,6 +21,7 @@ import {
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    reviewsRetryIsPrimary,
     reviewsRailLabel,
     splitReviews,
     validateBlocked,
@@ -166,6 +167,13 @@ describe("reviews model", () => {
         expect(reviewsEmptyState(answer({ state: "norepo" })).title).toContain("no GitHub remote");
         expect(reviewsEmptyState(answer({ state: "error", message: "boom" })).details).toBe("boom");
         expect(reviewsEmptyState(answer())).toBeNull();
+    });
+
+    it("offers a primary retry only where a retry alone can succeed (#744)", () => {
+        expect(reviewsRetryIsPrimary(answer({ state: "error", message: "boom" }))).toBe(true);
+        for (const state of ["nogh", "loggedout", "norepo"] as const) {
+            expect(reviewsRetryIsPrimary(answer({ state }))).toBe(false);
+        }
     });
 
     it("walks the ready rows, and the drafts once their group is open", () => {

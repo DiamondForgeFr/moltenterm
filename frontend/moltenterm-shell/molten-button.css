@@ -135,7 +135,8 @@
     display: none;
 }
 
-/* Calm variants (DS-SHELL-078): no wave and no fill at rest. Secondary: no border, the raised surface on hover.
+/* Calm variants (DS-SHELL-078): no wave and no fill at rest. Secondary: a hairline around the main text colour, the
+   raised surface and a stronger line on hover; without the line it read as plain text, dimmer than a ghost (#744).
    Ghost: text or icon only, muted, the main text colour on hover. Outline: only for the confirming button of a delete,
    a tint on hover. Wave's grey, red and yellow tokens keep their colours on the outline and ghost variants. Wave's
    grey solid button maps to secondary: the selectors repeat its classes to win over button.scss's
@@ -150,29 +151,30 @@
         border-color var(--mt-duration-fast) var(--mt-ease);
 }
 
-/* In the components layer, so a caller's text colour utility still wins; Wave's button needs the unlayered rule. */
+/* In the components layer, so a caller's text colour or border utility still wins; Wave's button needs the unlayered
+   rule. The border is set whole: Tailwind's preflight leaves a plain button at width 0. */
 @layer components {
     .molten-btn-secondary {
-        color: var(--mt-text-secondary);
+        color: var(--mt-text-main);
         background-color: transparent;
-        border-color: transparent;
+        border: 1px solid var(--mt-line-2);
     }
 
     .molten-btn-secondary:hover:not(:disabled) {
-        color: var(--mt-text-main);
         background-color: var(--mt-surface-2);
+        border-color: color-mix(in srgb, var(--mt-neutral-line) 26%, transparent);
     }
 }
 
 .wave-button.molten-btn-secondary.solid {
-    color: var(--mt-text-secondary);
+    color: var(--mt-text-main);
     background-color: transparent;
-    border-color: transparent;
+    border: 1px solid var(--mt-line-2);
 }
 
 .wave-button.molten-btn-secondary.solid:hover:not(:disabled) {
-    color: var(--mt-text-main);
     background-color: var(--mt-surface-2);
+    border-color: color-mix(in srgb, var(--mt-neutral-line) 26%, transparent);
 }
 
 .molten-btn-outline:hover:not(:disabled) {
