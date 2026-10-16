@@ -59,7 +59,7 @@ export function UpcomingSection({ dir, reviews }: { dir: string; reviews: Review
                 </p>
             ) : (
                 <div
-                    className="overflow-hidden rounded-4 border border-border"
+                    className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
                     role="list"
                     data-testid="reviews-upcoming"
                 >

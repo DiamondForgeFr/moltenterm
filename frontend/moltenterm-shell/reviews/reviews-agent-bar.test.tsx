@@ -33,6 +33,30 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         expect(html).not.toMatch(/animate-/);
     });
 
+    it("lays the state rail on the tile's border, and draws none for idle or background (#738)", () => {
+        const working = renderToStaticMarkup(
+            <AgentBar
+                facts={{
+                    kind: "panel",
+                    blockId: "b1",
+                    agent: "claude",
+                    name: "Valentin",
+                    state: "working",
+                    since: Started,
+                }}
+            />
+        );
+        expect(working).toMatch(/class="absolute inset-y-0 -left-px w-0\.5[^"]*"[^>]*data-testid="reviews-agent-rail"/);
+        for (const facts of [
+            { kind: "panel", blockId: "b1", agent: "claude", name: "Valentin", state: "idle", since: Started },
+            { kind: "background", agent: "claude", name: "", state: "background", since: Started },
+        ] as AgentBarFacts[]) {
+            const html = renderToStaticMarkup(<AgentBar facts={facts} />);
+            expect(html).toContain('data-testid="reviews-agent-bar"');
+            expect(html).not.toContain("reviews-agent-rail");
+        }
+    });
+
     it("puts waiting in the waiting colour, with nothing moving", () => {
         const facts: AgentBarFacts = {
             kind: "panel",
