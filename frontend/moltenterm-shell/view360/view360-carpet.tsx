@@ -6,7 +6,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
-import { fireAndForget } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
@@ -147,11 +147,12 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     const surface = layout.surface;
     const fadeTop = layout.viewport.top;
     const fadeHeight = layout.viewport.height;
+    const gripStuck = view360.gripNoRoom() != null;
     return (
         <div className="mt-carpet-chrome">
             {layout.fixedNodeId != null && (
                 <div
-                    className="mt-fixed-grip"
+                    className={cn("mt-fixed-grip", gripStuck && "mt-fixed-grip-stuck")}
                     style={{
                         transform: `translate3d(${layout.fixed.width + CarpetMarginPx / 2 - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
                     }}

@@ -4024,6 +4024,11 @@
         "empty": "Panels you open are laid here",
         "addStart": "Add a panel on the left",
         "addEnd": "Add a panel on the right",
+        "grip": {
+            "noRoomFloor": "This column can't be resized here: its terminal needs this width to stay readable, and the carpet needs the rest of the window.",
+            "noRoomWindow": "This column can't be resized here: the window is too narrow to leave the carpet any room. Widen the window to resize it.",
+            "noRoomColumns": "This column can't be widened: the other fixed columns take the rest of the room. Narrow one of them first."
+        },
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",

@@ -16,7 +16,7 @@ import {
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
-import { scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
+import { CarpetReservePx, scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
 import { ResizeSettleMs } from "./view360-decision";
 import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
@@ -574,11 +574,48 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             const { model } = makeModel(true, root);
             model.evaluate(root, boundsOf(1600));
             expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1000);
-            // No room left for a readable carpet column: half of the window again.
-            expect(model.computeLayout(root, boundsOf(1300)).fixed.width).toBe(650);
+            // No room for the floor and a readable carpet column: the zone keeps as much as the carpet leaves (#829).
+            expect(model.computeLayout(root, boundsOf(1300)).fixed.width).toBe(1300 - CarpetReservePx);
         } finally {
             terminalFloor.px = null;
         }
+    });
+
+    it("lets the grip widen and narrow a fixed zone held past half by the terminal floor (#829)", () => {
+        terminalFloor.px = 700;
+        try {
+            const root = rowOf(2);
+            const { model, layoutModel } = makeModel(true, root);
+            Object.assign(layoutModel, {
+                displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1280 }) } },
+                setter: vi.fn(),
+                pendingTreeAction: { throttledValueAtom: null },
+            });
+            model.evaluate(root, boundsOf(1280));
+            model.computeLayout(root, boundsOf(1280));
+            const grip = model.rootResizeHandles(root, 10, [])[0];
+            expect(grip.id).toBe(model.gripHandleId(root));
+            expect(grip.stuckTitleKey).toBeUndefined();
+            expect(model.onResizeMove(grip, 820)).toBe(true);
+            expect(model.dragFixedPx).toBe(816);
+            expect(model.onResizeMove(grip, 1200)).toBe(true);
+            expect(model.dragFixedPx).toBe(1280 - CarpetReservePx);
+            expect(model.onResizeMove(grip, 300)).toBe(true);
+            expect(model.dragFixedPx).toBe(700);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("says on the grip why it cannot move when the window leaves no room (#829)", () => {
+        const root = rowOf(2);
+        const { model } = makeModel(true, root);
+        model.evaluate(root, boundsOf(780));
+        model.computeLayout(root, boundsOf(780));
+        expect(model.gripNoRoom()).toBe("window");
+        expect(model.rootResizeHandles(root, 10, [])[0].stuckTitleKey).toBe("view360.grip.noRoomWindow");
+        model.computeLayout(root, boundsOf(1280));
+        expect(model.gripNoRoom()).toBeNull();
     });
 
     it("stays in 360 view when the panels do not fit even at their readable minimums (#733)", () => {

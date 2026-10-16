@@ -52,12 +52,14 @@ import {
     columnLeadLeaf,
     computeCarpetLayout,
     defaultCarpetWidthPx,
+    FixedBounds,
     fixedBoundsPx,
     FixedColumn,
+    NoRoomReason,
     PinMode,
-    PinnedColumnMinPx,
     Rect,
     scrollToRevealColumn,
+    sideColumnBoundsPx,
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
@@ -87,6 +89,12 @@ import { setTabFixedPx, setTabPins, setTabView360, storedFixedPx, storedPins, ta
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
 const ScrollSettleMs = 140;
+// What hovering a fixed column's handle says when it cannot move (#829).
+const NoRoomKeys: Record<NoRoomReason, string> = {
+    floor: "view360.grip.noRoomFloor",
+    window: "view360.grip.noRoomWindow",
+    columns: "view360.grip.noRoomColumns",
+};
 
 export type CarpetRootChild = { rect: Rect; carpet: boolean; pinned?: boolean };
 
@@ -525,6 +533,29 @@ export class View360Model {
             .sort((a, b) => a.rect.left - b.rect.left);
     }
 
+    // The drag range of the fixed column a handle sizes: the whole zone when the first column is alone, otherwise what
+    // the other columns side by side leave of it.
+    fixedColumnBounds(width: number, column: FixedColumn, sideBySide: FixedColumn[]): FixedBounds {
+        if (sideBySide.length <= 1 || this.layout == null) {
+            return fixedBoundsPx(width, this.fixedNeedPx);
+        }
+        return sideColumnBoundsPx(width, this.fixedNeedPx, this.layout.fixed.width - column.rect.width);
+    }
+
+    // Why the handle sizing this fixed column cannot move right now, or null when it can (#829): it says so on hover.
+    fixedNoRoom(column: FixedColumn): NoRoomReason {
+        if (column == null) {
+            return null;
+        }
+        return this.fixedColumnBounds(this.layoutWidth, column, this.sideBySideFixedColumns()).noRoom ?? null;
+    }
+
+    // The grip sizes the last fixed column side by side.
+    gripNoRoom(): NoRoomReason {
+        const sideBySide = this.sideBySideFixedColumns();
+        return this.fixedNoRoom(sideBySide[sideBySide.length - 1]);
+    }
+
     // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column. A
     // vertical stack alone keeps its own handles beside the grip.
     rootResizeHandles(
@@ -550,6 +581,7 @@ export class View360Model {
             transform: setTransform(grip, true, false),
             flexDirection: FlexDirection.Row,
             centerPx: grip.left + half,
+            stuckTitleKey: NoRoomKeys[this.gripNoRoom()],
         };
         if (layout.fixedNodeId === rootNode.id) {
             return [...waveHandles, gripHandle];
@@ -572,6 +604,7 @@ export class View360Model {
                     transform: setTransform(dims, true, false),
                     flexDirection: FlexDirection.Row,
                     centerPx: dims.left + half,
+                    stuckTitleKey: NoRoomKeys[this.fixedNoRoom(column)],
                 });
             });
         layout.columns.forEach((column, i) => {
@@ -850,11 +883,8 @@ export class View360Model {
                 return true;
             }
             // The column takes what the others leave of half of the window, never less than its minimum.
-            const others = layout.fixed.width - column.rect.width;
-            const max = Math.max(PinnedColumnMinPx, fixedBoundsPx(container.width, this.fixedNeedPx).max - others);
-            const px = Math.round(
-                Math.min(Math.max(x - column.rect.left - CarpetMarginPx / 2, PinnedColumnMinPx), max)
-            );
+            const { min, max } = this.fixedColumnBounds(container.width, column, sideBySide);
+            const px = Math.round(Math.min(Math.max(x - column.rect.left - CarpetMarginPx / 2, min), max));
             if (column.mode === "first") {
                 this.dragFixedPx = px;
             } else {

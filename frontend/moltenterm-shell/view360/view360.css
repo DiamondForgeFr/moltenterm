@@ -153,6 +153,19 @@
     pointer-events: none;
 }
 
+/* A fixed column's handle that cannot move (#829): no resize cursor and no highlight, its title says why. */
+.mt-fixed-grip.mt-fixed-grip-stuck {
+    opacity: 0.35;
+}
+
+.tile-layout .resize-handle.mt-handle-stuck.flex-row {
+    cursor: default;
+}
+
+.tile-layout .resize-handle.mt-handle-stuck:hover .line {
+    visibility: hidden;
+}
+
 /* The tab bar's "360" toggle (FR-SHELL-066, DS-SHELL-117): calm when off, the accent when on, a small "A" while the
    tab follows the automatic setting. */
 .mt-v360-toggle {

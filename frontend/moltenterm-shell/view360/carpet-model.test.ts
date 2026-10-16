@@ -32,7 +32,9 @@ import {
     defaultCarpetWidthPx,
     fitFixedWidths,
     fixedBoundsPx,
+    fixedCapPx,
     scrollToRevealColumn,
+    sideColumnBoundsPx,
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
@@ -244,23 +246,57 @@ describe("widths", () => {
         expect(clampFixedPx(640, 1600)).toBe(640);
     });
 
-    it("lets half of the width win on a narrow window", () => {
-        expect(clampFixedPx(700, 900)).toBe(450);
+    it("keeps a real range on a window under twice the minimum (#829)", () => {
+        // 1000 px: 520 px fits under what leaves the carpet its reserve (600 px).
+        expect(fixedBoundsPx(1000)).toEqual({ min: FixedMinPx, max: 1000 - CarpetReservePx });
+        // 900 px: 520 px does not fit under 500 px, half of the window is the minimum.
+        expect(fixedBoundsPx(900)).toEqual({ min: 450, max: 500 });
+        expect(clampFixedPx(700, 900)).toBe(500);
         expect(clampFixedPx(100, 900)).toBe(450);
+        expect(clampFixedPx(480, 900)).toBe(480);
     });
 
-    it("lets the terminal floor lift the half-window cap while a readable carpet column still fits (#733)", () => {
+    it("keeps the wide window's bounds", () => {
+        expect(fixedBoundsPx(1600)).toEqual({ min: FixedMinPx, max: 800 });
+        expect(fixedBoundsPx(2560)).toEqual({ min: FixedMinPx, max: 1280 });
+        expect(fixedBoundsPx(1600).noRoom).toBeUndefined();
+    });
+
+    it("lets a terminal floor above half widen the zone up to the carpet's reserve (#733, #829)", () => {
         expect(CarpetReservePx).toBe(360 + 2 * CarpetPadXPx + 2 * CarpetMarginPx);
-        // 1499 px floor in a 2000 px window: 1499 + 400 fits.
-        expect(fixedBoundsPx(2000, 1499)).toEqual({ min: 1499, max: 1499 });
+        // 1499 px floor in a 2000 px window: the floor is the minimum, the carpet's reserve the maximum.
+        expect(fixedBoundsPx(2000, 1499)).toEqual({ min: 1499, max: 2000 - CarpetReservePx });
         expect(clampFixedPx(974, 2000, 1499)).toBe(1499);
-        expect(clampFixedPx(1700, 2000, 1499)).toBe(1499);
-        // Right at the limit, then one pixel short: the cap stays.
-        expect(fixedBoundsPx(1499 + CarpetReservePx, 1499).max).toBe(1499);
-        expect(fixedBoundsPx(1498 + CarpetReservePx, 1499)).toEqual({ min: 949, max: 949 });
+        expect(clampFixedPx(1550, 2000, 1499)).toBe(1550);
+        expect(clampFixedPx(1700, 2000, 1499)).toBe(2000 - CarpetReservePx);
+        // A laptop window with a floor past half: 1280 px, 700 px floor.
+        expect(fixedBoundsPx(1280, 700)).toEqual({ min: 700, max: 1280 - CarpetReservePx });
+        // One pixel short of the floor plus the reserve: the floor gives way, half of the window is the minimum.
+        expect(fixedBoundsPx(1498 + CarpetReservePx, 1499)).toEqual({ min: 949, max: 1498 });
         // A floor under half of the window only lifts the minimum.
         expect(fixedBoundsPx(1600, 700)).toEqual({ min: 700, max: 800 });
         expect(fixedBoundsPx(1600, 0)).toEqual(fixedBoundsPx(1600));
+    });
+
+    it("says why when the window leaves no room (#829)", () => {
+        // The floor plus the carpet's reserve fill the window exactly.
+        expect(fixedBoundsPx(1499 + CarpetReservePx, 1499)).toEqual({ min: 1499, max: 1499, noRoom: "floor" });
+        // Under twice the carpet's reserve, half of the window is all there is.
+        expect(fixedBoundsPx(2 * CarpetReservePx)).toEqual({ min: 400, max: 400, noRoom: "window" });
+        expect(fixedBoundsPx(600)).toEqual({ min: 300, max: 300, noRoom: "window" });
+        expect(clampFixedPx(500, 600)).toBe(300);
+    });
+
+    it("gives a fixed column side by side what the others leave, or says it has no room (#829)", () => {
+        // Half of 1440 is 720: with 392 px taken by the others, the column ranges from 320 to 328 px.
+        expect(sideColumnBoundsPx(1440, 0, 392)).toEqual({ min: PinnedColumnMinPx, max: 328 });
+        expect(sideColumnBoundsPx(1440, 0, 400)).toEqual({
+            min: PinnedColumnMinPx,
+            max: PinnedColumnMinPx,
+            noRoom: "columns",
+        });
+        expect(fixedCapPx(1440)).toBe(720);
+        expect(fixedCapPx(2000, 1100)).toBe(1100);
     });
 
     it("gives the first column's terminal floor what pinned columns leave at their minimum (#733)", () => {
