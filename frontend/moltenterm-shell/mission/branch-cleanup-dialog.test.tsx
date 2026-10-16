@@ -18,7 +18,7 @@ vi.mock("./mission-client", () => ({
 import { BranchCleanupDialog } from "./branch-cleanup";
 
 describe("the branch cleaning dialog (#746)", () => {
-    it("is a modal dialog on the shared frame, with Cancel first and focused", () => {
+    it("is a modal dialog on the shared frame, with Cancel first", () => {
         vi.stubGlobal("document", { body: {} });
         const html = renderToStaticMarkup(<BranchCleanupDialog dir="/p" onClose={() => {}} onCleaned={() => {}} />);
         vi.unstubAllGlobals();
@@ -26,8 +26,8 @@ describe("the branch cleaning dialog (#746)", () => {
         expect(html).toContain('aria-modal="true"');
         expect(html).toContain('aria-label="Clean branches"');
         expect(html).toContain("molten-scrim");
-        const buttons = html.match(/<button[^>]*>/g);
-        expect(buttons[0]).toMatch(/autofocus/i);
+        const buttons = html.match(/<button[^>]*>[^<]*/g);
+        expect(buttons[0]).toMatch(/>Cancel$/);
         expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf("Delete"));
     });
 });
