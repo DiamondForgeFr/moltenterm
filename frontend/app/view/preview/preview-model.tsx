@@ -18,11 +18,11 @@ import { Atom, atom, Getter, PrimitiveAtom, WritableAtom } from "jotai";
 import { loadable } from "jotai/utils";
 import type * as MonacoTypes from "monaco-editor";
 import { createRef } from "react";
+import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
-import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
-import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 
 // TODO drive this using config
 const BOOKMARKS: { label: string; path: string }[] = [
@@ -267,19 +267,23 @@ export class PreviewModel implements ViewModel {
                 const fileInfo = globalStore.get(this.loadableFileInfo);
                 // MOLTENTERM-PATCH (#406): states are the header's one Pill, not buttons that do nothing
                 if (fileInfo.state != "hasData") {
-                    viewTextChildren.push({ elemtype: "pill", text: "Loading…", tone: "neutral" });
+                    viewTextChildren.push({
+                        elemtype: "pill",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.loading"),
+                        tone: "neutral",
+                    }); // MOLTENTERM-PATCH (#750)
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({
                         elemtype: "pill",
-                        text: "Read only",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.readOnly"), // MOLTENTERM-PATCH (#750)
                         tone: "neutral",
                         icon: "lock",
-                        title: "This file is read-only",
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.readOnlyTitle"), // MOLTENTERM-PATCH (#750)
                     });
                 } else {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Save",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.save"), // MOLTENTERM-PATCH (#750)
                         className: clsx(`${saveClassName} rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => fireAndForget(this.handleFileSave.bind(this)),
                     });
@@ -287,7 +291,7 @@ export class PreviewModel implements ViewModel {
                 if (get(this.canPreview)) {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Preview",
+                        text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.preview"), // MOLTENTERM-PATCH (#750)
                         className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                         onClick: () => fireAndForget(() => this.setEditMode(false)),
                     });
@@ -295,7 +299,7 @@ export class PreviewModel implements ViewModel {
             } else if (get(this.canPreview)) {
                 viewTextChildren.push({
                     elemtype: "textbutton",
-                    text: "Edit",
+                    text: translate(get(I18nModel.getInstance().localeAtom), "wave.editor.edit"), // MOLTENTERM-PATCH (#750)
                     className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                     onClick: () => fireAndForget(() => this.setEditMode(true)),
                 });

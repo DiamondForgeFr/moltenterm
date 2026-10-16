@@ -212,7 +212,13 @@
             "revertFile": "Revenir à la version enregistrée",
             "wordWrap": "Retour à la ligne automatique",
             "tableOfContents": "Table des matières",
-            "refresh": "Actualiser"
+            "refresh": "Actualiser",
+            "loading": "Chargement…",
+            "readOnly": "Lecture seule",
+            "readOnlyTitle": "Ce fichier est en lecture seule",
+            "save": "Enregistrer",
+            "preview": "Aperçu",
+            "edit": "Modifier"
         },
         "search": {
             "placeholder": "Rechercher",
