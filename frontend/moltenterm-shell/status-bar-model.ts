@@ -122,11 +122,10 @@ const CiVerdictLabels: Record<string, string> = {
     running: "status.ci.running",
 };
 
-// The same marks as the CI/CD panel (ci-local-panel.tsx).
+// The same marks as the CI/CD panel (ci-local-panel.tsx); a running CI shows the falling dominoes instead (#739).
 const CiVerdictIcons: Record<string, string> = {
     success: "fa-circle-check text-success",
     failure: "fa-circle-xmark text-error",
-    running: "text-accent",
 };
 
 export function ciVerdictView(status: string): CiVerdictView {

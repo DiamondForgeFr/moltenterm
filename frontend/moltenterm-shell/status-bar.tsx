@@ -107,7 +107,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     onClick={() => openView(MoltentermCicdView)}
                 >
                     {pane.ci.status === "running" ? (
-                        <DominoLoader className={pane.ci.iconClass} />
+                        <DominoLoader className="text-accent" />
                     ) : (
                         <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
                     )}
