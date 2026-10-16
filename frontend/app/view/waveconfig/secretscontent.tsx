@@ -4,7 +4,7 @@
 import { SecretNameRegex, type WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { cn } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 interface ErrorDisplayProps {
@@ -120,6 +120,7 @@ interface AddSecretFormProps {
     newSecretName: string;
     newSecretValue: string;
     isLoading: boolean;
+    canAdd: boolean;
     onNameChange: (name: string) => void;
     onValueChange: (value: string) => void;
     onCancel: () => void;
@@ -131,6 +132,7 @@ const AddSecretForm = memo(
         newSecretName,
         newSecretValue,
         isLoading,
+        canAdd,
         onNameChange,
         onValueChange,
         onCancel,
@@ -139,7 +141,12 @@ const AddSecretForm = memo(
         const isNameInvalid = newSecretName !== "" && !SecretNameRegex.test(newSecretName);
 
         return (
-            <div className="flex flex-col gap-4 min-h-full p-6 bg-zinc-800/50 rounded-lg">
+            <div
+                className="flex flex-col gap-4 min-h-full p-6 bg-zinc-800/50 rounded-lg"
+                onKeyDown={(event) => {
+                    if (event.key === "Escape") onCancel();
+                }}
+            >
                 <h3 className="text-lg font-semibold">Add New Secret</h3>
                 <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium">Secret Name</label>
@@ -175,14 +182,13 @@ const AddSecretForm = memo(
                     <button
                         className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={onCancel}
-                        disabled={isLoading}
                     >
                         Cancel
                     </button>
                     <button
                         className="molten-btn px-4 py-2 rounded cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         onClick={onSubmit}
-                        disabled={isLoading || isNameInvalid || newSecretName.trim() === ""}
+                        disabled={!canAdd || isNameInvalid || newSecretName.trim() === ""}
                     >
                         {isLoading ? (
                             <>
@@ -209,15 +215,22 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
     const secretName = useAtomValue(model.selectedSecretAtom);
     const secretValue = useAtomValue(model.secretValueAtom);
     const secretShown = useAtomValue(model.secretShownAtom);
-    const isLoading = useAtomValue(model.isLoadingAtom);
-    const setSecretValue = useSetAtom(model.secretValueAtom);
+    // MOLTENTERM-PATCH (#813): the model distinguishes unloaded values from deliberate edits.
+    const isLoading = useAtomValue(model.secretOperationBusyAtom);
+    const canSave = useAtomValue(model.secretCanSaveAtom);
+    const edited = useAtomValue(model.secretEditedAtom);
 
     if (!secretName) {
         return null;
     }
 
     return (
-        <div className="flex flex-col gap-4 min-h-full p-6 bg-zinc-800/50 rounded-lg">
+        <div
+            className="flex flex-col gap-4 min-h-full p-6 bg-zinc-800/50 rounded-lg"
+            onKeyDown={(event) => {
+                if (event.key === "Escape") model.closeSecretView();
+            }}
+        >
             <div className="flex items-center gap-2">
                 <i className="fa-sharp fa-solid fa-key text-accent-500" />
                 <h3 className="text-lg font-semibold">{secretName}</h3>
@@ -233,12 +246,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                     }}
                     className="px-3 py-2 bg-zinc-800 border border-zinc-600 rounded focus:outline-none focus:border-accent-500 font-mono text-sm"
                     value={secretValue}
-                    onChange={(e) => setSecretValue(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                            model.closeSecretView();
-                        }
-                    }}
+                    onChange={(e) => model.editSecretValue(e.target.value)}
                     disabled={isLoading}
                     rows={6}
                     placeholder={!secretShown ? "Enter new secret value..." : ""}
@@ -254,7 +262,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                             <button
                                 className="text-accent-500 underline hover:text-accent-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 onClick={() => model.showSecret()}
-                                disabled={isLoading}
+                                disabled={isLoading || edited}
                             >
                                 Show Secret
                             </button>
@@ -285,14 +293,13 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                     <button
                         className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => model.closeSecretView()}
-                        disabled={isLoading}
                     >
                         Cancel
                     </button>
                     <button
                         className="molten-btn px-4 py-2 rounded cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         onClick={() => model.saveSecret()}
-                        disabled={isLoading}
+                        disabled={!canSave}
                     >
                         {isLoading ? (
                             <>
@@ -318,8 +325,10 @@ interface SecretsContentProps {
 export const SecretsContent = memo(({ model }: SecretsContentProps) => {
     const secretNames = useAtomValue(model.secretNamesAtom);
     const selectedSecret = useAtomValue(model.selectedSecretAtom);
-    const isLoading = useAtomValue(model.isLoadingAtom);
-    const errorMessage = useAtomValue(model.errorMessageAtom);
+    const isLoading = useAtomValue(model.secretOperationBusyAtom);
+    const listLoading = useAtomValue(model.secretsLoadingAtom);
+    const canAdd = useAtomValue(model.secretCanAddAtom);
+    const errorMessage = useAtomValue(model.secretErrorAtom);
     const storageBackendError = useAtomValue(model.storageBackendErrorAtom);
     const isAddingNew = useAtomValue(model.isAddingNewAtom);
     const newSecretName = useAtomValue(model.newSecretNameAtom);
@@ -327,6 +336,8 @@ export const SecretsContent = memo(({ model }: SecretsContentProps) => {
 
     const setNewSecretName = useSetAtom(model.newSecretNameAtom);
     const setNewSecretValue = useSetAtom(model.newSecretValueAtom);
+
+    useEffect(() => () => model.closeSecretView(), [model]);
 
     const sortedSecretNames = useMemo(() => {
         return [...secretNames].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
@@ -342,7 +353,7 @@ export const SecretsContent = memo(({ model }: SecretsContentProps) => {
         );
     }
 
-    if (isLoading && secretNames.length === 0 && !selectedSecret) {
+    if (listLoading && secretNames.length === 0 && !selectedSecret && !isAddingNew) {
         return (
             <div className="w-full h-full">
                 <div>
@@ -359,6 +370,7 @@ export const SecretsContent = memo(({ model }: SecretsContentProps) => {
                     newSecretName={newSecretName}
                     newSecretValue={newSecretValue}
                     isLoading={isLoading}
+                    canAdd={canAdd}
                     onNameChange={setNewSecretName}
                     onValueChange={setNewSecretValue}
                     onCancel={() => model.cancelAddingSecret()}

@@ -1124,6 +1124,19 @@
             }
         },
         "secrets": {
+            "errors": {
+                "storageUnavailable": "No secure secret store is available. Secrets cannot be managed securely.",
+                "storageCheck": "Unable to check the secret store. Try again.",
+                "list": "Unable to load secrets. Try again.",
+                "missing": "Secret not found: {name}",
+                "reveal": "Unable to show the secret. Try again.",
+                "save": "Unable to save the secret. Your changes are kept; try again.",
+                "delete": "Unable to delete the secret. Try again.",
+                "add": "Unable to add the secret. Your changes are kept; try again.",
+                "emptyName": "Enter a secret name.",
+                "invalidName": "Start the secret name with a letter and use only letters, numbers, and underscores.",
+                "duplicate": "A secret named {name} already exists."
+            },
             "new": {
                 "title": "New secret",
                 "hint": "A letter first, then letters, digits and underscores.",
