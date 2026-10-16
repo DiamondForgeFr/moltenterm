@@ -496,7 +496,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 />
             </div>
             <div ref={listRef} id="molten-palette-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-                {flat.length === 0 && <div className="px-3.5 py-3 text-12 text-muted">Nothing matches "{query}"</div>}
+                {flat.length === 0 && <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>}
                 {sections.map((section) => (
                     <div key={section.group}>
                         {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}

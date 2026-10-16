@@ -17,26 +17,27 @@ import {
 } from "../../molten/molten-budget";
 import { MoltenHost, MoltenModStatus } from "../../molten/molten-host";
 import { EmptyState } from "../empty-state";
-import { TFunction, t as translateNow, useT } from "../i18n/i18n";
+import { formatNumber, getLocale, TFunction, t as translateNow, useLocale, useT } from "../i18n/i18n";
+import { translateCount } from "../i18n/i18n-core";
 import { suiteIcon } from "../suite/suite-icons";
 import { PageCard } from "./settings-page";
 
 // The states with a label of their own, under settings.mods.state.
 const KnownStates = new Set(["active", "pending", "loading", "disabled", "untrusted", "safemode", "failed", "refused"]);
 
-export function formatModUsage(usage: MoltenModUsage, t: TFunction = translateNow): string {
+export function formatModUsage(
+    usage: MoltenModUsage,
+    t: TFunction = translateNow,
+    locale: string = getLocale()
+): string {
     if (usage == null) {
         return "";
     }
-    const parts = [t("settings.mods.usage.cpu", { pct: usage.cpupct.toFixed(1) })];
-    parts.push(
-        usage.timers === 1
-            ? t("settings.mods.usage.timers.one")
-            : t("settings.mods.usage.timers.other", { count: usage.timers })
-    );
-    parts.push(t("settings.mods.usage.activation", { ms: Math.round(usage.activatems) }));
+    const parts = [t("settings.mods.usage.cpu", { pct: formatNumber(usage.cpupct, 1, locale) })];
+    parts.push(translateCount(locale, "settings.mods.usage.timers", usage.timers));
+    parts.push(t("settings.mods.usage.activation", { ms: formatNumber(Math.round(usage.activatems), 0, locale) }));
     if (usage.heapmb != null) {
-        parts.push(t("settings.mods.usage.heap", { mb: usage.heapmb.toFixed(1) }));
+        parts.push(t("settings.mods.usage.heap", { mb: formatNumber(usage.heapmb, 1, locale) }));
     }
     return parts.join(" · ");
 }
@@ -54,6 +55,7 @@ function Pill({ children, className, title }: { children: React.ReactNode; class
 
 const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
     const t = useT();
+    const locale = useLocale();
     const failed = mod.state === "failed" || mod.state === "refused";
     const over = mod.usage?.over;
     return (
@@ -68,7 +70,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                     </Pill>
                 ) : null}
                 {over ? (
-                    <Pill className="bg-warning/10 text-warning" title={budgetReasonText(mod.usage, t)}>
+                    <Pill className="bg-warning/10 text-warning" title={budgetReasonText(mod.usage, t, locale)}>
                         {t("settings.mods.overBudget")}
                     </Pill>
                 ) : null}
@@ -84,10 +86,10 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
             {mod.error ? <div className="text-12 text-error">{mod.error}</div> : null}
             {mod.usage != null ? (
                 <div className={cn("text-11", over ? "text-warning" : "text-muted")} data-mod-usage>
-                    {formatModUsage(mod.usage, t)}
+                    {formatModUsage(mod.usage, t, locale)}
                 </div>
             ) : null}
-            {over ? <div className="text-11 text-warning">{budgetReasonText(mod.usage, t)}</div> : null}
+            {over ? <div className="text-11 text-warning">{budgetReasonText(mod.usage, t, locale)}</div> : null}
         </div>
     );
 });

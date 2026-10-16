@@ -11,7 +11,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
-import { t } from "../moltenterm-shell/i18n/i18n";
+import { getLocale, t } from "../moltenterm-shell/i18n/i18n";
 import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
 import { checkLanguagePack, formatPackProblems } from "../moltenterm-shell/i18n/language-pack";
 import type { LanguagePackInput } from "../moltenterm-shell/i18n/language-packs";
@@ -924,7 +924,7 @@ export class MoltenHost {
             console.warn(`[molten:${id}] over budget: ${usage.reason}`);
             this.notify({
                 title: t("molten.notify.overBudgetTitle", { id }),
-                message: t("molten.notify.overBudgetMessage", { reason: budgetReasonText(usage, t), id }),
+                message: t("molten.notify.overBudgetMessage", { reason: budgetReasonText(usage, t, getLocale()), id }),
                 kind: "warning",
             });
         }

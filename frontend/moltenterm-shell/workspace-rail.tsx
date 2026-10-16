@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentRailDot } from "./agent-state-ui";
-import { useT } from "./i18n/i18n";
+import { useT, useTCount } from "./i18n/i18n";
 import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
@@ -175,6 +175,7 @@ function RailButton({
     connectClick: (workspaceId: string) => boolean;
 }) {
     const t = useT();
+    const tc = useTCount();
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
@@ -297,7 +298,7 @@ function RailButton({
             : { kind: "edit", label: railEditLabel(entry.name), onActivate: edit };
     const dot =
         unread > 0
-            ? { className: "bg-primary", label: t("rail.unread", { count: unread }) }
+            ? { className: "bg-primary", label: tc("rail.unread", unread) }
             : agent?.state === "waiting"
               ? { className: "bg-[var(--mt-state-waiting)]", label: agentStateTitle(agent) }
               : undefined;
@@ -315,7 +316,7 @@ function RailButton({
                 ref={ref}
                 type="button"
                 tabIndex={nav.tabIndex}
-                aria-label={`${entry.saved ? entry.name : t("rail.unsavedWorkspace")}${stateText}${unread > 0 ? `, ${t("rail.unread", { count: unread })}` : ""}`}
+                aria-label={`${entry.saved ? entry.name : t("rail.unsavedWorkspace")}${stateText}${unread > 0 ? `, ${tc("rail.unread", unread)}` : ""}`}
                 aria-current={entry.active ? "true" : undefined}
                 data-workspace-id={entry.id}
                 data-rail-nav={nav.key}

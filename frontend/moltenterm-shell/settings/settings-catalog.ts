@@ -276,6 +276,7 @@ export function localizeSettingEntry(entry: SettingEntry, tr: TFunction): Settin
         label: translatedOr(tr, `${base}.label`, entry.label),
         description: translatedOr(tr, `${base}.description`, entry.description),
         unsetLabel: entry.unsetLabel != null ? translatedOr(tr, `${base}.unset`, entry.unsetLabel) : undefined,
+        unit: entry.unit ? translatedOr(tr, `settings.units.${entry.unit}`, entry.unit) : entry.unit,
         options: entry.options?.map((o) => ({
             value: o.value,
             label: translatedOr(tr, `${base}.options.${o.value}`, o.label),

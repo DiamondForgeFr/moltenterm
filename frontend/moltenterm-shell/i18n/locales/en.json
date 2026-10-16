@@ -110,8 +110,15 @@
         }
     },
     "wave": {
+        "launcher": {
+            "searchAria": "Search widgets",
+            "noneFound": "No widgets found. Press Escape to clear the search.",
+            "hintIdle": "Type to filter, Enter to launch, arrow keys to navigate",
+            "hintSearching": "Searching \"{query}\", Enter to launch, arrow keys to navigate"
+        },
         "tab": {
             "rename": "Rename tab",
+            "nameAria": "Tab name",
             "copyId": "Copy tab id",
             "flag": "Flag tab",
             "flagNone": "None",
@@ -345,6 +352,7 @@
         "ariaPalette": "Command palette",
         "ariaSearch": "Search the command palette",
         "placeholder": "Open an agent, a panel, a folder…",
+        "noMatch": "Nothing matches \"{query}\"",
         "footer": {
             "choose": "choose",
             "open": "open",
@@ -787,7 +795,7 @@
             },
             "power:sleeppolicy": {
                 "label": "Keep the computer awake",
-                "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit).",
+                "description": "Whether a program in a terminal may keep the computer awake.",
                 "unset": "Ask the first time",
                 "options": {
                     "allow": "When a terminal asks",
@@ -1002,12 +1010,15 @@
             "title": "JSON files",
             "hint": "Edited in place, checked before they are saved.",
             "settings": {
+                "name": "Settings",
                 "description": "Every setting of this screen, and the ones it does not show."
             },
             "connections": {
+                "name": "Connections",
                 "description": "SSH hosts and their options."
             },
             "widgets": {
+                "name": "Rail widgets",
                 "description": "The custom tools of the rail."
             },
             "backgrounds": {
@@ -1017,6 +1028,13 @@
             "secrets": {
                 "description": "Values kept in the system's keychain."
             }
+        },
+        "units": {
+            "px": "px",
+            "lines": "lines",
+            "min": "min",
+            "ms": "ms",
+            "MB": "MB"
         },
         "shortcuts": {
             "title": "Shortcuts",
@@ -1098,7 +1116,7 @@
             "usage": {
                 "cpu": "{pct} % CPU idle",
                 "timers": {
-                    "one": "1 timer",
+                    "one": "{count} timer",
                     "other": "{count} timers"
                 },
                 "activation": "activation {ms} ms",
@@ -1595,6 +1613,18 @@
     "shortcuts": {
         "then": "then",
         "or": "or",
+        "keys": {
+            "enter": "Enter",
+            "escape": "Esc",
+            "tab": "Tab",
+            "backspace": "Backspace",
+            "delete": "Del",
+            "pageUp": "PgUp",
+            "pageDown": "PgDn",
+            "home": "Home",
+            "end": "End",
+            "space": "Space"
+        },
         "sheet": {
             "title": "Keyboard shortcuts",
             "altSubtitle": "Alt plays the part of ⌘ on this system",
@@ -3502,8 +3532,14 @@
             "silence": "Don't tell me again…",
             "running": "Running…",
             "rowFailed": "This notification could not be shown.",
-            "bellUnread": "Notifications, {count} unread",
-            "bellOpen": "Notifications, {count} still open",
+            "bellUnread": {
+                "one": "Notifications, {count} unread",
+                "other": "Notifications, {count} unread"
+            },
+            "bellOpen": {
+                "one": "Notifications, {count} still open",
+                "other": "Notifications, {count} still open"
+            },
             "bellRunning": "{count} running",
             "title": "Notifications",
             "archived": "Archived",
@@ -3589,7 +3625,10 @@
     "rail": {
         "keepAwakeWhileWorking": "Keep this computer awake while it works",
         "keptAwake": "kept awake {condition}",
-        "unread": "{count} unread",
+        "unread": {
+            "one": "{count} unread",
+            "other": "{count} unread"
+        },
         "unsavedWorkspace": "Unsaved workspace",
         "unsavedClickToSave": "Unsaved workspace: click to save it",
         "groupNameTooLong": "A group name is at most {max} characters.",
@@ -3723,6 +3762,7 @@
     },
     "project": {
         "viewName": "Project",
+        "tabName": "Project",
         "frameTitle": "The Project tab",
         "cardFailed": "{title} could not be shown: {error}",
         "unknownError": "unknown error",
@@ -3909,6 +3949,14 @@
         "commit": "commit {commit}",
         "commitOnBranch": "commit {commit} on {branch}",
         "dirty": "{line} (uncommitted changes)"
+    },
+    "about": {
+        "tagline": "The terminal that takes your shape.",
+        "version": "Version {version}",
+        "unknownVersion": "unknown",
+        "releaseNotes": "Release notes",
+        "basedOn": "Based on Wave Terminal {wave} by Command Line Inc. (Apache-2.0)",
+        "copyright": "© {year} DiamondForge. Portions © Command Line Inc."
     },
     "releases": {
         "title": "Release notes",

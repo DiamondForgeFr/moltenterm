@@ -105,6 +105,12 @@ describe("budget reason in the interface language (#656)", () => {
         );
     });
 
+    it("writes its numbers in the interface language's notation (#741)", () => {
+        expect(budgetReasonText({ ...over, heapmb: 25.25 }, fr, "fr")).toBe(
+            "3,5 % de CPU au repos sur les 30 dernières s (budget 2 %) ; 25,3 Mo de mémoire à l'activation (budget 20 Mo)"
+        );
+    });
+
     it("says nothing for a mod within its budget", () => {
         expect(budgetReasonText({ ...over, over: false }, fr)).toBe("");
         expect(budgetReasonText(null, fr)).toBe("");

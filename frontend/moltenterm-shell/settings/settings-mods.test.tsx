@@ -6,6 +6,7 @@ import { Provider } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { MoltenHost } from "../../molten/molten-host";
+import { translate } from "../i18n/i18n-core";
 import { formatModUsage, ModsSection } from "./settings-mods";
 
 function render(): string {
@@ -67,5 +68,13 @@ describe("Settings > Mods (FR-PERF-014)", () => {
 
     it("formats no usage as nothing", () => {
         expect(formatModUsage(null)).toBe("");
+    });
+
+    it("writes French decimals with a comma and the singular for 0 (#741)", () => {
+        const fr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
+        const usage = { activatems: 1.2, scriptms: 3, cpupct: 0, timers: 0, heapmb: 0.3, over: false };
+        expect(formatModUsage(usage, fr, "fr")).toBe(
+            "0,0 % de CPU au repos · 0 minuteur · activation 1 ms · 0,3 Mo à l'activation"
+        );
     });
 });
