@@ -84,6 +84,8 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 		return "the agent did not finish the rebase in time", uimsg.Make("notif.review.batch.why.agenttimeout")
 	case BatchReasonNoAgent:
 		return "no coding agent is installed for the rebase", uimsg.Make("notif.review.batch.why.noagent")
+	case BatchReasonAgentMissing:
+		return it.Detail + ", the coding agent you chose, is not installed", uimsg.Make("notif.review.batch.why.agentmissing", "detail", it.Detail)
 	case BatchReasonAgentStart:
 		return "the agent could not be started: " + it.Detail, uimsg.Make("notif.review.batch.why.agentstart", "detail", it.Detail)
 	case BatchReasonBlocked:

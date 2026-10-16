@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -56,6 +57,9 @@ const (
 	RestartReasonTerminal     = "terminal"
 	RestartReasonNotStarted   = "notstarted"
 	RestartReasonNotTyped     = "nottyped"
+	// RestartReasonAgentMissing: the chosen coding agent is not installed (#845); ChosenAgent names it, Agents lists
+	// the installed ones to pick for this run.
+	RestartReasonAgentMissing = "agentmissing"
 
 	// Typing waits for a new terminal's first prompt; a worktree may be created, after a fetch.
 	restartTimeout = 2 * time.Minute
@@ -82,6 +86,9 @@ type RestartRequest struct {
 	Mode        string `json:"mode,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	TabName     string `json:"tabname,omitempty"`
+	// Agent: the coding agent the developer picked for this run in the agent choice dialog (#845), "" for the
+	// project's choice.
+	Agent string `json:"agent,omitempty"`
 }
 
 type RestartResult struct {
@@ -108,6 +115,14 @@ type RestartResult struct {
 	FirstName string `json:"firstname,omitempty"`
 	BriefPath string `json:"briefpath,omitempty"`
 	State     *State `json:"state,omitempty"`
+	// The developer's coding agent (#845): ChosenAgent when they chose one (for the project, everywhere or this run),
+	// AgentMissing when it is not installed, Agents the agents an offer can switch to. A reused agent that differs from
+	// the chosen one keeps the work; ChosenAgent says which was chosen.
+	ChosenAgent  string              `json:"chosenagent,omitempty"`
+	ChosenName   string              `json:"chosenname,omitempty"`
+	AgentMissing bool                `json:"agentmissing,omitempty"`
+	AgentSource  string              `json:"agentsource,omitempty"`
+	Agents       []agentchoice.Agent `json:"agents,omitempty"`
 }
 
 // RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now.
@@ -135,6 +150,10 @@ type RestartEnv struct {
 	// AgentOrder: the agent registry's ids, the preferred first; SessionAgent: the PR's review session's agent.
 	AgentOrder   []string
 	SessionAgent func(ctx context.Context, repo string, number int) string
+	// GlobalAgent and ProjectAgent: the developer's choice of coding agent, everywhere and for a project folder
+	// (agentchoice, #845); nil reads none.
+	GlobalAgent  func() string
+	ProjectAgent func(dir string) string
 	// Conventions: the project's commit format (.saasfoundry.json), nil without one.
 	Conventions func(dir string) *molten.ProjectConventions
 	// AgentTab makes a new agent's tab in the workspace, hidden or not (#758); CloseTab takes it away when the
@@ -195,6 +214,9 @@ func (req RestartRequest) check() error {
 }
 
 func (req RestartRequest) checkStart() error {
+	if req.Agent != "" && !agentchoice.IsSupported(req.Agent) {
+		return fmt.Errorf("agent must be one of %s", strings.Join(agentchoice.Supported, ", "))
+	}
 	if !req.Start {
 		return nil
 	}
@@ -346,20 +368,46 @@ func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, 
 	return tree, true, nil
 }
 
-// pickAgent: the review session's agent when it is installed, else the first installed in the registry's order.
-func (r *Restarter) pickAgent(ctx context.Context, req RestartRequest) string {
-	installed := func(id string) bool { return r.env.AgentInstalled != nil && r.env.AgentInstalled(id) }
+func (r *Restarter) resolver() agentchoice.Resolver {
+	return agentchoice.Resolver{Order: r.env.AgentOrder, Installed: r.env.AgentInstalled, Global: r.env.GlobalAgent,
+		Project: r.env.ProjectAgent}
+}
+
+// pickAgent (#845): the agent picked for this run, else the project's choice, else the global default; with no choice,
+// the review session's agent when it is installed, else the first installed in the registry's order. A chosen agent
+// that is not installed gives "" and the choice says so: it is never replaced by another.
+func (r *Restarter) pickAgent(ctx context.Context, req RestartRequest) (string, agentchoice.Choice) {
+	choice := r.resolver().Resolve(req.Dir, req.Agent)
+	if choice.Explicit() {
+		return choice.Agent, choice
+	}
 	if r.env.SessionAgent != nil {
-		if agent := r.env.SessionAgent(ctx, req.Repo, req.Number); agent != "" && installed(agent) {
-			return agent
+		agent := r.env.SessionAgent(ctx, req.Repo, req.Number)
+		if agentchoice.IsSupported(agent) && r.env.AgentInstalled != nil && r.env.AgentInstalled(agent) {
+			choice.Agent, choice.AgentName = agent, molten.AgentDisplayName(agent)
 		}
 	}
-	for _, id := range r.env.AgentOrder {
-		if (id == molten.AgentIdClaude || id == molten.AgentIdCodex) && installed(id) {
-			return id
-		}
+	return choice.Agent, choice
+}
+
+// noteChoice puts the developer's choice in a result: what an offer may switch to, the agent missing, and the chosen
+// agent when the work went to another one.
+func noteChoice(result *RestartResult, choice agentchoice.Choice) {
+	result.AgentSource, result.Agents = choice.Source, choice.Agents
+	if !choice.Explicit() {
+		return
 	}
-	return ""
+	result.ChosenAgent, result.ChosenName, result.AgentMissing = choice.Chosen, choice.ChosenName, choice.Missing
+}
+
+// noteReused: an agent already on the branch got the work; when the developer chose another one, the result says so.
+func (r *Restarter) noteReused(ctx context.Context, req RestartRequest, result *RestartResult) {
+	if result.Agent == "" {
+		return
+	}
+	if choice := r.resolver().Resolve(req.Dir, req.Agent); choice.Explicit() && choice.Chosen != result.Agent {
+		result.ChosenAgent, result.ChosenName = choice.Chosen, choice.ChosenName
+	}
 }
 
 func restartTicket(req RestartRequest) int {
@@ -431,6 +479,7 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		if !r.reuseAgent(ctx, tree, line, &result) {
 			continue
 		}
+		r.noteReused(ctx, req, &result)
 		if result.Status != RestartSent && result.Status != RestartTyped {
 			return result, nil
 		}
@@ -463,9 +512,11 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 // offer: no agent on the branch; the agent that would start is named for the window's choice.
 func (r *Restarter) offer(ctx context.Context, req RestartRequest, roundId string) RestartResult {
 	result := RestartResult{Status: RestartOffer, Branch: req.HeadRef, Round: roundId}
-	if agent := r.pickAgent(ctx, req); agent != "" {
+	agent, choice := r.pickAgent(ctx, req)
+	if agent != "" {
 		result.Agent, result.AgentName = agent, molten.AgentDisplayName(agent)
 	}
+	noteChoice(&result, choice)
 	return result
 }
 
@@ -512,10 +563,16 @@ func (r *Restarter) markRestarted(req RestartRequest, roundId string, tree strin
 // worktree with the prompt, and follows it to its clean end; true when the terminal exists (the agent's command typed,
 // or shown to the developer when the shell gave no prompt).
 func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, origin AgentOrigin, tree string, created bool, line string, result *RestartResult) bool {
-	agent := r.pickAgent(ctx, req)
+	agent, choice := r.pickAgent(ctx, req)
+	noteChoice(result, choice)
 	if agent == "" {
 		result.Status = RestartNoAgent
-		result.Message = "No supported coding agent (Claude Code or Codex) is installed: start one in " + tree + " and give it the brief " + result.BriefPath
+		if choice.Missing {
+			result.Reason = RestartReasonAgentMissing
+			result.Message = choice.MissingText() + ". Nothing was started; the brief is " + result.BriefPath
+			return false
+		}
+		result.Message = agentchoice.NoneText() + ": start one in " + tree + " and give it the brief " + result.BriefPath
 		return false
 	}
 	if r.env.OpenTerminal == nil {

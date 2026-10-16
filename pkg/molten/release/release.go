@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
@@ -65,6 +66,9 @@ type Env struct {
 	// Agent runs the coding agent CLI that writes the public notes, the prompt on its standard input; nil runs it with
 	// ExecAgent. Tests replace it.
 	Agent AgentRunner
+	// CodingAgent asks MoltenTerm for the project's coding agent (#845) when the step's environment does not name it;
+	// false when MoltenTerm cannot be reached (CI, a plain shell).
+	CodingAgent func(ctx context.Context, dir string) (agentchoice.Choice, bool)
 	Sleep func(time.Duration)
 	Now   func() time.Time
 	// Zero means the defaults (30 s, 90 min).

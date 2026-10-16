@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
@@ -600,6 +601,7 @@ func UseStarter(start func()) {
 
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
+	agentchoice.Start()
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups
@@ -630,6 +632,7 @@ func Start() {
 		}
 	})
 	runs.UseCi(ci)
+	runs.UseAgentEnv(func(dir string) []string { return agentchoice.Resolve(dir, "").RunEnv() })
 	runs.UseNotifier(publishBuildNotice)
 	// The status bars and the collector read git again when the watch sees it change a repository (FR-PERF-011).
 	watch := gitwatch.Default()

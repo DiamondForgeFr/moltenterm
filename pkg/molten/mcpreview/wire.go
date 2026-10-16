@@ -322,6 +322,8 @@ type StartResult struct {
 	// Reason: why no session was started (noagent or failed); AgentName: the requested agent (ReasonAgentMissing).
 	Reason    string `json:"reason,omitempty"`
 	AgentName string `json:"agentname,omitempty"`
+	// Installed: the agent ids the developer can pick instead when the chosen one is missing (#845).
+	Installed []string `json:"installed,omitempty"`
 }
 
 type ListResult struct {

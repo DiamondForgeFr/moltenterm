@@ -147,7 +147,10 @@ func (b *BatchRunner) startBatchAgent(ctl *batchCtl, agent *batchAgent, k PrKey,
 	run := b.read(ctl)
 	ctx, cancel := context.WithTimeout(context.Background(), restartTimeout)
 	defer cancel()
-	id := r.pickAgent(ctx, RestartRequest{PrKey: k, Dir: run.Dir})
+	id, choice := r.pickAgent(ctx, RestartRequest{PrKey: k, Dir: run.Dir})
+	if id == "" && choice.Missing {
+		return batchStop{reason: BatchReasonAgentMissing, detail: choice.ChosenName}, false
+	}
 	if id == "" {
 		return batchStop{reason: BatchReasonNoAgent}, false
 	}

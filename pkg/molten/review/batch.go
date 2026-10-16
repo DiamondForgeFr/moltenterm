@@ -65,6 +65,8 @@ const (
 	BatchReasonAgentExited  = "agentexited"
 	BatchReasonAgentTimeout = "agenttimeout"
 	BatchReasonNoAgent      = "noagent"
+	// BatchReasonAgentMissing: the coding agent chosen for the project is not installed (#845); Detail names it.
+	BatchReasonAgentMissing = "agentmissing"
 	BatchReasonAgentStart   = "agentstart"
 	BatchReasonBlocked      = "blocked"
 	BatchReasonWarnings     = "warnings"

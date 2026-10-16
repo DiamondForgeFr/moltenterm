@@ -125,6 +125,8 @@ type Runs struct {
 	ci          *Ci
 	notify      func(RunRecord, molten.NotificationInput)
 	told        map[string]bool
+	// agentEnv tells a step the project's coding agent (agentchoice.EnvVar), for the release notes (#845).
+	agentEnv func(dir string) []string
 }
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
@@ -135,6 +137,11 @@ func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs 
 // UseCi lets builds verify their commit with the local CI first.
 func (r *Runs) UseCi(ci *Ci) {
 	r.ci = ci
+}
+
+// UseAgentEnv gives every step the project's coding agent in its environment.
+func (r *Runs) UseAgentEnv(agentEnv func(dir string) []string) {
+	r.agentEnv = agentEnv
 }
 
 func RunsDir(dataDir string) string {
@@ -386,6 +393,9 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	cmd.Env = commandEnv()
 	for k, v := range command.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	if r.agentEnv != nil {
+		cmd.Env = append(cmd.Env, r.agentEnv(dir)...)
 	}
 	cmd.Env = append(cmd.Env, "MOLTEN_RUN_ID="+rec.Id)
 	cmd.Stdout = logFile

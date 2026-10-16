@@ -12,10 +12,16 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
+	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"golang.org/x/term"
 )
+
+const moltenCodingAgentTimeoutMs = 5000
 
 // `molten release` (FR-REL-002, DS-REL-002): the generic commands a project's release.rc and release.public steps call
 // (.molten/project.json), so that Mission Control, or a terminal, cuts a release of any standalone app. They need no
@@ -139,7 +145,31 @@ func moltenReleaseEnv() *release.Env {
 	if err != nil {
 		dir = "."
 	}
-	return &release.Env{Dir: dir, Out: WrappedStdout}
+	return &release.Env{Dir: dir, Out: WrappedStdout, CodingAgent: moltenCodingAgent}
+}
+
+// moltenCodingAgent asks MoltenTerm for the project's coding agent (#845) when the command runs in one of its
+// terminals; false elsewhere (CI, a plain shell), where the notes stay what the project declares.
+func moltenCodingAgent(ctx context.Context, dir string) (agentchoice.Choice, bool) {
+	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
+	if jwtToken == "" {
+		return agentchoice.Choice{}, false
+	}
+	if RpcClient == nil {
+		if err := setupRpcClient(nil, jwtToken); err != nil {
+			return agentchoice.Choice{}, false
+		}
+	}
+	resp, err := RpcClient.SendRpcRequest(agentchoice.GetCommand, agentchoice.GetRequest{Dir: dir},
+		&wshrpc.RpcOpts{Route: agentchoice.RouteId, Timeout: moltenCodingAgentTimeoutMs})
+	if err != nil {
+		return agentchoice.Choice{}, false
+	}
+	var choice agentchoice.Choice
+	if err := utilfn.ReUnmarshal(&choice, resp); err != nil {
+		return agentchoice.Choice{}, false
+	}
+	return choice, true
 }
 
 func moltenReleaseChannels() []string {

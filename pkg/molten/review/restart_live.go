@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
@@ -75,12 +76,11 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 			return RestartTypeOutcome{Message: out.Message}
 		},
 		OpenTerminal: reviewsession.OpenTerminal,
-		AgentInstalled: func(agent string) bool {
-			adapter := agentcontinuity.Find(agent)
-			return adapter != nil && molten.LookPathIn(adapter.Executable(), molten.LoginPath()) != ""
-		},
-		AgentOrder:   agentcontinuity.Default().Ids(),
-		SessionAgent: reviewsession.SessionAgent,
+		AgentInstalled: agentchoice.Installed,
+		AgentOrder:     agentcontinuity.Default().Ids(),
+		SessionAgent:   reviewsession.SessionAgent,
+		GlobalAgent:    agentchoice.Live().Global,
+		ProjectAgent:   agentchoice.Live().Project,
 		Conventions: func(dir string) *molten.ProjectConventions {
 			return molten.ReadProject(dir).Conventions
 		},
