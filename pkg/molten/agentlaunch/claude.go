@@ -302,6 +302,7 @@ func hookWhere(sources []settingsSource, event string, match func(string) bool) 
 
 type plannedHook struct {
 	event   string
+	matcher string
 	command string
 	// timeout in seconds, 0 for Claude Code's default.
 	timeout int
@@ -356,7 +357,7 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 			skipped, skippedIn = append(skipped, h.Event), where
 			continue
 		}
-		hooks = append(hooks, plannedHook{event: h.Event, command: h.Command})
+		hooks = append(hooks, plannedHook{event: h.Event, matcher: h.Matcher, command: h.Command})
 		added = append(added, h.Event)
 	}
 	stateHooks := func(events []string) phrase {
@@ -520,7 +521,11 @@ func claudeSettingsJSON(flag map[string]json.RawMessage, hooks []plannedHook, st
 			if h.timeout > 0 {
 				handler["timeout"] = h.timeout
 			}
-			events[h.event] = append(events[h.event], map[string]any{"hooks": []any{handler}})
+			group := map[string]any{"hooks": []any{handler}}
+			if h.matcher != "" {
+				group["matcher"] = h.matcher
+			}
+			events[h.event] = append(events[h.event], group)
 		}
 		doc["hooks"] = events
 	}

@@ -14,6 +14,7 @@ import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
+import { startAgentSeen } from "./agent-seen";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
@@ -414,6 +415,7 @@ export function NotificationCenter() {
     const panelRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLButtonElement>(null);
     useEffect(() => startNotificationAutoRead(), []);
+    useEffect(() => startAgentSeen(), []);
     useEffect(() => registerBuiltInGestures(), []);
     useEffect(() => startNotificationToasts(), []);
     useEffect(() => startHandoffSystemNotifications(), []);
