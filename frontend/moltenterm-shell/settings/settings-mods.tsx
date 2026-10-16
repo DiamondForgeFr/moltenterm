@@ -74,7 +74,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                         {t("settings.mods.overBudget")}
                     </Pill>
                 ) : null}
-                <span className={cn("ml-auto shrink-0 text-11", failed ? "text-error" : "text-muted")}>
+                <span className={cn("ml-auto shrink-0 text-11", failed ? "text-danger" : "text-muted")}>
                     {KnownStates.has(mod.state) ? t(`settings.mods.state.${mod.state}`) : mod.state}
                 </span>
             </div>
@@ -83,7 +83,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
                     {mod.commands.map((c) => `molten ${c}`).join(", ")}
                 </div>
             ) : null}
-            {mod.error ? <div className="text-12 text-error">{mod.error}</div> : null}
+            {mod.error ? <div className="text-12 text-danger">{mod.error}</div> : null}
             {mod.usage != null ? (
                 <div className={cn("text-11", over ? "text-warning" : "text-muted")} data-mod-usage>
                     {formatModUsage(mod.usage, t, locale)}

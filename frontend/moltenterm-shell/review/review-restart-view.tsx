@@ -37,7 +37,7 @@ const LinkButton = "cursor-pointer text-12 text-secondary underline-offset-2 hov
 const ToneClasses: Record<string, string> = {
     ok: "text-success",
     warn: "text-warning",
-    fail: "text-error",
+    fail: "text-danger",
 };
 
 export function RestartButton({ model }: { model: ReviewTabModel }) {

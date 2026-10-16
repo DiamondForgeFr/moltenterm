@@ -37,7 +37,7 @@ const PlainButton =
 
 const MarkTones: Record<string, string> = {
     success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-error",
+    failure: "border-error/40 bg-error/10 text-danger",
     pending: "border-warning/40 bg-warning/10 text-warning",
     neutral: "border-border bg-hover text-muted",
 };
@@ -237,7 +237,7 @@ export function BatchConfirmDialog({
                 <p className="text-secondary">{t("reviews.batch.confirm.stops")}</p>
                 <p className="text-muted">{t("reviews.batch.confirm.checkout")}</p>
                 {error ? (
-                    <p className="text-error" role="alert" data-testid="reviews-batch-confirm-error">
+                    <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-error">
                         {error}
                     </p>
                 ) : null}
@@ -382,7 +382,7 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                 </div>
             ) : null}
             {error ? (
-                <div className="text-11 text-error" role="alert">
+                <div className="text-11 text-danger" role="alert">
                     {error}
                 </div>
             ) : null}

@@ -341,7 +341,7 @@ function ConfirmFacts({
 
 type DialogStep = "plan" | "confirm" | "working" | "done";
 
-function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDone: () => void }) {
+export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDone: () => void }) {
     const t = useT();
     const [plan, setPlan] = useState<WorktreePlan>(null);
     const [error, setError] = useState<string>(null);
@@ -549,7 +549,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                 </label>
             ) : null}
             {notice ? <div className="text-secondary">{notice}</div> : null}
-            {error ? <div className="text-error">{serverErrorText(error)}</div> : null}
+            {error ? <div className="text-danger">{serverErrorText(error)}</div> : null}
         </DialogFrame>
     );
 }
@@ -619,7 +619,7 @@ function TabCloseRowView({
                     {t("worktree.close.deleteBranch", { branch: row.plan.branch })}
                 </label>
             ) : null}
-            {row.error ? <div className="text-error">{serverErrorText(row.error)}</div> : null}
+            {row.error ? <div className="text-danger">{serverErrorText(row.error)}</div> : null}
         </div>
     );
 }

@@ -176,7 +176,7 @@ export function BranchCleanupDialog({
                             disabled={busy}
                             onClick={clean}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-error transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
                             )}
                         >
                             {busy ? <DominoLoader /> : <i className="fa fa-solid fa-trash-can text-11" />}
@@ -188,7 +188,7 @@ export function BranchCleanupDialog({
         >
             <div data-testid="branch-cleanup">
                 {error ? (
-                    <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error">
+                    <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-danger">
                         {error}
                     </div>
                 ) : null}

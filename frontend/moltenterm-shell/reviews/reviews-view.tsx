@@ -87,7 +87,7 @@ const RowKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 
 const ToneClasses: Record<Tone, string> = {
     success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-error",
+    failure: "border-error/40 bg-error/10 text-danger",
     pending: "border-warning/40 bg-warning/10 text-warning",
     neutral: "border-border bg-hover text-muted",
 };
@@ -517,7 +517,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
 }
 
 function Problem({ text }: { text: string }) {
-    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-error">{text}</div>;
+    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
 function ToneChip({
@@ -851,7 +851,7 @@ export function ReviewRow({
                 <div
                     className={cn(
                         "flex flex-wrap items-center gap-2 text-12 leading-4",
-                        outcome.kind === "failed" ? "text-error" : "text-secondary"
+                        outcome.kind === "failed" ? "text-danger" : "text-secondary"
                     )}
                     role="status"
                     data-testid="reviews-rebase-outcome"

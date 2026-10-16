@@ -94,7 +94,7 @@ export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; 
         <div
             className={cn(
                 "flex flex-wrap items-center gap-2 text-12 leading-4",
-                failed ? "text-error" : "text-secondary",
+                failed ? "text-danger" : "text-secondary",
                 className
             )}
             role={failed ? "alert" : "status"}

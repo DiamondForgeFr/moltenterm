@@ -569,7 +569,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                             invalid ? "border-error focus:border-error" : "border-border"
                         )}
                     />
-                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-error">
+                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-danger">
                         {invalid ? emptyNameError() : ""}
                     </div>
                 </div>

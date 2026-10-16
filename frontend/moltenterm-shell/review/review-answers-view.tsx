@@ -68,7 +68,7 @@ export function QuestionQueue({ model }: { model: ReviewTabModel }) {
                     {note}
                 </p>
             ) : null}
-            {error ? <p className="text-11 text-error">{error}</p> : null}
+            {error ? <p className="text-11 text-danger">{error}</p> : null}
         </section>
     );
 }
@@ -324,7 +324,7 @@ function KeepButton({ model, answer, notes }: { model: ReviewTabModel; answer: R
                     {t("review.notes.keep")}
                 </button>
             )}
-            {error ? <span className="text-error">{error}</span> : null}
+            {error ? <span className="text-danger">{error}</span> : null}
         </div>
     );
 }

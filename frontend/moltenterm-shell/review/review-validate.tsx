@@ -118,7 +118,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
             <div className="flex flex-col gap-3 pt-4" data-testid="validate-plan">
                 {v.error ? (
                     <div
-                        className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 break-words text-error"
+                        className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 break-words text-danger"
                         data-testid="validate-error"
                     >
                         {validateErrorText(v.error)}
@@ -168,7 +168,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                     }
                 />
                 {record == null && plan != null && !plan.canmerge ? (
-                    <div className="text-error" data-testid="validate-reason">
+                    <div className="text-danger" data-testid="validate-reason">
                         {t("review.validate.mergeDisabled", { reason: disabledReason })}
                     </div>
                 ) : null}
