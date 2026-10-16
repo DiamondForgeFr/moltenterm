@@ -18,6 +18,14 @@ import ymlWorker from "./yamlworker?worker";
 
 let monacoConfigured = false;
 
+// MOLTENTERM-PATCH (#810): keep YAML's legacy descriptors compatible with Monaco's split worker APIs.
+function createYamlWorker<T extends object>(options: monaco.editor.IInternalWebWorkerOptions) {
+    if ("moduleId" in options && typeof options.moduleId === "string") {
+        return monaco.createWebWorker<T>({ ...options, moduleId: options.moduleId });
+    }
+    return monaco.editor.createWebWorker<T>(options);
+}
+
 window.MonacoEnvironment = {
     getWorker(_, label) {
         if (label === "json") {
@@ -64,10 +72,12 @@ export function loadMonaco() {
             focusBorder: "#00000000",
         },
     });
-    configureMonacoYaml(monaco, {
-        validate: true,
-        schemas: [],
-    });
+    // MOLTENTERM-PATCH (#810): YAML's worker manager uses the legacy descriptor API. Monaco's named export is
+    // its compatibility bridge; editor.createWebWorker now requires an already-created Worker instead.
+    configureMonacoYaml(
+        { ...monaco, editor: { ...monaco.editor, createWebWorker: createYamlWorker } },
+        { validate: true, schemas: [] }
+    );
     monaco.editor.setTheme("wave-theme-dark");
     // Disable default validation errors for typescript and javascript
     monaco.typescript.typescriptDefaults.setDiagnosticsOptions({

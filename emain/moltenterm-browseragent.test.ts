@@ -15,8 +15,8 @@ describe("browser agent takeover and input", () => {
     let agent: typeof import("./moltenterm-browseragent");
     let wc: EventEmitter & Record<string, any>;
     let session: EventEmitter;
-    let report: ReturnType<typeof vi.fn>;
-    let ask: ReturnType<typeof vi.fn>;
+    let report: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string) => void>>;
+    let ask: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string, host: string) => Promise<boolean>>>;
     let input: (event: any, payload?: any) => void;
     let attached: boolean;
 
