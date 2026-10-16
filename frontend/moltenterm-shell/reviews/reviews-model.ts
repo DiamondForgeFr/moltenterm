@@ -243,17 +243,33 @@ export type RebaseResult = {
     briefpath?: string;
     tabid?: string;
     hidden?: boolean;
+    // The developer's coding agent (#845).
+    chosenagent?: string;
+    chosenname?: string;
+    agentmissing?: boolean;
+    agentsource?: string;
+    agents?: { id: string; name: string; installed: boolean }[];
 };
 
 // asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
-// agent on the branch, the developer chooses how one starts (agent: the one that would); info and failed: a line.
+// agent on the branch, the developer chooses how one starts (agent: the one that would, result: wavesrv's offer with
+// the agents to switch to); info and failed: a line.
 export type RebaseOutcome = {
     kind: "asked" | "offer" | "info" | "failed";
     name?: string;
     agent?: string;
+    result?: RebaseResult;
     text: string;
     note?: boolean;
 };
+
+// notChosen: the agent already on the branch took the work, not the one the developer chose (#845).
+function notChosen(result: RebaseResult, name: string): string {
+    if (!result.chosenname || !result.agent || result.chosenagent === result.agent) {
+        return "";
+    }
+    return " " + t("reviews.rebase.notChosen", { name, chosen: result.chosenname });
+}
 
 function folderOf(path: string): string {
     const parts = (path ?? "").split(/[/\\]/).filter((p) => p !== "");
@@ -302,13 +318,23 @@ export function rebaseOutcome(
                 return { kind: "asked", name, text: t(keys.startedHidden, vars), note: true };
             }
             return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
-        case "sent":
-            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
+        case "sent": {
+            const other = notChosen(result, name);
+            return {
+                kind: "asked",
+                name,
+                text: t(keys.asked, vars) + other,
+                note: what === "investigate" || other !== "",
+            };
+        }
         case "typed":
-            return { kind: "asked", name, text: t("reviews.rebase.typed", vars), note: true };
+            return { kind: "asked", name, text: t("reviews.rebase.typed", vars) + notChosen(result, name), note: true };
         case "offer":
-            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "" };
+            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "", result };
         case "noagent":
+            if (result.reason === "agentmissing") {
+                return { kind: "failed", text: t("reviews.rebase.agentmissing", { chosen: result.chosenname ?? "" }) };
+            }
             return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
         case "busy":
             switch (result.reason) {

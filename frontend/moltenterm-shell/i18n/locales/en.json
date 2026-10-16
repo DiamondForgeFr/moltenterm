@@ -483,7 +483,8 @@
             "appBuilder": "App builder",
             "thisWorkspace": "This workspace",
             "otherSettings": "Other settings",
-            "360View": "360 view"
+            "360View": "360 view",
+            "codingAgent": "Coding agent"
         },
         "items": {
             "app:nativecontextmenu": {
@@ -974,6 +975,15 @@
             "review:publishlanguage": {
                 "label": "Publication language",
                 "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README."
+            },
+            "moltenterm:codingagent": {
+                "label": "Default coding agent",
+                "description": "The agent MoltenTerm starts for reviews and release notes when a project chose none.",
+                "unset": "The first installed",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
             }
         },
         "title": "Settings",
@@ -4285,7 +4295,8 @@
                 "closed": "Closed",
                 "notreached": "Not reached",
                 "cancelled": "Cancelled",
-                "interrupted": "MoltenTerm restarted"
+                "interrupted": "MoltenTerm restarted",
+                "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
             },
             "decide": {
                 "retry": "Try again",
@@ -4479,7 +4490,9 @@
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
             "failed": "The rebase could not be asked: {message}",
-            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you."
+            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you.",
+            "notChosen": "{name} was already working on the branch, so it got it rather than {chosen}.",
+            "agentmissing": "{chosen}, the agent you chose, is not installed on this computer: choose an installed agent in the panel's options (Agent)."
         },
         "ready": {
             "button": "Mark ready for review",
@@ -4844,7 +4857,8 @@
             "tryAgain": "Try again",
             "noSession": "No review session runs for this PR.",
             "startSession": "Start the review session",
-            "notRunning": "The review session is not running."
+            "notRunning": "The review session is not running.",
+            "startWith": "Start with {agent}"
         },
         "ask": {
             "wholePrTitle": "Ask about the whole PR instead",
@@ -5585,7 +5599,9 @@
                 "notstarted": "The agent was not started: {message}",
                 "nottyped": "The comments could not be sent to {agent}: {message}",
                 "failed": "Restart work failed: {message}",
-                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you."
+                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you.",
+                "notChosen": "{agent} was already working on the branch, so it got the round rather than {chosen}.",
+                "agentmissing": "{chosen}, the agent you chose, is not installed on this computer: choose an installed agent in the panel's options (Agent). Nothing was started."
             }
         },
         "notes": {
@@ -6006,7 +6022,8 @@
                         "closed": "closed",
                         "cancelled": "cancelled",
                         "interrupted": "MoltenTerm restarted",
-                        "notreached": "not reached"
+                        "notreached": "not reached",
+                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
                     }
                 }
             }
@@ -6254,7 +6271,12 @@
             "restart": "Restart #{number}",
             "investigate": "CI #{number}"
         },
-        "noReview": "The pull request to open is not known."
+        "noReview": "The pull request to open is not known.",
+        "agent": "Agent",
+        "notInstalled": "{agent}: not installed",
+        "missing": "{missing}, the agent chosen for this project, is not installed on this computer. Choose another agent for this run.",
+        "missingNone": "{missing}, the agent chosen for this project, is not installed on this computer, and no other supported agent is.",
+        "thisRunOnly": "For this run only: the project's choice stays as it is."
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
@@ -6262,5 +6284,13 @@
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
         "investigate": "Started by you at {time} to investigate the failed CI of #{number}"
+    },
+    "codingAgent": {
+        "section": "Coding agent",
+        "label": "Agent",
+        "notInstalled": "not installed",
+        "missing": "{agent} is chosen but not installed on this computer: choose another one",
+        "automatic": "Automatic: {agent}",
+        "noneInstalled": "No supported agent is installed on this computer"
     }
 }

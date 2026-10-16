@@ -387,7 +387,7 @@ func (m *Manager) pickAgent(requested string, projectDir string) (string, mcprev
 		name := choice.ChosenName
 		return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonAgentMissing, AgentName: name,
 			Installed: installed,
-			Message: fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", name)}
+			Message:   fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", name)}
 	}
 	return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonNotInstalled,
 		Message: "No supported coding agent (Claude Code or Codex) is installed, so the review has no AI. The diff, the comments, publishing and merging work without it."}

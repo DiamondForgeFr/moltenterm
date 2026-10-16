@@ -600,7 +600,8 @@
             "connections": "Connexions",
             "debugging": "Débogage",
             "appBuilder": "Créateur d'apps",
-            "360View": "Vue 360"
+            "360View": "Vue 360",
+            "codingAgent": "Agent de code"
         },
         "items": {
             "molten:folder": {
@@ -1091,6 +1092,15 @@
             "review:publishlanguage": {
                 "label": "Langue de publication",
                 "description": "Langue des commentaires de revue sur GitHub quand le projet n'en désigne aucune ; vide : d'après ses PR et son README."
+            },
+            "moltenterm:codingagent": {
+                "label": "Agent de code par défaut",
+                "description": "L'agent que MoltenTerm lance pour les revues et les notes de version quand un projet n'en a choisi aucun.",
+                "unset": "Le premier installé",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
             }
         },
         "mods": {
@@ -4285,7 +4295,8 @@
                 "closed": "Fermée",
                 "notreached": "Pas atteinte",
                 "cancelled": "Annulée",
-                "interrupted": "MoltenTerm a redémarré"
+                "interrupted": "MoltenTerm a redémarré",
+                "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
             },
             "decide": {
                 "retry": "Réessayer",
@@ -4479,7 +4490,9 @@
             "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",
             "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
             "failed": "Le rebase n'a pas pu être demandé : {message}",
-            "startedHidden": "{name} rebase {branch} hors de vue : suivez-le ci-dessous ou dans Sessions. Une notification vous prévient quand il a fini ou a besoin de vous."
+            "startedHidden": "{name} rebase {branch} hors de vue : suivez-le ci-dessous ou dans Sessions. Une notification vous prévient quand il a fini ou a besoin de vous.",
+            "notChosen": "{name} travaillait déjà sur la branche, il l'a donc reçu à la place de {chosen}.",
+            "agentmissing": "{chosen}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur : choisissez un agent installé dans les options du panneau (Agent)."
         },
         "ready": {
             "button": "Prête pour la revue",
@@ -4844,7 +4857,8 @@
             "tryAgain": "Réessayer",
             "noSession": "Aucune session de revue ne tourne pour cette PR.",
             "startSession": "Démarrer la session de revue",
-            "notRunning": "La session de revue ne tourne pas."
+            "notRunning": "La session de revue ne tourne pas.",
+            "startWith": "Lancer avec {agent}"
         },
         "ask": {
             "wholePrTitle": "Poser la question sur toute la PR",
@@ -5585,7 +5599,9 @@
                 "notstarted": "L'agent n'a pas démarré : {message}",
                 "nottyped": "Les commentaires n'ont pas pu être envoyés à {agent} : {message}",
                 "failed": "La relance du travail a échoué : {message}",
-                "startedHidden": "{agent} travaille sur la passe hors de vue dans {folder} : une notification vous prévient quand il a fini ou a besoin de vous."
+                "startedHidden": "{agent} travaille sur la passe hors de vue dans {folder} : une notification vous prévient quand il a fini ou a besoin de vous.",
+                "notChosen": "{agent} travaillait déjà sur la branche, il a donc reçu le tour à la place de {chosen}.",
+                "agentmissing": "{chosen}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur : choisissez un agent installé dans les options du panneau (Agent). Rien n'a été lancé."
             }
         },
         "notes": {
@@ -6006,7 +6022,8 @@
                         "closed": "fermée",
                         "cancelled": "annulée",
                         "interrupted": "MoltenTerm a redémarré",
-                        "notreached": "pas atteinte"
+                        "notreached": "pas atteinte",
+                        "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
                     }
                 }
             }
@@ -6254,7 +6271,12 @@
             "restart": "Relance #{number}",
             "investigate": "CI #{number}"
         },
-        "noReview": "La pull request à ouvrir n'est pas connue."
+        "noReview": "La pull request à ouvrir n'est pas connue.",
+        "agent": "Agent",
+        "notInstalled": "{agent} : non installé",
+        "missing": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur. Choisissez un autre agent pour ce lancement.",
+        "missingNone": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur, et aucun autre agent pris en charge ne l'est.",
+        "thisRunOnly": "Pour ce lancement seulement : le choix du projet ne change pas."
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",
@@ -6262,5 +6284,13 @@
         "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
         "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
         "investigate": "Lancé par vous à {time} pour analyser l'échec de la CI de #{number}"
+    },
+    "codingAgent": {
+        "section": "Agent de code",
+        "label": "Agent",
+        "notInstalled": "non installé",
+        "missing": "{agent} est choisi mais n'est pas installé sur cet ordinateur : choisissez-en un autre",
+        "automatic": "Automatique : {agent}",
+        "noneInstalled": "Aucun agent pris en charge n'est installé sur cet ordinateur"
     }
 }

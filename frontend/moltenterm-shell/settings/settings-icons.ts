@@ -60,6 +60,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     companion: "companion",
     codeReview: "review",
     agents: "agent",
+    codingAgent: "agent",
     browserPanel: "web",
     openingPages: "openExternal",
     ciCd: "ci",
