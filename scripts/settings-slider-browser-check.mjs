@@ -24,7 +24,12 @@ try {
   });
   instance.child = spawn(
     instance.electronBinary(),
-    ["scripts/settings-slider-fixture-electron.cjs", `--user-data-dir=${instance.root}/electron`],
+    [
+      "scripts/settings-slider-fixture-electron.cjs",
+      `--user-data-dir=${instance.root}/electron`,
+      "-ApplePersistenceIgnoreState",
+      "YES",
+    ],
     {
       cwd: root,
       env: {

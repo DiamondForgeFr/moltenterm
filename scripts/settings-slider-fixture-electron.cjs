@@ -4,6 +4,8 @@
 const assert = require("node:assert/strict");
 const { app, BrowserWindow } = require("electron");
 
+if (process.platform === "darwin") app.setActivationPolicy("accessory");
+
 const fixture = "globalThis.settingsSliderFixture";
 const slider = 'document.querySelector(\'[data-setting="window:opacity"] input[type="range"]\')';
 const nav = (name) =>
