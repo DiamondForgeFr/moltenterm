@@ -16,11 +16,29 @@ const completionFileName = "completion"
 
 // The supervisor owns the control file; the command runs in a separate shell so its exit, exec, traps and
 // stdout cannot replace the supervisor or supply its result. Atomic publication survives a wavesrv restart.
+// Cancellation can arrive before the child exists: remember it, then signal the whole isolated group once the
+// child has been assigned. Ignoring the forwarded signal in the supervisor prevents a recursive trap.
+// The child resets its inherited traps and checks cancellation before exec, closing the fork/exec signal window.
 const runSupervisor = `trap '' HUP
 interrupted=0
-trap 'interrupted=1' TERM INT
-/bin/sh -c "$1" &
+cancelled=0
+child=
+cancel_run() {
+    interrupted=1
+    cancelled=1
+    if [ -n "$child" ]; then
+        trap '' TERM INT
+        kill -TERM 0
+    fi
+}
+trap cancel_run TERM INT
+(
+    trap - TERM INT
+    [ "$cancelled" = 0 ] || exit 143
+    exec /bin/sh -c "$1"
+) &
 child=$!
+[ "$cancelled" = 0 ] || cancel_run
 while :; do
     interrupted=0
     wait "$child"
