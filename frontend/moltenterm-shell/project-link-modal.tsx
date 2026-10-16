@@ -120,7 +120,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                             </span>
                         ) : null}
                     </label>
-                    {error ? <div className="text-error">{error}</div> : null}
+                    {error ? <div className="text-danger">{error}</div> : null}
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" disabled={busy} onClick={decline} className={PlainButton}>

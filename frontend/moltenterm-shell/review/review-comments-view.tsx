@@ -266,7 +266,7 @@ export function CommentCard({
                             className={
                                 action === "accept" || action === "stage"
                                     ? "molten-btn flex h-6 cursor-pointer items-center rounded-6 px-2 text-11"
-                                    : cn(SmallButton, action === "drop" && "hover:text-error")
+                                    : cn(SmallButton, action === "drop" && "hover:text-danger")
                             }
                             disabled={busy}
                             title={ActionTitles[action]}
@@ -315,7 +315,7 @@ export function CommentCard({
                     ) : null}
                 </div>
             ) : null}
-            {error ? <div className="text-11 text-error">{error}</div> : null}
+            {error ? <div className="text-11 text-danger">{error}</div> : null}
             {discussing ? <DiscussBox model={model} comment={comment} /> : null}
             <Discussion model={model} comment={comment} />
             {showHistory ? <History comment={comment} /> : null}
@@ -389,7 +389,7 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
                 <p
                     className={cn(
                         "text-11",
-                        outcome.tone === "ok" ? "text-success" : outcome.tone === "warn" ? "text-warning" : "text-error"
+                        outcome.tone === "ok" ? "text-success" : outcome.tone === "warn" ? "text-warning" : "text-danger"
                     )}
                     data-testid="review-discuss-outcome"
                 >
@@ -475,7 +475,7 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                     ) : null}
                 </li>
             ))}
-            {error ? <li className="text-11 text-error">{error}</li> : null}
+            {error ? <li className="text-11 text-danger">{error}</li> : null}
         </ul>
     );
 }

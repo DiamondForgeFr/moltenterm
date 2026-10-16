@@ -177,7 +177,7 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
                 {ask.message}
             </p>
         ) : ask.status === "failed" ? (
-            <p className="text-error">{ask.message || t("review.ai.askFailed")}</p>
+            <p className="text-danger">{ask.message || t("review.ai.askFailed")}</p>
         ) : null;
     // Links of the briefing that point into the PR open the file in the diff at the line; web links open as usual.
     const onClickCapture = (e: React.MouseEvent) => {
@@ -312,7 +312,7 @@ function AiStatus({
         case "failed":
             return (
                 <div className="flex flex-col gap-1.5">
-                    <p className="text-error">{ai.message || t("review.ai.startFailed")}</p>
+                    <p className="text-danger">{ai.message || t("review.ai.startFailed")}</p>
                     <button type="button" className={SecondaryButton} onClick={onRetry}>
                         {t("review.ai.tryAgain")}
                     </button>

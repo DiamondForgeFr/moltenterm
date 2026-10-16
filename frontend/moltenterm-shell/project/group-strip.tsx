@@ -20,7 +20,7 @@ import { ProjectCardProps } from "./project-context";
 
 const ToneText: Record<StripTone, string> = {
     ok: "text-success",
-    bad: "text-error",
+    bad: "text-danger",
     running: "text-accent",
     muted: "text-muted",
 };
@@ -165,10 +165,10 @@ function DependencyFlag({
                         <MoltenWave />
                     </button>
                     {status?.error ? (
-                        <span className="text-11 text-error">{status.error}</span>
+                        <span className="text-11 text-danger">{status.error}</span>
                     ) : dep.syncNote ? (
                         <span
-                            className={cn("text-11", dep.syncing ? "text-muted" : "text-error")}
+                            className={cn("text-11", dep.syncing ? "text-muted" : "text-danger")}
                             data-testid="group-strip-sync-note"
                         >
                             {dep.syncNote}

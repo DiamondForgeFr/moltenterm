@@ -70,7 +70,7 @@ export function NotesSection({ dir, repo, blockId, ask }: NotesProps & { ask?: N
                     />
                 ) : null}
             </div>
-            {error ? <p className="text-12 text-error">{t("review.notes.readFailed", { error })}</p> : null}
+            {error ? <p className="text-12 text-danger">{t("review.notes.readFailed", { error })}</p> : null}
             {notes != null && all.length === 0 ? (
                 <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
                     {t("review.notes.empty")}
@@ -265,7 +265,7 @@ function NoteBody({
                 </div>
             ) : null}
             {error ? (
-                <p className="text-11 text-error" data-testid="reviews-note-error">
+                <p className="text-11 text-danger" data-testid="reviews-note-error">
                     {error}
                 </p>
             ) : null}
@@ -302,7 +302,7 @@ function NoteBody({
                 ) : (
                     <button
                         type="button"
-                        className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-secondary hover:border-error/50 hover:text-error"
+                        className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-secondary hover:border-error/50 hover:text-danger"
                         onClick={() => setConfirmDelete(true)}
                         data-testid="reviews-note-delete"
                     >

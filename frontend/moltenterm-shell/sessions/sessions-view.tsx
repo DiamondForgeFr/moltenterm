@@ -102,7 +102,7 @@ const RowGrid = "col-span-full grid grid-cols-subgrid items-center";
 const RowButton =
     "molten-btn-ghost molten-tone-accent cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap disabled:opacity-50";
 const RowDangerButton =
-    "molten-btn-ghost cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap text-error disabled:opacity-50";
+    "molten-btn-ghost cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap text-danger disabled:opacity-50";
 const BarButton =
     "molten-btn-secondary cursor-pointer rounded-6 px-2.5 py-1 text-12 whitespace-nowrap disabled:opacity-50";
 const CheckboxClass = "molten-check";
@@ -348,7 +348,7 @@ function SessionRow({
                     <span
                         className={cn(
                             "shrink-0 rounded-4 px-1 text-11 whitespace-nowrap",
-                            session.reason === "ending" ? "bg-error/15 text-error" : "bg-warning/15 text-warning"
+                            session.reason === "ending" ? "bg-error/15 text-primary" : "bg-warning/15 text-warning"
                         )}
                         title={reasonTitle(session.reason)}
                     >
@@ -555,7 +555,7 @@ function SelectionBar({
             </button>
             <button
                 type="button"
-                className={cn(BarButton, "text-error hover:text-error")}
+                className={cn(BarButton, "text-danger hover:text-danger")}
                 disabled={endable === 0}
                 onClick={() => onAction("end")}
             >
@@ -925,7 +925,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                         <span
                             className={cn(
                                 "ml-auto min-w-0 truncate text-12",
-                                notice.error ? "text-error" : "text-muted"
+                                notice.error ? "text-danger" : "text-muted"
                             )}
                             role="status"
                             title={notice.text}

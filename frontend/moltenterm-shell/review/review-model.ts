@@ -135,7 +135,7 @@ export const StatusLetters: Record<ReviewFileStatus, { letter: string; label: st
         get label() {
             return t("review.file.status.deleted");
         },
-        tone: "text-error",
+        tone: "text-danger",
     },
     renamed: {
         letter: "R",

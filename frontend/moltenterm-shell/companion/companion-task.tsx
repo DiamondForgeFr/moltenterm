@@ -320,7 +320,7 @@ export function WorkspaceTaskCard({
                         ) : null}
                     </div>
                 )}
-                {actionError ? <div className="text-11 text-error">{actionError}</div> : null}
+                {actionError ? <div className="text-11 text-danger">{actionError}</div> : null}
             </div>
         </TaskFrame>
     );

@@ -174,7 +174,7 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                 </>
             )}
             {error ? (
-                <div role="alert" className="mt-1 text-12 text-error">
+                <div role="alert" className="mt-1 text-12 text-danger">
                     {error}
                 </div>
             ) : null}

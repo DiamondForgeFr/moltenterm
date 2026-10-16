@@ -103,7 +103,7 @@ function UpdateDialog() {
                         ) : null}
                         <div className="mt-1 text-11 text-muted">{t("update.dialog.kept")}</div>
                     </div>
-                    {error ? <div className="mt-2 text-12 text-error">{error}</div> : null}
+                    {error ? <div className="mt-2 text-12 text-danger">{error}</div> : null}
                 </div>
                 <div className="flex items-center gap-2 border-t border-border px-4 py-3">
                     <button

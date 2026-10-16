@@ -25,7 +25,7 @@ import { timeAgo } from "./time-format";
 const StateClasses: Record<RunState, string> = {
     running: "bg-accent/20 text-primary",
     success: "bg-success/20 text-success",
-    failure: "bg-error/20 text-error",
+    failure: "bg-error/20 text-primary",
     cancelled: "bg-hover text-muted",
     lost: "bg-warning/20 text-warning",
 };

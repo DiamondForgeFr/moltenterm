@@ -131,7 +131,7 @@ export function EndSessionDialog({
             <div className="text-secondary">
                 {session.shown ? t("sessions.dialog.paneStays") : t("sessions.dialog.noPane")}
             </div>
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
         </DialogFrame>
     );
 }
@@ -192,7 +192,7 @@ export function CleanupDialog({
                     );
                 })}
             </ul>
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
         </DialogFrame>
     );
 }
@@ -406,7 +406,7 @@ export function BulkDialog({
                             </div>
                             {result ? (
                                 <div
-                                    className={cn("pl-6", result.kind === "failed" ? "text-error" : "text-secondary")}
+                                    className={cn("pl-6", result.kind === "failed" ? "text-danger" : "text-secondary")}
                                     data-bulk-result={result.kind}
                                 >
                                     {bulkKindLabel(result.kind)}: {result.message}

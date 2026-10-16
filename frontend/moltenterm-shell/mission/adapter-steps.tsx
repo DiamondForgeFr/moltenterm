@@ -188,7 +188,7 @@ export function AdapterSteps({
                 ))}
             </div>
             {error ? (
-                <button type="button" onClick={clearError} className="cursor-pointer text-left text-12 text-error">
+                <button type="button" onClick={clearError} className="cursor-pointer text-left text-12 text-danger">
                     {error}
                 </button>
             ) : null}

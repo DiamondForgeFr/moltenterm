@@ -671,7 +671,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
             >
                 {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
             </SectionTitle>
-            {error ? <div className="px-3 text-12 text-error">{error}</div> : null}
+            {error ? <div className="px-3 text-12 text-danger">{error}</div> : null}
             <div className="px-3" data-testid="companion-answer">
                 {shown ? (
                     <AnswerMarkdown markdown={markdown} />

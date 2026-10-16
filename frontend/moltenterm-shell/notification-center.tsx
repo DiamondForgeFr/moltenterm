@@ -213,7 +213,7 @@ function NotificationRow({
                         ))}
                     </div>
                 ) : null}
-                {error ? <div className="mt-1 text-12 text-error">{error}</div> : null}
+                {error ? <div className="mt-1 text-12 text-danger">{error}</div> : null}
             </div>
         </div>
     );
@@ -350,13 +350,13 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                                 }
                             })
                         }
-                        className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-error hover:bg-error/10"
+                        className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-danger hover:bg-error/10"
                     >
                         {t("notif.work.stop")}
                     </button>
                 </div>
             ) : null}
-            {error ? <div className="mt-1 text-12 text-error">{serverErrorText(error)}</div> : null}
+            {error ? <div className="mt-1 text-12 text-danger">{serverErrorText(error)}</div> : null}
         </div>
     );
 }

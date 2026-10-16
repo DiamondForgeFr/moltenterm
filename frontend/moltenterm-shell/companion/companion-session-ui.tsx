@@ -74,7 +74,7 @@ export function SessionHistoryList({
                     ))}
                 </div>
             ))}
-            {error ? <div className="text-12 text-error">{error}</div> : null}
+            {error ? <div className="text-12 text-danger">{error}</div> : null}
         </div>
     );
 }

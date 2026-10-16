@@ -74,7 +74,7 @@ export function BlockHeader({ title, hint }: { title: string; hint?: string }) {
 }
 
 export function Problem({ text }: { text: string }) {
-    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-error">{text}</div>;
+    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
 export function Notice({ text }: { text: string }) {
@@ -432,7 +432,7 @@ function BranchJobs({ run, now }: { run: BranchCiRun; now: number }) {
                             </span>
                         </div>
                         {job.failedsteps?.length ? (
-                            <div className="pl-5 text-11 text-error" data-testid="ci-branch-job-failed">
+                            <div className="pl-5 text-11 text-danger" data-testid="ci-branch-job-failed">
                                 {t("mc.remote.failedStepsList", { steps: job.failedsteps.join(", ") })}
                             </div>
                         ) : null}

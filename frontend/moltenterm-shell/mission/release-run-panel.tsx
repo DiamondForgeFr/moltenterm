@@ -189,7 +189,7 @@ function ActionButton({
                     {plain ? null : <MoltenWave />}
                 </button>
             </div>
-            {error ? <p className="text-right text-12 text-error">{error}</p> : null}
+            {error ? <p className="text-right text-12 text-danger">{error}</p> : null}
         </div>
     );
 }
@@ -222,7 +222,7 @@ function NotesEditor({
     const dirty = text != null && text !== saved;
     useEffect(() => onDirty(dirty), [dirty]);
     if (text == null) {
-        return error ? <p className="mt-3 text-12 text-error">{error}</p> : null;
+        return error ? <p className="mt-3 text-12 text-danger">{error}</p> : null;
     }
     return (
         <div className="mt-3 flex flex-col gap-2">
@@ -276,7 +276,7 @@ function NotesEditor({
                     {t("common.save")}
                 </button>
             </div>
-            {error ? <p className="text-right text-12 text-error">{error}</p> : null}
+            {error ? <p className="text-right text-12 text-danger">{error}</p> : null}
         </div>
     );
 }
@@ -336,7 +336,7 @@ function Detail({
                 </div>
             ) : null}
             {phase.cause ? (
-                <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-error">
+                <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger">
                     <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
                     {phase.cause}
                 </p>
@@ -469,7 +469,7 @@ export function ReleaseRunPanel({
                             </button>
                             <button
                                 type="button"
-                                className="cursor-pointer rounded-6 border border-error/50 px-2 py-1 text-12 text-error hover:bg-error/10"
+                                className="cursor-pointer rounded-6 border border-error/50 px-2 py-1 text-12 text-danger hover:bg-error/10"
                                 onClick={onAbandon}
                             >
                                 {t("mc.releaseRun.abandon")}
@@ -576,7 +576,7 @@ export function ReleaseRunSection({
                 onAbandon={abandon}
                 awaits={facts?.awaits}
             />
-            {error ? <p className="text-12 text-error">{error}</p> : null}
+            {error ? <p className="text-12 text-danger">{error}</p> : null}
             {pending != null ? (
                 <TrustPrompt
                     projectName={projectName}

@@ -57,13 +57,13 @@ const ToneDot: Record<CardTone, string> = {
 const ToneText: Record<CardTone, string> = {
     running: "text-[var(--mt-state-working)]",
     success: "text-success",
-    failure: "text-error",
+    failure: "text-danger",
     neutral: "text-muted",
 };
 
 const AgentStateText: Record<string, string> = {
     waiting: "text-warning",
-    error: "text-error",
+    error: "text-danger",
     working: "text-[var(--mt-state-working)]",
     done: "text-success",
     idle: "text-muted",

@@ -177,7 +177,7 @@ export function BuildLocalMenu({
                     {facts?.fetcherror ? (
                         <div className="text-11 text-warning">{t("mc.builds.fetchFailed")}</div>
                     ) : null}
-                    {error ? <div className="text-12 text-error">{error}</div> : null}
+                    {error ? <div className="text-12 text-danger">{error}</div> : null}
                 </MenuPopover>
             ) : null}
         </div>

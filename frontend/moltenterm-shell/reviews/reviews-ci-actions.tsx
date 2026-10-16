@@ -151,7 +151,7 @@ export function RerunConfirm({ pr, state }: { pr: ReviewPr; state: RerunState })
     const asking = state.phase === "confirm" || state.phase === "sending";
     return (
         <div
-            className={cn("flex flex-wrap items-center gap-2 text-12 leading-4", failed ? "text-error" : "text-secondary")}
+            className={cn("flex flex-wrap items-center gap-2 text-12 leading-4", failed ? "text-danger" : "text-secondary")}
             role={failed ? "alert" : "status"}
             onClick={stop}
             onKeyDown={stop}
