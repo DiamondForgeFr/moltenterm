@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -44,11 +43,6 @@ func init() {
 	moltenAgentCmd.AddCommand(moltenAgentStateCmd)
 }
 
-// moltenHookMessage reads the "message" field of a hook's JSON input (Claude Code's Notification hook).
-func moltenHookMessage(r io.Reader) string {
-	return agenthook.HookMessage(r)
-}
-
 func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 	state := args[0]
 	if !molten.ValidAgentState(state) {
@@ -66,8 +60,12 @@ func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a MoltenTerm terminal")
 	}
 	message := moltenAgentStateMessage
-	if moltenAgentStateStdin && message == "" {
-		message = moltenHookMessage(os.Stdin)
+	if moltenAgentStateStdin {
+		// A Notification that asks nothing (#784: idle_prompt) leaves the state as it is.
+		var send bool
+		if message, send = agenthook.StateReport(state, message, os.Stdin); !send {
+			return nil
+		}
 	}
 	req := agenthook.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message}
 	return agenthook.SendAgentState(token, req)

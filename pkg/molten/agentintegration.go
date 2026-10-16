@@ -132,7 +132,9 @@ type AgentIntegrationStatus struct {
 
 // ClaudeHookEntry is one hook of the state hooks of agent-states.md.
 type ClaudeHookEntry struct {
-	Event   string
+	Event string
+	// Matcher: what the hook's group matches, "" for every occurrence (Notification: the types that wait, #784).
+	Matcher string
 	Command string
 }
 
@@ -141,7 +143,8 @@ type ClaudeHookEntry struct {
 func ClaudeStateHooks() []ClaudeHookEntry {
 	var parsed struct {
 		Hooks map[string][]struct {
-			Hooks []struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
 				Command string `json:"command"`
 			} `json:"hooks"`
 		} `json:"hooks"`
@@ -154,7 +157,7 @@ func ClaudeStateHooks() []ClaudeHookEntry {
 	for event, matchers := range parsed.Hooks {
 		for _, matcher := range matchers {
 			for _, hook := range matcher.Hooks {
-				rtn = append(rtn, ClaudeHookEntry{Event: event, Command: hook.Command})
+				rtn = append(rtn, ClaudeHookEntry{Event: event, Matcher: matcher.Matcher, Command: hook.Command})
 			}
 		}
 	}

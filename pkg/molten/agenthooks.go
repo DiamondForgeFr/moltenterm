@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
@@ -51,7 +53,7 @@ const claudeHooksSnippet = `{
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
     ],
     "Notification": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
+      { "matcher": "` + agenthook.ClaudeWaitingNotificationMatcher + `", "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
     ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent claude || true" }] }

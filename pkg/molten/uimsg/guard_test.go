@@ -73,6 +73,7 @@ var englishFields = map[string]string{
 	"agentcontinuity.BriefingChannel.Note": "agent capability table read by `molten` and agents, not shown in a window",
 	"agentcontinuity.Detection.Reason":     "install detection read by `molten` and logs, not shown in a window",
 	"agenthook.AgentStateRequest.Message":  "the agent's own words, sent by `molten agent state`: data, not a sentence of ours",
+	"agenthook.HookInput.Message":          "Claude Code's notification text read from its hook input: the agent's words, not ours",
 	"agenthook.rpcMessage.Error":           "the RPC wire's error string, read by `molten`, never shown in a window",
 	"molten.AgentHookOffer.Reason":         "already a code (HookOffer…), worded by the window",
 	"molten.AgentStateRequest.Message":     "the agent's own words, sent by `molten agent state`: data, not a sentence of ours",

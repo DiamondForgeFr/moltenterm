@@ -324,6 +324,9 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 	if rec == nil || !rec.running {
 		return
 	}
+	if molten.IsIdlePromptSignal(signal.Title, signal.Message) && (rec.state == molten.AgentStateIdle || rec.state == molten.AgentStateDone) {
+		return
+	}
 	a.setStateLocked(blockId, rec, molten.AttentionAgentState(signal.Title, signal.Message), "")
 }
 
@@ -345,6 +348,18 @@ func (a *agentStates) input(blockId string, data []byte) {
 	case molten.AgentStateWaiting, molten.AgentStateDone:
 		a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 	}
+}
+
+// seen clears a done agent the user has looked at (#784): green means finished and not seen yet. Only the version the
+// window saw is cleared, so a newer turn's done stays; waiting and error never clear by being looked at.
+func (a *agentStates) seen(blockId string, version int64) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil || !rec.running || rec.state != molten.AgentStateDone || rec.version != version {
+		return false
+	}
+	return a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 }
 
 // report applies a hook's report; it returns the notification to raise, if any.
@@ -664,6 +679,11 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 		turnEnded(req.BlockId)
 	}
 	return nil
+}
+
+// AgentStateSeen clears the block's done agent once a window showed it (#784); it tells whether the state changed.
+func AgentStateSeen(req molten.AgentStateSeenRequest) bool {
+	return defaultAgentStates.seen(req.BlockId, req.Version)
 }
 
 var turnEndLock sync.Mutex

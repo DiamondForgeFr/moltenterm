@@ -13,7 +13,7 @@ your settings files are only read, and what is added lives in MoltenTerm's data 
 
 | Agent | Added to the run | How |
 | --- | --- | --- |
-| Claude Code | Agent state hooks (working, waiting, done), the session link (`SessionStart`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
+| Claude Code | Agent state hooks (working, waiting, done; the `Notification` hook only for the notifications that wait for you, not the idle reminder a minute after a turn ends), the session link (`SessionStart`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
 | Codex | A notify wrapper that runs your own `notify` first, then reports done and links the session; the MoltenTerm browser server; the coffee approvals hook, which Codex runs once you trust it in `/hooks` | `-c notify=...`, `-c mcp_servers.molten-browser...` and `-c hooks.PermissionRequest=...`, added before your arguments |
 
 The MoltenTerm browser server also carries `list_agents` and `send_to_agent`: tell an agent "send this to Jérôme"

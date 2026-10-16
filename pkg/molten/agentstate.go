@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 )
 
 // Agent states (FR-SHELL-011, DS-SHELL-011): which coding agent runs in a terminal and what it is doing. wavesrv keeps
@@ -28,6 +30,8 @@ const (
 	AgentStatesRoute     = "molten:agents"
 	AgentStatesCommand   = "moltenagentstates"
 	AgentStateSetCommand = "moltenagentstateset"
+	// A window tells that the user has seen a done agent (#784): its green mark clears.
+	AgentStateSeenCommand = "moltenagentstateseen"
 
 	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
 	// restart of MoltenTerm (a durable terminal) gets it back.
@@ -242,12 +246,19 @@ func matchAgentPackage(word string) string {
 var doneWordsRegex = regexp.MustCompile(`(?i)\b(complete|completed|finished|done)\b`)
 
 // AttentionAgentState reads what an attention signal (DS-SHELL-004) says about a running agent: done when its text
-// says the turn is over, waiting otherwise (a bell, a question, a permission request).
+// says the turn is over, waiting otherwise (a bell, a question, a permission request). Claude Code's "waiting for
+// your input", a minute after a turn ended, asks nothing: done (#784).
 func AttentionAgentState(title string, message string) string {
-	if doneWordsRegex.MatchString(title + " " + message) {
+	if doneWordsRegex.MatchString(title+" "+message) || IsIdlePromptSignal(title, message) {
 		return AgentStateDone
 	}
 	return AgentStateWaiting
+}
+
+// IsIdlePromptSignal tells whether an attention signal is Claude Code's idle reminder, which follows a turn that
+// already ended: it must not turn an agent the user has seen back to done.
+func IsIdlePromptSignal(title string, message string) bool {
+	return agenthook.IsIdlePromptMessage(title + " " + message)
 }
 
 // CleanAgentMessage keeps a reported message printable and short.
@@ -275,6 +286,12 @@ type AgentStateRequest struct {
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
+}
+
+// AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.
+type AgentStateSeenRequest struct {
+	BlockId string `json:"blockid"`
+	Version int64  `json:"version"`
 }
 
 type AgentStateInfo struct {
