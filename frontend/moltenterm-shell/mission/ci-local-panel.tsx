@@ -10,6 +10,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText, serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { LocalCiIcon } from "./ci-icon";
@@ -424,7 +425,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
                 >
                     {running != null ? (
                         <>
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11" />
+                            <DominoLoader className="mr-1" />
                             {t("mc.ciLocal.running")}
                         </>
                     ) : (

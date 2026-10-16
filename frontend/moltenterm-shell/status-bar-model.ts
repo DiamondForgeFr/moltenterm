@@ -126,7 +126,7 @@ const CiVerdictLabels: Record<string, string> = {
 const CiVerdictIcons: Record<string, string> = {
     success: "fa-circle-check text-success",
     failure: "fa-circle-xmark text-error",
-    running: "fa-circle-notch fa-spin mt-step-spin text-accent",
+    running: "text-accent",
 };
 
 export function ciVerdictView(status: string): CiVerdictView {

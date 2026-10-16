@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The working beat (#473): the one clock every working indicator of a view moves on (the rail and tab dots, the panel
-// header's segment, the bell's ring, the running-work spinner). It writes a phase, 0 to 3, on the root element
+// header's segment, the bell's ring). It writes a phase, 0 to 3, on the root element
 // (data-mt-beat) every WorkingBeatMs, and the CSS keys each indicator's look on it (moltenterm-shell.css,
 // header/header.css). An infinite CSS animation per indicator made Chromium draw a frame at every display refresh,
 // about a third of a core for 3 working agents (#455); the beat draws 1 frame a second whatever the number of

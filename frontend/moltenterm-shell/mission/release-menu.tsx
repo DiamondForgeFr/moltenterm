@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, releaseMilestone, releaseStart } from "./mission-client";
@@ -185,7 +186,7 @@ export function ReleaseMenu({
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-12 text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
+                            <DominoLoader />
                             {t("mc.releaseMenu.computing")}
                         </div>
                     ) : null}
@@ -257,9 +258,7 @@ export function ReleaseMenu({
                                 onClick={launch}
                                 className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             >
-                                {busy ? (
-                                    <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
-                                ) : null}
+                                {busy ? <DominoLoader className="mr-1.5" /> : null}
                                 {tag ? t("mc.releaseMenu.start", { tag }) : t("mc.releaseMenu.choose")}
                                 <MoltenWave />
                             </button>

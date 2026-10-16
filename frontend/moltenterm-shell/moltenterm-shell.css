@@ -537,12 +537,187 @@
     animation: none;
 }
 
+/* Where the inline chain stands in a slot sized for an icon, it shrinks rather than push the column: a step node of the
+   line maps (28 px round) takes it at three quarters, an icon slot of a list (14 to 16 px) at half. The transform keeps
+   the chain's proportions; the negative margins give the slot back the width it no longer draws. */
+.df-domino-loader.mt-dominos-node {
+    margin-inline: -4px;
+    transform: scale(0.75);
+}
+
+.df-domino-loader.mt-dominos-icon {
+    margin-inline: -8px;
+    transform: scale(0.5);
+}
+
+/* NFR-MC-004: a running indicator moves in steps, because a smooth animation makes Chromium draw a frame at every
+   display refresh (about 6 ms of GPU time each on a Mac, #473). The dominoes keep the suite's 1 s cycle and ease, but
+   sampled at 24 frames a second (mt-dominos-24, generated from the kit's df-dominos curve) and played step by step,
+   with each bar's delay on the same 1/24 s grid (0.125, 0.292, 0.417... for the kit's 0.125, 0.3, 0.425...): every bar
+   of a chain changes on the same frame, 24 frames a second at most instead of 60 to 120. */
+.df-dominos > span,
+.df-domino-loader > span {
+    animation-name: mt-dominos-24;
+    animation-timing-function: step-end;
+}
+
+.df-dominos > span:nth-child(2),
+.df-domino-loader > span:nth-child(2) {
+    animation-delay: calc(22s / 24);
+}
+
+.df-dominos > span:nth-child(3),
+.df-domino-loader > span:nth-child(3) {
+    animation-delay: calc(19s / 24);
+}
+
+.df-dominos > span:nth-child(4),
+.df-domino-loader > span:nth-child(4) {
+    animation-delay: calc(16s / 24);
+}
+
+.df-dominos > span:nth-child(5),
+.df-domino-loader > span:nth-child(5) {
+    animation-delay: calc(13s / 24);
+}
+
+.df-dominos > span:nth-child(6),
+.df-domino-loader > span:nth-child(6) {
+    animation-delay: calc(10s / 24);
+}
+
+.df-dominos > span:nth-child(7),
+.df-domino-loader > span:nth-child(7) {
+    animation-delay: calc(7s / 24);
+}
+
+.df-dominos > span:nth-child(8),
+.df-domino-loader > span:nth-child(8) {
+    animation-delay: calc(3s / 24);
+}
+
+@keyframes mt-dominos-24 {
+    0% {
+        opacity: 1;
+        transform: rotate(0deg);
+    }
+    4.167% {
+        opacity: 0.98;
+        transform: rotate(3.4deg);
+    }
+    8.333% {
+        opacity: 0.93;
+        transform: rotate(10.1deg);
+    }
+    12.5% {
+        opacity: 0.88;
+        transform: rotate(19.9deg);
+    }
+    16.667% {
+        opacity: 0.83;
+        transform: rotate(31.1deg);
+    }
+    20.833% {
+        opacity: 0.79;
+        transform: rotate(42.1deg);
+    }
+    25% {
+        opacity: 0.76;
+        transform: rotate(51.8deg);
+    }
+    29.167% {
+        opacity: 0.74;
+        transform: rotate(60deg);
+    }
+    33.333% {
+        opacity: 0.72;
+        transform: rotate(66.7deg);
+    }
+    37.5% {
+        opacity: 0.71;
+        transform: rotate(72.2deg);
+    }
+    41.667% {
+        opacity: 0.7;
+        transform: rotate(76.7deg);
+    }
+    45.833% {
+        opacity: 0.7;
+        transform: rotate(80.3deg);
+    }
+    50% {
+        opacity: 0.7;
+        transform: rotate(83.2deg);
+    }
+    54.167% {
+        opacity: 0.75;
+        transform: rotate(85.5deg);
+    }
+    58.333% {
+        opacity: 0.84;
+        transform: rotate(87.2deg);
+    }
+    62.5% {
+        opacity: 0.91;
+        transform: rotate(88.5deg);
+    }
+    66.667% {
+        opacity: 0.96;
+        transform: rotate(89.4deg);
+    }
+    70.833% {
+        opacity: 0.98;
+        transform: rotate(89.8deg);
+    }
+    75% {
+        opacity: 1;
+        transform: rotate(90deg);
+    }
+    79.167% {
+        opacity: 1;
+        transform: rotate(70.1deg);
+    }
+    83.333% {
+        opacity: 1;
+        transform: rotate(38.2deg);
+    }
+    87.5% {
+        opacity: 1;
+        transform: rotate(17.8deg);
+    }
+    91.667% {
+        opacity: 1;
+        transform: rotate(6.8deg);
+    }
+    95.833% {
+        opacity: 1;
+        transform: rotate(1.5deg);
+    }
+}
+
+/* The dominoes follow the other running indicators: the system preference, MoltenTerm's own reduced-motion setting (the
+   app root's class) and an inactive view (FR-PERF-009-AC4) stand them upright. The kit stops them under the system
+   preference too, but in its layer, which the stepped animation above would override. */
+.prefers-reduced-motion .df-dominos > span,
+.prefers-reduced-motion .df-domino-loader > span,
+:root[data-mt-motion="still"] .df-dominos > span,
+:root[data-mt-motion="still"] .df-domino-loader > span {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-dominos > span,
+    .df-domino-loader > span {
+        animation: none;
+    }
+}
+
 /* The working beat (#473, working-beat.ts): every working indicator of the view moves on one clock, a phase 0 to 3 on
    the root every second, so 3 or 10 agents cost 1 frame a second, not a frame per display refresh each. The beat
    only changes opacity or a transform, in steps, on small elements. It runs only while the view is active (#455) and
    not under reduced motion; without it every indicator keeps its static look, which alone tells the states apart.
    mt-beat-blink: dims every other beat (1 s on, 1 s dimmed), the rail and tab dots and the running-work bar.
-   mt-beat-turn: a quarter turn per beat, the bell's ring and the running-work spinner. */
+   mt-beat-turn: a quarter turn per beat, the bell's ring. */
 :root[data-mt-motion="live"][data-mt-beat="1"] .mt-beat-blink,
 :root[data-mt-motion="live"][data-mt-beat="3"] .mt-beat-blink {
     opacity: 0.45;

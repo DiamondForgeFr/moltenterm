@@ -13,6 +13,7 @@ import { useLocale } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { ReviewComment, ReviewCommentText, ReviewPublishRecord, ReviewState, ReviewSummaryId } from "./review-client";
 import { shortOid } from "./review-model";
 import {
@@ -141,7 +142,7 @@ function TranslateLine({
             data-status={sheet.translate.status}
             data-missing={missing}
         >
-            {waiting ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11 text-muted" /> : null}
+            {waiting ? <DominoLoader className="text-muted" /> : null}
             <span className={cn("min-w-0 flex-1", sheet.translate.status === "failed" ? "text-error" : "text-muted")}>
                 {missing > 0 ? `${PublishText.missing(missing, sheet.language.name)} ` : ""}
                 {sheet.translate.status === "sent" && missing === 0 ? "" : message}
@@ -370,7 +371,7 @@ function PublishOutcome({
             data-state={running ? "publishing" : record?.state}
         >
             <div className={cn("flex items-center gap-2 text-13 leading-5", running ? "text-muted" : tone)}>
-                {running ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" /> : null}
+                {running ? <DominoLoader /> : null}
                 <span>{running ? PublishText.posting : publishStateLabel(record)}</span>
                 {record?.url && !running ? (
                     <button

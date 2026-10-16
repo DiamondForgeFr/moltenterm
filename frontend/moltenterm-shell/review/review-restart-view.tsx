@@ -12,6 +12,7 @@ import { AgentStates } from "../agent-state-store";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { shortOid } from "./review-model";
 import {
     folderName,
@@ -54,11 +55,7 @@ export function RestartButton({ model }: { model: ReviewTabModel }) {
             title={restartButtonTitle(last)}
             data-testid="review-restart"
         >
-            {restarting ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin text-11" />
-            ) : (
-                <i className="fa fa-solid fa-arrow-rotate-right text-11" />
-            )}
+            {restarting ? <DominoLoader /> : <i className="fa fa-solid fa-arrow-rotate-right text-11" />}
             {restarting ? RestartText.restarting() : RestartText.button()}
         </button>
     );

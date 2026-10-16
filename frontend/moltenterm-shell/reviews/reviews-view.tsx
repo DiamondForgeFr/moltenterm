@@ -21,6 +21,7 @@ import { timeAgo } from "../mission/time-format";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
+import { DominoLoader } from "../suite/suite";
 import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { useReviews } from "./reviews-client";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
@@ -617,7 +618,7 @@ export function ReviewRow({
                         title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
                         data-testid="reviews-rebase"
                     >
-                        <i className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")} />
+                        {asking ? <DominoLoader /> : <i className="fa fa-solid fa-code-branch text-11" />}
                         {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
                     </button>
                 ) : null}

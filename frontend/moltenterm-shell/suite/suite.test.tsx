@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
     BlockRows,
+    DominoLoader,
     GlowRing,
     nextToggleIndex,
     OptionList,
@@ -144,6 +145,36 @@ describe("DiamondForge suite kit (#658)", () => {
         );
         expect(renderToStaticMarkup(<SuiteSignature product="MoltenTerm" label="L" />)).toContain(
             '<span class="df-signature-product">MoltenTerm ·</span> <span class="df-signature-label">L</span>'
+        );
+    });
+
+    it("draws the falling dominoes inline or large, a status only when it names what works (#739)", () => {
+        const bars = "<span></span>".repeat(8);
+        expect(renderToStaticMarkup(<DominoLoader />)).toBe(
+            `<span class="df-domino-loader" aria-hidden="true">${bars}</span>`
+        );
+        expect(renderToStaticMarkup(<DominoLoader size="large" label="Loading" className="x" />)).toBe(
+            `<span class="df-dominos x" role="status" aria-label="Loading">${bars}</span>`
+        );
+    });
+
+    it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        expect(css).toMatch(/\.df-dominos \{[^}]*width: 110px;\s*height: 44px;/);
+        expect(css).toMatch(/\.df-dominos > span \{[^}]*height: 7px;\s*width: 25px;\s*background: var\(--df-accent\);/);
+        expect(css).toMatch(/\.df-domino-loader \{[^}]*width: 32px;\s*height: 14px;/);
+        expect(css).toMatch(/\.df-domino-loader > span \{[^}]*height: 2px;\s*width: 8px;\s*background: currentColor;/);
+        const delays = ["0.915s", "0.79s", "0.665s", "0.54s", "0.425s", "0.3s", "0.125s"];
+        for (const kind of ["dominos", "domino-loader"]) {
+            expect(css).toMatch(new RegExp(`\\.df-${kind} > span \\{[^}]*animation: df-dominos 1s ease infinite;`));
+            delays.forEach((delay, i) => {
+                expect(css).toMatch(
+                    new RegExp(`\\.df-${kind} > span:nth-child\\(${i + 2}\\) \\{[^}]*animation-delay: ${delay};`)
+                );
+            });
+        }
+        expect(css).toMatch(
+            /@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;/
         );
     });
 

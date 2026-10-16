@@ -19,16 +19,17 @@ describe("CI/CD state icons (FR-SHELL-057 AC4, NFR-SHELL-026)", () => {
         expect(glyph("success")).toBe("fa-check");
         expect(glyph("failure")).toBe("fa-xmark");
         expect(glyph("queued")).toBe("fa-clock");
-        expect(glyph("running")).toBe("fa-circle-notch");
+        expect(glyph("running")).toBeUndefined();
         expect(glyph("neutral")).toBe("fa-minus");
     });
 
-    it("is 14 px, labelled, and its spinner steps (still under reduced motion)", () => {
+    it("is 14 px and labelled; a running state shows the falling dominoes (#739)", () => {
+        expect(renderToStaticMarkup(<CiIcon state="queued" />)).toContain("text-icon-14");
         const html = renderToStaticMarkup(<CiIcon state="running" />);
-        expect(html).toContain("text-icon-14");
         expect(html).toContain('aria-label="running"');
         expect(html).toContain('role="img"');
-        expect(CiIconClasses.running).toContain("mt-step-spin");
+        expect(html).toContain('class="df-domino-loader mt-dominos-icon" aria-hidden="true"');
+        expect(html).not.toContain("fa-");
     });
 
     it("tells a queued GitHub run from a running one", () => {

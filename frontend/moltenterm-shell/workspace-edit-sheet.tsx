@@ -16,7 +16,7 @@ import { workspaceColourStops } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
-import { SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
+import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
 import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
 import {
     colourChoiceCss,
@@ -328,7 +328,7 @@ export function ImagePane({
                         "border-dashed border-border text-icon-14 text-muted hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60"
                     )}
                 >
-                    <i className={cn("fa fa-solid", busy ? "fa-spinner fa-spin" : "fa-plus")} aria-hidden />
+                    {busy ? <DominoLoader /> : <i className="fa fa-solid fa-plus" aria-hidden />}
                 </button>
             </div>
             <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-12">

@@ -47,6 +47,7 @@ import {
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
+import { DominoLoader } from "./suite/suite";
 import { TabActivity, whileShown } from "./tab-activity";
 import { toneOf } from "./toast-model";
 import { ToastStack } from "./toast-stack";
@@ -264,12 +265,11 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
     const measured = item.progress >= 0;
-    useWorkingBeat(true);
     const elapsed = item.startedat ? formatAge(item.startedat, now) : "";
     return (
         <div className="border-b border-border px-3 py-2" data-testid="running-work">
             <div className="flex items-center gap-2">
-                <i className="mt-beat-turn fa fa-solid fa-circle-notch w-4 text-center text-11 text-accent" />
+                <DominoLoader className="text-accent" />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 {measured ? (
                     <span className="text-12 text-muted tabular-nums">{Math.round(item.progress * 100)}%</span>

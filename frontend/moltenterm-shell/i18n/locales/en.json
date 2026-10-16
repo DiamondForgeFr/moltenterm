@@ -19,6 +19,7 @@
         "off": "Off",
         "open": "Open",
         "confirm": "Confirm",
+        "loading": "Loading",
         "selected": "Selected"
     },
     "i18n": {

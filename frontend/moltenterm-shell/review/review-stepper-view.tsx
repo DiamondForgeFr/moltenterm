@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import type { RebaseOutcome } from "../reviews/reviews-model";
+import { DominoLoader } from "../suite/suite";
 import { ReviewCleanupPr, ReviewCleanupStepResult } from "./review-cleanup";
 import { showPanel } from "./review-panels";
 import { keptButtonLabel, panelName, StepRow, StepState, ValidateStep } from "./review-stepper";
@@ -45,7 +46,7 @@ function StateIcon({ state, small }: { state: StepState; small?: boolean }) {
         case "failed":
             return <i className={cn("fa fa-solid fa-xmark", size)} />;
         case "running":
-            return <i className={cn("fa fa-solid fa-circle-notch fa-spin mt-step-spin", size)} />;
+            return <DominoLoader className={small ? "mt-dominos-icon" : "mt-dominos-node"} />;
         case "needs":
             return <i className={cn("fa fa-solid fa-exclamation", size)} />;
         case "skipped":
