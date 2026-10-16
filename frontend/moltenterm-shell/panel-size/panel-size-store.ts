@@ -25,7 +25,7 @@ import {
     LayoutTreeSplitVerticalAction,
 } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
-import { columnsParent } from "../view360/view360-decision";
+import { columnsParent, SideColumnMinPx } from "../view360/view360-decision";
 import {
     FirstColumnFloorMetaKey,
     floorFromFirstColumnDrag,
@@ -206,7 +206,8 @@ export function recordDraggedPanelSizes(model: LayoutModel, action: LayoutTreeRe
 }
 
 // The width the added panel asks for: its kind's remembered width; without one, while the first column has a floor,
-// the width the layout gave it (so the floor still holds); a panel that becomes the first column takes the floor.
+// the width the layout gave it (so the floor still holds), at least a readable column; a panel that becomes the
+// first column takes the floor.
 function addedPanelTargetPx(
     view: string,
     node: LayoutNode,
@@ -219,7 +220,8 @@ function addedPanelTargetPx(
         return remembered;
     }
     const px = remembered ?? node.size / ratio;
-    return isFirstColumn ? Math.max(px, floor) : px;
+    // The layout's split can leave the new column a sliver once the first column keeps its floor.
+    return Math.max(px, isFirstColumn ? floor : SideColumnMinPx);
 }
 
 async function applyRememberedPanelSize(model: LayoutModel, blockId: string): Promise<void> {
