@@ -207,7 +207,7 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 	number := strconv.Itoa(f.req.Number)
 	outcome := readOutcome(f.outcomePath)
 	if reason, ok := outcomeNeedsYou(outcome); ok {
-		r.needsYou(ctx, f, st, name, reason, uimsg.Make("notif.review.asks", "name", name, "reason", reason))
+		r.needsYou(ctx, f, st, name, reason, uimsg.Make("notif.review.asks", "reason", reason))
 		return true
 	}
 	facts, err := r.readTree(ctx, f)
@@ -294,6 +294,12 @@ func (r *Restarter) needsYou(ctx context.Context, f agentFollow, st *followState
 	})
 }
 
+// terminalAction: the agent's account is in its terminal; a warning gets the way there from the windows already.
+func (f agentFollow) terminalAction() molten.NotificationAction {
+	return molten.NotificationAction{Id: "terminal", Label: "Go to the terminal", LabelText: uimsg.Make("notif.review.batch.goTo"),
+		Kind: "open", WorkspaceId: f.req.WorkspaceId, TabId: f.tabId, BlockId: f.blockId}
+}
+
 // ciGreen: the PR's required checks pass on the pushed head; the run turns green and says what the agent did.
 func (r *Restarter) ciGreen(ctx context.Context, f agentFollow, name string, outcome string) {
 	number := strconv.Itoa(f.req.Number)
@@ -310,7 +316,7 @@ func (r *Restarter) ciGreen(ctx context.Context, f agentFollow, name string, out
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
-		Actions: []molten.NotificationAction{{Id: "review", Label: "Open the review", LabelText: uimsg.Make("notif.review.openReview"),
+		Actions: []molten.NotificationAction{f.terminalAction(), {Id: "review", Label: "Open the review", LabelText: uimsg.Make("notif.review.openReview"),
 			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}},
 	}
 	if outcome != "" {

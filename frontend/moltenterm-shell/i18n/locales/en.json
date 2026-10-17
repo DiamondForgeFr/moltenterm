@@ -6022,7 +6022,7 @@
                 "ciGreen": "{name}: {outcome}",
                 "ciGreenPlain": "{name} stopped and the required checks of #{number} pass.",
                 "stillFailing": "Still failing on #{number}: {names}.",
-                "asks": "{name} stopped for a decision: {reason}",
+                "asks": "stopped for a decision: {reason}",
                 "ciSlow": "The CI of #{number} is still running after 2 hours.",
                 "uncommitted": "{name} left uncommitted files in its copy of {branch} ({count}): {names}",
                 "rerun": {

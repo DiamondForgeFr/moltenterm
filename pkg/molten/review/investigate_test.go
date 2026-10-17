@@ -212,7 +212,7 @@ func TestInvestigationIsGreenOnlyWhenTheChecksPass(t *testing.T) {
 	}
 	last := f.notes[len(f.notes)-1]
 	if last.Kind != "success" || last.TitleText.Code != "notif.review.ciGreenTitle" || last.MessageText.Vars["outcome"] != "fixed the flaky timeout in Backend" ||
-		last.MessageText.Vars["name"] != "Bruno" || last.BlockId != "new-block" || len(last.Actions) != 1 {
+		last.MessageText.Vars["name"] != "Bruno" || last.BlockId != "new-block" || len(last.Actions) != 2 || last.Actions[0].BlockId != "new-block" {
 		t.Fatalf("the outcome notification: %+v", last)
 	}
 	if len(f.closed) != 0 || !pathExists(follow.tree) {
