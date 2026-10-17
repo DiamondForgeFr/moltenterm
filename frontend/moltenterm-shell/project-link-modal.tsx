@@ -10,11 +10,10 @@
 import { atoms, getApi } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { ScrimClass } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
@@ -63,15 +62,6 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
             setName(facts.name);
         });
     }, [offer.dir]);
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                decline();
-            }
-        };
-        document.addEventListener("keydown", onKey, true);
-        return () => document.removeEventListener("keydown", onKey, true);
-    });
     const run = (fn: () => Promise<void>) =>
         fireAndForget(async () => {
             setBusy(true);
@@ -95,34 +85,15 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
     // "Not now" is remembered for this folder in this workspace.
     const decline = () =>
         run(() => dismissProject(ws.oid, withDismissed(readDismissed(ws.meta as Record<string, any>), offer.dir)));
-    return createPortal(
-        <div className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}>
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={t("workspace.link.title", { name })}
-                className="flex w-[460px] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">{t("workspace.link.title", { name })}</div>
-                    <div className="mt-0.5 truncate text-12 text-muted" title={offer.dir}>
-                        {offer.dir}
-                    </div>
-                </div>
-                <div className="flex flex-col gap-3 px-4 py-3 text-12">
-                    <div className="text-secondary">{t("workspace.link.intro")}</div>
-                    <label className="flex cursor-pointer items-center gap-2 text-secondary">
-                        <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
-                        {t("workspace.link.rename", { name })}
-                        {ws.name ? (
-                            <span className="text-muted">
-                                {t("workspace.link.now", { name: workspaceShownName(ws.name, t) })}
-                            </span>
-                        ) : null}
-                    </label>
-                    {error ? <div className="text-error">{error}</div> : null}
-                </div>
-                <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+    return (
+        <DialogFrame
+            role="workspace-project-link"
+            title={t("workspace.link.title", { name })}
+            subtitle={offer.dir}
+            widthClass="w-[460px]"
+            onEscape={decline}
+            buttons={
+                <>
                     <button type="button" disabled={busy} onClick={decline} className={PlainButton}>
                         {t("workspace.link.notNow")}
                     </button>
@@ -130,10 +101,21 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                         {t("workspace.link.link")}
                         <MoltenWave />
                     </button>
-                </div>
-            </div>
-        </div>,
-        document.body
+                </>
+            }
+        >
+            <div className="text-secondary">{t("workspace.link.intro")}</div>
+            <label className="flex cursor-pointer items-center gap-2 text-secondary">
+                <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
+                {t("workspace.link.rename", { name })}
+                {ws.name ? (
+                    <span className="text-muted">
+                        {t("workspace.link.now", { name: workspaceShownName(ws.name, t) })}
+                    </span>
+                ) : null}
+            </label>
+            {error ? <div className="text-danger">{error}</div> : null}
+        </DialogFrame>
     );
 }
 
@@ -172,7 +154,7 @@ export function ProjectLinkDetector() {
     const ownTab = ws?.tabids?.includes(staticTabId) ?? false;
     const offer = !ownTab
         ? null
-        : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"), hasImportedIcon(ws));
+        : nextProjectOffer(project, terminalProject, dismissed, getApi().getHomeDir(), hasImportedIcon(ws));
     const offerKey = offer ? `${offer.mode}:${offer.dir}` : "";
     useEffect(() => {
         if (

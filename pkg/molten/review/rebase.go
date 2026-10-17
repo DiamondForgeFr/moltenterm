@@ -47,6 +47,8 @@ type RebaseRequest struct {
 	Mode        string `json:"mode,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	TabName     string `json:"tabname,omitempty"`
+	// Agent: the coding agent picked for this run (#845).
+	Agent string `json:"agent,omitempty"`
 }
 
 func (req RebaseRequest) check() error {
@@ -78,6 +80,7 @@ func (req RebaseRequest) restartRequest() RestartRequest {
 		Mode:        req.Mode,
 		WorkspaceId: req.WorkspaceId,
 		TabName:     req.TabName,
+		Agent:       req.Agent,
 	}
 }
 
@@ -140,6 +143,7 @@ func (r *Restarter) askOnBranch(ctx context.Context, rreq RestartRequest, origin
 			return result
 		}
 		if r.reuseAgent(ctx, tree, prompt, &result) {
+			r.noteReused(ctx, rreq, &result)
 			return result
 		}
 	}

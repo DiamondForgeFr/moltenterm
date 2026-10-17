@@ -72,7 +72,10 @@ median reported; memory is macOS `footprint` (phys_footprint) per process, Linux
 renderer is attributed through the main process (`webContents.getOSProcessId()`). Workspace operations are timed from
 the preload call to the expected tab view on screen, read by a 4 ms poll in the main process (stopped while idle CPU
 is sampled); the create and delete samples of `session` and `leaks` are pooled for their p95, and an operation that
-never reaches the screen within 30 s counts in `ws.failedOps` instead. Memory is sampled 4 times per condition. The
+never reaches the screen within 30 s counts in `ws.failedOps` instead. When a page's JavaScript context is replaced
+under an operation (#895), a read is made again on the page now on screen, and a preload call is made again only if
+it never reached the app (CDP refused it, or the main process did not log receiving it), so it is never applied twice;
+a context that keeps failing, or any other error, still fails the scenario. Memory is sampled 4 times per condition. The
 instances run in the background test mode (`MOLTENTERM_BACKGROUND=1`, #495, see `UPSTREAM.md`, "Test instances"): they
 never take the focus, their window is parked in a screen corner above the other windows and its focus is virtual, so
 the focus state of every idle sample in the report is the app's own. `run --foreground` launches them as a user would
@@ -92,7 +95,9 @@ default), a noise floor, and a gate:
 
 A gated metric fails when it regresses from the baseline by more than its tolerance (and its noise floor), or when it
 exceeds its budget, unless the baseline was already over the budget and it did not regress: a target not met yet is
-grandfathered until the story that meets it stores a new baseline, and from then on the budget holds. A metric whose
+grandfathered until the story that meets it stores a new baseline, and from then on the budget holds. A metric marked
+`"absolute": true` is never grandfathered: the leaked-view counts, whose budget of 0 is met since #448 although the
+stored baseline still has 4 and 5 (#895). A metric whose
 samples disagree (the split-half statistics more than 10 % and more than the floor apart) is flagged **noisy**: it then
 fails only when its regression also exceeds twice that gap, and a rerun is in order. A gated metric that the baseline
 has but that a scenario which ran did not produce fails as "missing", and so does a run whose scenarios failed.

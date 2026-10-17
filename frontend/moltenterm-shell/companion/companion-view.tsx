@@ -17,11 +17,13 @@ import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
+import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { EmptyState, EmptyStateAction } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { always, TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import { readWorkspaceProject } from "../workspace-project";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { FilesSection } from "./companion-files";
 import { PlanUsageSection } from "./companion-gauges";
@@ -218,7 +220,11 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const [history, setHistory] = useAtom(model.historyAtom);
     const [integrationOpen, setIntegrationOpen] = useAtom(model.integrationAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
-    const agent = companionAgent(fullConfig?.presets);
+    const workspace = useAtomValue(atoms.workspace);
+    const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
+    const projectDir = readWorkspaceProject(workspace).dir ?? "";
+    useEffect(() => CodingAgentModel.getInstance().refresh(projectDir), [projectDir]);
+    const agent = companionAgent(fullConfig?.presets, agentChoices[projectDir]?.choice?.agent);
     const actions = useEmptyActions();
     const folder = (terminal?.meta?.["cmd:cwd"] as string) ?? "";
     const session = view?.session;
@@ -665,7 +671,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
             >
                 {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
             </SectionTitle>
-            {error ? <div className="px-3 text-12 text-error">{error}</div> : null}
+            {error ? <div className="px-3 text-12 text-danger">{error}</div> : null}
             <div className="px-3" data-testid="companion-answer">
                 {shown ? (
                     <AnswerMarkdown markdown={markdown} />

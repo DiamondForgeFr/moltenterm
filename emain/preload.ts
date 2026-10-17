@@ -2,21 +2,45 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
+// MOLTENTERM-PATCH (#849): every sendSync is timed, and the page answers Electron main's heartbeat
+import {
+    HangCopyChannel,
+    HangDiagnosticsChannel,
+    HangPingChannel,
+    HangPongChannel,
+    timedSendSync,
+    WindowHangChannel,
+} from "./moltenterm-hang-ipc";
+import { SlowSyncIpcMs } from "./moltenterm-hang-model";
+
+function sendSync(channel: string, ...args: any[]): any {
+    return timedSendSync(ipcRenderer, SlowSyncIpcMs, () => performance.now(), channel, ...args);
+}
+
+// Answered on the page's own thread: a page stuck in a long task answers late, which is what Electron main measures.
+ipcRenderer.on(HangPingChannel, (_event, seq: number) => ipcRenderer.send(HangPongChannel, seq));
 
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
-    getAuthKey: () => ipcRenderer.sendSync("get-auth-key"),
-    getIsDev: () => ipcRenderer.sendSync("get-is-dev"),
-    getPlatform: () => ipcRenderer.sendSync("get-platform"),
-    getCursorPoint: () => ipcRenderer.sendSync("get-cursor-point"),
-    getUserName: () => ipcRenderer.sendSync("get-user-name"),
-    getHostName: () => ipcRenderer.sendSync("get-host-name"),
-    getDataDir: () => ipcRenderer.sendSync("get-data-dir"),
-    getConfigDir: () => ipcRenderer.sendSync("get-config-dir"),
-    getHomeDir: () => ipcRenderer.sendSync("get-home-dir"),
-    getAboutModalDetails: () => ipcRenderer.sendSync("get-about-modal-details"),
-    getWebviewPreload: () => ipcRenderer.sendSync("get-webview-preload"),
-    getZoomFactor: () => ipcRenderer.sendSync("get-zoom-factor"),
+    getAuthKey: () => sendSync("get-auth-key"),
+    // MOLTENTERM-PATCH (#808): revisioned read-only accessibility state.
+    getAccessibilitySupport: () => sendSync("moltenterm:get-accessibility-support"),
+    onAccessibilitySupportChange: (callback) => {
+        const listener = (_event, snapshot) => callback(snapshot);
+        ipcRenderer.on("moltenterm:accessibility-support-changed", listener);
+        return () => ipcRenderer.removeListener("moltenterm:accessibility-support-changed", listener);
+    },
+    getIsDev: () => sendSync("get-is-dev"),
+    getPlatform: () => sendSync("get-platform"),
+    getCursorPoint: () => sendSync("get-cursor-point"),
+    getUserName: () => sendSync("get-user-name"),
+    getHostName: () => sendSync("get-host-name"),
+    getDataDir: () => sendSync("get-data-dir"),
+    getConfigDir: () => sendSync("get-config-dir"),
+    getHomeDir: () => sendSync("get-home-dir"),
+    getAboutModalDetails: () => sendSync("get-about-modal-details"),
+    getWebviewPreload: () => sendSync("get-webview-preload"),
+    getZoomFactor: () => sendSync("get-zoom-factor"),
     openNewWindow: () => ipcRenderer.send("open-new-window"),
     showWorkspaceAppMenu: (workspaceId) => ipcRenderer.send("workspace-appmenu-show", workspaceId),
     showBuilderAppMenu: (builderId) => ipcRenderer.send("builder-appmenu-show", builderId),
@@ -24,7 +48,7 @@ contextBridge.exposeInMainWorld("api", {
     showContextMenu: (workspaceId, menu, token, target) =>
         ipcRenderer.send("contextmenu-show", workspaceId, menu, token, target),
     revokeContextMenuTarget: (token) => ipcRenderer.send("moltenterm-contextmenu-revoke", token),
-    captureContextMenuTarget: (guestId) => ipcRenderer.sendSync("moltenterm-contextmenu-capture", guestId),
+    captureContextMenuTarget: (guestId) => sendSync("moltenterm-contextmenu-capture", guestId),
     executeContextMenuRole: (token, role) => ipcRenderer.send("moltenterm-contextmenu-role", token, role),
     saveContextMenuImage: (token) => ipcRenderer.send("moltenterm-contextmenu-save-image", token),
     setContextMenuGuest: (guestId, active) => ipcRenderer.send("moltenterm-contextmenu-guest", guestId, active),
@@ -43,14 +67,14 @@ contextBridge.exposeInMainWorld("api", {
             console.error("Invalid URL passed to openExternal:", url);
         }
     },
-    getEnv: (varName) => ipcRenderer.sendSync("get-env", varName),
+    getEnv: (varName) => sendSync("get-env", varName),
     onFullScreenChange: (callback) =>
         ipcRenderer.on("fullscreen-change", (_event, isFullScreen) => callback(isFullScreen)),
     onZoomFactorChange: (callback) =>
         ipcRenderer.on("zoom-factor-change", (_event, zoomFactor) => callback(zoomFactor)),
     onUpdaterStatusChange: (callback) => ipcRenderer.on("app-update-status", (_event, status) => callback(status)),
-    getUpdaterStatus: () => ipcRenderer.sendSync("get-app-update-status"),
-    getUpdaterChannel: () => ipcRenderer.sendSync("get-updater-channel"),
+    getUpdaterStatus: () => sendSync("get-app-update-status"),
+    getUpdaterChannel: () => sendSync("get-updater-channel"),
     installAppUpdate: () => ipcRenderer.send("install-app-update"),
     onMenuItemAbout: (callback) => ipcRenderer.on("menu-item-about", callback),
     updateWindowControlsOverlay: (rect) => ipcRenderer.send("update-window-controls-overlay", rect),
@@ -118,7 +142,7 @@ contextBridge.exposeInMainWorld("api", {
     moltentermViewPendingAction: (action: string) => ipcRenderer.send("moltenterm-view-pending-action", action),
     // MOLTENTERM-PATCH (#455): the window's focus, minimised and shown state for the tab activity model
     // (emain/moltenterm-tab-activity.ts)
-    moltentermGetWindowActivity: () => ipcRenderer.sendSync("moltenterm-window-activity-get"),
+    moltentermGetWindowActivity: () => sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
@@ -139,7 +163,7 @@ contextBridge.exposeInMainWorld("api", {
     },
     // MOLTENTERM-PATCH (#623): the OS preferred languages (app.getPreferredSystemLanguages) and the renderer's resolved
     // interface language, for the app menu and dialogs (emain/moltenterm-i18n.ts)
-    moltentermSystemLanguages: () => ipcRenderer.sendSync("moltenterm-system-languages"),
+    moltentermSystemLanguages: () => sendSync("moltenterm-system-languages"),
     moltentermSetLocale: (locale: string) => ipcRenderer.send("moltenterm-set-locale", locale),
     // MOLTENTERM-PATCH (#624): the language packs' dictionaries, so the app menu and dialogs speak a pack's language
     moltentermSetLanguagePacks: (packs: any[]) => ipcRenderer.send("moltenterm-set-language-packs", packs),
@@ -151,6 +175,15 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-system-notify-click", listener);
         return () => ipcRenderer.removeListener("moltenterm-system-notify-click", listener);
     },
+    // MOLTENTERM-PATCH (#849): the window did not answer for a while, and what Electron main recorded about it
+    // (emain/moltenterm-hang-watch.ts)
+    onMoltentermWindowHang: (callback: (hang: any) => void) => {
+        const listener = (_event, hang) => callback(hang);
+        ipcRenderer.on(WindowHangChannel, listener);
+        return () => ipcRenderer.removeListener(WindowHangChannel, listener);
+    },
+    moltentermHangDiagnostics: () => ipcRenderer.invoke(HangDiagnosticsChannel),
+    moltentermHangCopy: (text: string) => ipcRenderer.invoke(HangCopyChannel, text),
 });
 
 // Custom event for "new-window"

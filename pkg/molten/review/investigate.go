@@ -16,9 +16,11 @@ import (
 
 // Investigate (#797): the Reviews list's action on a PR whose check failed. It goes the way Ask for a rebase goes
 // (rebase.go): the agent on the PR's branch gets the prompt, else the window offers to start one and the developer
-// chooses how (#758). The brief names the failed checks, their runs and how to read their logs; the agent says whether
-// the PR caused the failure or a flaky or unrelated test did, proposes what to do (rerun, fix on the branch, or a
-// ticket for the flaky test) and waits for the developer's choice. Nothing starts without the developer's click.
+// chooses how (#758). The brief names the failed checks, their runs and how to read their logs. Investigate and fix
+// (#896): the agent finds the cause and resolves it (a fix pushed on the branch, a rebase on the base pushed with lease,
+// or a rerun of a flaky job with its ticket, found or opened), never merges, and asks only for a real decision; its
+// state stays MoltenTerm's until the PR's required checks pass (investigate_follow.go). Nothing starts without the
+// developer's click.
 
 const (
 	InvestigateCommand = "moltenreviewinvestigate"
@@ -51,6 +53,8 @@ type InvestigateRequest struct {
 	Mode        string `json:"mode,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	TabName     string `json:"tabname,omitempty"`
+	// Agent: the coding agent picked for this run (#845).
+	Agent string `json:"agent,omitempty"`
 }
 
 func (req InvestigateRequest) check() error {
@@ -90,6 +94,7 @@ func (req InvestigateRequest) restartRequest() RestartRequest {
 		Mode:        req.Mode,
 		WorkspaceId: req.WorkspaceId,
 		TabName:     req.TabName,
+		Agent:       req.Agent,
 	}
 }
 
@@ -103,7 +108,8 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 		req.Checks[i] = cleanCheck(req.Checks[i])
 	}
 	rreq := req.restartRequest()
-	return r.askOnBranch(ctx, rreq, r.origin(rreq, AgentOriginInvestigate), func(tree string, result *RestartResult) (string, bool) {
+	origin := r.origin(rreq, AgentOriginInvestigate)
+	result := r.askOnBranch(ctx, rreq, origin, func(tree string, result *RestartResult) (string, bool) {
 		path, err := r.writeInvestigateBrief(req, tree)
 		if err != nil {
 			result.Status, result.Reason, result.Message = RestartFailed, RestartReasonBrief, fmt.Sprintf("the brief could not be written: %v", err)
@@ -111,7 +117,14 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 		}
 		result.BriefPath = path
 		return investigatePromptLine(req, path), true
-	}), nil
+	})
+	if result.Status == RestartSent && result.BlockId != "" {
+		// An agent already on the branch took the work: its state is MoltenTerm's until the PR is green, as a new one's.
+		startHead, _ := r.git(ctx, result.Worktree, "rev-parse", "HEAD")
+		r.followAgent(agentFollow{req: rreq, origin: origin, tree: result.Worktree, blockId: result.BlockId,
+			startHead: startHead, agent: result.Agent}, result.BriefPath)
+	}
+	return result, nil
 }
 
 // cleanCheck keeps a check's text on one short line: a job's name comes from the PR's workflow files, and it is typed
@@ -145,16 +158,17 @@ func investigateNames(checks []InvestigateCheck) string {
 
 // investigatePromptLine holds the rules that must hold even if the brief is not read; it fits the guarded typing path.
 func investigatePromptLine(req InvestigateRequest, briefPath string) string {
-	return fmt.Sprintf("MoltenTerm: CI failed on PR #%d (%s): %s. Read the failed jobs' logs, say whether the PR caused it "+
-		"or a flaky or unrelated test did, and propose: rerun, fix on %s, or a ticket for the flaky test. Change nothing "+
-		"until I choose. Brief: %s", req.Number, req.HeadRef, investigateNames(req.Checks), req.HeadRef, briefPath)
+	return fmt.Sprintf("MoltenTerm: CI failed on PR #%d (%s): %s. Find the cause and resolve it: fix it on %s and push, "+
+		"rebase on origin/%s and push --force-with-lease, or rerun a flaky job and ticket it. Never merge. Ask me only for "+
+		"a real decision. Brief: %s", req.Number, req.HeadRef, investigateNames(req.Checks), req.HeadRef, req.BaseRef, briefPath)
 }
 
-func renderInvestigateBrief(req InvestigateRequest, tree string, ticket int) string {
+func renderInvestigateBrief(req InvestigateRequest, tree string, ticket int, commit string, outcomePath string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Investigate the failed CI of PR #%d\n\n", req.Number)
-	b.WriteString("MoltenTerm wrote this brief when the developer clicked Investigate in the Reviews list: checks of the pull " +
-		"request failed, so it cannot be merged. You work under the developer's usual permissions.\n\n")
+	fmt.Fprintf(&b, "# Investigate and fix the failed CI of PR #%d\n\n", req.Number)
+	b.WriteString("MoltenTerm wrote this brief when the developer clicked Investigate and fix in the Reviews list: checks of " +
+		"the pull request failed, so it cannot be merged. The developer asks you to find the cause and resolve it, not only " +
+		"to diagnose it. You work under the developer's usual permissions.\n\n")
 	fmt.Fprintf(&b, "- Pull request: #%d", req.Number)
 	if req.Title != "" {
 		fmt.Fprintf(&b, " %s", req.Title)
@@ -188,22 +202,36 @@ func renderInvestigateBrief(req InvestigateRequest, tree string, ticket int) str
 		case c.RunId > 0:
 			fmt.Fprintf(&b, "\n  - log: `gh run view %d --log-failed -R %s`", c.RunId, req.Repo)
 		}
+		if c.RunId > 0 {
+			fmt.Fprintf(&b, "\n  - rerun: `gh run rerun %d --failed -R %s`", c.RunId, req.Repo)
+		}
 		b.WriteString("\n")
 	}
 	b.WriteString("\n## Steps\n\n")
-	b.WriteString("1. Read each failed job's log (the commands above) and find the failing step: the `--- FAIL` lines for Go, the failing test for vitest, the first error otherwise.\n")
-	fmt.Fprintf(&b, "2. Decide whether the PR caused it: does the failing code or test touch what the PR changes (`git diff origin/%s...HEAD`)? Run the failing test in %s, several times when it may be flaky. Look at the same check on %s (`gh run list --branch %s -R %s`) to see whether it fails there too.\n", req.BaseRef, tree, req.BaseRef, req.BaseRef, req.Repo)
-	b.WriteString("3. Tell the developer, in their language and in a few lines: what failed, the cause with the evidence (log lines, test runs), and whether it is the PR's fault, a flaky test or an unrelated failure.\n")
-	b.WriteString("4. Propose one of: rerun the failed jobs (the developer clicks Rerun failed jobs on the PR's row in the Reviews list), fix it on the PR's branch, or open a ticket for the flaky test. Then wait for the developer's choice.\n")
-	fmt.Fprintf(&b, "5. Until the developer chooses, change nothing: no edit, commit, push, rerun or ticket. A fix, once chosen, is committed in the project's format and pushed on %s (never a force push without lease); a ticket follows the project's workflow.\n", req.HeadRef)
-	b.WriteString("6. Do not change the ticket's status, do not approve or merge the PR: the developer validates it in MoltenTerm.\n")
+	fmt.Fprintf(&b, "1. Work only in %s, on %s: `git fetch origin`, then `git pull --ff-only`. If the worktree has changes you did not make, stop and ask the developer.\n", tree, req.HeadRef)
+	b.WriteString("2. Read each failed job's log (the commands above) and find the failing step: the `--- FAIL` lines for Go, the failing test for vitest, the first error otherwise.\n")
+	fmt.Fprintf(&b, "3. Find the cause. Does the failing code or test touch what the PR changes (`git diff origin/%s...HEAD`)? Is the branch behind %s (`git log --oneline HEAD..origin/%s`): a workflow, a script or a fix the failing job needs that exists on %s only? Run the failing test in the worktree, several times when it may be flaky, and look at the same check on %s (`gh run list --branch %s -R %s`).\n",
+		req.BaseRef, req.BaseRef, req.BaseRef, req.BaseRef, req.BaseRef, req.BaseRef, req.Repo)
+	b.WriteString("4. Resolve it, by cause (several causes can combine: resolve each):\n")
+	fmt.Fprintf(&b, "   - The PR caused it: fix it in the worktree, run the project's checks that cover it, commit in the project's format `%s`", commit)
+	if ticket > 0 {
+		fmt.Fprintf(&b, " with the ticket #%d", ticket)
+	}
+	fmt.Fprintf(&b, ", then `git push` (never force).\n")
+	fmt.Fprintf(&b, "   - The branch is behind %s (missing workflow or script files, conflicts with merged work): `git rebase origin/%s` (never merge %s into the branch), resolve the conflicts keeping the intent of both sides (`git rebase --abort` and ask when the right resolution is unclear), run the project's checks, then `git push --force-with-lease` (never a plain `--force`).\n",
+		req.BaseRef, req.BaseRef, req.BaseRef)
+	fmt.Fprintf(&b, "   - A flaky or unrelated test: rerun the failed jobs once (the rerun commands above). If the same unrelated failure comes back, look for an open ticket on that test first (`gh issue list -R %s --state open --search \"<test name> in:title\"`) and open one only when none exists, following the project's workflow, with the test, the failing runs and the log lines. Link it in a PR comment (`gh pr comment %d -R %s --body '…'`), then rerun the failed jobs again.\n",
+		req.Repo, req.Number, req.Repo)
+	fmt.Fprintf(&b, "5. After each push or rerun, watch the checks until they end: `gh pr checks %d -R %s --required --watch` (without `--required` when the repository requires none). At most two fix attempts and two reruns: if the checks still fail, stop.\n", req.Number, req.Repo)
+	b.WriteString("6. Never merge or approve the PR, never change the ticket's status, never check out the branch in another folder and never touch another checkout. Stop to ask the developer only for a real decision: a fix that changes the product's behaviour, or a risk to accept.\n")
+	fmt.Fprintf(&b, "7. Last, write one line in the developer's language to %s: what you did (\"rebased on %s\", \"fixed <what>\", \"reran <job> (flaky, ticket #<n>)\"). When you stop for a decision or give up, start the line with `needs you:` and say why. Then end your turn: MoltenTerm watches the PR's checks on the pushed head and tells the developer when they pass, or why it needs them.\n",
+		outcomePath, req.BaseRef)
 	return b.String()
 }
 
 // writeInvestigateBrief writes the brief in MoltenTerm's data folder, never in the project:
 // <data>/molten/reviews/<repo-key>/investigate/<N>-<head>.md.
 func (r *Restarter) writeInvestigateBrief(req InvestigateRequest, tree string) (string, error) {
-	text := renderInvestigateBrief(req, tree, restartTicket(req.restartRequest()))
 	dir := filepath.Join(r.env.DataDir, "molten", "reviews", RepoKey(req.Repo), investigateDirName)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
@@ -213,6 +241,13 @@ func (r *Restarter) writeInvestigateBrief(req InvestigateRequest, tree string) (
 		name = fmt.Sprintf("%d-%s.md", req.Number, shortId(req.HeadOid))
 	}
 	path := filepath.Join(dir, name)
+	outcome := investigateOutcomePath(path)
+	// An earlier run's outcome line must not end this one.
+	if err := os.Remove(outcome); err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	ticket := restartTicket(req.restartRequest())
+	text := renderInvestigateBrief(req, tree, ticket, r.commitFormat(req.Dir, ticket), outcome)
 	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		return "", err
 	}

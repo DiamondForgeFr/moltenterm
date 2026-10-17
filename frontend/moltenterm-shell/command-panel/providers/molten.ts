@@ -18,6 +18,7 @@ import { findCompanionBlock, toggleCompanion } from "../../companion/companion-o
 import { t } from "../../i18n/i18n";
 import { formatShortcutById } from "../../shortcuts/format";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
+import { CodingAgentProvider } from "./coding-agent";
 import { MoltenWidgetProviders } from "./molten-widgets";
 import { ProposalsProvider } from "./proposals";
 
@@ -88,4 +89,9 @@ export const MoltenProvider: CommandProvider = {
 };
 
 // Everything MoltenTerm's own providers add, registered together by the panel host.
-export const MoltenProviders: CommandProvider[] = [MoltenProvider, ProposalsProvider, ...MoltenWidgetProviders];
+export const MoltenProviders: CommandProvider[] = [
+    MoltenProvider,
+    ProposalsProvider,
+    ...MoltenWidgetProviders,
+    CodingAgentProvider,
+];

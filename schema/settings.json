@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 108
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 121
+            "order": 124
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 109
           }
         },
         "term:fontsize": {
@@ -593,6 +593,18 @@
             "order": 103
           }
         },
+        "review:reviewername": {
+          "type": "string",
+          "description": "Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Code review",
+            "label": "Your first name",
+            "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.",
+            "control": "text",
+            "order": 104
+          }
+        },
         "app:language": {
           "type": "string",
           "description": "The interface language: system (the OS preferred languages, the default), en, fr or an installed language",
@@ -604,7 +616,7 @@
             "control": "select",
             "optionsfrom": "languages",
             "unsetlabel": "Same as the system",
-            "order": 104
+            "order": 105
           }
         },
         "companion:usagegauges": {
@@ -760,7 +772,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 110
           }
         },
         "web:openlinksinternally": {
@@ -917,35 +929,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 111
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 118
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 119
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 117
+            "order": 120
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 118
+            "order": 121
           }
         },
         "markdown:fontsize": {
@@ -1285,25 +1297,83 @@
             "order": 18
           }
         },
+        "moltenterm:terminalscreenreader": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "description": "Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Screen reader support",
+            "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
+            "control": "select",
+            "options": [
+              {
+                "value": "auto",
+                "label": "Automatic"
+              },
+              {
+                "value": "on",
+                "label": "On"
+              },
+              {
+                "value": "off",
+                "label": "Off"
+              }
+            ],
+            "order": 107
+          }
+        },
+        "moltenterm:codingagent": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Coding agent",
+            "label": "Default coding agent",
+            "description": "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.",
+            "control": "select",
+            "options": [
+              {
+                "value": "claude",
+                "label": "Claude Code"
+              },
+              {
+                "value": "codex",
+                "label": "Codex"
+              }
+            ],
+            "unsetlabel": "The first installed",
+            "order": 106
+          }
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 112
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 120
+            "order": 123
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 113
           }
         },
         "window:fullscreenonlaunch": {
@@ -1585,21 +1655,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 114
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 119
+            "order": 122
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 115
           }
         },
         "conn:askbeforewshinstall": {
@@ -1642,7 +1712,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 116
           }
         },
         "debug:pprofport": {
@@ -1695,7 +1765,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 117
           }
         },
         "tsunami:scaffoldpath": {

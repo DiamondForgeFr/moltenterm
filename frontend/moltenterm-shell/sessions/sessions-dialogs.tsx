@@ -6,7 +6,7 @@
 
 import { cn, makeIconClass } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -104,7 +104,6 @@ export function EndSessionDialog({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const text = endConfirmText(session, home, now);
-    useEscape(!busy, onKeep);
     const confirm = async () => {
         setBusy(true);
         setError(null);
@@ -118,6 +117,7 @@ export function EndSessionDialog({
     return (
         <DialogFrame
             role="molten-session-end"
+            onEscape={busy ? undefined : onKeep}
             title={text.title}
             subtitle={text.subtitle}
             buttons={<DialogButtons confirm={text.confirm} busy={busy} onKeep={onKeep} onConfirm={confirm} />}
@@ -131,7 +131,7 @@ export function EndSessionDialog({
             <div className="text-secondary">
                 {session.shown ? t("sessions.dialog.paneStays") : t("sessions.dialog.noPane")}
             </div>
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
         </DialogFrame>
     );
 }
@@ -151,7 +151,6 @@ export function CleanupDialog({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const text = cleanupConfirmText(sessions);
-    useEscape(!busy, onKeep);
     const confirm = async () => {
         setBusy(true);
         setError(null);
@@ -165,6 +164,7 @@ export function CleanupDialog({
     return (
         <DialogFrame
             role="molten-session-cleanup"
+            onEscape={busy ? undefined : onKeep}
             title={text.title}
             subtitle={text.subtitle}
             wide
@@ -192,7 +192,7 @@ export function CleanupDialog({
                     );
                 })}
             </ul>
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
         </DialogFrame>
     );
 }
@@ -282,7 +282,6 @@ export function BulkDialog({
     const reachable = items.filter((i) => !i.skip).length;
     const hasClaude = items.some((i) => !i.skip && i.session.agent === "claude");
     const close = () => onClose(done);
-    useEscape(phase !== "running", close);
     // The dialog can go while its run goes on (the view closes, or every session it lists ended): the run then
     // reports through onUnseen instead (#439).
     const mounted = useRef(true);
@@ -324,6 +323,7 @@ export function BulkDialog({
     return (
         <DialogFrame
             role={`molten-session-bulk-${action}`}
+            onEscape={phase === "running" ? undefined : close}
             title={summary ? summary.title : text.title}
             subtitle={summary ? summary.detail || t("sessions.dialog.allDone") : text.subtitle}
             wide
@@ -406,7 +406,7 @@ export function BulkDialog({
                             </div>
                             {result ? (
                                 <div
-                                    className={cn("pl-6", result.kind === "failed" ? "text-error" : "text-secondary")}
+                                    className={cn("pl-6", result.kind === "failed" ? "text-danger" : "text-secondary")}
                                     data-bulk-result={result.kind}
                                 >
                                     {bulkKindLabel(result.kind)}: {result.message}

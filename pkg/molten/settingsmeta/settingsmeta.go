@@ -227,8 +227,15 @@ var settings = []Setting{
 	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: the interface language.", Control: ControlText},
 	// Agents, Code review (FR-REV-010).
 	{Key: "review:publishlanguage", Section: SectionAgents, Group: "Code review", Label: "Publication language", Description: "Language of review comments on GitHub when the project names none; empty: from its PRs and README.", Control: ControlText},
+	// Agents, Code review (#847).
+	{Key: "review:reviewername", Section: SectionAgents, Group: "Code review", Label: "Your first name", Description: "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.", Control: ControlText},
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
+	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
+	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+
+	// Terminal accessibility (#808): append to preserve existing row orders; the screen groups it under Behaviour.
+	{Key: "moltenterm:terminalscreenreader", Section: SectionTerminal, Group: "Behaviour", Label: "Screen reader support", Description: "Automatic follows system detection. On and Off override it, without restarting terminals.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "on", Label: "On"}, {Value: "off", Label: "Off"}}},
 
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.

@@ -47,6 +47,8 @@ type agentFollow struct {
 	// startHead: the worktree's HEAD when the agent started; a push moves it.
 	startHead string
 	agent     string
+	// outcomePath: where an investigation's agent writes its outcome line (#896).
+	outcomePath string
 }
 
 type followState struct {
@@ -55,6 +57,10 @@ type followState struct {
 	lastKey    string
 	checkedAt  time.Time
 	notice     string
+	// An investigation (#896): the state MoltenTerm holds, when the agent stopped, and a failure seen once.
+	hold      string
+	stoppedAt time.Time
+	failSeen  string
 }
 
 type treeFacts struct {
@@ -80,6 +86,16 @@ func agentNoticeKey(k PrKey) string {
 
 func agentDoneKey(k PrKey) string {
 	return agentNoticePrefix + "done:" + strings.ToLower(k.Repo) + "#" + strconv.Itoa(k.Number) + ":"
+}
+
+// followAgent follows an agent MoltenTerm handed work to; an investigation's state is MoltenTerm's from the start
+// (#896), so the agent's first idle or done never reads as solved.
+func (r *Restarter) followAgent(f agentFollow, briefPath string) {
+	if f.origin.Kind == AgentOriginInvestigate {
+		f.outcomePath = investigateOutcomePath(briefPath)
+		r.holdFixing(f, &followState{})
+	}
+	r.startFollow(f)
 }
 
 // startFollow follows the agent until its terminal goes; without FollowEvery (the tests) nothing runs on its own.
@@ -117,6 +133,7 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 		st.sawWorking = true
 		if f.origin.Kind == AgentOriginInvestigate {
 			st.notice = ""
+			r.holdFixing(f, st)
 		}
 		return true
 	}
@@ -126,8 +143,7 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 	}
 	st.lastKey, st.checkedAt = key, r.env.Now()
 	if f.origin.Kind == AgentOriginInvestigate {
-		r.followInvestigation(ctx, f, st, run, running)
-		return true
+		return r.followInvestigation(ctx, f, st, run, running)
 	}
 	facts, err := r.readTree(ctx, f)
 	if err != nil {
@@ -150,35 +166,6 @@ func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followSta
 	}
 	r.noticeNeeds(ctx, f, st, run, running, facts)
 	return true
-}
-
-// followInvestigation: an investigation ends on the agent's findings and proposal in its terminal, not on a push, so
-// the terminal stays. Out of sight, each turn that ends says so once; waiting for an answer is the agent's own
-// notification.
-func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *followState, run molten.AgentRunInfo, running bool) {
-	waiting := running && (run.State == molten.AgentStateWaiting || run.State == molten.AgentStateError)
-	if f.origin.Mode != AgentModeBackground || waiting {
-		return
-	}
-	stopped := (st.sawRun && !running) || st.sawWorking || run.State == molten.AgentStateDone
-	if !stopped || st.notice == AgentOriginInvestigate {
-		return
-	}
-	st.notice = AgentOriginInvestigate
-	name := agentName(run, f.agent)
-	number := strconv.Itoa(f.req.Number)
-	r.notify(ctx, molten.NotificationInput{
-		Key:         agentDoneKey(f.req.PrKey),
-		Source:      "agent",
-		Kind:        "info",
-		Title:       name + " investigated the CI of #" + number,
-		TitleText:   uimsg.Make("notif.review.investigatedTitle", "name", name, "number", number),
-		Message:     "Its findings and what it proposes are in its terminal: answer there.",
-		MessageText: uimsg.Make("notif.review.investigated"),
-		WorkspaceId: f.req.WorkspaceId,
-		TabId:       f.tabId,
-		BlockId:     f.blockId,
-	})
 }
 
 func (r *Restarter) agentRunOf(blockId string) (molten.AgentRunInfo, bool) {

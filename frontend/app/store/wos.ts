@@ -9,6 +9,8 @@ import { getWebServerEndpoint } from "@/util/endpoints";
 import { fetch } from "@/util/fetchutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, Getter, PrimitiveAtom, Setter, useAtomValue } from "jotai";
+import { fetchWithConnectRetry } from "../../moltenterm-shell/backend-call-retry"; // MOLTENTERM-PATCH (#849)
+import { noteBackendCall } from "../../moltenterm-shell/hang-context"; // MOLTENTERM-PATCH (#849)
 import { globalStore } from "./jotaiStore";
 import { ObjectService } from "./services";
 
@@ -118,10 +120,10 @@ function callBackendService(service: string, method: string, args: any[], noUICo
     const webEndpoint = getWebServerEndpoint();
     if (webEndpoint == null) throw new Error(`cannot call ${methodName}: no web endpoint`);
     const url = webEndpoint + "/wave/service?" + usp.toString();
-    const fetchPromise = fetch(url, {
-        method: "POST",
-        body: JSON.stringify(waveCall),
-    });
+    noteBackendCall(methodName); // MOLTENTERM-PATCH (#849)
+    // MOLTENTERM-PATCH (#849): a call that could not connect is tried again, and its error names the call
+    const body = JSON.stringify(waveCall);
+    const fetchPromise = fetchWithConnectRetry(() => fetch(url, { method: "POST", body }), methodName);
     const prtn = fetchPromise
         .then((resp) => {
             if (!resp.ok) {

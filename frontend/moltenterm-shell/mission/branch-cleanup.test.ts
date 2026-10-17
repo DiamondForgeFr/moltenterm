@@ -41,4 +41,26 @@ describe("branch cleaning (FR-MC-017)", () => {
         expect(branchReason(b("keep", "not-on-trunk"), "develop")).toBe("its code is not on the trunk yet");
         expect(branchReason(b("keep", "something-new"), "develop")).toBe("something-new");
     });
+
+    it("words MoltenTerm's worktrees, commits a pull request never carried and tool branches (#906)", () => {
+        const b = (action: "delete" | "keep", reason: any, pr?: number) => ({
+            name: "x",
+            remote: false,
+            action,
+            reason,
+            pr,
+        });
+        expect(branchReason(b("delete", "merged-pr-worktree", 766), "develop")).toBe(
+            "merged in #766, its worktree is clean and goes with it"
+        );
+        expect(branchReason(b("keep", "worktree-changes", 11), "develop")).toBe(
+            "merged in #11, but its worktree has uncommitted changes"
+        );
+        expect(branchReason(b("keep", "worktree-in-use", 12), "develop")).toBe(
+            "merged in #12, but a terminal is open in its worktree"
+        );
+        expect(branchReason(b("keep", "not-in-pr", 828), "develop")).toBe("it holds commits #828 never carried");
+        expect(branchReason(b("keep", "pr-assets"), "develop")).toBe("holds pull request assets");
+        expect(branchReason(b("keep", "tool-branch"), "develop")).toBe("a tool branch");
+    });
 });

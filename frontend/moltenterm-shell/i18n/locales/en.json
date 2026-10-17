@@ -1,4 +1,8 @@
 {
+    "terminalAccessibility": {
+        "input": "Terminal input",
+        "tooMuchOutput": "Too much output to announce. Navigate the terminal rows to read the output."
+    },
     "language": {
         "name": "English",
         "system": "Same as the system ({name})",
@@ -195,6 +199,7 @@
             "actionError": "Error: {message}"
         },
         "files": {
+            "pdfUnavailable": "The PDF preview is unavailable.",
             "colName": "Name",
             "colPerm": "Perm",
             "colModified": "Last modified",
@@ -453,6 +458,7 @@
         }
     },
     "settings": {
+        "retry": "Retry",
         "groups": {
             "app": "App",
             "keys": "Keys",
@@ -483,7 +489,8 @@
             "appBuilder": "App builder",
             "thisWorkspace": "This workspace",
             "otherSettings": "Other settings",
-            "360View": "360 view"
+            "360View": "360 view",
+            "codingAgent": "Coding agent"
         },
         "items": {
             "app:nativecontextmenu": {
@@ -578,6 +585,11 @@
             "term:copyonselect": {
                 "label": "Copy on select",
                 "description": "Selecting text copies it."
+            },
+            "moltenterm:terminalscreenreader": {
+                "label": "Screen reader support",
+                "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
+                "options": { "auto": "Automatic", "on": "On", "off": "Off" }
             },
             "term:transparency": {
                 "label": "Transparency",
@@ -974,6 +986,19 @@
             "review:publishlanguage": {
                 "label": "Publication language",
                 "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README."
+            },
+            "moltenterm:codingagent": {
+                "label": "Default coding agent",
+                "description": "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.",
+                "unset": "The first installed",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
+            },
+            "review:reviewername": {
+                "label": "Your first name",
+                "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name."
             }
         },
         "title": "Settings",
@@ -1000,7 +1025,8 @@
         },
         "error": {
             "folder": "This folder could not be used. Check that it exists.",
-            "notSaved": "This value was not saved. Check settings.json under Advanced."
+            "notSaved": "This value was not saved. Check settings.json under Advanced.",
+            "sliderNotSaved": "This value was not saved. Try again."
         },
         "reset": {
             "label": "Reset {label}",
@@ -1124,6 +1150,19 @@
             }
         },
         "secrets": {
+            "errors": {
+                "storageUnavailable": "No secure secret store is available. Secrets cannot be managed securely.",
+                "storageCheck": "Unable to check the secret store. Try again.",
+                "list": "Unable to load secrets. Try again.",
+                "missing": "Secret not found: {name}",
+                "reveal": "Unable to show the secret. Try again.",
+                "save": "Unable to save the secret. Your changes are kept; try again.",
+                "delete": "Unable to delete the secret. Try again.",
+                "add": "Unable to add the secret. Your changes are kept; try again.",
+                "emptyName": "Enter a secret name.",
+                "invalidName": "Start the secret name with a letter and use only letters, numbers, and underscores.",
+                "duplicate": "A secret named {name} already exists."
+            },
             "new": {
                 "title": "New secret",
                 "hint": "A letter first, then letters, digits and underscores.",
@@ -1691,7 +1730,8 @@
             "palette-right": "Open the palette's entry to the right",
             "carpet-previous": "Previous panel on the carpet (360 view)",
             "carpet-next": "Next panel on the carpet (360 view)",
-            "pin-panel": "Pin the panel to the fixed zone, or unpin it"
+            "pin-panel": "Pin the panel to the fixed zone, or unpin it",
+            "equalize-panels": "Equalize panel widths"
         }
     },
     "tips": {
@@ -2584,13 +2624,19 @@
                 "contentUnknown": "git could not compare its content",
                 "checkedOut": "open in a worktree",
                 "openPr": "a pull request is open",
-                "prUnknown": "GitHub did not say whether it has a pull request"
+                "prUnknown": "GitHub did not say whether it has a pull request",
+                "notInPr": "it holds commits #{pr} never carried",
+                "worktreeChanges": "merged in #{pr}, but its worktree has uncommitted changes",
+                "worktreeInUse": "merged in #{pr}, but a terminal is open in its worktree",
+                "prAssets": "holds pull request assets",
+                "tool": "a tool branch"
             },
             "reason": {
                 "mergedPr": "merged in #{pr}",
                 "onTrunk": "its code is on {trunk}",
                 "patchesOnTrunk": "its commits are on {trunk} under new ids",
-                "commitsAfterPr": "commits after #{pr} was merged"
+                "commitsAfterPr": "commits after #{pr} was merged",
+                "mergedPrWorktree": "merged in #{pr}, its worktree is clean and goes with it"
             },
             "result": {
                 "one": "{count} branch deleted.",
@@ -2601,7 +2647,7 @@
                 "other": "{count} branches deleted, {failed} failed."
             },
             "title": "Clean branches",
-            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. The main branches stay, and so does anything in doubt.",
+            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. A clean worktree MoltenTerm made for a merged pull request goes with its branch. The main branches stay, and so does anything in doubt.",
             "comparing": "Comparing each branch with {trunk}…",
             "wouldGo": "Would go ({count})",
             "nothing": "Nothing to clean.",
@@ -2880,6 +2926,8 @@
             "publicNotes": "Public notes: what the release page says",
             "rewrite": "Rewrite",
             "saveBeforeCut": "Save the notes before cutting.",
+            "awaitsCi": "Waiting for {workflows} on {branch} ({sha}) to be green on GitHub.",
+            "showCi": "See it in CI/CD",
             "inFlight": "Release in flight",
             "internal": "internal",
             "publicChannel": "public",
@@ -2980,15 +3028,27 @@
             "gitErrorHint": "The history of this folder could not be read. Try again, or choose another folder."
         },
         "remote": {
-            "prsTitle": "Pull requests waiting",
-            "prsHint": "hover: what it brings · merging happens on GitHub",
-            "noPr": "No open pull request.",
-            "updated": "updated",
-            "openInReviews": "Open it in Reviews",
-            "review": "Review",
+            "reviewsWaiting": {
+                "one": "{count} pull request waiting for review",
+                "other": "{count} pull requests waiting for review"
+            },
+            "noReviewWaiting": "No pull request waiting for review",
+            "toReviews": "Reviews",
+            "toReviewsTitle": "Open the Reviews panel: the pull requests, their checks and the order to review them",
+            "branchesTitle": "Trunk and release branches",
+            "branchesHint": "the CI a release waits on · the latest run of each workflow",
+            "role": {
+                "trunk": "trunk",
+                "release": "release"
+            },
+            "noBranchRun": "No run on {branch} yet.",
+            "jobsOf": "The jobs of {workflow}",
+            "elapsedUsually": "{elapsed}, usually ~{usual}",
+            "tookUsually": "{elapsed} (usually ~{usual})",
+            "failedStepsList": "Failed: {steps}",
+            "awaitedBy": "Awaited by the release {tag}",
+            "awaitedTitle": "The release is waiting for this run: show it in the Project tab",
             "openOnGithub": "Open on GitHub",
-            "localCheck": "local check",
-            "githubJob": "GitHub job",
             "scheduledTitle": "Scheduled jobs",
             "scheduledHint": "local times · GitHub may start them hours late",
             "noScheduled": "No scheduled workflow.",
@@ -3490,7 +3550,7 @@
             "unlinkMissing": "Unlink this terminal from the missing worktree"
         },
         "hold": {
-            "closeLabel": "Close tab, hold to confirm",
+            "closeLabel": "Close tab; hold with the pointer or activate to confirm",
             "closeHint": "Hold to close"
         },
         "pending": {
@@ -4019,11 +4079,32 @@
         "freshShellIn": "A new shell started in {path}: the closed one cannot be brought back.",
         "failed": "The last closed pane could not be reopened"
     },
+    "equalize": {
+        "command": "Equalize panels",
+        "commandDetail": "every panel column of the tab at the same width",
+        "autoOn": "Auto equalize on",
+        "autoOff": "Auto equalize off",
+        "autoOffReason": "You adjusted a panel by hand.",
+        "button": {
+            "label": "Equalize panels",
+            "title": "Equalize panels",
+            "click": "Click: give every column the same width",
+            "hold": "Long press: keep them equal after every change (auto)",
+            "autoOn": "Auto equalize on: the columns keep the same width after every change",
+            "turnOff": "Click or long press: turn auto off",
+            "disabled": "Equalize panels: needs two panels side by side"
+        }
+    },
     "view360": {
         "carpet": "carpet",
         "empty": "Panels you open are laid here",
         "addStart": "Add a panel on the left",
         "addEnd": "Add a panel on the right",
+        "grip": {
+            "noRoomFloor": "This column can't be resized here: the first column keeps the width you gave it, and the carpet needs the rest of the window.",
+            "noRoomWindow": "This column can't be resized here: the window is too narrow to leave the carpet any room. Widen the window to resize it.",
+            "noRoomColumns": "This column can't be widened: the other fixed columns take the rest of the room. Narrow one of them first."
+        },
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",
@@ -4041,7 +4122,7 @@
             "menuLeave": "Leave 360 view",
             "menuSettings": "360 view settings",
             "readjustTitle": "Leave 360 view?",
-            "readjustText": "The panels fit side by side only once the terminals give up the width they were dragged to. Every size is readjusted: the terminals' minimum width is cleared and the panels share the tab's width.",
+            "readjustText": "The panels fit side by side only once the first column gives up the width you gave it. Every size is readjusted: the first column's width is cleared and the panels share the tab's width.",
             "readjustConfirm": "Readjust every size",
             "readjustStay": "Stay in 360 view",
             "blockedTitle": "Close panels first",
@@ -4181,16 +4262,27 @@
             },
             "banner": {
                 "running": {
-                    "one": "An agent is merging {count} PR — {position} of {count}",
-                    "other": "An agent is merging {count} PRs — {position} of {count}"
+                    "one": "An agent is merging {count} PR — {progress}",
+                    "other": "An agent is merging {count} PRs — {progress}"
                 },
                 "cancelling": {
-                    "one": "Cancelling after the current step — {position} of {count}",
-                    "other": "Cancelling after the current step — {position} of {count}"
+                    "one": "Cancelling after the current step — {progress}",
+                    "other": "Cancelling after the current step — {progress}"
                 },
                 "paused": {
-                    "one": "The batch merge stopped on #{number} — {position} of {count}",
-                    "other": "The batch merge stopped on #{number} — {position} of {count}"
+                    "one": "The batch merge stopped on #{number} — {merged} of {count} merged",
+                    "other": "The batch merge stopped on #{number} — {merged} of {count} merged"
+                },
+                "progress": "{merged} of {count} merged, #{number} {now}",
+                "progressIdle": "{merged} of {count} merged",
+                "now": {
+                    "queued": "waits its turn",
+                    "checking": "is being read on GitHub",
+                    "rebasing": "is being rebased",
+                    "waiting": "waits for your answer",
+                    "waitingchecks": "waits for its checks",
+                    "merging": "is merging",
+                    "other": "is in progress"
                 },
                 "done": {
                     "one": "Batch merge done: {merged} of {count} PR merged",
@@ -4236,7 +4328,8 @@
                 "closed": "Closed",
                 "notreached": "Not reached",
                 "cancelled": "Cancelled",
-                "interrupted": "MoltenTerm restarted"
+                "interrupted": "MoltenTerm restarted",
+                "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
             },
             "decide": {
                 "retry": "Try again",
@@ -4288,10 +4381,40 @@
         "noneWaiting": "No pull request waiting for review into",
         "draftsTitle": "Drafts",
         "noneDrafts": "No draft pull request towards",
+        "merged": {
+            "title": "Recently merged",
+            "window": "last {days} days",
+            "none": "No pull request merged into {target} in the last {days} days.",
+            "error": "The merged pull requests could not be read.",
+            "openTitle": "Open PR #{number} on GitHub",
+            "mergedBy": "merged {when} by {who}",
+            "mergedWhen": "merged {when}",
+            "mergedAtTitle": "Merged on {when}",
+            "shipsTag": "in {tag}",
+            "shipsTagTitle": "The release tag {tag} carries its merge commit.",
+            "shipsBranch": "on {branch}",
+            "shipsBranchTitle": "{branch} carries it, no release tag yet: it ships with the next release.",
+            "shipsNext": "next release",
+            "shipsNextTitle": "No release tag carries its merge commit yet: it ships with the next release.",
+            "notesOne": "1 note",
+            "notes": "{count} notes",
+            "notesTitle": "Show the review notes kept on PR #{number}"
+        },
         "assistedReview": "Assisted review",
         "assistedReviewAria": "Open the assisted review of PR #{number}",
         "opened": "opened {when}",
         "updated": "updated {when}",
+        "signature": {
+            "unknown": "unknown agent",
+            "unknownTitle": "No agent signed this pull request: no commit carries a Molten-Agent trailer and its description has no signature. Agents started outside MoltenTerm do not sign.",
+            "title": "Agents on this pull request, the last one first:\n{list}",
+            "more": {
+                "one": "+{count} agent",
+                "other": "+{count} agents"
+            },
+            "aria": "Made by {who}",
+            "reviewedBy": "reviewed by {name}"
+        },
         "openOnGithub": "Open the pull request on GitHub",
         "unpublishedTitle": "Comments written here, not published yet",
         "unpublished": "{count} unpublished",
@@ -4411,7 +4534,9 @@
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
             "failed": "The rebase could not be asked: {message}",
-            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you."
+            "startedHidden": "{name} rebases {branch} out of sight: follow it below or in Sessions. A notification tells you when it is done or needs you.",
+            "notChosen": "{name} was already working on the branch, so it got it rather than {chosen}.",
+            "agentmissing": "{chosen}, the agent you chose, is not installed on this computer: choose an installed agent in the panel's options (Agent)."
         },
         "ready": {
             "button": "Mark ready for review",
@@ -4458,13 +4583,13 @@
                 "failed": "The failed jobs could not be rerun: {message}"
             },
             "investigate": {
-                "button": "Investigate",
-                "buttonTitle": "A work agent reads the failed logs of {names}, says whether this pull request caused it, and proposes a rerun, a fix or a ticket",
+                "button": "Investigate and fix",
+                "buttonTitle": "A work agent finds why {names} failed and resolves it: a fix on the branch, a rebase, or a rerun with a ticket for a flaky test. It never merges.",
                 "asking": "Asking…",
-                "asked": "{name} investigates the failed CI: its findings and proposal come in its terminal.",
-                "startedHidden": "{name} investigates the failed CI of {branch} out of sight: a notification tells you when its findings are ready.",
-                "offer": "No agent works on {branch}. Start one to investigate the failed CI?",
-                "failed": "The investigation could not be asked: {message}"
+                "asked": "{name} investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
+                "startedHidden": "{name} fixes the failed CI of {branch} out of sight: a notification tells you when the checks pass or if it needs you.",
+                "offer": "No agent works on {branch}. Start one to investigate and fix the failed CI?",
+                "failed": "Investigate and fix could not be asked: {message}"
             }
         },
         "report": {
@@ -4776,7 +4901,8 @@
             "tryAgain": "Try again",
             "noSession": "No review session runs for this PR.",
             "startSession": "Start the review session",
-            "notRunning": "The review session is not running."
+            "notRunning": "The review session is not running.",
+            "startWith": "Start with {agent}"
         },
         "ask": {
             "wholePrTitle": "Ask about the whole PR instead",
@@ -4948,6 +5074,17 @@
             "tabClosed": "Closed without merge: you can close this tab",
             "closeTab": "Close the review tab",
             "keepOpen": "Keep it open",
+            "merged": "Merged",
+            "close": "Close",
+            "banner": {
+                "you": "you",
+                "today": "at {time}",
+                "day": "on {date} at {time}",
+                "byWhen": "Merged by {who} {when}, on {base}. Nothing left to validate.",
+                "by": "Merged by {who}, on {base}. Nothing left to validate.",
+                "when": "Merged {when}, on {base}. Nothing left to validate.",
+                "plain": "Merged, on {base}. Nothing left to validate."
+            },
             "footer": {
                 "cleaning": "Merged. The cleanup is finishing; this review tab is no longer needed.",
                 "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",
@@ -5236,6 +5373,29 @@
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "origin/{branch} could not be deleted."
                     }
+                },
+                "local-trunk": {
+                    "label": "Local working branch",
+                    "plan": {
+                        "none": "Local {branch} will move up to origin/{branch} when nothing local is in the way (fast-forward only)."
+                    },
+                    "did": {
+                        "updated": {
+                            "one": "Local {branch} updated: +1 commit.",
+                            "other": "Local {branch} updated: +{count} commits."
+                        },
+                        "uptodate": "Local {branch} was already up to date.",
+                        "nolocaltrunk": "Nothing to do: there is no local branch {branch}.",
+                        "noremotetrunk": "Nothing to do: origin has no branch {branch}.",
+                        "localcommits": {
+                            "one": "Not updated: local {branch} has 1 commit origin does not have. Nothing was changed.",
+                            "other": "Not updated: local {branch} has {count} commits origin does not have. Nothing was changed."
+                        },
+                        "changes": "Not updated: local changes in {path} would be overwritten ({names}). Nothing was changed.",
+                        "inprogress": "Not updated: a rebase, merge, cherry-pick or bisect is in progress in {path}. Nothing was changed.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "Local {branch} could not be updated."
+                    }
                 }
             },
             "others": {
@@ -5517,7 +5677,9 @@
                 "notstarted": "The agent was not started: {message}",
                 "nottyped": "The comments could not be sent to {agent}: {message}",
                 "failed": "Restart work failed: {message}",
-                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you."
+                "startedHidden": "{agent} works on the round out of sight in {folder}: a notification tells you when it is done or needs you.",
+                "notChosen": "{agent} was already working on the branch, so it got the round rather than {chosen}.",
+                "agentmissing": "{chosen}, the agent you chose, is not installed on this computer: choose an installed agent in the panel's options (Agent). Nothing was started."
             }
         },
         "notes": {
@@ -5542,6 +5704,11 @@
         }
     },
     "server": {
+        "agentHold": {
+            "fixing": "fixing the CI of #{number}",
+            "ci": "waiting for the CI of #{number}",
+            "green": "the CI of #{number} passes"
+        },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
             "batchrunning": "A batch merge already runs in this project.",
@@ -5891,12 +6058,17 @@
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
-                "investigatedTitle": "{name} investigated the CI of #{number}",
-                "investigated": "Its findings and what it proposes are in its terminal: answer there.",
+                "ciGreenTitle": "#{number}: CI green again",
+                "ciGreen": "{name}: {outcome}",
+                "ciGreenPlain": "{name} stopped and the required checks of #{number} pass.",
+                "stillFailing": "Still failing on #{number}: {names}.",
+                "asks": "stopped for a decision: {reason}",
+                "ciSlow": "The CI of #{number} is still running after 2 hours.",
+                "uncommitted": "{name} left uncommitted files in its copy of {branch} ({count}): {names}",
                 "rerun": {
                     "passedTitle": "#{number}: the rerun jobs passed",
                     "failedTitle": "#{number}: failed again after the rerun",
-                    "failed": "Still failing: {names}. Investigate from the pull request's row in Reviews."
+                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in Reviews."
                 },
                 "batch": {
                     "openReviews": "Open the Reviews list",
@@ -5905,7 +6077,9 @@
                     "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
                     "doneTitle": "Batch merge: {merged} of {total} PRs merged",
                     "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
-                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}",
+                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
+                    "trunkUpdated": " Local {branch} updated: +{count} commits.",
+                    "trunkUpdatedOne": " Local {branch} updated: +1 commit.",
                     "mergedList": "Merged: {list}. ",
                     "mergedNone": "Nothing merged. ",
                     "skippedFirst": "Skipped: #{number} ({reason}){rest}. ",
@@ -5938,7 +6112,22 @@
                         "closed": "closed",
                         "cancelled": "cancelled",
                         "interrupted": "MoltenTerm restarted",
-                        "notreached": "not reached"
+                        "notreached": "not reached",
+                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
+                    }
+                },
+                "trunk": {
+                    "notUpdatedTitle": "Local {branch} not updated",
+                    "notUpdated": "Local {branch} is {count} commits behind origin and was not updated: {reason}.",
+                    "notUpdatedOne": "Local {branch} is 1 commit behind origin and was not updated: {reason}.",
+                    "openTerminal": "Open a terminal there",
+                    "why": {
+                        "localcommits": "it has {count} commits origin does not have",
+                        "localcommitsOne": "it has 1 commit origin does not have",
+                        "changes": "local changes in {path} would be overwritten: {names}",
+                        "changesMore": "local changes in {path} would be overwritten: {names} and {more} more",
+                        "inprogress": "a rebase, merge, cherry-pick or bisect is in progress in {path}",
+                        "failed": "git failed: {detail}"
                     }
                 }
             }
@@ -6159,13 +6348,13 @@
         "title": {
             "rebase": "Rebase #{number} with an agent",
             "restart": "Restart work on #{number} with an agent",
-            "investigate": "Investigate the failed CI of #{number} with an agent"
+            "investigate": "Investigate and fix the failed CI of #{number} with an agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
             "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
-            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch}, says whether the pull request caused the failure or a flaky or unrelated test did, and proposes a rerun, a fix on the branch or a ticket. It changes nothing until you choose."
+            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch} and resolves the cause: a fix pushed on the branch, a rebase on the base pushed with lease, or a rerun of a flaky job with its ticket. It never merges and asks you only for a real decision."
         },
         "background": {
             "button": "Let the agent handle it",
@@ -6174,25 +6363,46 @@
         "together": {
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
-            "investigate": "Go through the investigation with the agent",
+            "investigate": "Investigate and fix with the agent",
             "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
-        "checkoutInvestigate": "Your main checkout is not touched. The agent's terminal stays open with its findings until you close it.",
+        "checkoutInvestigate": "Your main checkout is not touched. The agent turns green only once the pull request's required checks pass; its terminal stays open with its account until you close it.",
         "default": "Default",
+        "how": "How the agent works",
         "yourAgent": "Your agent",
         "tab": {
             "rebase": "Rebase #{number}",
             "restart": "Restart #{number}",
             "investigate": "CI #{number}"
         },
-        "noReview": "The pull request to open is not known."
+        "noReview": "The pull request to open is not known.",
+        "agent": "Agent",
+        "notInstalled": "{agent}: not installed",
+        "missing": "{missing}, the agent chosen for this project, is not installed on this computer. Choose another agent for this run.",
+        "missingNone": "{missing}, the agent chosen for this project, is not installed on this computer, and no other supported agent is.",
+        "thisRunOnly": "For this run only: the project's choice stays as it is."
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
-        "investigate": "Started by you at {time} to investigate the failed CI of #{number}"
+        "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}"
+    },
+    "codingAgent": {
+        "section": "Coding agent",
+        "label": "Agent",
+        "notInstalled": "not installed",
+        "missing": "{agent} is chosen but not installed on this computer: choose another one",
+        "automatic": "Automatic: {agent}",
+        "noneInstalled": "No supported agent is installed on this computer"
+    },
+    "hang": {
+        "title": "The window did not respond for {seconds} s",
+        "message": "It answers again. If this repeats, copy the diagnostics for a bug report.",
+        "copy": "Copy diagnostics",
+        "copied": "Diagnostics copied",
+        "copyFailed": "The diagnostics could not be copied"
     }
 }

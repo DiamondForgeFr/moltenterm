@@ -39,6 +39,16 @@ func TestJsonH(t *testing.T) {
 		"data2": []any{1, 2, 3},
 		"data3": map[string]any{"a": 1},
 	})
+	// MOLTENTERM-PATCH (#810): wire numbers are JSON-decoded, not H's original Go integers.
+	encoded, err := json.Marshal(elem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded VDomElem
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	elem = &decoded
 	if elem == nil {
 		t.Fatalf("elem is nil")
 	}

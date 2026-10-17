@@ -3,7 +3,8 @@
 
 // Panel size memory (#606), wired to the layout: a dragged splitter records the size of the side panels it moved, in
 // the client's meta like the companion's choices (the same for every tab and window, kept across restarts); a side
-// panel added to a layout takes the size remembered for its kind.
+// panel added to a layout takes the size remembered for its kind. The first column's divider also sets its floor
+// (#848), which a panel added beside it never squeezes.
 
 import { ClientModel } from "@/app/store/client-model";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -24,22 +25,23 @@ import {
     LayoutTreeSplitVerticalAction,
 } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
+import { columnsParent, SideColumnMinPx } from "../view360/view360-decision";
 import {
-    floorFromDraggedTerminals,
-    fullWidthTerminals,
+    FirstColumnFloorMetaKey,
+    floorFromFirstColumnDrag,
+    LegacyTerminalFloorMetaKey,
+    needsFloorMigration,
     PanelAxis,
     PanelSibling,
     panelSizeKind,
     PanelSizes,
     PanelSizesMetaKey,
+    readFirstColumnFloor,
     readPanelSizes,
-    readTerminalFloor,
     rememberedPanelPx,
     rememberPanelSize,
     sizesForRememberedPanel,
-    TerminalFloorMetaKey,
-    terminalNeedPx,
-    TerminalView,
+    storedFirstColumnFloor,
 } from "./panel-size-model";
 
 // A second drag recorded before the first write came back builds on the first, not on the stale meta.
@@ -77,17 +79,28 @@ function writePanelSizes(sizes: PanelSizes): void {
 // The floor this window last wrote, ahead of the meta's round trip; { px: null } while a clear is on its way.
 let unconfirmedFloor: { px: number } = null;
 
-// The terminal floor (#731) in pixels, or null when none is set.
-export function currentTerminalFloorPx(): number {
+function clientMeta(): Record<string, unknown> {
+    const clientAtom = ClientModel.getInstance().clientAtom;
+    const client = clientAtom == null ? null : globalStore.get(clientAtom);
+    return client?.meta as Record<string, unknown>;
+}
+
+// The first column's floor (#731, #848) in pixels, or null when none is set. A terminal floor stored before #848 is
+// moved to the first column's key the first time it is read.
+export function currentFirstColumnFloorPx(): number {
     if (unconfirmedFloor != null) {
         return unconfirmedFloor.px;
     }
-    const clientAtom = ClientModel.getInstance().clientAtom;
-    const client = clientAtom == null ? null : globalStore.get(clientAtom);
-    return readTerminalFloor(client?.meta?.[TerminalFloorMetaKey]);
+    const meta = clientMeta();
+    const floor = storedFirstColumnFloor(meta);
+    if (needsFloorMigration(meta)) {
+        writeFirstColumnFloor(floor);
+    }
+    return floor;
 }
 
-function writeTerminalFloor(px: number): void {
+// Every write clears the terminal key too, so a migrated or cleared floor never comes back from it.
+function writeFirstColumnFloor(px: number): void {
     const clientId = ClientModel.getInstance().clientId;
     if (clientId == null) {
         return;
@@ -98,7 +111,7 @@ function writeTerminalFloor(px: number): void {
         try {
             await RpcApi.SetMetaCommand(TabRpcClient, {
                 oref: WOS.makeORef("client", clientId),
-                meta: { [TerminalFloorMetaKey]: px } as MetaType,
+                meta: { [FirstColumnFloorMetaKey]: px, [LegacyTerminalFloorMetaKey]: null } as MetaType,
             });
         } finally {
             if (unconfirmedFloor === pending) {
@@ -108,24 +121,21 @@ function writeTerminalFloor(px: number): void {
     });
 }
 
-export function setTerminalFloor(px: number): void {
-    const floor = readTerminalFloor(px);
-    if (floor == null || floor === currentTerminalFloorPx()) {
+export function setFirstColumnFloor(px: number): void {
+    const floor = readFirstColumnFloor(px);
+    if (floor == null || floor === currentFirstColumnFloorPx()) {
         return;
     }
-    writeTerminalFloor(floor);
+    writeFirstColumnFloor(floor);
 }
 
-// Back to "no floor": terminals fill the free room again down to their readable minimum ("Readjust every size", #733).
-export function clearTerminalFloor(): void {
-    if (currentTerminalFloorPx() == null) {
+// Back to "no floor": the first column shares the room again down to its readable minimum ("Readjust every size",
+// #733).
+export function clearFirstColumnFloor(): void {
+    if (currentFirstColumnFloorPx() == null) {
         return;
     }
-    writeTerminalFloor(null);
-}
-
-export function isTerminalLeaf(node: LayoutNode): boolean {
-    return node != null && !node.children?.length && cachedBlockView(node.data?.blockId) === TerminalView;
+    writeFirstColumnFloor(null);
 }
 
 // A carpet column dragged in 360 view (#614): its kind's remembered width, shared with the normal layout's memory.
@@ -172,15 +182,11 @@ export function recordDraggedPanelSizes(model: LayoutModel, action: LayoutTreeRe
     }
     let sizes = currentPanelSizes();
     let changed = false;
-    const terminalWidths: number[] = [];
     for (const op of action.resizeOperations) {
         const node = findNode(rootNode, op.nodeId);
         const parent = node == null ? null : findParent(rootNode, op.nodeId);
         if (parent == null) {
             continue;
-        }
-        if (parentAxis(parent) === "width" && fullWidthTerminals(node, isTerminalLeaf).length) {
-            terminalWidths.push(op.size / ratio);
         }
         const kind = nodeKind(node);
         if (kind == null) {
@@ -192,31 +198,35 @@ export function recordDraggedPanelSizes(model: LayoutModel, action: LayoutTreeRe
     if (changed) {
         writePanelSizes(sizes);
     }
-    const floor = floorFromDraggedTerminals(terminalWidths);
+    // The first column's divider sets its floor (#848), whatever the column holds; other dividers never do.
+    const floor = floorFromFirstColumnDrag(columnsParent(rootNode)?.children[0]?.id, action.resizeOperations, ratio);
     if (floor != null) {
-        setTerminalFloor(floor);
+        setFirstColumnFloor(floor);
     }
 }
 
-// The width the added panel asks for: its kind's remembered width; without one, while a terminal floor is set, the
-// width the layout gave it (so the floor still clamps it), and at least the floor for a new terminal.
-function addedPanelTargetPx(view: string, node: LayoutNode, axis: PanelAxis, ratio: number, floor: number): number {
-    const kind = panelSizeKind(view);
-    const remembered = rememberedPanelPx(currentPanelSizes(), kind, axis);
-    if (remembered != null || axis !== "width" || floor == null) {
+// The width the added panel asks for: its kind's remembered width; without one, while the first column has a floor,
+// the width the layout gave it (so the floor still holds), at least a readable column; a panel that becomes the
+// first column takes the floor.
+function addedPanelTargetPx(
+    view: string,
+    node: LayoutNode,
+    ratio: number,
+    floor: number,
+    isFirstColumn: boolean
+): number {
+    const remembered = rememberedPanelPx(currentPanelSizes(), panelSizeKind(view), "width");
+    if (floor == null) {
         return remembered;
     }
-    const currentPx = node.size / ratio;
-    return view === TerminalView ? Math.max(currentPx, floor) : currentPx;
+    const px = remembered ?? node.size / ratio;
+    // The layout's split can leave the new column a sliver once the first column keeps its floor.
+    return Math.max(px, isFirstColumn ? floor : SideColumnMinPx);
 }
 
 async function applyRememberedPanelSize(model: LayoutModel, blockId: string): Promise<void> {
     const view = await loadBlockView(blockId);
     const kind = panelSizeKind(view);
-    const floor = currentTerminalFloorPx();
-    if (kind == null && (view !== TerminalView || floor == null)) {
-        return;
-    }
     const rootNode = model.treeState?.rootNode;
     const node = model.getNodeByBlockId(blockId);
     const parent = node == null || rootNode == null ? null : findParent(rootNode, node.id);
@@ -224,18 +234,29 @@ async function applyRememberedPanelSize(model: LayoutModel, blockId: string): Pr
         return;
     }
     const axis = parentAxis(parent);
+    // The floor counts only among the top-level columns: the panel added beside or before the first column.
+    const columns = columnsParent(rootNode);
+    const floor = columns?.id === parent.id ? currentFirstColumnFloorPx() : null;
+    if (kind == null && floor == null) {
+        return;
+    }
     const ratio = model.getter(model.additionalProps)?.[parent.id]?.pixelToSizeRatio;
     if (!(ratio > 0)) {
         return;
     }
-    const targetPx = addedPanelTargetPx(view, node, axis, ratio, floor);
+    const firstId = parent.children[0].id;
+    const targetPx =
+        floor == null
+            ? rememberedPanelPx(currentPanelSizes(), kind, axis)
+            : addedPanelTargetPx(view, node, ratio, floor, firstId === node.id);
     if (targetPx == null) {
         return;
     }
     const siblings: PanelSibling[] = parent.children.map((child) => {
         const fill = child.id !== node.id && nodeKind(child) == null;
-        const needPx = fill && axis === "width" ? terminalNeedPx(child, floor, isTerminalLeaf) : 0;
-        return needPx > 0 ? { size: child.size, fill, minPx: needPx } : { size: child.size, fill };
+        return floor != null && child.id === firstId && child.id !== node.id
+            ? { size: child.size, fill, minPx: floor }
+            : { size: child.size, fill };
     });
     const index = parent.children.findIndex((child) => child.id === node.id);
     const next = sizesForRememberedPanel(siblings, index, targetPx, ratio);

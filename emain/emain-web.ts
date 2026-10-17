@@ -1,27 +1,59 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ipcMain, webContents, WebContents } from "electron";
-import { WaveBrowserWindow } from "./emain-window";
+import { webContents, WebContents } from "electron";
+import { randomUUID } from "node:crypto";
+import type { WaveBrowserWindow } from "./emain-window";
+import { isAppIpcSender, onAppIpc } from "./moltenterm-privileged-ipc";
+
+// MOLTENTERM-PATCH (#806): replies belong to the original live application frame and its own guest.
 
 export function getWebContentsByBlockId(ww: WaveBrowserWindow, tabId: string, blockId: string): Promise<WebContents> {
-    const prtn = new Promise<WebContents>((resolve, reject) => {
-        const randId = Math.floor(Math.random() * 1000000000).toString();
-        const respCh = `getWebContentsByBlockId-${randId}`;
-        ww?.activeTabView?.webContents.send("webcontentsid-from-blockid", blockId, respCh);
-        ipcMain.once(respCh, (event, webContentsId) => {
-            if (webContentsId == null) {
-                resolve(null);
-                return;
-            }
-            const wc = webContents.fromId(parseInt(webContentsId));
-            resolve(wc);
+    return new Promise<WebContents>((resolve, reject) => {
+        const view = ww?.activeTabView;
+        const host = view?.webContents;
+        const frame = host && !host.isDestroyed() ? host.mainFrame : null;
+        if (view?.waveTabId !== tabId || !isAppIpcSender({ sender: host, senderFrame: frame })) {
+            reject(new Error("Application frame unavailable"));
+            return;
+        }
+        const respCh = `getWebContentsByBlockId-${randomUUID()}`;
+        let timer: ReturnType<typeof setTimeout>;
+        let dispose: () => void;
+        const cleanup = () => {
+            clearTimeout(timer);
+            dispose?.();
+            host.removeListener("destroyed", unavailable);
+            host.removeListener("did-start-navigation", navigation);
+        };
+        const unavailable = () => {
+            cleanup();
+            reject(new Error("Application frame unavailable"));
+        };
+        const navigation = (_event: Electron.Event, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
+            if (isMainFrame && !isInPlace) unavailable();
+        };
+        // A foreign sender must not consume the reply slot. Install before send, and bind both object and frame.
+        dispose = onAppIpc(respCh, (event, webContentsId) => {
+            if (event.sender !== host || event.senderFrame !== frame) return;
+            cleanup();
+            // The existing preload replies with the webview's dataset value, hence a decimal string.
+            const id = typeof webContentsId === "string" && /^\d+$/.test(webContentsId) ? Number(webContentsId) : webContentsId;
+            const wc = Number.isSafeInteger(id) ? webContents.fromId(id) : null;
+            resolve(wc && !wc.isDestroyed() && wc.getType() === "webview" && wc.hostWebContents === host ? wc : null);
         });
-        setTimeout(() => {
+        host.once("destroyed", unavailable);
+        host.on("did-start-navigation", navigation);
+        timer = setTimeout(() => {
+            cleanup();
             reject(new Error("timeout waiting for response"));
         }, 2000);
+        try {
+            host.send("webcontentsid-from-blockid", blockId, respCh);
+        } catch {
+            unavailable();
+        }
     });
-    return prtn;
 }
 
 function escapeSelector(selector: string): string {

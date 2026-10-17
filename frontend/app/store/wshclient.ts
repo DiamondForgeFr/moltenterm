@@ -3,6 +3,7 @@
 
 import { sendRpcCommand, sendRpcResponse } from "@/app/store/wshrpcutil-base";
 import * as util from "@/util/util";
+import { noteRpc } from "../../moltenterm-shell/hang-context"; // MOLTENTERM-PATCH (#849)
 
 const notFoundLogMap = new Map<string, boolean>();
 
@@ -48,6 +49,7 @@ class WshClient {
     }
 
     wshRpcCall(command: string, data: any, opts: RpcOpts): Promise<any> {
+        noteRpc(command); // MOLTENTERM-PATCH (#849): a long task report names the last RPC
         const msg: RpcMessage = {
             command: command,
             data: data,

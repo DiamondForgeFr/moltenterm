@@ -65,6 +65,8 @@ const (
 	BatchReasonAgentExited  = "agentexited"
 	BatchReasonAgentTimeout = "agenttimeout"
 	BatchReasonNoAgent      = "noagent"
+	// BatchReasonAgentMissing: the coding agent chosen for the project is not installed (#845); Detail names it.
+	BatchReasonAgentMissing = "agentmissing"
 	BatchReasonAgentStart   = "agentstart"
 	BatchReasonBlocked      = "blocked"
 	BatchReasonWarnings     = "warnings"
@@ -104,6 +106,9 @@ const (
 	defaultAgentLimit = 90 * time.Minute
 	// GitHub tells again whether a PR merges cleanly a little while after its base moved.
 	defaultComputeLimit = 5 * time.Minute
+	// A push starts its workflows within seconds; this long after a rebase, a check of the old head whose workflow
+	// never ran on the new head is no longer waited for (#887).
+	defaultChecksSettle = 3 * time.Minute
 	// A PR rebased this many times that still conflicts stops the run: the base keeps moving under it.
 	maxBatchRebases = 2
 	// A merge refused because the head or the base moved under it is tried again at most this many times.
@@ -215,6 +220,8 @@ type BatchEnv struct {
 	AgentEvery   time.Duration
 	AgentLimit   time.Duration
 	ComputeLimit time.Duration
+	// ChecksSettle: how long after a rebase every check of the old head is expected on the new one.
+	ChecksSettle time.Duration
 }
 
 type batchCtl struct {
@@ -251,6 +258,9 @@ func MakeBatchRunner(env BatchEnv) *BatchRunner {
 	}
 	if env.ComputeLimit <= 0 {
 		env.ComputeLimit = defaultComputeLimit
+	}
+	if env.ChecksSettle <= 0 {
+		env.ChecksSettle = defaultChecksSettle
 	}
 	return &BatchRunner{env: env, runs: map[string]*batchCtl{}}
 }

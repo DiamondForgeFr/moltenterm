@@ -75,7 +75,7 @@ function ToastItem({ toast }: { toast: Toast }) {
             role={toast.kind === "error" ? "alert" : "status"}
             data-testid="toast"
             data-tone={tone.tone}
-            className="molten-toast pointer-events-auto relative flex items-start gap-2.5 rounded-10 border border-line-strong bg-surface-3 py-2.5 pr-2 pl-3 text-12 shadow-e2"
+            className="molten-toast pointer-events-auto relative flex items-start gap-2.5 rounded-4 border border-line-strong bg-surface-3 py-2.5 pr-2 pl-3 text-12 shadow-e2"
             onPointerEnter={() => setHeld(true)}
             onPointerLeave={() => setHeld(false)}
             onFocus={() => setHeld(true)}

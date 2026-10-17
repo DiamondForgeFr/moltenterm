@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
@@ -600,12 +601,16 @@ func UseStarter(start func()) {
 
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
+	agentchoice.Start()
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups
+	// Where the merged PRs ship (#843) follows a git read: its fetch brings the tags.
+	var reviews *Reviews
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, func(snap Snapshot) {
 		publishSnapshot(snap)
 		go groups.Refreshed()
+		go reviews.Refreshed(snap)
 	})
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
 	runs := MakeRuns(RunsDir(dataDir), trust, func(rec RunRecord) {
@@ -627,6 +632,7 @@ func Start() {
 		}
 	})
 	runs.UseCi(ci)
+	runs.UseAgentEnv(func(dir string) []string { return agentchoice.Resolve(dir, "").RunEnv() })
 	runs.UseNotifier(publishBuildNotice)
 	// The status bars and the collector read git again when the watch sees it change a repository (FR-PERF-011).
 	watch := gitwatch.Default()
@@ -646,9 +652,11 @@ func Start() {
 	})
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
-	reviews := MakeReviews(collector, ExecRunner, publishReviews)
+	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
-	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups, reviews); err != nil {
+	worktrees := MakeWorktrees(ExecRunner, nil)
+	runs.UseWorktrees(worktrees, dataDir)
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

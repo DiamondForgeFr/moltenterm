@@ -2,11 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { AgentBar } from "./reviews-agent-bar";
+import { getDefaultStore } from "jotai";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { AgentBar, MinuteClock } from "./reviews-agent-bar";
 import { AgentBarFacts } from "./reviews-upcoming-model";
 
-const Started = Date.now() - 12.5 * 60_000;
+const Now = new Date(2026, 9, 16, 12, 0).getTime();
+const Started = Now - 12.5 * 60_000;
+const Clock = MinuteClock.getInstance().nowAtom;
+const PreviousNow = getDefaultStore().get(Clock);
+
+beforeEach(() => getDefaultStore().set(Clock, Now));
+afterEach(() => getDefaultStore().set(Clock, PreviousNow));
 
 describe("AgentBar (#712 AC2, AC4)", () => {
     it("draws nothing without an agent", () => {
@@ -79,7 +86,7 @@ describe("AgentBar (#712 AC2, AC4)", () => {
             agent: "claude",
             name: "",
             state: "background",
-            since: Date.now() - 3.5 * 60_000,
+            since: Now - 3.5 * 60_000,
             parentBlockId: "b9",
             parentName: "Valentin",
         };

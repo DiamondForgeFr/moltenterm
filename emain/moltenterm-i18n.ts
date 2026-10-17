@@ -11,6 +11,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import * as electron from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import {
     availableLanguageCodes,
     FallbackLanguage,
@@ -121,15 +122,15 @@ export function initMoltentermI18n(fullConfig: FullConfigType) {
 }
 
 export function initMoltentermI18nIpc() {
-    electron.ipcMain.on(SystemLanguagesChannel, (event) => {
+    onAppIpc(SystemLanguagesChannel, (event) => {
         event.returnValue = systemLanguages();
     });
-    electron.ipcMain.on(SetLanguagePacksChannel, (_event, packs: unknown) => {
+    onAppIpc(SetLanguagePacksChannel, (_event, packs: unknown) => {
         if (!Array.isArray(packs)) return;
         mainPacks.apply(packs.filter(isForwardedPack).map((p) => ({ ...p, enabledAt: 0 })));
         recompute();
     });
-    electron.ipcMain.on(SetLocaleChannel, (_event, locale: unknown) => {
+    onAppIpc(SetLocaleChannel, (_event, locale: unknown) => {
         if (typeof locale !== "string" || locale === "") return;
         rendererLocale = locale;
         recompute();

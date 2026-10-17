@@ -67,6 +67,7 @@ class FakeWebContents {
     static nextId = 1;
     id = FakeWebContents.nextId++;
     destroyed = false;
+    mainFrame = { url: "file:///fixture/index.html" };
     listeners = new Map<string, ((...args: any[]) => void)[]>();
     sent: { channel: string; args: any[] }[] = [];
     throttling = true;
@@ -368,7 +369,7 @@ async function loadModules(): Promise<any> {
     }));
     vi.doMock("./emain-wsh", () => ({ ElectronWshClient: {} }));
     vi.doMock("./updater", () => ({ updater: null }));
-    vi.doMock("./authkey", () => ({ configureAuthKeyRequestInjection: () => {} }));
+    vi.doMock("./authkey", () => ({ getTrustedAppSession: () => ({}), registerTrustedAppContents: () => {} }));
     vi.doMock("./moltenterm-browseragent", () => ({ hostsBrowserPage: () => false, hostsControlledTab: () => false }));
     vi.doMock("./moltenterm-webview-lifecycle", () => ({
         hostedPagesHaveUnsavedWork: async () => false,
@@ -380,6 +381,9 @@ async function loadModules(): Promise<any> {
         checkReusedTabViewPainted: () => {},
         noteTabViewLeftScreen: () => {},
     }));
+    const { configurePrivilegedIpc } = await import("./moltenterm-privileged-ipc");
+    configurePrivilegedIpc((event) => event.sender instanceof FakeWebContents && !event.sender.isDestroyed() &&
+        event.senderFrame === event.sender.mainFrame);
     h.tabviewModule = await import("./emain-tabview");
     const mod: any = await import("./emain-window");
     h.hostModule = await import("./moltenterm-tabview-host");
@@ -399,7 +403,8 @@ beforeAll(async () => {
 }, 60_000);
 
 function ipc(channel: string, ...args: any[]) {
-    return h.ipc.get(channel)({ sender: { id: win.activeTabView.webContents.id } }, ...args);
+    const sender = win.activeTabView.webContents;
+    return h.ipc.get(channel)({ sender, senderFrame: sender.mainFrame }, ...args);
 }
 
 async function warmSpare() {
@@ -517,7 +522,7 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         h.silentBoot = false;
         h.tabviewModule.discardHotSpareTab();
         await warmSpare();
-        h.ipc.get("moltenterm-view-pending-action")({ sender: { id: starterView.webContents.id } }, "reload");
+        h.ipc.get("moltenterm-view-pending-action")({ sender: starterView.webContents, senderFrame: starterView.webContents.mainFrame }, "reload");
         await vi.advanceTimersByTimeAsync(1000);
         expect(h.onScreen()).toBe(created);
         expect(h.workspaces.get(starter.oid).activetabid).toBe(created);
@@ -547,7 +552,7 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         win.removeTabView(starterTab, false);
         await warmSpare();
         const t0 = Date.now();
-        h.ipc.get("close-tab")({ sender: { id: win.activeTabView.webContents.id } }, starter.oid, second, false);
+        h.ipc.get("close-tab")({ sender: win.activeTabView.webContents, senderFrame: win.activeTabView.webContents.mainFrame }, starter.oid, second, false);
         await vi.advanceTimersByTimeAsync(2000);
         expect(h.onScreen()).toBe(starterTab);
         expect(screenSince(t0).every((e) => e[1] === second || e[1] === starterTab)).toBe(true);

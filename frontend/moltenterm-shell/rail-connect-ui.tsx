@@ -47,7 +47,7 @@ export function RailConnectBanner({ navRef, name }: { navRef: React.RefObject<HT
             // The polite live region already says it (RailConnectModel).
             aria-hidden
             data-testid="rail-connect-hint"
-            className="molten-rail-connect-banner pointer-events-none fixed z-[9500] flex max-w-[32rem] -translate-x-1/2 items-center gap-2 rounded-10 border border-line-strong bg-surface-3 py-1.5 pr-1.5 pl-3 text-12 text-primary shadow-e2"
+            className="molten-rail-connect-banner pointer-events-none fixed z-[9500] flex max-w-[32rem] -translate-x-1/2 items-center gap-2 rounded-4 border border-line-strong bg-surface-3 py-1.5 pr-1.5 pl-3 text-12 text-primary shadow-e2"
             style={{ top: place.top, left: place.left }}
         >
             <i

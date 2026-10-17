@@ -1,0 +1,55 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: Apache-2.0
+
+name: Dependency security scan
+
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    scan:
+        name: Scan dependencies
+        runs-on: ubuntu-latest
+        timeout-minutes: 40
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  # Scan the pull request's exact head, not a synthetic merge or a moving branch.
+                  ref: ${{ github.event.pull_request.head.sha || github.sha }}
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 22
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache: false
+            # No npm dependency installation/lifecycle scripts and no signing, release or production secrets.
+            - name: Install pinned audit client
+              run: npm install --global --ignore-scripts --no-audit --no-fund npm@10.9.2
+            - name: Test policy and workflow contracts
+              run: node --test scripts/security/policy-check.mjs
+            - name: Scan and evaluate
+              run: node scripts/security/scan.mjs --out security-report
+            - name: Summary
+              if: always()
+              run: |
+                  if [ -f security-report/report.md ]; then
+                      cat security-report/report.md >> "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "Dependency scan did not produce a report; inspect the failed setup/test step." >> "$GITHUB_STEP_SUMMARY"
+                  fi
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              if: always()
+              with:
+                  name: dependency-security-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: |
+                      security-report/report.json
+                      security-report/report.md
+                      security-report/manifest.json
+                      security-report/raw/
+                  if-no-files-found: error
+                  retention-days: 30

@@ -101,6 +101,25 @@ describe("branchAgent (#712 AC2, AC4)", () => {
         });
     });
 
+    it("carries what MoltenTerm says the agent does while it holds its state (#896)", () => {
+        const live = states({
+            b1: {
+                agent: "claude",
+                firstname: "Valentin",
+                state: "working",
+                message: "Fixing the CI of #12",
+                messagetext: { code: "agentHold.fixing", vars: { number: "12" } },
+            },
+        });
+        expect(branchAgent(upcoming, live, "feature/1-a")).toMatchObject({
+            name: "Valentin",
+            state: "working",
+            held: { text: { code: "agentHold.fixing" }, english: "Fixing the CI of #12" },
+        });
+        const own = states({ b1: { agent: "claude", state: "working", message: "Bash" } });
+        expect(branchAgent(upcoming, own, "feature/1-a").held).toBeUndefined();
+    });
+
     it("names a background agent's parent from the live states", () => {
         const live = states({ b9: { agent: "claude", firstname: "Valentin" } });
         expect(branchAgent(upcoming, live, "feature/2-b")).toMatchObject({

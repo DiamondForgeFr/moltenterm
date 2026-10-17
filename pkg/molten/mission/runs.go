@@ -13,11 +13,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +28,7 @@ import (
 // Runs of a project's declared commands (DS-MC-005): MoltenTerm starts them in the project folder, in a session of
 // their own (a build goes on if MoltenTerm restarts), keeps each run's log and state under
 // <data>/molten/runs/<project>/<run>/, and follows the log for the phases a step announces (`▶ phase: <name>`, as in
-// Notulia) and for its exit code.
+// Notulia). A separate supervisor record supplies the exit code.
 
 const (
 	RunKindBuild = "build"
@@ -55,9 +53,11 @@ const (
 )
 
 var phaseRegex = regexp.MustCompile(`(?m)^\s*▶ phase:\s*(.+?)\s*$`)
-var exitRegex = regexp.MustCompile(`(?m)^exit=(-?\d+)\s*$`)
 
 type RunRecord struct {
+	// Runtime storage identity stays stable if the requested symlink is retargeted. The folder's project.json
+	// persists it across restarts; Dir remains the user's requested path in the API and work listings.
+	project    string
 	Id         string   `json:"id"`
 	Dir        string   `json:"dir"`
 	Kind       string   `json:"kind"`
@@ -112,19 +112,33 @@ type LogChunk struct {
 }
 
 type Runs struct {
-	lock      sync.Mutex
-	baseDir   string
-	trust     *TrustStore
-	publish   func(RunRecord)
-	now       func() time.Time
-	watching  map[string]bool
-	preparing map[string]bool
+	recordLocks    sync.Map
+	lock           sync.Mutex
+	admitting      map[admissionKey]*runAdmission
+	projectStorage map[string][]string
+	baseDir        string
+	trust          *TrustStore
+	publish        func(RunRecord)
+	now            func() time.Time
+	watching       map[string]bool
+	preparing      map[string]bool
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
 	git         Runner
 	ci          *Ci
 	notify      func(RunRecord, molten.NotificationInput)
 	told        map[string]bool
+	// agentEnv tells a step the project's coding agent (agentchoice.EnvVar), for the release notes (#845).
+	agentEnv func(dir string) []string
+	// Branch cleaning removes MoltenTerm's worktrees of merged pull requests (#906) through the close-worktree path; the
+	// data folder tells which worktrees are MoltenTerm's.
+	worktrees *Worktrees
+	dataDir   string
+}
+
+// UseWorktrees lets branch cleaning remove MoltenTerm's own worktrees of merged pull requests, under dataDir.
+func (r *Runs) UseWorktrees(w *Worktrees, dataDir string) {
+	r.worktrees, r.dataDir = w, dataDir
 }
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
@@ -137,12 +151,17 @@ func (r *Runs) UseCi(ci *Ci) {
 	r.ci = ci
 }
 
+// UseAgentEnv gives every step the project's coding agent in its environment.
+func (r *Runs) UseAgentEnv(agentEnv func(dir string) []string) {
+	r.agentEnv = agentEnv
+}
+
 func RunsDir(dataDir string) string {
 	return filepath.Join(dataDir, "molten", "runs")
 }
 
 func (r *Runs) projectDir(dir string) string {
-	return filepath.Join(r.baseDir, projectKey(dir))
+	return r.projectDirs(dir)[0]
 }
 
 func projectKey(dir string) string {
@@ -256,7 +275,10 @@ func currentBranch(run Runner, dir string) string {
 }
 
 func (r *Runs) writeRecord(rec RunRecord) error {
-	dir := filepath.Join(r.projectDir(rec.Dir), rec.Id)
+	dir := r.recordDir(rec.storageProject(), rec.Id)
+	if err := r.identifyStorage(filepath.Dir(dir), rec.storageProject()); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
 		return err
@@ -270,16 +292,19 @@ func (r *Runs) writeRecord(rec RunRecord) error {
 
 func (r *Runs) readRecord(dir string, runId string) (RunRecord, error) {
 	var rec RunRecord
-	data, err := os.ReadFile(filepath.Join(r.projectDir(dir), runId, RunFileName))
+	data, err := os.ReadFile(filepath.Join(r.recordDir(dir, runId), RunFileName))
 	if err != nil {
 		return rec, err
 	}
 	err = json.Unmarshal(data, &rec)
+	if err == nil {
+		rec.project = canonicalRunDir(dir)
+	}
 	return rec, err
 }
 
 func (r *Runs) logFile(dir string, runId string) string {
-	return filepath.Join(r.projectDir(dir), runId, LogFileName)
+	return filepath.Join(r.recordDir(dir, runId), LogFileName)
 }
 
 // findCommand resolves what a request asks to run from the project's valid pipeline.
@@ -309,7 +334,8 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	report := molten.ValidatePipeline(dir)
+	project := canonicalRunDir(dir)
+	report := molten.ValidatePipeline(project)
 	if !report.Valid {
 		return RunResult{}, pipelineError(report)
 	}
@@ -322,17 +348,27 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
-	if running := r.runningOf(dir, req.Kind); running != nil {
+	title := command.Title
+	if title == "" {
+		title = command.Id
+	}
+	release, held := r.reserveAdmission(project, req.Kind, title)
+	if release == nil {
+		return RunResult{}, errAlreadyRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	if running := r.runningOf(project, req.Kind); running != nil {
 		return RunResult{}, errAlreadyRunning(running.Title)
 	}
 	if req.Kind == RunKindBuild {
-		rec, err := r.startBuild(dir, findBuild(report.Pipeline, req.Id), req.Version)
+		rec, err := r.startBuildAt(dir, project, findBuild(report.Pipeline, req.Id), req.Version)
 		if err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{Run: &rec}, nil
 	}
-	rec, err := r.launch(dir, command, artifact, req.Version, "")
+	rec, err := r.launchAt(dir, project, command, artifact, req.Version, "")
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -349,12 +385,19 @@ func (r *Runs) runningOf(dir string, kind string) *RunRecord {
 }
 
 func (r *Runs) launch(dir string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	return r.launchAt(dir, project, command, artifact, version, tag)
+}
+
+func (r *Runs) launchAt(dir, project string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
 	now := r.now()
-	expanded, err := expandCommand(command.Run, withBranch(versionVars(dir, version), currentBranch(r.git, dir)))
+	expanded, err := expandCommand(command.Run, withBranch(versionVars(project, version), currentBranch(r.git, project)))
 	if err != nil {
 		return RunRecord{}, err
 	}
 	rec := RunRecord{
+		project:   project,
 		Id:        newRunId(now),
 		Dir:       dir,
 		Kind:      command.Kind,
@@ -362,7 +405,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		Title:     command.Title,
 		Command:   expanded,
 		Cwd:       command.Cwd,
-		Artifact:  artifactPath(dir, artifact),
+		Artifact:  artifactPath(project, artifact),
 		StartedAt: now.UnixMilli(),
 		State:     RunStateRunning,
 		Phases:    []string{},
@@ -371,7 +414,10 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	if rec.Title == "" {
 		rec.Title = command.Id
 	}
-	runDir := filepath.Join(r.projectDir(dir), rec.Id)
+	runDir := filepath.Join(r.projectDir(project), rec.Id)
+	if err := r.identifyProject(project); err != nil {
+		return rec, err
+	}
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return rec, err
 	}
@@ -380,12 +426,15 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		return rec, err
 	}
 	defer logFile.Close()
-	// The exit line is how the run's end is known, even after a MoltenTerm restart.
-	cmd := exec.Command("/bin/sh", "-c", `( `+rec.Command+` ); echo "exit=$?"`)
-	cmd.Dir = filepath.Join(dir, rec.Cwd)
+	// The supervisor records the run's end separately, even after a MoltenTerm restart.
+	cmd := r.supervisedCommand(rec)
+	cmd.Dir = filepath.Join(project, rec.Cwd)
 	cmd.Env = commandEnv()
 	for k, v := range command.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	if r.agentEnv != nil {
+		cmd.Env = append(cmd.Env, r.agentEnv(project)...)
 	}
 	cmd.Env = append(cmd.Env, "MOLTEN_RUN_ID="+rec.Id)
 	cmd.Stdout = logFile
@@ -396,11 +445,12 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		return rec, uimsg.Errorf(uimsg.Make("mission.run.startFailed", "title", rec.Title, "detail", err.Error()), "starting %s: %w", rec.Title, err)
 	}
 	rec.Pid = cmd.Process.Pid
+	go cmd.Wait()
 	if err := r.writeRecord(rec); err != nil {
+		stopRunGroup(rec.Pid)
 		return rec, err
 	}
-	go cmd.Wait()
-	r.prune(dir)
+	r.prune(project)
 	r.watch(rec)
 	if r.publish != nil {
 		r.publish(rec)
@@ -408,12 +458,12 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 	return rec, nil
 }
 
-// update reads what the run's log says since last time; it reports whether the record changed.
+// update follows output and authoritative completion independently; even a missing log cannot hide completion.
 func (r *Runs) update(rec *RunRecord) bool {
-	data, err := os.ReadFile(r.logFile(rec.Dir, rec.Id))
-	if err != nil {
+	if rec.State != RunStateRunning {
 		return false
 	}
+	data, _ := os.ReadFile(r.logFile(rec.storageProject(), rec.Id))
 	changed := int64(len(data)) != rec.LogSize
 	rec.LogSize = int64(len(data))
 	phases := []string{}
@@ -424,24 +474,19 @@ func (r *Runs) update(rec *RunRecord) bool {
 		rec.Phases = phases
 		changed = true
 	}
-	if m := exitRegex.FindAllSubmatch(data, -1); len(m) > 0 {
-		code, _ := strconv.Atoi(string(m[len(m)-1][1]))
-		rec.Exit = &code
-		rec.FinishedAt = r.now().UnixMilli()
-		switch {
-		case rec.Cancelled:
-			rec.State = RunStateCancelled
-		case code == 0:
-			rec.State = RunStateSuccess
-		default:
-			rec.State = RunStateFailure
-		}
-		return true
-	}
 	if rec.Preparing {
 		return changed
 	}
+	if code, ok := r.completion(*rec); ok {
+		r.complete(rec, code)
+		return true
+	}
 	if !processAlive(rec.Pid) {
+		// The supervisor may have published between the first read and its process exiting.
+		if code, ok := r.completion(*rec); ok {
+			r.complete(rec, code)
+			return true
+		}
 		rec.FinishedAt = r.now().UnixMilli()
 		rec.State = RunStateLost
 		if rec.Cancelled {
@@ -479,19 +524,12 @@ func (r *Runs) watch(rec RunRecord) {
 		defer r.stopWatching(rec.Id)
 		for rec.State == RunStateRunning {
 			time.Sleep(runPollInterval)
-			// The record on disk is the reference: a build's preparation fills in its commit and process first.
-			if current, err := r.readRecord(rec.Dir, rec.Id); err == nil {
-				rec = current
-			}
-			if rec.Preparing {
+			current, changed, err := r.refreshRecord(rec.storageProject(), rec.Id)
+			if err != nil {
 				continue
 			}
-			if !r.update(&rec) {
-				continue
-			}
-			r.settle(&rec)
-			r.writeRecord(rec)
-			if r.publish != nil {
+			rec = current
+			if changed && r.publish != nil {
 				r.publish(rec)
 			}
 		}
@@ -501,40 +539,24 @@ func (r *Runs) watch(rec RunRecord) {
 // List returns the project's runs, newest first; runs still going after a MoltenTerm restart are followed again.
 func (r *Runs) List(dir string) []RunRecord {
 	dir = filepath.Clean(dir)
-	entries, err := os.ReadDir(r.projectDir(dir))
-	if err != nil {
-		return []RunRecord{}
+	var entries []os.DirEntry
+	for _, storage := range r.projectDirs(dir) {
+		stored, _ := os.ReadDir(storage)
+		entries = append(entries, stored...)
 	}
 	runs := []RunRecord{}
+	seen := map[string]bool{}
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || seen[entry.Name()] {
 			continue
 		}
-		rec, err := r.readRecord(dir, entry.Name())
+		seen[entry.Name()] = true
+		rec, _, err := r.refreshRecord(dir, entry.Name())
 		if err != nil {
 			continue
 		}
-		if rec.State == RunStateRunning && rec.Preparing && r.checkPreparing(rec.Id) {
-			// Its preparation alone writes the record until the build command starts.
-			runs = append(runs, rec)
-			continue
-		}
-		if rec.State == RunStateRunning && rec.Preparing {
-			// wavesrv stopped while it fetched, verified or prepared the build.
-			rec.Preparing = false
-			rec.State = RunStateLost
-			rec.FinishedAt = r.now().UnixMilli()
-			r.settle(&rec)
-			r.writeRecord(rec)
-		}
-		if rec.State == RunStateRunning {
-			if r.update(&rec) {
-				r.settle(&rec)
-				r.writeRecord(rec)
-			}
-			if rec.State == RunStateRunning {
-				r.watch(rec)
-			}
+		if rec.State == RunStateRunning && !rec.Preparing {
+			r.watch(rec)
 		}
 		runs = append(runs, rec)
 	}
@@ -554,12 +576,15 @@ func (r *Runs) prune(dir string) {
 		if session != nil && rec.Kind == RunKindRelease && rec.Tag == session.Tag {
 			continue
 		}
-		os.RemoveAll(filepath.Join(r.projectDir(dir), rec.Id))
+		os.RemoveAll(r.recordDir(dir, rec.Id))
 	}
 }
 
 func (r *Runs) Cancel(dir string, runId string) error {
 	dir = filepath.Clean(dir)
+	lock := r.recordLock(dir, runId)
+	lock.Lock()
+	defer lock.Unlock()
 	rec, err := r.readRecord(dir, runId)
 	if err != nil {
 		return err
@@ -600,24 +625,29 @@ func (r *Runs) Close(dir string, runId string) error {
 		return err
 	}
 	dir = filepath.Clean(dir)
-	rec, err := r.readRecord(dir, runId)
-	if err != nil {
-		return err
-	}
-	if rec.State == RunStateRunning {
-		return uimsg.Errorf(uimsg.Make("mission.run.stillRunningCancel", "title", rec.Title), "%s is still running: cancel it first", rec.Title)
-	}
-	if rec.Closed {
-		return nil
-	}
-	rec.Closed = true
-	if err := r.writeRecord(rec); err != nil {
-		return err
-	}
-	if r.publish != nil {
+	rec, err := r.closeRecord(dir, runId)
+	if err == nil && r.publish != nil {
 		r.publish(rec)
 	}
-	return nil
+	return err
+}
+
+func (r *Runs) closeRecord(dir, runId string) (RunRecord, error) {
+	lock := r.recordLock(dir, runId)
+	lock.Lock()
+	defer lock.Unlock()
+	rec, err := r.readRecord(dir, runId)
+	if err != nil {
+		return rec, err
+	}
+	if rec.State == RunStateRunning {
+		return rec, uimsg.Errorf(uimsg.Make("mission.run.stillRunningCancel", "title", rec.Title), "%s is still running: cancel it first", rec.Title)
+	}
+	if rec.Closed {
+		return rec, nil
+	}
+	rec.Closed = true
+	return rec, r.writeRecord(rec)
 }
 
 // ReadLog returns the log from a byte offset, at most maxLogRead bytes, and the offset to ask next.

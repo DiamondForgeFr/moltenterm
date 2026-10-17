@@ -77,7 +77,7 @@ vi.mock("node:child_process", () => ({
     },
 }));
 vi.mock("../frontend/util/endpoints", () => ({ WebServerEndpointVarName: "WEB", WSServerEndpointVarName: "WS" }));
-vi.mock("./authkey", () => ({ AuthKey: "key", WaveAuthKeyEnv: "AUTHKEY" }));
+vi.mock("./authkey", () => ({ AuthKey: "key", WaveAuthKeyEnv: "AUTHKEY", CallerSecret: "proof-secret", AppOrigin: "" }));
 vi.mock("./emain-activity", () => ({ setForceQuit: vi.fn(), setUserConfirmedQuit: vi.fn() }));
 vi.mock("./emain-platform", () => ({
     getElectronAppResourcesPath: () => "/res",
@@ -104,10 +104,12 @@ vi.mock("./emain-builder", () => ({ getBuilderWindowByWebContentsId: () => null 
 
 import { getIsWaveSrvDead, runWaveSrv } from "./emain-wavesrv";
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
+import { configurePrivilegedIpc } from "./moltenterm-privileged-ipc";
 
 function makeContents(id: number) {
     return {
         id,
+        mainFrame: { url: "file:///index.html" },
         isDestroyed: () => false,
         getType: () => "window",
         getURL: () => "file:///index.html",
@@ -116,6 +118,7 @@ function makeContents(id: number) {
     };
 }
 
+configurePrivilegedIpc((event) => env.contents.includes(event.sender) && event.senderFrame === event.sender.mainFrame);
 initMoltentermContextMenu(async () => {});
 
 describe("quit when wavesrv exits (#734)", () => {
@@ -124,7 +127,7 @@ describe("quit when wavesrv exits (#734)", () => {
         const win = new FakeWindow(10, tab);
         env.contents.push(tab);
         env.windows.push(win);
-        const event = { sender: tab, returnValue: undefined as any };
+        const event = { sender: tab, senderFrame: tab.mainFrame, returnValue: undefined as any };
         env.ipcHandlers.get("moltenterm-contextmenu-capture")(event, undefined);
         expect(event.returnValue).toEqual(expect.any(String));
 

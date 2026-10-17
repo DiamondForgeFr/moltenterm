@@ -16,7 +16,7 @@ import {
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
-import { scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
+import { CarpetReservePx, scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
 import { ResizeSettleMs } from "./view360-decision";
 import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
@@ -40,9 +40,9 @@ function metaWrites(): Record<string, unknown>[] {
 vi.mock("../panel-size/panel-size-store", () => ({
     cachedBlockView: (blockId: string) => (blockId === "b-b" ? "web" : "term"),
     currentPanelSizes: () => ({ web: { width: 700 } }),
-    currentTerminalFloorPx: () => terminalFloor.px,
-    clearTerminalFloor: vi.fn(() => (terminalFloor.px = null)),
-    isTerminalLeaf: (node: LayoutNode) => !node.children?.length && node.data?.blockId !== "b-b",
+    currentFirstColumnFloorPx: () => terminalFloor.px,
+    clearFirstColumnFloor: vi.fn(() => (terminalFloor.px = null)),
+    setFirstColumnFloor: vi.fn((px: number) => (terminalFloor.px = px)),
     rememberPanelWidth: vi.fn(),
 }));
 vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
@@ -430,7 +430,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(globalStore.get(model.signalAtom)).toBe(2);
     });
 
-    it("enters when a panel opened leaves no room for the terminal floor (#731), and reports what fits", () => {
+    it("enters when a panel opened leaves no room for the first column's floor (#731, #848), and reports what fits", () => {
         terminalFloor.px = 900;
         try {
             const { model } = makeModel(null, rowOf(1));
@@ -536,7 +536,7 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(model.active).toBe(false);
     });
 
-    it("asks before readjusting when only the terminal floor keeps the panels apart (#733)", () => {
+    it("asks before readjusting when only the first column's floor keeps the panels apart (#733)", () => {
         terminalFloor.px = 900;
         try {
             const root = rowOf(2);
@@ -567,18 +567,76 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         }
     });
 
-    it("widens the fixed zone past half of the window to keep the terminal floor (#733)", () => {
+    it("widens the fixed zone past half of the window to keep the first column's floor (#733)", () => {
         terminalFloor.px = 1000;
         try {
             const root = rowOf(2);
             const { model } = makeModel(true, root);
             model.evaluate(root, boundsOf(1600));
             expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1000);
-            // No room left for a readable carpet column: half of the window again.
-            expect(model.computeLayout(root, boundsOf(1300)).fixed.width).toBe(650);
+            // No room for the floor and a readable carpet column: the zone keeps as much as the carpet leaves (#829).
+            expect(model.computeLayout(root, boundsOf(1300)).fixed.width).toBe(1300 - CarpetReservePx);
         } finally {
             terminalFloor.px = null;
         }
+    });
+
+    it("holds a first column that is a browser at the floor: the floor does not depend on its content (#848)", () => {
+        terminalFloor.px = 1000;
+        try {
+            const root: LayoutNode = {
+                id: "root",
+                flexDirection: FlexDirection.Row,
+                size: 10,
+                children: [leaf("b"), leaf("c1")],
+            };
+            const { model } = makeModel(true, root);
+            model.evaluate(root, boundsOf(1600));
+            expect(model.computeLayout(root, boundsOf(1600)).fixed.width).toBe(1000);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("lets the grip widen and narrow a fixed zone held past half by the floor, setting the floor (#829, #848)", () => {
+        terminalFloor.px = 700;
+        try {
+            const root = rowOf(2);
+            const { model, layoutModel } = makeModel(true, root);
+            Object.assign(layoutModel, {
+                displayContainerRef: { current: { getBoundingClientRect: () => ({ left: 0, width: 1280 }) } },
+                setter: vi.fn(),
+                pendingTreeAction: { throttledValueAtom: null },
+            });
+            model.evaluate(root, boundsOf(1280));
+            model.computeLayout(root, boundsOf(1280));
+            const grip = model.rootResizeHandles(root, 10, [])[0];
+            expect(grip.id).toBe(model.gripHandleId(root));
+            expect(grip.stuckTitleKey).toBeUndefined();
+            expect(model.onResizeMove(grip, 820)).toBe(true);
+            expect(model.dragFixedPx).toBe(816);
+            expect(model.onResizeMove(grip, 1200)).toBe(true);
+            expect(model.dragFixedPx).toBe(1280 - CarpetReservePx);
+            // The grip sets the floor, so it narrows below the current one down to the fixed zone's minimum.
+            expect(model.onResizeMove(grip, 300)).toBe(true);
+            expect(model.dragFixedPx).toBe(520);
+            expect(model.computeLayout(root, boundsOf(1280)).fixed.width).toBe(520);
+            expect(model.onResizeEnd()).toBe(true);
+            expect(terminalFloor.px).toBe(520);
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
+    it("says on the grip why it cannot move when the window leaves no room (#829)", () => {
+        const root = rowOf(2);
+        const { model } = makeModel(true, root);
+        model.evaluate(root, boundsOf(780));
+        model.computeLayout(root, boundsOf(780));
+        expect(model.gripNoRoom()).toBe("window");
+        expect(model.rootResizeHandles(root, 10, [])[0].stuckTitleKey).toBe("view360.grip.noRoomWindow");
+        model.computeLayout(root, boundsOf(1280));
+        expect(model.gripNoRoom()).toBeNull();
     });
 
     it("stays in 360 view when the panels do not fit even at their readable minimums (#733)", () => {

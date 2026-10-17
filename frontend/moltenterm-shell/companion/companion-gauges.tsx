@@ -258,7 +258,7 @@ const BarColours: Record<GaugeLevel, string> = {
 const PercentColours: Record<GaugeLevel, string> = {
     normal: "text-secondary",
     warning: "text-warning",
-    error: "text-error",
+    error: "text-danger",
 };
 
 export function PlanUsageBody({

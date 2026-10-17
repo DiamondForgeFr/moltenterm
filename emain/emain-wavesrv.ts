@@ -1,11 +1,13 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#805): pass the separate caller proof secret only to the backend.
 
 import * as electron from "electron";
 import * as child_process from "node:child_process";
 import * as readline from "readline";
 import { WebServerEndpointVarName, WSServerEndpointVarName } from "../frontend/util/endpoints";
-import { AuthKey, WaveAuthKeyEnv } from "./authkey";
+import { AppOrigin, AuthKey, CallerSecret, WaveAuthKeyEnv } from "./authkey";
+import { AppOriginEnv, CallerSecretEnv } from "./moltenterm-app-auth-policy";
 import { setForceQuit, setUserConfirmedQuit } from "./emain-activity";
 import {
     getElectronAppResourcesPath,
@@ -68,6 +70,8 @@ export function runWaveSrv(handleWSEvent: (evtMsg: WSEventType) => void): Promis
     envCopy[WaveAppResourcesPathVarName] = getElectronAppResourcesPath();
     envCopy[WaveAppElectronExecPath] = getElectronExecPath();
     envCopy[WaveAuthKeyEnv] = AuthKey;
+    envCopy[CallerSecretEnv] = CallerSecret;
+    envCopy[AppOriginEnv] = AppOrigin;
     envCopy[WaveDataHomeVarName] = getWaveDataDir();
     envCopy[WaveConfigHomeVarName] = getWaveConfigDir();
     const waveSrvCmd = getWaveSrvPath();

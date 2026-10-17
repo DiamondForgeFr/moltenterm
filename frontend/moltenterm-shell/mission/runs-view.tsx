@@ -9,7 +9,7 @@ import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { useRestoreFocus } from "../busy-close";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -25,7 +25,7 @@ import { timeAgo } from "./time-format";
 const StateClasses: Record<RunState, string> = {
     running: "bg-accent/20 text-primary",
     success: "bg-success/20 text-success",
-    failure: "bg-error/20 text-error",
+    failure: "bg-error/20 text-primary",
     cancelled: "bg-hover text-muted",
     lost: "bg-warning/20 text-warning",
 };
@@ -53,10 +53,10 @@ export function TrustPrompt({
     useEffect(() => {
         cancelRef.current?.focus();
     }, []);
-    useEscape(true, onCancel);
     return (
         <DialogFrame
             role="mc-trust"
+            onEscape={onCancel}
             title={t("mc.trust.title", { project: projectName })}
             subtitle={t("mc.trust.body", { dir })}
             subtitleWraps

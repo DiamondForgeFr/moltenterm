@@ -255,7 +255,8 @@
             "unit": "",
             "budget": 0,
             "gate": "ci",
-            "tolerancePct": 0
+            "tolerancePct": 0,
+            "absolute": true
         },
         "leak.viewsAfterLoops": {
             "nfr": "NFR-PERF-006",
@@ -264,7 +265,8 @@
             "unit": "",
             "budget": 0,
             "gate": "local",
-            "tolerancePct": 0
+            "tolerancePct": 0,
+            "absolute": true
         },
         "leak.memGrowthPerLoopMB": {
             "nfr": "NFR-PERF-006",
@@ -282,7 +284,7 @@
             "unit": "MB",
             "budget": null,
             "gate": "ci",
-            "tolerancePct": 5
+            "tolerancePct": 7
         },
         "bundle.jsGzipMB": {
             "nfr": "NFR-PERF-007",

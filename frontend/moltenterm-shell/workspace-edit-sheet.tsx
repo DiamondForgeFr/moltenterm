@@ -13,7 +13,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { workspaceColourStops } from "./accent";
-import { DialogFrame, useEscape } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
@@ -569,7 +569,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                             invalid ? "border-error focus:border-error" : "border-border"
                         )}
                     />
-                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-error">
+                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-danger">
                         {invalid ? emptyNameError() : ""}
                     </div>
                 </div>
@@ -975,6 +975,7 @@ export function WorkspaceEditSheet({
     return (
         <DialogFrame
             role="workspace-edit"
+            onEscape={onClose}
             title={t("workspace.edit.title")}
             subtitle={pathBaseName(folder) || undefined}
             subtitleClass="font-mono text-11"
@@ -1006,15 +1007,6 @@ export function WorkspaceEditSheet({
     );
 }
 
-function hasDialogOver(): boolean {
-    if (typeof document === "undefined") {
-        return false;
-    }
-    return Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]')).some(
-        (el) => el.closest('[data-role="workspace-edit"]') == null
-    );
-}
-
 // Mounted once by the rail, in every tab view: it shows the sheet of the open request, and picks up a double-click
 // handed over by the tab view the window switched away from.
 export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
@@ -1023,8 +1015,6 @@ export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
     const ws = useAtomValue(atoms.workspace);
     const staticTabId = useAtomValue(atoms.staticTabId);
     const close = () => model.close();
-    // A dialog opened over the sheet (the project logo offer) answers Escape first.
-    useEscape(() => request != null && !hasDialogOver(), close);
     useEffect(() => {
         listenWorkspaceMenu();
         const onStorage = (e: StorageEvent) => {

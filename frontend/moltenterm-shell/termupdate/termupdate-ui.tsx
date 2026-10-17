@@ -9,7 +9,7 @@
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useProposalRequest } from "../header/header-proposals";
 import { t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
@@ -95,13 +95,13 @@ function TermUpdateDialog({
     onClose: () => void;
 }) {
     const t = useT();
-    useEscape(!pending, onClose);
     const { outcome } = state;
     const name = outcome.agentname || outcome.agent || t("termupdate.theAgent");
     if (state.kind === "confirm") {
         return (
             <DialogFrame
                 role="molten-termupdate-dialog"
+                onEscape={pending ? undefined : onClose}
                 title={t("termupdate.dialog.title", { agent: name })}
                 subtitle={t("termupdate.dialog.subtitle")}
                 trapFocus
@@ -138,6 +138,7 @@ function TermUpdateDialog({
     return (
         <DialogFrame
             role="molten-termupdate-dialog"
+            onEscape={pending ? undefined : onClose}
             title={title}
             onBackdrop={onClose}
             buttons={

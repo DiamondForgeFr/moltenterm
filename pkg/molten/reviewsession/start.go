@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
@@ -91,11 +91,10 @@ func liveEnv(hooks Hooks) Env {
 		Git: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 			return mission.ExecRunner(ctx, dir, "git", args...)
 		},
-		AgentInstalled: func(agent string) bool {
-			adapter := agentcontinuity.Find(agent)
-			return adapter != nil && molten.LookPathIn(adapter.Executable(), molten.LoginPath()) != ""
-		},
-		AgentOrder: agentcontinuity.Default().Ids(),
+		AgentInstalled: agentchoice.Installed,
+		AgentOrder:     agentcontinuity.Default().Ids(),
+		GlobalAgent:    agentchoice.Live().Global,
+		ProjectAgent:   agentchoice.Live().Project,
 		WriteFile: func(prefix string, ext string, data []byte) (string, error) {
 			path, _, err := agentlaunch.WriteLaunchFileExt(agentlaunch.LaunchDir(dataDir), prefix, ext, data, time.Now())
 			return path, err

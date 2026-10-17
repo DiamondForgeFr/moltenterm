@@ -8,6 +8,7 @@
 
 import { execFile, spawn } from "child_process";
 import * as electron from "electron";
+import { handleAppIpc } from "./moltenterm-privileged-ipc";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -279,11 +280,11 @@ export function takeLastSwapStatus(): GoldSwapStatus {
 }
 
 export function initMoltentermUpdate() {
-    electron.ipcMain.handle(MoltentermUpdateCheckChannel, (_event, ownBuildId: number) => checkGoldUpdate(ownBuildId));
-    electron.ipcMain.handle(MoltentermUpdateApplyChannel, (_event, buildId: number, when: GoldApplyWhen) =>
+    handleAppIpc(MoltentermUpdateCheckChannel, (_event, ownBuildId: number) => checkGoldUpdate(ownBuildId));
+    handleAppIpc(MoltentermUpdateApplyChannel, (_event, buildId: number, when: GoldApplyWhen) =>
         applyGoldUpdate(buildId, when)
     );
-    electron.ipcMain.handle(MoltentermUpdateLastChannel, () => takeLastSwapStatus());
+    handleAppIpc(MoltentermUpdateLastChannel, () => takeLastSwapStatus());
     // Releases learn about newer releases from GitHub (#188); golds keep the local update above.
     initMoltentermReleaseFeed();
     // "Update when I quit": the swap starts as the app ends, without reopening it.

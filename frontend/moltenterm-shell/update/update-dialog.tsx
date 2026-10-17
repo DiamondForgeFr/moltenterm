@@ -7,9 +7,8 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ScrimClass } from "../dialog-frame";
+import { useEffect, useState } from "react";
+import { DialogFrame } from "../dialog-frame";
 import { getLocale, useT } from "../i18n/i18n";
 import { readableSubject } from "../mission/versions";
 import { MoltenWave } from "../molten-button";
@@ -45,100 +44,80 @@ function UpdateDialog() {
     const busy = useAtomValue(model.busyAtom);
     const error = useAtomValue(model.errorAtom);
     const [terminals, setTerminals] = useState<TerminalSummary>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         fireAndForget(async () => setTerminals(await readTerminals()));
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                globalStore.set(model.dialogOpenAtom, false);
-            }
-        };
-        document.addEventListener("keydown", onKey, true);
-        return () => document.removeEventListener("keydown", onKey, true);
     }, []);
     if (offer == null) {
         return null;
     }
     const groups = groupNotes(offer.notes);
     const close = () => globalStore.set(model.dialogOpenAtom, false);
-    return createPortal(
-        <div
-            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
-            onPointerDown={close}
-        >
-            <div
-                ref={panelRef}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[520px] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">{t("update.dialog.title")}</div>
-                    <div className="text-12 text-muted">
-                        {t("update.dialog.built", {
-                            label: updateLabel(offer),
-                            date: new Date(offer.builtAt).toLocaleString(getLocale()),
-                        })}
-                    </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-2">
-                    {offer.notes.length === 0 ? (
-                        <div className="text-12 text-muted">{t("update.dialog.noChange")}</div>
-                    ) : null}
-                    <NoteList title={t("update.dialog.new")} notes={groups.features} />
-                    <NoteList title={t("update.dialog.fixed")} notes={groups.fixes} />
-                    <NoteList title={t("update.dialog.other")} notes={groups.other} />
-                    <div className="mt-3 rounded-4 border border-warning/40 bg-warning/10 px-3 py-2 text-12">
-                        <div className="text-primary">
-                            {terminals ? restartWarning(terminals) : t("update.dialog.lookingTerminals")}
-                        </div>
-                        {terminals?.running.length ? (
-                            <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
-                                {terminals.running.map((term, i) => (
-                                    <li key={i} className="truncate">
-                                        {term.workspace}
-                                        {term.tab ? ` · ${term.tab}` : ""} — {term.command}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : null}
-                        <div className="mt-1 text-11 text-muted">{t("update.dialog.kept")}</div>
-                    </div>
-                    {error ? <div className="mt-2 text-12 text-error">{error}</div> : null}
-                </div>
-                <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+    return (
+        <DialogFrame
+            role="gold-update"
+            title={t("update.dialog.title")}
+            subtitle={t("update.dialog.built", {
+                label: updateLabel(offer),
+                date: new Date(offer.builtAt).toLocaleString(getLocale()),
+            })}
+            widthClass="w-[520px]"
+            onBackdrop={close}
+            onEscape={close}
+            buttons={
+                <>
                     <button
                         type="button"
                         onClick={() => model.skip(offer)}
-                        className="cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                        className="mr-auto cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
                     >
                         {t("update.dialog.skip")}
                     </button>
-                    <div className="ml-auto flex items-center gap-2">
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => fireAndForget(() => model.apply(offer, "quit"))}
-                            className="cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-                        >
-                            {t("update.dialog.onQuit")}
-                        </button>
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => fireAndForget(() => model.apply(offer, "now"))}
-                            className={cn(
-                                "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12",
-                                busy && "opacity-60"
-                            )}
-                        >
-                            {busy ? t("update.dialog.preparing") : t("update.dialog.now")}
-                            <MoltenWave />
-                        </button>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => fireAndForget(() => model.apply(offer, "quit"))}
+                        className="cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                    >
+                        {t("update.dialog.onQuit")}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => fireAndForget(() => model.apply(offer, "now"))}
+                        className={cn("molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12", busy && "opacity-60")}
+                    >
+                        {busy ? t("update.dialog.preparing") : t("update.dialog.now")}
+                        <MoltenWave />
+                    </button>
+                </>
+            }
+        >
+            <div>
+                {offer.notes.length === 0 ? (
+                    <div className="text-12 text-muted">{t("update.dialog.noChange")}</div>
+                ) : null}
+                <NoteList title={t("update.dialog.new")} notes={groups.features} />
+                <NoteList title={t("update.dialog.fixed")} notes={groups.fixes} />
+                <NoteList title={t("update.dialog.other")} notes={groups.other} />
+                <div className="mt-3 rounded-4 border border-warning/40 bg-warning/10 px-3 py-2 text-12">
+                    <div className="text-primary">
+                        {terminals ? restartWarning(terminals) : t("update.dialog.lookingTerminals")}
                     </div>
+                    {terminals?.running.length ? (
+                        <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
+                            {terminals.running.map((term, i) => (
+                                <li key={i} className="truncate">
+                                    {term.workspace}
+                                    {term.tab ? ` · ${term.tab}` : ""} — {term.command}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
+                    <div className="mt-1 text-11 text-muted">{t("update.dialog.kept")}</div>
                 </div>
+                {error ? <div className="mt-2 text-12 text-danger">{error}</div> : null}
             </div>
-        </div>,
-        document.body
+        </DialogFrame>
     );
 }
 

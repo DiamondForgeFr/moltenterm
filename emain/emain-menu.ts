@@ -4,6 +4,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { MenuRoleKeys, MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371, #623)
 import { workspaceShownName } from "../frontend/moltenterm-shell/workspace-default-name"; // MOLTENTERM-PATCH (#743)
 import { fireAndForget } from "../frontend/util/util";
@@ -490,7 +491,7 @@ function convertMenuDefArrToMenu(
 }
 
 const nativeContextMenus = new Map<number, () => void>(); // MOLTENTERM-PATCH (#371): retire native popups on replacement/lifecycle changes.
-electron.ipcMain.on(
+onAppIpc(
     "contextmenu-show",
     (event, workspaceOrBuilderId: string, menuDefArr: ElectronContextMenuItem[], token?: string, target?: string) => {
         // MOLTENTERM-PATCH (#371): the sender, not a renderer-supplied workspace, owns this request.
@@ -547,7 +548,7 @@ electron.ipcMain.on(
     }
 );
 
-electron.ipcMain.on("workspace-appmenu-show", (event, workspaceId: string) => {
+onAppIpc("workspace-appmenu-show", (event, workspaceId: string) => {
     fireAndForget(async () => {
         const webContents = getWebContentsByWorkspaceOrBuilderId(workspaceId);
         if (!webContents) {
@@ -560,7 +561,7 @@ electron.ipcMain.on("workspace-appmenu-show", (event, workspaceId: string) => {
     event.returnValue = true;
 });
 
-electron.ipcMain.on("builder-appmenu-show", (event, builderId: string) => {
+onAppIpc("builder-appmenu-show", (event, builderId: string) => {
     fireAndForget(async () => {
         const webContents = getWebContentsByWorkspaceOrBuilderId(builderId);
         if (!webContents) {

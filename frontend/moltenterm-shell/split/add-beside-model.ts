@@ -14,8 +14,8 @@ export type BesideSide = "left" | "right";
 // columnSizes: the top-level columns' sizes once the new one is in (besideFit), when the tab stays in the normal layout.
 export type ColumnPlace = { targetNodeId: string; position: "before" | "after"; columnSizes?: number[] };
 
-// A top-level column as the fit sees it: its width in the normal layout, the width its terminals need under the
-// terminal floor (#731), and the width it would take on the carpet.
+// A top-level column as the fit sees it: its width in the normal layout, the width it keeps at least (the first
+// column's floor, #731, #848), and the width it would take on the carpet.
 export type BesideColumn = { px: number; needPx: number; carpetPx: number };
 
 function contains(node: LayoutNode, nodeId: string): boolean {

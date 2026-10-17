@@ -6,7 +6,8 @@
 // reports whether each of its webviews is shown; a page is frozen and read through the DevTools protocol, the
 // debugger attached only for the call (a freeze outlives the detach), and never while an agent holds the debugger.
 
-import { ipcMain, webContents, type WebContents } from "electron";
+import { webContents, type WebContents } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { isAgentControlledContents, onBrowserAgentControl } from "./moltenterm-browseragent";
 import { CdpProtocolVersion } from "./moltenterm-browseragent-policy";
 import {
@@ -251,6 +252,6 @@ export function initMoltentermWebviewLifecycle(settings: Record<string, unknown>
         return;
     }
     started = true;
-    ipcMain.on(WebviewShownChannel, onShown);
+    onAppIpc(WebviewShownChannel, onShown);
     onBrowserAgentControl((wcId) => tracker?.noteControlled(wcId));
 }

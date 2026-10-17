@@ -21,6 +21,7 @@ import {
     BusyPhaseResult,
     BusyStops,
 } from "./moltenterm-busy-close-policy";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 
 export const BusyAskChannel = "moltenterm-busy-ask";
 export const BusyReplyChannel = "moltenterm-busy-reply";
@@ -145,14 +146,12 @@ function asker(): BusyAsker {
 
 let listening = false;
 
-export function initBusyCloseReplies(ipcMain: {
-    on(channel: string, listener: (event: any, reply: any) => void): any;
-}) {
+export function initBusyCloseReplies() {
     if (listening) {
         return;
     }
     listening = true;
-    ipcMain.on(BusyReplyChannel, (event, reply: BusyAskReply) => asker().handleReply(event?.sender?.id, reply));
+    onAppIpc(BusyReplyChannel, (event, reply: BusyAskReply) => asker().handleReply(event?.sender?.id, reply));
 }
 
 export function askBusyStop(

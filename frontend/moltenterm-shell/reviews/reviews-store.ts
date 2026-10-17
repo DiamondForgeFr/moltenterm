@@ -4,16 +4,16 @@
 // The Reviews view's entry points (FR-REV-001-AC3, DS-REV-012): the widget opens the view, Mission Control's Pull
 // requests waiting block opens it on one PR, and a row opens that PR's Review tab (FR-REV-002).
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
+import { showTabFromHere } from "../opener-tab";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import {
-    AgentMode,
     askReviewInvestigate,
     askReviewRebase,
     markReviewReady,
@@ -21,8 +21,9 @@ import {
     ReviewPrInfo,
 } from "../review/review-client";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
-import { agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
+import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
+import { ReviewsMerges } from "./reviews-merges";
 import {
     checkNames,
     checksOf,
@@ -80,14 +81,15 @@ export class ReviewsModel {
         if (!dir || pr == null || !workspaceId || !repoName) {
             return;
         }
-        getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
+        showTabFromHere(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
 
     // A row's Validate (#683, #707): the Validate sheet opens in place, over this tab, with no Review tab; it shows the
     // plan, and merging stays the developer's click there. blockId is the Reviews panel that shows it.
     openValidate(dir: string, pr: ReviewPr, repo?: string, blockId?: string) {
         const repoName = repo || repoOfPrUrl(pr?.url);
-        if (!dir || pr == null || !repoName) {
+        // A PR MoltenTerm merged (#898) offers no validation, even from a row drawn before the merge.
+        if (!dir || pr == null || !repoName || ReviewsMerges.getInstance().isMerged(dir, pr.number)) {
             return;
         }
         this.closeValidateSheet();
@@ -121,26 +123,28 @@ export class ReviewsModel {
         if (outcome?.kind !== "offer") {
             return outcome;
         }
-        const mode = await askAgentChoice({
+        const choice = await askAgentChoice({
             kind: "rebase",
             number: pr.number,
             branch: pr.branch,
             base: pr.base,
             agent: outcome.agent,
+            ...agentChoiceOf(outcome.result),
         });
-        if (mode == null) {
+        if (choice == null) {
             return null;
         }
-        return this.askRebaseOnce(dir, pr, repo, mode, mergedPr);
+        return this.askRebaseOnce(dir, pr, repo, choice, mergedPr);
     }
 
     private async askRebaseOnce(
         dir: string,
         pr: ReviewPr,
         repo: string,
-        mode: AgentMode,
+        choice: AgentChoiceAnswer,
         mergedPr?: number
     ): Promise<RebaseOutcome> {
+        const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName) {
             return null;
@@ -158,7 +162,7 @@ export class ReviewsModel {
                 url: pr.url,
                 ticket: pr.ticket,
                 mergedpr: mergedPr || undefined,
-                ...(mode != null ? agentStartOf("rebase", pr.number, mode) : {}),
+                ...(mode != null ? agentStartOf("rebase", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
             outcome = rebaseOutcome(result);
@@ -207,21 +211,28 @@ export class ReviewsModel {
         if (outcome?.kind !== "offer") {
             return outcome;
         }
-        const mode = await askAgentChoice({
+        const choice = await askAgentChoice({
             kind: "investigate",
             number: pr.number,
             branch: pr.branch,
             base: pr.base,
             agent: outcome.agent,
             checks: checkNames(checksOf(pr.ci, "failure")),
+            ...agentChoiceOf(outcome.result),
         });
-        if (mode == null) {
+        if (choice == null) {
             return null;
         }
-        return this.investigateOnce(dir, pr, repo, mode);
+        return this.investigateOnce(dir, pr, repo, choice);
     }
 
-    private async investigateOnce(dir: string, pr: ReviewPr, repo: string, mode: AgentMode): Promise<RebaseOutcome> {
+    private async investigateOnce(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        choice: AgentChoiceAnswer
+    ): Promise<RebaseOutcome> {
+        const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName) {
             return null;
@@ -244,7 +255,7 @@ export class ReviewsModel {
                     runid: c.runid,
                     jobid: c.jobid,
                 })),
-                ...(mode != null ? agentStartOf("investigate", pr.number, mode) : {}),
+                ...(mode != null ? agentStartOf("investigate", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);
             return rebaseOutcome(result, null, "investigate");

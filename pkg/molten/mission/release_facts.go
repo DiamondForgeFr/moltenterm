@@ -101,6 +101,8 @@ type ReleaseFacts struct {
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
+	// A running step waits for a branch's GitHub CI (the promotion, #836).
+	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
 }
 
 type ReleaseStepRequest struct {
@@ -174,7 +176,7 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 		fact := ReleaseStepFact{RunId: rec.Id, State: rec.State, Running: rec.State == RunStateRunning, Exit: rec.Exit, Phases: rec.Phases, Tail: []string{}}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimRight(line, "\r")
-			if strings.TrimSpace(line) == "" || exitRegex.MatchString(line) || notesRegex.MatchString(line) {
+			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) {
 				continue
 			}
 			fact.Tail = append(fact.Tail, line)
@@ -352,6 +354,7 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	facts.Trunk = trunk
 	var announced string
 	facts.Steps, facts.Preparation, announced = r.stepFacts(dir, session.Tag, since)
+	facts.Awaits = r.awaitedCi(dir, session.Tag, since)
 	if !facts.TagExists {
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
@@ -380,15 +383,22 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	p, untrusted, err := r.trustedPipeline(dir)
+	project := canonicalRunDir(dir)
+	p, untrusted, err := r.trustedPipelineAt(dir, project)
 	if err != nil || untrusted != nil {
 		return RunResult{Untrusted: untrusted}, err
 	}
-	session, err := r.checkFollowed(dir, p, req.Tag)
+	release, held := r.reserveAdmission(project, RunKindRelease, req.Tag)
+	if release == nil {
+		return RunResult{}, errStillRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	session, err := r.checkFollowed(project, p, req.Tag)
 	if err != nil {
 		return RunResult{}, err
 	}
-	if running := r.runningOf(dir, RunKindRelease); running != nil {
+	if running := r.runningOf(project, RunKindRelease); running != nil {
 		return RunResult{}, errStillRunning(running.Title)
 	}
 	steps := channelSteps(p, session.Channel)
@@ -397,19 +407,19 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		if len(molten.ReleasePreparation(steps)) == 0 {
 			return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noPreparation"), "the pipeline declares no preparation")
 		}
-		rec, err = r.launchPreparation(dir, steps, session)
+		rec, err = r.launchPreparationAt(dir, project, steps, session)
 		return RunResult{Run: &rec}, err
 	}
 	for _, step := range steps {
 		if step.Id != req.Step {
 			continue
 		}
-		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, dir))
+		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, project))
 		if err != nil {
 			return RunResult{}, err
 		}
 		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env, Run: run}
-		rec, err = r.launch(dir, command, "", "", session.Tag)
+		rec, err = r.launchAt(dir, project, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}
 	return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noStep", "channel", session.Channel, "step", req.Step), "the pipeline declares no release.%s step %q", session.Channel, req.Step)

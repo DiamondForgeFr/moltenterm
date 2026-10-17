@@ -57,7 +57,12 @@ so a future light theme only has to map the same slots.
   leaves `--df-radius-*` alone.
 - Applied in #658 to Settings (every group, Secrets, Mods, Advanced files and Keyboard) and the workspace editor
   (Identity, Project, Folder, Danger zone, and the dialog frame through `DialogFrame suite`). Tips follows through
-  `PageCard`.
+  `PageCard`. Since #890 every `DialogFrame` carries the turning light while it is open (`noGlow` opts out, with the
+  reason written at the call site); `suite` only adds the room its section blocks need.
+- Since #905 every dialog is framed this way: MoltenTerm's own through `DialogFrame`, Wave's through its `Modal`, which
+  draws the same frame (`DialogFrameClass`, `modal.scss`) and the same light. Popovers, menus, toasts and command
+  surfaces (palette, command panel) keep their own look with 4 px corners and no light. `dialog-suite-frame.test.tsx`
+  fails on a dialog without the frame and on an overlay with the 6 or 10 px radius.
 
 ## Extraction plan
 

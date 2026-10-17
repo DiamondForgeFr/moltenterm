@@ -8,7 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useLocale } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -42,7 +42,6 @@ export function PublishSheet({ model }: { model: ReviewTabModel }) {
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
     const head = useAtomValue(model.headAtom);
-    useEscape(sheet.open && !sheet.posting, () => model.closePublish());
     if (!sheet.open || pr == null) {
         return null;
     }
@@ -54,6 +53,7 @@ export function PublishSheet({ model }: { model: ReviewTabModel }) {
     return (
         <DialogFrame
             role="review-publish"
+            onEscape={sheet.open && !sheet.posting ? () => model.closePublish() : undefined}
             title={PublishText.title(pr.number)}
             subtitle={lang ? PublishText.subtitle(lang.name, shortOid(head)) : PublishText.readingLanguage}
             widthClass="w-[820px]"
@@ -97,7 +97,7 @@ export function PublishSheet({ model }: { model: ReviewTabModel }) {
 
 function ErrorLine({ text, testid }: { text: string; testid: string }) {
     return (
-        <div className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error" data-testid={testid}>
+        <div className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-danger" data-testid={testid}>
             {text}
         </div>
     );
@@ -143,7 +143,7 @@ function TranslateLine({
             data-missing={missing}
         >
             {waiting ? <DominoLoader className="text-muted" /> : null}
-            <span className={cn("min-w-0 flex-1", sheet.translate.status === "failed" ? "text-error" : "text-muted")}>
+            <span className={cn("min-w-0 flex-1", sheet.translate.status === "failed" ? "text-danger" : "text-muted")}>
                 {missing > 0 ? `${PublishText.missing(missing, sheet.language.name)} ` : ""}
                 {sheet.translate.status === "sent" && missing === 0 ? "" : message}
             </span>
@@ -205,7 +205,7 @@ function EditableText({
                 onBlur={() => fireAndForget(save)}
                 data-testid={testid}
             />
-            {error ? <div className="text-error">{error}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
         </div>
     );
 }
@@ -363,7 +363,7 @@ function PublishOutcome({
     const running = posting || publishRunning(record);
     const notes = record?.notes ?? [];
     const tone =
-        record?.state === "failed" ? "text-error" : record?.state === "partial" ? "text-warning" : "text-primary";
+        record?.state === "failed" ? "text-danger" : record?.state === "partial" ? "text-warning" : "text-primary";
     return (
         <div
             className="flex flex-col gap-1.5 rounded-6 border border-border px-3 py-2"
@@ -399,7 +399,7 @@ function PublishOutcome({
                                 </span>
                                 : {PublishText.note[n.note] ?? n.note}
                                 {n.message ? (
-                                    <span className="text-error"> ({serverText(n.messagetext, n.message)})</span>
+                                    <span className="text-danger"> ({serverText(n.messagetext, n.message)})</span>
                                 ) : null}
                             </li>
                         );

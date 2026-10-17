@@ -32,7 +32,7 @@ const RowTones: Record<StepState, string> = {
     done: "text-success",
     skipped: "text-muted",
     needs: "text-warning",
-    failed: "text-error",
+    failed: "text-danger",
 };
 
 const PlainButton =
@@ -60,7 +60,7 @@ function ErrorText({ error }: { error: string }) {
         return null;
     }
     return (
-        <pre className="mt-1 max-h-24 overflow-auto rounded-4 border border-error/30 bg-error/5 px-2 py-1 font-mono text-11 whitespace-pre-wrap break-words text-error">
+        <pre className="mt-1 max-h-24 overflow-auto rounded-4 border border-error/30 bg-error/5 px-2 py-1 font-mono text-11 whitespace-pre-wrap break-words text-danger">
             {error}
         </pre>
     );
@@ -101,7 +101,7 @@ function StartAgentButton({ pr, onStart }: { pr: ReviewCleanupPr; onStart: Start
             ) : null}
             {outcome ? (
                 <div
-                    className={cn("break-words", outcome.kind === "failed" ? "text-error" : "text-secondary")}
+                    className={cn("break-words", outcome.kind === "failed" ? "text-danger" : "text-secondary")}
                     data-testid="validate-others-start-outcome"
                 >
                     {outcome.text}
@@ -137,7 +137,7 @@ function Row({ row, onStartAgent }: { row: StepRow; onStartAgent?: StartAgentFn 
                 {row.lines.map((line, i) => (
                     <div
                         key={i}
-                        className={cn("break-words", row.state === "failed" ? "text-error" : "text-secondary")}
+                        className={cn("break-words", row.state === "failed" ? "text-danger" : "text-secondary")}
                     >
                         {line}
                     </div>

@@ -10,7 +10,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { MergedFooter, ReviewDone, reviewDoneDetail, reviewDoneLabel } from "./review-done";
+import { MergedFooter, ReviewDone, reviewDoneDetail, reviewDoneLabel, reviewMergedBanner } from "./review-done";
 import type { ReviewTabModel } from "./review-tab-model";
 import type { ReviewValidateModel } from "./review-validate-model";
 
@@ -53,6 +53,41 @@ export function ReviewDoneState({ model }: { model: ReviewTabModel }) {
             <i className={cn("fa fa-solid text-11", icon)} />
             {label}
         </span>
+    );
+}
+
+// The line over a Review tab whose PR merged (#898): who merged it, when and into which branch, and Close in place of
+// Validate, so no validation starts again on a merged PR.
+export function ReviewMergedBanner({ model }: { model: ReviewTabModel }) {
+    const t = useT();
+    const locale = useLocale();
+    const done = useAtomValue(model.doneAtom);
+    const text = reviewMergedBanner(t, done, locale);
+    if (!text) {
+        return null;
+    }
+    return (
+        <div
+            className="flex items-center gap-2 border-b border-success/30 bg-success/10 px-3 py-1.5 text-12 text-primary"
+            role="status"
+            data-testid="review-merged-banner"
+            data-state={done.kind}
+        >
+            <i className="fa fa-solid fa-code-merge text-11 text-success" />
+            <span className="min-w-0 flex-1 truncate" title={text}>
+                {text}
+            </span>
+            <button
+                type="button"
+                className="molten-btn flex shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-3 py-1 text-12 whitespace-nowrap"
+                onClick={() => model.validator.closeValidateAndTab()}
+                title={t("review.done.closeTab")}
+                data-testid="review-merged-close"
+            >
+                {t("review.done.close")}
+                <MoltenWave />
+            </button>
+        </div>
     );
 }
 

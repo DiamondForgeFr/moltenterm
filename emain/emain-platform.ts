@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fireAndForget } from "@/util/util";
-import { app, dialog, ipcMain, shell } from "electron";
+import { app, dialog, shell } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import envPaths from "env-paths";
 import { existsSync, mkdirSync } from "fs";
 import os from "os";
@@ -232,29 +233,32 @@ function getWaveSrvCwd(): string {
     return getWaveDataDir();
 }
 
-ipcMain.on("get-is-dev", (event) => {
+onAppIpc("get-is-dev", (event) => {
     event.returnValue = isDev;
 });
-ipcMain.on("get-platform", (event, url) => {
+onAppIpc("get-platform", (event, url) => {
     event.returnValue = unamePlatform;
 });
-ipcMain.on("get-user-name", (event) => {
-    const userInfo = os.userInfo();
-    event.returnValue = userInfo.username;
+// MOLTENTERM-PATCH (#849): os.userInfo() asks the directory service, which can be slow on a loaded machine while the
+// page waits on this sendSync; the name does not change while the app runs.
+let cachedUserName: string = null;
+onAppIpc("get-user-name", (event) => {
+    cachedUserName ??= os.userInfo().username;
+    event.returnValue = cachedUserName;
 });
-ipcMain.on("get-host-name", (event) => {
+onAppIpc("get-host-name", (event) => {
     event.returnValue = os.hostname();
 });
-ipcMain.on("get-webview-preload", (event) => {
+onAppIpc("get-webview-preload", (event) => {
     event.returnValue = path.join(getElectronAppBasePath(), "preload", "preload-webview.cjs");
 });
-ipcMain.on("get-data-dir", (event) => {
+onAppIpc("get-data-dir", (event) => {
     event.returnValue = getWaveDataDir();
 });
-ipcMain.on("get-config-dir", (event) => {
+onAppIpc("get-config-dir", (event) => {
     event.returnValue = getWaveConfigDir();
 });
-ipcMain.on("get-home-dir", (event) => {
+onAppIpc("get-home-dir", (event) => {
     event.returnValue = app.getPath("home");
 });
 

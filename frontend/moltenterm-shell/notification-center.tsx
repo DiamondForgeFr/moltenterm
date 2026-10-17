@@ -8,7 +8,7 @@
 // work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
 // on itself in the focused window (#790, notification-attention.ts).
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms, createBlock, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -74,6 +74,14 @@ function registerBuiltInGestures(): () => void {
                 return { ok: false, error: translateNow("notif.center.noPath") };
             }
             getApi().openNativePath(pathParent(args.path) || args.path);
+            return { ok: true };
+        }),
+        // must match TerminalGesture in pkg/molten/review/trunksync.go
+        registerNotificationGesture("path:terminal", async (args) => {
+            if (typeof args.path !== "string" || args.path === "") {
+                return { ok: false, error: translateNow("notif.center.noPath") };
+            }
+            await createBlock({ meta: { view: "term", controller: "shell", "cmd:cwd": args.path } });
             return { ok: true };
         }),
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
@@ -213,7 +221,7 @@ function NotificationRow({
                         ))}
                     </div>
                 ) : null}
-                {error ? <div className="mt-1 text-12 text-error">{error}</div> : null}
+                {error ? <div className="mt-1 text-12 text-danger">{error}</div> : null}
             </div>
         </div>
     );
@@ -350,13 +358,13 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                                 }
                             })
                         }
-                        className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-error hover:bg-error/10"
+                        className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-danger hover:bg-error/10"
                     >
                         {t("notif.work.stop")}
                     </button>
                 </div>
             ) : null}
-            {error ? <div className="mt-1 text-12 text-error">{serverErrorText(error)}</div> : null}
+            {error ? <div className="mt-1 text-12 text-danger">{serverErrorText(error)}</div> : null}
         </div>
     );
 }
@@ -634,7 +642,7 @@ export function NotificationCenter() {
                           ref={panelRef}
                           style={{ top: anchor.top, right: anchor.right }}
                           data-testid="notification-panel"
-                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-10 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-command"
+                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-4 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-command"
                       >
                           <div className="flex items-center gap-3 border-b border-border px-3 py-2">
                               <button

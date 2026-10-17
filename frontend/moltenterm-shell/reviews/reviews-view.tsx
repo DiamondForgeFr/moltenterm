@@ -24,6 +24,7 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
+import { PrSignature } from "./pr-signature";
 import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
@@ -37,6 +38,7 @@ import {
     batchStartRequest,
     toggleBatchSelection,
 } from "./reviews-batch-model";
+import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { useReviews } from "./reviews-client";
 import {
     ForecastLinks,
@@ -49,8 +51,8 @@ import {
 } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
-import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
+import { MergedSection } from "./reviews-merged";
 import {
     ciLabel,
     mergeLabelOf,
@@ -72,7 +74,7 @@ import {
     Tone,
     validateBlocked,
 } from "./reviews-model";
-import { NotesSection } from "./reviews-notes-view";
+import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
 import { mergeOrderHeader, mergeOrderReason, orderedPrs, suggestedMergeOrder } from "./reviews-order-model";
 import { ReviewsModel } from "./reviews-store";
@@ -86,7 +88,7 @@ const RowKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 
 const ToneClasses: Record<Tone, string> = {
     success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-error",
+    failure: "border-error/40 bg-error/10 text-danger",
     pending: "border-warning/40 bg-warning/10 text-warning",
     neutral: "border-border bg-hover text-muted",
 };
@@ -246,6 +248,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
+    const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
@@ -506,13 +509,16 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 )}
             </section>
             <UpcomingSection dir={dir} reviews={answer} />
-            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} /> : null}
+            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} /> : null}
+            {answer.repo ? (
+                <MergedSection answer={answer} onShowNotes={(filter) => setNotesAsk({ filter, at: Date.now() })} />
+            ) : null}
         </div>
     );
 }
 
 function Problem({ text }: { text: string }) {
-    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-error">{text}</div>;
+    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
 function ToneChip({
@@ -846,7 +852,7 @@ export function ReviewRow({
                 <div
                     className={cn(
                         "flex flex-wrap items-center gap-2 text-12 leading-4",
-                        outcome.kind === "failed" ? "text-error" : "text-secondary"
+                        outcome.kind === "failed" ? "text-danger" : "text-secondary"
                     )}
                     role="status"
                     data-testid="reviews-rebase-outcome"
@@ -855,6 +861,7 @@ export function ReviewRow({
                 </div>
             ) : null}
             <RowAgentBar dir={dir} branch={pr.branch} />
+            <PrSignature agents={pr.agents} testId="reviews-signature" />
         </div>
     );
 }

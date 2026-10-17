@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
@@ -140,6 +141,9 @@ type Env struct {
 	AgentInstalled func(agent string) bool
 	// AgentOrder: the agent registry's ids, the preferred first.
 	AgentOrder []string
+	// GlobalAgent and ProjectAgent: the developer's choice of coding agent (agentchoice, #845); nil reads none.
+	GlobalAgent  func() string
+	ProjectAgent func(dir string) string
 	// WriteFile writes a generated file (content-addressed) and returns its path.
 	WriteFile func(prefix string, ext string, data []byte) (string, error)
 	Guide     func() ([]byte, error)
@@ -363,22 +367,27 @@ func checkStart(req mcpreview.StartRequest) error {
 	return nil
 }
 
-// pickAgent: the requested agent when installed, else the first installed in the registry's order. Without one, the
-// result says why.
-func (m *Manager) pickAgent(requested string) (string, mcpreview.StartResult) {
-	installed := func(id string) bool { return m.env.AgentInstalled != nil && m.env.AgentInstalled(id) }
-	if requested != "" {
-		if installed(requested) {
-			return requested, mcpreview.StartResult{}
-		}
-		name := molten.AgentDisplayName(requested)
-		return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonAgentMissing, AgentName: name,
-			Message: fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", name)}
+// pickAgent (#845): the requested agent, else the project's choice, else the global default, else the first installed
+// in the registry's order. A requested or chosen agent that is not installed is never replaced: the result says so and
+// lists the installed agents (Installed) for the developer to pick.
+func (m *Manager) pickAgent(requested string, projectDir string) (string, mcpreview.StartResult) {
+	resolver := agentchoice.Resolver{Order: m.env.AgentOrder, Installed: m.env.AgentInstalled, Global: m.env.GlobalAgent,
+		Project: m.env.ProjectAgent}
+	choice := resolver.Resolve(projectDir, requested)
+	if choice.Agent != "" {
+		return choice.Agent, mcpreview.StartResult{}
 	}
-	for _, id := range m.env.AgentOrder {
-		if isSupportedAgent(id) && installed(id) {
-			return id, mcpreview.StartResult{}
+	var installed []string
+	for _, a := range choice.Agents {
+		if a.Installed {
+			installed = append(installed, a.Id)
 		}
+	}
+	if choice.Missing {
+		name := choice.ChosenName
+		return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonAgentMissing, AgentName: name,
+			Installed: installed,
+			Message:   fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", name)}
 	}
 	return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonNotInstalled,
 		Message: "No supported coding agent (Claude Code or Codex) is installed, so the review has no AI. The diff, the comments, publishing and merging work without it."}
@@ -403,7 +412,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		}
 		m.remove(s)
 	}
-	agent, none := m.pickAgent(req.Agent)
+	agent, none := m.pickAgent(req.Agent, req.ProjectDir)
 	if agent == "" {
 		return none, nil
 	}

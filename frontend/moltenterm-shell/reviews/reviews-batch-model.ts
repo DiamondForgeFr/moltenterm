@@ -35,6 +35,7 @@ export type BatchReason =
     | "agentexited"
     | "agenttimeout"
     | "noagent"
+    | "agentmissing"
     | "agentstart"
     | "blocked"
     | "warnings"
@@ -59,6 +60,7 @@ const WordedReasons = new Set<BatchReason>([
     "agentexited",
     "agenttimeout",
     "noagent",
+    "agentmissing",
     "agentstart",
     "blocked",
     "warnings",
@@ -270,27 +272,40 @@ export function batchMergedCount(run: BatchRun): number {
     return (run?.items ?? []).filter((it) => it.state === "merged").length;
 }
 
-// batchPosition: "2 of 5", the PR in progress (or the PRs done once it ended).
-export function batchPosition(run: BatchRun): number {
-    if (run == null) {
-        return 0;
-    }
-    if (run.current >= 0) {
-        return run.current + 1;
-    }
-    return run.items.filter(batchItemEnded).length;
-}
-
 export function batchAgentName(run: BatchRun): string {
     return run?.agentname || t("reviews.batch.yourAgent");
 }
 
+// batchNowText: the PR in progress in a few words, for the banner's title.
+export function batchNowText(item: BatchItem): string {
+    if (item.waiting) {
+        return t("reviews.batch.banner.now.waiting");
+    }
+    switch (item.state) {
+        case "queued":
+        case "checking":
+        case "rebasing":
+        case "waitingchecks":
+        case "merging":
+            return t(`reviews.batch.banner.now.${item.state}`);
+    }
+    return t("reviews.batch.banner.now.other");
+}
+
+// The banner counts the merged PRs, never the position: "12 of 12" read as done while the last PR still waited for its
+// checks (#887).
 export function batchTitle(run: BatchRun): string {
     const count = run.items.length;
+    const current = batchCurrent(run);
+    const merged = batchMergedCount(run);
+    const progress =
+        current == null
+            ? t("reviews.batch.banner.progressIdle", { merged, count })
+            : t("reviews.batch.banner.progress", { merged, count, number: current.number, now: batchNowText(current) });
     const vars = {
-        position: batchPosition(run),
-        merged: batchMergedCount(run),
-        number: batchCurrent(run)?.number ?? 0,
+        progress,
+        merged,
+        number: current?.number ?? 0,
     };
     switch (run.state) {
         case "running":

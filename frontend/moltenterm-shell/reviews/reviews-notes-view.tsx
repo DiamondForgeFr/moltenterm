@@ -8,7 +8,7 @@
 
 import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { timeAgo } from "../mission/time-format";
@@ -28,15 +28,31 @@ import { openFileInPreview } from "../term-copy/term-copy";
 
 type NotesProps = { dir: string; repo: string; blockId: string };
 
-export function NotesSection({ dir, repo, blockId }: NotesProps) {
+// A filter another section asks for (Recently merged's notes chip, #843): at tells two asks of the same text apart.
+export type NotesAsk = { filter: string; at: number };
+
+export function NotesSection({ dir, repo, blockId, ask }: NotesProps & { ask?: NotesAsk }) {
     const t = useT();
     const { notes, error, set } = useReviewNotes(repo);
     const [filter, setFilter] = useState("");
     const [open, setOpen] = useState<string>(null);
+    const sectionRef = useRef<HTMLElement>(null);
     const all = notes?.notes ?? [];
     const shown = useMemo(() => newestFirst(filterNotes(notes?.notes, filter)), [notes, filter]);
+    useEffect(() => {
+        if (ask == null) {
+            return;
+        }
+        setFilter(ask.filter);
+        sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    }, [ask]);
     return (
-        <section className="flex flex-col gap-2" aria-label={t("review.notes.title")} data-testid="reviews-notes">
+        <section
+            ref={sectionRef}
+            className="flex flex-col gap-2"
+            aria-label={t("review.notes.title")}
+            data-testid="reviews-notes"
+        >
             <div className="flex items-center gap-2">
                 <h2 className="text-13 leading-5 font-semibold">
                     {t("review.notes.title")}
@@ -54,7 +70,7 @@ export function NotesSection({ dir, repo, blockId }: NotesProps) {
                     />
                 ) : null}
             </div>
-            {error ? <p className="text-12 text-error">{t("review.notes.readFailed", { error })}</p> : null}
+            {error ? <p className="text-12 text-danger">{t("review.notes.readFailed", { error })}</p> : null}
             {notes != null && all.length === 0 ? (
                 <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
                     {t("review.notes.empty")}
@@ -249,7 +265,7 @@ function NoteBody({
                 </div>
             ) : null}
             {error ? (
-                <p className="text-11 text-error" data-testid="reviews-note-error">
+                <p className="text-11 text-danger" data-testid="reviews-note-error">
                     {error}
                 </p>
             ) : null}
@@ -286,7 +302,7 @@ function NoteBody({
                 ) : (
                     <button
                         type="button"
-                        className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-secondary hover:border-error/50 hover:text-error"
+                        className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-secondary hover:border-error/50 hover:text-danger"
                         onClick={() => setConfirmDelete(true)}
                         data-testid="reviews-note-delete"
                     >

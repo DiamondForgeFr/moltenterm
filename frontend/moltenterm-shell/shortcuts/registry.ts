@@ -138,6 +138,15 @@ export const Shortcuts: Shortcut[] = [
         keys: "Cmd:Shift:p",
         keywords: ["360", "carpet", "fixed zone", "pin beside", "unpin"],
     },
+    // #825: "b" for balance, in the Ctrl+Shift family of the panel keys.
+    {
+        id: "equalize-panels",
+        label: "Equalize panel widths",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:Shift:b",
+        keywords: ["equalize", "even", "balance", "same width", "columns", "resize"],
+    },
     {
         id: "replace-panel",
         label: "Replace the panel with the picker",

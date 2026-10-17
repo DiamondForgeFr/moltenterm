@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
@@ -58,9 +60,11 @@ func ExecAgent(ctx context.Context, dir string, argv []string, prompt string) ([
 	return stdout.Bytes(), nil
 }
 
-// notesAgent is the agent command of this run: the environment's, else the project's; nil when the notes are written
-// from the commit subjects.
-func notesAgent(p *Project) []string {
+// notesAgent is the agent command of this run: the environment's, else the project's (versions.notesagent), else the
+// non-interactive form of the project's coding agent (#845: what Mission Control puts in the step's environment, or
+// what MoltenTerm answers a terminal); nil when the notes are written from the commit subjects. A chosen agent that is
+// not installed is said, never replaced.
+func (e *Env) notesAgent(ctx context.Context, p *Project) []string {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(NotesAiEnv))) {
 	case "off", "0", "false", "no":
 		return nil
@@ -68,7 +72,30 @@ func notesAgent(p *Project) []string {
 	if fields := strings.Fields(os.Getenv(NotesAgentEnv)); len(fields) > 0 {
 		return fields
 	}
-	return p.NotesAgent
+	if len(p.NotesAgent) > 0 {
+		return p.NotesAgent
+	}
+	if missing := strings.TrimSpace(os.Getenv(agentchoice.MissingEnvVar)); missing != "" {
+		e.printf("%s, the coding agent chosen for this project, is not installed on this computer: the public notes are "+
+			"written from the commit subjects. Choose an installed agent in the panel's options (Agent), then redo the notes.\n",
+			molten.AgentDisplayName(missing))
+		return nil
+	}
+	if argv := agentchoice.PrintArgv(strings.TrimSpace(os.Getenv(agentchoice.EnvVar))); argv != nil {
+		return argv
+	}
+	if e.CodingAgent == nil {
+		return nil
+	}
+	choice, ok := e.CodingAgent(ctx, e.Dir)
+	if !ok {
+		return nil
+	}
+	if choice.Missing {
+		e.printf("%s. The public notes are written from the commit subjects.\n", choice.MissingText())
+		return nil
+	}
+	return agentchoice.PrintArgv(choice.Agent)
 }
 
 func notesPrompt(f NotesFacts, record string) string {
@@ -178,7 +205,7 @@ func (e *Env) writeNotes(ctx context.Context, wt string, p *Project, tag string,
 	e.printf("Engineering record written: %s (%d commit(s), %d ticket(s) since %s).\n", p.InternalNotesFile(tag), len(facts.Subjects), len(facts.Tickets), facts.sinceLabel())
 	body := ""
 	how := "from the commit subjects"
-	if argv := notesAgent(p); len(argv) > 0 && !plain {
+	if argv := e.notesAgent(ctx, p); len(argv) > 0 && !plain {
 		body = e.agentNotes(ctx, wt, argv, facts, record)
 		if body == "" {
 			e.printf("Falling back to the commit subjects: review them, they may read oddly.\n")

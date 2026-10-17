@@ -8,7 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { useRestoreFocus } from "../busy-close";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -24,13 +24,17 @@ import {
     BranchPlan,
 } from "./mission-client";
 
-const KeepReasonKeys: Record<Exclude<BranchKeepReason, "commits-after-pr">, string> = {
+type PrKeepReason = "commits-after-pr" | "not-in-pr" | "worktree-changes" | "worktree-in-use";
+
+const KeepReasonKeys: Record<Exclude<BranchKeepReason, PrKeepReason>, string> = {
     protected: "mc.branches.keep.protected",
     "not-on-trunk": "mc.branches.keep.notOnTrunk",
     "content-unknown": "mc.branches.keep.contentUnknown",
     "checked-out": "mc.branches.keep.checkedOut",
     "open-pr": "mc.branches.keep.openPr",
     "pr-unknown": "mc.branches.keep.prUnknown",
+    "pr-assets": "mc.branches.keep.prAssets",
+    "tool-branch": "mc.branches.keep.tool",
 };
 
 const PlainButton =
@@ -51,6 +55,14 @@ export function branchReason(b: BranchPlan, trunk: string): string {
             return t("mc.branches.reason.patchesOnTrunk", { trunk });
         case "commits-after-pr":
             return t("mc.branches.reason.commitsAfterPr", { pr: b.pr });
+        case "merged-pr-worktree":
+            return t("mc.branches.reason.mergedPrWorktree", { pr: b.pr });
+        case "not-in-pr":
+            return t("mc.branches.keep.notInPr", { pr: b.pr });
+        case "worktree-changes":
+            return t("mc.branches.keep.worktreeChanges", { pr: b.pr });
+        case "worktree-in-use":
+            return t("mc.branches.keep.worktreeInUse", { pr: b.pr });
     }
     const key = KeepReasonKeys[b.reason as keyof typeof KeepReasonKeys];
     return key ? t(key) : (b.reason ?? "");
@@ -141,7 +153,6 @@ export function BranchCleanupDialog({
     useEffect(() => {
         closeRef.current?.focus();
     }, [result]);
-    useEscape(!busy, onClose);
     const clean = () =>
         fireAndForget(async () => {
             setBusy(true);
@@ -158,6 +169,7 @@ export function BranchCleanupDialog({
     return (
         <DialogFrame
             role="branch-cleanup"
+            onEscape={busy ? undefined : onClose}
             title={t("mc.branches.title")}
             subtitle={t("mc.branches.intro", { trunk })}
             subtitleWraps
@@ -176,7 +188,7 @@ export function BranchCleanupDialog({
                             disabled={busy}
                             onClick={clean}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-error transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
                             )}
                         >
                             {busy ? <DominoLoader /> : <i className="fa fa-solid fa-trash-can text-11" />}
@@ -188,7 +200,7 @@ export function BranchCleanupDialog({
         >
             <div data-testid="branch-cleanup">
                 {error ? (
-                    <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error">
+                    <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-danger">
                         {error}
                     </div>
                 ) : null}
@@ -223,7 +235,11 @@ export function BranchCleanupDialog({
                                 <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                     <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
                                     <code>{branchLabel(b)}</code>
-                                    {b.reason ? <span className="text-muted">— {branchReason(b, trunk)}</span> : null}
+                                    {b.reason ? (
+                                        <span className="text-muted" title={b.worktree}>
+                                            — {branchReason(b, trunk)}
+                                        </span>
+                                    ) : null}
                                 </div>
                             ))}
                         </div>
@@ -235,7 +251,9 @@ export function BranchCleanupDialog({
                                 <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                     <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
                                     <code>{branchLabel(b)}</code>
-                                    <span className="text-muted">— {branchReason(b, trunk)}</span>
+                                    <span className="text-muted" title={b.worktree}>
+                                        — {branchReason(b, trunk)}
+                                    </span>
                                 </div>
                             ))}
                         </div>

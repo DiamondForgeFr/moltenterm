@@ -17,6 +17,10 @@ const BarClasses: Record<ReleaseBar["key"], string> = {
     other: "bg-[var(--mt-chart-rest)]",
 };
 
+// The label column is as wide as the longest label in any language, so every bar starts at the same x; the 50% cap
+// keeps room for the bars on a narrow card, where a longer label truncates instead of running under its bar.
+export const BarGridColumns = "grid-cols-[fit-content(50%)_minmax(0,1fr)_auto]";
+
 export function daysSince(iso: string, now = Date.now()): string {
     const days = Math.round((now - new Date(iso).getTime()) / 86_400_000);
     return days <= 0 ? t("mc.time.today") : days === 1 ? t("mc.time.yesterday") : t("mc.time.daysAgo", { days });
@@ -24,15 +28,17 @@ export function daysSince(iso: string, now = Date.now()): string {
 
 function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
     return (
-        <div className="flex items-center gap-2.5 text-13" data-testid={`release-bar-${bar.key}`}>
-            <span className="w-16 shrink-0 text-secondary">{bar.label}</span>
+        <div className="col-span-3 grid grid-cols-subgrid items-center text-13" data-testid={`release-bar-${bar.key}`}>
+            <span className="min-w-0 truncate text-secondary" title={bar.label}>
+                {bar.label}
+            </span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
                 <div
                     className={cn("molten-bar h-full rounded-full", BarClasses[bar.key])}
                     style={{ width: `${Math.round(bar.share * 100)}%`, animationDelay: `${index * 100}ms` }}
                 />
             </div>
-            <span className="w-6 shrink-0 text-right font-mono text-12 text-primary tabular-nums">{bar.count}</span>
+            <span className="min-w-6 text-right font-mono text-12 text-primary tabular-nums">{bar.count}</span>
         </div>
     );
 }
@@ -56,9 +62,11 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
     return (
         <div className="flex h-full flex-col gap-3" data-testid="release-next">
             <div className="flex flex-col gap-2">
-                {view.bars.map((bar, i) => (
-                    <Bar key={bar.key} bar={bar} index={i} />
-                ))}
+                <div className={cn("grid gap-x-2.5 gap-y-2", BarGridColumns)} data-testid="release-bars">
+                    {view.bars.map((bar, i) => (
+                        <Bar key={bar.key} bar={bar} index={i} />
+                    ))}
+                </div>
                 <p className="text-11 text-muted">
                     <span className="font-mono text-secondary tabular-nums" data-testid="release-pending">
                         {view.total}

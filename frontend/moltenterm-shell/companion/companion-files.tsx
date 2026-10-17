@@ -36,7 +36,7 @@ function diffCall(target: string, path: string): Promise<CompanionDiff> {
 const KindLabels: Record<string, { text: string; className: string; titleKey: string }> = {
     add: { text: "A", className: "text-success", titleKey: "companion.files.added" },
     update: { text: "M", className: "text-warning", titleKey: "companion.files.modified" },
-    delete: { text: "D", className: "text-error", titleKey: "companion.files.deleted" },
+    delete: { text: "D", className: "text-danger", titleKey: "companion.files.deleted" },
 };
 
 export function FilesSection({
@@ -207,7 +207,7 @@ function FileRow({
                 </button>
                 <span className="shrink-0 font-mono text-11 tabular-nums">
                     <span className="text-success">+{file.added}</span>{" "}
-                    <span className="text-error">−{file.removed}</span>
+                    <span className="text-danger">−{file.removed}</span>
                 </span>
                 {file.kind !== "delete" ? (
                     <button
@@ -251,7 +251,7 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         };
     }, [target, path, edits]);
     if (error) {
-        return <div className="px-3 text-12 text-error">{error}</div>;
+        return <div className="px-3 text-12 text-danger">{error}</div>;
     }
     if (diff == null) {
         return <div className="px-3 text-12 text-muted">{t("companion.loading")}</div>;
@@ -281,7 +281,7 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
 
 const DiffLineClasses: Record<string, string> = {
     add: "bg-success/10 text-success",
-    del: "bg-error/10 text-error",
+    del: "bg-error/10 text-danger",
     hunk: "text-accent/80",
     meta: "text-muted",
     ctx: "text-secondary",

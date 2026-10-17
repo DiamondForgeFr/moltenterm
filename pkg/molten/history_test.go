@@ -4,12 +4,159 @@
 package molten
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+func requireUnixModes(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not support Unix executable permission bits")
+	}
+}
+
+func assertFileMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("%s mode = %04o, want %04o", path, got, want)
+	}
+}
+
+func TestHistoryPreservesRegularFilePermissions(t *testing.T) {
+	requireUnixModes(t)
+	for _, mode := range []os.FileMode{0755, 0644, 0600, 0700, 0400} {
+		t.Run(fmt.Sprintf("%04o", mode), func(t *testing.T) {
+			f := makeHistoryFixture(t)
+			helper := "m/agents/claude-code/hooks/helper.sh"
+			f.write(helper, "#!/bin/sh\nexit 0\n")
+			path := filepath.Join(f.modsDir, helper)
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			f.write("m/main.js", "v1")
+			f.setState(`{"enabled":["m"]}`)
+			f.record(HistoryKindStart)
+			assertFileMode(t, filepath.Join(f.h.Dir, "1", historyModsDir, helper), mode)
+			f.write("m/main.js", "v2")
+			f.setState(`{"disabled":["m"]}`)
+			f.record(HistoryKindChange, "m")
+			f.write("m/main.js", "v3")
+			f.record(HistoryKindChange, "m")
+			for _, want := range []string{"v2", "v1"} {
+				f.undo()
+				assertFileMode(t, path, mode)
+				if got := f.read("m/main.js"); got != want {
+					t.Fatalf("main.js = %q, want %q", got, want)
+				}
+			}
+			state, err := os.ReadFile(f.stateFile)
+			if err != nil || string(state) != `{"enabled":["m"]}` {
+				t.Fatalf("restored enabled state = %s, err = %v", state, err)
+			}
+		})
+	}
+}
+
+func TestHistoryPermissionOnlyChanges(t *testing.T) {
+	requireUnixModes(t)
+	f := makeHistoryFixture(t)
+	f.write("m/helper.sh", "unchanged")
+	f.setState(`{"enabled":["m"]}`)
+	path := filepath.Join(f.modsDir, "m/helper.sh")
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	f.record(HistoryKindStart)
+	for _, mode := range []os.FileMode{0755, 0600} {
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+		if !f.record(HistoryKindChange, "m") || f.record(HistoryKindChange, "m") {
+			t.Fatal("a permission-only change must record exactly once")
+		}
+	}
+	for _, mode := range []os.FileMode{0755, 0644} {
+		f.undo()
+		assertFileMode(t, path, mode)
+		if f.read("m/helper.sh") != "unchanged" {
+			t.Fatal("permission undo changed the content")
+		}
+	}
+	if err := os.Chmod(f.stateFile, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if f.record(HistoryKindChange, "m") {
+		t.Fatal("state file permissions are not snapshot identity")
+	}
+}
+
+func TestHistoryRestoreCopyFailureKeepsOriginal(t *testing.T) {
+	requireUnixModes(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory write permissions")
+	}
+	f := makeHistoryFixture(t)
+	f.write("m/main.js", "v1")
+	f.record(HistoryKindStart)
+	f.write("m/main.js", "v2")
+	f.record(HistoryKindChange, "m")
+	if err := os.Chmod(f.modsDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(f.modsDir, 0755) })
+	if _, _, err := f.h.Undo(f.now); err == nil {
+		t.Fatal("undo must report the staging copy failure")
+	}
+	if f.read("m/main.js") != "v2" {
+		t.Fatal("a failed staging copy must leave the original mod intact")
+	}
+	entries, err := f.h.Entries()
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("failed undo recorded history: %v, %v", entries, err)
+	}
+	children, err := os.ReadDir(f.modsDir)
+	if err != nil || len(children) != 1 || children[0].Name() != "m" {
+		t.Fatalf("failed staging copy left files: %v, %v", children, err)
+	}
+}
+
+func TestHistoryRestoreCopyFailureCleansStaging(t *testing.T) {
+	requireUnixModes(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file read permissions")
+	}
+	f := makeHistoryFixture(t)
+	f.write("m/a.js", "copied first")
+	f.write("m/z.js", "unreadable later")
+	f.record(HistoryKindStart)
+	if err := os.RemoveAll(filepath.Join(f.modsDir, "m")); err != nil {
+		t.Fatal(err)
+	}
+	f.record(HistoryKindChange, "m")
+	if err := os.Chmod(filepath.Join(f.h.Dir, "1", historyModsDir, "m/z.js"), 0000); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := f.h.Undo(f.now); err == nil {
+		t.Fatal("undo must report an unreadable snapshot file")
+	}
+	children, err := os.ReadDir(f.modsDir)
+	if err != nil || len(children) != 0 {
+		t.Fatalf("failed copy left a partial mod or staging folder: %v, %v", children, err)
+	}
+	entries, err := f.h.Entries()
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("failed copy recorded history: %v, %v", entries, err)
+	}
+}
 
 type historyFixture struct {
 	t         *testing.T

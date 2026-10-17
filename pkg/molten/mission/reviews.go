@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 )
@@ -71,6 +72,8 @@ const (
 	reviewReportsTimeout     = 45 * time.Second
 	// The last comments of a PR and of its ticket where a test report is looked for.
 	reviewCommentsRead = 15
+	// The last commits of a PR whose Molten-Agent trailers name who worked on it (#847).
+	reviewCommitsRead = 30
 	// The PRs whose reports one query reads; past it, the oldest updated show their report as unknown.
 	maxReviewReportPrs = 30
 )
@@ -138,15 +141,18 @@ type ReviewPr struct {
 	TicketTitle string `json:"tickettitle,omitempty"`
 	TicketUrl   string `json:"ticketurl,omitempty"`
 	// GitHub's mergeable and mergeStateStatus as read, and what the review makes of them (ReviewMerge…).
-	Mergeable  string       `json:"mergeable,omitempty"`
-	MergeState string       `json:"mergestate,omitempty"`
-	Merge      string       `json:"merge"`
+	Mergeable  string `json:"mergeable,omitempty"`
+	MergeState string `json:"mergestate,omitempty"`
+	Merge      string `json:"merge"`
 	// GitHub's reviewDecision (APPROVED, REVIEW_REQUIRED, CHANGES_REQUESTED, or empty), why a PR is blocked (#797).
-	ReviewDecision string `json:"reviewdecision,omitempty"`
-	Ci         ReviewCi     `json:"ci"`
-	Report     ReviewReport `json:"report"`
+	ReviewDecision string       `json:"reviewdecision,omitempty"`
+	Ci             ReviewCi     `json:"ci"`
+	Report         ReviewReport `json:"report"`
 	// Comments written in MoltenTerm and not published yet; the review store (DS-REV-007) fills it.
 	Unpublished int `json:"unpublished"`
+	// Agents: who worked on the PR, the last agent first (#847): the commits' Molten-Agent trailers once the reports
+	// query read them, then the body's signature block. Empty: unknown agent.
+	Agents []agentsign.Signature `json:"agents,omitempty"`
 }
 
 type ReviewsAnswer struct {
@@ -162,6 +168,9 @@ type ReviewsAnswer struct {
 	TargetFrom string     `json:"targetfrom,omitempty"`
 	Ready      []ReviewPr `json:"ready"`
 	Drafts     []ReviewPr `json:"drafts"`
+	// The PRs merged into the target lately (#843), and why they could not be read.
+	Merged      []ReviewMergedPr `json:"merged"`
+	MergedError string           `json:"mergederror,omitempty"`
 	// The pull requests could not be read (the collector's prs section).
 	PrsError     string `json:"prserror,omitempty"`
 	GithubAt     int64  `json:"githubat,omitempty"`
@@ -198,6 +207,7 @@ type ghReviewPr struct {
 	Mergeable         string `json:"mergeable"`
 	MergeStateStatus  string `json:"mergeStateStatus"`
 	ReviewDecision    string `json:"reviewDecision"`
+	Body              string `json:"body"`
 	Author            struct {
 		Login string `json:"login"`
 	} `json:"author"`
@@ -490,6 +500,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 		// A snapshot cached before the field was asked reads as no decision.
 		ReviewDecision: pr.ReviewDecision,
 	}
+	rtn.Agents, _ = agentsign.PrAgents(nil, pr.Body)
 	for _, ref := range pr.ClosingIssuesReferences {
 		if ref.Number > 0 {
 			rtn.Ticket, rtn.TicketFrom = ref.Number, ReviewTicketFromClosing
@@ -507,7 +518,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 // BuildReviews derives the review list from a collector snapshot (DS-REV-001): open PRs of the repository itself
 // whose base is the target branch, newest update first, drafts apart. Reports stay unknown here.
 func BuildReviews(snap Snapshot) ReviewsAnswer {
-	answer := ReviewsAnswer{Dir: snap.Dir, Missing: snap.Missing, Ready: []ReviewPr{}, Drafts: []ReviewPr{}, GithubAt: snap.GithubAt, Refreshing: snap.Refreshing}
+	answer := ReviewsAnswer{Dir: snap.Dir, Missing: snap.Missing, Ready: []ReviewPr{}, Drafts: []ReviewPr{}, Merged: []ReviewMergedPr{}, GithubAt: snap.GithubAt, Refreshing: snap.Refreshing}
 	answer.Target, answer.TargetFrom = reviewTarget(snap)
 	gh := snap.Github
 	if gh == nil {
@@ -515,6 +526,13 @@ func BuildReviews(snap Snapshot) ReviewsAnswer {
 	}
 	answer.State, answer.Message, answer.Repo, answer.Url = gh.State, gh.Message, gh.Repo, gh.Url
 	answer.PrsError = gh.Errors["prs"]
+	ticketRes := branchTicketRes(readBranchNaming(snap.Dir))
+	answer.MergedError = gh.Errors["merged"]
+	if merged, err := buildMerged(gh.Merged, answer.Target, snap.GithubAt, ticketRes); err != nil {
+		answer.MergedError = "the merged pull requests could not be read: " + err.Error()
+	} else {
+		answer.Merged = merged
+	}
 	var prs []ghReviewPr
 	if len(gh.Prs) > 0 {
 		if err := json.Unmarshal(gh.Prs, &prs); err != nil {
@@ -522,7 +540,6 @@ func BuildReviews(snap Snapshot) ReviewsAnswer {
 			return answer
 		}
 	}
-	ticketRes := branchTicketRes(readBranchNaming(snap.Dir))
 	for _, pr := range prs {
 		if pr.IsCrossRepository || pr.BaseRefName != answer.Target {
 			continue
@@ -550,6 +567,7 @@ type reviewReportsState struct {
 	again    bool
 	reports  map[int]ReviewReport
 	tickets  map[int]reviewTicket
+	commits  map[int][]string
 	err      string
 	usedAt   time.Time
 	repoRef  string
@@ -568,6 +586,8 @@ type Reviews struct {
 	now       func() time.Time
 	publish   func(ReviewsAnswer)
 	reports   map[string]*reviewReportsState
+	// Where the merged PRs ship, by project (#843).
+	ships map[string]*reviewShipsState
 	// The upcoming work and the agents on each branch (#712), made on the first ask.
 	upcoming *Upcoming
 	// notify tells a rerun's outcome (#797); rerunEvery: how often a rerun run is read (rerunFollowEvery when 0).
@@ -576,7 +596,7 @@ type Reviews struct {
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
-	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}}
+	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {
@@ -636,6 +656,9 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 	if start := r.prepareReports(&answer, req.Force); start {
 		go r.readReports(dir)
 	}
+	if start := r.prepareShips(&answer, snap, req.Force); start {
+		go r.readShips(dir)
+	}
 	return answer, nil
 }
 
@@ -643,6 +666,7 @@ func (r *Reviews) applyKnownReports(answer *ReviewsAnswer) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(answer, r.reports[answer.Dir])
+	r.applyShipsLocked(answer)
 }
 
 // prepareReports fills the answer with the reports known and says whether a query starts now.
@@ -669,7 +693,7 @@ func (r *Reviews) prepareReports(answer *ReviewsAnswer, force bool) bool {
 	key := reviewReportsKey(repoRef, prs)
 	if len(prs) == 0 {
 		state.key, state.at, state.err = key, now, ""
-		state.reports, state.tickets = nil, nil
+		state.reports, state.tickets, state.commits = nil, nil, nil
 		return false
 	}
 	if state.running {
@@ -722,6 +746,9 @@ func (r *Reviews) applyLocked(answer *ReviewsAnswer, state *reviewReportsState) 
 			if ticket, ok := state.tickets[pr.Ticket]; ok && pr.Ticket > 0 {
 				pr.TicketTitle, pr.TicketUrl = ticket.Title, ticket.Url
 			}
+			if messages, ok := state.commits[pr.Number]; ok {
+				pr.Agents = withCommitAgents(messages, pr.Agents)
+			}
 		}
 	}
 	fill(answer.Ready)
@@ -748,11 +775,13 @@ func (r *Reviews) readReports(dir string) {
 	repoRef, prs := r.takeQuery(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), reviewReportsTimeout)
 	defer cancel()
-	reports, tickets, err := ReadReviewReports(ctx, r.run, dir, repoRef, prs)
+	reports, tickets, commits, err := readReviewFacts(ctx, r.run, dir, repoRef, prs)
 	msg := ""
 	if err != nil {
 		msg = err.Error()
 		log.Printf("molten: reading the review reports of %s: %v\n", dir, err)
+	} else {
+		r.storeCommits(dir, commits)
 	}
 	again := r.storeReports(dir, reports, tickets, msg)
 	if snap, ok := r.collector.Cached(dir); ok && r.publish != nil {
@@ -768,7 +797,17 @@ func (r *Reviews) answerOf(snap Snapshot) ReviewsAnswer {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(&answer, r.reports[snap.Dir])
+	r.applyShipsLocked(&answer)
 	return answer
+}
+
+// storeCommits keeps the commit messages a query read, each PR's oldest first (#847).
+func (r *Reviews) storeCommits(dir string, commits map[int][]string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if state := r.reports[dir]; state != nil {
+		state.commits = commits
+	}
 }
 
 // storeReports keeps a query's result; true when the PRs changed while it ran, so another one follows.
@@ -803,6 +842,13 @@ type ghReviewNode struct {
 	Title    string           `json:"title"`
 	Url      string           `json:"url"`
 	Comments ghReviewComments `json:"comments"`
+	Commits  *struct {
+		Nodes []struct {
+			Commit struct {
+				Message string `json:"message"`
+			} `json:"commit"`
+		} `json:"nodes"`
+	} `json:"commits"`
 }
 
 // IsTestReport says whether a comment is a test report: its heading names one ("## Test report (#N)", the canonical
@@ -851,7 +897,8 @@ func reviewReportsQuery(prs []ReviewPr) string {
 	sb.WriteString("query($owner:String!,$name:String!){repository(owner:$owner,name:$name){")
 	seen := map[int]bool{}
 	for _, pr := range prs {
-		fmt.Fprintf(&sb, "p%d:pullRequest(number:%d){title url comments(last:%d){nodes{body url}}}", pr.Number, pr.Number, reviewCommentsRead)
+		fmt.Fprintf(&sb, "p%d:pullRequest(number:%d){title url comments(last:%d){nodes{body url}} commits(last:%d){nodes{commit{message}}}}",
+			pr.Number, pr.Number, reviewCommentsRead, reviewCommitsRead)
 		if pr.Ticket <= 0 || pr.Ticket == pr.Number || seen[pr.Ticket] {
 			continue
 		}
@@ -873,9 +920,15 @@ func shortGhError(err error) string {
 // ReadReviewReports asks GitHub, through the developer's gh and for the named repository only, which PRs have a test
 // report (on the PR, else on its ticket) and the tickets' titles.
 func ReadReviewReports(ctx context.Context, run Runner, dir string, repoRef string, prs []ReviewPr) (map[int]ReviewReport, map[int]reviewTicket, error) {
+	reports, tickets, _, err := readReviewFacts(ctx, run, dir, repoRef, prs)
+	return reports, tickets, err
+}
+
+// readReviewFacts is ReadReviewReports with the messages of each PR's last commits, oldest first (#847).
+func readReviewFacts(ctx context.Context, run Runner, dir string, repoRef string, prs []ReviewPr) (map[int]ReviewReport, map[int]reviewTicket, map[int][]string, error) {
 	parts := strings.Split(repoRef, "/")
 	if len(parts) < 2 {
-		return nil, nil, fmt.Errorf("no repository to read the test reports from")
+		return nil, nil, nil, fmt.Errorf("no repository to read the test reports from")
 	}
 	owner, name := parts[len(parts)-2], parts[len(parts)-1]
 	args := []string{"api", "graphql", "-f", "query=" + reviewReportsQuery(prs), "-f", "owner=" + owner, "-f", "name=" + name}
@@ -891,16 +944,24 @@ func ReadReviewReports(ctx context.Context, run Runner, dir string, repoRef stri
 	// gh prints the data it got along with GraphQL errors (a ticket number that is not an issue): keep what came.
 	if jsonErr := json.Unmarshal(out, &answer); jsonErr != nil || answer.Data.Repository == nil {
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s", shortGhError(err))
+			return nil, nil, nil, fmt.Errorf("%s", shortGhError(err))
 		}
-		return nil, nil, fmt.Errorf("gh api graphql: unreadable answer")
+		return nil, nil, nil, fmt.Errorf("gh api graphql: unreadable answer")
 	}
 	nodes := answer.Data.Repository
 	reports := map[int]ReviewReport{}
 	tickets := map[int]reviewTicket{}
+	commits := map[int][]string{}
 	for _, pr := range prs {
 		report := ReviewReport{State: ReviewReportMissing}
 		if node := nodes[fmt.Sprintf("p%d", pr.Number)]; node != nil {
+			if node.Commits != nil {
+				messages := []string{}
+				for _, c := range node.Commits.Nodes {
+					messages = append(messages, c.Commit.Message)
+				}
+				commits[pr.Number] = messages
+			}
 			if url, ok := latestTestReport(node.Comments.Nodes); ok {
 				report = ReviewReport{State: ReviewReportPresent, Url: url, Where: "pr"}
 			}
@@ -924,5 +985,24 @@ func ReadReviewReports(ctx context.Context, run Runner, dir string, repoRef stri
 		}
 		reports[pr.Number] = report
 	}
-	return reports, tickets, nil
+	return reports, tickets, commits, nil
+}
+
+// withCommitAgents puts the agents the commit trailers name first, the last one leading, before those only the PR
+// body's block names (#847).
+func withCommitAgents(messages []string, bodyAgents []agentsign.Signature) []agentsign.Signature {
+	agents, _ := agentsign.PrAgents(messages, "")
+	for _, a := range bodyAgents {
+		known := false
+		for _, b := range agents {
+			if a.SameAgent(b) {
+				known = true
+				break
+			}
+		}
+		if !known {
+			agents = append(agents, a)
+		}
+	}
+	return agents
 }

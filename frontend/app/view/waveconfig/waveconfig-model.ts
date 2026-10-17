@@ -13,12 +13,14 @@ import { base64ToString, stringToBase64 } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import * as React from "react";
-import { MoltentermSettingsView } from "../../../moltenterm-shell/settings/settings-view"; // MOLTENTERM-PATCH (#404)
 import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
-import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
+import { translate, type I18nVars } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623, #813)
+import { MoltentermSettingsView } from "../../../moltenterm-shell/settings/settings-view"; // MOLTENTERM-PATCH (#404)
 
 type ValidationResult = { success: true } | { error: string };
 type ConfigValidator = (parsed: any) => ValidationResult;
+// MOLTENTERM-PATCH (#813): errors stay translatable without retaining RPC diagnostics or secret values.
+type SecretError = { key: string; vars?: I18nVars };
 
 export type ConfigFile = {
     name: string;
@@ -157,12 +159,29 @@ export class WaveConfigViewModel implements ViewModel {
 
     secretNamesAtom: PrimitiveAtom<string[]>;
     selectedSecretAtom: PrimitiveAtom<string | null>;
-    secretValueAtom: PrimitiveAtom<string>;
+    secretValueAtom: Atom<string>;
+    secretDraftAtom = atom("");
+    secretEditedAtom = atom(false);
+    secretBusyAtom = atom(false);
+    secretMutationBusyAtom = atom(false);
+    secretOperationBusyAtom: Atom<boolean>;
+    secretsLoadingAtom = atom(false);
+    secretNamesReadyAtom = atom(false);
+    secretCanSaveAtom: Atom<boolean>;
+    secretCanAddAtom: Atom<boolean>;
+    secretEditorErrorAtom = atom(null) as PrimitiveAtom<SecretError>;
+    secretListErrorAtom = atom(null) as PrimitiveAtom<SecretError>;
+    secretErrorAtom: Atom<string>;
+    storageBackendErrorKeyAtom = atom(null) as PrimitiveAtom<string>;
+    secretGeneration = 0;
+    secretDraftRevision = 0;
+    secretListRequest = 0;
+    secretBackendRequest = 0;
     secretShownAtom: PrimitiveAtom<boolean>;
     isAddingNewAtom: PrimitiveAtom<boolean>;
     newSecretNameAtom: PrimitiveAtom<string>;
     newSecretValueAtom: PrimitiveAtom<string>;
-    storageBackendErrorAtom: PrimitiveAtom<string | null>;
+    storageBackendErrorAtom: Atom<string>;
     secretValueRef: HTMLTextAreaElement | null = null;
 
     constructor({ blockId, nodeModel, tabModel, waveEnv }: ViewModelInitType) {
@@ -197,12 +216,33 @@ export class WaveConfigViewModel implements ViewModel {
 
         this.secretNamesAtom = atom<string[]>([]);
         this.selectedSecretAtom = atom<string | null>(null) as PrimitiveAtom<string | null>;
-        this.secretValueAtom = atom<string>("");
+        // MOLTENTERM-PATCH (#813): only explicit edits can make a hidden or revealed value saveable.
+        this.secretValueAtom = atom((get) => get(this.secretDraftAtom));
+        this.secretOperationBusyAtom = atom((get) => get(this.secretBusyAtom) || get(this.secretMutationBusyAtom));
+        this.secretCanSaveAtom = atom(
+            (get) => !!get(this.selectedSecretAtom) && get(this.secretEditedAtom) && !get(this.secretOperationBusyAtom)
+        );
+        this.secretCanAddAtom = atom(
+            (get) =>
+                get(this.isAddingNewAtom) &&
+                get(this.secretNamesReadyAtom) &&
+                !get(this.secretsLoadingAtom) &&
+                !get(this.secretOperationBusyAtom)
+        );
+        this.secretErrorAtom = atom((get) => {
+            const error = get(this.secretEditorErrorAtom) ?? get(this.secretListErrorAtom);
+            const locale = get(I18nModel.getInstance().localeAtom);
+            return error ? translate(locale, error.key, error.vars) : null;
+        });
         this.secretShownAtom = atom<boolean>(false);
         this.isAddingNewAtom = atom<boolean>(false);
         this.newSecretNameAtom = atom<string>("");
         this.newSecretValueAtom = atom<string>("");
-        this.storageBackendErrorAtom = atom<string | null>(null) as PrimitiveAtom<string | null>;
+        this.storageBackendErrorAtom = atom((get) => {
+            const key = get(this.storageBackendErrorKeyAtom);
+            const locale = get(I18nModel.getInstance().localeAtom);
+            return key ? translate(locale, key) : null;
+        });
 
         this.checkPresetsJsonExists();
         this.initialize();
@@ -410,86 +450,114 @@ export class WaveConfigViewModel implements ViewModel {
     }
 
     async checkStorageBackend() {
+        const request = ++this.secretBackendRequest;
         try {
             const backend = await this.env.rpc.GetSecretsLinuxStorageBackendCommand(TabRpcClient);
-            if (backend === "basic_text" || backend === "unknown") {
-                globalStore.set(
-                    this.storageBackendErrorAtom,
-                    "No appropriate secret manager found. Cannot manage secrets securely."
-                );
-            } else {
-                globalStore.set(this.storageBackendErrorAtom, null);
-            }
-        } catch (error) {
-            globalStore.set(this.storageBackendErrorAtom, `Error checking storage backend: ${error.message}`);
+            if (request !== this.secretBackendRequest) return;
+            globalStore.set(
+                this.storageBackendErrorKeyAtom,
+                backend === "basic_text" || backend === "unknown" ? "settings.secrets.errors.storageUnavailable" : null
+            );
+        } catch {
+            if (request !== this.secretBackendRequest) return;
+            globalStore.set(this.storageBackendErrorKeyAtom, "settings.secrets.errors.storageCheck");
         }
     }
 
     async refreshSecrets() {
-        globalStore.set(this.isLoadingAtom, true);
-        globalStore.set(this.errorMessageAtom, null);
+        const request = ++this.secretListRequest;
+        globalStore.set(this.secretsLoadingAtom, true);
+        globalStore.set(this.secretNamesReadyAtom, false);
+        globalStore.set(this.secretListErrorAtom, null);
 
         try {
             const names = await this.env.rpc.GetSecretsNamesCommand(TabRpcClient);
+            if (request !== this.secretListRequest) return;
             globalStore.set(this.secretNamesAtom, names || []);
-        } catch (error) {
-            globalStore.set(this.errorMessageAtom, `Failed to load secrets: ${error.message}`);
+            globalStore.set(this.secretNamesReadyAtom, true);
+        } catch {
+            if (request !== this.secretListRequest) return;
+            globalStore.set(this.secretListErrorAtom, { key: "settings.secrets.errors.list" });
         } finally {
-            globalStore.set(this.isLoadingAtom, false);
+            if (request === this.secretListRequest) globalStore.set(this.secretsLoadingAtom, false);
         }
     }
 
     async viewSecret(name: string) {
-        globalStore.set(this.errorMessageAtom, null);
+        this.resetSecretEditor();
         globalStore.set(this.selectedSecretAtom, name);
-        globalStore.set(this.secretShownAtom, false);
-        globalStore.set(this.secretValueAtom, "");
     }
 
     closeSecretView() {
+        this.resetSecretEditor();
+    }
+
+    // MOLTENTERM-PATCH (#813): a new selection (including A → B → A) invalidates every old editor response.
+    resetSecretEditor() {
+        this.secretGeneration++;
+        this.secretDraftRevision++;
         globalStore.set(this.selectedSecretAtom, null);
-        globalStore.set(this.secretValueAtom, "");
-        globalStore.set(this.errorMessageAtom, null);
+        globalStore.set(this.secretDraftAtom, "");
+        globalStore.set(this.secretEditedAtom, false);
+        globalStore.set(this.secretShownAtom, false);
+        globalStore.set(this.secretBusyAtom, false);
+        globalStore.set(this.secretEditorErrorAtom, null);
+        globalStore.set(this.isAddingNewAtom, false);
+        globalStore.set(this.newSecretNameAtom, "");
+        globalStore.set(this.newSecretValueAtom, "");
+    }
+
+    editSecretValue(value: string) {
+        if (!globalStore.get(this.selectedSecretAtom)) return;
+        this.secretDraftRevision++;
+        globalStore.set(this.secretDraftAtom, value);
+        globalStore.set(this.secretEditedAtom, true);
+        globalStore.set(this.secretEditorErrorAtom, null);
     }
 
     async showSecret() {
         const selectedSecret = globalStore.get(this.selectedSecretAtom);
-        if (!selectedSecret) {
+        if (!selectedSecret || globalStore.get(this.secretOperationBusyAtom) || globalStore.get(this.secretEditedAtom))
             return;
-        }
 
-        globalStore.set(this.isLoadingAtom, true);
-        globalStore.set(this.errorMessageAtom, null);
+        const generation = this.secretGeneration;
+        const revision = this.secretDraftRevision;
+        globalStore.set(this.secretBusyAtom, true);
+        globalStore.set(this.secretEditorErrorAtom, null);
 
         try {
             const secrets = await this.env.rpc.GetSecretsCommand(TabRpcClient, [selectedSecret]);
-            const value = secrets[selectedSecret];
-            if (value !== undefined) {
-                globalStore.set(this.secretValueAtom, value);
+            if (generation !== this.secretGeneration || revision !== this.secretDraftRevision) return;
+            const value = secrets?.[selectedSecret];
+            if (value != null) {
+                globalStore.set(this.secretDraftAtom, value);
                 globalStore.set(this.secretShownAtom, true);
             } else {
-                globalStore.set(this.errorMessageAtom, `Secret not found: ${selectedSecret}`);
+                globalStore.set(this.secretEditorErrorAtom, {
+                    key: "settings.secrets.errors.missing",
+                    vars: { name: selectedSecret },
+                });
             }
-        } catch (error) {
-            globalStore.set(this.errorMessageAtom, `Failed to load secret: ${error.message}`);
+        } catch {
+            if (generation !== this.secretGeneration || revision !== this.secretDraftRevision) return;
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.reveal" });
         } finally {
-            globalStore.set(this.isLoadingAtom, false);
+            if (generation === this.secretGeneration) globalStore.set(this.secretBusyAtom, false);
         }
     }
 
     async saveSecret() {
+        if (!globalStore.get(this.secretCanSaveAtom)) return;
         const selectedSecret = globalStore.get(this.selectedSecretAtom);
         const secretValue = globalStore.get(this.secretValueAtom);
+        const generation = this.secretGeneration;
+        const revision = this.secretDraftRevision;
 
-        if (!selectedSecret) {
-            return;
-        }
-
-        globalStore.set(this.isLoadingAtom, true);
-        globalStore.set(this.errorMessageAtom, null);
+        globalStore.set(this.secretBusyAtom, true);
+        globalStore.set(this.secretEditorErrorAtom, null);
 
         try {
-            await this.env.rpc.SetSecretsCommand(TabRpcClient, { [selectedSecret]: secretValue });
+            await this.writeSecrets({ [selectedSecret]: secretValue });
             this.env.rpc.RecordTEventCommand(
                 TabRpcClient,
                 {
@@ -500,77 +568,82 @@ export class WaveConfigViewModel implements ViewModel {
                 },
                 { noresponse: true }
             );
-            this.closeSecretView();
-        } catch (error) {
-            globalStore.set(this.errorMessageAtom, `Failed to save secret: ${error.message}`);
+            if (generation === this.secretGeneration && revision === this.secretDraftRevision) this.closeSecretView();
+        } catch {
+            if (generation !== this.secretGeneration) return;
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.save" });
         } finally {
-            globalStore.set(this.isLoadingAtom, false);
+            if (generation === this.secretGeneration) globalStore.set(this.secretBusyAtom, false);
         }
     }
 
     async deleteSecret() {
         const selectedSecret = globalStore.get(this.selectedSecretAtom);
 
-        if (!selectedSecret) {
-            return;
-        }
+        if (!selectedSecret || globalStore.get(this.secretOperationBusyAtom)) return;
+        const generation = this.secretGeneration;
 
-        globalStore.set(this.isLoadingAtom, true);
-        globalStore.set(this.errorMessageAtom, null);
+        globalStore.set(this.secretBusyAtom, true);
+        globalStore.set(this.secretEditorErrorAtom, null);
 
         try {
-            await this.env.rpc.SetSecretsCommand(TabRpcClient, { [selectedSecret]: null });
-            this.closeSecretView();
+            await this.writeSecrets({ [selectedSecret]: null });
+            if (generation === this.secretGeneration) this.closeSecretView();
             await this.refreshSecrets();
-        } catch (error) {
-            globalStore.set(this.errorMessageAtom, `Failed to delete secret: ${error.message}`);
+        } catch {
+            if (generation !== this.secretGeneration) return;
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.delete" });
         } finally {
-            globalStore.set(this.isLoadingAtom, false);
+            if (generation === this.secretGeneration) globalStore.set(this.secretBusyAtom, false);
         }
     }
 
     startAddingSecret() {
+        this.resetSecretEditor();
         globalStore.set(this.isAddingNewAtom, true);
-        globalStore.set(this.newSecretNameAtom, "");
-        globalStore.set(this.newSecretValueAtom, "");
-        globalStore.set(this.errorMessageAtom, null);
     }
 
     cancelAddingSecret() {
-        globalStore.set(this.isAddingNewAtom, false);
-        globalStore.set(this.newSecretNameAtom, "");
-        globalStore.set(this.newSecretValueAtom, "");
-        globalStore.set(this.errorMessageAtom, null);
+        this.resetSecretEditor();
+    }
+
+    // Closing an editor cannot cancel a dispatched write. Keep later mutations from overtaking it.
+    async writeSecrets(updates: Record<string, string>) {
+        globalStore.set(this.secretMutationBusyAtom, true);
+        try {
+            await this.env.rpc.SetSecretsCommand(TabRpcClient, updates);
+        } finally {
+            globalStore.set(this.secretMutationBusyAtom, false);
+        }
     }
 
     async addNewSecret() {
+        if (!globalStore.get(this.secretCanAddAtom)) return;
         const name = globalStore.get(this.newSecretNameAtom).trim();
         const value = globalStore.get(this.newSecretValueAtom);
 
         if (!name) {
-            globalStore.set(this.errorMessageAtom, "Secret name cannot be empty");
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.emptyName" });
             return;
         }
 
         if (!SecretNameRegex.test(name)) {
-            globalStore.set(
-                this.errorMessageAtom,
-                "Invalid secret name: must start with a letter and contain only letters, numbers, and underscores"
-            );
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.invalidName" });
             return;
         }
 
         const existingNames = globalStore.get(this.secretNamesAtom);
         if (existingNames.includes(name)) {
-            globalStore.set(this.errorMessageAtom, `Secret "${name}" already exists`);
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.duplicate", vars: { name } });
             return;
         }
 
-        globalStore.set(this.isLoadingAtom, true);
-        globalStore.set(this.errorMessageAtom, null);
+        const generation = this.secretGeneration;
+        globalStore.set(this.secretBusyAtom, true);
+        globalStore.set(this.secretEditorErrorAtom, null);
 
         try {
-            await this.env.rpc.SetSecretsCommand(TabRpcClient, { [name]: value });
+            await this.writeSecrets({ [name]: value });
             this.env.rpc.RecordTEventCommand(
                 TabRpcClient,
                 {
@@ -581,14 +654,13 @@ export class WaveConfigViewModel implements ViewModel {
                 },
                 { noresponse: true }
             );
-            globalStore.set(this.isAddingNewAtom, false);
-            globalStore.set(this.newSecretNameAtom, "");
-            globalStore.set(this.newSecretValueAtom, "");
+            if (generation === this.secretGeneration) this.cancelAddingSecret();
             await this.refreshSecrets();
-        } catch (error) {
-            globalStore.set(this.errorMessageAtom, `Failed to add secret: ${error.message}`);
+        } catch {
+            if (generation !== this.secretGeneration) return;
+            globalStore.set(this.secretEditorErrorAtom, { key: "settings.secrets.errors.add" });
         } finally {
-            globalStore.set(this.isLoadingAtom, false);
+            if (generation === this.secretGeneration) globalStore.set(this.secretBusyAtom, false);
         }
     }
 

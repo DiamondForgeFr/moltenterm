@@ -60,6 +60,12 @@ type ReleaseStartResult struct {
 }
 
 func (r *Runs) releaseSessionFile(dir string) string {
+	for _, storage := range r.projectDirs(dir) {
+		file := filepath.Join(storage, ReleaseSessionFileName)
+		if _, err := os.Stat(file); err == nil {
+			return file
+		}
+	}
 	return filepath.Join(r.projectDir(dir), ReleaseSessionFileName)
 }
 
@@ -68,7 +74,11 @@ func (r *Runs) ReleaseSessionOf(dir string) (*ReleaseSession, error) {
 	if err := checkDir(dir); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(r.releaseSessionFile(filepath.Clean(dir)))
+	dir = filepath.Clean(dir)
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	file := r.releaseSessionFile(project)
+	data, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -79,11 +89,14 @@ func (r *Runs) ReleaseSessionOf(dir string) (*ReleaseSession, error) {
 	if err := json.Unmarshal(data, &session); err != nil || session.Tag == "" {
 		return nil, nil
 	}
+	// Visiting an older session through its original path makes it discoverable through future aliases too.
+	// An inability to backfill this identity must not hide a readable session.
+	r.identifyStorage(filepath.Dir(file), project)
 	return &session, nil
 }
 
 func (r *Runs) writeReleaseSession(dir string, session ReleaseSession) error {
-	if err := os.MkdirAll(r.projectDir(dir), 0700); err != nil {
+	if err := r.identifyProject(dir); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(session, "", "  ")
@@ -102,7 +115,19 @@ func (r *Runs) EndRelease(dir string) error {
 	if err := checkDir(dir); err != nil {
 		return err
 	}
-	err := os.Remove(r.releaseSessionFile(filepath.Clean(dir)))
+	dir = filepath.Clean(dir)
+	project := canonicalRunDir(dir)
+	release, held := r.reserveAdmission(project, RunKindRelease, dir)
+	if release == nil {
+		return errStillRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	return r.endRelease(project)
+}
+
+func (r *Runs) endRelease(dir string) error {
+	err := os.Remove(r.releaseSessionFile(dir))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -110,8 +135,38 @@ func (r *Runs) EndRelease(dir string) error {
 }
 
 func (r *Runs) ignoredReleases(dir string) []string {
+	var combined []string
+	type ignoredHistory struct {
+		tags     []string
+		modified time.Time
+	}
+	var histories []ignoredHistory
+	// Preserve choices in older alias histories. File modification order is the only historical recency available;
+	// the caller's current alias must not reorder these choices or drop recent tags at the retention bound.
+	for _, storage := range r.projectDirs(dir) {
+		file := filepath.Join(storage, ReleaseIgnoredFileName)
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		history := ignoredHistory{modified: info.ModTime()}
+		readJson(file, &history.tags)
+		histories = append(histories, history)
+	}
+	sort.SliceStable(histories, func(i, j int) bool { return histories[i].modified.Before(histories[j].modified) })
+	for _, history := range histories {
+		combined = append(combined, history.tags...)
+	}
+	latest := map[string]int{}
+	for i, tag := range combined {
+		latest[tag] = i
+	}
 	var tags []string
-	readJson(filepath.Join(r.projectDir(dir), ReleaseIgnoredFileName), &tags)
+	for i, tag := range combined {
+		if latest[tag] == i {
+			tags = append(tags, tag)
+		}
+	}
 	return tags
 }
 
@@ -135,10 +190,21 @@ func (r *Runs) IgnoreRelease(dir string, tag string) error {
 
 // StopFollowing ends the release launched from the Project tab, or else stops following the tag cut at the terminal.
 func (r *Runs) StopFollowing(dir string, tag string) error {
-	if session, _ := r.ReleaseSessionOf(dir); session != nil || tag == "" {
-		return r.EndRelease(dir)
+	if err := checkDir(dir); err != nil {
+		return err
 	}
-	return r.IgnoreRelease(dir, tag)
+	dir = filepath.Clean(dir)
+	project := canonicalRunDir(dir)
+	release, held := r.reserveAdmission(project, RunKindRelease, tag)
+	if release == nil {
+		return errStillRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	if session, _ := r.ReleaseSessionOf(project); session != nil || tag == "" {
+		return r.endRelease(project)
+	}
+	return r.IgnoreRelease(project, tag)
 }
 
 // releaseVersion reads a release tag: its version without the prefix, and whether it is a release candidate.
@@ -215,7 +281,8 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 		return ReleaseStartResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	p, untrusted, err := r.trustedPipeline(dir)
+	project := canonicalRunDir(dir)
+	p, untrusted, err := r.trustedPipelineAt(dir, project)
 	if err != nil || untrusted != nil {
 		return ReleaseStartResult{Untrusted: untrusted}, err
 	}
@@ -236,26 +303,32 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	if !isRc && req.Channel == ReleaseChannelRc {
 		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.publicTag", "tag", req.Tag), "%s is a public release's tag, not a release candidate's", req.Tag)
 	}
-	if session, _ := r.ReleaseSessionOf(dir); session != nil {
+	release, held := r.reserveAdmission(project, RunKindRelease, req.Tag)
+	if release == nil {
+		return ReleaseStartResult{}, errStillRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	if session, _ := r.ReleaseSessionOf(project); session != nil {
 		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.onItsWay", "tag", session.Tag), "a release is already on its way: %s", session.Tag)
 	}
-	if running := r.runningOf(dir, RunKindRelease); running != nil {
+	if running := r.runningOf(project, RunKindRelease); running != nil {
 		return ReleaseStartResult{}, errStillRunning(running.Title)
 	}
-	if r.tagExists(dir, req.Tag) {
+	if r.tagExists(project, req.Tag) {
 		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.tagged", "tag", req.Tag), "%s is already tagged", req.Tag)
 	}
 	session := ReleaseSession{Tag: req.Tag, Version: version, Channel: req.Channel, StartedAt: r.now().UnixMilli()}
-	if err := r.writeReleaseSession(dir, session); err != nil {
+	if err := r.writeReleaseSession(project, session); err != nil {
 		return ReleaseStartResult{}, err
 	}
 	if len(molten.ReleasePreparation(steps)) == 0 {
 		return ReleaseStartResult{Session: &session}, nil
 	}
-	rec, err := r.launchPreparation(dir, steps, session)
+	rec, err := r.launchPreparationAt(dir, project, steps, session)
 	if err != nil {
 		// No release is announced that nothing runs for.
-		r.EndRelease(dir)
+		r.endRelease(project)
 		return ReleaseStartResult{}, err
 	}
 	return ReleaseStartResult{Session: &session, Run: &rec}, nil
@@ -263,7 +336,11 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 
 // trustedPipeline reads the project's valid pipeline; untrusted commands are returned for the user to review.
 func (r *Runs) trustedPipeline(dir string) (*molten.Pipeline, *UntrustedInfo, error) {
-	report := molten.ValidatePipeline(dir)
+	return r.trustedPipelineAt(dir, canonicalRunDir(dir))
+}
+
+func (r *Runs) trustedPipelineAt(dir, project string) (*molten.Pipeline, *UntrustedInfo, error) {
+	report := molten.ValidatePipeline(project)
 	if !report.Valid {
 		return nil, nil, pipelineError(report)
 	}
@@ -289,7 +366,13 @@ func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
 }
 
 func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
-	run, err := preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, dir))
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	return r.launchPreparationAt(dir, project, steps, session)
+}
+
+func (r *Runs) launchPreparationAt(dir, project string, steps []molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
+	run, err := preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, project))
 	if err != nil {
 		return RunRecord{}, err
 	}
@@ -299,5 +382,5 @@ func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, sessio
 		Title: "Prepare " + session.Tag,
 		Run:   run,
 	}
-	return r.launch(dir, command, "", "", session.Tag)
+	return r.launchAt(dir, project, command, "", "", session.Tag)
 }

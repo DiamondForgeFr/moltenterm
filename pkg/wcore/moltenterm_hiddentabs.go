@@ -109,12 +109,17 @@ func moltenForgetClosedTabs(ws *waveobj.Workspace) {
 
 // moltenNextActiveTab is the tab shown once the active tab at idx (already out of ws.TabIds) is closed: a shown tab
 // near it. When only hidden tabs remain they are revealed: the developer closed every other tab, and the agents' tabs
-// say why they are there.
-func moltenNextActiveTab(ws *waveobj.Workspace, idx int) string {
+// say why they are there. A tab opened from another tab goes back to that tab when it is still shown (#892).
+func moltenNextActiveTab(ws *waveobj.Workspace, idx int, closed *waveobj.Tab) string {
 	hidden := molten.HiddenTabIds(ws)
 	moltenForgetClosedTabs(ws)
 	if len(ws.TabIds) == 0 {
 		return ""
+	}
+	if closed != nil {
+		if opener := molten.ShownOpener(ws.TabIds, hidden, closed.Meta.GetString(molten.OpenerTabMetaKey, "")); opener != "" {
+			return opener
+		}
 	}
 	if next := molten.VisibleNeighbour(ws.TabIds, hidden, idx); next != "" {
 		return next

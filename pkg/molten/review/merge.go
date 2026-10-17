@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -127,7 +128,7 @@ const (
 	maxBlockedPolls = 8
 )
 
-var prViewFields = "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup,closingIssuesReferences,mergeCommit"
+var prViewFields = "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup,closingIssuesReferences,mergeCommit,body,author"
 
 // GhRunner runs gh in a folder; tests fake it.
 type GhRunner func(ctx context.Context, dir string, args ...string) ([]byte, error)
@@ -267,6 +268,10 @@ type ghMergePr struct {
 	MergeCommit *struct {
 		Oid string `json:"oid"`
 	} `json:"mergeCommit"`
+	Body   string `json:"body"`
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
 }
 
 type runningMerge struct {
@@ -292,6 +297,8 @@ type Merger struct {
 	// What GitHub said of the repositories' merge methods and of their base branches' rules, for the session.
 	repoMethods map[string]repoMethods
 	branchRules map[string]branchRules
+	// reviewer: the developer's first name for the PR body's "Reviewed by" line (#847); nil writes no line.
+	reviewer func(dir string) string
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
@@ -778,6 +785,7 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 			return
 		}
 	}
+	m.signReview(ctx, plan, pr, state)
 	record.State = MergeMerging
 	record.Head = head
 	m.record(k, record)
@@ -806,6 +814,43 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	record.CleanupRunning = true
 	record = m.end(k, record, MergeMerged, "", MergeCodeMerged, nil)
 	m.cleanup(plan, record, head)
+}
+
+// lastReviewUrl: the newest review MoltenTerm published on GitHub for the PR.
+func lastReviewUrl(state State) string {
+	for i := len(state.Rounds) - 1; i >= 0; i-- {
+		if url := state.Rounds[i].GithubUrl; url != "" {
+			return url
+		}
+	}
+	if state.Publish != nil {
+		return state.Publish.Url
+	}
+	return ""
+}
+
+// signReview writes "Reviewed by <first name> · <date>" in the PR body's signature block (#847) once the developer
+// confirmed the merge: GitHub does not let the PR's author, the developer's own account, approve it. The line is best
+// effort: a failure is logged and never stops the merge. Editing the body moves no commit, so --match-head-commit holds.
+func (m *Merger) signReview(ctx context.Context, plan MergePlan, pr ghMergePr, state State) {
+	if m.reviewer == nil {
+		return
+	}
+	name := m.reviewer(plan.Dir)
+	if name == "" {
+		name = pr.Author.Login
+	}
+	if name == "" {
+		return
+	}
+	review := agentsign.Review{Name: name, Date: m.now().Format("2006-01-02"), Url: lastReviewUrl(state)}
+	body := agentsign.WithReview(pr.Body, review)
+	if body == pr.Body {
+		return
+	}
+	if _, err := m.runGh(ctx, plan.Dir, plan.Repo, "pr", "edit", strconv.Itoa(plan.Number), "--body", body); err != nil {
+		log.Printf("molten review: the Reviewed by line of %s#%d could not be written: %v\n", plan.Repo, plan.Number, err)
+	}
 }
 
 func (r MergeRecord) overrides(warnings []string) bool {

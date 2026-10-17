@@ -154,6 +154,19 @@ describe("budget gate", () => {
     expect(evaluateMetric("leak", { value: 1 }, { value: 0 }, b, "ci").fails).toBe(true);
   });
 
+  it("never grandfathers an absolute budget", () => {
+    const strict = { ...b, metrics: { leak: { budget: 0, gate: "ci", tolerancePct: 0, absolute: true } } };
+    const row = evaluateMetric("leak", { value: 4 }, { value: 4 }, strict, "ci");
+    expect(row.status).toBe("over budget");
+    expect(row.fails).toBe(true);
+    expect(evaluateMetric("leak", { value: 0 }, { value: 4 }, strict, "ci").fails).toBe(false);
+  });
+
+  it("fails the leaked views of the stored baseline's run", () => {
+    const leak = { value: 4, stat: "value", n: 1 };
+    expect(evaluateMetric("leak.viewsAfterDeletes", leak, leak, budgets, "ci").fails).toBe(true);
+  });
+
   it("gates local metrics only in the local scope", () => {
     expect(evaluateMetric("cpu", { value: 5 }, { value: 3 }, b, "ci").fails).toBe(false);
     expect(evaluateMetric("cpu", { value: 5 }, { value: 3 }, b, "local").fails).toBe(true);
@@ -186,13 +199,24 @@ describe("budget gate", () => {
     expect(crashed.pass).toBe(false);
   });
 
+  // Except the absolute budgets the baseline's own run did not meet (the leaked views, #895).
   it("passes the stored baseline against itself in both scopes", () => {
     const baseline = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, budgets.baseline), "utf8"));
+    const unmet = (scope) =>
+      Object.entries(budgets.metrics)
+        .filter(([, m]) => m.absolute && (scope === "local" || m.gate === "ci"))
+        .filter(([id, m]) => baseline.metrics[id]?.value > m.budget)
+        .map(([id]) => id);
+    expect(unmet("ci")).toEqual(["leak.viewsAfterDeletes"]);
     for (const scope of ["ci", "local"]) {
       const ev = evaluate(baseline, budgets, baseline, scope);
-      expect(ev.failures).toEqual([]);
+      expect(ev.failures).toEqual(unmet(scope));
     }
-    expect(renderMarkdown(baseline, evaluate(baseline, budgets, baseline, "ci"))).toContain("Gate (ci scope): PASS");
+    const met = JSON.parse(JSON.stringify(baseline));
+    for (const id of unmet("local")) {
+      met.metrics[id].value = 0;
+    }
+    expect(renderMarkdown(met, evaluate(met, budgets, baseline, "ci"))).toContain("Gate (ci scope): PASS");
   });
 
   it("defines every metric with an NFR, a title and a known gate", () => {

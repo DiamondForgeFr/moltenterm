@@ -5,62 +5,41 @@
 // subtitle, the content, then the buttons; Escape answers like the dialog's cancel.
 
 import { cn } from "@/util/util";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { captureModalInvoker, containModalFocus, modalOwnsKeys, topModal } from "./modal-focus";
 import { ScrimClass } from "./modal-open";
 import { GlowRing } from "./suite/suite";
 
 // The overlay rule and its scrim live in modal-open.ts, which the global keys read without loading React.
 export { modalIsOpen, ScrimClass } from "./modal-open";
 
+// The suite's dialog frame (#658, #890, #905): 4 px corners, the thin border, the raised surface. Wave's Modal draws the
+// same frame through modal.scss and carries the same marker, which the frame test looks for on every dialog.
+export const DialogFrameClass = "molten-dialog-frame rounded-4 border border-border bg-surface-3 shadow-e3";
+
 // enabled may be a function, read at the key press, for a state the component does not render from.
-export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void) {
+export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void, role?: string | string[]) {
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && (typeof enabled === "function" ? enabled() : enabled)) {
+            if (e.key === "Escape" && modalOwnsKeys(role)) {
+                const allowed = typeof enabled === "function" ? enabled() : enabled;
+                if (!allowed && role == null) {
+                    return;
+                }
                 e.stopPropagation();
                 e.preventDefault();
-                onEscape();
+                if (role != null) {
+                    e.stopImmediatePropagation();
+                }
+                if (allowed) {
+                    onEscape();
+                }
             }
         };
         document.addEventListener("keydown", onKey, true);
         return () => document.removeEventListener("keydown", onKey, true);
     });
-}
-
-const FocusableSelector =
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-// Tab and Shift+Tab stay inside the dialog (NFR-SHELL-014): aria-modal alone does not keep the keyboard in it.
-function keepFocusInside(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== "Tab") {
-        return;
-    }
-    // A dialog opened over this one (the project logo offer after Link a project…) gets the keyboard.
-    const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
-    const top = dialogs[dialogs.length - 1];
-    if (top != null && top !== e.currentTarget && !e.currentTarget.contains(top)) {
-        e.preventDefault();
-        top.querySelector<HTMLElement>(FocusableSelector)?.focus();
-        return;
-    }
-    const focusables = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(FocusableSelector)).filter(
-        (el) => el.getClientRects().length > 0
-    );
-    if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const inside = e.currentTarget.contains(document.activeElement);
-    if (e.shiftKey && (document.activeElement === first || !inside)) {
-        e.preventDefault();
-        last.focus();
-    } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
-        e.preventDefault();
-        first.focus();
-    }
 }
 
 export function DialogFrame({
@@ -73,9 +52,10 @@ export function DialogFrame({
     subtitleWraps,
     wide,
     widthClass,
-    trapFocus,
     onBackdrop,
+    onEscape,
     suite,
+    noGlow,
     children,
     buttons,
 }: {
@@ -93,47 +73,43 @@ export function DialogFrame({
     wide?: boolean;
     // Replaces the width that `wide` picks.
     widthClass?: string;
+    // Compatibility for existing callers; modal containment is always enabled.
     trapFocus?: boolean;
     // A press outside the dialog, for a dialog whose close loses nothing.
     onBackdrop?: () => void;
-    // The DiamondForge suite frame (#658): low corners, the turning light around it, and room for its section blocks'
-    // chips and corner icons.
+    // Undefined keeps Escape blocked while a confirmation is busy.
+    onEscape?: () => void;
+    // The DiamondForge suite frame (#658): room for its section blocks' chips and corner icons.
     suite?: boolean;
+    // Every open dialog carries the suite's turning light (#890). Opt out only for a reason worth writing at the call
+    // site, such as a dialog stacked over another lit one.
+    noGlow?: boolean;
     children: React.ReactNode;
     buttons: React.ReactNode;
 }) {
     const backdropPressed = useRef(false);
     const dialogRef = useRef<HTMLDivElement>(null);
-    const lastInside = useRef<HTMLElement>(null);
+    const [invoker] = useState(captureModalInvoker);
+    const escape = useRef(onEscape);
+    escape.current = onEscape;
     // A layout effect: a dialog opened from a pane (branch cleaning, #746) sees the pane take its focus back in the
     // same click, before a passive effect would be listening.
     useLayoutEffect(() => {
-        if (!trapFocus) {
-            return;
-        }
-        // A tab view that has just been shown focuses its terminal after the dialog took the focus: bring it back.
-        const onFocusIn = (e: FocusEvent) => {
-            const dialog = dialogRef.current;
-            const target = e.target as HTMLElement;
-            if (dialog == null || target == null) {
-                return;
+        const dialog = dialogRef.current;
+        const release = containModalFocus(dialog, invoker);
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && topModal() === dialog) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                escape.current?.();
             }
-            if (dialog.contains(target)) {
-                lastInside.current = target;
-                return;
-            }
-            // Another dialog opened over this one (the project logo offer after Link a project…) keeps its focus.
-            if (target.closest('[role="dialog"], [aria-modal="true"]') != null) {
-                return;
-            }
-            const back = lastInside.current?.isConnected
-                ? lastInside.current
-                : dialog.querySelector<HTMLElement>(FocusableSelector);
-            back?.focus();
         };
-        document.addEventListener("focusin", onFocusIn, true);
-        return () => document.removeEventListener("focusin", onFocusIn, true);
-    }, [trapFocus]);
+        document.addEventListener("keydown", onKey, true);
+        return () => {
+            document.removeEventListener("keydown", onKey, true);
+            release();
+        };
+    }, [invoker]);
     return createPortal(
         <div
             className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
@@ -145,7 +121,7 @@ export function DialogFrame({
                 // Both ends on the backdrop: a text selection that starts in the dialog and ends outside closes nothing.
                 const outside = backdropPressed.current && e.target === e.currentTarget;
                 backdropPressed.current = false;
-                if (outside && onBackdrop != null) {
+                if (outside && onBackdrop != null && topModal() === dialogRef.current) {
                     onBackdrop();
                 }
             }}
@@ -155,10 +131,10 @@ export function DialogFrame({
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                onKeyDown={trapFocus ? keepFocusInside : undefined}
+                tabIndex={-1}
                 className={cn(
-                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col border border-border bg-surface-3 shadow-e3",
-                    suite ? "relative rounded-4" : "rounded-10",
+                    "relative flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col",
+                    DialogFrameClass,
                     widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
                 )}
             >
@@ -178,7 +154,7 @@ export function DialogFrame({
                     ) : null}
                     {belowSubtitle}
                 </div>
-                {suite ? <GlowRing on /> : null}
+                {noGlow ? null : <GlowRing on />}
                 <div
                     className={cn(
                         "flex min-h-0 flex-col overflow-auto text-12",
@@ -187,7 +163,12 @@ export function DialogFrame({
                 >
                     {children}
                 </div>
-                <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">{buttons}</div>
+                <div
+                    data-dialog-buttons
+                    className="flex items-center justify-end gap-2 border-t border-border px-4 py-3"
+                >
+                    {buttons}
+                </div>
             </div>
         </div>,
         document.body

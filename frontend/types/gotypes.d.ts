@@ -1433,6 +1433,7 @@ declare global {
         "agent:integrateoff"?: string[];
         "review:language"?: string;
         "review:publishlanguage"?: string;
+        "review:reviewername"?: string;
         "app:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
@@ -1477,6 +1478,8 @@ declare global {
         "moltenterm:releasenotify"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
         "moltenterm:view360"?: string;
+        "moltenterm:terminalscreenreader"?: string;
+        "moltenterm:codingagent"?: string;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

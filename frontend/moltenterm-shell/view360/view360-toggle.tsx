@@ -14,11 +14,12 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRestoreFocus } from "../busy-close";
-import { DialogFrame, useEscape } from "../dialog-frame";
+import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { openSettingsSection } from "../settings/settings-open";
 import { normalizeView360Setting, type View360Decision, type View360Exit } from "./view360-decision";
+import { CarpetIcon } from "./view360-icon";
 import type { View360Model } from "./view360-model";
 import { View360Text } from "./view360-text";
 import "./view360.css";
@@ -26,33 +27,6 @@ import "./view360.css";
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
-
-function TwoPanelsIcon() {
-    return (
-        <svg className="mt-v360-icon" width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
-            <rect
-                x="0.75"
-                y="0.75"
-                width="5"
-                height="10.5"
-                rx="1.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-            />
-            <rect
-                x="8.25"
-                y="0.75"
-                width="5"
-                height="10.5"
-                rx="1.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-            />
-        </svg>
-    );
-}
 
 // The tooltip: the state, what holds it (or keeps it off), and what a click does.
 function toggleTitle(decision: View360Decision, single: boolean): string {
@@ -79,12 +53,12 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     useEffect(() => {
         stayRef.current?.focus();
     }, []);
-    useEscape(true, () => view360.closeExitAsk());
     if (exit.kind === "blocked") {
         const count = exit.extraColumns;
         return (
             <DialogFrame
                 role="molten-view360-blocked"
+                onEscape={() => view360.closeExitAsk()}
                 title={t("view360.ui.blockedTitle")}
                 trapFocus
                 onBackdrop={() => view360.closeExitAsk()}
@@ -110,6 +84,7 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     return (
         <DialogFrame
             role="molten-view360-readjust"
+            onEscape={() => view360.closeExitAsk()}
             title={t("view360.ui.readjustTitle")}
             trapFocus
             onBackdrop={() => view360.closeExitAsk()}
@@ -196,7 +171,7 @@ function ToggleButton({ view360 }: { view360: View360Model }) {
                 onClick={onClick}
                 onContextMenu={onContextMenu}
             >
-                <TwoPanelsIcon />
+                <CarpetIcon />
                 <span className="mt-v360-label">{View360Text.toggleLabel}</span>
                 {autoHeld && !single && <span className="mt-v360-auto">{View360Text.toggleAutoMark}</span>}
                 {signal !== mountSignal && <span key={signal} className="mt-v360-glow" aria-hidden="true" />}

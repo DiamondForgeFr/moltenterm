@@ -97,12 +97,19 @@ func resolveTrunk(ctx context.Context, run Runner, dir string) (string, string) 
 }
 
 func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string) (RunRecord, error) {
+	project := canonicalRunDir(dir)
+	r.projectDirsAt(dir, project)
+	return r.startBuildAt(dir, project, build, version)
+}
+
+func (r *Runs) startBuildAt(dir, project string, build molten.PipelineBuild, version string) (RunRecord, error) {
 	now := r.now()
-	command, err := expandCommand(build.Run, r.buildVars(dir, version))
+	command, err := expandCommand(build.Run, r.buildVars(project, version))
 	if err != nil {
 		return RunRecord{}, err
 	}
 	rec := RunRecord{
+		project:   project,
 		Id:        newRunId(now),
 		Dir:       dir,
 		Kind:      RunKindBuild,
@@ -110,7 +117,7 @@ func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string
 		Title:     build.Title,
 		Command:   command,
 		Cwd:       build.Cwd,
-		Artifact:  artifactPath(dir, build.Artifact),
+		Artifact:  artifactPath(project, build.Artifact),
 		StartedAt: now.UnixMilli(),
 		State:     RunStateRunning,
 		Phases:    []string{},
@@ -120,7 +127,7 @@ func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string
 	if rec.Title == "" {
 		rec.Title = build.Id
 	}
-	if err := os.MkdirAll(filepath.Join(r.projectDir(dir), rec.Id), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(r.projectDir(project), rec.Id), 0700); err != nil {
 		return rec, err
 	}
 	// Marked before the record exists: a List in between would take it for a build whose wavesrv stopped.
@@ -129,7 +136,7 @@ func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string
 		r.setPreparing(rec.Id, false)
 		return rec, err
 	}
-	r.prune(dir)
+	r.prune(project)
 	if r.publish != nil {
 		r.publish(rec)
 	}
@@ -149,25 +156,44 @@ func (b *buildLog) say(format string, args ...any) {
 }
 
 func (b *buildLog) refresh() {
+	b.persist()
+	if b.r.publish != nil {
+		b.r.publish(*b.rec)
+	}
+}
+
+func (b *buildLog) persist() {
+	lock := b.r.recordLock(b.rec.Dir, b.rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
 	b.rec.Cancelled = b.rec.Cancelled || b.cancelled()
 	b.r.update(b.rec)
 	b.r.settle(b.rec)
 	b.r.writeRecord(*b.rec)
-	if b.r.publish != nil {
-		b.r.publish(*b.rec)
-	}
 }
 
 func (b *buildLog) cancelled() bool {
 	return b.r.checkCancelAsked(b.rec.Id)
 }
 
-// finish ends a build that stopped before its command: the exit line is how every reader knows the outcome.
+// finish ends a build that stopped before its command, using the preparation's known result.
 func (b *buildLog) finish(code int) {
+	b.finishRecord(code)
+	if b.r.publish != nil {
+		b.r.publish(*b.rec)
+	}
+}
+
+func (b *buildLog) finishRecord(code int) {
+	lock := b.r.recordLock(b.rec.Dir, b.rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
 	b.rec.Cancelled = b.cancelled()
-	fmt.Fprintf(b.file, "exit=%d\n", code)
+	b.r.update(b.rec)
 	b.rec.Preparing = false
-	b.refresh()
+	b.r.complete(b.rec, code)
+	b.r.settle(b.rec)
+	b.r.writeRecord(*b.rec)
 }
 
 func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
@@ -175,7 +201,7 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 		panichandler.PanicHandler("molten:mission:build", recover())
 	}()
 	defer r.setPreparing(rec.Id, false)
-	file, err := os.OpenFile(r.logFile(rec.Dir, rec.Id), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.OpenFile(r.logFile(rec.storageProject(), rec.Id), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return
 	}
@@ -201,7 +227,7 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 		return
 	}
 	if build.Prepare != nil {
-		prepare, err := expandCommand(build.Prepare.Run, r.buildVars(rec.Dir, ""))
+		prepare, err := expandCommand(build.Prepare.Run, r.buildVars(rec.storageProject(), ""))
 		if err != nil {
 			b.say("%v", err)
 			b.finish(1)
@@ -225,7 +251,7 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 }
 
 func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error) {
-	dir := b.rec.Dir
+	dir := b.rec.storageProject()
 	trunk, _ := resolveTrunk(ctx, r.git, dir)
 	if trunk == "" {
 		return "", errors.New("the project has no trunk branch to build from")
@@ -283,7 +309,7 @@ func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
 		if b.cancelled() {
 			return false
 		}
-		res, err := r.ci.Start(CiRunRequest{Dir: b.rec.Dir, Branch: b.rec.Commit})
+		res, err := r.ci.startAt(CiRunRequest{Dir: b.rec.Dir, Branch: b.rec.Commit}, b.rec.storageProject())
 		switch {
 		case err != nil && strings.Contains(err.Error(), "already green"):
 			b.say("local CI already green on %s", shortSha(b.rec.Commit))
@@ -360,7 +386,7 @@ func runBuildCommand(cwd string, run string, env map[string]string, rec RunRecor
 }
 
 func (r *Runs) launchBuild(b *buildLog, tree string, build molten.PipelineBuild) {
-	cmd := exec.Command("/bin/sh", "-c", `( `+b.rec.Command+` ); echo "exit=$?"`)
+	cmd := r.supervisedCommand(*b.rec)
 	cmd.Dir = filepath.Join(tree, build.Cwd)
 	cmd.Env = buildEnv(build.Env, *b.rec)
 	cmd.Stdout = b.file
@@ -374,16 +400,23 @@ func (r *Runs) launchBuild(b *buildLog, tree string, build molten.PipelineBuild)
 	}
 	b.rec.Pid = cmd.Process.Pid
 	b.rec.Preparing = false
-	r.writeRecord(*b.rec)
-	if r.endPreparing(b.rec.Id) || b.rec.Cancelled {
-		b.rec.Cancelled = true
-		r.writeRecord(*b.rec)
-		stopRunGroup(b.rec.Pid)
-	}
 	go cmd.Wait()
+	r.handoffBuild(b.rec)
 	r.watch(*b.rec)
 	if r.publish != nil {
 		r.publish(*b.rec)
+	}
+}
+
+func (r *Runs) handoffBuild(rec *RunRecord) {
+	lock := r.recordLock(rec.Dir, rec.Id)
+	lock.Lock()
+	defer lock.Unlock()
+	r.writeRecord(*rec)
+	if r.endPreparing(rec.Id) || rec.Cancelled {
+		rec.Cancelled = true
+		r.writeRecord(*rec)
+		stopRunGroup(rec.Pid)
 	}
 }
 

@@ -127,9 +127,11 @@ type Service struct {
 
 func MakeService(dataDir string, git reviewsession.GitRunner, publish func(k PrKey, state State)) *Service {
 	store := MakeStore(dataDir)
+	merger := MakeMerger(store, ExecGh, publish)
+	merger.reviewer = ReviewerName
 	return &Service{
 		differ: MakeDiffer(git), store: store, git: git, dataDir: dataDir, publish: publish,
-		merger: MakeMerger(store, ExecGh, publish), gh: ExecGh, readFile: readProjectFile, treeLocks: map[string]*sync.Mutex{},
+		merger: merger, gh: ExecGh, readFile: readProjectFile, treeLocks: map[string]*sync.Mutex{},
 	}
 }
 
@@ -195,7 +197,11 @@ func Start() {
 			AgentState: agentStateOf,
 			EndSession: reviewsession.EndSession,
 			AskRebase:  service.AskRebase,
-			DataDir:    wavebase.GetWaveDataDir(),
+			Notify:     attention.PublishNotification,
+			ResolveNotices: func(ctx context.Context, keyPrefix string) error {
+				return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
+			},
+			DataDir: wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
 		service.forecaster = MakeForecaster(ForecastEnv{

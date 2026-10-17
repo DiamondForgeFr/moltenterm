@@ -12,12 +12,20 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // The GitHub side of a project, read through the user's own gh (DS-MC-004): Moltenterm stores no token. The JSON
 // fields are gh's, passed through untouched, so the panels read them as Notulia's Dev › CI does.
 
 const prFields = "number,title,body,author,headRefName,baseRefName,headRefOid,baseRefOid,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,closingIssuesReferences"
+
+// The merged pull requests of the Reviews view's Recently merged (#843): the window's, plus a day for the time zones.
+const mergedPrFields = "number,title,url,author,headRefName,baseRefName,isCrossRepository,mergedAt,mergedBy,mergeCommit,closingIssuesReferences,body"
+const mergedPrsListLimit = "30"
+const mergedPrsSearchDays = ReviewMergedDays + 1
 const runFields = "databaseId,workflowName,event,status,conclusion,headBranch,headSha,displayTitle,createdAt,updatedAt,url"
 const releaseFields = "tagName,name,isDraft,isPrerelease,isLatest,publishedAt,createdAt"
 const maxWorkflowFileBytes = 256 * 1024
@@ -44,7 +52,9 @@ type GithubSnapshot struct {
 	Runs       json.RawMessage `json:"runs,omitempty"`
 	Releases   json.RawMessage `json:"releases,omitempty"`
 	Milestones json.RawMessage `json:"milestones,omitempty"`
-	Workflows  []WorkflowFile  `json:"workflows"`
+	// The PRs merged in the last days (#843).
+	Merged    json.RawMessage `json:"merged,omitempty"`
+	Workflows []WorkflowFile  `json:"workflows"`
 	// Sections that failed while the others worked, by name.
 	Errors map[string]string `json:"errors,omitempty"`
 }
@@ -116,6 +126,16 @@ func ghRepoArgs(repoRef string, args []string) []string {
 	return rtn
 }
 
+// mergedPrsArgs lists the PRs merged since the window opened, into the declared PR target branch when there is one.
+func mergedPrsArgs(dir string, now time.Time) []string {
+	since := now.UTC().AddDate(0, 0, -mergedPrsSearchDays).Format("2006-01-02")
+	args := []string{"pr", "list", "--state", "merged", "--limit", mergedPrsListLimit, "--search", "merged:>=" + since + " sort:updated-desc", "--json", mergedPrFields}
+	if target := molten.PrTargetBranch(dir); target != "" {
+		args = append(args, "--base", target)
+	}
+	return args
+}
+
 func isLoggedOutError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "gh auth login") || strings.Contains(msg, "not logged") || strings.Contains(msg, "authentication")
@@ -157,6 +177,7 @@ func CollectGithub(ctx context.Context, run Runner, dir string) *GithubSnapshot 
 		{"runs", &snap.Runs, []string{"run", "list", "--limit", "30", "--json", runFields}},
 		{"releases", &snap.Releases, []string{"release", "list", "--limit", "30", "--json", releaseFields}},
 		{"milestones", &snap.Milestones, []string{"api", "repos/{owner}/{repo}/milestones?state=open&per_page=20"}},
+		{"merged", &snap.Merged, mergedPrsArgs(dir, time.Now())},
 	}
 	for _, section := range sections {
 		out, err := ghJson(ctx, run, dir, ghRepoArgs(ghRepoRef(snap.Repo, snap.Url), section.args)...)

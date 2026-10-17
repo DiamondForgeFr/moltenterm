@@ -84,6 +84,8 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 		return "the agent did not finish the rebase in time", uimsg.Make("notif.review.batch.why.agenttimeout")
 	case BatchReasonNoAgent:
 		return "no coding agent is installed for the rebase", uimsg.Make("notif.review.batch.why.noagent")
+	case BatchReasonAgentMissing:
+		return it.Detail + ", the coding agent you chose, is not installed", uimsg.Make("notif.review.batch.why.agentmissing", "detail", it.Detail)
 	case BatchReasonAgentStart:
 		return "the agent could not be started: " + it.Detail, uimsg.Make("notif.review.batch.why.agentstart", "detail", it.Detail)
 	case BatchReasonBlocked:
@@ -183,6 +185,27 @@ func numbersText(items []BatchItem) string {
 	return strings.Join(parts, ", ")
 }
 
+// trunkUpdates sums the commits the cleanups after the batch's merges brought to the local trunk (#909).
+func (b *BatchRunner) trunkUpdates(run BatchRun, merged []BatchItem) (string, int) {
+	if b.env.Merger == nil || b.env.Merger.store == nil {
+		return "", 0
+	}
+	branch, count := "", 0
+	for _, it := range merged {
+		state, err := b.env.Merger.store.Get(PrKey{Repo: run.Repo, Number: it.Number})
+		if err != nil || state.Cleanup == nil {
+			continue
+		}
+		step := state.Cleanup.Step(CleanupStepLocalTrunk)
+		if step == nil || step.State != CleanupStateDone || step.Code != CleanupCodeTrunkUpdated {
+			continue
+		}
+		branch = step.Branch
+		count += step.Count
+	}
+	return branch, count
+}
+
 func (b *BatchRunner) notifyEnd(run BatchRun) {
 	var merged, skipped []BatchItem
 	for _, it := range run.Items {
@@ -232,6 +255,17 @@ func (b *BatchRunner) notifyEnd(run BatchRun) {
 		message.With("kept", kept)
 	} else {
 		message.Vars["kept"] = ""
+	}
+	if branch, count := b.trunkUpdates(run, merged); count > 0 {
+		english += fmt.Sprintf(" Local %s updated: +%d commits.", branch, count)
+		part := uimsg.Make("notif.review.batch.trunkUpdated", "branch", branch, "count", strconv.Itoa(count))
+		if count == 1 {
+			english = strings.TrimSuffix(english, "commits.") + "commit."
+			part = uimsg.Make("notif.review.batch.trunkUpdatedOne", "branch", branch)
+		}
+		message.With("trunk", part)
+	} else {
+		message.Vars["trunk"] = ""
 	}
 	input.Message, input.MessageText = english, message
 	if run.BlockId != "" && run.Kept != "" {

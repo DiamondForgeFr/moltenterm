@@ -21,6 +21,19 @@ env:
         sh: node scripts/moltenterm-go-toolchain.mjs
 
 tasks:
+    # MOLTENTERM-PATCH (#810): one policy for local, CI and release dependency scans; never repairs the graph.
+    security:check:
+        desc: Scan complete dependency graphs and evaluate the reviewed security policy (network required).
+        cmd: node scripts/security/scan.mjs
+
+    security:test:
+        desc: Test dependency policy failures and workflow contracts without installing dependencies.
+        cmd: node --test scripts/security/policy-check.mjs
+
+    security:runtime:
+        desc: Exercise runtime dependency compatibility against local fixture servers.
+        cmd: node scripts/security/runtime-check.mjs
+
     check:go:
         desc: Check that go builds with the toolchain pinned in go.mod.
         cmd: node scripts/moltenterm-go-toolchain.mjs --check

@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A failed CI on a Reviews row (#797): Rerun failed jobs asks for a confirmation in the row, then wavesrv reruns them
-// and a notification tells the outcome; Investigate hands the failed checks to a work agent (ReviewsModel.investigate).
-// Nothing runs before the developer's click.
+// and a notification tells the outcome; Investigate and fix (#896) hands the failed checks to a work agent
+// (ReviewsModel.investigate), which resolves them; a notification tells when the checks pass or why it needs the
+// developer. Nothing runs before the developer's click.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
@@ -133,7 +134,7 @@ export function CiFailureButtons({
                 {investigating ? (
                     <DominoLoader />
                 ) : (
-                    <i className="fa fa-solid fa-magnifying-glass text-11" aria-hidden />
+                    <i className="fa fa-solid fa-screwdriver-wrench text-11" aria-hidden />
                 )}
                 {investigating ? t("reviews.ci.investigate.asking") : t("reviews.ci.investigate.button")}
             </button>
@@ -151,16 +152,17 @@ export function RerunConfirm({ pr, state }: { pr: ReviewPr; state: RerunState })
     const asking = state.phase === "confirm" || state.phase === "sending";
     return (
         <div
-            className={cn("flex flex-wrap items-center gap-2 text-12 leading-4", failed ? "text-error" : "text-secondary")}
+            className={cn(
+                "flex flex-wrap items-center gap-2 text-12 leading-4",
+                failed ? "text-danger" : "text-secondary"
+            )}
             role={failed ? "alert" : "status"}
             onClick={stop}
             onKeyDown={stop}
             data-testid="reviews-rerun-confirm"
         >
             <span className="min-w-0 flex-1">
-                {asking
-                    ? t("reviews.ci.rerun.confirm", { names: checkNames(checksOf(pr.ci, "failure")) })
-                    : state.text}
+                {asking ? t("reviews.ci.rerun.confirm", { names: checkNames(checksOf(pr.ci, "failure")) }) : state.text}
             </span>
             {asking ? (
                 <button

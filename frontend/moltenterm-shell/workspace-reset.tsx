@@ -15,7 +15,7 @@ import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { RunningList } from "./busy-close";
 import { RunningItem } from "./busy-close-model";
 import { busyCloseEnabled, readWorkspaceRunning } from "./busy-close-store";
-import { DialogFrame, useEscape } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { t, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { workspaceShownName } from "./workspace-default-name";
@@ -72,7 +72,6 @@ export function WorkspaceResetHost() {
     const request = useAtomValue(ResetRequestAtom);
     const t = useT();
     const cancel = () => globalStore.set(ResetRequestAtom, null);
-    useEscape(request != null, cancel);
     if (request == null) {
         return null;
     }
@@ -84,6 +83,7 @@ export function WorkspaceResetHost() {
     return (
         <DialogFrame
             role="workspace-reset"
+            onEscape={cancel}
             title={t("workspace.reset.title", { name: request.name })}
             subtitle={t("workspace.reset.subtitle")}
             buttons={

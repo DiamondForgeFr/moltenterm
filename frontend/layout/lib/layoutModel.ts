@@ -65,6 +65,8 @@ import {
 } from "../../moltenterm-shell/panel-size/panel-size-store";
 // MOLTENTERM-PATCH (#614): 360 view, the first column fixed and the others on a carpet that scrolls horizontally
 import { View360Model } from "../../moltenterm-shell/view360/view360-model";
+// MOLTENTERM-PATCH (#825): equalize the panel columns once, or after every change while the tab's auto mode is on
+import { EqualizeModel } from "../../moltenterm-shell/equalize/equalize-model";
 
 interface ResizeContext {
     handleId: string;
@@ -212,6 +214,8 @@ export class LayoutModel {
     moltenAddedBlockIds: string[] = [];
     // MOLTENTERM-PATCH (#614): the 360 view (fixed zone + carpet) of this tab
     moltenView360: View360Model;
+    // MOLTENTERM-PATCH (#825): the tab's equalize button and its auto mode
+    moltenEqualize: EqualizeModel;
     /**
      * Atom for the magnified node ID (derived from local tree state)
      */
@@ -365,6 +369,8 @@ export class LayoutModel {
 
         // MOLTENTERM-PATCH (#614): the tab's 360 view, asked by updateTree where the root's columns are drawn
         this.moltenView360 = new View360Model(this, tabAtom);
+        // MOLTENTERM-PATCH (#825): after the 360 view, whose layout passes it follows
+        this.moltenEqualize = new EqualizeModel(this, tabAtom);
 
         this.initializeFromWaveObject();
     }
@@ -794,6 +800,9 @@ export class LayoutModel {
                     boundingRect,
                     resizeAction
                 );
+            // MOLTENTERM-PATCH (#825): with auto equalize on, a new shape of the tree (whatever path changed it: a
+            // reducer action, a batch of backend actions) is evened out before it is drawn
+            this.moltenEqualize?.beforeUpdate();
             // MOLTENTERM-PATCH (#615): the 360 view's mode decides first (automatic, always, never, the tab's choice)
             this.moltenView360?.evaluate(this.treeState.rootNode, boundingRect);
             // MOLTENTERM-PATCH (#614): in 360 view the tree is balanced first, so the columns placed are the final ones
@@ -831,7 +840,10 @@ export class LayoutModel {
             if (this.moltenAddedBlockIds.length) {
                 const added = this.moltenAddedBlockIds;
                 this.moltenAddedBlockIds = [];
-                applyRememberedPanelSizes(this, added);
+                // MOLTENTERM-PATCH (#825): auto equalize gives the added panel its share, not its remembered size
+                if (!this.moltenEqualize?.auto) {
+                    applyRememberedPanelSizes(this, added);
+                }
                 // MOLTENTERM-PATCH (#614): the carpet scrolls to a panel just laid on it
                 this.moltenView360?.onBlocksAdded(added);
             }
@@ -1584,6 +1596,8 @@ export class LayoutModel {
      * Callback to end the current resize operation and commit its pending action.
      */
     onResizeEnd() {
+        // MOLTENTERM-PATCH (#825): a divider dragged by hand turns auto equalize off (before the 360 view clears its drag)
+        this.moltenEqualize?.onResizeEnd(this.resizeContext != null);
         // MOLTENTERM-PATCH (#614): a fixed zone or carpet column drag keeps its width
         if (this.moltenView360?.onResizeEnd()) {
             return;

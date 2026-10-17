@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { MissionRouteId } from "../mission/mission-client";
 import { openMoltentermView } from "../open-view";
+import { showTabFromHere } from "../opener-tab";
 import { readWorkspaceProject } from "../workspace-project";
 import { MoltentermProjectView, ProjectTabCommand } from "./project-model";
 
@@ -36,7 +37,7 @@ export async function openProjectTab(): Promise<void> {
     }
     const result = await requestProjectTab(ws.oid, true, false);
     if (result?.tabid) {
-        getApi().setActiveTab(result.tabid);
+        showTabFromHere(result.tabid);
     }
 }
 
@@ -57,7 +58,7 @@ export async function showProjectTab(workspaceId: string): Promise<boolean> {
     if (other) {
         getApi().switchWorkspace(target);
     } else {
-        getApi().setActiveTab(result.tabid);
+        showTabFromHere(result.tabid);
     }
     return true;
 }

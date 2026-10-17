@@ -25,7 +25,7 @@ import {
     isTerminalMeta,
     readRunning,
 } from "./busy-close-store";
-import { DialogFrame, useEscape } from "./dialog-frame";
+import { DialogFrame } from "./dialog-frame";
 import { t as translate, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
@@ -341,7 +341,7 @@ function ConfirmFacts({
 
 type DialogStep = "plan" | "confirm" | "working" | "done";
 
-function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDone: () => void }) {
+export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDone: () => void }) {
     const t = useT();
     const [plan, setPlan] = useState<WorktreePlan>(null);
     const [error, setError] = useState<string>(null);
@@ -407,7 +407,6 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
             cancelled = true;
         };
     }, [request.path, request.blockId]);
-    useEscape(step !== "working", () => finish(step === "done"));
     const view = plan ? closePlanView(plan) : null;
     const remove = (confirmed: boolean) =>
         fireAndForget(async () => {
@@ -530,7 +529,8 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         </>
     );
     return (
-        <DialogFrame role="molten-worktree-close" title={title} subtitle={request.path} buttons={buttons}>
+        <DialogFrame role="molten-worktree-close" title={title} subtitle={request.path} buttons={buttons}
+            onEscape={step === "working" ? undefined : () => finish(step === "done")}>
             {standalone && step === "plan" ? <div className="text-muted">{t("worktree.close.standalone")}</div> : null}
             {step === "plan" || step === "working" ? (
                 <RunningList items={running} heading={t("worktree.close.stops")} />
@@ -549,7 +549,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                 </label>
             ) : null}
             {notice ? <div className="text-secondary">{notice}</div> : null}
-            {error ? <div className="text-error">{serverErrorText(error)}</div> : null}
+            {error ? <div className="text-danger">{serverErrorText(error)}</div> : null}
         </DialogFrame>
     );
 }
@@ -619,14 +619,14 @@ function TabCloseRowView({
                     {t("worktree.close.deleteBranch", { branch: row.plan.branch })}
                 </label>
             ) : null}
-            {row.error ? <div className="text-error">{serverErrorText(row.error)}</div> : null}
+            {row.error ? <div className="text-danger">{serverErrorText(row.error)}</div> : null}
         </div>
     );
 }
 
 type TabDialogStep = "plan" | "confirm" | "working";
 
-function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone: () => void }) {
+export function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone: () => void }) {
     const t = useT();
     const [rows, setRows] = useState<TabCloseRow[]>(request.rows);
     const [step, setStep] = useState<TabDialogStep>("plan");
@@ -679,7 +679,6 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
             cancelled = true;
         };
     }, [request]);
-    useEscape(step !== "working", () => (step === "confirm" ? setStep("plan") : answer("cancel")));
     const { remove, atRisk } = tabCloseRemovals(rows);
     const loading = rows.some((r) => r.plan == null && r.error == null);
     const runRemovals = () =>
@@ -757,6 +756,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
     return (
         <DialogFrame
             role="molten-worktree-tab-close"
+            onEscape={step === "working" ? undefined : () => step === "confirm" ? setStep("plan") : answer("cancel")}
             title={title}
             subtitle={step === "confirm" ? null : t("worktree.tab.subtitle")}
             wide

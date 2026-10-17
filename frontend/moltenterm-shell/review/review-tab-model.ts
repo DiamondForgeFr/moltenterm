@@ -19,11 +19,13 @@ import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import type { AgentStateInfo } from "../agent-state-model";
+import { fetchCodingAgent } from "../coding-agent/coding-agent";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
-import { agentStartOf, askAgentChoice, showStartedAgent } from "../reviews/agent-choice";
+import { agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "../reviews/agent-choice";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
+import { knownMerge, mergedNumbers, ReviewsMerges } from "../reviews/reviews-merges";
 import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { whileShown } from "../tab-activity";
@@ -70,6 +72,7 @@ import {
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
 import {
+    isReviewMerged,
     readReviewDoneMeta,
     ReviewDone,
     reviewDoneMeta,
@@ -186,6 +189,8 @@ export type ReviewAiState = {
     session?: ReviewSessionInfo;
     // waiting: what a review action holds until the session's agent is ready (review-ready.ts), #638.
     waiting?: ReadyWhat;
+    // noagent: the installed agents the developer can start instead of the missing chosen one (#845).
+    installed?: string[];
 };
 
 // The answer group the AI panel brings into view and highlights (a gutter marker's click); seq bumps on each ask.
@@ -304,6 +309,7 @@ export abstract class ReviewTabModel implements ViewModel {
             inTab: true,
             reviewNewCommits: () => this.showNewCommits(),
             closeTab: () => closeThisTab(),
+            isMerged: () => isReviewMerged(globalStore.get(this.doneAtom)),
         });
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
@@ -327,9 +333,19 @@ export abstract class ReviewTabModel implements ViewModel {
             const readied = get(ReviewsModel.getInstance().readiedAtom);
             return splitReviews(answer, readied).drafts.some((p) => p.number === pr.number);
         });
-        this.doneAtom = atom((get) =>
-            reviewDoneOf(get(this.stateAtom)?.merge, get(this.githubStateAtom), get(this.prAtom)?.baseref)
-        );
+        this.doneAtom = atom((get) => {
+            const pr = get(this.prAtom);
+            const known =
+                pr == null
+                    ? null
+                    : knownMerge(
+                          get(this.reviewsAnswerAtom),
+                          get(ReviewsMerges.getInstance().mergesAtom),
+                          pr.dir,
+                          pr.number
+                      );
+            return reviewDoneOf(get(this.stateAtom)?.merge, get(this.githubStateAtom), pr?.baseref, known);
+        });
         this.aiPaneIdAtom = atom((get) => {
             const pr = get(this.prAtom);
             const tabId = get(atoms.staticTabId);
@@ -416,6 +432,7 @@ export abstract class ReviewTabModel implements ViewModel {
         try {
             state = await reviewState(pr.repo, pr.number);
             globalStore.set(this.stateAtom, state);
+            this.validator.noteMerge(state?.merge);
         } catch (e) {
             console.log("[review] the review store could not be read", e);
         }
@@ -450,7 +467,9 @@ export abstract class ReviewTabModel implements ViewModel {
         if (pr == null || answer == null || answer.dir !== pr.dir || answer.state !== "ok" || answer.prserror) {
             return;
         }
-        const listed = this.prOf(answer) != null;
+        // A PR the same read lists as merged (#898), or MoltenTerm merged, has left the list whatever its cache says.
+        const merged = mergedNumbers(answer, globalStore.get(ReviewsMerges.getInstance().mergesAtom)).has(pr.number);
+        const listed = this.prOf(answer) != null && !merged;
         const left = this.listedLast === true && !listed;
         this.listedLast = listed;
         if (listed) {
@@ -1143,20 +1162,23 @@ export abstract class ReviewTabModel implements ViewModel {
         try {
             let result = await restartReviewWork(req);
             if (result.status === "offer") {
-                const mode = await askAgentChoice({
+                const choice = await askAgentChoice({
                     kind: "restart",
                     number: pr.number,
                     branch: pr.headref,
                     base: pr.baseref,
-                    agent: result.agentname,
                     round: lastPublished(globalStore.get(this.stateAtom))?.number,
+                    ...agentChoiceOf(result),
                 });
-                if (mode == null) {
+                if (choice == null) {
                     globalStore.set(this.restartAtom, { status: "idle" });
                     return;
                 }
-                result = await restartReviewWork({ ...req, ...agentStartOf("restart", pr.number, mode) });
-                showStartedAgent(mode, result);
+                result = await restartReviewWork({
+                    ...req,
+                    ...agentStartOf("restart", pr.number, choice.mode, choice.agent),
+                });
+                showStartedAgent(choice.mode, result);
             }
             if (result.state != null) {
                 this.applyState(result.state);
@@ -1339,16 +1361,32 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    async startSession(afterBlockId?: string) {
+    // The agent the session starts (#845): the developer's pick after a missing agent, else the project's choice as
+    // wavesrv resolves it (a chosen agent that is not installed is sent as is, so the answer says it is missing).
+    async sessionAgent(dir: string, picked?: string): Promise<string> {
+        if (picked) {
+            return picked;
+        }
+        try {
+            const choice = await fetchCodingAgent(dir);
+            return choice?.agent || choice?.chosen || undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    async startSession(afterBlockId?: string, pickedAgent?: string) {
         const pr = this.pr();
         const head = globalStore.get(this.headAtom) ?? pr.headoid;
         // A briefing kept for this head is shown again; the agent is asked for one otherwise (FR-REV-005 AC4).
         const brief = globalStore.get(this.briefingAtom)?.headoid !== head || head == null;
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "starting", message: null }));
         try {
+            const agent = await this.sessionAgent(pr.dir, pickedAgent);
             const result = await startReviewSession({
                 tabid: globalStore.get(atoms.staticTabId),
                 projectdir: pr.dir,
+                agent,
                 repo: pr.repo,
                 number: pr.number,
                 title: pr.title,
@@ -1371,6 +1409,7 @@ export abstract class ReviewTabModel implements ViewModel {
                         ...ai,
                         status: "noagent",
                         message: startResultText(result),
+                        installed: result.installed ?? [],
                     }));
                     return;
             }

@@ -391,6 +391,62 @@ describe("Validate's stepper", () => {
         expect(agent.lines[0]).toBe("Already cleaned up.");
     });
 
+    // #909: the local working branch is brought up to date after the merge, or left as it was with the reason.
+    it("says what became of the local working branch", () => {
+        const rows = (t: Translate, trunk: ReviewCleanupStepResult) => {
+            const steps = buildValidateSteps(t, {
+                plan: plan(),
+                record: merged,
+                cleanup: { ...cleanup(trunk, trunk), steps: [trunk] },
+                headref: "x",
+                baseref: "develop",
+            });
+            return step(steps, "cleanup").rows.map((r) => [r.label, r.state, r.lines[0]]);
+        };
+        const base = { id: "local-trunk", branch: "develop" } as const;
+        expect(rows(en, { ...base, state: "done", code: "updated", count: 53, path: "/p" })).toEqual([
+            ["Local working branch", "done", "Local develop updated: +53 commits."],
+        ]);
+        expect(rows(fr, { ...base, state: "done", code: "updated", count: 1 })).toEqual([
+            ["Branche de travail locale", "done", "develop local mis à jour : +1 commit."],
+        ]);
+        expect(rows(en, { ...base, state: "skipped", code: "uptodate" })[0][1]).toBe("skipped");
+        expect(rows(en, { ...base, state: "skipped", code: "localcommits", count: 3, ahead: 2 })).toEqual([
+            [
+                "Local working branch",
+                "needs",
+                "Not updated: local develop has 2 commits origin does not have. Nothing was changed.",
+            ],
+        ]);
+        expect(
+            rows(en, {
+                ...base,
+                state: "skipped",
+                code: "changes",
+                path: "/p",
+                names: ["a.ts", "b.ts", "c.ts"],
+                namecount: 5,
+            })
+        ).toEqual([
+            [
+                "Local working branch",
+                "needs",
+                "Not updated: local changes in /p would be overwritten (a.ts, b.ts, c.ts and 2 more). Nothing was changed.",
+            ],
+        ]);
+        expect(rows(en, { ...base, state: "skipped", code: "inprogress", path: "/p" })[0][1]).toBe("needs");
+        const planned = buildValidateSteps(en, {
+            plan: plan({ cleanup: [{ ...base, state: "planned" }] }),
+            record: null,
+            cleanup: null,
+            headref: "x",
+            baseref: "develop",
+        });
+        expect(step(planned, "cleanup").rows[0].lines[0]).toBe(
+            "Local develop will move up to origin/develop when nothing local is in the way (fast-forward only)."
+        );
+    });
+
     it("has a sentence for every code wavesrv sends", () => {
         const cleanupCodes: Record<string, string[]> = {
             "ticket-close": ["closed", "alreadyclosed", "noticket", "prunconfirmed"],
@@ -430,6 +486,16 @@ describe("Validate's stepper", () => {
                 "prunconfirmed",
             ],
             "remote-branch": ["deleted", "deletedbymerge", "pushedafter", "prunconfirmed"],
+            "local-trunk": [
+                "updated",
+                "uptodate",
+                "nolocaltrunk",
+                "noremotetrunk",
+                "localcommits",
+                "changes",
+                "inprogress",
+                "prunconfirmed",
+            ],
         };
         const planCodes: Record<string, string[]> = {
             "ticket-close": [undefined, "noticket"],
@@ -438,6 +504,7 @@ describe("Validate's stepper", () => {
             "agent-worktree": ["willremove", "noagenttree"],
             "local-branch": [undefined],
             "remote-branch": [undefined],
+            "local-trunk": [undefined],
         };
         for (const t of [en, fr]) {
             for (const [id, codes] of Object.entries(cleanupCodes)) {

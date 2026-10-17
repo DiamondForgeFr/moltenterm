@@ -16,10 +16,11 @@ import { useT } from "../i18n/i18n";
 import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { PrSignature, usePrAgents } from "../reviews/pr-signature";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import { isReviewDone } from "./review-done";
-import { ReviewDoneState } from "./review-done-view";
+import { ReviewDoneState, ReviewMergedBanner } from "./review-done-view";
 import {
     collapsedReason,
     collapsedTag,
@@ -65,6 +66,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col" data-role="molten-review">
+            <ReviewMergedBanner model={model} />
             <ReviewHeader model={model} />
             <RestartStatus model={model} />
             <div className="flex min-h-0 flex-1">
@@ -93,6 +95,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
     const aiPaneId = useAtomValue(model.aiPaneIdAtom);
     // A finished PR (#686) has nothing left to publish, restart or validate: only GitHub and the AI panel stay.
     const finished = isReviewDone(useAtomValue(model.doneAtom));
+    const agents = usePrAgents(pr?.dir, pr?.number);
     const aiOpen = aiPaneId != null;
     const sideBySide = sideBySideOf(sideBySideToggle, inlineDiff);
     const since = state?.since;
@@ -121,6 +124,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                             </>
                         ) : null}
                     </div>
+                    {agents != null ? <PrSignature agents={agents} testId="review-signature" /> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {newCommits != null ? (
@@ -310,7 +314,7 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
         >
             {error ? (
                 <div
-                    className="m-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-error"
+                    className="m-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
                     title={error}
                 >
                     {t("review.view.readFailed", { error })}
@@ -496,7 +500,7 @@ const FileRow = memo(function FileRow({
             ) : null}
             <span className="shrink-0 font-mono text-11">
                 <span className="text-success">+{file.additions}</span>{" "}
-                <span className="text-error">−{file.deletions}</span>
+                <span className="text-danger">−{file.deletions}</span>
             </span>
             <input
                 type="checkbox"
@@ -544,7 +548,7 @@ function DiffPanel({ model }: { model: ReviewViewModel }) {
                 </span>
                 <span className="shrink-0 font-mono text-11">
                     <span className="text-success">+{file.additions}</span>{" "}
-                    <span className="text-error">−{file.deletions}</span>
+                    <span className="text-danger">−{file.deletions}</span>
                 </span>
                 {renderMs != null ? (
                     <span className="ml-auto shrink-0 text-11 text-muted" data-testid="review-render-ms">

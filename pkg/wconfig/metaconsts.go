@@ -70,6 +70,7 @@ const (
 
 	ConfigKey_ReviewLanguage                 = "review:language"
 	ConfigKey_ReviewPublishLanguage          = "review:publishlanguage"
+	ConfigKey_ReviewReviewerName             = "review:reviewername"
 
 	ConfigKey_AppLanguage                    = "app:language"
 
@@ -127,6 +128,8 @@ const (
 	ConfigKey_MoltentermReleaseNotify        = "moltenterm:releasenotify"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
+	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
+	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

@@ -17,6 +17,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
+import { ReviewsMerges, withLocalMerges } from "./reviews-merges";
 import { ReviewsAnswer } from "./reviews-model";
 
 // must match the names in pkg/molten/mission/reviews.go and reviews_rerun.go
@@ -104,6 +105,13 @@ export function useReviewsAnswer(dir: string): ReviewsAnswer {
     return dir ? answers[dir] : null;
 }
 
+// The answer as the list shows it (#898): without the PRs known merged, MoltenTerm's merges in Recently merged.
+export function useListedReviewsAnswer(dir: string): ReviewsAnswer {
+    const answer = useReviewsAnswer(dir);
+    const merges = useAtomValue(ReviewsMerges.getInstance().mergesAtom);
+    return useMemo(() => withLocalMerges(answer, merges), [answer, merges]);
+}
+
 export type ReviewsState = {
     answer: ReviewsAnswer;
     error: string;
@@ -113,7 +121,7 @@ export type ReviewsState = {
 };
 
 export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState {
-    const stored = useReviewsAnswer(dir);
+    const stored = useListedReviewsAnswer(dir);
     // The view shows only what it asked since it opened on this project: the rail's earlier answer may lack the
     // reports a view's ask brings.
     const [asked, setAsked] = useState<string>(null);

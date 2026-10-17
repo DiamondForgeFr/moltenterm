@@ -9,7 +9,7 @@ import { sprintf } from "sprintf-js";
 import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
 import { fireAndForget, sleep } from "../frontend/util/util";
-import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
+import { getTrustedAppSession, nativeBackendHeaders } from "./authkey";
 import {
     getActivityState,
     getAndClearTermCommandsDurable,
@@ -60,6 +60,7 @@ import { installBackgroundMode } from "./moltenterm-background"; // MOLTENTERM-P
 import { initBusyCloseReplies } from "./moltenterm-busy-close"; // MOLTENTERM-PATCH (#490)
 import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
+import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
@@ -421,18 +422,19 @@ async function appMain() {
     const ready = await getWaveSrvReady();
     console.log("wavesrv ready signal received", ready, Date.now() - startTs, "ms");
     await electronApp.whenReady();
-    configureAuthKeyRequestInjection(electron.session.defaultSession);
+    getTrustedAppSession();
     initIpcHandlers();
-    initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
+    initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
+    initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync
 
     await sleep(10); // wait a bit for wavesrv to be ready
     try {
         initElectronWshClient();
-        initElectronWshrpc(ElectronWshClient, { authKey: AuthKey });
+        await initElectronWshrpc(ElectronWshClient, { headers: nativeBackendHeaders() });
         initMenuEventSubscriptions();
         initMoltentermKeepAwake(); // MOLTENTERM-PATCH (#276): the system sleep blocker wavesrv asks for (sleep policy, coffee)
     } catch (e) {

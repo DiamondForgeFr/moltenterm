@@ -4,6 +4,9 @@ const fs = require("fs");
 const path = require("path");
 
 const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
+// MOLTENTERM-PATCH (#507): set only by scripts/macos-signing/package.mjs, inside its ephemeral signing session. Without
+// it the build is unchanged: ad hoc in release.yml (`-c.mac.identity=-`), unsigned or local identity elsewhere.
+const macDeveloperIdSigning = process.env.MOLTENTERM_MACOS_SIGNING === "developer-id";
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -58,11 +61,20 @@ const config = {
         ],
         category: "public.app-category.developer-tools",
         icon: "build/moltenterm/icon.icns", // MOLTENTERM-PATCH (#4)
-        minimumSystemVersion: "10.15.0",
+        minimumSystemVersion: "12.0.0", // MOLTENTERM-PATCH (#810): Electron 42 retains the existing macOS 12+ floor.
         mergeASARs: true,
         singleArchFiles: "**/dist/bin/wavesrv.*",
         entitlements: "build/entitlements.mac.plist",
         entitlementsInherit: "build/entitlements.mac.plist",
+        // MOLTENTERM-PATCH (#507): the identity is the certificate fingerprint the session imported (CSC_NAME); the sign
+        // hook refuses anything else, and notarization uses the session's API key (APPLE_API_KEY*).
+        ...(macDeveloperIdSigning && {
+            identity: process.env.CSC_NAME,
+            hardenedRuntime: true,
+            forceCodeSigning: true,
+            notarize: true,
+            sign: "./scripts/macos-signing/builder-hooks.cjs",
+        }),
         // MOLTENTERM-PATCH (#4): permission prompts name the product from package.json.
         extendInfo: {
             NSContactsUsageDescription: `A CLI application running in ${pkg.productName} wants to use your contacts.`,

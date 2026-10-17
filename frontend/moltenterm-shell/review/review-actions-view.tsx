@@ -46,7 +46,7 @@ export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
     }
     return (
         <div
-            className="absolute z-10 flex items-center gap-1 rounded-6 border border-border bg-modalbg p-1 shadow-lg"
+            className="absolute z-10 flex items-center gap-1 rounded-4 border border-border bg-modalbg p-1 shadow-lg"
             style={{ top: pos.top + 2, left: pos.left }}
             role="toolbar"
             aria-label={t("review.select.selected", { anchor: anchorLabel(selection.anchor) })}
@@ -132,7 +132,7 @@ function CommentBox({
               });
     return (
         <div
-            className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-6 border border-border bg-modalbg p-2 text-12 shadow-lg"
+            className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-4 border border-border bg-modalbg p-2 text-12 shadow-lg"
             style={{ top: top + 2, left }}
             data-testid="review-comment-box"
         >
@@ -156,7 +156,7 @@ function CommentBox({
                 className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
                 data-testid="review-comment-text"
             />
-            {composer.error ? <div className="text-11 text-error">{composer.error}</div> : null}
+            {composer.error ? <div className="text-11 text-danger">{composer.error}</div> : null}
             <div className="flex items-center justify-end gap-1.5">
                 <span className="mr-auto text-11 text-muted">
                     {t("review.composer.keys", { key: IsMac ? "⌘" : "Ctrl+" })}
@@ -389,7 +389,7 @@ function AskOutcome({
     const t = useT();
     if (ask.error) {
         return (
-            <p className="text-11 text-error" data-testid="review-ask-outcome">
+            <p className="text-11 text-danger" data-testid="review-ask-outcome">
                 {ask.error}
             </p>
         );
@@ -421,7 +421,7 @@ function AskOutcome({
         );
     }
     return (
-        <p className={cn("text-11", result.busy ? "text-warning" : "text-error")} data-testid="review-ask-outcome">
+        <p className={cn("text-11", result.busy ? "text-warning" : "text-danger")} data-testid="review-ask-outcome">
             {result.message || t("review.ask.notTyped")}
             {result.busy ? " " + t("review.ask.kept") : ""}
         </p>

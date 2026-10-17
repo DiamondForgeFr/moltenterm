@@ -127,6 +127,8 @@ type SettingsType struct {
 	ReviewLanguage string `json:"review:language,omitempty" jsonschema_description:"The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the interface language (app:language)"`
 	// MOLTENTERM-PATCH (#588): the language review comments are published in on GitHub when the project declares none (FR-REV-010).
 	ReviewPublishLanguage string `json:"review:publishlanguage,omitempty" jsonschema_description:"The language review comments are published in on GitHub (en, English, fr...) when the project's .saasfoundry.json declares none; unset, detected from the project's pull requests and README, else English"`
+	// MOLTENTERM-PATCH (#847): the developer's first name on the PRs they validate (pkg/molten/review/reviewer.go).
+	ReviewReviewerName string `json:"review:reviewername,omitempty" jsonschema_description:"Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name"`
 	// MOLTENTERM-PATCH (#623): the interface language (FR-I18N-001, frontend/moltenterm-shell/i18n).
 	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
 
@@ -205,6 +207,12 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#615, #733): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
 	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
+
+	// MOLTENTERM-PATCH (#808): outside term:* so live accessibility never reconstructs a terminal.
+	MoltentermTerminalScreenReader string `json:"moltenterm:terminalscreenreader,omitempty" jsonschema:"enum=auto,enum=on,enum=off" jsonschema_description:"Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable"`
+
+	// MOLTENTERM-PATCH (#845): the coding agent MoltenTerm starts, by default for every project (pkg/molten/agentchoice).
+	MoltentermCodingAgent string `json:"moltenterm:codingagent,omitempty" jsonschema:"enum=claude,enum=codex" jsonschema_description:"The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`

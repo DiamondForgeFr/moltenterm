@@ -178,34 +178,30 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
 });
 
 describe("leaving the 360 view (#733)", () => {
-    const isTerm = (n: LayoutNode) => n.data?.blockId?.startsWith("b-t") ?? false;
-
     it("leaves at once when every column fits at the current floors", () => {
-        // terminal at a 900 px floor beside a browser: 900 + 360 = 1260
-        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        // first column at a 900 px floor beside another: 900 + 360 = 1260
+        const mins = columnMinimumsPx(2, 900);
         expect(exitView360(mins, 1300)).toEqual({ kind: "leave" });
         expect(exitView360(mins, 1260)).toEqual({ kind: "leave" });
         // Without a floor, the readable minimums.
-        expect(exitView360(columnMinimumsPx([leaf("t1"), leaf("browser")], null, isTerm), 900)).toEqual({
-            kind: "leave",
-        });
+        expect(exitView360(columnMinimumsPx(2, null), 900)).toEqual({ kind: "leave" });
     });
 
-    it("asks to readjust when the columns fit only once the terminal floor is cleared", () => {
-        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+    it("asks to readjust when the columns fit only once the first column's floor is cleared", () => {
+        const mins = columnMinimumsPx(2, 900);
         expect(exitView360(mins, 1259)).toEqual({ kind: "readjust" });
         expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx)).toEqual({ kind: "readjust" });
         expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx + 8, 8)).toEqual({ kind: "readjust" });
     });
 
     it("stays when the columns do not fit even at their readable minimums, saying how many are too many", () => {
-        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        const mins = columnMinimumsPx(2, 900);
         expect(exitView360(mins, FirstColumnMinPx + SideColumnMinPx - 1)).toEqual({
             kind: "blocked",
             extraColumns: 1,
         });
         // Five columns in 1300 px: 520 + 2 x 360 = 1240 fit, so 2 columns are too many.
-        const five = columnMinimumsPx([leaf("a"), leaf("b"), leaf("c"), leaf("d"), leaf("e")], null, isTerm);
+        const five = columnMinimumsPx(5, null);
         expect(exitView360(five, 1300)).toEqual({ kind: "blocked", extraColumns: 2 });
         expect(exitView360(five, 1300, 4)).toEqual({ kind: "blocked", extraColumns: 2 });
         expect(maxReadableColumns(1300)).toBe(3);
@@ -244,35 +240,18 @@ describe("leaving the 360 view (#733)", () => {
     });
 });
 
-describe("terminal floor in the 360 decision (#731)", () => {
-    const isTerm = (n: LayoutNode) => n.data?.blockId?.startsWith("b-t") ?? false;
-
-    it("counts max(readable minimum, floor) for a terminal column, the readable minimum for the others", () => {
-        const cols = [leaf("t1"), leaf("browser"), leaf("t2")];
-        expect(columnMinimumsPx(cols, 900, isTerm)).toEqual([900, SideColumnMinPx, 900]);
-        expect(columnMinimumsPx(cols, 200, isTerm)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
-        expect(columnMinimumsPx(cols, null, isTerm)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
+describe("first column floor in the 360 decision (#731, #848)", () => {
+    it("AC1: counts max(readable minimum, floor) for the first column only, whatever it holds", () => {
+        // A terminal in the third column no longer counts the floor: the columns' content is not an input.
+        expect(columnMinimumsPx(3, 900)).toEqual([900, SideColumnMinPx, SideColumnMinPx]);
+        expect(columnMinimumsPx(3, 200)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
+        expect(columnMinimumsPx(3, null)).toEqual([FirstColumnMinPx, SideColumnMinPx, SideColumnMinPx]);
+        expect(columnMinimumsPx(0, 900)).toEqual([]);
     });
 
-    it("adds the floors of terminals side by side in a column and keeps the largest of stacked ones", () => {
-        const stacked: LayoutNode = {
-            id: "s",
-            flexDirection: FlexDirection.Column,
-            size: 10,
-            children: [leaf("t1"), leaf("x")],
-        };
-        const sideBySide: LayoutNode = {
-            id: "r",
-            flexDirection: FlexDirection.Row,
-            size: 10,
-            children: [leaf("t2"), leaf("t3"), leaf("y")],
-        };
-        expect(columnMinimumsPx([stacked, sideBySide], 600, isTerm)).toEqual([600, 1200]);
-    });
-
-    it("enters 360 view when the floor of a terminal column no longer fits", () => {
-        // terminal at a 900 px floor beside a browser: 900 + 360 = 1260
-        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+    it("enters 360 view when the first column's floor no longer fits", () => {
+        // a first column (a browser alone, say) at a 900 px floor beside another column: 900 + 360 = 1260
+        const mins = columnMinimumsPx(2, 900);
         expect(minimumsPx(2, 0, mins)).toBe(1260);
         expect(autoWants(false, 2, 1500, 0, mins)).toBe(false);
         expect(autoWants(false, 2, 1259, 0, mins)).toBe(true);
@@ -292,7 +271,7 @@ describe("terminal floor in the 360 decision (#731)", () => {
     });
 
     it("tells whether the columns fit at the current floors or only at the readable minimums", () => {
-        const mins = columnMinimumsPx([leaf("t1"), leaf("browser")], 900, isTerm);
+        const mins = columnMinimumsPx(2, 900);
         expect(fitsAtCurrentFloors(mins, 1300)).toBe(true);
         expect(fitsAtCurrentFloors(mins, 1200)).toBe(false);
         expect(fitsAtReadableMinimums(2, 1200)).toBe(true);

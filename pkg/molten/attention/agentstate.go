@@ -17,6 +17,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentnames"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -124,8 +125,10 @@ type agentRecord struct {
 	agent   string
 	state   string
 	message string
-	since   int64
-	version int64
+	// messageText: message's code when MoltenTerm wrote it (the end of a hold, agenthold.go).
+	messageText *uimsg.Text
+	since       int64
+	version     int64
 	// started: when the agent's command started (or its first report came), for the companion's session discovery.
 	started int64
 	// running: the agent's command still runs (an exited agent keeps its error until the next command).
@@ -159,6 +162,8 @@ type agentStates struct {
 	version int64
 	notices map[string]noticeMark
 	panes   map[string]*paneActivity
+	// holds: the blocks whose state MoltenTerm owns (agenthold.go, #896).
+	holds map[string]*agentHold
 	// hookedAgents: the agents whose hooks reported in this run; onHooked is told of each once (agenthookoffer.go).
 	hookedAgents map[string]bool
 	onHooked     func(agent string)
@@ -187,6 +192,7 @@ func makeAgentStates() *agentStates {
 		dirty:        map[string]bool{},
 		notices:      map[string]noticeMark{},
 		panes:        map[string]*paneActivity{},
+		holds:        map[string]*agentHold{},
 		hookedAgents: map[string]bool{},
 		names:        agentnames.MakeAllocator(agentnames.Names),
 		wake:         make(chan struct{}, 1),
@@ -250,6 +256,7 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 	}
 	rec.state = state
 	rec.message = message
+	rec.messageText = nil
 	a.markDirtyLocked(blockId)
 	return true
 }
@@ -405,6 +412,9 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
 	}
+	if req.State == molten.AgentStateDone && a.heldLocked(req.BlockId) {
+		return nil, "", nil
+	}
 	if !a.allowNoticeLocked(req.BlockId, noticeFromHook) {
 		return nil, "", nil
 	}
@@ -445,6 +455,7 @@ func (a *agentStates) forgetRecord(blockId string) {
 	defer a.lock.Unlock()
 	delete(a.notices, blockId)
 	delete(a.panes, blockId)
+	delete(a.holds, blockId)
 	a.removeLocked(blockId)
 	a.names.Forget(blockId)
 }
@@ -480,7 +491,7 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 }
 
 func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentStateInfo {
-	return molten.AgentStateInfo{
+	info := molten.AgentStateInfo{
 		BlockId:     blockId,
 		TabId:       rec.tabId,
 		WorkspaceId: rec.wsId,
@@ -489,6 +500,7 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		FirstName:   rec.firstName,
 		State:       rec.state,
 		Message:     rec.message,
+		MessageText: rec.messageText,
 		Since:       rec.since,
 		Version:     rec.version,
 		Hooked:      a.hookedAgents[rec.agent],
@@ -496,6 +508,8 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		ModelName:   rec.settings.ModelName,
 		Effort:      rec.settings.Effort,
 	}
+	a.heldInfoLocked(blockId, rec, &info)
+	return info
 }
 
 // setSettings records what an agent reports of its run's model and effort (#549) for the block's running agent of
@@ -745,7 +759,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, FirstName: rec.firstName})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName})
 	}
 	return rtn
 }

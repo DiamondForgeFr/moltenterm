@@ -6,26 +6,25 @@
 // holds the local builds with their logs and the full tag registry. Summaries and actions live in Project (DS-MC-012).
 
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo, useRef, useState } from "react";
-import { useT } from "../i18n/i18n";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { TFunction, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
-import { isReviewable } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import {
+    BranchCiAnswer,
+    BranchCiJob,
+    BranchCiRun,
+    jobElapsedMs,
+    runElapsedMs,
+    useBranchCi,
+    waitingReviewCount,
+} from "./branch-ci";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
 import { ActionRowClass, RerunConfirm, RowAction, RowActions } from "./ci-row-actions";
-import {
-    CheckState,
-    describeCron,
-    eventLabel,
-    mergeStateLabel,
-    nextRuns,
-    prSummary,
-    runState,
-    scheduledWorkflows,
-    summarizeChecks,
-    WorkflowRun,
-} from "./github";
+import { CheckState, describeCron, eventLabel, nextRuns, runState, scheduledWorkflows, WorkflowRun } from "./github";
 import { githubRunLog, githubRunRerun } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
@@ -33,12 +32,7 @@ import { RecentBuilds } from "./runs-view";
 import { RegistryKind, RegistryRow, tagRegistry } from "./tag-registry";
 import { dateLocale, formatWhen, timeAgo } from "./time-format";
 
-const ToneClasses: Record<CheckState, string> = {
-    success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-error",
-    pending: "border-warning/40 bg-warning/10 text-warning",
-    neutral: "border-border bg-hover text-muted",
-};
+const ClockTickMs = 1000;
 
 export function CheckIcon({ state }: { state: CheckState }) {
     return <CiIcon state={checkIconState(state)} />;
@@ -80,7 +74,7 @@ export function BlockHeader({ title, hint }: { title: string; hint?: string }) {
 }
 
 export function Problem({ text }: { text: string }) {
-    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-error">{text}</div>;
+    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
 }
 
 export function Notice({ text }: { text: string }) {
@@ -97,100 +91,6 @@ function Placeholder({ rows }: { rows: number }) {
                 </div>
             ))}
         </div>
-    );
-}
-
-function PullRequestsBlock({
-    github,
-    trunk,
-    dir,
-    prTarget,
-}: {
-    github: MissionGithub;
-    trunk: string;
-    dir: string;
-    prTarget: string;
-}) {
-    const t = useT();
-    const prs = github?.prs;
-    // The PRs the Reviews view lists get a Review action (FR-REV-001-AC3).
-    const reviewTarget = prTarget || trunk;
-    return (
-        <section className="flex flex-col gap-2">
-            <BlockHeader title={t("mc.remote.prsTitle")} hint={t("mc.remote.prsHint")} />
-            {github?.errors?.prs ? <Problem text={github.errors.prs} /> : null}
-            <div className="overflow-hidden rounded-4 border border-border">
-                {github == null ? <Placeholder rows={3} /> : null}
-                {github != null && (prs ?? []).length === 0 && !github.errors?.prs ? (
-                    <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noPr")}</p>
-                ) : null}
-                {(prs ?? []).map((pr) => {
-                    const merge = mergeStateLabel(pr.isDraft ? "DRAFT" : pr.mergeStateStatus, pr.baseRefName || trunk);
-                    const checks = summarizeChecks(pr.statusCheckRollup);
-                    return (
-                        <div
-                            key={pr.number}
-                            title={prSummary(pr.body) ?? undefined}
-                            className="flex flex-col gap-2 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-hover"
-                        >
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <div className="truncate text-13 leading-5 font-medium">
-                                        <span className="text-muted">#{pr.number}</span> {pr.title}
-                                    </div>
-                                    <div className="truncate text-12 text-muted">
-                                        <code>{pr.headRefName}</code> → <code>{pr.baseRefName}</code> ·{" "}
-                                        {t("mc.remote.updated")} {timeAgo(pr.updatedAt)}
-                                    </div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1.5">
-                                    {dir && isReviewable(pr, reviewTarget) ? (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                fireAndForget(() =>
-                                                    ReviewsModel.getInstance().openReviews(dir, pr.number)
-                                                )
-                                            }
-                                            className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
-                                            title={t("mc.remote.openInReviews")}
-                                            data-testid="mission-pr-review"
-                                        >
-                                            <i className="fa fa-solid fa-code-pull-request text-11" />
-                                            {t("mc.remote.review")}
-                                        </button>
-                                    ) : null}
-                                    <button
-                                        type="button"
-                                        onClick={() => open(pr.url)}
-                                        className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
-                                        title={t("mc.remote.openOnGithub")}
-                                    >
-                                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                                        {t("common.open")}
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                <span className={cn("rounded-4 border px-2 py-0.5 text-12", ToneClasses[merge.tone])}>
-                                    {merge.label}
-                                </span>
-                                {checks.map((c) => (
-                                    <span
-                                        key={c.name}
-                                        className="flex items-center gap-1 rounded-4 border border-border px-1.5 py-0.5 text-12"
-                                        title={c.local ? t("mc.remote.localCheck") : t("mc.remote.githubJob")}
-                                    >
-                                        <CheckIcon state={c.state} />
-                                        {c.name}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </section>
     );
 }
 
@@ -284,7 +184,21 @@ export function RunLogBlock({ log }: { log: RunLogView }) {
 
 // A GitHub run's row (FR-SHELL-057): its state as a shape, then Logs (read in the row through gh), Rerun (after a
 // question; the failed jobs of a red run) and GitHub, on hover and focus.
-function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefresh: () => void }) {
+function RunRow({
+    run,
+    dir,
+    onRefresh,
+    timing,
+    badge,
+    children,
+}: {
+    run: WorkflowRun;
+    dir: string;
+    onRefresh: () => void;
+    timing?: string;
+    badge?: React.ReactNode;
+    children?: React.ReactNode;
+}) {
     const t = useT();
     const icon = githubRunIconState(run.status, run.conclusion);
     const active = icon === "running" || icon === "queued";
@@ -349,14 +263,18 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                             </span>
                         </span>
                         <span className="shrink-0 text-12 text-muted">
-                            {active
-                                ? CiIconLabels[icon]
-                                : formatDuration(new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime())}
+                            {timing ??
+                                (active
+                                    ? CiIconLabels[icon]
+                                    : formatDuration(
+                                          new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime()
+                                      ))}
                         </span>
                     </div>
                     <div className="truncate text-12 text-muted">
                         <code>{run.headBranch}</code> · {timeAgo(run.createdAt)} · {run.displayTitle}
                     </div>
+                    {badge}
                 </div>
                 <RowActions label={t("mc.remote.runOn", { workflow: run.workflowName, branch: run.headBranch })}>
                     <RowAction
@@ -384,6 +302,7 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                     />
                 </RowActions>
             </div>
+            {children}
             {confirming ? (
                 <RerunConfirm
                     question={t(failed ? "mc.remote.rerunFailedQuestion" : "mc.remote.rerunQuestion", {
@@ -426,18 +345,250 @@ function RecentRunsBlock({ github, dir, onRefresh }: { github: MissionGithub; di
     );
 }
 
+// The pull requests live in Reviews (#836): here only how many wait, and the way there.
+export function ReviewsLine({ github, target, dir }: { github: MissionGithub; target: string; dir: string }) {
+    const t = useT();
+    const tCount = useTCount();
+    if (github == null || github.errors?.prs) {
+        return null;
+    }
+    const count = waitingReviewCount(github.prs, target);
+    return (
+        <button
+            type="button"
+            onClick={() => fireAndForget(() => ReviewsModel.getInstance().openReviews(dir))}
+            className="flex cursor-pointer items-center gap-2 self-start rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+            title={t("mc.remote.toReviewsTitle")}
+            data-testid="ci-remote-reviews-line"
+            data-count={count}
+        >
+            <i className="fa fa-solid fa-code-pull-request text-11 text-muted" />
+            {count === 0 ? t("mc.remote.noReviewWaiting") : tCount("mc.remote.reviewsWaiting", count, { count })}
+            <span className="flex items-center gap-1 text-primary">
+                <i className="fa fa-solid fa-arrow-right text-11" />
+                {t("mc.remote.toReviews")}
+            </span>
+        </button>
+    );
+}
+
+function usualText(ms: number): string {
+    if (!ms) {
+        return "";
+    }
+    return ms < 60000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60000)} min`;
+}
+
+function timingText(t: TFunction, elapsed: number, usual: number, active: boolean): string {
+    if (elapsed == null) {
+        return null;
+    }
+    const spent = formatDuration(elapsed);
+    if (!usual) {
+        return spent;
+    }
+    return t(active ? "mc.remote.elapsedUsually" : "mc.remote.tookUsually", {
+        elapsed: spent,
+        usual: usualText(usual),
+    });
+}
+
+function jobIconState(job: BranchCiJob) {
+    if (job.status === "in_progress" || job.status === "queued" || job.status === "waiting") {
+        return githubRunIconState(job.status, "");
+    }
+    return checkIconState(job.state);
+}
+
+function BranchJobs({ run, now }: { run: BranchCiRun; now: number }) {
+    const t = useT();
+    if (run.jobserror) {
+        return (
+            <div className="px-3 pb-2">
+                <Problem text={run.jobserror} />
+            </div>
+        );
+    }
+    if (run.jobs.length === 0) {
+        return null;
+    }
+    return (
+        <ul
+            className="flex flex-col gap-0.5 px-3 pb-2 pl-9"
+            aria-label={t("mc.remote.jobsOf", { workflow: run.workflowName })}
+        >
+            {run.jobs.map((job) => {
+                const icon = jobIconState(job);
+                const active = job.status !== "completed";
+                return (
+                    <li key={job.name} className="flex flex-col" data-testid="ci-branch-job" data-state={icon}>
+                        <div className="flex items-center gap-2 text-12">
+                            <CiIcon state={icon} />
+                            <span className="min-w-0 flex-1 truncate">{job.name}</span>
+                            <span className="shrink-0 text-11 text-muted" data-testid="ci-branch-job-timing">
+                                {icon === "queued"
+                                    ? CiIconLabels.queued
+                                    : timingText(t, jobElapsedMs(job, now), job.usualms, active)}
+                            </span>
+                        </div>
+                        {job.failedsteps?.length ? (
+                            <div className="pl-5 text-11 text-danger" data-testid="ci-branch-job-failed">
+                                {t("mc.remote.failedStepsList", { steps: job.failedsteps.join(", ") })}
+                            </div>
+                        ) : null}
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
+function AwaitedChip({ tag, onShowRelease }: { tag: string; onShowRelease: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            onClick={onShowRelease}
+            className="mt-1 flex cursor-pointer items-center gap-1.5 rounded-4 border border-accent/50 bg-accent/10 px-1.5 py-0.5 text-11 text-primary hover:bg-accent/20"
+            title={t("mc.remote.awaitedTitle")}
+            data-testid="ci-branch-awaited"
+        >
+            <i className="fa fa-solid fa-tower-broadcast text-11 text-accent" />
+            {t("mc.remote.awaitedBy", { tag })}
+        </button>
+    );
+}
+
+// The trunk and release branches' CI (#836): what a release waits on, the latest run of each workflow, its jobs, how
+// long they take against their usual time, and the release waiting for it.
+function BranchesCiBlock({
+    dir,
+    githubAt,
+    onRefresh,
+    onShowRelease,
+}: {
+    dir: string;
+    githubAt: number;
+    onRefresh: () => void;
+    onShowRelease: () => void;
+}) {
+    const { answer, error, reload } = useBranchCi(dir, String(githubAt ?? ""));
+    const panelId = usePanelBlockId();
+    const [now, setNow] = useState(() => Date.now());
+    const active = (answer?.branches ?? []).some((b) => b.runs.some((r) => r.status !== "completed"));
+    useEffect(() => {
+        if (!active) {
+            return;
+        }
+        return everyInPanel(panelId, whileShown(ClockTickMs), () => setNow(Date.now()), "mission-branch-ci-clock");
+    }, [active, panelId]);
+    const refresh = () => {
+        reload();
+        onRefresh();
+    };
+    return (
+        <BranchesCiList
+            dir={dir}
+            answer={answer}
+            error={error}
+            now={now}
+            onRefresh={refresh}
+            onShowRelease={onShowRelease}
+        />
+    );
+}
+
+export function BranchesCiList({
+    dir,
+    answer,
+    error,
+    now,
+    onRefresh,
+    onShowRelease,
+}: {
+    dir: string;
+    answer: BranchCiAnswer;
+    error: unknown;
+    now: number;
+    onRefresh: () => void;
+    onShowRelease: () => void;
+}) {
+    const t = useT();
+    return (
+        <section className="flex flex-col gap-2" data-testid="ci-branches">
+            <BlockHeader title={t("mc.remote.branchesTitle")} hint={t("mc.remote.branchesHint")} />
+            {error ? <Problem text={serverErrorText(error)} /> : null}
+            {(answer == null || !answer.state) && !error ? (
+                <div className="overflow-hidden rounded-4 border border-border">
+                    <Placeholder rows={2} />
+                </div>
+            ) : null}
+            {(answer?.branches ?? []).map((branch) => (
+                <div
+                    key={branch.branch}
+                    className="overflow-hidden rounded-4 border border-border"
+                    data-testid="ci-branch"
+                    data-branch={branch.branch}
+                >
+                    <div className="flex items-center gap-2 border-b border-border bg-hover/50 px-3 py-1.5">
+                        <i className="fa fa-solid fa-code-branch text-11 text-muted" />
+                        <code className="text-12 font-medium">{branch.branch}</code>
+                        {branch.roles.map((role) => (
+                            <span key={role} className="rounded-4 border border-border px-1 text-11 text-muted">
+                                {t(`mc.remote.role.${role}`)}
+                            </span>
+                        ))}
+                    </div>
+                    {branch.error ? (
+                        <div className="p-3">
+                            <Problem text={branch.error} />
+                        </div>
+                    ) : null}
+                    {!branch.error && branch.runs.length === 0 ? (
+                        <p className="p-3 text-13 leading-5 text-muted">
+                            {t("mc.remote.noBranchRun", { branch: branch.branch })}
+                        </p>
+                    ) : null}
+                    {branch.runs.map((run) => (
+                        <RunRow
+                            key={run.databaseId}
+                            run={run}
+                            dir={dir}
+                            onRefresh={onRefresh}
+                            timing={
+                                githubRunIconState(run.status, run.conclusion) === "queued"
+                                    ? undefined
+                                    : timingText(t, runElapsedMs(run, now), run.usualms, run.status !== "completed")
+                            }
+                            badge={
+                                run.awaitedby ? <AwaitedChip tag={run.awaitedby} onShowRelease={onShowRelease} /> : null
+                            }
+                        >
+                            <BranchJobs run={run} now={now} />
+                        </RunRow>
+                    ))}
+                </div>
+            ))}
+        </section>
+    );
+}
+
 export function RemoteCiTab({
     github,
     trunk,
     prTarget,
     dir,
+    githubAt,
     onRefresh,
+    onShowRelease,
 }: {
     github: MissionGithub;
     trunk: string;
     prTarget?: string;
     dir: string;
+    githubAt?: number;
     onRefresh: () => void;
+    onShowRelease: () => void;
 }) {
     const stateMessage = githubStateMessage(github);
     if (stateMessage) {
@@ -445,7 +596,8 @@ export function RemoteCiTab({
     }
     return (
         <div className="flex flex-col gap-5">
-            <PullRequestsBlock github={github} trunk={trunk} dir={dir} prTarget={prTarget} />
+            <ReviewsLine github={github} target={prTarget || trunk} dir={dir} />
+            <BranchesCiBlock dir={dir} githubAt={githubAt} onRefresh={onRefresh} onShowRelease={onShowRelease} />
             <div className="grid gap-5 @3xl:grid-cols-2">
                 <ScheduledBlock github={github} />
                 <RecentRunsBlock github={github} dir={dir} onRefresh={onRefresh} />

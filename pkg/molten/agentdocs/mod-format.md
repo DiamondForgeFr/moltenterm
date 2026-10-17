@@ -48,6 +48,13 @@ An undo is itself recorded, and an edit made after undoing can be undone too. A 
 snapshotted with the mod, its `.claude-plugin/` folder included; the typings Claude Code writes into
 `.claude-plugin/types/` are not part of the history.
 
+For regular mod files, snapshots preserve ordinary read, write and execute permissions (`0777` bits), including
+restricted files and executable helpers. Permission-only changes are recorded and undo restores them, just like
+content edits. Unchanged permission notifications do not reload a mod or add history. This policy uses the file
+permissions supported by the platform; Windows does not provide Unix executable permission bits. Ownership, ACLs,
+special permission bits and directory permissions are not preserved. `mods.json` records enabled state as data;
+its file permissions are not part of snapshot identity.
+
 Safe mode starts MoltenTerm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
 **Restart in Safe Mode** in the app menu, or start MoltenTerm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
 every window and `molten mod list` reports it. No Claude Code part of a mod loads either, in new terminals and in

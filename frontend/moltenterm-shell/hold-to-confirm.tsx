@@ -268,7 +268,7 @@ function HoldHintBubble({ anchor, text }: { anchor: HTMLElement; text: string })
             aria-hidden
             data-testid="hold-hint"
             style={{ top: rect.bottom + 6, left }}
-            className="molten-hold-hint pointer-events-none fixed z-[9600] -translate-x-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-11 font-medium whitespace-nowrap text-primary shadow-e2"
+            className="molten-hold-hint pointer-events-none fixed z-[9600] -translate-x-1/2 rounded-4 border border-border bg-surface-3 px-2 py-1 text-11 font-medium whitespace-nowrap text-primary shadow-e2"
         >
             {text}
         </div>,
@@ -279,6 +279,8 @@ function HoldHintBubble({ anchor, text }: { anchor: HTMLElement; text: string })
 export type HoldToConfirmButtonProps = {
     // Called once the hold completes, or on a single click when the setting turns the hold off.
     onConfirm: (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null, button: HTMLButtonElement) => void;
+    // Controls with a separate deliberate path can make it available without a timed keyboard gesture.
+    onSemanticActivate?: (button: HTMLButtonElement) => void;
     // The accessible name while the hold applies, e.g. "Close tab, hold to confirm".
     label: string;
     // Shown by the control and announced after a click, e.g. "Hold to close".
@@ -304,6 +306,7 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
     (
         {
             onConfirm,
+            onSemanticActivate,
             label,
             hint: hintText,
             glyph,
@@ -326,6 +329,10 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
         const [hint, setHint] = useState(false);
         const [completing, setCompleting] = useState(false);
         const completingRef = useRef(false);
+        const semanticKeyRef = useRef<string>(null);
+        const semanticClickRef = useRef(false);
+        const semanticClickTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+        const pointerClickRef = useRef(false);
         const cancelCompletionRef = useRef<() => void>(null);
         const reducedMotionRef = useRef(settings.reducedMotion);
         reducedMotionRef.current = settings.reducedMotion;
@@ -371,6 +378,7 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
                 controller.dispose();
                 clearTimeout(hintTimerRef.current);
                 cancelCompletionRef.current?.();
+                clearTimeout(semanticClickTimerRef.current);
             };
         }, [controller]);
 
@@ -383,6 +391,58 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
         const handleMouseDown = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
             event.stopPropagation();
             onMouseDown?.(event);
+        };
+        const cancelPendingHold = () => {
+            controller.cancel();
+            cancelCompletionRef.current?.();
+            completingRef.current = false;
+            setCompleting(false);
+            clearTimeout(hintTimerRef.current);
+            setHint(false);
+        };
+        const activateSemantic = () => {
+            cancelPendingHold();
+            onSemanticActivate?.(buttonRef.current);
+        };
+        const semanticKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+            if (onSemanticActivate == null || !HoldKeys.has(event.key)) {
+                return false;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (!event.repeat) {
+                cancelPendingHold();
+                semanticKeyRef.current = event.key;
+                pointerClickRef.current = false;
+            }
+            return true;
+        };
+        const semanticKeyUp = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+            if (onSemanticActivate == null || !HoldKeys.has(event.key)) {
+                return false;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (semanticKeyRef.current === event.key) {
+                semanticKeyRef.current = null;
+                // Consume a synthesized click from this key dispatch, including immediate cancellation/re-entry.
+                semanticClickRef.current = true;
+                clearTimeout(semanticClickTimerRef.current);
+                semanticClickTimerRef.current = setTimeout(() => (semanticClickRef.current = false), 0);
+                activateSemantic();
+            }
+            return true;
+        };
+        const semanticClick = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+            if (onSemanticActivate == null || event.detail !== 0) {
+                return false;
+            }
+            event.preventDefault();
+            if (!semanticClickRef.current && !pointerClickRef.current && !completingRef.current) {
+                activateSemantic();
+            }
+            pointerClickRef.current = false;
+            return true;
         };
         const discClass = cn(
             "molten-hold-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full",
@@ -402,8 +462,14 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
                     onMouseDown={handleMouseDown}
                     onMouseEnter={onMouseEnter}
                     onMouseLeave={onMouseLeave}
+                    onKeyDown={semanticKeyDown}
+                    onKeyUp={semanticKeyUp}
+                    onBlur={() => (semanticKeyRef.current = null)}
                     onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
                         event.stopPropagation();
+                        if (semanticClick(event)) {
+                            return;
+                        }
                         onConfirm(event, buttonRef.current);
                     }}
                 >
@@ -440,13 +506,27 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
                     if (completingRef.current) {
                         return;
                     }
+                    pointerClickRef.current = true;
                     controller.press();
                 }}
                 onPointerUp={() => controller.release()}
-                onPointerLeave={() => controller.cancel()}
-                onPointerCancel={() => controller.cancel()}
-                onBlur={() => controller.cancel()}
+                onPointerLeave={() => {
+                    pointerClickRef.current = false;
+                    controller.cancel();
+                }}
+                onPointerCancel={() => {
+                    pointerClickRef.current = false;
+                    controller.cancel();
+                }}
+                onBlur={() => {
+                    semanticKeyRef.current = null;
+                    pointerClickRef.current = false;
+                    controller.cancel();
+                }}
                 onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                    if (semanticKeyDown(event)) {
+                        return;
+                    }
                     if (!HoldKeys.has(event.key)) {
                         return;
                     }
@@ -459,6 +539,9 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
                     controller.press();
                 }}
                 onKeyUp={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                    if (semanticKeyUp(event)) {
+                        return;
+                    }
                     if (!HoldKeys.has(event.key)) {
                         return;
                     }
@@ -469,6 +552,10 @@ export const HoldToConfirmButton = forwardRef<HTMLButtonElement, HoldToConfirmBu
                 onClick={(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
                     event.stopPropagation();
                     event.preventDefault();
+                    if (semanticClick(event)) {
+                        return;
+                    }
+                    pointerClickRef.current = false;
                     // A click with no pointer behind it comes from assistive technology, which cannot hold.
                     if (event.detail === 0) {
                         controller.callbacks.onHint();

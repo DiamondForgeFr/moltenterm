@@ -1,11 +1,10 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#805): native WebSockets carry explicit main-process caller proof.
 
 import { type WebSocket, newWebSocket } from "@/util/wsutil";
 import debug from "debug";
 import { sprintf } from "sprintf-js";
-
-const AuthKeyHeader = "X-AuthKey";
 
 const dlog = debug("wave:ws");
 
@@ -28,7 +27,7 @@ function removeWSReconnectHandler(handler: () => void) {
 type WSEventCallback = (arg0: WSEventType) => void;
 
 type ElectronOverrideOpts = {
-    authKey: string;
+    headers: Record<string, string>;
 };
 
 class WSControl {
@@ -76,11 +75,7 @@ class WSControl {
         this.opening = true;
         this.wsConn = newWebSocket(
             this.baseHostPort + "/ws?stableid=" + encodeURIComponent(this.stableId),
-            this.eoOpts
-                ? {
-                      [AuthKeyHeader]: this.eoOpts.authKey,
-                  }
-                : null
+            this.eoOpts?.headers ?? null
         );
         this.wsConn.onopen = (e: Event) => {
             this.onopen(e);

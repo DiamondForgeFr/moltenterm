@@ -17,6 +17,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { EqualizeShortcutId } from "../equalize/equalize-actions";
 import { t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
@@ -159,6 +160,15 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
                 run: () => fireAndForget(() => addPanelBeside(blockId, side)),
             })
         ),
+        {
+            id: "footer:equalize",
+            type: "action",
+            label: t("equalize.command"),
+            icon: "table-columns",
+            shortcut: formatShortcutById(EqualizeShortcutId),
+            keywords: ["equalize", "even", "balance", "same width", "columns", "resize"],
+            run: () => layoutModel?.moltenEqualize?.equalize(),
+        },
         {
             id: "footer:magnify",
             type: "action",
@@ -1278,7 +1288,7 @@ function CommandPanel({ open }: CommandPanelProps) {
             aria-label={t("cmdpanel.aria.commands", { panel: panelName })}
             data-role="command-panel"
             data-blockid-for={blockId}
-            className="molten-cmdpanel flex flex-col overflow-hidden rounded-10 border border-line-strong bg-surface-2 shadow-command"
+            className="molten-cmdpanel flex flex-col overflow-hidden rounded-4 border border-line-strong bg-surface-2 shadow-command"
             style={{
                 ...floatingStyles,
                 width: PanelWidthPx,

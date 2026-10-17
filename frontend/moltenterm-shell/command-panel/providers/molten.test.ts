@@ -81,6 +81,7 @@ import { toggleCompanion } from "../../companion/companion-open";
 import { activeScope, canReset, effectiveValue, resetItem, setItemValue } from "../panel-model";
 import { collectPanel } from "../panel-registry";
 import { PanelContext, PanelItem, PanelSection } from "../panel-types";
+import { CodingAgentViews } from "./coding-agent";
 import { MoltenProvider, MoltenProviders } from "./molten";
 import { companionSections, lineMapSections, sessionsSections } from "./molten-widgets";
 
@@ -180,7 +181,10 @@ describe("MoltenTerm widget options (FR-SHELL-049-AC4..AC6, DS-SHELL-090, TC-SHE
         for (const [view, caps] of views) {
             const c = ctx(view, caps, { meta: { "molten:companion:block": "t1" } as MetaType });
             const panel = collectPanel(c, MoltenProviders);
-            expect(panel.sections.filter((s) => s.kind === "widget").length, view).toBe(1);
+            // The panels that start an agent also get the Agent option's section (#845).
+            expect(panel.sections.filter((s) => s.kind === "widget").length, view).toBe(
+                CodingAgentViews.has(view) ? 2 : 1
+            );
             expect(
                 panel.sections.some((s) => s.kind === "molten"),
                 view

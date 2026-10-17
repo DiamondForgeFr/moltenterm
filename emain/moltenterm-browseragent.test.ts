@@ -15,8 +15,8 @@ describe("browser agent takeover and input", () => {
     let agent: typeof import("./moltenterm-browseragent");
     let wc: EventEmitter & Record<string, any>;
     let session: EventEmitter;
-    let report: ReturnType<typeof vi.fn>;
-    let ask: ReturnType<typeof vi.fn>;
+    let report: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string) => void>>;
+    let ask: ReturnType<typeof vi.fn<(blockId: string, browserTabId: string, host: string) => Promise<boolean>>>;
     let input: (event: any, payload?: any) => void;
     let attached: boolean;
 
@@ -27,9 +27,11 @@ describe("browser agent takeover and input", () => {
         Mocks.on.mockReset();
         attached = false;
         session = new EventEmitter();
+        const host = { id: 1, mainFrame: { url: "file:///fixture/index.html" }, isDestroyed: () => false };
         wc = Object.assign(new EventEmitter(), {
             id: 42,
-            hostWebContents: { id: 1 },
+            hostWebContents: host,
+            mainFrame: { url: "https://example.com/login" },
             session,
             isDestroyed: () => false,
             getType: () => "webview",
@@ -51,12 +53,15 @@ describe("browser agent takeover and input", () => {
         });
         Mocks.fromId.mockReturnValue(wc);
         agent = await import("./moltenterm-browseragent");
+        const { configurePrivilegedIpc } = await import("./moltenterm-privileged-ipc");
+        configurePrivilegedIpc((event) => event.sender === (host as any) && event.senderFrame === host.mainFrame);
         report = vi.fn();
         ask = vi.fn(async () => true);
         agent.initMoltentermBrowserAgent(report, ask);
         const register = Mocks.on.mock.calls.find(([channel]) => channel === agent.WebviewRegisteredChannel)[1];
-        input = Mocks.on.mock.calls.find(([channel]) => channel === agent.WebviewInputChannel)[1];
-        register({ sender: { id: 1 } }, "panel", "agent-tab", wc.id);
+        const inputHandler = Mocks.on.mock.calls.find(([channel]) => channel === agent.WebviewInputChannel)[1];
+        input = (event, payload) => inputHandler({ ...event, senderFrame: event.sender.mainFrame }, payload);
+        register({ sender: host, senderFrame: host.mainFrame }, "panel", "agent-tab", wc.id);
         agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: true, token: Token });
     });
 

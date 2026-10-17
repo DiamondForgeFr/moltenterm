@@ -14,7 +14,7 @@
 import { ClientService, ObjectService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
-import { ipcMain } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { isDev } from "./emain-platform";
 import { getOrCreateWebViewForTab, WaveTabView } from "./emain-tabview";
 import type { WaveBrowserWindow } from "./emain-window";
@@ -770,7 +770,7 @@ function keepPendingPageOnTop(win: WaveBrowserWindow) {
 }
 
 // The pending state's Reload and Dismiss (frontend/moltenterm-shell/view-pending.tsx).
-ipcMain.on(ViewPendingActionChannel, (event, action: string) => {
+onAppIpc(ViewPendingActionChannel, (event, action: string) => {
     if (action !== "reload" && action !== "dismiss") {
         return;
     }

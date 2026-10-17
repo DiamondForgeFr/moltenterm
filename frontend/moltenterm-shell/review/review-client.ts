@@ -148,13 +148,21 @@ export type ReviewRestartResult = {
     firstname?: string;
     briefpath?: string;
     state?: ReviewState;
+    // The developer's coding agent (#845): the chosen one when they chose, missing when it is not installed, the
+    // agents an offer can switch to.
+    chosenagent?: string;
+    chosenname?: string;
+    agentmissing?: boolean;
+    agentsource?: string;
+    agents?: { id: string; name: string; installed: boolean }[];
 };
 
 // How a new agent works (#758): out of sight, or in a tab the window shows; must match agentstart.go.
 export type AgentMode = "background" | "together";
 
-// The start of a new agent the developer chose: its tab goes in the workspace, named in the interface language.
-export type AgentStart = { start?: boolean; mode?: AgentMode; workspaceid?: string; tabname?: string };
+// The start of a new agent the developer chose: its tab goes in the workspace, named in the interface language;
+// agent: the coding agent picked for this run in the dialog (#845), none for the project's choice.
+export type AgentStart = { start?: boolean; mode?: AgentMode; workspaceid?: string; tabname?: string; agent?: string };
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
 

@@ -30,11 +30,13 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
-import {
-    clearSharedTextureAtlas,
-    registerAtlasClearer,
-} from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
+import { clearSharedTextureAtlas, registerAtlasClearer } from "../../../moltenterm-shell/term-visibility/shared-atlas"; // MOLTENTERM-PATCH (#801)
 import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/term-controller-sync"; // MOLTENTERM-PATCH (#451)
+import {
+    nextTermCacheDelayMs,
+    TermCacheBaseDelayMs,
+    TermCacheSlowLogMs,
+} from "../../../moltenterm-shell/term-cache-pace"; // MOLTENTERM-PATCH (#849)
 import {
     decideResize,
     decideWebglLossRecovery,
@@ -42,6 +44,11 @@ import {
     shouldReleaseHiddenWebgl,
     ShowRepaintFollowUpMs,
 } from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290, #454)
+import {
+    bindTerminalAccessibility,
+    localizeTerminalAccessibility,
+    terminalScreenReaderEnabled,
+} from "../../../moltenterm-shell/terminal-accessibility/model"; // MOLTENTERM-PATCH (#808)
 import { isOffCarpet, offCarpetAtom } from "../../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import {
     handleOsc16162Command,
@@ -107,6 +114,7 @@ export class TermWrap {
     sendDataHandler: (data: string) => void;
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
+    disposeAccessibility: () => void; // MOLTENTERM-PATCH (#808)
     webglAddon: WebglAddon | null = null;
     webglContextLossDisposable: TermTypes.IDisposable | null = null;
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
@@ -168,7 +176,9 @@ export class TermWrap {
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
-        this.terminal = new Terminal(options);
+        // MOLTENTERM-PATCH (#808): enable accessibility before opening xterm, then update its live option.
+        localizeTerminalAccessibility();
+        this.terminal = new Terminal({ ...options, screenReaderMode: terminalScreenReaderEnabled() });
         this.fitAddon = new FitAddon();
         this.serializeAddon = new SerializeAddon();
         this.searchAddon = new SearchAddon();
@@ -309,6 +319,7 @@ export class TermWrap {
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
+        this.disposeAccessibility = bindTerminalAccessibility(this.terminal); // MOLTENTERM-PATCH (#808)
         // MOLTENTERM-PATCH (#119): clean copy in agent terminals and links to the files a terminal mentions.
         this.toDispose.push(...installTermCopy(this));
 
@@ -487,6 +498,7 @@ export class TermWrap {
 
     dispose() {
         this.isDisposed = true; // MOLTENTERM-PATCH (#290)
+        this.disposeAccessibility?.(); // MOLTENTERM-PATCH (#808): detach before xterm is disposed.
         clearTimeout(this.hiddenWebglTimer); // MOLTENTERM-PATCH (#454)
         this.promptMarkers.forEach((marker) => {
             try {
@@ -749,26 +761,35 @@ export class TermWrap {
         });
     }
 
-    processAndCacheData() {
+    // MOLTENTERM-PATCH (#849): returns what the save cost, which paces the next one (term-cache-pace.ts)
+    processAndCacheData(): number {
         if (this.dataBytesProcessed < MinDataProcessedForCache) {
-            return;
+            return 0;
         }
+        const start = performance.now();
         const serializedOutput = this.serializeAddon.serialize();
+        const took = performance.now() - start;
         const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
+        if (took >= TermCacheSlowLogMs) {
+            getApi().sendLog(
+                `hang: terminal ${this.blockId.slice(0, 8)} cache save took ${Math.round(took)} ms (${serializedOutput.length} chars)`
+            );
+        }
         fireAndForget(() =>
             services.BlockService.SaveTerminalState(this.blockId, serializedOutput, "full", this.ptyOffset, termSize)
         );
         this.dataBytesProcessed = 0;
+        return took;
     }
 
-    runProcessIdleTimeout() {
+    runProcessIdleTimeout(delayMs: number = TermCacheBaseDelayMs) {
         setTimeout(() => {
             window.requestIdleCallback(() => {
-                this.processAndCacheData();
-                this.runProcessIdleTimeout();
+                const took = this.processAndCacheData();
+                this.runProcessIdleTimeout(nextTermCacheDelayMs(took)); // MOLTENTERM-PATCH (#849)
             });
-        }, 5000);
+        }, delayMs);
     }
 
     async pasteHandler(e?: ClipboardEvent): Promise<void> {

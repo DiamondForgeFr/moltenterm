@@ -317,6 +317,27 @@ function mergeStep(
 
 // --- cleanup rows ---
 
+// must match TrunkRefusals in pkg/molten/review/trunksync.go: the local trunk was left as it was (#909).
+const TrunkRefusals = ["localcommits", "changes", "inprogress"];
+
+function trunkRefused(step: ReviewCleanupStepResult): boolean {
+    return step?.id === "local-trunk" && TrunkRefusals.includes(step.code);
+}
+
+// localTrunkText words the local working branch's row: the counts take plural forms.
+function localTrunkText(t: Translate, step: ReviewCleanupStepResult, vars: I18nVars): string {
+    const key = `review.validate.cleanup.local-trunk.did.${step.code}`;
+    switch (step.code) {
+        case "updated":
+            return plural(t, key, step.count ?? 0, vars);
+        case "localcommits":
+            return plural(t, key, step.ahead ?? 0, vars);
+        case "changes":
+            return t(key, { ...vars, names: listNames(t, step.names ?? [], step.namecount) });
+    }
+    return null;
+}
+
 function rowState(step: ReviewCleanupStepResult): StepState {
     // A folder the worktree left once git unregistered it (#716): a warning, never a failure.
     if (step?.code === "leftover" && step.state !== "planned") {
@@ -328,7 +349,7 @@ function rowState(step: ReviewCleanupStepResult): StepState {
         case "failed":
             return "failed";
         case "skipped":
-            return step.code === "kept" || step.code === "inuse" ? "needs" : "skipped";
+            return step.code === "kept" || step.code === "inuse" || trunkRefused(step) ? "needs" : "skipped";
     }
     // planned: what has nothing to do is already known.
     if (step?.code && step.code !== "willremove") {
@@ -463,7 +484,8 @@ function cleanupRowText(t: Translate, step: ReviewCleanupStepResult, branch: str
     if (step.code == null && (step.reason || step.message)) {
         return [step.reason || step.message];
     }
-    const lines = [t(key, vars)];
+    const trunkLine = step.id === "local-trunk" && step.state !== "planned" ? localTrunkText(t, step, vars) : null;
+    const lines = [trunkLine ?? t(key, vars)];
     lines.push(...panelLines(t, step.panels));
     if (step.code === "kept") {
         lines.push(...lossLines(t, step.loss));
@@ -558,7 +580,13 @@ function cleanupStep(
     if (notRun(t, step, record)) {
         return step;
     }
-    const items = stepsOf(source, ["review-worktree", "agent-worktree", "local-branch", "remote-branch"]);
+    const items = stepsOf(source, [
+        "review-worktree",
+        "agent-worktree",
+        "local-branch",
+        "remote-branch",
+        "local-trunk",
+    ]);
     step.rows = items.map((s) => cleanupRow(t, s, branch, base));
     if (cleanup == null) {
         step.lines.push(t("review.validate.cleanup.plan"));

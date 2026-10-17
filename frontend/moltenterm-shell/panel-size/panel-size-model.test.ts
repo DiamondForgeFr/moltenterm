@@ -1,21 +1,22 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
 import {
-    floorFromDraggedTerminals,
-    fullWidthTerminals,
+    FirstColumnFloorMetaKey,
+    floorFromFirstColumnDrag,
+    LegacyTerminalFloorMetaKey,
     MinFillPx,
     MinPanelPx,
+    needsFloorMigration,
     panelSizeKind,
+    readFirstColumnFloor,
     readPanelSizes,
-    readTerminalFloor,
     rememberedPanelPx,
     rememberPanelSize,
     shareRoom,
     sizesForRememberedPanel,
-    terminalNeedPx,
+    storedFirstColumnFloor,
 } from "./panel-size-model";
 
 // Size units per pixel of a parent whose children are `sizes` over `px` pixels.
@@ -254,43 +255,70 @@ describe("sizesForRememberedPanel", () => {
     });
 });
 
-function node(id: string, children?: LayoutNode[], dir = FlexDirection.Column): LayoutNode {
-    return { id, flexDirection: dir, size: 10, children, data: children ? undefined : { blockId: `b-${id}` } };
-}
-
-const isTerm = (n: LayoutNode) => n.id.startsWith("t");
-
-describe("terminal floor (#731)", () => {
+describe("first column floor (#731, #848)", () => {
     it("reads a positive width, rounded, and nothing else", () => {
-        expect(readTerminalFloor(900.4)).toBe(900);
-        expect(readTerminalFloor(0)).toBeNull();
-        expect(readTerminalFloor(-5)).toBeNull();
-        expect(readTerminalFloor("900")).toBeNull();
-        expect(readTerminalFloor(null)).toBeNull();
+        expect(readFirstColumnFloor(900.4)).toBe(900);
+        expect(readFirstColumnFloor(0)).toBeNull();
+        expect(readFirstColumnFloor(-5)).toBeNull();
+        expect(readFirstColumnFloor("900")).toBeNull();
+        expect(readFirstColumnFloor(null)).toBeNull();
     });
 
-    it("takes the smallest width a drag gave to the terminals it moved", () => {
-        expect(floorFromDraggedTerminals([900.6])).toBe(901);
-        expect(floorFromDraggedTerminals([1100, 480])).toBe(480);
-        expect(floorFromDraggedTerminals([])).toBeNull();
-        expect(floorFromDraggedTerminals([NaN, 0])).toBeNull();
+    it("AC3: reads a terminal floor stored before #848 as the first column's, and asks to move it", () => {
+        const legacy = { [LegacyTerminalFloorMetaKey]: 900 };
+        expect(storedFirstColumnFloor(legacy)).toBe(900);
+        expect(needsFloorMigration(legacy)).toBe(true);
+        const both = { [FirstColumnFloorMetaKey]: 700, [LegacyTerminalFloorMetaKey]: 900 };
+        expect(storedFirstColumnFloor(both)).toBe(700);
+        expect(needsFloorMigration(both)).toBe(false);
+        expect(storedFirstColumnFloor({ [FirstColumnFloorMetaKey]: 640 })).toBe(640);
+        expect(storedFirstColumnFloor({})).toBeNull();
+        expect(storedFirstColumnFloor(null)).toBeNull();
+        expect(needsFloorMigration({})).toBe(false);
     });
 
-    it("finds the terminals whose width is the node's own, not those sharing a nested row", () => {
-        expect(fullWidthTerminals(node("t1"), isTerm).map((n) => n.id)).toEqual(["t1"]);
-        expect(fullWidthTerminals(node("browser"), isTerm)).toEqual([]);
-        const stack = node("s", [node("t1"), node("x"), node("t2")]);
-        expect(fullWidthTerminals(stack, isTerm).map((n) => n.id)).toEqual(["t1", "t2"]);
-        const split = node("r", [node("t1"), node("t2")], FlexDirection.Row);
-        expect(fullWidthTerminals(split, isTerm)).toEqual([]);
+    it("takes the floor from a drag that resized the first column only, whatever it holds", () => {
+        // A 1500 px row of sizes [10, 10]: 0.1333 units per pixel.
+        const ratio = 20 / 1500;
+        const ops = [
+            { nodeId: "browser", size: 12 },
+            { nodeId: "term", size: 8 },
+        ];
+        expect(floorFromFirstColumnDrag("browser", ops, ratio)).toBe(900);
+        // A divider between two other columns leaves the floor alone.
+        expect(floorFromFirstColumnDrag("first", ops, ratio)).toBeNull();
+        expect(floorFromFirstColumnDrag(null, ops, ratio)).toBeNull();
+        expect(floorFromFirstColumnDrag("browser", ops, 0)).toBeNull();
     });
 
-    it("needs the floor per terminal side by side, the largest among stacked ones", () => {
-        expect(terminalNeedPx(node("t1"), 900, isTerm)).toBe(900);
-        expect(terminalNeedPx(node("x"), 900, isTerm)).toBe(0);
-        expect(terminalNeedPx(node("t1"), null, isTerm)).toBe(0);
-        const group = node("s", [node("r", [node("t1"), node("t2")], FlexDirection.Row), node("t3")]);
-        expect(terminalNeedPx(group, 500, isTerm)).toBe(1000);
+    it("keeps a first column that does not fill (a browser) at its floor when a panel is added beside it", () => {
+        // A browser first column squeezed to 600 px by the split, a terminal and a new companion beside it.
+        const ratio = ratioOf([10, 10, 10], 1800);
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: false, minPx: 900 },
+                { size: 10, fill: true },
+                { size: 10, fill: false },
+            ],
+            2,
+            400,
+            ratio
+        );
+        expect(toPx(next, 1800)).toEqual([900, 500, 400]);
+    });
+
+    it("keeps the first column's floor when no sibling fills", () => {
+        const ratio = ratioOf([10, 10], 1500);
+        const next = sizesForRememberedPanel(
+            [
+                { size: 10, fill: false, minPx: 900 },
+                { size: 10, fill: false },
+            ],
+            1,
+            800,
+            ratio
+        );
+        expect(toPx(next, 1500)).toEqual([900, 600]);
     });
 
     it("AC2: a terminal at a 900 px floor stays at 900 px, the new panel shrinks to what is left", () => {
