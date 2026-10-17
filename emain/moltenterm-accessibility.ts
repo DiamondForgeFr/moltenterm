@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { app, ipcMain, webContents } from "electron";
+import { app, webContents } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc";
 import type { AccessibilitySnapshot } from "../frontend/moltenterm-shell/terminal-accessibility/screen-reader";
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 
@@ -18,7 +19,7 @@ export function initMoltentermAccessibility() {
             // Unsupported detection must not prevent explicit terminal accessibility.
         }
     }
-    ipcMain.on("moltenterm:get-accessibility-support", (event) => {
+    onAppIpc("moltenterm:get-accessibility-support", (event) => {
         const sender = event.sender;
         const tab = !sender.isDestroyed() && getWaveTabViewByWebContentsId(sender.id);
         event.returnValue =
