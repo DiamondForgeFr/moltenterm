@@ -72,7 +72,10 @@ median reported; memory is macOS `footprint` (phys_footprint) per process, Linux
 renderer is attributed through the main process (`webContents.getOSProcessId()`). Workspace operations are timed from
 the preload call to the expected tab view on screen, read by a 4 ms poll in the main process (stopped while idle CPU
 is sampled); the create and delete samples of `session` and `leaks` are pooled for their p95, and an operation that
-never reaches the screen within 30 s counts in `ws.failedOps` instead. Memory is sampled 4 times per condition. The
+never reaches the screen within 30 s counts in `ws.failedOps` instead. When a page's JavaScript context is replaced
+under an operation (#895), a read is made again on the page now on screen, and a preload call is made again only if
+it never reached the app (CDP refused it, or the main process did not log receiving it), so it is never applied twice;
+a context that keeps failing, or any other error, still fails the scenario. Memory is sampled 4 times per condition. The
 instances run in the background test mode (`MOLTENTERM_BACKGROUND=1`, #495, see `UPSTREAM.md`, "Test instances"): they
 never take the focus, their window is parked in a screen corner above the other windows and its focus is virtual, so
 the focus state of every idle sample in the report is the app's own. `run --foreground` launches them as a user would
