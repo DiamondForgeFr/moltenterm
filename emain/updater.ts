@@ -1,7 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { dialog, ipcMain, Notification } from "electron";
+import { dialog, Notification } from "electron";
+import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
 import path from "path";
@@ -214,11 +215,11 @@ export function getResolvedUpdateChannel(): string {
     return isDev() ? "dev" : (autoUpdater.channel ?? "latest");
 }
 
-ipcMain.on("install-app-update", () => fireAndForget(updater?.promptToInstallUpdate.bind(updater)));
-ipcMain.on("get-app-update-status", (event) => {
+onAppIpc("install-app-update", () => fireAndForget(updater?.promptToInstallUpdate.bind(updater)));
+onAppIpc("get-app-update-status", (event) => {
     event.returnValue = updater?.status;
 });
-ipcMain.on("get-updater-channel", (event) => {
+onAppIpc("get-updater-channel", (event) => {
     event.returnValue = getResolvedUpdateChannel();
 });
 

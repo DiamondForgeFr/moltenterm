@@ -164,7 +164,7 @@ export function ProjectLinkDetector() {
     const ownTab = ws?.tabids?.includes(staticTabId) ?? false;
     const offer = !ownTab
         ? null
-        : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"), hasImportedIcon(ws));
+        : nextProjectOffer(project, terminalProject, dismissed, getApi().getHomeDir(), hasImportedIcon(ws));
     const offerKey = offer ? `${offer.mode}:${offer.dir}` : "";
     useEffect(() => {
         if (

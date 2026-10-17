@@ -8,6 +8,7 @@
 // and carries nothing about the user; nothing is downloaded.
 
 import * as electron from "electron";
+import { handleAppIpc } from "./moltenterm-privileged-ipc";
 import fs from "fs";
 import path from "path";
 import { MoltentermRepoUrl } from "../frontend/util/moltenterm-identity";
@@ -159,5 +160,5 @@ export async function checkReleaseFeed(): Promise<ReleaseCheck> {
 }
 
 export function initMoltentermReleaseFeed() {
-    electron.ipcMain.handle(MoltentermReleaseCheckChannel, () => checkReleaseFeed());
+    handleAppIpc(MoltentermReleaseCheckChannel, () => checkReleaseFeed());
 }

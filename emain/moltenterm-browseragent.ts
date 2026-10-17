@@ -8,7 +8,8 @@
 // from the user's by sequence, holds back the downloads of controlled tabs until the user answers, and clears the
 // emulated viewport when control ends.
 
-import { ipcMain, nativeImage, webContents, type WebContents } from "electron";
+import { nativeImage, webContents, type WebContents } from "electron";
+import { onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AuthKey } from "./authkey";
 import {
@@ -806,6 +807,6 @@ function pageInput(event: Electron.IpcMainEvent, report: unknown): void {
 export function initMoltentermBrowserAgent(report: TakeoverReport, ask: DownloadAsk): void {
     reportTakeover = report;
     askDownload = ask;
-    ipcMain.on(WebviewRegisteredChannel, register);
-    ipcMain.on(WebviewInputChannel, pageInput);
+    onAppIpc(WebviewRegisteredChannel, register);
+    onGuestIpc(WebviewInputChannel, pageInput);
 }

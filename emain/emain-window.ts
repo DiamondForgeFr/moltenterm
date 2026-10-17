@@ -5,7 +5,8 @@ import { ClientService, ObjectService, WindowService, WorkspaceService } from "@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
-import { BaseWindow, BaseWindowConstructorOptions, dialog, globalShortcut, ipcMain, screen } from "electron";
+import { BaseWindow, BaseWindowConstructorOptions, dialog, globalShortcut, screen } from "electron";
+import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { globalEvents } from "emain/emain-events";
 import path from "path";
 import { debounce } from "throttle-debounce";
@@ -553,13 +554,13 @@ export async function createBrowserWindow(
     return bwin;
 }
 
-ipcMain.on("set-active-tab", async (event, tabId) => {
+onAppIpc("set-active-tab", async (event, tabId) => {
     const ww = getWaveWindowByWebContentsId(event.sender.id);
     console.log("set-active-tab", tabId, ww?.waveWindowId);
     await ww?.setActiveTab(tabId, true);
 });
 
-ipcMain.on("create-tab", async (event, _opts) => {
+onAppIpc("create-tab", async (event, _opts) => {
     const senderWc = event.sender;
     const ww = getWaveWindowByWebContentsId(senderWc.id);
     if (ww != null) {
@@ -569,14 +570,14 @@ ipcMain.on("create-tab", async (event, _opts) => {
     return null;
 });
 
-ipcMain.on("set-waveai-open", (event, isOpen: boolean) => {
+onAppIpc("set-waveai-open", (event, isOpen: boolean) => {
     const tabView = getWaveTabViewByWebContentsId(event.sender.id);
     if (tabView) {
         tabView.isWaveAIOpen = isOpen;
     }
 });
 
-ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, confirmClose: boolean) => {
+handleAppIpc("close-tab", async (event, workspaceId: string, tabId: string, confirmClose: boolean) => {
     const ww = getWaveWindowByWorkspaceId(workspaceId);
     if (ww == null) {
         console.log(`close-tab: no window found for workspace ws=${workspaceId} tab=${tabId}`);
@@ -599,7 +600,7 @@ ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, co
     return true;
 });
 
-ipcMain.on("switch-workspace", (event, workspaceId) => {
+onAppIpc("switch-workspace", (event, workspaceId) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("switch-workspace", workspaceId, ww?.waveWindowId);
@@ -626,7 +627,7 @@ export async function createWorkspace(window: WaveBrowserWindow) {
     }
 }
 
-ipcMain.on("create-workspace", (event) => {
+onAppIpc("create-workspace", (event) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("create-workspace", ww?.waveWindowId);
@@ -634,7 +635,7 @@ ipcMain.on("create-workspace", (event) => {
     });
 });
 
-ipcMain.on("delete-workspace", (event, workspaceId) => {
+onAppIpc("delete-workspace", (event, workspaceId) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("delete-workspace", workspaceId, ww?.waveWindowId);
@@ -683,7 +684,7 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
 
 // MOLTENTERM-PATCH (#222): the renderer has already confirmed (its own dialog); the window that shows the workspace
 // resets it through its action queue
-ipcMain.on("reset-workspace", (event, workspaceId: string) => {
+onAppIpc("reset-workspace", (event, workspaceId: string) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWorkspaceId(workspaceId) ?? getWaveWindowByWebContentsId(event.sender.id);
         console.log("reset-workspace", workspaceId, ww?.waveWindowId);

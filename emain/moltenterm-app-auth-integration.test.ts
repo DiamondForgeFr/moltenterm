@@ -115,8 +115,8 @@ describe("Electron app caller integration", () => {
         const app = contents(6);
         for (const [sender, senderFrame, expected] of [
             [app, app.mainFrame, AuthKey],
-            [app, { url: getAppDocumentUrl() }, ""],
-            [contents(7, false), app.mainFrame, ""],
+            [app, { url: getAppDocumentUrl() }, null],
+            [contents(7, false), app.mainFrame, null],
         ]) {
             const event = { sender, senderFrame, returnValue: undefined };
             env.ipc.get("get-auth-key")(event);

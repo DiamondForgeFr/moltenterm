@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { ipcMain, screen, webContents, type WebContents } from "electron";
+import { screen, webContents, type WebContents } from "electron";
+import { onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { getBuilderWindowByWebContentsId } from "./emain-builder";
@@ -137,7 +138,7 @@ export function executeCapturedContextMenuRole(host: WebContents, token: string,
 export function initMoltentermContextMenu(
     saveImage: (host: WebContents, guest: WebContents, source: string, valid: () => boolean) => Promise<void>
 ) {
-    ipcMain.on("moltenterm-contextmenu-revoke", (event, token: string) => {
+    onAppIpc("moltenterm-contextmenu-revoke", (event, token: string) => {
         for (const map of [targets, images]) {
             const target = map.get(token);
             if (target?.host !== event.sender) continue;
@@ -145,7 +146,7 @@ export function initMoltentermContextMenu(
             ContextMenuEvents.emit("revoke", event.sender, token);
         }
     });
-    ipcMain.on("moltenterm-contextmenu-guest", (event, guestId: number, active: boolean) => {
+    onAppIpc("moltenterm-contextmenu-guest", (event, guestId: number, active: boolean) => {
         if (!liveContextMenuHost(event.sender, false) || !Number.isInteger(guestId)) return;
         const guest = webContents.fromId(guestId);
         if (!ownedMenuGuest(event.sender, guest)) return;
@@ -159,7 +160,7 @@ export function initMoltentermContextMenu(
         watch(event.sender);
         watch(guest);
     });
-    ipcMain.on("moltenterm-contextmenu-capture", (event, guestId: number) => {
+    onAppIpc("moltenterm-contextmenu-capture", (event, guestId: number) => {
         const target = capture(event.sender, guestId);
         if (!target) {
             event.returnValue = null;
@@ -170,10 +171,10 @@ export function initMoltentermContextMenu(
         retainLease(targets, token, target);
         event.returnValue = token;
     });
-    ipcMain.on("moltenterm-contextmenu-role", (event, token: string, requestedRole: string) => {
+    onAppIpc("moltenterm-contextmenu-role", (event, token: string, requestedRole: string) => {
         executeCapturedContextMenuRole(event.sender, token, requestedRole);
     });
-    ipcMain.on("moltenterm-contextmenu-guest-request", (event, payload) => {
+    onGuestIpc("moltenterm-contextmenu-guest-request", (event, payload) => {
         const guest = event.sender;
         const host = guest.hostWebContents;
         if (
@@ -209,7 +210,7 @@ export function initMoltentermContextMenu(
             imageToken,
         } satisfies GuestContextMenu);
     });
-    ipcMain.on("moltenterm-contextmenu-save-image", (event, token: string) => {
+    onAppIpc("moltenterm-contextmenu-save-image", (event, token: string) => {
         const image = images.get(token);
         if (!live(image, event.sender)) return;
         dropLease(images, token, false);

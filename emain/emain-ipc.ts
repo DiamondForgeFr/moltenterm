@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
+// MOLTENTERM-PATCH (#806): authorize application frames before every privileged IPC handler.
+import { handleAppIpc, onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
+import { readRendererEnvironment } from "./moltenterm-renderer-env";
 import { FastAverageColor } from "fast-average-color";
 import fs from "fs";
 import * as child_process from "node:child_process";
@@ -239,11 +242,11 @@ export function initIpcHandlers() {
         }
     );
     // MOLTENTERM-PATCH (#663): one scheme rule for every link handed to the system (emain/moltenterm-external-links.ts)
-    electron.ipcMain.on("open-external", (event, url) => {
+    onAppIpc("open-external", (event, url) => {
         fireAndForget(() => openExternalLink(url, event.sender));
     });
 
-    electron.ipcMain.on("webview-mouse-navigate", (event: electron.IpcMainEvent, direction: string) => {
+    onGuestIpc("webview-mouse-navigate", (event: electron.IpcMainEvent, direction: string) => {
         if (direction === "back") {
             event.sender.navigationHistory.goBack();
         } else if (direction === "forward") {
@@ -251,14 +254,14 @@ export function initIpcHandlers() {
         }
     });
 
-    electron.ipcMain.on("download", (event, payload) => {
+    onAppIpc("download", (event, payload) => {
         const baseName = encodeURIComponent(path.basename(payload.filePath));
         const streamingUrl =
             getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(payload.filePath);
         event.sender.downloadURL(streamingUrl);
     });
 
-    electron.ipcMain.on("get-cursor-point", (event) => {
+    onAppIpc("get-cursor-point", (event) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (tabView == null) {
             event.returnValue = null;
@@ -273,7 +276,7 @@ export function initIpcHandlers() {
         event.returnValue = retVal;
     });
 
-    electron.ipcMain.handle("capture-screenshot", async (event, rect) => {
+    handleAppIpc("capture-screenshot", async (event, rect) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
@@ -283,21 +286,21 @@ export function initIpcHandlers() {
         return `data:image/png;base64,${base64String}`;
     });
 
-    electron.ipcMain.on("get-env", (event, varName) => {
-        event.returnValue = process.env[varName] ?? null;
+    onAppIpc("get-env", (event, varName) => {
+        event.returnValue = readRendererEnvironment(varName);
     });
 
-    electron.ipcMain.on("get-about-modal-details", (event) => {
+    onAppIpc("get-about-modal-details", (event) => {
         event.returnValue = getWaveVersion() as AboutModalDetails;
     });
 
-    electron.ipcMain.on("get-zoom-factor", (event) => {
+    onAppIpc("get-zoom-factor", (event) => {
         event.returnValue = event.sender.getZoomFactor();
     });
 
     const hasBeforeInputRegisteredMap = new Map<number, boolean>();
 
-    electron.ipcMain.on("webview-focus", (event: Electron.IpcMainEvent, focusedId: number) => {
+    onAppIpc("webview-focus", (event: Electron.IpcMainEvent, focusedId: number) => {
         webviewFocusId = focusedId;
         console.log("webview-focus", focusedId);
         if (focusedId == null) {
@@ -340,22 +343,22 @@ export function initIpcHandlers() {
         }
     });
 
-    electron.ipcMain.on("register-global-webview-keys", (event, keys: string[]) => {
+    onAppIpc("register-global-webview-keys", (event, keys: string[]) => {
         webviewKeys = keys ?? [];
     });
 
-    electron.ipcMain.on("set-keyboard-chord-mode", (event) => {
+    onAppIpc("set-keyboard-chord-mode", (event) => {
         event.returnValue = null;
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         tabView?.setKeyboardChordMode(true);
     });
 
-    electron.ipcMain.handle("set-is-active", () => {
+    handleAppIpc("set-is-active", () => {
         setWasActive(true);
     });
 
     const fac = new FastAverageColor();
-    electron.ipcMain.on("update-window-controls-overlay", async (event, rect: Dimensions) => {
+    onAppIpc("update-window-controls-overlay", async (event, rect: Dimensions) => {
         if (unamePlatform === "darwin") return;
         try {
             const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
@@ -383,7 +386,7 @@ export function initIpcHandlers() {
         }
     });
 
-    electron.ipcMain.on("quicklook", (event, filePath: string) => {
+    onAppIpc("quicklook", (event, filePath: string) => {
         if (unamePlatform !== "darwin") return;
         child_process.execFile("/usr/bin/qlmanage", ["-p", filePath], (error, stdout, stderr) => {
             if (error) {
@@ -392,7 +395,7 @@ export function initIpcHandlers() {
         });
     });
 
-    electron.ipcMain.handle("clear-webview-storage", async (event, webContentsId: number) => {
+    handleAppIpc("clear-webview-storage", async (event, webContentsId: number) => {
         try {
             const wc = electron.webContents.fromId(webContentsId);
             if (wc && wc.session) {
@@ -405,7 +408,7 @@ export function initIpcHandlers() {
         }
     });
 
-    electron.ipcMain.on("open-native-path", (event, filePath: string) => {
+    onAppIpc("open-native-path", (event, filePath: string) => {
         console.log("open-native-path", filePath);
         filePath = filePath.replace("~", electronApp.getPath("home"));
         fireAndForget(() =>
@@ -417,7 +420,7 @@ export function initIpcHandlers() {
         );
     });
 
-    electron.ipcMain.on("set-window-init-status", (event, status: "ready" | "wave-ready") => {
+    onAppIpc("set-window-init-status", (event, status: "ready" | "wave-ready") => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (tabView != null && tabView.initResolve != null) {
             if (status === "ready") {
@@ -446,11 +449,11 @@ export function initIpcHandlers() {
         console.log("set-window-init-status: no window found for webContentsId", event.sender.id);
     });
 
-    electron.ipcMain.on("fe-log", (event, logStr: string) => {
+    onAppIpc("fe-log", (event, logStr: string) => {
         console.log("fe-log", logStr);
     });
 
-    electron.ipcMain.on(
+    onAppIpc(
         "increment-term-commands",
         (event, opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {
             incrementTermCommandsRun();
@@ -466,15 +469,15 @@ export function initIpcHandlers() {
         }
     );
 
-    electron.ipcMain.on("native-paste", (event) => {
+    onAppIpc("native-paste", (event) => {
         event.sender.paste();
     });
 
-    electron.ipcMain.on("open-builder", (event, appId?: string) => {
+    onAppIpc("open-builder", (event, appId?: string) => {
         openBuilderWindow(appId);
     });
 
-    electron.ipcMain.on("set-builder-window-appid", (event, appId: string) => {
+    onAppIpc("set-builder-window-appid", (event, appId: string) => {
         const bw = getBuilderWindowByWebContentsId(event.sender.id);
         if (bw == null) {
             return;
@@ -483,9 +486,9 @@ export function initIpcHandlers() {
         console.log("set-builder-window-appid", bw.builderId, appId);
     });
 
-    electron.ipcMain.on("open-new-window", () => fireAndForget(createNewWaveWindow));
+    onAppIpc("open-new-window", () => fireAndForget(createNewWaveWindow));
 
-    electron.ipcMain.on("close-builder-window", async (event) => {
+    onAppIpc("close-builder-window", async (event) => {
         const bw = getBuilderWindowByWebContentsId(event.sender.id);
         if (bw == null) {
             return;
@@ -505,11 +508,11 @@ export function initIpcHandlers() {
         bw.destroy();
     });
 
-    electron.ipcMain.on("do-refresh", (event) => {
+    onAppIpc("do-refresh", (event) => {
         event.sender.reloadIgnoringCache();
     });
 
-    electron.ipcMain.handle("save-text-file", async (event, fileName: string, content: string) => {
+    handleAppIpc("save-text-file", async (event, fileName: string, content: string) => {
         const ww = electron.BrowserWindow.fromWebContents(event.sender);
         if (ww == null) {
             return false;

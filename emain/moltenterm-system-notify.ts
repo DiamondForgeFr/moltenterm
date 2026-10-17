@@ -8,6 +8,7 @@
 // the window that asked to the front and tells its active tab view, which shows the question again.
 
 import * as electron from "electron";
+import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc";
 import { getAllWaveWindows, getWaveWindowByWebContentsId, WaveBrowserWindow } from "./emain-window";
 
 export const SystemNotifyChannel = "moltenterm-system-notify";
@@ -129,8 +130,8 @@ export function initMoltentermSystemNotify() {
         make: (title, body) => new electron.Notification({ title, body }),
         onClick: openOnClick,
     });
-    electron.ipcMain.handle(SystemNotifyChannel, (event, req: SystemNotifyRequest) =>
+    handleAppIpc(SystemNotifyChannel, (event, req: SystemNotifyRequest) =>
         notifier.notify(req, event.sender.id)
     );
-    electron.ipcMain.on(SystemNotifyCloseChannel, (_event, id: string) => notifier.close(id));
+    onAppIpc(SystemNotifyCloseChannel, (_event, id: string) => notifier.close(id));
 }
