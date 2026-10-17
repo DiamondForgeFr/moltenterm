@@ -37,8 +37,9 @@ onboarding, permission prompts). Never give Full Disk Access to a build whose bu
 
 - `release.yml` is on `develop` and reaches `main` with the first promotion. GitHub already knows it, so the
   rehearsal can be dispatched from `develop` before that.
-- macOS Developer ID signing and notarization (#507) come before the first public release. Until then, the builds are
-  ad-hoc signed and the release text says how to open them.
+- macOS Developer ID signing and notarization (#507) come before the first public release: the `release` environment
+  and its seven secrets exist (below, "macOS signing"). Until then, the builds are ad-hoc signed, a public tag's run
+  warns, and the release text says how to open them.
 - The milestone of the release is triaged: `molten release plan` lists its open issues. They are reported, never
   blocking.
 - The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Until
@@ -123,6 +124,70 @@ sha256sum --ignore-missing -c SHA256SUMS.txt     # shasum -a 256 --ignore-missin
 
 The release text carries these commands, with the fingerprint once the release is signed.
 
+## macOS signing
+
+A release's macOS builds are signed with the DiamondForge **Developer ID Application** certificate, notarized by Apple
+and stapled (#507), so a downloaded MoltenTerm opens without a Gatekeeper override and keeps its privacy grants from one
+release to the next. `release.yml` does it when the seven secrets below exist, and stays ad hoc while none does; a
+partial set fails the run. A rehearsal is always ad hoc. The mechanics are in `scripts/macos-signing/README.md`.
+
+### Get the credentials (once)
+
+1. Enroll DiamondForge (the SASU) in the Apple Developer Program as an organization: it needs the company's D-U-N-S
+   number and the legal entity's name exactly as Dun & Bradstreet has it. Apple confirms in a few days.
+2. On a Mac logged in to the developer account, create a **Developer ID Application** certificate (Xcode › Settings ›
+   Accounts › Manage Certificates › +, or developer.apple.com › Certificates with a CSR from Keychain Access). Only the
+   Account Holder can create one. Export it **with its private key** from Keychain Access as a `.p12`, with a strong
+   password generated in the password manager. Store the `.p12` and its password there too, then delete the exported
+   file.
+3. Read its fingerprint: `security find-identity -v -p codesigning` lists `<40 hex> "Developer ID Application: … (TEAMID)"`.
+   The 40 hex characters are the fingerprint, the 10 characters in brackets are the team ID.
+4. App Store Connect › Users and Access › Integrations › **Team Keys**: generate a key with the Developer role. Note its
+   key ID and the issuer ID shown above the list, download the `.p8` (only once), store it in the password manager.
+
+### Set them (once, and at each renewal)
+
+Settings › Environments › New environment `release`:
+
+- Deployment branches and tags: **Selected branches and tags**, add the tag rule `v*`. Only a release tag's run can then
+  read the secrets; a rehearsal, a pull request or any branch cannot.
+- Optionally, Required reviewers: the developer, to approve each release's signing job.
+- Environment secrets (never repository secrets: those would reach every job):
+
+| Secret | Value |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12_BASE64` | `base64 -i DeveloperID.p12 \| tr -d '\n'` |
+| `MACOS_CERTIFICATE_PASSWORD` | the `.p12` export password |
+| `MACOS_SIGNING_IDENTITY` | the 40-character fingerprint |
+| `APPLE_TEAM_ID` | the 10-character team ID |
+| `APPLE_API_KEY_BASE64` | `base64 -i AuthKey_<KEYID>.p8 \| tr -d '\n'` |
+| `APPLE_API_KEY_ID` | the key ID |
+| `APPLE_API_ISSUER` | the issuer ID (a UUID) |
+
+Paste each value with `gh secret set <NAME> --env release` (it reads stdin) rather than on a command line. The next
+release candidate is the first signed build: walk the macOS checklist on a separate user, and record it on #880.
+
+The certificate is valid five years; signatures made before it expires stay valid, since they carry a secure
+timestamp. Renew it before then and replace the three certificate secrets. Revoke it at Apple only if its key leaks:
+revocation also breaks the releases already signed with it.
+
+### Local fallback
+
+When the CI signing fails for a reason that only the builder's own output would explain (CI shows only the stage), or
+GitHub is unavailable, sign on the developer's Mac and upload to the draft release:
+
+```bash
+git checkout vX.Y.Z && npm ci && task clean && task build:backend && task build:tsunamiscaffold
+MOLTENTERM_BUILD_CHANNEL=public npm run build:prod   # rc for a release candidate
+# the seven variables of the table above, read from the password manager into this shell only
+node scripts/macos-signing/package.mjs package -c.publish.provider=github -c.publish.owner=DiamondForgeFr -c.publish.repo=moltenterm
+```
+
+It uses its own temporary keychain, never the login keychain, puts the search list back afterwards and deletes the
+keychain. Then replace the draft's macOS files (`make/*.dmg`, `make/*.zip`, `make/*.blockmap`, `make/latest-mac.yml`)
+with `gh release upload vX.Y.Z <files> --clobber`, and regenerate `SHA256SUMS.txt` and its signature from the full
+set of final files (`scripts/moltenterm-release-files.sh`, `scripts/moltenterm-release-sign.sh`) before publishing.
+
 ## The steps
 
 1. **Rehearse.** CI/CD › CD › "Rehearse the release build". It builds macOS (arm64, x64: dmg, zip) and Linux (x64,
@@ -159,8 +224,11 @@ on the ticket of the release.
 
 On a separate macOS user that never ran MoltenTerm:
 
-- [ ] Open the `.dmg` and drag MoltenTerm to Applications. Until #507, the first open is refused: right-click › Open
-      (or System Settings › Privacy & Security › Open Anyway). Afterwards, MoltenTerm opens normally.
+- [ ] Open the `.dmg` and drag MoltenTerm to Applications. A Developer ID build (the run's "Signing mode" says
+      `developer-id`) opens at once, after the usual "downloaded from the Internet" confirmation; `spctl --assess -vv
+      /Applications/MoltenTerm.app` says "accepted, source=Notarized Developer ID". An ad-hoc build (a rehearsal, or
+      before the secrets exist) is refused the first time: right-click › Open (or System Settings › Privacy & Security
+      › Open Anyway). Afterwards, MoltenTerm opens normally.
 - [ ] About MoltenTerm shows the version (the candidate's `X.Y.Z-N`, or `package.json`'s for a rehearsal) and the
       channel. The status bar badge shows the version.
 - [ ] The version history (from the status bar badge or About) shows this version's notes (#187).
