@@ -340,6 +340,10 @@ func TestStartAttachEnd(t *testing.T) {
 	if len(token) != 64 || block.Meta.GetString(waveobj.MetaKey_CmdCwd, "") != s.Worktree || block.Meta.GetString(waveobj.MetaKey_Controller, "") != "shell" {
 		t.Errorf("block meta %+v", block.Meta)
 	}
+	// #916: the session's terminal runs hidden, the AI panel shows it on demand.
+	if !block.Meta.GetBool(mcpreview.HiddenMetaKey, false) {
+		t.Errorf("the session's terminal is not hidden: %+v", block.Meta)
+	}
 	if strings.Contains(f.typed[blockId], token) || !strings.HasPrefix(f.typed[blockId], "claude --setting-sources user --permission-mode default") {
 		t.Errorf("typed %q", f.typed[blockId])
 	}

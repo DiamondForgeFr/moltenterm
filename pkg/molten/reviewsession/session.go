@@ -148,7 +148,7 @@ type Env struct {
 	WriteFile func(prefix string, ext string, data []byte) (string, error)
 	Guide     func() ([]byte, error)
 	// CreateTerminal creates a terminal block in the tab and puts it in the tab's layout: split under afterBlockId
-	// when it is in the tab, else added.
+	// when it is in the tab, else added; a block whose meta has mcpreview.HiddenMetaKey stays out of the layout.
 	CreateTerminal func(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType) (string, error)
 	// StartAndType starts the terminal's shell, waits for its first prompt and types the line with Enter.
 	StartAndType func(ctx context.Context, tabId string, blockId string, line string) error
@@ -463,6 +463,8 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		waveobj.MetaKey_CmdCwd:     tree,
 		waveobj.MetaKey_CmdEnv:     map[string]any{mcpreview.SessionTokenVarName: token},
 		mcpreview.SessionMetaKey:   rec,
+		// The AI panel shows the agent's cards; its terminal is shown on demand (DS-REV-012, #916).
+		mcpreview.HiddenMetaKey: true,
 	}
 	blockId, err := m.env.CreateTerminal(ctx, tabId, req.AfterBlockId, meta)
 	if err != nil {

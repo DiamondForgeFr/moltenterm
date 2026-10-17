@@ -12,10 +12,10 @@ import { activeTabIdAtom } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget, NullAtom } from "@/util/util";
 import { Atom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { showPanel } from "../hidden-panel";
 import { FocusRequest, freshFocusRequest, paneShowStep } from "./pane-focus-model";
 import { FocusBlockMetaKey, SessionLocation } from "./sessions-model";
 
@@ -23,14 +23,9 @@ import { FocusBlockMetaKey, SessionLocation } from "./sessions-model";
 const FocusRetryMs = 150;
 const FocusMaxTries = 20;
 
+// A panel running hidden (a review session's terminal, #916) is laid out first.
 function focusBlockHere(blockId: string): boolean {
-    const layoutModel = getLayoutModelForStaticTab();
-    const node = blockId ? layoutModel?.getNodeByBlockId(blockId) : null;
-    if (node == null) {
-        return false;
-    }
-    layoutModel.focusNode(node.id);
-    return true;
+    return showPanel(blockId);
 }
 
 // Takes the window to a pane wavesrv located (and, for another tab, asked to focus).

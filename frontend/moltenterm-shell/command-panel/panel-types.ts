@@ -5,6 +5,7 @@
 // matches a panel by its capabilities and returns sections of items; the panel orders the sections by kind, never by
 // registration, so a terminal running an agent gets Agent, MoltenTerm, Terminal and (with Option) Developer.
 
+import type { Atom } from "jotai";
 import type { AgentStateInfo } from "../agent-state-model";
 
 export type PanelSectionKind = "agent" | "molten" | "widget" | "developer";
@@ -46,9 +47,9 @@ type PanelItemBase = {
 };
 
 // What an action that waits for its result tells the panel (FR-SHELL-048): nothing or "close" closes it and gives
-// the focus back to the panel; "dismiss" only takes the feedback away; a feedback keeps it open and shows why, with
-// what to do next.
-export type PanelActionResult = void | "close" | "dismiss" | PanelFeedback;
+// the focus back to the panel; "away" closes it and leaves the focus where the action put it (another panel shown,
+// #916); "dismiss" only takes the feedback away; a feedback keeps it open and shows why, with what to do next.
+export type PanelActionResult = void | "close" | "away" | "dismiss" | PanelFeedback;
 
 export type PanelFeedbackAction = {
     id: string;
@@ -157,11 +158,24 @@ export type PanelContext = {
     viewModel: ViewModel;
     // "terminal", "agent", "agent:<id>", "browser", "remote", "view:<type>" and whatever a view adds.
     capabilities: Set<string>;
+    // The agent of agentBlockId.
     agent: AgentStateInfo;
+    // The terminal the Agent section drives (FR-SHELL-048): the panel itself for a terminal, another terminal for a
+    // view that drives an agent there (the Review tab's AI panel and its session's terminal, #916). Unset: blockId.
+    agentBlockId?: string;
+    // Shows and focuses agentBlockId when it is another panel (it may run hidden): Go on a waiting agent.
+    revealAgent?: () => void;
     // The panel kind in the plural for the kind scope ("terminals" → "All terminals").
     kindLabel: string;
     // The panel's name for the dialog's label ("Terminal").
     panelName: string;
+};
+
+// A view model whose panel drives an agent running in another terminal (#916): the command panel offers that agent's
+// Agent section. agentBlockIdAtom is null while there is no running agent to drive.
+export type AgentTargetViewModel = {
+    agentBlockIdAtom: Atom<string>;
+    showAgentBlock: () => void;
 };
 
 export type CommandProvider = {

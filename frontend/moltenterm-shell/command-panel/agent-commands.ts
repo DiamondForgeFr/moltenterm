@@ -428,8 +428,9 @@ export function agentSection(
     };
 }
 
-// A waiting agent's question, with Go, which closes the panel and focuses the terminal (FR-SHELL-048-AC8).
-export function agentSuggestions(agent: AgentStateInfo): PanelSuggestion[] {
+// A waiting agent's question, with Go, which closes the panel and focuses the terminal (FR-SHELL-048-AC8); goToAgent
+// shows that terminal when it is another panel than the command panel's (#916).
+export function agentSuggestions(agent: AgentStateInfo, goToAgent?: () => void): PanelSuggestion[] {
     if (!hasAgentCommands(agent) || agent.state !== "waiting") {
         return [];
     }
@@ -441,7 +442,7 @@ export function agentSuggestions(agent: AgentStateInfo): PanelSuggestion[] {
             icon: "circle-question",
             tone: "warning",
             action: t("cmdpanel.agent.go"),
-            run: () => {},
+            run: () => goToAgent?.(),
         },
     ];
 }
@@ -450,6 +451,8 @@ export type FeedbackHandlers = {
     interrupt: () => Promise<PanelActionResult>;
     confirmDraft: () => Promise<PanelActionResult>;
     openModel?: () => Promise<PanelActionResult>;
+    // Shows the agent's terminal when it is another panel (#916).
+    gotoAgent?: () => void;
 };
 
 // What the panel does with wavesrv's answer: close on a command sent, or say why nothing was typed and offer what
@@ -499,7 +502,20 @@ export function feedbackFor(
                 tone: "warning",
                 role: "alert",
                 message: termupdateMessage(result),
-                actions: [{ id: "goto", label: t("cmdpanel.agent.gotoQuestion"), primary: true, run: () => "close" }],
+                actions: [
+                    {
+                        id: "goto",
+                        label: t("cmdpanel.agent.gotoQuestion"),
+                        primary: true,
+                        run: () => {
+                            if (handlers.gotoAgent == null) {
+                                return "close";
+                            }
+                            handlers.gotoAgent();
+                            return "away";
+                        },
+                    },
+                ],
             };
         case "draft":
             return {

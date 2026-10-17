@@ -139,4 +139,31 @@ describe("model in the command panel (#573)", () => {
         // The fake wavesrv answers the new read with nothing: the aliases read before the switch are gone.
         expect(inputs.infos.get("b1")?.info ?? null).toBeNull();
     });
+
+    // #916: the Review AI panel drives its session's terminal; the command goes there, with the same guard.
+    it("sends to the terminal a view drives and shows its current model and effort", async () => {
+        sent.length = 0;
+        const inputs = AgentInputs.getInstance();
+        inputs.infos.set("session", {
+            info: { ...claudeInfo, blockid: "session", efforts: ["low", "medium"] },
+            at: Date.now(),
+        });
+        const sections = agentProviderSections({
+            blockId: "aipanel",
+            view: "molten-review-ai",
+            meta: {},
+            viewModel: null,
+            agent: { ...claude, blockid: "session" },
+            agentBlockId: "session",
+            capabilities: new Set(),
+            kindLabel: "",
+            panelName: "AI",
+        } as never);
+        const model = sections[0].items.find((i) => i.id === ModelItemId) as PanelChoice;
+        expect(choiceValueLabel(model)).toBe("Opus 5.5");
+        const effort = sections[0].items.find((i) => i.id === "agent:effort") as PanelChoice;
+        expect(effort.options.find((o) => o.checked)?.label).toBe("medium");
+        await effort.options.find((o) => o.id === "effort:low").run();
+        expect(sent).toEqual([{ blockid: "session", agent: "claude", action: "effort", effort: "low" }]);
+    });
 });

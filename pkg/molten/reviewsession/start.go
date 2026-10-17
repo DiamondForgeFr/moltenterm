@@ -193,8 +193,9 @@ func osLocale() string {
 	return ""
 }
 
-// createTerminal creates the session's terminal in the tab and puts it in the tab's layout, focused: under the AI
-// panel when it names one of the tab's blocks (its cards above the agent's terminal, DS-REV-012), else added.
+// createTerminal creates a terminal in the tab and puts it in the tab's layout, focused: under afterBlockId when it
+// names one of the tab's blocks, else added. A terminal marked hidden (the review session's, DS-REV-012) stays out of
+// the layout until a window shows it.
 func createTerminal(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType) (string, error) {
 	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
 	if err != nil {
@@ -203,6 +204,11 @@ func createTerminal(ctx context.Context, tabId string, afterBlockId string, meta
 	block, err := wcore.CreateBlock(ctx, tabId, &waveobj.BlockDef{Meta: meta}, nil)
 	if err != nil {
 		return "", err
+	}
+	if meta.GetBool(mcpreview.HiddenMetaKey, false) {
+		wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Block, block.OID))
+		wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Tab, tabId))
+		return block.OID, nil
 	}
 	action := waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_Insert, BlockId: block.OID, Focused: true}
 	if afterBlockId != "" && slices.Contains(tab.BlockIds, afterBlockId) {

@@ -45,6 +45,9 @@ const (
 	SessionTokenVarName = "MOLTEN_REVIEW_SESSION"
 	// The review session's terminal block: its session (JSON), so a restarted wavesrv finds it again.
 	SessionMetaKey = "molten:reviewsession"
+	// A block of the tab kept running outside its layout (the session's terminal, DS-REV-012, #916): the windows do
+	// not clean it up as orphaned, and lay it out when it is shown (frontend/moltenterm-shell/hidden-panel.ts).
+	HiddenMetaKey = "molten:hidden"
 )
 
 // The tools (DS-REV-005). Read tools only read the PR; output tools only change MoltenTerm's local review state.
@@ -215,8 +218,8 @@ type StartRequest struct {
 	Agent string `json:"agent,omitempty"`
 	// Brief: the agent starts by briefing the PR (FR-REV-005); false when the review store has a briefing of this head.
 	Brief bool `json:"brief,omitempty"`
-	// AfterBlockId: the session's terminal is split under this block (the AI panel, DS-REV-012); empty, it is added
-	// to the tab.
+	// AfterBlockId: the AI panel (DS-REV-012). The session's terminal runs hidden (#916); the window shows it split
+	// under this block.
 	AfterBlockId string `json:"afterblockid,omitempty"`
 }
 

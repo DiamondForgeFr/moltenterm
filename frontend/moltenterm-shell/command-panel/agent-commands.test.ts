@@ -103,6 +103,24 @@ describe("agent provider", () => {
         expect(matchingProviders(ctxOf({ ...claude, agent: "gemini" }), [AgentProvider])).toHaveLength(0);
         expect(matchingProviders(ctxOf(claude, "preview"), [AgentProvider])).toHaveLength(0);
     });
+
+    // #916: a view driving an agent in another terminal (the Review AI panel) gets the section, only while it has one.
+    it("matches a view that drives a running agent elsewhere", () => {
+        const driving = (agent: AgentStateInfo, agentTarget: boolean): PanelContext => ({
+            ...ctxOf(agent, "molten-review-ai"),
+            agentBlockId: agentTarget ? "session" : null,
+            capabilities: panelCapabilities({
+                view: "molten-review-ai",
+                meta: {},
+                agent,
+                waveMenu: false,
+                agentTarget,
+            }),
+        });
+        expect(matchingProviders(driving(claude, true), [AgentProvider])).toHaveLength(1);
+        expect(matchingProviders(driving(null, false), [AgentProvider])).toHaveLength(0);
+        expect(matchingProviders(driving(null, true), [AgentProvider])).toHaveLength(0);
+    });
 });
 
 describe("permission mode", () => {
@@ -133,6 +151,9 @@ describe("suggestions", () => {
             "Claude Code is waiting for your answer"
         );
         expect(agentSuggestions(claude)).toEqual([]);
+        const go = vi.fn();
+        agentSuggestions({ ...claude, state: "waiting" }, go)[0].run();
+        expect(go).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -164,6 +185,17 @@ describe("feedback", () => {
         ) as PanelFeedback;
         expect(waiting.actions.map((a) => a.label)).toEqual(["Go to the question"]);
         expect(waiting.actions[0].run()).toBe("close");
+    });
+
+    // #916: the terminal of another panel (the Review AI panel's hidden session) is shown, and keeps the focus.
+    it("shows the driven terminal on Go to the question", () => {
+        const gotoAgent = vi.fn();
+        const waiting = feedbackFor({ result: "refused", reason: "waiting", message: "q" }, "status", {
+            ...fb,
+            gotoAgent,
+        }) as PanelFeedback;
+        expect(waiting.actions[0].run()).toBe("away");
+        expect(gotoAgent).toHaveBeenCalledTimes(1);
     });
 
     it("asks before a draft is cleared, and Cancel types nothing", () => {

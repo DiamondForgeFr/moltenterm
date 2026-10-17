@@ -11,9 +11,9 @@ import { activeTabIdAtom } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { showPanel } from "./hidden-panel";
 import { t } from "./i18n/i18n";
 import { serverErrorText } from "./i18n/server-text";
 import {
@@ -226,11 +226,8 @@ export class MoltentermNotifications {
             return;
         }
         if (location.blockid) {
-            const layoutModel = getLayoutModelForStaticTab();
-            const node = layoutModel?.getNodeByBlockId(location.blockid);
-            if (node != null) {
-                layoutModel.focusNode(node.id);
-            }
+            // A panel running hidden (a review session's terminal, #916) is laid out first.
+            showPanel(location.blockid);
         }
     }
 

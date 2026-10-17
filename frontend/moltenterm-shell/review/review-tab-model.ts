@@ -20,6 +20,7 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import type { AgentStateInfo } from "../agent-state-model";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
+import { showPanel } from "../hidden-panel";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
@@ -1328,9 +1329,9 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    // The AI panel (DS-REV-012) is a pane of its own right of this block, the session's terminal split under it, so the
-    // briefing and the explanation cards sit above the agent's terminal. Closing it keeps the session; the session
-    // ends when its terminal or the tab closes.
+    // The AI panel (DS-REV-012) is a pane of its own right of this block; the session's terminal runs hidden and is
+    // split under it on demand (#916), so the briefing and the explanation cards sit above the agent's terminal.
+    // Closing it keeps the session; the session ends when its terminal or the tab closes.
     async toggleAi() {
         const paneId = globalStore.get(this.aiPaneIdAtom);
         if (paneId == null) {
@@ -1342,6 +1343,13 @@ export abstract class ReviewTabModel implements ViewModel {
         if (node != null) {
             await layout.closeNode(node.id);
         }
+    }
+
+    // The session's terminal runs hidden (DS-REV-012, #916): Show its terminal lays it out under the AI panel and
+    // focuses it, or focuses it where it already is.
+    showSessionTerminal() {
+        const blockId = globalStore.get(this.aiAtom).session?.blockid;
+        showPanel(blockId, globalStore.get(this.aiPaneIdAtom));
     }
 
     // openAi opens the AI panel and starts the PR's review session when it has none (FR-REV-004).
