@@ -129,3 +129,4 @@ sanitizers, shell quoting, WebSocket client and updater code. Official starting 
 - [govulncheck behavior and limitations](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck).
 
 The final report records upgraded resolved versions, remaining evidence-backed dispositions and exact-head checks.
+`UPGRADES.md` explains the version choices; `TRIAGE.md` records the reviewed disposition of every remaining finding.
