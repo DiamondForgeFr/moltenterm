@@ -4,13 +4,14 @@
 // The Reviews view's entry points (FR-REV-001-AC3, DS-REV-012): the widget opens the view, Mission Control's Pull
 // requests waiting block opens it on one PR, and a row opens that PR's Review tab (FR-REV-002).
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
+import { showTabFromHere } from "../opener-tab";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import {
     askReviewInvestigate,
@@ -22,6 +23,7 @@ import {
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
+import { ReviewsMerges } from "./reviews-merges";
 import {
     checkNames,
     checksOf,
@@ -79,14 +81,15 @@ export class ReviewsModel {
         if (!dir || pr == null || !workspaceId || !repoName) {
             return;
         }
-        getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
+        showTabFromHere(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
 
     // A row's Validate (#683, #707): the Validate sheet opens in place, over this tab, with no Review tab; it shows the
     // plan, and merging stays the developer's click there. blockId is the Reviews panel that shows it.
     openValidate(dir: string, pr: ReviewPr, repo?: string, blockId?: string) {
         const repoName = repo || repoOfPrUrl(pr?.url);
-        if (!dir || pr == null || !repoName) {
+        // A PR MoltenTerm merged (#898) offers no validation, even from a row drawn before the merge.
+        if (!dir || pr == null || !repoName || ReviewsMerges.getInstance().isMerged(dir, pr.number)) {
             return;
         }
         this.closeValidateSheet();

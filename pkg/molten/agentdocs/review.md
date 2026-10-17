@@ -36,7 +36,7 @@ it: name the button that does it, as their MoltenTerm shows it (English and Fren
 | --- | --- | --- |
 | Rebase the branch on its base | **Ask for a rebase** / **Demander un rebase** | the PR's row in the Reviews list, shown when it conflicts with its base |
 | Rerun failed CI jobs | **Rerun failed jobs** / **Relancer les jobs en échec** | the PR's row in the Reviews list, shown when a check failed |
-| Find why the CI failed, or fix it | **Investigate** / **Analyser l'échec** | the PR's row in the Reviews list, shown when a check failed: a work agent reads the failed logs and proposes rerun, fix or ticket |
+| Find why the CI failed and fix it | **Investigate and fix** / **Analyser et résoudre** | the PR's row in the Reviews list, shown when a check failed: a work agent finds the cause and resolves it (a fix on the branch, a rebase, or a rerun with a ticket for a flaky test), never merges, and the developer is told when the checks pass |
 | Apply the review's comments | **Restart work** / **Relancer le travail** | the Review tab's header, once a review round is published |
 | Publish the comments | **Publish review** / **Publier la revue** | the Review tab |
 | Merge | **Validate** / **Valider** | the Review tab's header, or the PR's row in the Reviews list |

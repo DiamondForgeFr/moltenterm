@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { reviewsGet } from "../reviews/reviews-client";
+import { ReviewsMerges } from "../reviews/reviews-merges";
 import { removeKeptWorktree, removeLeftover, ReviewCleanupStepResult } from "./review-cleanup";
 import {
     reviewMerge,
@@ -16,6 +17,7 @@ import {
     ReviewMergeMethod,
     ReviewMergePlan,
     reviewMergePlan,
+    ReviewMergeRecord,
     ReviewPrInfo,
     reviewState,
     ReviewState,
@@ -47,6 +49,8 @@ export type ReviewValidateHost = {
     inTab: boolean;
     reviewNewCommits(): Promise<void>;
     closeTab?(): void;
+    // Whether the host knows the PR merged elsewhere (a Review tab: the list or GitHub said so).
+    isMerged?(): boolean;
 };
 
 const ClosedSheet: ReviewValidateState = { open: false, loading: false, override: false };
@@ -73,6 +77,7 @@ export class ReviewValidateModel {
         const before = globalStore.get(this.stateAtom)?.merge;
         globalStore.set(this.stateAtom, state);
         const after = state?.merge;
+        this.noteMerge(after);
         if (after == null || !mergeRunning(before) || mergeRunning(after) || before.planid !== after.planid) {
             return;
         }
@@ -82,9 +87,52 @@ export class ReviewValidateModel {
         });
     }
 
+    // noteMerge tells the Reviews list a merge it must not wait GitHub for (#898): merged here, or refused because the PR
+    // was merged away.
+    noteMerge(record: ReviewMergeRecord) {
+        const merged = record?.state === "merged";
+        if (!merged && record?.refused !== "mergedaway") {
+            return;
+        }
+        const pr = this.pr();
+        if (pr == null) {
+            return;
+        }
+        ReviewsMerges.getInstance().note(pr.dir, {
+            number: pr.number,
+            mergedat: merged ? record.endedat || undefined : undefined,
+            base: pr.baseref,
+            oid: merged ? record.mergedoid || undefined : undefined,
+            title: pr.title,
+            url: pr.url,
+            branch: pr.headref,
+            ticket: pr.ticket,
+            byyou: merged,
+        });
+    }
+
+    // Whether the PR is known merged (#898), so no validation starts on it.
+    isMerged(): boolean {
+        const pr = this.pr();
+        if (pr == null) {
+            return false;
+        }
+        return (
+            globalStore.get(this.stateAtom)?.merge?.state === "merged" ||
+            ReviewsMerges.getInstance().isMerged(pr.dir, pr.number) ||
+            (this.host.isMerged?.() ?? false)
+        );
+    }
+
     // Validate (FR-REV-012, AC1): the plan sheet opens on a fresh read of the PR. Nothing merges until Merge is
-    // clicked on it.
+    // clicked on it. On a merged PR (#898) no validation starts: the merge's result shows when MoltenTerm made it.
     async openValidate() {
+        if (this.isMerged()) {
+            if (globalStore.get(this.stateAtom)?.merge?.state === "merged") {
+                this.openValidateResult();
+            }
+            return;
+        }
         globalStore.set(this.validateAtom, { open: true, loading: true, override: false });
         await this.loadPlan();
     }
@@ -135,6 +183,7 @@ export class ReviewValidateModel {
         globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
         try {
             const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override, chosenMethod(v.plan, v.method));
+            this.noteMerge(record);
             // The store's event may have come first with a newer step of this merge.
             globalStore.set(this.stateAtom, (state) =>
                 state && state.merge?.planid !== record.planid ? { ...state, merge: record } : state
@@ -209,6 +258,7 @@ export function openSheetValidate(
             // An event may have brought a newer state while the store was read.
             if (!stopped && globalStore.get(model.stateAtom) == null) {
                 globalStore.set(model.stateAtom, state);
+                model.noteMerge(state?.merge);
             }
         } catch (e) {
             console.log("[review] the review store could not be read", e);

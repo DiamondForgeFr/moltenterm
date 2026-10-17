@@ -335,7 +335,8 @@ func DeleteTab(ctx context.Context, workspaceId string, tabId string, recursive 
 	newActiveTabId := ws.ActiveTabId
 	if ws.ActiveTabId == tabId {
 		// MOLTENTERM-PATCH (#758): never a hidden agent tab, unless only those remain (then they are revealed)
-		newActiveTabId = moltenNextActiveTab(ws, tabIdx)
+		// MOLTENTERM-PATCH (#892): a tab opened from another tab returns to it
+		newActiveTabId = moltenNextActiveTab(ws, tabIdx, tab)
 	} else {
 		moltenForgetClosedTabs(ws) // MOLTENTERM-PATCH (#758)
 	}

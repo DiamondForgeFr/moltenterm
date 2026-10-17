@@ -4577,13 +4577,13 @@
                 "failed": "The failed jobs could not be rerun: {message}"
             },
             "investigate": {
-                "button": "Investigate",
-                "buttonTitle": "A work agent reads the failed logs of {names}, says whether this pull request caused it, and proposes a rerun, a fix or a ticket",
+                "button": "Investigate and fix",
+                "buttonTitle": "A work agent finds why {names} failed and resolves it: a fix on the branch, a rebase, or a rerun with a ticket for a flaky test. It never merges.",
                 "asking": "Asking…",
-                "asked": "{name} investigates the failed CI: its findings and proposal come in its terminal.",
-                "startedHidden": "{name} investigates the failed CI of {branch} out of sight: a notification tells you when its findings are ready.",
-                "offer": "No agent works on {branch}. Start one to investigate the failed CI?",
-                "failed": "The investigation could not be asked: {message}"
+                "asked": "{name} investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
+                "startedHidden": "{name} fixes the failed CI of {branch} out of sight: a notification tells you when the checks pass or if it needs you.",
+                "offer": "No agent works on {branch}. Start one to investigate and fix the failed CI?",
+                "failed": "Investigate and fix could not be asked: {message}"
             }
         },
         "report": {
@@ -5068,6 +5068,17 @@
             "tabClosed": "Closed without merge: you can close this tab",
             "closeTab": "Close the review tab",
             "keepOpen": "Keep it open",
+            "merged": "Merged",
+            "close": "Close",
+            "banner": {
+                "you": "you",
+                "today": "at {time}",
+                "day": "on {date} at {time}",
+                "byWhen": "Merged by {who} {when}, on {base}. Nothing left to validate.",
+                "by": "Merged by {who}, on {base}. Nothing left to validate.",
+                "when": "Merged {when}, on {base}. Nothing left to validate.",
+                "plain": "Merged, on {base}. Nothing left to validate."
+            },
             "footer": {
                 "cleaning": "Merged. The cleanup is finishing; this review tab is no longer needed.",
                 "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",
@@ -5664,6 +5675,11 @@
         }
     },
     "server": {
+        "agentHold": {
+            "fixing": "fixing the CI of #{number}",
+            "ci": "waiting for the CI of #{number}",
+            "green": "the CI of #{number} passes"
+        },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
             "batchrunning": "A batch merge already runs in this project.",
@@ -6013,12 +6029,17 @@
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
-                "investigatedTitle": "{name} investigated the CI of #{number}",
-                "investigated": "Its findings and what it proposes are in its terminal: answer there.",
+                "ciGreenTitle": "#{number}: CI green again",
+                "ciGreen": "{name}: {outcome}",
+                "ciGreenPlain": "{name} stopped and the required checks of #{number} pass.",
+                "stillFailing": "Still failing on #{number}: {names}.",
+                "asks": "stopped for a decision: {reason}",
+                "ciSlow": "The CI of #{number} is still running after 2 hours.",
+                "uncommitted": "{name} left uncommitted files in its copy of {branch} ({count}): {names}",
                 "rerun": {
                     "passedTitle": "#{number}: the rerun jobs passed",
                     "failedTitle": "#{number}: failed again after the rerun",
-                    "failed": "Still failing: {names}. Investigate from the pull request's row in Reviews."
+                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in Reviews."
                 },
                 "batch": {
                     "openReviews": "Open the Reviews list",
@@ -6282,13 +6303,13 @@
         "title": {
             "rebase": "Rebase #{number} with an agent",
             "restart": "Restart work on #{number} with an agent",
-            "investigate": "Investigate the failed CI of #{number} with an agent"
+            "investigate": "Investigate and fix the failed CI of #{number} with an agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
             "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
-            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch}, says whether the pull request caused the failure or a flaky or unrelated test did, and proposes a rerun, a fix on the branch or a ticket. It changes nothing until you choose."
+            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch} and resolves the cause: a fix pushed on the branch, a rebase on the base pushed with lease, or a rerun of a flaky job with its ticket. It never merges and asks you only for a real decision."
         },
         "background": {
             "button": "Let the agent handle it",
@@ -6297,12 +6318,13 @@
         "together": {
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
-            "investigate": "Go through the investigation with the agent",
+            "investigate": "Investigate and fix with the agent",
             "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
-        "checkoutInvestigate": "Your main checkout is not touched. The agent's terminal stays open with its findings until you close it.",
+        "checkoutInvestigate": "Your main checkout is not touched. The agent turns green only once the pull request's required checks pass; its terminal stays open with its account until you close it.",
         "default": "Default",
+        "how": "How the agent works",
         "yourAgent": "Your agent",
         "tab": {
             "rebase": "Rebase #{number}",
@@ -6321,7 +6343,7 @@
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
-        "investigate": "Started by you at {time} to investigate the failed CI of #{number}"
+        "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}"
     },
     "codingAgent": {
         "section": "Coding agent",

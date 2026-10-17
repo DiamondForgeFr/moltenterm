@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     agentHeaderParts,
     AgentStateInfo,
+    agentStateMessage,
     agentStatesOfBlocks,
     agentStatesOfWorkspace,
     agentStateTitle,
@@ -67,5 +68,20 @@ describe("agent states", () => {
         ]);
         expect(agentHeaderParts(s, "", "")).toEqual(["Claude Code"]);
         expect(agentStateTitle(s)).toBe("Claude Code: waiting for you\nClaude needs your permission to use Bash");
+    });
+
+    it("words the state MoltenTerm holds (#896), the agent's own message otherwise", () => {
+        const held = info("b1", "working", 1, {
+            message: "Waiting for the CI of #12",
+            messagetext: { code: "agentHold.ci", vars: { number: "12" } },
+        });
+        expect(agentStateMessage(held)).toBe("waiting for the CI of #12");
+        expect(agentStateTitle(held)).toBe("Claude Code: working\nwaiting for the CI of #12");
+        const unknown = info("b1", "working", 1, {
+            message: "Plain words",
+            messagetext: { code: "agentHold.unknown" },
+        });
+        expect(agentStateMessage(unknown)).toBe("Plain words");
+        expect(agentStateMessage(info("b1", "done", 1))).toBe("");
     });
 });

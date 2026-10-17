@@ -164,6 +164,7 @@ describe("Reviews row on a failed CI (#797)", () => {
         expect(html).toContain('title="GitHub blocks the merge: Backend failed."');
         expect(html).toContain('data-testid="reviews-rerun"');
         expect(html).toContain('data-testid="reviews-investigate"');
+        expect(html).toMatch(/data-testid="reviews-investigate"[^>]*>.*Investigate and fix<\/button>/);
         expect(html).not.toContain('data-testid="reviews-rerun-confirm"');
     });
 

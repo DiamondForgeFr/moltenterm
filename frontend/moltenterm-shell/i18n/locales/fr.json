@@ -4577,13 +4577,13 @@
                 "failed": "Les jobs en échec n'ont pas pu être relancés : {message}"
             },
             "investigate": {
-                "button": "Analyser l'échec",
-                "buttonTitle": "Un agent de travail lit les logs en échec de {names}, dit si cette pull request en est la cause et propose une relance, un correctif ou un ticket",
+                "button": "Analyser et résoudre",
+                "buttonTitle": "Un agent de travail trouve pourquoi {names} a échoué et le résout : un correctif sur la branche, un rebase, ou une relance avec un ticket pour un test instable. Il ne fusionne jamais.",
                 "asking": "Demande…",
-                "asked": "{name} analyse l'échec de la CI : ses conclusions et sa proposition arrivent dans son terminal.",
-                "startedHidden": "{name} analyse hors de vue l'échec de la CI de {branch} : une notification vous prévient quand ses conclusions sont prêtes.",
-                "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour analyser l'échec de la CI ?",
-                "failed": "L'analyse n'a pas pu être demandée : {message}"
+                "asked": "{name} analyse et résout l'échec de la CI : une notification vous prévient quand les checks passent ou s'il a besoin de vous.",
+                "startedHidden": "{name} résout hors de vue l'échec de la CI de {branch} : une notification vous prévient quand les checks passent ou s'il a besoin de vous.",
+                "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour analyser et résoudre l'échec de la CI ?",
+                "failed": "« Analyser et résoudre » n'a pas pu être demandé : {message}"
             }
         },
         "report": {
@@ -5068,6 +5068,17 @@
             "tabClosed": "Fermée sans fusion : vous pouvez fermer cet onglet",
             "closeTab": "Fermer l'onglet de revue",
             "keepOpen": "Le garder ouvert",
+            "merged": "Fusionnée",
+            "close": "Fermer",
+            "banner": {
+                "you": "vous",
+                "today": "à {time}",
+                "day": "le {date} à {time}",
+                "byWhen": "Fusionnée par {who} {when}, sur {base}. Plus rien à valider.",
+                "by": "Fusionnée par {who}, sur {base}. Plus rien à valider.",
+                "when": "Fusionnée {when}, sur {base}. Plus rien à valider.",
+                "plain": "Fusionnée, sur {base}. Plus rien à valider."
+            },
             "footer": {
                 "cleaning": "Fusionnée. Le nettoyage se termine ; cet onglet de revue n'est plus utile.",
                 "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
@@ -5664,6 +5675,11 @@
         }
     },
     "server": {
+        "agentHold": {
+            "fixing": "corrige la CI de #{number}",
+            "ci": "attend la CI de #{number}",
+            "green": "la CI de #{number} passe"
+        },
         "review": {
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
             "batchrunning": "Une fusion groupée tourne déjà dans ce projet.",
@@ -6013,12 +6029,17 @@
                 "commits": "Commits non poussés sur {branch} : {count}.",
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
-                "investigatedTitle": "{name} a analysé la CI de #{number}",
-                "investigated": "Ses conclusions et sa proposition sont dans son terminal : répondez-y.",
+                "ciGreenTitle": "#{number} : la CI est de nouveau verte",
+                "ciGreen": "{name} : {outcome}",
+                "ciGreenPlain": "{name} s'est arrêté et les checks requis de #{number} passent.",
+                "stillFailing": "Toujours en échec sur #{number} : {names}.",
+                "asks": "arrêté pour une décision : {reason}",
+                "ciSlow": "La CI de #{number} tourne encore après 2 heures.",
+                "uncommitted": "{name} a laissé des fichiers non commités dans sa copie de {branch} ({count}) : {names}",
                 "rerun": {
                     "passedTitle": "#{number} : les jobs relancés ont réussi",
                     "failedTitle": "#{number} : encore en échec après la relance",
-                    "failed": "Toujours en échec : {names}. Analysez l'échec depuis la ligne de la pull request dans Revues."
+                    "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans Revues."
                 },
                 "batch": {
                     "openReviews": "Ouvrir la liste des revues",
@@ -6282,13 +6303,13 @@
         "title": {
             "rebase": "Rebaser #{number} avec un agent",
             "restart": "Relancer le travail sur #{number} avec un agent",
-            "investigate": "Analyser l'échec de la CI de #{number} avec un agent"
+            "investigate": "Analyser et résoudre l'échec de la CI de #{number} avec un agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebase {branch} sur {base} dans une copie isolée de la branche, résout les conflits, lance les vérifications du projet et pousse avec lease.",
             "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil.",
-            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch}, dit si la pull request a causé l'échec ou si un test instable ou sans rapport l'a fait, et propose une relance, un correctif sur la branche ou un ticket. Il ne change rien avant votre choix."
+            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch} et résout la cause : un correctif poussé sur la branche, un rebase sur la base poussé avec lease, ou une relance d'un job instable avec son ticket. Il ne fusionne jamais et ne vous sollicite que pour une vraie décision."
         },
         "background": {
             "button": "Laisser l'agent s'en charger",
@@ -6297,12 +6318,13 @@
         "together": {
             "rebase": "Faire le rebase avec l'agent",
             "restart": "Faire le travail avec l'agent",
-            "investigate": "Faire l'analyse avec l'agent",
+            "investigate": "Analyser et résoudre avec l'agent",
             "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend."
         },
         "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
-        "checkoutInvestigate": "Votre copie principale n'est pas touchée. Le terminal de l'agent reste ouvert avec ses conclusions jusqu'à ce que vous le fermiez.",
+        "checkoutInvestigate": "Votre copie principale n'est pas touchée. L'agent ne passe au vert qu'une fois les checks requis de la pull request au vert ; son terminal reste ouvert avec son compte rendu jusqu'à ce que vous le fermiez.",
         "default": "Par défaut",
+        "how": "Comment l'agent travaille",
         "yourAgent": "Votre agent",
         "tab": {
             "rebase": "Rebase #{number}",
@@ -6321,7 +6343,7 @@
         "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
         "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
         "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
-        "investigate": "Lancé par vous à {time} pour analyser l'échec de la CI de #{number}"
+        "investigate": "Lancé par vous à {time} pour analyser et résoudre l'échec de la CI de #{number}"
     },
     "codingAgent": {
         "section": "Agent de code",

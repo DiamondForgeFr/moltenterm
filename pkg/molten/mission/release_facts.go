@@ -383,15 +383,22 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		return RunResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	p, untrusted, err := r.trustedPipeline(dir)
+	project := canonicalRunDir(dir)
+	p, untrusted, err := r.trustedPipelineAt(dir, project)
 	if err != nil || untrusted != nil {
 		return RunResult{Untrusted: untrusted}, err
 	}
-	session, err := r.checkFollowed(dir, p, req.Tag)
+	release, held := r.reserveAdmission(project, RunKindRelease, req.Tag)
+	if release == nil {
+		return RunResult{}, errStillRunning(held)
+	}
+	defer release()
+	r.projectDirsAt(dir, project)
+	session, err := r.checkFollowed(project, p, req.Tag)
 	if err != nil {
 		return RunResult{}, err
 	}
-	if running := r.runningOf(dir, RunKindRelease); running != nil {
+	if running := r.runningOf(project, RunKindRelease); running != nil {
 		return RunResult{}, errStillRunning(running.Title)
 	}
 	steps := channelSteps(p, session.Channel)
@@ -400,19 +407,19 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		if len(molten.ReleasePreparation(steps)) == 0 {
 			return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noPreparation"), "the pipeline declares no preparation")
 		}
-		rec, err = r.launchPreparation(dir, steps, session)
+		rec, err = r.launchPreparationAt(dir, project, steps, session)
 		return RunResult{Run: &rec}, err
 	}
 	for _, step := range steps {
 		if step.Id != req.Step {
 			continue
 		}
-		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, dir))
+		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, project))
 		if err != nil {
 			return RunResult{}, err
 		}
 		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env, Run: run}
-		rec, err = r.launch(dir, command, "", "", session.Tag)
+		rec, err = r.launchAt(dir, project, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}
 	return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noStep", "channel", session.Channel, "step", req.Step), "the pipeline declares no release.%s step %q", session.Channel, req.Step)
