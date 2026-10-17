@@ -130,6 +130,15 @@ type Runs struct {
 	told        map[string]bool
 	// agentEnv tells a step the project's coding agent (agentchoice.EnvVar), for the release notes (#845).
 	agentEnv func(dir string) []string
+	// Branch cleaning removes MoltenTerm's worktrees of merged pull requests (#906) through the close-worktree path; the
+	// data folder tells which worktrees are MoltenTerm's.
+	worktrees *Worktrees
+	dataDir   string
+}
+
+// UseWorktrees lets branch cleaning remove MoltenTerm's own worktrees of merged pull requests, under dataDir.
+func (r *Runs) UseWorktrees(w *Worktrees, dataDir string) {
+	r.worktrees, r.dataDir = w, dataDir
 }
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {

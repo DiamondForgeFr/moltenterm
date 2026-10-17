@@ -2624,13 +2624,19 @@
                 "contentUnknown": "git could not compare its content",
                 "checkedOut": "open in a worktree",
                 "openPr": "a pull request is open",
-                "prUnknown": "GitHub did not say whether it has a pull request"
+                "prUnknown": "GitHub did not say whether it has a pull request",
+                "notInPr": "it holds commits #{pr} never carried",
+                "worktreeChanges": "merged in #{pr}, but its worktree has uncommitted changes",
+                "worktreeInUse": "merged in #{pr}, but a terminal is open in its worktree",
+                "prAssets": "holds pull request assets",
+                "tool": "a tool branch"
             },
             "reason": {
                 "mergedPr": "merged in #{pr}",
                 "onTrunk": "its code is on {trunk}",
                 "patchesOnTrunk": "its commits are on {trunk} under new ids",
-                "commitsAfterPr": "commits after #{pr} was merged"
+                "commitsAfterPr": "commits after #{pr} was merged",
+                "mergedPrWorktree": "merged in #{pr}, its worktree is clean and goes with it"
             },
             "result": {
                 "one": "{count} branch deleted.",
@@ -2641,7 +2647,7 @@
                 "other": "{count} branches deleted, {failed} failed."
             },
             "title": "Clean branches",
-            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. The main branches stay, and so does anything in doubt.",
+            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. A clean worktree MoltenTerm made for a merged pull request goes with its branch. The main branches stay, and so does anything in doubt.",
             "comparing": "Comparing each branch with {trunk}…",
             "wouldGo": "Would go ({count})",
             "nothing": "Nothing to clean.",

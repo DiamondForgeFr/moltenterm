@@ -2624,13 +2624,19 @@
                 "contentUnknown": "git n'a pas pu comparer son contenu",
                 "checkedOut": "ouverte dans un worktree",
                 "openPr": "une pull request est ouverte",
-                "prUnknown": "GitHub n'a pas dit si elle a une pull request"
+                "prUnknown": "GitHub n'a pas dit si elle a une pull request",
+                "notInPr": "elle contient des commits que #{pr} n'a jamais portés",
+                "worktreeChanges": "fusionnée dans #{pr}, mais son worktree a des modifications non commitées",
+                "worktreeInUse": "fusionnée dans #{pr}, mais un terminal est ouvert dans son worktree",
+                "prAssets": "contient les ressources des pull requests",
+                "tool": "une branche d'outil"
             },
             "reason": {
                 "mergedPr": "fusionnée dans #{pr}",
                 "onTrunk": "son code est sur {trunk}",
                 "patchesOnTrunk": "ses commits sont sur {trunk} sous de nouveaux identifiants",
-                "commitsAfterPr": "des commits après la fusion de #{pr}"
+                "commitsAfterPr": "des commits après la fusion de #{pr}",
+                "mergedPrWorktree": "fusionnée dans #{pr}, son worktree est propre et part avec elle"
             },
             "result": {
                 "one": "{count} branche supprimée.",
@@ -2641,7 +2647,7 @@
                 "other": "{count} branches supprimées, {failed} en échec."
             },
             "title": "Nettoyer les branches",
-            "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Les branches principales restent, comme tout ce qui est incertain.",
+            "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Un worktree propre que MoltenTerm a créé pour une pull request fusionnée part avec sa branche. Les branches principales restent, comme tout ce qui est incertain.",
             "comparing": "Comparaison de chaque branche avec {trunk}…",
             "wouldGo": "Partiraient ({count})",
             "nothing": "Rien à nettoyer.",
