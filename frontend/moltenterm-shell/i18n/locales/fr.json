@@ -6303,6 +6303,7 @@
         "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
         "checkoutInvestigate": "Votre copie principale n'est pas touchée. Le terminal de l'agent reste ouvert avec ses conclusions jusqu'à ce que vous le fermiez.",
         "default": "Par défaut",
+        "how": "Comment l'agent travaille",
         "yourAgent": "Votre agent",
         "tab": {
             "rebase": "Rebase #{number}",
