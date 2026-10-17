@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 108
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 123
+            "order": 124
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 109
           }
         },
         "term:fontsize": {
@@ -772,7 +772,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 110
           }
         },
         "web:openlinksinternally": {
@@ -929,35 +929,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 111
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 117
+            "order": 118
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 118
+            "order": 119
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 119
+            "order": 120
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 120
+            "order": 121
           }
         },
         "markdown:fontsize": {
@@ -1325,7 +1325,7 @@
                 "label": "Off"
               }
             ],
-            "order": 106
+            "order": 107
           }
         },
         "moltenterm:codingagent": {
@@ -1359,21 +1359,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 112
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 122
+            "order": 123
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 113
           }
         },
         "window:fullscreenonlaunch": {
@@ -1655,21 +1655,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 114
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 121
+            "order": 122
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 115
           }
         },
         "conn:askbeforewshinstall": {
@@ -1712,7 +1712,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 116
           }
         },
         "debug:pprofport": {
@@ -1765,7 +1765,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 117
           }
         },
         "tsunami:scaffoldpath": {

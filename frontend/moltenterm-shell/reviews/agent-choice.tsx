@@ -381,6 +381,7 @@ function ChoiceOption({
             <span className="min-w-0 flex-1">
                 <span id={titleId} className="block font-medium text-primary">
                     {title}
+                    {isDefault ? " " : null}
                     {isDefault ? (
                         <span className="ml-2 text-10 font-semibold tracking-[0.08em] text-muted uppercase">
                             {t("agentChoice.default")}
