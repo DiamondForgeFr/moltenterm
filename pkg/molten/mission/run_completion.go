@@ -19,13 +19,18 @@ const completionFileName = "completion"
 // Cancellation can arrive before the child exists: remember it, then signal the whole isolated group once the
 // child has been assigned. Ignoring the forwarded signal in the supervisor prevents a recursive trap.
 // The child resets its inherited traps and checks cancellation before exec, closing the fork/exec signal window.
+// A signal that reaches the child before the shell resets the inherited trap runs no handler and is lost (dash, #894),
+// and its copy of $cancelled cannot see a later cancel: the supervisor marks the cancel in a file before signalling,
+// and the child reads it once its traps are reset, so a signal it can still lose is always followed by that check.
 const runSupervisor = `trap '' HUP
 interrupted=0
 cancelled=0
 child=
+cancel_mark="$2.cancel"
 cancel_run() {
     interrupted=1
     cancelled=1
+    : > "$cancel_mark"
     if [ -n "$child" ]; then
         trap '' TERM INT
         kill -TERM 0
@@ -34,7 +39,7 @@ cancel_run() {
 trap cancel_run TERM INT
 (
     trap - TERM INT
-    [ "$cancelled" = 0 ] || exit 143
+    [ "$cancelled" = 0 ] && [ ! -e "$cancel_mark" ] || exit 143
     exec /bin/sh -c "$1"
 ) &
 child=$!

@@ -141,14 +141,21 @@ func TestRunLogChunksNeverSupplyCompletion(t *testing.T) {
 }
 
 func TestRunCancellationBeforeSupervisorStartsChild(t *testing.T) {
-	testRunCancellationAtStartup(t, false)
+	testRunCancellationAtStartup(t, false, false)
 }
 
 func TestRunCancellationBeforeChildExec(t *testing.T) {
-	testRunCancellationAtStartup(t, true)
+	testRunCancellationAtStartup(t, true, false)
 }
 
-func testRunCancellationAtStartup(t *testing.T, beforeExec bool) {
+// dash runs no handler for a signal that reaches its subshell before the inherited trap is reset: the child loses
+// both the cancel and the supervisor's forwarded signal, then started the command anyway (#894). The child here
+// ignores signals until its gate opens to hold that window open.
+func TestRunCancellationLostByTheChild(t *testing.T) {
+	testRunCancellationAtStartup(t, true, true)
+}
+
+func testRunCancellationAtStartup(t *testing.T, beforeExec bool, childLosesSignal bool) {
 	t.Helper()
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	base := t.TempDir()
@@ -159,10 +166,13 @@ func testRunCancellationAtStartup(t *testing.T, beforeExec bool) {
 	cmd := r.supervisedCommand(rec)
 	// Hold the real supervisor before fork, or its child before resetting inherited traps and exec.
 	// Observe the supervisor's trap before releasing the gate: the signal cannot miss the chosen window.
-	cmd.Args[2] = strings.Replace(cmd.Args[2], "interrupted=1", `interrupted=1; : > "$MOLTEN_CANCEL_ACK"`, 1)
+	cmd.Args[2] = strings.Replace(cmd.Args[2], "    fi\n}\n", "    fi\n    : > \"$MOLTEN_CANCEL_ACK\"\n}\n", 1)
 	gate := `: > "$5"
 while [ ! -f "$4" ]; do sleep 0.02; done
 `
+	if childLosesSignal {
+		gate = "trap '' TERM INT\n" + gate
+	}
 	if beforeExec {
 		cmd.Args[2] = strings.Replace(cmd.Args[2], "    trap - TERM INT\n", gate+"    trap - TERM INT\n", 1)
 	} else {
@@ -195,7 +205,7 @@ while [ ! -f "$4" ]; do sleep 0.02; done
 	completionWrite(t, release, "release")
 	ended := waitRun(t, r, dir, rec.Id)
 	if ended.State != RunStateCancelled || ended.Exit == nil || *ended.Exit == 0 {
-		t.Fatalf("startup cancellation was lost (beforeExec=%t): %+v", beforeExec, ended)
+		t.Fatalf("startup cancellation was lost (beforeExec=%t, childLosesSignal=%t): %+v", beforeExec, childLosesSignal, ended)
 	}
 }
 
