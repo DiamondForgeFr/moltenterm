@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Review tab's AI panel (DS-REV-012): a pane right of the review block, with the review session's terminal split
-// under it, so the cards the agent posts sit above the agent's own terminal. It shows the session's state and the PR's
+// The Review tab's AI panel (DS-REV-012): a pane right of the review block. The review session's terminal runs hidden
+// and Show its terminal splits it under the panel (#916); the panel's command panel offers the session agent's Agent
+// section (FR-SHELL-048), sent to that terminal. It shows the session's state and the PR's
 // briefing (FR-REV-005): what changed, why, the risks and the files to look at first (links that open the file in the
 // diff at the line), what was tested and its gaps. The briefing is kept in the review store and shown again when the
 // PR is reopened. Its markdown is the agent's: rendered, never executed. Under it, the questions waiting for the agent
@@ -11,8 +12,8 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { Markdown } from "@/app/element/markdown";
+import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
-import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
@@ -47,6 +48,8 @@ export class ReviewAiViewModel implements ViewModel {
     prAtom: Atom<ReviewPrInfo>;
     // The Review tab's model of the PR (its review block), null while it is not mounted.
     reviewAtom: Atom<ReviewTabModel>;
+    // The running session's terminal, whose agent the command panel's Agent section drives (#916); null without one.
+    agentBlockIdAtom: Atom<string>;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -62,6 +65,15 @@ export class ReviewAiViewModel implements ViewModel {
             const pr = get(this.prAtom);
             return pr == null ? null : (get(ReviewTabModels).get(reviewKey(pr.repo, pr.number)) ?? null);
         });
+        this.agentBlockIdAtom = atom((get) => {
+            const review = get(this.reviewAtom);
+            const ai = review == null ? null : get(review.aiAtom);
+            return ai?.status === "running" ? (ai.session?.blockid ?? null) : null;
+        });
+    }
+
+    showAgentBlock() {
+        globalStore.get(this.reviewAtom)?.showSessionTerminal();
     }
 
     get viewComponent(): ViewComponent {
@@ -92,13 +104,7 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
     const t = useT();
     const ai = useAtomValue(review.aiAtom);
     const worktree = useAtomValue(review.worktreeAtom);
-    const focusTerminal = () => {
-        const layout = getLayoutModelForStaticTab();
-        const node = ai.session?.blockid ? layout?.getNodeByBlockId(ai.session.blockid) : null;
-        if (node != null) {
-            layout.focusNode(node.id);
-        }
-    };
+    const focusTerminal = () => review.showSessionTerminal();
     return (
         <div
             className="molten-review-ai flex h-full min-h-0 w-full flex-col gap-3 overflow-auto p-3 text-12"
