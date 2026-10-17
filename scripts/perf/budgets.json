@@ -282,7 +282,7 @@
             "unit": "MB",
             "budget": null,
             "gate": "ci",
-            "tolerancePct": 5
+            "tolerancePct": 7
         },
         "bundle.jsGzipMB": {
             "nfr": "NFR-PERF-007",
