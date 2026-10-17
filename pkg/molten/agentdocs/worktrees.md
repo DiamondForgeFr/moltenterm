@@ -20,10 +20,17 @@ When a terminal's folder enters a worktree it is not linked to, its header offer
 that created the worktree for its task links it itself, without a prompt:
 
 ```
-git worktree add ../myproject-feature-42 -b feature/42-thing
+git fetch origin
+git worktree add ../myproject-feature-42 -b feature/42-thing origin/<working branch>
 cd ../myproject-feature-42
 molten worktree link
 ```
+
+Start the branch from the remote working branch, fetched just before, never from the local one or from the current
+`HEAD`: pull requests are merged on the forge, so the local working branch may be many commits behind and a branch
+made from it starts from stale code. `<working branch>` is the project's own: `molten project show` prints it (the
+trunk), read from `.molten/project.json` or `.saasfoundry.json` (`workflow.workingBranch`); `develop` when neither
+declares it.
 
 ```
 molten worktree link [folder]   # the worktree holding the folder (default: the terminal's folder)

@@ -22,7 +22,8 @@ import (
 )
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010 steps 2 to 5): the ticket closed and Done, the review worktree and
-// the branch's agent worktree removed when it is safe, the branch deleted when its content is on the base, and the
+// the branch's agent worktree removed when it is safe, the branch deleted when its content is on the base, the local
+// working branch fast-forwarded to origin's when nothing local is in the way (#909, trunksync.go), and the
 // other open PRs on the same base read once GitHub knows whether they still merge: those the merge put in conflict go to
 // their agent for a rebase (#691), the others are left alone. Validate (FR-REV-012) calls it right after its merge;
 // it also runs on its own for a PR merged earlier. Each step reports done, skipped (why) or failed (the message), and a
@@ -113,7 +114,7 @@ const (
 
 // CleanupSteps is the steps' order; a request naming some of them runs those only.
 var CleanupSteps = []string{CleanupStepPr, CleanupStepTicketClose, CleanupStepTicketDone, CleanupStepReviewTree,
-	CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch, CleanupStepOtherPrs}
+	CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch, CleanupStepLocalTrunk, CleanupStepOtherPrs}
 
 // cleanupRunner runs git, gh and the workflow CLI for the cleanup in wavesrv (a test build may replace it).
 var cleanupRunner mission.Runner = mission.ExecRunner
@@ -190,6 +191,12 @@ type CleanupStepResult struct {
 	Conflicting int         `json:"conflicting,omitempty"`
 	Checking    int         `json:"checking,omitempty"`
 	Failed      int         `json:"failed,omitempty"`
+	// The local trunk (#909): Count, the commits it was behind origin; Ahead, its commits origin lacks; Names (the first
+	// NameCount), the local changes the update would overwrite.
+	Count     int      `json:"count,omitempty"`
+	Ahead     int      `json:"ahead,omitempty"`
+	Names     []string `json:"names,omitempty"`
+	NameCount int      `json:"namecount,omitempty"`
 }
 
 type CleanupResult struct {
@@ -225,6 +232,9 @@ type CleanupEnv struct {
 	EndSession func(ctx context.Context, repo string, number int) error
 	// AskRebase hands a conflicting PR to the agent on its branch (Restarter.AskRebase, #683); never with Start.
 	AskRebase func(ctx context.Context, req RebaseRequest) (RestartResult, error)
+	// Notify, ResolveNotices: the notification center, which says why the local trunk was not updated (#909).
+	Notify         func(ctx context.Context, input molten.NotificationInput) error
+	ResolveNotices func(ctx context.Context, keyPrefix string) error
 	// MergeablePoll, MergeableWait: how often, and how long at most, the other PRs are read again while GitHub computes
 	// whether they still merge cleanly.
 	MergeablePoll time.Duration
@@ -398,6 +408,9 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 	}
 	if r.wanted(CleanupStepRemoteBranch) {
 		r.add(r.deleteRemoteBranch())
+	}
+	if r.wanted(CleanupStepLocalTrunk) {
+		r.add(r.syncLocalTrunk())
 	}
 	if r.wanted(CleanupStepOtherPrs) {
 		r.add(r.checkOtherPrs())

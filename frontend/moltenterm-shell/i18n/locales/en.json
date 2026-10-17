@@ -5373,6 +5373,29 @@
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "origin/{branch} could not be deleted."
                     }
+                },
+                "local-trunk": {
+                    "label": "Local working branch",
+                    "plan": {
+                        "none": "Local {branch} will move up to origin/{branch} when nothing local is in the way (fast-forward only)."
+                    },
+                    "did": {
+                        "updated": {
+                            "one": "Local {branch} updated: +1 commit.",
+                            "other": "Local {branch} updated: +{count} commits."
+                        },
+                        "uptodate": "Local {branch} was already up to date.",
+                        "nolocaltrunk": "Nothing to do: there is no local branch {branch}.",
+                        "noremotetrunk": "Nothing to do: origin has no branch {branch}.",
+                        "localcommits": {
+                            "one": "Not updated: local {branch} has 1 commit origin does not have. Nothing was changed.",
+                            "other": "Not updated: local {branch} has {count} commits origin does not have. Nothing was changed."
+                        },
+                        "changes": "Not updated: local changes in {path} would be overwritten ({names}). Nothing was changed.",
+                        "inprogress": "Not updated: a rebase, merge, cherry-pick or bisect is in progress in {path}. Nothing was changed.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "Local {branch} could not be updated."
+                    }
                 }
             },
             "others": {
@@ -6054,7 +6077,9 @@
                     "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
                     "doneTitle": "Batch merge: {merged} of {total} PRs merged",
                     "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
-                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}",
+                    "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
+                    "trunkUpdated": " Local {branch} updated: +{count} commits.",
+                    "trunkUpdatedOne": " Local {branch} updated: +1 commit.",
                     "mergedList": "Merged: {list}. ",
                     "mergedNone": "Nothing merged. ",
                     "skippedFirst": "Skipped: #{number} ({reason}){rest}. ",
@@ -6089,6 +6114,20 @@
                         "interrupted": "MoltenTerm restarted",
                         "notreached": "not reached",
                         "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
+                    }
+                },
+                "trunk": {
+                    "notUpdatedTitle": "Local {branch} not updated",
+                    "notUpdated": "Local {branch} is {count} commits behind origin and was not updated: {reason}.",
+                    "notUpdatedOne": "Local {branch} is 1 commit behind origin and was not updated: {reason}.",
+                    "openTerminal": "Open a terminal there",
+                    "why": {
+                        "localcommits": "it has {count} commits origin does not have",
+                        "localcommitsOne": "it has 1 commit origin does not have",
+                        "changes": "local changes in {path} would be overwritten: {names}",
+                        "changesMore": "local changes in {path} would be overwritten: {names} and {more} more",
+                        "inprogress": "a rebase, merge, cherry-pick or bisect is in progress in {path}",
+                        "failed": "git failed: {detail}"
                     }
                 }
             }

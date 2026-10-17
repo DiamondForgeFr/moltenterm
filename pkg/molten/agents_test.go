@@ -187,6 +187,35 @@ func TestWriteDocsAndExampleMatchesBuiltin(t *testing.T) {
 	}
 }
 
+// #909: the worktree guide's example starts the branch from the remote working branch, fetched just before, never
+// from the local one (merged pull requests leave it behind).
+func TestWorktreeGuideBranchesFromTheFreshRemote(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "worktrees.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	guide := string(data)
+	fetch := strings.Index(guide, "git fetch origin\n")
+	add := strings.Index(guide, "git worktree add ../myproject-feature-42 -b feature/42-thing origin/<working branch>\n")
+	if fetch < 0 || add < 0 || fetch > add {
+		t.Errorf("the example must fetch, then branch from origin/<working branch>:\n%s", guide)
+	}
+	for _, line := range strings.Split(guide, "\n") {
+		if strings.HasPrefix(line, "git worktree add") && !strings.Contains(line, " origin/") {
+			t.Errorf("a worktree example branches from the local HEAD: %s", line)
+		}
+	}
+	for _, part := range []string{"molten project show", "workflow.workingBranch"} {
+		if !strings.Contains(guide, part) {
+			t.Errorf("the guide must say where the working branch is read: %q missing", part)
+		}
+	}
+}
+
 func TestPipelineGuideForEveryAgent(t *testing.T) {
 	env := AgentEnv{Home: "/h", DataDir: "/d", Getenv: func(string) string { return "" }}
 	guide, err := FindGuide(PipelineGuideName)

@@ -115,6 +115,8 @@ func (c *Cleaner) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
 			} else {
 				step.Code, step.Path = CleanupCodeWillRemove, agentTree
 			}
+		case CleanupStepLocalTrunk:
+			step.Branch = trunkOf(r.dir, pr.BaseRef)
 		}
 		rtn = append(rtn, step)
 	}

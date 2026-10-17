@@ -5373,6 +5373,29 @@
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "origin/{branch} n'a pas pu être supprimée."
                     }
+                },
+                "local-trunk": {
+                    "label": "Branche de travail locale",
+                    "plan": {
+                        "none": "{branch} local avancera jusqu'à origin/{branch} si rien de local ne s'y oppose (avance rapide seulement)."
+                    },
+                    "did": {
+                        "updated": {
+                            "one": "{branch} local mis à jour : +1 commit.",
+                            "other": "{branch} local mis à jour : +{count} commits."
+                        },
+                        "uptodate": "{branch} local était déjà à jour.",
+                        "nolocaltrunk": "Rien à faire : il n'y a pas de branche locale {branch}.",
+                        "noremotetrunk": "Rien à faire : origin n'a pas de branche {branch}.",
+                        "localcommits": {
+                            "one": "Pas mis à jour : {branch} local a 1 commit qu'origin n'a pas. Rien n'a été changé.",
+                            "other": "Pas mis à jour : {branch} local a {count} commits qu'origin n'a pas. Rien n'a été changé."
+                        },
+                        "changes": "Pas mis à jour : des modifications locales dans {path} seraient écrasées ({names}). Rien n'a été changé.",
+                        "inprogress": "Pas mis à jour : un rebase, une fusion, un cherry-pick ou un bisect est en cours dans {path}. Rien n'a été changé.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "{branch} local n'a pas pu être mis à jour."
+                    }
                 }
             },
             "others": {
@@ -6054,7 +6077,9 @@
                     "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
                     "doneTitle": "Fusion groupée — PR fusionnées : {merged} sur {total}",
                     "cancelledTitle": "Fusion groupée annulée — PR fusionnées : {merged} sur {total}",
-                    "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}",
+                    "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}{trunk}",
+                    "trunkUpdated": " {branch} local mis à jour : +{count} commits.",
+                    "trunkUpdatedOne": " {branch} local mis à jour : +1 commit.",
                     "mergedList": "Fusionnées : {list}. ",
                     "mergedNone": "Rien n'a été fusionné. ",
                     "skippedFirst": "Passées : #{number} ({reason}){rest}. ",
@@ -6089,6 +6114,20 @@
                         "interrupted": "MoltenTerm a redémarré",
                         "notreached": "pas atteinte",
                         "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
+                    }
+                },
+                "trunk": {
+                    "notUpdatedTitle": "{branch} local pas mis à jour",
+                    "notUpdated": "{branch} local a {count} commits de retard sur origin et n'a pas été mis à jour : {reason}.",
+                    "notUpdatedOne": "{branch} local a 1 commit de retard sur origin et n'a pas été mis à jour : {reason}.",
+                    "openTerminal": "Ouvrir un terminal à cet endroit",
+                    "why": {
+                        "localcommits": "il a {count} commits qu'origin n'a pas",
+                        "localcommitsOne": "il a 1 commit qu'origin n'a pas",
+                        "changes": "des modifications locales dans {path} seraient écrasées : {names}",
+                        "changesMore": "des modifications locales dans {path} seraient écrasées : {names} et {more} de plus",
+                        "inprogress": "un rebase, une fusion, un cherry-pick ou un bisect est en cours dans {path}",
+                        "failed": "git a échoué : {detail}"
                     }
                 }
             }

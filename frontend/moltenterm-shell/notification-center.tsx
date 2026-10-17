@@ -8,7 +8,7 @@
 // work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
 // on itself in the focused window (#790, notification-attention.ts).
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms, createBlock, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -74,6 +74,14 @@ function registerBuiltInGestures(): () => void {
                 return { ok: false, error: translateNow("notif.center.noPath") };
             }
             getApi().openNativePath(pathParent(args.path) || args.path);
+            return { ok: true };
+        }),
+        // must match TerminalGesture in pkg/molten/review/trunksync.go
+        registerNotificationGesture("path:terminal", async (args) => {
+            if (typeof args.path !== "string" || args.path === "") {
+                return { ok: false, error: translateNow("notif.center.noPath") };
+            }
+            await createBlock({ meta: { view: "term", controller: "shell", "cmd:cwd": args.path } });
             return { ok: true };
         }),
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
