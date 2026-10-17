@@ -74,8 +74,13 @@ An inventory test rejects direct `ipcMain` registration outside the helper and r
 
 ## Integration status
 
-The handler migration is fail-closed pending the single #805 registry hookup. Its PR stays draft until
-#805 is merged and the combined exact delivery head is validated. The independent #808 accessibility
-boolean getter and #849 hang diagnostic channels require the same gate when those changes are combined;
-their commits are not copied into this PR. The application-level tests use fixture values and harmless
-metadata; packaged human verification remains part of the PR review gate.
+`emain/authkey.ts` configures the helpers once, at module load, with the #805 registry predicate
+`isTrustedAppSender` (#877). Every application window and builder window registers through
+`registerTrustedAppContents`, so their main frames pass; guests, popups, child frames, unregistered or
+destroyed contents and registered contents navigated away from the application document are denied.
+`emain/moltenterm-app-auth-integration.test.ts` exercises that hookup through the real helper.
+
+Channels added later must register through `onAppIpc`, `handleAppIpc` or (for an inventoried guest signal)
+`onGuestIpc` and appear in the table above; the inventory test fails otherwise. This applies to the #808
+accessibility getter and the #849 hang diagnostic channels when they land. The application-level tests use
+fixture values and harmless metadata; packaged human verification remains part of the PR review gate.
