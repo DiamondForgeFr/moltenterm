@@ -13,9 +13,11 @@
 # runs its metadata and security jobs, which also makes GitHub know the workflow, so it can be dispatched before it is on
 # main.
 #
-# macOS builds are ad-hoc signed and not notarized until a Developer ID exists; the release text says how to open
-# them. The channel feeds read by the app are #188's: the electron-builder update files (latest*.yml) are published
-# with the binaries for it.
+# macOS (#507): a release is signed with the Developer ID and notarized when the seven signing secrets of the protected
+# `release` environment exist (scripts/macos-signing/README.md, RELEASE.md "macOS signing"). Until they do, and always
+# for a rehearsal, which never gets that environment, the builds are ad-hoc signed and the release text says how to
+# open them. A partial set of secrets fails the run: it never falls back to ad hoc. The channel feeds read by the app
+# are #188's: the electron-builder update files (latest*.yml) are published with the binaries for it.
 #
 # SHA256SUMS.txt is signed with the DiamondForge release key once it exists (#576, scripts/moltenterm-release-sign.sh):
 # until then the release is published unsigned and the log says so; afterwards a signature that fails fails the run.
@@ -50,6 +52,8 @@ on:
             - scripts/moltenterm-release-files.sh
             - scripts/moltenterm-release-sign.sh
             - scripts/moltenterm-release-sign-test.sh
+            - scripts/macos-signing/**
+            - electron-builder.config.cjs
 
 permissions:
     contents: read
@@ -138,9 +142,6 @@ jobs:
                       echo "::error::releases/$TAG.md is marked draft: true: its notes were never finished (molten release finalize refuses them)"
                       exit 1
                   fi
-                  if [ "$channel" = public ]; then
-                      echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
-                  fi
                   echo "mode=release" >> "$GITHUB_OUTPUT"
                   echo "channel=$channel" >> "$GITHUB_OUTPUT"
                   echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -149,6 +150,13 @@ jobs:
             - name: Test the release signing
               if: github.event_name == 'pull_request'
               run: scripts/moltenterm-release-sign-test.sh
+            # The macOS signing orchestration with dummy inputs and injected commands: no keychain, no Apple call
+            # (#507). The builder adapter test needs the dependencies, so it runs in the macos job.
+            - name: Test the macOS signing orchestration
+              if: github.event_name == 'pull_request'
+              run: >-
+                  node --test scripts/macos-signing/signing.node-test.mjs scripts/macos-signing/process.node-test.mjs
+                  scripts/macos-signing/package.node-test.mjs
 
     macos:
         name: macOS (arm64, x64)
@@ -157,6 +165,11 @@ jobs:
         # Both architectures on one runner: electron-builder writes one latest-mac.yml listing both.
         runs-on: macos-latest
         timeout-minutes: 90
+        # The Developer ID secrets are environment secrets of `release`, whose deployment rule admits only `v*` tags
+        # (RELEASE.md, "macOS signing"). A rehearsal gets no environment, hence no secret, and stays ad hoc.
+        environment: ${{ needs.meta.outputs.mode == 'release' && 'release' || '' }}
+        outputs:
+            signing: ${{ steps.signing.outputs.mode }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -193,9 +206,37 @@ jobs:
                   if-no-files-found: error
                   retention-days: 30
             - run: npm ci --no-audit --no-fund
+            # adhoc with no signing secret, developer-id with all seven; a partial set fails here, before any build.
+            # Only the mode is printed, never a value.
+            - name: Signing mode
+              id: signing
+              env:
+                  MODE: ${{ needs.meta.outputs.mode }}
+                  CHANNEL: ${{ needs.meta.outputs.channel }}
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: |
+                  signing="$(node scripts/macos-signing/package.mjs mode)"
+                  if [ "$MODE" != release ] && [ "$signing" != adhoc ]; then
+                      echo "::error::A rehearsal must never see the signing secrets: keep them in the release environment only"
+                      exit 1
+                  fi
+                  echo "mode=$signing" >> "$GITHUB_OUTPUT"
+                  echo "macOS signing: $signing"
+                  if [ "$signing" = adhoc ] && [ "$MODE" = release ] && [ "$CHANNEL" = public ]; then
+                      echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
+                  fi
+            - name: Test the macOS signing orchestration
+              run: node --test scripts/macos-signing/*.node-test.mjs
             # Ad hoc (`-`): an unsigned arm64 app does not start at all, an ad-hoc one opens once Gatekeeper is told to.
             # The github publish provider only makes electron-builder write latest-mac.yml: `-p never` uploads nothing.
-            - name: Package
+            - name: Package (ad hoc)
+              if: steps.signing.outputs.mode == 'adhoc'
               env:
                   MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
                   MOLTENTERM_BUILD_ID: ${{ github.run_id }}
@@ -205,12 +246,59 @@ jobs:
               run: >-
                   task package -- --mac zip dmg --arm64 --x64 -c.mac.identity=-
                   -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
+            # What `task package` builds before electron-builder, without any secret in reach: only the next step,
+            # which compiles nothing, gets them.
+            - name: Build (Developer ID)
+              if: steps.signing.outputs.mode == 'developer-id'
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+              run: |
+                  task clean
+                  task build:backend
+                  task build:tsunamiscaffold
+                  npm run build:prod
+            # A dedicated temporary keychain, the builder's sign hook, then the DMGs signed, notarized and stapled and
+            # latest-mac.yml rewritten from the final bytes, all before the upload below (scripts/macos-signing).
+            - name: Package, sign and notarize (Developer ID)
+              if: steps.signing.outputs.mode == 'developer-id'
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+                  OWNER: ${{ github.repository_owner }}
+                  REPO: ${{ github.event.repository.name }}
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: >-
+                  node scripts/macos-signing/package.mjs package
+                  -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
             - name: Check the signatures
+              env:
+                  SIGNING: ${{ steps.signing.outputs.mode }}
               run: |
                   for app in make/mac*/*.app; do
                       codesign --verify --deep --strict "$app"
-                      echo "$app: valid ad-hoc signature"
+                      if [ "$SIGNING" = developer-id ]; then
+                          spctl --assess --type execute "$app"
+                          xcrun stapler validate "$app"
+                          echo "$app: Developer ID, notarized and stapled"
+                      else
+                          echo "$app: valid ad-hoc signature"
+                      fi
                   done
+                  if [ "$SIGNING" = developer-id ]; then
+                      for dmg in make/*.dmg; do
+                          codesign --verify --strict "$dmg"
+                          spctl --assess --type open --context context:primary-signature "$dmg"
+                          xcrun stapler validate "$dmg"
+                          echo "$dmg: Developer ID, notarized and stapled"
+                      done
+                  fi
             # A rehearsal's artifacts are named so that they are never taken for a release's, and kept long enough to
             # be installed and checked.
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -392,6 +480,7 @@ jobs:
                   TAG: ${{ github.ref_name }}
                   SIGNED: ${{ steps.sign.outputs.signed }}
                   FINGERPRINT: ${{ steps.sign.outputs.fingerprint }}
+                  MACOS_SIGNING: ${{ needs.macos.outputs.signing }}
                   KEY_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/release-signing-key.asc
               run: |
                   {
@@ -405,7 +494,17 @@ jobs:
 
                   ## Install
 
+                  EOF
+                      if [ "$MACOS_SIGNING" = developer-id ]; then
+                          cat <<'EOF'
+                  - **macOS**: open the `.dmg` (`darwin-arm64` for Apple Silicon, `darwin-x64` for Intel) and drag MoltenTerm to Applications. It is signed with the DiamondForge Developer ID and notarized by Apple, so it opens like any other app.
+                  EOF
+                      else
+                          cat <<'EOF'
                   - **macOS**: open the `.dmg` (`darwin-arm64` for Apple Silicon, `darwin-x64` for Intel) and drag MoltenTerm to Applications. This build is not signed with an Apple Developer ID yet, so macOS refuses to open it the first time: right-click MoltenTerm in Applications and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
+                  EOF
+                      fi
+                      cat <<'EOF'
                   - **Linux**: make the `.AppImage` executable (`chmod +x`) and run it, or install the `.deb` with `sudo apt install ./<file>.deb`. `arm64` is for ARM machines, the other files for Intel and AMD.
                   - **Checksums**: `SHA256SUMS.txt` lists the SHA-256 of every file (`sha256sum --ignore-missing -c SHA256SUMS.txt`).
 
