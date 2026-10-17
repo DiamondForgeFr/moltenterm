@@ -73,7 +73,8 @@ export function evaluateMetric(id, metric, baselineMetric, budgets, scope, repor
   const allowance = base == null ? 0 : Math.max((Math.abs(base) * c.tolerancePct) / 100, c.noiseFloor);
   const regressed = base != null && value > base + allowance;
   const beyondNoise = base != null && value > base + Math.max(allowance, 2 * (metric.spreadAbs ?? 0));
-  const grandfathered = overBudget && base != null && base > row.budget && !regressed;
+  // An `absolute` budget is never grandfathered: a target met since the baseline was stored (#895, leaked views).
+  const grandfathered = overBudget && !c.absolute && base != null && base > row.budget && !regressed;
   if (regressed) {
     row.status = "regressed";
   } else if (overBudget && grandfathered) {

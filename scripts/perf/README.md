@@ -95,7 +95,9 @@ default), a noise floor, and a gate:
 
 A gated metric fails when it regresses from the baseline by more than its tolerance (and its noise floor), or when it
 exceeds its budget, unless the baseline was already over the budget and it did not regress: a target not met yet is
-grandfathered until the story that meets it stores a new baseline, and from then on the budget holds. A metric whose
+grandfathered until the story that meets it stores a new baseline, and from then on the budget holds. A metric marked
+`"absolute": true` is never grandfathered: the leaked-view counts, whose budget of 0 is met since #448 although the
+stored baseline still has 4 and 5 (#895). A metric whose
 samples disagree (the split-half statistics more than 10 % and more than the floor apart) is flagged **noisy**: it then
 fails only when its regression also exceeds twice that gap, and a rerun is in order. A gated metric that the baseline
 has but that a scenario which ran did not produce fails as "missing", and so does a run whose scenarios failed.

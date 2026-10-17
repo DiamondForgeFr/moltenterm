@@ -85,6 +85,7 @@ export async function evaluate(client, expression) {
     awaitPromise: true,
     returnByValue: true,
     includeCommandLineAPI: true,
+    ...(client.uniqueContextId ? { uniqueContextId: client.uniqueContextId } : {}),
   });
   if (r.error) {
     throw new Error(r.error.message);
@@ -116,7 +117,27 @@ export async function connectMain(inspectPort) {
   if (!targets.length) {
     throw new Error("no main-process inspector target");
   }
-  return connect(targets[0].webSocketDebuggerUrl);
+  return pinDefaultContext(await connect(targets[0].webSocketDebuggerUrl));
+}
+
+// Pins a connection's evaluations to its default context. Electron's main process has a second, internal context;
+// without a context id the inspector resolves one at each call, and on a loaded machine that failed with "Cannot find
+// context with specified id" for seconds at a time (#895).
+export async function pinDefaultContext(client) {
+  const contexts = [];
+  client.on((d) => {
+    if (d.method === "Runtime.executionContextCreated") {
+      contexts.push(d.params.context);
+    }
+  });
+  const r = await client.send("Runtime.enable");
+  await client.send("Runtime.disable");
+  if (r.error) {
+    client.close();
+    throw new Error(r.error.message);
+  }
+  client.uniqueContextId = contexts.find((c) => c.auxData?.isDefault)?.uniqueId;
+  return client;
 }
 
 // Tab id shown on screen: the tab view at the window's origin with a non-zero width.
