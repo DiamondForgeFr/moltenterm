@@ -96,5 +96,8 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		ResolveNotices: func(ctx context.Context, keyPrefix string) error {
 			return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
 		},
+		Gh:           ExecGh,
+		HoldState:    attention.HoldAgentState,
+		ReleaseState: attention.ReleaseAgentState,
 	}
 }

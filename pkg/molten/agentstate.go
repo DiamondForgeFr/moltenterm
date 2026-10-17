@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Agent states (FR-SHELL-011, DS-SHELL-011): which coding agent runs in a terminal and what it is doing. wavesrv keeps
@@ -304,8 +305,11 @@ type AgentStateInfo struct {
 	FirstName string `json:"firstname,omitempty"`
 	State     string `json:"state,omitempty"`
 	Message   string `json:"message,omitempty"`
-	Since     int64  `json:"since,omitempty"`
-	Version   int64  `json:"version"`
+	// MessageText: Message's code when MoltenTerm holds the state (#896), the window words it; nil for the agent's own
+	// words.
+	MessageText *uimsg.Text `json:"messagetext,omitempty"`
+	Since       int64       `json:"since,omitempty"`
+	Version     int64       `json:"version"`
 	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
 	Hooked bool `json:"hooked,omitempty"`
 	// Model, ModelName, Effort: the run's model and effort level as the agent last reported them (#549: Claude Code's

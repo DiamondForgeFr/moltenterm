@@ -6,6 +6,7 @@
 // icon of the rail. Kept apart from the components so the rules can be tested without the app.
 
 import { t } from "./i18n/i18n";
+import { serverText, ServerText } from "./i18n/server-text";
 
 // must match pkg/molten/agentstate.go
 export const AgentStateEvent = "molten:agentstate";
@@ -29,6 +30,8 @@ export type AgentStateInfo = {
     firstname?: string;
     state?: AgentStateName;
     message?: string;
+    // message's code when MoltenTerm holds the state (#896): "fixing the CI of #12", "waiting for the CI of #12".
+    messagetext?: ServerText;
     since?: number;
     version: number;
     hooked?: boolean;
@@ -167,7 +170,17 @@ export function agentStateTitle(info: AgentStateInfo): string {
     }
     const name = agentLabel(info);
     const line = t("agent.stateLine", { name, state: agentStateLabel(info.state) });
-    return info.message ? `${line}\n${info.message}` : line;
+    const message = agentStateMessage(info);
+    return message ? `${line}\n${message}` : line;
+}
+
+// What the state says beside its name: MoltenTerm's words in the interface language when it holds the state (#896),
+// else the agent's own message.
+export function agentStateMessage(info: AgentStateInfo): string {
+    if (info?.messagetext != null) {
+        return serverText(info.messagetext, info.message);
+    }
+    return info?.message ?? "";
 }
 
 // The model and effort the header and the companion show beside the agent ("Opus · high", #549): only what the agent

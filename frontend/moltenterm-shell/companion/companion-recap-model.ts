@@ -5,7 +5,7 @@
 // the transcript (pkg/molten/companion/topics.go) and the pane's agent state. Nothing here is written by a model: a
 // line the data cannot support is left out. Pure, so it is tested without a window.
 
-import { agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { agentLabel, AgentStateInfo, agentStateLabel, agentStateMessage } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { CompanionSubagent, CompanionTopic, CompanionView, relativeTime } from "./companion-model";
 import { modelDisplayName, ProportionHint, proportionHint } from "./companion-proportion";
@@ -120,6 +120,10 @@ export function mainAgentRow(view: CompanionView, agentState: AgentStateInfo): A
     const ended = view?.ended === true;
     const state: AgentRowState = ended ? "exited" : ((agentState?.state as AgentRowState) ?? "idle");
     const lines: string[] = [];
+    if (!ended && agentState?.messagetext != null) {
+        // MoltenTerm holds the state (#896): it says what the run waits for, "waiting for the CI of #12".
+        lines.push(agentStateMessage(agentState));
+    }
     const task = (view?.todos ?? []).find((todo) => todo.status === "in_progress");
     if (task) {
         lines.push(t("companion.agents.task", { text: task.text }));
