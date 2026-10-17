@@ -62,6 +62,8 @@ export type AgentBarFacts = {
     agent?: string;
     name: string;
     state: BarState;
+    // What MoltenTerm says the agent does while it holds its state (#896): "fixing the CI of #12".
+    held?: { text: ServerText; english: string };
     // Since when the agent is on it (a panel), or its last sign of activity (a background agent), in ms.
     since: number;
     parentBlockId?: string;
@@ -129,6 +131,9 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
             state: barState(info),
             since: a.started ?? 0,
         };
+        if (info.messagetext != null) {
+            facts.held = { text: info.messagetext, english: info.message ?? "" };
+        }
         if (best == null || best.kind === "background" || BarUrgency[facts.state] > BarUrgency[best.state]) {
             best = facts;
         }

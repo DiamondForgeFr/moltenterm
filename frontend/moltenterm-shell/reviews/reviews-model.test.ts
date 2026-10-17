@@ -24,8 +24,8 @@ import {
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
-    reviewsRetryIsPrimary,
     reviewsRailLabel,
+    reviewsRetryIsPrimary,
     splitReviews,
     validateBlocked,
 } from "./reviews-model";
@@ -207,9 +207,9 @@ describe("reviews model", () => {
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }, null, "investigate")).toMatchObject({
             kind: "asked",
             note: true,
-            text: "Rita investigates the failed CI: its findings and proposal come in its terminal.",
+            text: "Rita investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
         });
-        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("The investigation could not be asked: boom");
+        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("Investigate and fix could not be asked: boom");
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }).note).toBeFalsy();
     });
 

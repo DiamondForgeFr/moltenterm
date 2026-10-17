@@ -62,7 +62,7 @@ describe("the agent choice options (#890)", () => {
             expect(html).toContain(`id="${described}"`);
         }
         expect(html).toContain("Let the agent handle it");
-        expect(html).toContain("Go through the investigation with the agent");
+        expect(html).toContain("Investigate and fix with the agent");
     });
 
     it("leaves only Cancel in the footer", () => {

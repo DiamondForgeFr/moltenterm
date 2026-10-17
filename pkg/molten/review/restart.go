@@ -167,6 +167,11 @@ type RestartEnv struct {
 	CloseTerminal  func(ctx context.Context, blockId string) error
 	Notify         func(ctx context.Context, input molten.NotificationInput) error
 	ResolveNotices func(ctx context.Context, keyPrefix string) error
+	// Investigate and fix (#896, investigate_follow.go): Gh reads the PR's checks once the agent stopped; HoldState and
+	// ReleaseState make MoltenTerm the owner of the agent's state until the checks pass.
+	Gh           GhRunner
+	HoldState    func(blockId string, state string, message string, text *uimsg.Text)
+	ReleaseState func(blockId string, state string, message string, text *uimsg.Text)
 }
 
 type Restarter struct {
@@ -602,8 +607,8 @@ func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, origin A
 		}
 	}
 	if blockId != "" {
-		r.startFollow(agentFollow{req: req, origin: origin, tree: tree, created: created, blockId: blockId, tabId: tabId,
-			startHead: startHead, agent: agent})
+		r.followAgent(agentFollow{req: req, origin: origin, tree: tree, created: created, blockId: blockId, tabId: tabId,
+			startHead: startHead, agent: agent}, result.BriefPath)
 	}
 	if err != nil {
 		result.Status, result.Reason = RestartFailed, RestartReasonNotStarted

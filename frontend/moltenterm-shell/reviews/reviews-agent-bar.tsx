@@ -16,6 +16,7 @@ import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import { AgentStates } from "../agent-state-store";
 import { useT } from "../i18n/i18n";
+import { serverText } from "../i18n/server-text";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -100,7 +101,8 @@ export function AgentBar({ facts }: { facts: AgentBarFacts }) {
     const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
     const background = facts.kind === "background";
     const name = background ? t("reviewsAgents.background") : facts.name || t("reviewsAgents.agent");
-    const stateText = barStateText(t, facts.state);
+    const stateText =
+        facts.held != null ? serverText(facts.held.text, facts.held.english) : barStateText(t, facts.state);
     const timeText = barTimeText(t, facts, now);
     const goTo = (e: React.MouseEvent, blockId: string) => {
         e.stopPropagation();
@@ -137,9 +139,10 @@ export function AgentBar({ facts }: { facts: AgentBarFacts }) {
             </span>
             <span
                 className={cn(
-                    "shrink-0",
+                    facts.held != null ? "min-w-0 truncate" : "shrink-0",
                     facts.state === "waiting" ? "font-semibold text-[var(--mt-state-waiting)]" : "text-secondary"
                 )}
+                title={facts.held != null ? stateText : undefined}
                 data-testid="reviews-agent-state"
             >
                 {stateText}
