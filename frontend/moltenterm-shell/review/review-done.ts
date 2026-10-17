@@ -6,6 +6,7 @@
 // Validate, and the top tab a done mark, from the block's meta so every window's tab bar sees it.
 
 import type { TFunction } from "../i18n/i18n";
+import type { KnownMerge } from "../reviews/reviews-merges";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import type { ReviewMergeRecord, ReviewPrStateResult } from "./review-client";
 
@@ -20,6 +21,9 @@ export type ReviewDone = {
     oid?: string;
     // ms since the epoch
     at?: number;
+    // who merged it, from the Reviews list's Recently merged; byyou: MoltenTerm merged it (#898)
+    by?: string;
+    byyou?: boolean;
 };
 
 export type ReviewDoneMeta = { state: "merged" | "closed" };
@@ -30,22 +34,42 @@ function githubTime(value: string): number {
 }
 
 // reviewDoneOf maps what is known of the PR to the header's state. A merge from MoltenTerm wins; GitHub's state covers a
-// PR merged or closed elsewhere (a Validate refused because the PR was merged away included). Unknown reads as open.
-export function reviewDoneOf(record: ReviewMergeRecord, github: ReviewPrStateResult, baseref: string): ReviewDone {
+// PR merged or closed elsewhere (a Validate refused because the PR was merged away included). known: the merge the
+// Reviews list knows before GitHub's state is read (#898), a batch step's or one listed in Recently merged. Unknown
+// reads as open.
+export function reviewDoneOf(
+    record: ReviewMergeRecord,
+    github: ReviewPrStateResult,
+    baseref: string,
+    known?: KnownMerge
+): ReviewDone {
     if (record?.state === "merged") {
         return {
             kind: "merged",
             base: baseref,
             oid: record.mergedoid || record.head,
             at: record.endedat || undefined,
+            byyou: true,
         };
     }
     if (github?.state === "merged") {
         return {
             kind: "mergedgithub",
-            base: github.baseref || baseref,
-            oid: github.mergedoid,
-            at: githubTime(github.mergedat),
+            base: github.baseref || known?.base || baseref,
+            oid: github.mergedoid || known?.oid,
+            at: githubTime(github.mergedat) ?? known?.at,
+            by: known?.by,
+            byyou: known?.byyou || undefined,
+        };
+    }
+    if (known != null) {
+        return {
+            kind: "mergedgithub",
+            base: known.base || baseref,
+            oid: known.oid,
+            at: known.at,
+            by: known.by,
+            byyou: known.byyou || undefined,
         };
     }
     if (github?.state === "closed") {
@@ -56,6 +80,43 @@ export function reviewDoneOf(record: ReviewMergeRecord, github: ReviewPrStateRes
 
 export function isReviewDone(done: ReviewDone): boolean {
     return done != null && done.kind !== "open";
+}
+
+export function isReviewMerged(done: ReviewDone): boolean {
+    return done?.kind === "merged" || done?.kind === "mergedgithub";
+}
+
+function bannerWhen(t: TFunction, at: number, locale: string, now: number): string {
+    if (at == null) {
+        return "";
+    }
+    const date = new Date(at);
+    const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (date.toDateString() === new Date(now).toDateString()) {
+        return t("review.done.banner.today", { time });
+    }
+    return t("review.done.banner.day", { date: date.toLocaleDateString(locale, { dateStyle: "medium" }), time });
+}
+
+// reviewMergedBanner is the line over a Review tab whose PR merged (#898): "Merged by you at 14:32, on develop". ""
+// while the PR is not known merged.
+export function reviewMergedBanner(t: TFunction, done: ReviewDone, locale: string, now = Date.now()): string {
+    if (!isReviewMerged(done)) {
+        return "";
+    }
+    const who = done.byyou ? t("review.done.banner.you") : (done.by ?? "");
+    const when = bannerWhen(t, done.at, locale, now);
+    const vars = { who, when, base: done.base ?? "" };
+    if (who && when) {
+        return t("review.done.banner.byWhen", vars);
+    }
+    if (who) {
+        return t("review.done.banner.by", vars);
+    }
+    if (when) {
+        return t("review.done.banner.when", vars);
+    }
+    return t("review.done.banner.plain", vars);
 }
 
 // The block meta the tab bar should see: null while the PR is open.
@@ -80,7 +141,7 @@ export function reviewDoneLabel(t: TFunction, done: ReviewDone): string {
         case "merged":
             return t("review.done.validated");
         case "mergedgithub":
-            return t("review.done.mergedGithub");
+            return done.byyou ? t("review.done.merged") : t("review.done.mergedGithub");
         case "closed":
             return t("review.done.closed");
     }

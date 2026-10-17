@@ -22,6 +22,7 @@ import {
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
+import { ReviewsMerges } from "./reviews-merges";
 import {
     checkNames,
     checksOf,
@@ -86,7 +87,8 @@ export class ReviewsModel {
     // plan, and merging stays the developer's click there. blockId is the Reviews panel that shows it.
     openValidate(dir: string, pr: ReviewPr, repo?: string, blockId?: string) {
         const repoName = repo || repoOfPrUrl(pr?.url);
-        if (!dir || pr == null || !repoName) {
+        // A PR MoltenTerm merged (#898) offers no validation, even from a row drawn before the merge.
+        if (!dir || pr == null || !repoName || ReviewsMerges.getInstance().isMerged(dir, pr.number)) {
             return;
         }
         this.closeValidateSheet();

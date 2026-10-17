@@ -20,7 +20,7 @@ import { PrSignature, usePrAgents } from "../reviews/pr-signature";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import { isReviewDone } from "./review-done";
-import { ReviewDoneState } from "./review-done-view";
+import { ReviewDoneState, ReviewMergedBanner } from "./review-done-view";
 import {
     collapsedReason,
     collapsedTag,
@@ -66,6 +66,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col" data-role="molten-review">
+            <ReviewMergedBanner model={model} />
             <ReviewHeader model={model} />
             <RestartStatus model={model} />
             <div className="flex min-h-0 flex-1">

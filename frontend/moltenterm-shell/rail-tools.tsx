@@ -25,7 +25,7 @@ import { useState } from "react";
 import { useLocale, useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
-import { useReviewsAnswer, useReviewsRailWatch } from "./reviews/reviews-client";
+import { useListedReviewsAnswer, useReviewsRailWatch } from "./reviews/reviews-client";
 import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "./reviews/reviews-model";
 import { ReviewsRailBadges } from "./reviews/reviews-rail-badge";
 import { ReviewsModel } from "./reviews/reviews-store";
@@ -190,7 +190,7 @@ function ReviewsToolButton({ onHover }: { onHover: RailHover }) {
     const workspace = useAtomValue(atoms.workspace);
     const dir = readWorkspaceProject(workspace).dir;
     useReviewsRailWatch(dir);
-    const answer = useReviewsAnswer(dir);
+    const answer = useListedReviewsAnswer(dir);
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     useLocale();
     const counts = reviewCounts(answer, readied);

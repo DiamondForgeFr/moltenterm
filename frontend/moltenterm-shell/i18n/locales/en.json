@@ -5068,6 +5068,17 @@
             "tabClosed": "Closed without merge: you can close this tab",
             "closeTab": "Close the review tab",
             "keepOpen": "Keep it open",
+            "merged": "Merged",
+            "close": "Close",
+            "banner": {
+                "you": "you",
+                "today": "at {time}",
+                "day": "on {date} at {time}",
+                "byWhen": "Merged by {who} {when}, on {base}. Nothing left to validate.",
+                "by": "Merged by {who}, on {base}. Nothing left to validate.",
+                "when": "Merged {when}, on {base}. Nothing left to validate.",
+                "plain": "Merged, on {base}. Nothing left to validate."
+            },
             "footer": {
                 "cleaning": "Merged. The cleanup is finishing; this review tab is no longer needed.",
                 "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",

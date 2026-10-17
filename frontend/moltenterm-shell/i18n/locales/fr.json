@@ -5068,6 +5068,17 @@
             "tabClosed": "Fermée sans fusion : vous pouvez fermer cet onglet",
             "closeTab": "Fermer l'onglet de revue",
             "keepOpen": "Le garder ouvert",
+            "merged": "Fusionnée",
+            "close": "Fermer",
+            "banner": {
+                "you": "vous",
+                "today": "à {time}",
+                "day": "le {date} à {time}",
+                "byWhen": "Fusionnée par {who} {when}, sur {base}. Plus rien à valider.",
+                "by": "Fusionnée par {who}, sur {base}. Plus rien à valider.",
+                "when": "Fusionnée {when}, sur {base}. Plus rien à valider.",
+                "plain": "Fusionnée, sur {base}. Plus rien à valider."
+            },
             "footer": {
                 "cleaning": "Fusionnée. Le nettoyage se termine ; cet onglet de revue n'est plus utile.",
                 "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
