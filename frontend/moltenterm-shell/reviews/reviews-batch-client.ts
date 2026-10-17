@@ -22,8 +22,34 @@ import {
     BatchStartCommand,
     BatchStartRequest,
 } from "./reviews-batch-model";
+import { ReviewsMerges } from "./reviews-merges";
 
 const BatchRpcTimeoutMs = 15000;
+
+// noteBatchMerges: each PR the batch merged leaves the list to review as its step ends (#898), and one it found merged
+// away too, without waiting for GitHub to be read again.
+export function noteBatchMerges(run: BatchRun) {
+    if (run?.dir == null) {
+        return;
+    }
+    const merges = ReviewsMerges.getInstance();
+    for (const item of run.items ?? []) {
+        const merged = item.state === "merged";
+        if (!merged && !(item.state === "skipped" && item.reason === "mergedaway")) {
+            continue;
+        }
+        merges.note(run.dir, {
+            number: item.number,
+            mergedat: merged ? item.endedat || undefined : undefined,
+            base: run.base,
+            title: item.title,
+            url: item.url,
+            branch: item.headref,
+            ticket: item.ticket,
+            byyou: merged,
+        });
+    }
+}
 
 export class BatchRuns {
     private static instance: BatchRuns = null;
@@ -52,6 +78,7 @@ export class BatchRuns {
             return;
         }
         globalStore.set(this.runsAtom, { ...runs, [dir]: run });
+        noteBatchMerges(run);
     }
 
     private async call(command: string, data: any): Promise<BatchRun> {

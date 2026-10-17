@@ -25,6 +25,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MoltentermNotifications } from "../notifications-store";
 import { agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "../reviews/agent-choice";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
+import { knownMerge, mergedNumbers, ReviewsMerges } from "../reviews/reviews-merges";
 import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { whileShown } from "../tab-activity";
@@ -71,6 +72,7 @@ import {
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
 import {
+    isReviewMerged,
     readReviewDoneMeta,
     ReviewDone,
     reviewDoneMeta,
@@ -307,6 +309,7 @@ export abstract class ReviewTabModel implements ViewModel {
             inTab: true,
             reviewNewCommits: () => this.showNewCommits(),
             closeTab: () => closeThisTab(),
+            isMerged: () => isReviewMerged(globalStore.get(this.doneAtom)),
         });
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
@@ -330,9 +333,19 @@ export abstract class ReviewTabModel implements ViewModel {
             const readied = get(ReviewsModel.getInstance().readiedAtom);
             return splitReviews(answer, readied).drafts.some((p) => p.number === pr.number);
         });
-        this.doneAtom = atom((get) =>
-            reviewDoneOf(get(this.stateAtom)?.merge, get(this.githubStateAtom), get(this.prAtom)?.baseref)
-        );
+        this.doneAtom = atom((get) => {
+            const pr = get(this.prAtom);
+            const known =
+                pr == null
+                    ? null
+                    : knownMerge(
+                          get(this.reviewsAnswerAtom),
+                          get(ReviewsMerges.getInstance().mergesAtom),
+                          pr.dir,
+                          pr.number
+                      );
+            return reviewDoneOf(get(this.stateAtom)?.merge, get(this.githubStateAtom), pr?.baseref, known);
+        });
         this.aiPaneIdAtom = atom((get) => {
             const pr = get(this.prAtom);
             const tabId = get(atoms.staticTabId);
@@ -419,6 +432,7 @@ export abstract class ReviewTabModel implements ViewModel {
         try {
             state = await reviewState(pr.repo, pr.number);
             globalStore.set(this.stateAtom, state);
+            this.validator.noteMerge(state?.merge);
         } catch (e) {
             console.log("[review] the review store could not be read", e);
         }
@@ -453,7 +467,9 @@ export abstract class ReviewTabModel implements ViewModel {
         if (pr == null || answer == null || answer.dir !== pr.dir || answer.state !== "ok" || answer.prserror) {
             return;
         }
-        const listed = this.prOf(answer) != null;
+        // A PR the same read lists as merged (#898), or MoltenTerm merged, has left the list whatever its cache says.
+        const merged = mergedNumbers(answer, globalStore.get(ReviewsMerges.getInstance().mergesAtom)).has(pr.number);
+        const listed = this.prOf(answer) != null && !merged;
         const left = this.listedLast === true && !listed;
         this.listedLast = listed;
         if (listed) {

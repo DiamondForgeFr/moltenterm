@@ -27,7 +27,9 @@ vi.mock("./review-cleanup", () => ({ removeKeptWorktree: vi.fn(async () => {}) }
 vi.mock("./review-panels", () => ({ closePanels: vi.fn(async () => {}) }));
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { openSheetValidate } from "./review-validate-model";
+import { atom, PrimitiveAtom } from "jotai";
+import { ReviewsMerges } from "../reviews/reviews-merges";
+import { openSheetValidate, ReviewValidateModel } from "./review-validate-model";
 
 const Pr = { dir: "/p", repo: "o/r", number: 7, headref: "fix/7-x", baseref: "develop", ticket: 7 };
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -66,6 +68,53 @@ describe("a Reviews row's Validate sheet, with no Review tab (#707)", () => {
         model.closeValidateAndTab();
         expect(globalStore.get(model.validateAtom).open).toBe(false);
         stop();
+    });
+
+    it("tells the Reviews list the merge as soon as the store says merged, and starts no validation after (#898)", async () => {
+        ReviewsMerges.resetInstance();
+        Mocks.handlers = [];
+        const { model, stop } = openSheetValidate(
+            Pr,
+            vi.fn(async () => {})
+        );
+        await flush();
+        expect(ReviewsMerges.getInstance().isMerged("/p", 7)).toBe(false);
+        Mocks.handlers[0]({ updatedat: 2, merge: { planid: "p1", state: "merged", mergedoid: "m7", endedat: 42 } });
+        expect(ReviewsMerges.getInstance().isMerged("/p", 7)).toBe(true);
+        expect(globalStore.get(ReviewsMerges.getInstance().mergesAtom)["/p#7"]).toMatchObject({
+            byyou: true,
+            oid: "m7",
+            mergedat: 42,
+            base: "develop",
+        });
+        Mocks.plan.mockClear();
+        await model.openValidate();
+        expect(Mocks.plan).not.toHaveBeenCalled();
+        expect(globalStore.get(model.validateAtom)).toMatchObject({ open: true, result: true });
+        stop();
+    });
+
+    it("notes a PR a Validate found merged away, and a Review tab's host refuses a validation on a merged PR", async () => {
+        ReviewsMerges.resetInstance();
+        Mocks.handlers = [];
+        const { model, stop } = openSheetValidate(
+            Pr,
+            vi.fn(async () => {})
+        );
+        await flush();
+        Mocks.handlers[0]({ updatedat: 3, merge: { planid: "p1", state: "refused", refused: "mergedaway" } });
+        expect(globalStore.get(ReviewsMerges.getInstance().mergesAtom)["/p#7"].byyou).toBe(false);
+        stop();
+        ReviewsMerges.resetInstance();
+        const tab = new ReviewValidateModel(atom(Pr), atom(null) as PrimitiveAtom<any>, {
+            inTab: true,
+            reviewNewCommits: vi.fn(async () => {}),
+            isMerged: () => true,
+        });
+        Mocks.plan.mockClear();
+        await tab.openValidate();
+        expect(Mocks.plan).not.toHaveBeenCalled();
+        expect(globalStore.get(tab.validateAtom).open).toBe(false);
     });
 
     it("hands the new commits to the PR's Review tab after a refusal on a moved head", async () => {

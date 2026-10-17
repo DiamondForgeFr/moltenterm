@@ -8,6 +8,7 @@ import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-clea
 import type { ReviewMergeRecord, ReviewPrStateResult } from "./review-client";
 import {
     isReviewDone,
+    isReviewMerged,
     mergedFooter,
     readReviewDoneMeta,
     reviewDoneDetail,
@@ -15,6 +16,7 @@ import {
     reviewDoneMeta,
     reviewDoneOf,
     reviewDoneTabTitle,
+    reviewMergedBanner,
     shouldReadPrState,
 } from "./review-done";
 
@@ -42,7 +44,7 @@ describe("review done state (#686)", () => {
             { state: "merged", mergedoid: "other" },
             "develop"
         );
-        expect(done).toEqual({ kind: "merged", base: "develop", oid: mergedOid, at: mergedAt });
+        expect(done).toEqual({ kind: "merged", base: "develop", oid: mergedOid, at: mergedAt, byyou: true });
         expect(reviewDoneLabel(en, done)).toBe("Validated");
         expect(reviewDoneLabel(fr, done)).toBe("Validée");
         const detail = reviewDoneDetail(en, done, "en");
@@ -134,6 +136,45 @@ describe("review done state (#686)", () => {
         }
         expect(en("review.done.closeTab")).toBe("Close the review tab");
         expect(en("review.done.keepOpen")).toBe("Keep it open");
+    });
+
+    it("knows a PR merged from what the Reviews list knows, before GitHub's state is read (#898)", () => {
+        const known = { at: mergedAt, by: "octo", base: "develop", oid: mergedOid };
+        const done = reviewDoneOf(null, null, "develop", known);
+        expect(done).toMatchObject({ kind: "mergedgithub", by: "octo", at: mergedAt, oid: mergedOid });
+        expect(isReviewDone(done)).toBe(true);
+        expect(isReviewMerged(done)).toBe(true);
+        expect(reviewDoneLabel(en, done)).toBe("Merged on GitHub");
+        const batch = reviewDoneOf(null, { state: "merged" }, "develop", { byyou: true, at: mergedAt });
+        expect(batch).toMatchObject({ kind: "mergedgithub", byyou: true, at: mergedAt });
+        expect(reviewDoneLabel(en, batch)).toBe("Merged");
+        expect(reviewDoneOf(null, null, "develop", null).kind).toBe("open");
+        expect(isReviewMerged(reviewDoneOf(null, { state: "closed" }, "develop"))).toBe(false);
+    });
+
+    it("words the merged banner: by whom, when, into which branch (#898)", () => {
+        const now = mergedAt + 60_000;
+        const time = new Date(mergedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+        const byYou = reviewDoneOf(
+            { planid: "p", state: "merged", endedat: mergedAt } as ReviewMergeRecord,
+            null,
+            "develop"
+        );
+        expect(reviewMergedBanner(en, byYou, "en", now)).toBe(
+            `Merged by you at ${time}, on develop. Nothing left to validate.`
+        );
+        const frTime = new Date(mergedAt).toLocaleTimeString("fr", { hour: "2-digit", minute: "2-digit" });
+        expect(reviewMergedBanner(fr, byYou, "fr", now)).toBe(
+            `Fusionnée par vous à ${frTime}, sur develop. Plus rien à valider.`
+        );
+        const elsewhere = reviewDoneOf(null, null, "develop", { by: "octo", at: mergedAt });
+        expect(reviewMergedBanner(en, elsewhere, "en", mergedAt + 3 * 24 * 3600_000)).toMatch(
+            /^Merged by octo on .+ at .+, on develop\. Nothing left to validate\.$/
+        );
+        expect(reviewMergedBanner(en, reviewDoneOf(null, null, "main", {}), "en", now)).toBe(
+            "Merged, on main. Nothing left to validate."
+        );
+        expect(reviewMergedBanner(en, reviewDoneOf(null, { state: "closed" }, "develop"), "en", now)).toBe("");
     });
 
     it("asks GitHub once, then at most every recheck, never once merged", () => {
