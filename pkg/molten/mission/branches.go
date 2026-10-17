@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -35,6 +36,8 @@ const (
 	BranchDeleteMergedPr       = "merged-pr"
 	BranchDeleteOnTrunk        = "on-trunk"
 	BranchDeletePatchesOnTrunk = "patches-on-trunk"
+	// The branch goes with the worktree MoltenTerm made for its pull request, now merged (#906).
+	BranchDeleteMergedPrTree = "merged-pr-worktree"
 
 	BranchKeepProtected      = "protected"
 	BranchKeepNotOnTrunk     = "not-on-trunk"
@@ -43,10 +46,20 @@ const (
 	BranchKeepOpenPr         = "open-pr"
 	BranchKeepPrUnknown      = "pr-unknown"
 	BranchKeepCommitsAfterPr = "commits-after-pr"
+	// #906: a merged pull request's branch holding commits that pull request never carried.
+	BranchKeepNotInPr = "not-in-pr"
+	// #906: MoltenTerm's worktree of a merged pull request still holds uncommitted work, or a terminal is open in it.
+	BranchKeepTreeChanges = "worktree-changes"
+	BranchKeepTreeInUse   = "worktree-in-use"
+	// #906: a branch tools keep (pull request screenshots, or one the project lists in branches.tools).
+	BranchKeepPrAssets = "pr-assets"
+	BranchKeepTool     = "tool-branch"
 
 	// The answer to the "Automatically delete head branches" offer, Turn on or Not now: it is asked once per project.
 	autoDeleteAnsweredFile = "autodelete-offer-answered"
 	mergedPrsLimit         = "1000"
+	prAssetsBranch         = "pr-assets"
+	forcePushesQuery       = `query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){timelineItems(itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT],first:100){nodes{... on HeadRefForcePushedEvent{beforeCommit{oid} afterCommit{oid}}}}}}}`
 
 	branchesTimeout = 60 * time.Second
 )
@@ -54,13 +67,20 @@ const (
 var branchNameRegex = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 var treeIdRegex = regexp.MustCompile(`^[0-9a-f]{40,64}$`)
 
+// ownTreeRegex: the worktrees restart.go makes for a pull request in the data folder, work-<PR> or work-<PR>-<k>.
+var ownTreeRegex = regexp.MustCompile(`^work-\d+(-\d+)?$`)
+
 type BranchPlan struct {
 	Name   string `json:"name"`
 	Remote bool   `json:"remote"`
 	Action string `json:"action"`
 	Reason string `json:"reason,omitempty"`
-	// The merged pull request behind merged-pr and commits-after-pr.
+	// The merged pull request behind merged-pr, merged-pr-worktree, commits-after-pr and not-in-pr.
 	Pr int `json:"pr,omitempty"`
+	// Worktree: MoltenTerm's worktree holding the branch, removed with it (merged-pr-worktree) or the reason it stays.
+	Worktree string `json:"worktree,omitempty"`
+	// risk: what the worktree held when it was read, so the removal refuses a worktree that grew since.
+	risk *WorktreeRisk
 }
 
 type BranchesPlan struct {
@@ -102,9 +122,15 @@ type branchFacts struct {
 	patches    *bool
 	checkedOut bool
 	openPr     *bool
-	// A merged pull request whose head is this branch's head, and one whose head this branch has moved past.
-	mergedPr int
-	afterPr  int
+	// A merged pull request whose head is this branch's head (or one it carried), one whose head this branch has moved
+	// past, and one this branch has commits that pull request never carried.
+	mergedPr   int
+	afterPr    int
+	notInPr    int
+	tool       string
+	ownTree    string
+	ownTreeFit string
+	treeRisk   *WorktreeRisk
 }
 
 func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
@@ -117,6 +143,19 @@ func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
 	switch {
 	case protected[f.name]:
 		return keep(BranchKeepProtected)
+	case f.tool != "":
+		return keep(f.tool)
+	case f.checkedOut && f.ownTree != "" && f.mergedPr > 0 && f.openPr != nil && !*f.openPr:
+		b := keep(f.ownTreeFit)
+		if f.ownTreeFit == "" {
+			b = drop(BranchDeleteMergedPrTree)
+			b.risk = f.treeRisk
+		}
+		if b.Reason == BranchKeepCheckedOut {
+			return b
+		}
+		b.Pr, b.Worktree = f.mergedPr, f.ownTree
+		return b
 	case f.checkedOut:
 		return keep(BranchKeepCheckedOut)
 	case f.openPr != nil && *f.openPr:
@@ -131,6 +170,10 @@ func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
 		return b
 	case f.onTrunk == nil:
 		return keep(BranchKeepContentUnknown)
+	case !*f.onTrunk && (f.patches == nil || !*f.patches) && f.notInPr > 0:
+		b := keep(BranchKeepNotInPr)
+		b.Pr = f.notInPr
+		return b
 	case !*f.onTrunk && (f.patches == nil || !*f.patches):
 		return keep(BranchKeepNotOnTrunk)
 	case f.openPr == nil:
@@ -170,18 +213,22 @@ func patchesOnTrunk(g *gitReader, trunkRef string, ref string) *bool {
 	return &all
 }
 
-// prSignal reads the merged pull requests of a branch: the one whose head is the branch's head, and the newest one
-// whose head the branch has commits after. Only pull requests merged into a main branch count: one merged into
-// another feature branch says nothing about the trunk.
-func prSignal(g *gitReader, head string, prs []mergedPr, protected map[string]bool) (int, int) {
+// prSignal reads the merged pull requests of a branch: the one whose head is the branch's head or a head it carried,
+// the newest one whose head the branch has commits after, and the newest one the branch shares nothing with (notInPr).
+// Only pull requests merged into a main branch count: one merged into another feature branch says nothing about the
+// trunk. A head the pull request carried is an ancestor of its merged head, or one of the heads it had before a force
+// push (#906: the batch merge rebases a branch before merging it, so the merged head is not the local one).
+func prSignal(g *gitReader, head string, prs []mergedPr, protected map[string]bool, earlierHeads func(number int) []string) (int, int, int) {
 	after := 0
+	var candidates []mergedPr
 	for _, pr := range prs {
 		if !protected[pr.BaseRefName] || !treeIdRegex.MatchString(pr.HeadRefOid) {
 			continue
 		}
 		if pr.HeadRefOid == head {
-			return pr.Number, 0
+			return pr.Number, 0, 0
 		}
+		candidates = append(candidates, pr)
 		if pr.Number <= after {
 			continue
 		}
@@ -190,7 +237,118 @@ func prSignal(g *gitReader, head string, prs []mergedPr, protected map[string]bo
 			after = pr.Number
 		}
 	}
-	return 0, after
+	if after > 0 || len(candidates) == 0 {
+		return 0, after, 0
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Number > candidates[j].Number })
+	carried := func(oid string) bool {
+		if oid == head {
+			return true
+		}
+		_, err := g.out("merge-base", "--is-ancestor", head, oid)
+		return err == nil
+	}
+	for _, pr := range candidates {
+		if carried(pr.HeadRefOid) {
+			return pr.Number, 0, 0
+		}
+		if earlierHeads == nil {
+			continue
+		}
+		for _, oid := range earlierHeads(pr.Number) {
+			if carried(oid) {
+				return pr.Number, 0, 0
+			}
+		}
+	}
+	return 0, 0, candidates[0].Number
+}
+
+// forcePushedHeads reads the heads a pull request had before and after each force push; nil when GitHub did not say.
+func forcePushedHeads(ctx context.Context, run Runner, dir string, number int) []string {
+	out, err := ghJson(ctx, run, dir, "api", "graphql", "-F", "owner={owner}", "-F", "repo={repo}",
+		"-F", "number="+strconv.Itoa(number), "-f", "query="+forcePushesQuery)
+	if err != nil {
+		return nil
+	}
+	type commit struct {
+		Oid string `json:"oid"`
+	}
+	var answer struct {
+		Data struct {
+			Repository struct {
+				PullRequest struct {
+					TimelineItems struct {
+						Nodes []struct {
+							BeforeCommit *commit `json:"beforeCommit"`
+							AfterCommit  *commit `json:"afterCommit"`
+						} `json:"nodes"`
+					} `json:"timelineItems"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(out, &answer) != nil {
+		return nil
+	}
+	var rtn []string
+	for _, node := range answer.Data.Repository.PullRequest.TimelineItems.Nodes {
+		for _, c := range []*commit{node.BeforeCommit, node.AfterCommit} {
+			if c != nil && treeIdRegex.MatchString(c.Oid) {
+				rtn = append(rtn, c.Oid)
+			}
+		}
+	}
+	return rtn
+}
+
+// toolBranches are the branches tools keep: pr-assets (pull request screenshots) and those `.molten/project.json`
+// lists in branches.tools.
+func toolBranches(dir string) map[string]string {
+	rtn := map[string]string{prAssetsBranch: BranchKeepPrAssets}
+	var pipeline struct {
+		Branches struct {
+			Tools []string `json:"tools"`
+		} `json:"branches"`
+	}
+	readJson(filepath.Join(dir, molten.ProjectPipelineFile), &pipeline)
+	for _, name := range pipeline.Branches.Tools {
+		if name != "" && rtn[name] == "" {
+			rtn[name] = BranchKeepTool
+		}
+	}
+	return rtn
+}
+
+// ownTree tells whether a linked worktree is one MoltenTerm made for a pull request: <data>/molten/worktrees/<project
+// folder>/work-<PR>. The developer's and the agent tools' worktrees are never removed by branch cleaning.
+func ownTree(dataDir string, path string) bool {
+	if dataDir == "" || !ownTreeRegex.MatchString(filepath.Base(path)) {
+		return false
+	}
+	trees := realPath(DepSyncTreesDir(dataDir))
+	return filepath.Dir(filepath.Dir(realPath(path))) == trees
+}
+
+// ownTreeFit reads MoltenTerm's worktree of a merged pull request as closing it would (Worktrees.Plan): "" when it can
+// go with its branch, else why it stays. Git-ignored files go with it, as after a merge (review/loss.go); the branch's
+// commits are checked against the pull request instead of the remote, deleted by the merge.
+func (r *Runs) ownTreeFit(path string) (string, *WorktreeRisk) {
+	if r.worktrees == nil {
+		return BranchKeepCheckedOut, nil
+	}
+	plan, err := r.worktrees.Plan(WorktreeRequest{Dir: path})
+	switch {
+	case err != nil || plan.Locked || plan.Refused != "":
+		return BranchKeepCheckedOut, nil
+	case plan.Missing:
+		return "", nil
+	case plan.ChangeCount != 0:
+		return BranchKeepTreeChanges, nil
+	case len(plan.Terminals) > 0:
+		return BranchKeepTreeInUse, nil
+	}
+	return "", &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
 }
 
 // readPrs reads the open pull requests' head names and the merged ones by head name; each nil when GitHub did not
@@ -258,10 +416,20 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 		return BranchesPlan{}, uimsg.Errorf(uimsg.Make("mission.branches.readTrunk", "ref", trunkRef, "detail", err.Error()), "reading %s: %w", trunkRef, err)
 	}
 	protected := protectedBranches(dir, trunk)
-	checkedOut := map[string]bool{}
-	for _, line := range g.lines("worktree", "list", "--porcelain") {
+	tools := toolBranches(dir)
+	// The worktree holding each checked-out branch; the main checkout's branch is never MoltenTerm's to remove.
+	checkedOut := map[string]string{}
+	var treePath string
+	for i, line := range g.lines("worktree", "list", "--porcelain") {
+		if path, ok := strings.CutPrefix(line, "worktree "); ok {
+			treePath = path
+			if i == 0 {
+				treePath = ""
+			}
+			continue
+		}
 		if name, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
-			checkedOut[name] = true
+			checkedOut[name] = treePath
 		}
 	}
 	openPrs, merged, onGithub := readPrs(ctx, r.git, dir)
@@ -270,16 +438,30 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 		_, err := os.Stat(r.autoDeleteAnsweredPath(dir))
 		plan.AutoDeleteOffer = errors.Is(err, os.ErrNotExist)
 	}
+	forcePushes := map[int][]string{}
+	earlierHeads := func(number int) []string {
+		heads, ok := forcePushes[number]
+		if !ok {
+			heads = forcePushedHeads(ctx, r.git, dir, number)
+			forcePushes[number] = heads
+		}
+		return heads
+	}
 	add := func(name string, ref string, head string, remote bool) {
-		f := branchFacts{name: name, remote: remote, checkedOut: !remote && checkedOut[name]}
+		tree, held := checkedOut[name]
+		f := branchFacts{name: name, remote: remote, checkedOut: !remote && held, tool: tools[name]}
 		if openPrs != nil {
 			open := openPrs[name]
 			f.openPr = &open
 		}
-		if !protected[name] && treeIdRegex.MatchString(head) {
-			f.mergedPr, f.afterPr = prSignal(g, head, merged[name], protected)
+		if !protected[name] && f.tool == "" && treeIdRegex.MatchString(head) {
+			f.mergedPr, f.afterPr, f.notInPr = prSignal(g, head, merged[name], protected, earlierHeads)
 		}
-		decided := protected[name] || f.checkedOut || (f.openPr != nil && *f.openPr) ||
+		if f.checkedOut && tree != "" && ownTree(r.dataDir, tree) && f.mergedPr > 0 && f.openPr != nil && !*f.openPr {
+			f.ownTree = tree
+			f.ownTreeFit, f.treeRisk = r.ownTreeFit(tree)
+		}
+		decided := protected[name] || f.tool != "" || f.checkedOut || (f.openPr != nil && *f.openPr) ||
 			(f.mergedPr > 0 && f.openPr != nil) || f.afterPr > 0
 		if !decided {
 			f.onTrunk = contentOnTrunk(g, trunkTree, trunkRef, ref)
@@ -363,9 +545,12 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 			continue
 		}
 		var err error
-		if b.Remote {
+		switch {
+		case b.Remote:
 			_, err = r.git(ctx, dir, "git", "push", "--quiet", "origin", "--delete", b.Name)
-		} else {
+		case b.Reason == BranchDeleteMergedPrTree:
+			err = r.removeOwnTree(ctx, dir, b)
+		default:
 			_, err = r.git(ctx, dir, "git", "branch", "-D", b.Name)
 		}
 		if err != nil {
@@ -377,6 +562,21 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 		result.Deleted = append(result.Deleted, branchLabel(b))
 	}
 	return result, nil
+}
+
+// removeOwnTree removes MoltenTerm's worktree of a merged pull request through the close-worktree removal, which reads
+// it again and refuses one that changed since the plan, then deletes its branch.
+func (r *Runs) removeOwnTree(ctx context.Context, dir string, b BranchPlan) error {
+	res, err := r.worktrees.Remove(WorktreeRemoveRequest{Dir: b.Worktree, Confirmed: b.risk})
+	if err != nil {
+		return err
+	}
+	if res.Gone {
+		// Its folder was deleted while git still lists it: prune the entry, or the branch stays "checked out" there.
+		r.git(ctx, dir, "git", "worktree", "prune")
+	}
+	_, err = r.git(ctx, dir, "git", "branch", "-D", b.Name)
+	return err
 }
 
 // AnswerAutoDelete answers the offer to turn on GitHub's "Automatically delete head branches": Turn on changes the

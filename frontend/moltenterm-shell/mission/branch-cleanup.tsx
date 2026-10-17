@@ -24,13 +24,17 @@ import {
     BranchPlan,
 } from "./mission-client";
 
-const KeepReasonKeys: Record<Exclude<BranchKeepReason, "commits-after-pr">, string> = {
+type PrKeepReason = "commits-after-pr" | "not-in-pr" | "worktree-changes" | "worktree-in-use";
+
+const KeepReasonKeys: Record<Exclude<BranchKeepReason, PrKeepReason>, string> = {
     protected: "mc.branches.keep.protected",
     "not-on-trunk": "mc.branches.keep.notOnTrunk",
     "content-unknown": "mc.branches.keep.contentUnknown",
     "checked-out": "mc.branches.keep.checkedOut",
     "open-pr": "mc.branches.keep.openPr",
     "pr-unknown": "mc.branches.keep.prUnknown",
+    "pr-assets": "mc.branches.keep.prAssets",
+    "tool-branch": "mc.branches.keep.tool",
 };
 
 const PlainButton =
@@ -51,6 +55,14 @@ export function branchReason(b: BranchPlan, trunk: string): string {
             return t("mc.branches.reason.patchesOnTrunk", { trunk });
         case "commits-after-pr":
             return t("mc.branches.reason.commitsAfterPr", { pr: b.pr });
+        case "merged-pr-worktree":
+            return t("mc.branches.reason.mergedPrWorktree", { pr: b.pr });
+        case "not-in-pr":
+            return t("mc.branches.keep.notInPr", { pr: b.pr });
+        case "worktree-changes":
+            return t("mc.branches.keep.worktreeChanges", { pr: b.pr });
+        case "worktree-in-use":
+            return t("mc.branches.keep.worktreeInUse", { pr: b.pr });
     }
     const key = KeepReasonKeys[b.reason as keyof typeof KeepReasonKeys];
     return key ? t(key) : (b.reason ?? "");
@@ -223,7 +235,11 @@ export function BranchCleanupDialog({
                                 <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                     <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
                                     <code>{branchLabel(b)}</code>
-                                    {b.reason ? <span className="text-muted">— {branchReason(b, trunk)}</span> : null}
+                                    {b.reason ? (
+                                        <span className="text-muted" title={b.worktree}>
+                                            — {branchReason(b, trunk)}
+                                        </span>
+                                    ) : null}
                                 </div>
                             ))}
                         </div>
@@ -235,7 +251,9 @@ export function BranchCleanupDialog({
                                 <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                     <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
                                     <code>{branchLabel(b)}</code>
-                                    <span className="text-muted">— {branchReason(b, trunk)}</span>
+                                    <span className="text-muted" title={b.worktree}>
+                                        — {branchReason(b, trunk)}
+                                    </span>
                                 </div>
                             ))}
                         </div>

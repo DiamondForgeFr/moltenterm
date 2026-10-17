@@ -559,7 +559,7 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
 }
 
 // must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
-export type BranchDeleteReason = "merged-pr" | "on-trunk" | "patches-on-trunk";
+export type BranchDeleteReason = "merged-pr" | "merged-pr-worktree" | "on-trunk" | "patches-on-trunk";
 export type BranchKeepReason =
     | "protected"
     | "not-on-trunk"
@@ -567,13 +567,20 @@ export type BranchKeepReason =
     | "checked-out"
     | "open-pr"
     | "pr-unknown"
-    | "commits-after-pr";
+    | "commits-after-pr"
+    | "not-in-pr"
+    | "worktree-changes"
+    | "worktree-in-use"
+    | "pr-assets"
+    | "tool-branch";
 export type BranchPlan = {
     name: string;
     remote: boolean;
     action: "delete" | "keep";
     reason?: BranchDeleteReason | BranchKeepReason;
     pr?: number;
+    // MoltenTerm's worktree holding the branch (#906): removed with it, or why it stays.
+    worktree?: string;
 };
 export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
 export type BranchesCleanResult = {
