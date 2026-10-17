@@ -6303,6 +6303,7 @@
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
         "checkoutInvestigate": "Your main checkout is not touched. The agent's terminal stays open with its findings until you close it.",
         "default": "Default",
+        "how": "How the agent works",
         "yourAgent": "Your agent",
         "tab": {
             "rebase": "Rebase #{number}",

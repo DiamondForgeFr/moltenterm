@@ -57,7 +57,8 @@ so a future light theme only has to map the same slots.
   leaves `--df-radius-*` alone.
 - Applied in #658 to Settings (every group, Secrets, Mods, Advanced files and Keyboard) and the workspace editor
   (Identity, Project, Folder, Danger zone, and the dialog frame through `DialogFrame suite`). Tips follows through
-  `PageCard`.
+  `PageCard`. Since #890 every `DialogFrame` carries the turning light while it is open (`noGlow` opts out, with the
+  reason written at the call site); `suite` only adds the room its section blocks need.
 
 ## Extraction plan
 

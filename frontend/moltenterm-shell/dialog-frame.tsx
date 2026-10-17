@@ -51,6 +51,7 @@ export function DialogFrame({
     onBackdrop,
     onEscape,
     suite,
+    noGlow,
     children,
     buttons,
 }: {
@@ -74,9 +75,11 @@ export function DialogFrame({
     onBackdrop?: () => void;
     // Undefined keeps Escape blocked while a confirmation is busy.
     onEscape?: () => void;
-    // The DiamondForge suite frame (#658): low corners, the turning light around it, and room for its section blocks'
-    // chips and corner icons.
+    // The DiamondForge suite frame (#658): room for its section blocks' chips and corner icons.
     suite?: boolean;
+    // Every open dialog carries the suite's turning light (#890). Opt out only for a reason worth writing at the call
+    // site, such as a dialog stacked over another lit one.
+    noGlow?: boolean;
     children: React.ReactNode;
     buttons: React.ReactNode;
 }) {
@@ -126,8 +129,7 @@ export function DialogFrame({
                 aria-label={title}
                 tabIndex={-1}
                 className={cn(
-                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col border border-border bg-surface-3 shadow-e3",
-                    suite ? "relative rounded-4" : "rounded-10",
+                    "relative flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded-4 border border-border bg-surface-3 shadow-e3",
                     widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
                 )}
             >
@@ -147,7 +149,7 @@ export function DialogFrame({
                     ) : null}
                     {belowSubtitle}
                 </div>
-                {suite ? <GlowRing on /> : null}
+                {noGlow ? null : <GlowRing on />}
                 <div
                     className={cn(
                         "flex min-h-0 flex-col overflow-auto text-12",
