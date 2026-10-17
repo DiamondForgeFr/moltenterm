@@ -105,7 +105,7 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     }
     return (
         <div
-            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-12 whitespace-pre text-primary shadow-e2"
+            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded-4 border border-border bg-surface-3 px-2 py-1 text-12 whitespace-pre text-primary shadow-e2"
             style={{ top: anchor.top, left: anchor.left }}
         >
             {label}

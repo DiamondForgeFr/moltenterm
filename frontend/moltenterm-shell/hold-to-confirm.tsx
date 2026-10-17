@@ -268,7 +268,7 @@ function HoldHintBubble({ anchor, text }: { anchor: HTMLElement; text: string })
             aria-hidden
             data-testid="hold-hint"
             style={{ top: rect.bottom + 6, left }}
-            className="molten-hold-hint pointer-events-none fixed z-[9600] -translate-x-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-11 font-medium whitespace-nowrap text-primary shadow-e2"
+            className="molten-hold-hint pointer-events-none fixed z-[9600] -translate-x-1/2 rounded-4 border border-border bg-surface-3 px-2 py-1 text-11 font-medium whitespace-nowrap text-primary shadow-e2"
         >
             {text}
         </div>,

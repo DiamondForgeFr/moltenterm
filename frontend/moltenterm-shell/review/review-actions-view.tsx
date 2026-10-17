@@ -46,7 +46,7 @@ export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
     }
     return (
         <div
-            className="absolute z-10 flex items-center gap-1 rounded-6 border border-border bg-modalbg p-1 shadow-lg"
+            className="absolute z-10 flex items-center gap-1 rounded-4 border border-border bg-modalbg p-1 shadow-lg"
             style={{ top: pos.top + 2, left: pos.left }}
             role="toolbar"
             aria-label={t("review.select.selected", { anchor: anchorLabel(selection.anchor) })}
@@ -132,7 +132,7 @@ function CommentBox({
               });
     return (
         <div
-            className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-6 border border-border bg-modalbg p-2 text-12 shadow-lg"
+            className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-4 border border-border bg-modalbg p-2 text-12 shadow-lg"
             style={{ top: top + 2, left }}
             data-testid="review-comment-box"
         >

@@ -174,7 +174,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             role="dialog"
             aria-label={t("keepawake.panelLabel")}
             data-testid="keepawake-panel"
-            className="fixed z-[9600] flex max-h-[70vh] w-[320px] flex-col overflow-y-auto rounded-10 border border-border bg-surface-3 p-3 text-12 text-secondary shadow-command"
+            className="fixed z-[9600] flex max-h-[70vh] w-[320px] flex-col overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 text-12 text-secondary shadow-command"
             style={{ bottom: window.innerHeight - rect.top + 6, right: Math.max(8, window.innerWidth - rect.right) }}
         >
             <SleepPolicyControl

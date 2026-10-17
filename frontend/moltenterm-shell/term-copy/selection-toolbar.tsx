@@ -169,7 +169,7 @@ export const TermSelectionToolbar = React.memo(function TermSelectionToolbar({
 
     return (
         <div
-            className="molten-term-selbar xterm-hover absolute z-20 flex items-center gap-0.5 rounded-10 border border-border bg-surface-3 px-0.5 text-12 shadow-e2 select-none"
+            className="molten-term-selbar xterm-hover absolute z-20 flex items-center gap-0.5 rounded-4 border border-border bg-surface-3 px-0.5 text-12 shadow-e2 select-none"
             style={{ left: bar.left, top: bar.top, height: BarHeightPx }}
             onMouseDown={keepSelection}
             onContextMenu={keepSelection}
