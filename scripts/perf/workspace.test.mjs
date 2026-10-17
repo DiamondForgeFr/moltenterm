@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { isContextLost, neverRan } from "./lib/cdp.mjs";
+import { evaluate, isContextLost, neverRan, pinDefaultContext } from "./lib/cdp.mjs";
 import { Driver } from "./lib/workspace.mjs";
 
 const NotFound = "Cannot find context with specified id";
@@ -120,6 +120,35 @@ describe("perf driver when a page's context is replaced (#895)", () => {
     expect(isContextLost(new Error("ReferenceError: WOS is not defined"))).toBe(false);
     expect(neverRan(new Error(NotFound))).toBe(true);
     expect(neverRan(new Error(Destroyed))).toBe(false);
+  });
+
+  it("evaluates in the main process's default context, not its internal one", async () => {
+    let listener = null;
+    const sent = [];
+    const client = {
+      on(fn) {
+        listener = fn;
+      },
+      async send(method, params) {
+        sent.push({ method, params });
+        if (method === "Runtime.enable") {
+          listener({
+            method: "Runtime.executionContextCreated",
+            params: { context: { id: 2, uniqueId: "internal", auxData: { isDefault: false } } },
+          });
+          listener({
+            method: "Runtime.executionContextCreated",
+            params: { context: { id: 1, uniqueId: "main", auxData: { isDefault: true } } },
+          });
+        }
+        return method === "Runtime.evaluate" ? { result: { result: { value: 7 } } } : {};
+      },
+      close() {},
+    };
+    await pinDefaultContext(client);
+    expect(await evaluate(client, "7")).toBe(7);
+    expect(sent.map((s) => s.method)).toEqual(["Runtime.enable", "Runtime.disable", "Runtime.evaluate"]);
+    expect(sent[2].params.uniqueContextId).toBe("main");
   });
 
   it("deletes a workspace when the context is replaced before the call", async () => {
