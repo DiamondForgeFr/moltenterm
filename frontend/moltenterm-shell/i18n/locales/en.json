@@ -4256,16 +4256,27 @@
             },
             "banner": {
                 "running": {
-                    "one": "An agent is merging {count} PR — {position} of {count}",
-                    "other": "An agent is merging {count} PRs — {position} of {count}"
+                    "one": "An agent is merging {count} PR — {progress}",
+                    "other": "An agent is merging {count} PRs — {progress}"
                 },
                 "cancelling": {
-                    "one": "Cancelling after the current step — {position} of {count}",
-                    "other": "Cancelling after the current step — {position} of {count}"
+                    "one": "Cancelling after the current step — {progress}",
+                    "other": "Cancelling after the current step — {progress}"
                 },
                 "paused": {
-                    "one": "The batch merge stopped on #{number} — {position} of {count}",
-                    "other": "The batch merge stopped on #{number} — {position} of {count}"
+                    "one": "The batch merge stopped on #{number} — {merged} of {count} merged",
+                    "other": "The batch merge stopped on #{number} — {merged} of {count} merged"
+                },
+                "progress": "{merged} of {count} merged, #{number} {now}",
+                "progressIdle": "{merged} of {count} merged",
+                "now": {
+                    "queued": "waits its turn",
+                    "checking": "is being read on GitHub",
+                    "rebasing": "is being rebased",
+                    "waiting": "waits for your answer",
+                    "waitingchecks": "waits for its checks",
+                    "merging": "is merging",
+                    "other": "is in progress"
                 },
                 "done": {
                     "one": "Batch merge done: {merged} of {count} PR merged",
