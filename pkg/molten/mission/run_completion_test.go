@@ -257,10 +257,19 @@ func TestRunCompletionSurvivesApplicationRestart(t *testing.T) {
 			}
 			r := MakeRuns(filepath.Join(base, "runs"), nil, nil)
 			entries, err := os.ReadDir(r.projectDir(base))
-			if err != nil || len(entries) != 1 {
+			var runId string
+			for _, entry := range entries {
+				if entry.IsDir() {
+					if runId != "" {
+						t.Fatal("multiple helper runs")
+					}
+					runId = entry.Name()
+				}
+			}
+			if err != nil || runId == "" {
 				t.Fatalf("helper record: %v %v", entries, err)
 			}
-			rec, err := r.readRecord(base, entries[0].Name())
+			rec, err := r.readRecord(base, runId)
 			if err != nil {
 				t.Fatal(err)
 			}

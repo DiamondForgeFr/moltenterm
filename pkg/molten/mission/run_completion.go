@@ -50,7 +50,7 @@ printf '1 %s\n' "$code" > "$2.tmp" && /bin/mv -f "$2.tmp" "$2"
 `
 
 func (r *Runs) completionFile(rec RunRecord) string {
-	return filepath.Join(r.projectDir(rec.Dir), rec.Id, completionFileName)
+	return filepath.Join(r.recordDir(rec.storageProject(), rec.Id), completionFileName)
 }
 
 func (r *Runs) supervisedCommand(rec RunRecord) *exec.Cmd {
@@ -86,7 +86,7 @@ func (r *Runs) complete(rec *RunRecord, code int) {
 // Serialize each lifecycle transaction, including cancellation, without holding the watcher-map lock or
 // invoking subscribers under this lock. Otherwise a stale poll can overwrite a cancellation request.
 func (r *Runs) recordLock(dir, id string) *sync.Mutex {
-	key := filepath.Join(r.projectDir(dir), id)
+	key := r.recordDir(dir, id)
 	lock, _ := r.recordLocks.LoadOrStore(key, &sync.Mutex{})
 	return lock.(*sync.Mutex)
 }
