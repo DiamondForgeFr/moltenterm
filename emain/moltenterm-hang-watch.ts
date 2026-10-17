@@ -5,7 +5,7 @@
 // child process dies, when its own loop was blocked and when a sendSync round trip was slow; the window that stalled
 // is told how long once it answers again, and the diagnostics copy the recent events. Lines start with "hang:".
 
-import { app, clipboard, ipcMain, powerMonitor, WebContents } from "electron";
+import { app, clipboard, powerMonitor, WebContents } from "electron";
 import { setBackendCallReporter } from "../frontend/moltenterm-shell/backend-call-retry";
 import { getWaveVersion } from "./emain-wavesrv";
 import { getAllWaveWindows } from "./emain-window";
@@ -18,6 +18,7 @@ import {
     WindowHangChannel,
 } from "./moltenterm-hang-ipc";
 import { HangEventLog, HangPingMs, HangWatchModel, shouldNotifyStall } from "./moltenterm-hang-model";
+import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc";
 
 export type WindowHang = { ms: number; at: number };
 
@@ -117,12 +118,12 @@ export function initMoltentermHangWatch() {
         const name = details?.name ? ` (${details.name})` : "";
         record(`child process ${details?.type}${name} gone: reason=${details?.reason} exitcode=${details?.exitCode}`);
     });
-    ipcMain.on(HangPongChannel, (event, seq: number) => onPong(event.sender, seq));
-    ipcMain.on(SlowSyncIpcChannel, (event, channel: string, ms: number) => {
+    onAppIpc(HangPongChannel, (event, seq: number) => onPong(event.sender, seq));
+    onAppIpc(SlowSyncIpcChannel, (event, channel: string, ms: number) => {
         record(`sendSync "${String(channel).slice(0, 80)}" from ${describe(event.sender)} took ${Number(ms)} ms`);
     });
-    ipcMain.handle(HangDiagnosticsChannel, () => hangDiagnostics());
-    ipcMain.handle(HangCopyChannel, (_event, text: unknown) => {
+    handleAppIpc(HangDiagnosticsChannel, () => hangDiagnostics());
+    handleAppIpc(HangCopyChannel, (_event, text: unknown) => {
         if (typeof text !== "string") {
             throw new Error("hang diagnostics: text expected");
         }

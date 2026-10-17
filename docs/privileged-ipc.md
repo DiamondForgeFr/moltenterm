@@ -41,6 +41,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | --- | --- |
 | `authkey.ts` | `get-auth-key` |
 | `moltenterm-accessibility.ts` | `moltenterm:get-accessibility-support` |
+| `moltenterm-hang-watch.ts` | `moltenterm-hang-pong`, `moltenterm-slow-sync-ipc`, `moltenterm-hang-diagnostics`, `moltenterm-hang-copy` |
 | `emain-platform.ts` | `get-is-dev`, `get-platform`, `get-user-name`, `get-host-name`, `get-webview-preload`, `get-data-dir`, `get-config-dir`, `get-home-dir` |
 | `emain-ipc.ts` | `open-external`, `download`, `get-cursor-point`, `capture-screenshot`, `get-env`, `get-about-modal-details`, `get-zoom-factor`, `webview-focus`, `register-global-webview-keys`, `set-keyboard-chord-mode`, `set-is-active`, `update-window-controls-overlay`, `quicklook`, `clear-webview-storage`, `open-native-path`, `set-window-init-status`, `fe-log`, `increment-term-commands`, `native-paste`, `open-builder`, `set-builder-window-appid`, `open-new-window`, `close-builder-window`, `do-refresh`, `save-text-file` |
 | `emain-window.ts` | `set-active-tab`, `create-tab`, `set-waveai-open`, `close-tab`, `switch-workspace`, `create-workspace`, `delete-workspace`, `reset-workspace` |
@@ -83,5 +84,5 @@ destroyed contents and registered contents navigated away from the application d
 
 Channels added later must register through `onAppIpc`, `handleAppIpc` or (for an inventoried guest signal)
 `onGuestIpc` and appear in the table above; the inventory test fails otherwise. The #808 accessibility
-getter follows this rule; the #849 hang diagnostic channels must do the same when they land. The application-level tests use
+getter and the #849 hang watch channels follow this rule. The application-level tests use
 fixture values and harmless metadata; packaged human verification remains part of the PR review gate.
