@@ -96,6 +96,20 @@ export async function evaluate(client, expression) {
   return r.result?.result?.value;
 }
 
+// A page's JavaScript context can be replaced or torn down while the scenario talks to it (#895): the evaluation then
+// fails without saying anything about the app. These errors are worth a retry on the page now on screen.
+const ContextLostRe =
+  /Cannot find context with specified id|Execution context was destroyed|Inspected target navigated or closed|Target closed|connection closed/;
+
+export function isContextLost(e) {
+  return ContextLostRe.test(String(e?.message ?? e));
+}
+
+// CDP refuses the evaluation before running anything: the expression had no effect.
+export function neverRan(e) {
+  return /Cannot find context with specified id/.test(String(e?.message ?? e));
+}
+
 // The Electron main process, through its Node inspector. `require` comes from the command-line API.
 export async function connectMain(inspectPort) {
   const targets = await (await fetch(`http://127.0.0.1:${inspectPort}/json/list`)).json();
