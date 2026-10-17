@@ -1288,7 +1288,7 @@ function CommandPanel({ open }: CommandPanelProps) {
             aria-label={t("cmdpanel.aria.commands", { panel: panelName })}
             data-role="command-panel"
             data-blockid-for={blockId}
-            className="molten-cmdpanel flex flex-col overflow-hidden rounded-10 border border-line-strong bg-surface-2 shadow-command"
+            className="molten-cmdpanel flex flex-col overflow-hidden rounded-4 border border-line-strong bg-surface-2 shadow-command"
             style={{
                 ...floatingStyles,
                 width: PanelWidthPx,

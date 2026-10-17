@@ -87,7 +87,7 @@ function RenameField({
     }, [placed]);
     return (
         <div
-            className="fixed z-[9500] -translate-y-1/2 rounded-10 border border-border bg-surface-3 p-1 shadow-command"
+            className="fixed z-[9500] -translate-y-1/2 rounded-4 border border-border bg-surface-3 p-1 shadow-command"
             style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place == null ? "hidden" : undefined }}
         >
             <input

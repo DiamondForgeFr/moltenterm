@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { forwardRef } from "react";
 import ReactDOM from "react-dom";
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { GlowRing } from "../../moltenterm-shell/suite/suite"; // MOLTENTERM-PATCH (#905)
 
 import "./modal.scss";
 
@@ -21,7 +22,13 @@ interface ModalProps {
     onClose?: () => void;
     okDisabled?: boolean;
     cancelDisabled?: boolean;
+    // MOLTENTERM-PATCH (#905): every open dialog carries the suite's turning light; opt out only for a dialog stacked
+    // over another lit one, with the reason at the call site.
+    noGlow?: boolean;
 }
+
+// MOLTENTERM-PATCH (#905): the marker of the suite's dialog frame (DialogFrameClass); modal.scss draws it for Wave.
+const SuiteFrameClass = "molten-dialog-frame";
 
 const Modal = forwardRef<HTMLDivElement, ModalProps>(
     (
@@ -36,6 +43,7 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
             onClickBackdrop,
             okDisabled,
             cancelDisabled,
+            noGlow, // MOLTENTERM-PATCH (#905)
         }: ModalProps,
         ref
     ) => {
@@ -48,7 +56,8 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
         const renderModal = () => (
             <div className="modal-wrapper">
                 {renderBackdrop(onClickBackdrop)}
-                <div ref={ref} className={clsx(`modal`, className)}>
+                <div ref={ref} className={clsx(`modal`, SuiteFrameClass, className)}>
+                    {noGlow ? null : <GlowRing on />}
                     <Button className="grey ghost modal-close-btn" onClick={onClose} title="Close (ESC)">
                         <i className="fa-sharp fa-solid fa-xmark"></i>
                     </Button>
@@ -135,7 +144,9 @@ const FlexiModal = forwardRef<HTMLDivElement, FlexiModalProps>(
         const renderModal = () => (
             <div className="modal-wrapper">
                 {renderBackdrop(onClickBackdrop)}
-                <div className={cn("modal pt-6 px-4 pb-4", className)} ref={ref}>
+                {/* MOLTENTERM-PATCH (#905): the suite's dialog frame and its turning light */}
+                <div className={cn("modal pt-6 px-4 pb-4", SuiteFrameClass, className)} ref={ref}>
+                    <GlowRing on />
                     {children}
                 </div>
             </div>

@@ -7,12 +7,16 @@
 import { cn } from "@/util/util";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ScrimClass } from "./modal-open";
 import { captureModalInvoker, containModalFocus, modalOwnsKeys, topModal } from "./modal-focus";
+import { ScrimClass } from "./modal-open";
 import { GlowRing } from "./suite/suite";
 
 // The overlay rule and its scrim live in modal-open.ts, which the global keys read without loading React.
 export { modalIsOpen, ScrimClass } from "./modal-open";
+
+// The suite's dialog frame (#658, #890, #905): 4 px corners, the thin border, the raised surface. Wave's Modal draws the
+// same frame through modal.scss and carries the same marker, which the frame test looks for on every dialog.
+export const DialogFrameClass = "molten-dialog-frame rounded-4 border border-border bg-surface-3 shadow-e3";
 
 // enabled may be a function, read at the key press, for a state the component does not render from.
 export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void, role?: string | string[]) {
@@ -129,7 +133,8 @@ export function DialogFrame({
                 aria-label={title}
                 tabIndex={-1}
                 className={cn(
-                    "relative flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded-4 border border-border bg-surface-3 shadow-e3",
+                    "relative flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col",
+                    DialogFrameClass,
                     widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
                 )}
             >
@@ -158,7 +163,10 @@ export function DialogFrame({
                 >
                     {children}
                 </div>
-                <div data-dialog-buttons className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+                <div
+                    data-dialog-buttons
+                    className="flex items-center justify-end gap-2 border-t border-border px-4 py-3"
+                >
                     {buttons}
                 </div>
             </div>

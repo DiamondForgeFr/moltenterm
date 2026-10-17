@@ -84,7 +84,7 @@ export function MenuPopover({
                 style={floatingStyles}
                 {...getFloatingProps({ onPointerEnter, onPointerLeave })}
                 className={cn(
-                    "z-[9500] overflow-y-auto rounded-10 border border-border bg-surface-3 p-3 shadow-e2",
+                    "z-[9500] overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 shadow-e2",
                     className
                 )}
                 role={role}

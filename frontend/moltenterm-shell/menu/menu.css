@@ -23,7 +23,7 @@
     overflow-y: auto;
     box-sizing: border-box;
     border: 1px solid var(--border-color, #555);
-    border-radius: var(--mt-radius-10);
+    border-radius: var(--mt-radius-4);
     padding: 4px;
     background: var(--mt-surface-3, #242424);
     color: var(--main-text-color, #eee);

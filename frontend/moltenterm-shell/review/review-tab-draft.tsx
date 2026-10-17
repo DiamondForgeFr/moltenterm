@@ -29,7 +29,7 @@ export function DraftActions({ model }: { model: ReviewTabModel }) {
                 {state.phase === "idle" ? null : (
                     <MarkReadyConfirm
                         state={state}
-                        className="absolute top-full right-0 z-10 mt-1.5 w-96 rounded-10 border border-line-strong bg-surface-3 p-2.5 shadow-e2"
+                        className="absolute top-full right-0 z-10 mt-1.5 w-96 rounded-4 border border-line-strong bg-surface-3 p-2.5 shadow-e2"
                     />
                 )}
             </div>
