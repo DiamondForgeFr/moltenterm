@@ -24,6 +24,7 @@ export type ReviewCleanupStepId =
     | "agent-worktree"
     | "local-branch"
     | "remote-branch"
+    | "local-trunk"
     | "other-prs";
 
 export type ReviewCleanupState = "done" | "skipped" | "failed";
@@ -38,6 +39,7 @@ export const ReviewCleanupSteps: ReviewCleanupStepId[] = [
     "agent-worktree",
     "local-branch",
     "remote-branch",
+    "local-trunk",
     "other-prs",
 ];
 
@@ -102,6 +104,12 @@ export type ReviewCleanupStepResult = {
     conflicting?: number;
     checking?: number;
     failed?: number;
+    // The local working branch (#909): count, the commits it was behind origin; ahead, its commits origin lacks; names
+    // (the first namecount), the local changes the update would overwrite.
+    count?: number;
+    ahead?: number;
+    names?: string[];
+    namecount?: number;
     // The English text of results made before #672.
     reason?: string;
     message?: string;

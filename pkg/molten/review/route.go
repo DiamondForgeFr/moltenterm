@@ -197,7 +197,11 @@ func Start() {
 			AgentState: agentStateOf,
 			EndSession: reviewsession.EndSession,
 			AskRebase:  service.AskRebase,
-			DataDir:    wavebase.GetWaveDataDir(),
+			Notify:     attention.PublishNotification,
+			ResolveNotices: func(ctx context.Context, keyPrefix string) error {
+				return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
+			},
+			DataDir: wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
 		service.forecaster = MakeForecaster(ForecastEnv{
