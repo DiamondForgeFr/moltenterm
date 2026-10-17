@@ -165,16 +165,34 @@ func (b *BatchRunner) viewPr(dir string, k PrKey) (ghMergePr, error) {
 	return pr, nil
 }
 
-func missingNames(expected []string, checks []mission.ReviewCheck) []string {
+// checkGroup: the workflow a check belongs to; a check outside GitHub Actions (a commit status, another app) is its own.
+func checkGroup(c mission.ReviewCheck) string {
+	if c.Workflow != "" {
+		return "w\x00" + c.Workflow
+	}
+	return "c\x00" + c.Name
+}
+
+// missingChecks: the checks of the head before a rebase that the rebased head does not show yet. A push reruns only
+// the workflows it triggers: one that ran through another event (sync-review, pull_request_target on opened only,
+// #887) never comes back. So once settled (the push's workflows had time to start), a missing check is still waited
+// for only when its workflow runs on the new head, as a job created after the others.
+func missingChecks(expected []mission.ReviewCheck, checks []mission.ReviewCheck, settled bool) []string {
 	present := map[string]bool{}
+	running := map[string]bool{}
 	for _, c := range checks {
-		present[c.Name] = true
+		present[checkGroup(c)+"\x00"+c.Name] = true
+		running[checkGroup(c)] = true
 	}
 	var rtn []string
-	for _, name := range expected {
-		if !present[name] {
-			rtn = append(rtn, name)
+	for _, c := range expected {
+		if present[checkGroup(c)+"\x00"+c.Name] {
+			continue
 		}
+		if settled && !running[checkGroup(c)] {
+			continue
+		}
+		rtn = append(rtn, c.Name)
 	}
 	return rtn
 }
@@ -185,8 +203,8 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 	run := b.read(ctl)
 	item := run.Items[i]
 	k := PrKey{Repo: run.Repo, Number: item.Number}
-	var computingSince, waitingSince time.Time
-	var expected []string
+	var computingSince, waitingSince, rebasedAt time.Time
+	var expected []mission.ReviewCheck
 	readErrors, blockedPolls, tries := 0, 0, 0
 	for {
 		if b.cancelAsked(ctl) {
@@ -236,8 +254,8 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 			if b.read(ctl).Items[i].Rebases >= maxBatchRebases {
 				return b.stopItem(ctl, i, batchStop{reason: BatchReasonConflict})
 			}
-			if names := checkNames(ci.Checks); len(names) > 0 {
-				expected = names
+			if len(ci.Checks) > 0 {
+				expected = ci.Checks
 			}
 			stop, out := b.rebase(ctl, agent, i, pr)
 			if out == batchCancelled {
@@ -252,13 +270,15 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 				run.CiRuns++
 			})
 			waitingSince = time.Time{}
+			rebasedAt = b.env.Now()
 			continue
 		}
 		computingSince = time.Time{}
 		if failing := namesIn(ci.Checks, mission.ReviewCheckFailure); len(failing) > 0 {
 			return b.stopItem(ctl, i, batchStop{reason: BatchReasonFailing, names: failing})
 		}
-		if ci.Pending > 0 || len(missingNames(expected, ci.Checks)) > 0 {
+		settled := b.env.Now().Sub(rebasedAt) >= b.env.ChecksSettle
+		if ci.Pending > 0 || len(missingChecks(expected, ci.Checks, settled)) > 0 {
 			b.setItem(ctl, i, func(it *BatchItem) { it.State = BatchItemWaitingChecks })
 			if waitingSince.IsZero() {
 				waitingSince = b.env.Now()

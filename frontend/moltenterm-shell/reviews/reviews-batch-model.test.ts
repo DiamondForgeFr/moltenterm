@@ -167,14 +167,31 @@ describe("batch merge model", () => {
 
     it("titles the banner with the progress and names the PR in progress", () => {
         const r = run();
-        expect(batchTitle(r)).toBe("An agent is merging 5 PRs — 2 of 5");
+        expect(batchTitle(r)).toBe("An agent is merging 5 PRs — 1 of 5 merged, #2 is being rebased");
         expect(batchStepText(r, r.items[1])).toBe("Bruno rebases it on develop");
         expect(batchStepText(r, { ...r.items[1], waiting: true })).toBe("Bruno waits for your answer in its terminal");
         expect(batchStepText(r, { ...r.items[1], state: "waitingchecks", rebases: 1 })).toBe(
             "Waiting for its checks on the rebased head"
         );
         expect(batchTitle(run({ state: "cancelling" }))).toContain("after the current step");
-        expect(batchTitle(run({ state: "paused" }))).toBe("The batch merge stopped on #2 — 2 of 5");
+        expect(batchTitle(run({ state: "paused" }))).toBe("The batch merge stopped on #2 — 1 of 5 merged");
+    });
+
+    // #887 AC3: the last PR still waiting for its checks is not counted as done.
+    it("counts the merged PRs and tells the last one still waits", () => {
+        const r = run({
+            current: 2,
+            items: [
+                item(1, { state: "merged" }),
+                item(2, { state: "merged" }),
+                item(3, { state: "waitingchecks", rebases: 1 }),
+            ],
+        });
+        expect(batchTitle(r)).toBe("An agent is merging 3 PRs — 2 of 3 merged, #3 waits for its checks");
+        expect(batchTitle({ ...r, items: [...r.items.slice(0, 2), { ...r.items[2], waiting: true }] })).toBe(
+            "An agent is merging 3 PRs — 2 of 3 merged, #3 waits for your answer"
+        );
+        expect(batchTitle({ ...r, current: -1 })).toBe("An agent is merging 3 PRs — 2 of 3 merged");
     });
 
     it("sums up an ended run: merged, skipped with reasons, CI runs redone", () => {
@@ -243,6 +260,6 @@ describe("batch merge model", () => {
 
     it("words the banner in French", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(batchTitle(run())).toBe("Un agent fusionne 5 PR — 2 sur 5");
+        expect(batchTitle(run())).toBe("Un agent fusionne 5 PR — 1 sur 5 fusionnées, #2 est en cours de rebase");
     });
 });

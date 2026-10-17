@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -45,6 +46,12 @@ type hubPr struct {
 	failing        bool
 	failAfterPush  bool
 	pendingForever bool
+	// syncReview: its first head also shows sync-review, a pull_request_target check a push never reruns (#887).
+	// lateGate: its CI workflow has a second job, gate, created on a pushed head only after a few reads. slowStart: a
+	// pushed head shows no check at all for its first reads, as before GitHub registered the push's workflows.
+	syncReview bool
+	lateGate   bool
+	slowStart  bool
 }
 
 type fakeHub struct {
@@ -57,8 +64,9 @@ type fakeHub struct {
 	initial map[string]bool
 	reads   map[string]int
 	merges  []int
-	// checksAtMerge: the checks' state of the head each PR was merged at.
+	// checksAtMerge: the checks' state of the head each PR was merged at; gateAtMerge: its gate job's ("" when absent).
 	checksAtMerge map[int]string
+	gateAtMerge   map[int]string
 	pushedHeads   map[string]bool
 }
 
@@ -88,13 +96,52 @@ func (h *fakeHub) checkState(pr *hubPr, head string) string {
 		return hubCheckSuccess
 	}
 	h.pushedHeads[head] = true
-	if pr.pendingForever || h.reads[head] < 3 {
+	ready := 3
+	if pr.slowStart {
+		ready = 7
+	}
+	if pr.pendingForever || h.reads[head] < ready {
 		return hubCheckPending
 	}
 	if pr.failAfterPush {
 		return hubCheckFailure
 	}
 	return hubCheckSuccess
+}
+
+func (h *fakeHub) gateState(pr *hubPr, head string) string {
+	switch {
+	case !pr.lateGate:
+		return ""
+	case h.initial[head]:
+		return hubCheckSuccess
+	case h.reads[head] < 6:
+		return ""
+	case h.reads[head] < 9:
+		return hubCheckPending
+	}
+	return hubCheckSuccess
+}
+
+func hubCheck(name string, workflow string, state string) map[string]string {
+	if state == hubCheckPending {
+		return map[string]string{"name": name, "workflowName": workflow, "status": "IN_PROGRESS", "conclusion": ""}
+	}
+	return map[string]string{"name": name, "workflowName": workflow, "status": "COMPLETED", "conclusion": state}
+}
+
+func (h *fakeHub) rollup(pr *hubPr, head string) []any {
+	if pr.slowStart && !h.initial[head] && h.reads[head] < 4 {
+		return []any{}
+	}
+	rtn := []any{hubCheck("ci", "CI", h.checkState(pr, head))}
+	if gate := h.gateState(pr, head); gate != "" {
+		rtn = append(rtn, hubCheck("gate", "CI", gate))
+	}
+	if pr.syncReview && h.initial[head] {
+		rtn = append(rtn, hubCheck("sync-review", "PR review sync", hubCheckSuccess))
+	}
+	return rtn
 }
 
 func (h *fakeHub) conflicts(base string, head string) bool {
@@ -121,17 +168,12 @@ func (h *fakeHub) view(number int) ([]byte, error) {
 	}
 	head := h.mustGit("rev-parse", "refs/heads/"+pr.branch)
 	h.reads[head]++
-	state := h.checkState(pr, head)
-	check := map[string]string{"name": "ci", "status": "COMPLETED", "conclusion": state}
-	if state == hubCheckPending {
-		check = map[string]string{"name": "ci", "status": "IN_PROGRESS", "conclusion": ""}
-	}
 	mergeable, mergeState := "MERGEABLE", "CLEAN"
 	if h.conflicts(base, head) {
 		mergeable, mergeState = "CONFLICTING", "DIRTY"
 	}
 	data["state"], data["headRefOid"], data["mergeable"], data["mergeStateStatus"] = "OPEN", head, mergeable, mergeState
-	data["statusCheckRollup"] = []any{check}
+	data["statusCheckRollup"] = h.rollup(pr, head)
 	return json.Marshal(data)
 }
 
@@ -158,6 +200,7 @@ func (h *fakeHub) merge(number int, args []string) error {
 	h.mustGit("update-ref", "refs/heads/develop", merged, base)
 	h.mustGit("update-ref", "-d", "refs/heads/"+pr.branch)
 	h.checksAtMerge[number] = h.checkState(pr, head)
+	h.gateAtMerge[number] = h.gateState(pr, head)
 	pr.state, pr.merged = "MERGED", merged
 	h.merges = append(h.merges, number)
 	return nil
@@ -440,7 +483,7 @@ func newBatchFixture(t *testing.T, setup func(prs map[int]*hubPr)) *batchFixture
 	fgit(t, work, "push", "-q", origin, "develop", branches[1], branches[2], branches[3], branches[4], branches[5])
 	fgit(t, root, "clone", "-q", "-b", "develop", origin, dir)
 	hub := &fakeHub{t: t, origin: origin, prs: map[int]*hubPr{}, initial: map[string]bool{}, reads: map[string]int{},
-		checksAtMerge: map[int]string{}, pushedHeads: map[string]bool{}}
+		checksAtMerge: map[int]string{}, gateAtMerge: map[int]string{}, pushedHeads: map[string]bool{}}
 	prs := map[int]BatchPr{}
 	for n, head := range heads {
 		branch := branches[n]
@@ -486,6 +529,7 @@ func newBatchFixture(t *testing.T, setup func(prs map[int]*hubPr)) *batchFixture
 		AgentEvery:   10 * time.Millisecond,
 		AgentLimit:   batchTestWait,
 		ComputeLimit: batchTestWait,
+		ChecksSettle: time.Millisecond,
 	})
 	f := &batchFixture{t: t, dir: dir, data: data, hub: hub, prs: prs, runner: runner, merger: merger, agent: agent, notices: notices}
 	// Registered after the temp folders: cleanups run in reverse order, so the run and the agent end first.
@@ -615,6 +659,74 @@ func TestBatchRebasesAConflictingPrAndMergesItOnceItsChecksPass(t *testing.T) {
 	end := f.notices.find(":end:")
 	if end == nil || end.MessageText.Vars["ciruns"] != "1" {
 		t.Fatalf("the end notification should count one CI run: %+v", end)
+	}
+}
+
+// #887 AC1: sync-review ran on #3's first head only; its rebased head never shows it, and #3 still merges.
+func TestBatchDoesNotWaitForACheckThePushNeverReruns(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].syncReview = true })
+	f.start(2, 3)
+	run := f.waitEnd()
+	if run.State != BatchDone || !slices.Equal(f.hub.merged(), []int{2, 3}) {
+		t.Fatalf("state %s, merged %v, want done with 2 and 3: %+v", run.State, f.hub.merged(), run)
+	}
+	if itemOf(run, 3).Rebases != 1 || f.hub.checksAtMerge[3] != hubCheckSuccess {
+		t.Fatalf("#3 should merge after its rebase with green checks: %+v, checks %s", itemOf(run, 3), f.hub.checksAtMerge[3])
+	}
+}
+
+// #887 AC2: the gate job of #3's CI workflow is created on the rebased head after its other job passed; the batch waits
+// for it, though the settle time after the rebase is long over.
+func TestBatchWaitsForAJobOfAWorkflowRunningOnTheNewHead(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) {
+		prs[3].lateGate = true
+		prs[3].syncReview = true
+	})
+	f.start(2, 3)
+	run := f.waitEnd()
+	if run.State != BatchDone || !slices.Equal(f.hub.merged(), []int{2, 3}) {
+		t.Fatalf("state %s, merged %v, want done with 2 and 3: %+v", run.State, f.hub.merged(), run)
+	}
+	if f.hub.gateAtMerge[3] != hubCheckSuccess {
+		t.Fatalf("#3 was merged while its gate job was %q", f.hub.gateAtMerge[3])
+	}
+}
+
+// #887: right after the rebase GitHub shows no check on the new head yet; within the settle time every check of the old
+// head is expected, so #3 is not merged before its CI ran.
+func TestBatchExpectsTheOldChecksWhileThePushSettles(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].slowStart = true })
+	f.runner.env.ChecksSettle = time.Hour
+	f.start(2, 3)
+	run := f.waitEnd()
+	if run.State != BatchDone || !slices.Equal(f.hub.merged(), []int{2, 3}) {
+		t.Fatalf("state %s, merged %v, want done with 2 and 3: %+v", run.State, f.hub.merged(), run)
+	}
+	if f.hub.checksAtMerge[3] != hubCheckSuccess {
+		t.Fatalf("#3 was merged while its checks were %s", f.hub.checksAtMerge[3])
+	}
+}
+
+func TestMissingChecks(t *testing.T) {
+	ci := mission.ReviewCheck{Name: "Backend", Workflow: "CI", State: mission.ReviewCheckSuccess}
+	gate := mission.ReviewCheck{Name: "Required gate", Workflow: "CI", State: mission.ReviewCheckSuccess}
+	sync := mission.ReviewCheck{Name: "sync-review", Workflow: "PR review sync", State: mission.ReviewCheckSuccess}
+	status := mission.ReviewCheck{Name: "deploy/preview", State: mission.ReviewCheckSuccess}
+	old := []mission.ReviewCheck{ci, gate, sync, status}
+	if got := missingChecks(old, nil, false); !slices.Equal(got, []string{"Backend", "Required gate", "sync-review", "deploy/preview"}) {
+		t.Fatalf("before the push settled every old check is expected: %v", got)
+	}
+	if got := missingChecks(old, []mission.ReviewCheck{ci}, false); !slices.Equal(got, []string{"Required gate", "sync-review", "deploy/preview"}) {
+		t.Fatalf("unsettled: %v", got)
+	}
+	if got := missingChecks(old, []mission.ReviewCheck{ci}, true); !slices.Equal(got, []string{"Required gate"}) {
+		t.Fatalf("settled: only the job of a workflow running on the new head is waited for: %v", got)
+	}
+	if got := missingChecks(old, []mission.ReviewCheck{ci, gate}, true); len(got) != 0 {
+		t.Fatalf("settled with CI complete: %v", got)
+	}
+	if got := missingChecks(nil, nil, true); len(got) != 0 {
+		t.Fatalf("no rebase, nothing expected: %v", got)
 	}
 }
 

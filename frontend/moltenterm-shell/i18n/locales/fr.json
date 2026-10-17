@@ -4256,16 +4256,27 @@
             },
             "banner": {
                 "running": {
-                    "one": "Un agent fusionne {count} PR — {position} sur {count}",
-                    "other": "Un agent fusionne {count} PR — {position} sur {count}"
+                    "one": "Un agent fusionne {count} PR — {progress}",
+                    "other": "Un agent fusionne {count} PR — {progress}"
                 },
                 "cancelling": {
-                    "one": "Annulation après l'étape en cours — {position} sur {count}",
-                    "other": "Annulation après l'étape en cours — {position} sur {count}"
+                    "one": "Annulation après l'étape en cours — {progress}",
+                    "other": "Annulation après l'étape en cours — {progress}"
                 },
                 "paused": {
-                    "one": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}",
-                    "other": "La fusion groupée s'est arrêtée sur #{number} — {position} sur {count}"
+                    "one": "La fusion groupée s'est arrêtée sur #{number} — {merged} sur {count} fusionnées",
+                    "other": "La fusion groupée s'est arrêtée sur #{number} — {merged} sur {count} fusionnées"
+                },
+                "progress": "{merged} sur {count} fusionnées, #{number} {now}",
+                "progressIdle": "{merged} sur {count} fusionnées",
+                "now": {
+                    "queued": "attend son tour",
+                    "checking": "est lue sur GitHub",
+                    "rebasing": "est en cours de rebase",
+                    "waiting": "attend votre réponse",
+                    "waitingchecks": "attend ses checks",
+                    "merging": "est en cours de fusion",
+                    "other": "est en cours"
                 },
                 "done": {
                     "one": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}",
