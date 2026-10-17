@@ -7,10 +7,11 @@
 // reads the PR from the Reviews data, opens the tab, and leaves the sheet's request to the tab's page
 // (review-sheet-request.ts). It never posts, merges nor restarts the work: that stays the developer's click in the sheet.
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { fireAndForget } from "@/util/util";
+import { showTabFromHere } from "../opener-tab";
 import { requestReviewSheet, ReviewSheetRequest } from "../review/review-sheet-request";
 import { reviewsGet } from "./reviews-client";
 import { ReviewPr, ReviewsAnswer } from "./reviews-model";
@@ -37,7 +38,7 @@ const DefaultDeps: ReviewHandoffDeps = {
     reviews: (dir) => reviewsGet(dir),
     openTab: openPullRequestTab,
     requestSheet: requestReviewSheet,
-    showTab: (tabId) => getApi().setActiveTab(tabId),
+    showTab: (tabId) => showTabFromHere(tabId),
 };
 
 export function readHandoff(data: any): ReviewHandoff {

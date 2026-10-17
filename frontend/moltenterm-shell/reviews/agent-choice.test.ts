@@ -24,6 +24,9 @@ vi.mock("@/app/store/global", async (importOriginal) => {
     };
 });
 
+// opener-tab is loaded through global.ts's own imports, before the mock above applies (opener-tab.test.ts covers it).
+vi.mock("../opener-tab", () => ({ showTabFromHere: (tabId: string) => setActiveTab(tabId) }));
+
 vi.mock("../review/review-client", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../review/review-client")>();
     return { ...actual, askReviewRebase: vi.fn(), openReviewTab: vi.fn(async () => ({ tabid: "review-tab" })) };

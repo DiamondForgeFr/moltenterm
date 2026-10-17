@@ -8,7 +8,7 @@
 // (its own tab, shown, terminal focused). The two options are the choice (#890): a click or Enter on one starts the
 // agent that way, the arrows move between them, the default has the focus at open, Escape cancels.
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
@@ -16,6 +16,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
 import { registerNotificationGesture } from "../notifications-store";
+import { showTabFromHere } from "../opener-tab";
 import { AgentMode, AgentStart, openReviewTab, ReviewPrInfo, ReviewRestartResult } from "../review/review-client";
 import { SegmentedControl } from "../segmented-control";
 import { nextToggleIndex, RadioDot } from "../suite/suite";
@@ -171,7 +172,7 @@ export function showStartedAgent(mode: AgentMode, result: ReviewRestartResult) {
     if (mode !== "together" || !result?.tabid || result.hidden) {
         return;
     }
-    getApi().setActiveTab(result.tabid);
+    showTabFromHere(result.tabid);
 }
 
 function readPrInfo(value: any): ReviewPrInfo {
@@ -189,7 +190,7 @@ async function openReviewGesture(args: Record<string, any>) {
         return { ok: false, error: t("agentChoice.noReview") };
     }
     const { tabid } = await openReviewTab(workspaceId, pr);
-    getApi().setActiveTab(tabid);
+    showTabFromHere(tabid);
     return { ok: true, resolve: true };
 }
 

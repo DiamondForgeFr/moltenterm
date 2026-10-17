@@ -4,13 +4,14 @@
 // The Reviews view's entry points (FR-REV-001-AC3, DS-REV-012): the widget opens the view, Mission Control's Pull
 // requests waiting block opens it on one PR, and a row opens that PR's Review tab (FR-REV-002).
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { openMoltentermView } from "../open-view";
+import { showTabFromHere } from "../opener-tab";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import {
     askReviewInvestigate,
@@ -80,7 +81,7 @@ export class ReviewsModel {
         if (!dir || pr == null || !workspaceId || !repoName) {
             return;
         }
-        getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
+        showTabFromHere(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
 
     // A row's Validate (#683, #707): the Validate sheet opens in place, over this tab, with no Review tab; it shows the
