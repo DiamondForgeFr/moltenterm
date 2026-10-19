@@ -860,8 +860,9 @@ export function ReviewRow({
                     <span className="min-w-0">{outcome.text}</span>
                 </div>
             ) : null}
-            <RowAgentBar dir={dir} branch={pr.branch} />
             <PrSignature agents={pr.agents} testId="reviews-signature" />
+            {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
+            <RowAgentBar dir={dir} branch={pr.branch} />
         </div>
     );
 }
