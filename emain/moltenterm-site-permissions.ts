@@ -34,6 +34,7 @@ import {
 import { ElectronWshClient } from "./emain-wsh";
 import { allowPageExternalLaunch } from "./moltenterm-external-links";
 import { isPanelPopup, popupGuestOf } from "./moltenterm-popups";
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 
 // main -> the renderer holding the webview: (requestId, guestWebContentsId, site, kinds)
 export const SitePermissionAskChannel = "moltenterm-site-permission-ask";
@@ -102,8 +103,8 @@ function finish(requestId: string, decision: string): void {
     if (decision === DecisionAllow || decision === DecisionBlock) {
         persist(withDecision(store, ask.site, ask.kinds, decision));
     }
-    const host = electron.webContents.fromId(ask.hostId);
-    if (host != null && !host.isDestroyed()) {
+    const host = liveWebContentsFromId(ask.hostId);
+    if (host != null) {
         host.send(SitePermissionDoneChannel, requestId);
     }
     for (const answer of ask.answers) {

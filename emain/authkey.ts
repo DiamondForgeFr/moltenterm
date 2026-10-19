@@ -3,7 +3,8 @@
 // MOLTENTERM-PATCH (#805): private app sessions and registered-frame caller credentials.
 
 import { configurePrivilegedIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
-import { session, webContents } from "electron";
+import { session } from "electron";
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -90,17 +91,32 @@ export function configureAuthKeyRequestInjection(session: Electron.Session) {
         urls: ["<all_urls>"],
     };
     session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
-        const headers = stripBackendCredentials(details.requestHeaders);
-        const contents = webContents.fromId(details.webContentsId);
-        if (
-            isBackendDestination(details.url, [getWebServerEndpoint(), getWSServerEndpoint()]) &&
-            permitsCredentialResource(details.resourceType) &&
-            trustedAppCallers.allows(contents, details.frame)
-        ) {
-            headers[AuthKeyHeader] = AuthKey;
-            headers[CallerHeader] = "renderer";
-            headers[CallerProofHeader] = rendererProof;
+        // MOLTENTERM-PATCH (#928): a throw here is an uncaught exception that quits the app, and a request whose
+        // callback never runs hangs; a failure sends the request on without credentials.
+        let headers: Record<string, string>;
+        try {
+            headers = requestHeadersFor(details);
+        } catch (e) {
+            console.error("auth key header hook failed, sending the request without credentials", e);
+            headers = stripBackendCredentials(details.requestHeaders);
         }
         callback({ requestHeaders: headers });
     });
+}
+
+function requestHeadersFor(details: Electron.OnBeforeSendHeadersListenerDetails): Record<string, string> {
+    const headers = stripBackendCredentials(details.requestHeaders);
+    // MOLTENTERM-PATCH (#928): service workers, main's net, downloads and requests of a destroyed tab view carry no
+    // webContentsId; a null caller is never trusted.
+    const contents = liveWebContentsFromId(details.webContentsId);
+    if (
+        isBackendDestination(details.url, [getWebServerEndpoint(), getWSServerEndpoint()]) &&
+        permitsCredentialResource(details.resourceType) &&
+        trustedAppCallers.allows(contents, details.frame)
+    ) {
+        headers[AuthKeyHeader] = AuthKey;
+        headers[CallerHeader] = "renderer";
+        headers[CallerProofHeader] = rendererProof;
+    }
+    return headers;
 }

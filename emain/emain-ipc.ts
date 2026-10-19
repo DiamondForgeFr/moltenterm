@@ -36,6 +36,7 @@ import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PA
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
 
 const electronApp = electron.app;
 
@@ -307,7 +308,7 @@ export function initIpcHandlers() {
             return;
         }
         const parentWc = event.sender;
-        const webviewWc = electron.webContents.fromId(focusedId);
+        const webviewWc = liveWebContentsFromId(focusedId); // MOLTENTERM-PATCH (#928)
         if (webviewWc == null) {
             webviewFocusId = null;
             return;

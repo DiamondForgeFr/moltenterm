@@ -8,8 +8,9 @@
 // from the user's by sequence, holds back the downloads of controlled tabs until the user answers, and clears the
 // emulated viewport when control ends.
 
-import { nativeImage, webContents, type WebContents } from "electron";
+import { nativeImage, type WebContents } from "electron";
 import { onAppIpc, onGuestIpc } from "./moltenterm-privileged-ipc";
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AuthKey } from "./authkey";
 import {
@@ -120,8 +121,7 @@ function fromWavesrv(token: unknown): boolean {
 }
 
 function liveContents(id: number): WebContents {
-    const wc = webContents.fromId(id);
-    return wc == null || wc.isDestroyed() ? null : wc;
+    return liveWebContentsFromId(id);
 }
 
 function noteUserInput(reg: Registration): void {
