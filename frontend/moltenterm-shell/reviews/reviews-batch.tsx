@@ -1,18 +1,18 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The batch merge in the Reviews list (FR-REV-025, DS-REV-017): the selection of the PRs, the confirmation modal (the
-// order, the method, what the agent does, the main checkout untouched; Enter starts, Escape cancels), the banner over
-// the list while the run goes and once it ended, and each PR's mark on its row. Nothing opens by itself: the agent's
-// terminal is reached from the banner's Go to the agent.
+// The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the selection of the
+// PRs, the confirmation modal (the order, the method, what the agent does, the main checkout untouched; Enter adds them
+// to the queue, Escape cancels), the banner over the list while the queue runs and once it ended, and each PR's mark on
+// its row. Nothing opens by itself: the agent's terminal is reached from the banner's Go to the agent.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
-import { MoltenWave } from "../molten-button";
 import { topModal } from "../modal-focus";
+import { MoltenWave } from "../molten-button";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { BatchRuns } from "./reviews-batch-client";
@@ -20,16 +20,16 @@ import {
     batchActive,
     batchConfirmKey,
     batchCurrent,
-    BatchDecision,
-    batchDecisionLabel,
-    batchDecisions,
+    batchItemEnded,
     BatchPlan,
     batchPlanCostText,
     BatchRowMark,
+    batchRowMark,
     BatchRun,
     batchStepText,
     batchSummary,
     batchTitle,
+    canWithdraw,
     methodText,
 } from "./reviews-batch-model";
 
@@ -249,15 +249,15 @@ export function BatchConfirmDialog({
     );
 }
 
-// The banner over the Reviews list: the dominoes while the run goes, its progress and the PR in progress, Cancel and
-// the way to the agent's terminal; the stop with the developer's choices; the summary once it ended.
+// The banner over the Reviews list (FR-REV-026 AC7): the dominoes while the queue runs, its progress and the PR in
+// progress, each validated PR with its place and Cancel validation until its merge starts, Cancel all and the way to
+// the agent's terminal; the summary once it ended.
 export function BatchBanner({ run }: { run: BatchRun }) {
     const t = useT();
     const [busy, setBusy] = useState("");
     const [error, setError] = useState("");
     const active = batchActive(run);
     const current = batchCurrent(run);
-    const paused = run.state === "paused";
     const act = (what: string, fn: () => Promise<unknown>) => {
         if (busy) {
             return;
@@ -275,13 +275,15 @@ export function BatchBanner({ run }: { run: BatchRun }) {
         });
     };
     const model = BatchRuns.getInstance();
-    const tone = paused
+    const needsYou = run.items.some((it) => it.state === "failed" || it.waiting);
+    const tone = needsYou
         ? "border-warning/50 bg-warning/10"
         : active
           ? "border-accent/40 bg-accent/5"
           : run.state === "done" && run.items.every((it) => it.state === "merged")
             ? "border-success/40 bg-success/10"
             : "border-border bg-hover/40";
+    const open = active ? run.items.filter((it) => !batchItemEnded(it)) : [];
     return (
         <div
             className={cn("flex flex-col gap-1.5 rounded-4 border px-3 py-2 text-12 leading-5", tone)}
@@ -291,17 +293,13 @@ export function BatchBanner({ run }: { run: BatchRun }) {
             data-state={run.state}
         >
             <div className="flex min-w-0 items-center gap-2">
-                {active && !paused ? (
+                {active && current != null ? (
                     <DominoLoader className="text-accent" />
                 ) : (
                     <i
                         className={cn(
-                            "fa fa-solid text-11",
-                            paused
-                                ? "fa-hand text-warning"
-                                : run.state === "done"
-                                  ? "fa-layer-group text-success"
-                                  : "fa-layer-group text-muted"
+                            "fa fa-solid fa-layer-group text-11",
+                            run.state === "done" ? "text-success" : active ? "text-accent" : "text-muted"
                         )}
                         aria-hidden
                     />
@@ -347,37 +345,47 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                     </button>
                 )}
             </div>
-            {active && current != null ? (
-                <div
-                    className={cn("min-w-0 truncate text-11", paused ? "text-warning" : "text-secondary")}
-                    data-testid="reviews-batch-step"
-                >
-                    <span className="font-medium text-primary">#{current.number}</span>{" "}
-                    {current.title ? <span className="text-secondary">{current.title} · </span> : null}
-                    {batchStepText(run, current)}
+            {active && run.resumedat ? (
+                <div className="text-11 text-secondary" data-testid="reviews-batch-resumed">
+                    {t("reviews.batch.resumed")}
                 </div>
             ) : null}
-            {paused && current != null ? (
-                <div className="flex flex-wrap items-center gap-1.5" data-testid="reviews-batch-decide">
-                    <span className="mr-1 text-11 text-secondary">{t("reviews.batch.waitsForYou")}</span>
-                    {batchDecisions(current).map((d: BatchDecision) => (
-                        <button
-                            key={d}
-                            type="button"
-                            className={cn(
-                                d === "retry" || d === "override"
-                                    ? "molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11"
-                                    : PlainButton
-                            )}
-                            onClick={() => act(d, () => model.decide(run, d))}
-                            data-testid={`reviews-batch-decide-${d}`}
-                        >
-                            {busy === d ? <DominoLoader /> : null}
-                            {batchDecisionLabel(d)}
-                            {d === "retry" || d === "override" ? <MoltenWave /> : null}
-                        </button>
-                    ))}
-                </div>
+            {open.length > 0 ? (
+                <ol className="flex flex-col" data-testid="reviews-batch-list">
+                    {open.map((it) => {
+                        const mark = batchRowMark(run, it.number);
+                        return (
+                            <li
+                                key={it.number}
+                                className="flex min-w-0 items-center gap-2 py-0.5 text-11"
+                                data-testid="reviews-batch-item"
+                                data-pr={it.number}
+                                data-state={it.state}
+                            >
+                                <span className="shrink-0 font-medium text-primary">#{it.number}</span>
+                                <span className="min-w-0 grow truncate text-secondary" title={mark?.title}>
+                                    {it.title ? `${it.title} · ` : ""}
+                                    {it === current ? batchStepText(run, it) : mark?.label}
+                                </span>
+                                {canWithdraw(it) ? (
+                                    <button
+                                        type="button"
+                                        className={PlainButton}
+                                        onClick={() =>
+                                            act(`withdraw:${it.number}`, () => model.withdraw(run, it.number))
+                                        }
+                                        onKeyDown={stop}
+                                        title={t("reviews.batch.withdrawTitle", { number: it.number })}
+                                        data-testid="reviews-batch-withdraw"
+                                    >
+                                        {busy === `withdraw:${it.number}` ? <DominoLoader /> : null}
+                                        {t("reviews.batch.withdraw")}
+                                    </button>
+                                ) : null}
+                            </li>
+                        );
+                    })}
+                </ol>
             ) : null}
             {!active ? (
                 <div className="text-11 text-secondary" data-testid="reviews-batch-summary">

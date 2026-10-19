@@ -5,9 +5,11 @@
 // Reviews row's Validate opens one in place, with no Review tab. It follows one PR's review store (the merge record and
 // the cleanup's outcome), reads the plan, merges on the developer's click and handles the worktrees the cleanup kept.
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { BatchRuns, queueValidated } from "../reviews/reviews-batch-client";
 import { reviewsGet } from "../reviews/reviews-client";
 import { ReviewsMerges } from "../reviews/reviews-merges";
 import { removeKeptWorktree, removeLeftover, ReviewCleanupStepResult } from "./review-cleanup";
@@ -23,7 +25,7 @@ import {
     ReviewState,
     subscribeReviewState,
 } from "./review-client";
-import { chosenMethod, mergeRunning } from "./review-merge";
+import { chosenMethod, mergeRunning, queuesOnClick } from "./review-merge";
 import { closePanels } from "./review-panels";
 
 // Validate's plan sheet (FR-REV-012): the plan read on opening it, the developer's confirmation of its warnings, and
@@ -41,6 +43,8 @@ export type ReviewValidateState = {
     confirming?: boolean;
     // The sheet reopened from the header's Validated state (#686): the merge's result, read-only.
     result?: boolean;
+    // The click put the PR in the merge queue (FR-REV-026).
+    queued?: boolean;
 };
 
 // Where the sheet shows. In a Review tab, the merged footer offers to close the tab (#686) and new commits are
@@ -173,11 +177,16 @@ export class ReviewValidateModel {
         globalStore.set(this.validateAtom, (v) => (v.plan?.methods?.includes(method) ? { ...v, method } : v));
     }
 
-    // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store.
+    // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store. A
+    // plan that waits only for the CI goes to the merge queue instead, which merges it once green (FR-REV-026).
     async merge() {
         const pr = this.pr();
         const v = globalStore.get(this.validateAtom);
         if (v.plan == null) {
+            return;
+        }
+        if (queuesOnClick(v.plan)) {
+            await this.queue();
             return;
         }
         globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
@@ -190,6 +199,38 @@ export class ReviewValidateModel {
             );
         } catch (e) {
             globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, error: String(e?.message ?? e) }));
+        }
+    }
+
+    // queue: Validate while CI runs, bound to the plan's head, method and confirmed warnings (FR-REV-026 AC1).
+    async queue() {
+        const pr = this.pr();
+        const v = globalStore.get(this.validateAtom);
+        globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
+        try {
+            const workspaceid = globalStore.get(atoms.workspace)?.oid;
+            await queueValidated(pr, v.plan, v.override, chosenMethod(v.plan, v.method), workspaceid);
+            globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, queued: true }));
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, error: String(e?.message ?? e) }));
+        }
+    }
+
+    // withdraw: Cancel validation, until the merge starts (FR-REV-026 AC7).
+    async withdraw() {
+        const pr = this.pr();
+        const base = globalStore.get(this.validateAtom).plan?.baseref || pr.baseref;
+        const model = BatchRuns.getInstance();
+        const run = model.runOf(pr.dir, base);
+        if (run == null) {
+            return;
+        }
+        globalStore.set(this.validateAtom, (s) => ({ ...s, error: null }));
+        try {
+            await model.withdraw(run, pr.number);
+            globalStore.set(this.validateAtom, (s) => ({ ...s, queued: false }));
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
         }
     }
 

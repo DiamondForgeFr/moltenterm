@@ -22,6 +22,7 @@ import { showTabFromHere } from "../opener-tab";
 import { AgentMode, AgentStart, openReviewTab, ReviewPrInfo, ReviewRestartResult } from "../review/review-client";
 import { SegmentedControl } from "../segmented-control";
 import { nextToggleIndex, RadioDot } from "../suite/suite";
+import { investigateGesture, InvestigateGesture } from "./reviews-queue-gesture";
 
 // must match ReviewOpenGesture in pkg/molten/review/agentfollow.go
 export const ReviewOpenGesture = "review:open";
@@ -199,6 +200,7 @@ async function openReviewGesture(args: Record<string, any>) {
 export function AgentChoiceHost() {
     const pending = useAtomValue(AgentChoiceModel.getInstance().pendingAtom);
     useEffect(() => registerNotificationGesture(ReviewOpenGesture, openReviewGesture), []);
+    useEffect(() => registerNotificationGesture(InvestigateGesture, investigateGesture), []);
     if (pending == null) {
         return null;
     }

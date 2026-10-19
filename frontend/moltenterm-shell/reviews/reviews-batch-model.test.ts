@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import {
     batchConfirmKey,
-    batchDecisions,
     BatchItem,
     batchPlan,
     batchPlanCostText,
@@ -17,6 +16,9 @@ import {
     batchStepText,
     batchSummary,
     batchTitle,
+    canWithdraw,
+    queueItem,
+    queueOrder,
     toggleBatchSelection,
 } from "./reviews-batch-model";
 import { Forecast } from "./reviews-forecast-model";
@@ -150,7 +152,41 @@ describe("batch merge model", () => {
         });
         expect(req.method).toBe("squash");
         expect(req.workspaceid).toBe("ws1");
-        expect(req.tabname).toBe("Batch merge");
+        expect(req.tabname).toBe("Merge queue");
+        expect(req.source).toBe("batch");
+        expect(req.order).toEqual(plan.steps.map((s) => s.pr.number));
+        expect(batchStartRequest("/p", "a/b", "develop", plan, "ws1", [3, 2, 1]).order).toEqual([3, 2, 1]);
+    });
+
+    // FR-REV-026 AC2: the order sent on a join covers the PRs still in the queue and the ones joining.
+    it("orders the queue's PRs and the joining ones by the suggested order", () => {
+        const prs = [pr(1), pr(2), pr(3)];
+        // Merging #1 puts #2 and #3 in conflict: it goes last.
+        const forecast = forecastOf(prs, [
+            [1, 2],
+            [1, 3],
+        ]);
+        const queue = run({ current: -1, items: [item(1, { state: "waitingchecks" }), item(9, { state: "merged" })] });
+        expect(queueOrder(forecast, prs, queue, [3])).toEqual([3, 1]);
+        expect(queueOrder(forecast, prs, null, [1, 2])).toEqual([2, 1]);
+        expect(queueOrder({ ...forecast, state: "" }, prs, queue, [3])).toEqual([]);
+    });
+
+    it("finds a PR still in the queue, which can be withdrawn until its merge starts", () => {
+        const queue = run({
+            items: [
+                item(1, { state: "merged" }),
+                item(2, { state: "merging" }),
+                item(3, { state: "failed" }),
+                item(4, { state: "voided" }),
+            ],
+        });
+        expect(queueItem(queue, 1)).toBeNull();
+        expect(queueItem(queue, 4)).toBeNull();
+        expect(queueItem(queue, 3)?.state).toBe("failed");
+        expect(canWithdraw(queueItem(queue, 2))).toBe(false);
+        expect(canWithdraw(queueItem(queue, 3))).toBe(true);
+        expect(queueItem({ ...queue, state: "done" }, 3)).toBeNull();
     });
 
     it("answers the modal: Enter starts, Escape cancels, nothing else", () => {
@@ -167,14 +203,16 @@ describe("batch merge model", () => {
 
     it("titles the banner with the progress and names the PR in progress", () => {
         const r = run();
-        expect(batchTitle(r)).toBe("An agent is merging 5 PRs — 1 of 5 merged, #2 is being rebased");
+        expect(batchTitle(r)).toBe("Merge queue: 5 PRs validated — 1 of 5 merged, #2 is being rebased");
         expect(batchStepText(r, r.items[1])).toBe("Bruno rebases it on develop");
         expect(batchStepText(r, { ...r.items[1], waiting: true })).toBe("Bruno waits for your answer in its terminal");
         expect(batchStepText(r, { ...r.items[1], state: "waitingchecks", rebases: 1 })).toBe(
             "Waiting for its checks on the rebased head"
         );
         expect(batchTitle(run({ state: "cancelling" }))).toContain("after the current step");
-        expect(batchTitle(run({ state: "paused" }))).toBe("The batch merge stopped on #2 — 1 of 5 merged");
+        expect(batchStepText(r, { ...r.items[1], state: "failed", names: ["ci"] })).toBe(
+            "CI failed on ci: merged once its checks pass again on the same commit"
+        );
     });
 
     // #887 AC3: the last PR still waiting for its checks is not counted as done.
@@ -187,11 +225,11 @@ describe("batch merge model", () => {
                 item(3, { state: "waitingchecks", rebases: 1 }),
             ],
         });
-        expect(batchTitle(r)).toBe("An agent is merging 3 PRs — 2 of 3 merged, #3 waits for its checks");
+        expect(batchTitle(r)).toBe("Merge queue: 3 PRs validated — 2 of 3 merged, #3 waits for its checks");
         expect(batchTitle({ ...r, items: [...r.items.slice(0, 2), { ...r.items[2], waiting: true }] })).toBe(
-            "An agent is merging 3 PRs — 2 of 3 merged, #3 waits for your answer"
+            "Merge queue: 3 PRs validated — 2 of 3 merged, #3 waits for your answer"
         );
-        expect(batchTitle({ ...r, current: -1 })).toBe("An agent is merging 3 PRs — 2 of 3 merged");
+        expect(batchTitle({ ...r, current: -1 })).toBe("Merge queue: 3 PRs validated — 2 of 3 merged");
     });
 
     it("sums up an ended run: merged, skipped with reasons, CI runs redone", () => {
@@ -202,16 +240,16 @@ describe("batch merge model", () => {
             items: [
                 item(1, { state: "merged" }),
                 item(2, { state: "merged", rebases: 1 }),
-                item(3, { state: "skipped", reason: "failing", names: ["ci", "lint"], byyou: true }),
-                item(4, { state: "skipped", reason: "notreached" }),
+                item(3, { state: "withdrawn", reason: "withdrawn", byyou: true }),
+                item(4, { state: "voided", reason: "pushed" }),
             ],
         });
-        expect(batchTitle(r)).toBe("Batch merge done: 2 of 4 PRs merged");
+        expect(batchTitle(r)).toBe("Merge queue done: 2 of 4 PRs merged");
         expect(batchSummary(r)).toBe(
-            "Merged: #1, #2. Skipped: #3 (Checks failing: ci, lint), #4 (Not reached). 1 CI run redone."
+            "Merged: #1, #2. Not merged: #3 (Validation cancelled), #4 (Pushed after your validation: back to review). 1 CI run redone."
         );
         expect(batchSummary({ ...r, kept: "unpushed" })).toContain("commits not pushed");
-        expect(batchTitle({ ...r, state: "cancelled" })).toBe("Batch merge cancelled: 2 of 4 PRs merged");
+        expect(batchTitle({ ...r, state: "cancelled" })).toBe("Merge queue cancelled: 2 of 4 PRs merged");
     });
 
     it("words every reason, an agent's note as data", () => {
@@ -227,30 +265,37 @@ describe("batch merge model", () => {
         expect(batchReasonText(item(3, { reason: "something-new" as any }), "develop")).toBe("Not reached");
     });
 
-    it("offers Merge anyway only for warnings, never for a failing check", () => {
-        expect(batchDecisions(item(2, { state: "stopped", reason: "failing" }))).toEqual(["retry", "skip", "end"]);
-        expect(batchDecisions(item(2, { state: "stopped", reason: "warnings" }))).toEqual(["override", "skip", "end"]);
-        expect(batchDecisions(item(2, { state: "rebasing" }))).toEqual([]);
-    });
-
-    it("marks each PR's row with its place in the run", () => {
+    // FR-REV-026 AC7: the row says where the PR is in the queue.
+    it("marks each PR's row with its place in the queue", () => {
         const r = run();
-        expect(batchRowMark(r, 1)).toMatchObject({ label: "Merged by the batch", tone: "success" });
-        expect(batchRowMark(r, 2)).toMatchObject({ label: "Batch: in progress", tone: "pending", current: true });
-        expect(batchRowMark(r, 4)).toMatchObject({ label: "Batch: 4", tone: "neutral" });
+        expect(batchRowMark(r, 1)).toMatchObject({ label: "Merged by the queue", tone: "success" });
+        expect(batchRowMark(r, 2)).toMatchObject({ label: "Rebasing", tone: "pending", current: true });
+        expect(batchRowMark(r, 3)).toMatchObject({ label: "Next in queue", tone: "neutral" });
+        expect(batchRowMark(r, 4)).toMatchObject({ label: "In queue: 2", tone: "neutral" });
         expect(batchRowMark(r, 9)).toBeNull();
+        const waiting = run({
+            items: [item(1, { state: "waitingchecks" }), item(2, { state: "merging" })],
+            current: 0,
+        });
+        expect(batchRowMark(waiting, 1)).toMatchObject({ label: "Validated — waiting for CI", tone: "pending" });
+        expect(batchRowMark(waiting, 2)).toMatchObject({ label: "Merging" });
         const stopped = run({
-            state: "paused",
-            items: [item(1, { state: "merged" }), item(2, { state: "stopped", reason: "failing", names: ["ci"] })],
+            items: [
+                item(1, { state: "failed", reason: "failing", names: ["ci"] }),
+                item(2, { state: "stopped", reason: "ambiguous" }),
+                item(3, { state: "voided", reason: "pushed" }),
+            ],
         });
+        expect(batchRowMark(stopped, 1)).toMatchObject({ label: "Validated — CI failed", tone: "failure" });
         expect(batchRowMark(stopped, 2)).toMatchObject({
-            label: "Stopped the batch",
+            label: "Needs you",
             tone: "failure",
-            title: "Checks failing: ci",
+            title: "A conflict your agent left to you",
         });
+        expect(batchRowMark(stopped, 3)).toMatchObject({ label: "Validation void: new push" });
     });
 
-    it("shows a running run, and an ended one until it is dismissed", () => {
+    it("shows a running queue, and an ended one until it is dismissed", () => {
         expect(batchShown(null)).toBe(false);
         expect(batchShown(run())).toBe(true);
         expect(batchShown(run({ state: "done" }))).toBe(true);
@@ -260,6 +305,8 @@ describe("batch merge model", () => {
 
     it("words the banner in French", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(batchTitle(run())).toBe("Un agent fusionne 5 PR — 1 sur 5 fusionnées, #2 est en cours de rebase");
+        expect(batchTitle(run())).toBe(
+            "File de fusion : 5 PR validées — 1 sur 5 fusionnées, #2 est en cours de rebase"
+        );
     });
 });
