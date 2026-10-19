@@ -68,6 +68,26 @@ export function branchReason(b: BranchPlan, trunk: string): string {
     return key ? t(key) : (b.reason ?? "");
 }
 
+// wavesrv keeps develop, main and their origin/ copies with the reason "protected", and no other branch (#920).
+export function isMainBranch(b: BranchPlan): boolean {
+    return b.action === "keep" && b.reason === "protected";
+}
+
+// A main branch takes the shell's info blue, apart from the delete red and the warning amber, so the secondary
+// branches stand out at a glance; its reason stays next to it, the colour is never the only signal (#920).
+export function KeptBranchRow({ branch, trunk }: { branch: BranchPlan; trunk: string }) {
+    const main = isMainBranch(branch);
+    return (
+        <div className="flex items-center gap-2 py-0.5" data-main-branch={main ? "true" : undefined}>
+            <i className={cn("fa fa-solid fa-code-branch w-3.5 text-11", main ? "text-info" : "text-muted")} />
+            <code className={main ? "text-info" : undefined}>{branchLabel(branch)}</code>
+            <span className="text-muted" title={branch.worktree}>
+                — {branchReason(branch, trunk)}
+            </span>
+        </div>
+    );
+}
+
 // cleanErrorLines words the branches the cleaning could not delete; a kept branch's reason is worded as the list does.
 export function cleanErrorLines(result: BranchesCleanResult, trunk: string): string[] {
     return (result?.errors ?? []).map((english, i) => {
@@ -248,13 +268,7 @@ export function BranchCleanupDialog({
                                 {t("mc.branches.stay", { count: staying.length })}
                             </div>
                             {staying.map((b) => (
-                                <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                    <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
-                                    <code>{branchLabel(b)}</code>
-                                    <span className="text-muted" title={b.worktree}>
-                                        — {branchReason(b, trunk)}
-                                    </span>
-                                </div>
+                                <KeptBranchRow key={branchLabel(b)} branch={b} trunk={trunk} />
                             ))}
                         </div>
                     </div>

@@ -15,7 +15,35 @@ vi.mock("./mission-client", () => ({
     branchesPlan: vi.fn(() => new Promise(() => {})),
 }));
 
-import { BranchCleanupDialog } from "./branch-cleanup";
+import { BranchCleanupDialog, isMainBranch, KeptBranchRow } from "./branch-cleanup";
+
+describe("main branches in the list of branches that stay (#920)", () => {
+    const kept = (name: string, remote: boolean, reason: any) => ({ name, remote, action: "keep" as const, reason });
+
+    it("marks only the branches kept as main branches", () => {
+        for (const b of [kept("develop", false, "protected"), kept("main", true, "protected")]) {
+            expect(isMainBranch(b)).toBe(true);
+        }
+        expect(isMainBranch(kept("feature/1-x", false, "not-on-trunk"))).toBe(false);
+        expect(isMainBranch(kept("feature/2-y", true, "open-pr"))).toBe(false);
+        expect(isMainBranch({ name: "develop", remote: false, action: "delete", reason: "protected" })).toBe(false);
+    });
+
+    it("draws a main branch's name and icon in the info colour, keeps its reason, and leaves other branches plain", () => {
+        const main = renderToStaticMarkup(<KeptBranchRow branch={kept("main", true, "protected")} trunk="develop" />);
+        expect(main).toContain('data-main-branch="true"');
+        expect(main).toMatch(/<i class="[^"]*fa-code-branch[^"]*text-info/);
+        expect(main).toMatch(/<code class="text-info">origin\/main<\/code>/);
+        expect(main).toContain("a main branch");
+
+        const feature = renderToStaticMarkup(
+            <KeptBranchRow branch={kept("feature/1-x", false, "not-on-trunk")} trunk="develop" />
+        );
+        expect(feature).not.toContain("data-main-branch");
+        expect(feature).not.toContain("text-info");
+        expect(feature).toMatch(/<i class="[^"]*fa-code-branch[^"]*text-muted/);
+    });
+});
 
 describe("the branch cleaning dialog (#746)", () => {
     it("is a modal dialog on the shared frame, with Cancel first", () => {
