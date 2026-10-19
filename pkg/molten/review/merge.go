@@ -78,6 +78,7 @@ const (
 	CheckCodeConflicting = "conflicting"
 	CheckCodeComputing   = "computing"
 	CheckCodeBlocked     = "blocked"
+	CheckCodeWaitsCi     = "waitsci"
 	CheckCodeBehind      = "behind"
 	CheckCodeUnpublished = "unpublished"
 	CheckCodeInFlight    = "inflight"
@@ -439,7 +440,8 @@ func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round
 	case pr.IsDraft:
 		open.State, open.Code = CheckFail, CheckCodeDraft
 	}
-	checks = append(checks, open, ciCheck(ci))
+	ciRow := ciCheck(ci)
+	checks = append(checks, open, ciRow)
 	mergeState := strings.ToUpper(pr.MergeStateStatus)
 	conflict := MergeCheck{Id: CheckIdConflict, State: CheckOk, Base: pr.BaseRefName}
 	switch mission.ReviewConflictOf(pr.Mergeable, pr.MergeStateStatus) {
@@ -450,7 +452,13 @@ func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round
 	}
 	checks = append(checks, conflict)
 	blocked := MergeCheck{Id: CheckIdBlocked, State: CheckOk}
-	if mergeState == "BLOCKED" {
+	switch {
+	case mergeState != "BLOCKED":
+	case ciRow.State == CheckPending || ciRow.State == CheckFail:
+		// GitHub says BLOCKED until the required checks pass (#925): the CI row carries the verdict, running or
+		// failed, and the rules' row waits for it instead of counting a second failure.
+		blocked.State, blocked.Code = CheckPending, CheckCodeWaitsCi
+	default:
 		blocked.State, blocked.Code = CheckFail, CheckCodeBlocked
 	}
 	checks = append(checks, blocked)

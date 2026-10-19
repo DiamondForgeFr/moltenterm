@@ -5113,6 +5113,8 @@
             "mergeTitle": "Fusionner, lié au head {oid}",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
             "mergeDisabled": "Fusion désactivée : {reason}",
+            "mergeWaitsCi": "La fusion attend la CI ({detail}) : revérifiez une fois qu'elle est verte.",
+            "mergeWaits": "La fusion attend : {reason}",
             "cleaningUp": "Nettoyage après la fusion…",
             "stepsLabel": "Étapes de la validation",
             "andMore": "{names} et {count} de plus",
@@ -5161,6 +5163,7 @@
                 "conflicting": "La branche est en conflit avec {base} : elle doit être rebasée (Reprendre le travail peut la confier à un agent).",
                 "computing": "GitHub calcule encore si elle fusionne proprement : revérifiez dans un instant.",
                 "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
+                "waitsci": "GitHub retient la fusion jusqu'à ce que les vérifications requises passent : la ligne CI ci-dessus dit où elles en sont.",
                 "behind": "En retard sur {base} : GitHub la rebase d'abord, puis la fusion attend la CI sur le nouveau head.",
                 "unpublished": {
                     "one": "1 commentaire écrit ici n'est pas publié : il reste ici, non publié.",
@@ -5176,6 +5179,10 @@
                 "problems": {
                     "one": "1 vérification demande votre attention.",
                     "other": "{count} vérifications demandent votre attention."
+                },
+                "waiting": {
+                    "one": "1 vérification tourne encore : rien ne vous attend pour l'instant.",
+                    "other": "{count} vérifications tournent encore : rien ne vous attend pour l'instant."
                 },
                 "passedBefore": "Vérifiée avant la fusion.",
                 "show": "Afficher",

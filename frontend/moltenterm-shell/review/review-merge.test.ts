@@ -11,6 +11,7 @@ import {
     mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
+    mergeWaitingText,
     sheetRecord,
     validateErrorText,
 } from "./review-merge";
@@ -56,6 +57,34 @@ describe("Validate's plan sheet", () => {
         expect(canClickMerge(warned, false, null)).toBe(false);
         expect(mergeDisabledReason(warned, false, null)).toMatch(/Confirm the warnings/);
         expect(canClickMerge(warned, true, null)).toBe(true);
+    });
+
+    it("says Merge waits for the CI while it runs, and stays a failure otherwise (#925)", () => {
+        const running = plan({
+            canmerge: false,
+            blocking: "ci",
+            checks: [
+                { id: "ci", state: "pending", code: "running", count: 2, names: ["build", "lint"] },
+                { id: "blocked", state: "pending", code: "waitsci" },
+            ],
+        });
+        expect(mergeWaitingText(running, null)).toBe(
+            "Merge waits for the CI (2 still running: build, lint): re-check once it is green."
+        );
+        const computing = plan({
+            canmerge: false,
+            blocking: "conflict",
+            checks: [{ id: "conflict", state: "pending", code: "computing" }],
+        });
+        expect(mergeWaitingText(computing, null)).toMatch(/^Merge waits: No conflict with the base: GitHub is still/);
+        const rules = plan({
+            canmerge: false,
+            blocking: "blocked",
+            checks: [{ id: "blocked", state: "fail", code: "blocked" }],
+        });
+        expect(mergeWaitingText(rules, null)).toBe("");
+        expect(mergeDisabledReason(rules, false, null)).toMatch(/a required check or review is missing/);
+        expect(mergeWaitingText(plan(), null)).toBe("");
     });
 
     it("never offers a second merge while one runs", () => {

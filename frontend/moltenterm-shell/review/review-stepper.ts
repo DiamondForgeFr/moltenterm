@@ -101,6 +101,8 @@ export function checkDetail(t: Translate, check: ReviewMergeCheck): string {
             return t("review.validate.checkCode.computing");
         case "blocked":
             return t("review.validate.checkCode.blocked");
+        case "waitsci":
+            return t("review.validate.checkCode.waitsci");
         case "behind":
             return t("review.validate.checkCode.behind", { base: check.base ?? "" });
         case "unpublished":
@@ -149,7 +151,9 @@ function checksStep(t: Translate, plan: ReviewMergePlan, record: ReviewMergeReco
         const detail = checkDetail(t, c);
         return { id: c.id, label: checkLabel(t, c), state: checkRowState(c.state), lines: detail ? [detail] : [] };
     });
-    const problems = step.rows.filter((r) => r.state !== "done").length;
+    // A row still running (CI, GitHub computing) waits; it does not need the developer (#925).
+    const problems = step.rows.filter((r) => r.state === "failed" || r.state === "needs").length;
+    const waiting = step.rows.filter((r) => r.state === "running").length;
     if (step.rows.some((r) => r.state === "failed")) {
         step.state = "failed";
     } else if (step.rows.some((r) => r.state === "running")) {
@@ -159,11 +163,13 @@ function checksStep(t: Translate, plan: ReviewMergePlan, record: ReviewMergeReco
     } else {
         step.state = "done";
     }
-    if (problems === 0) {
+    if (problems > 0) {
+        step.lines.push(plural(t, "review.validate.checks.problems", problems));
+    } else if (waiting > 0) {
+        step.lines.push(plural(t, "review.validate.checks.waiting", waiting));
+    } else {
         step.collapsed = true;
         step.lines.push(plural(t, "review.validate.checks.allPass", step.rows.length));
-    } else {
-        step.lines.push(plural(t, "review.validate.checks.problems", problems));
     }
     return step;
 }

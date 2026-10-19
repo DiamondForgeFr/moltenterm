@@ -5113,6 +5113,8 @@
             "mergeTitle": "Merge, bound to head {oid}",
             "mergeAnyway": "Merge anyway: I have read the warnings above.",
             "mergeDisabled": "Merge is disabled: {reason}",
+            "mergeWaitsCi": "Merge waits for the CI ({detail}): re-check once it is green.",
+            "mergeWaits": "Merge waits: {reason}",
             "cleaningUp": "Cleaning up after the merge…",
             "stepsLabel": "Validation steps",
             "andMore": "{names} and {count} more",
@@ -5161,6 +5163,7 @@
                 "conflicting": "The branch conflicts with {base}: it needs a rebase (Restart work can hand it to an agent).",
                 "computing": "GitHub is still computing whether it merges cleanly: re-check in a moment.",
                 "blocked": "GitHub blocks the merge: a required check or review is missing.",
+                "waitsci": "GitHub holds the merge until the required checks pass: the CI line above says where they stand.",
                 "behind": "Behind {base}: GitHub rebases it first, then the merge waits for CI on the new head.",
                 "unpublished": {
                     "one": "1 comment written here is not published: it stays here, unpublished.",
@@ -5176,6 +5179,10 @@
                 "problems": {
                     "one": "1 check needs your attention.",
                     "other": "{count} checks need your attention."
+                },
+                "waiting": {
+                    "one": "1 check is still running: nothing needs you yet.",
+                    "other": "{count} checks are still running: nothing needs you yet."
                 },
                 "passedBefore": "Checked before the merge.",
                 "show": "Show",

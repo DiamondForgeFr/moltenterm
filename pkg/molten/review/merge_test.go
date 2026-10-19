@@ -275,6 +275,63 @@ func TestMergePlanBlocks(t *testing.T) {
 	}
 }
 
+// A ready PR whose required checks still run is BLOCKED by GitHub: the rules' row waits for the CI instead of failing,
+// and a failing CI is the only failure counted (#925).
+func TestMergePlanBlockedByRunningCi(t *testing.T) {
+	cases := []struct {
+		name     string
+		change   func(p *fakePr)
+		blocking string
+		ciState  string
+		state    string
+		code     string
+		fails    int
+	}{
+		{"ci running", func(p *fakePr) {
+			p.Checks = append(p.Checks, map[string]string{"name": "lint", "status": "IN_PROGRESS"})
+		}, CheckIdCi, CheckPending, CheckPending, CheckCodeWaitsCi, 0},
+		{"ci failing", func(p *fakePr) {
+			p.Checks = append(p.Checks, map[string]string{"name": "lint", "status": "COMPLETED", "conclusion": "FAILURE"})
+		}, CheckIdCi, CheckFail, CheckPending, CheckCodeWaitsCi, 1},
+		{"ci green", func(p *fakePr) {}, CheckIdBlocked, CheckOk, CheckFail, CheckCodeBlocked, 1},
+		{"no check", func(p *fakePr) { p.Checks = nil }, CheckIdBlocked, CheckOk, CheckFail, CheckCodeBlocked, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := cleanPr()
+			pr.MergeState = "BLOCKED"
+			tc.change(&pr)
+			gh := &fakeGh{views: []fakePr{pr}}
+			m, dir, _ := testMerger(t, gh)
+			plan, err := m.Plan(context.Background(), planReq(dir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.CanMerge || plan.Blocking != tc.blocking {
+				t.Fatalf("merge should be disabled by %s: %+v", tc.blocking, plan)
+			}
+			if c := checkOf(plan, CheckIdCi); c.State != tc.ciState {
+				t.Errorf("ci check: %+v", c)
+			}
+			if c := checkOf(plan, CheckIdBlocked); c.State != tc.state || c.Code != tc.code {
+				t.Errorf("blocked check: %+v", c)
+			}
+			fails := 0
+			for _, c := range plan.Checks {
+				if c.State == CheckFail {
+					fails++
+				}
+			}
+			if fails != tc.fails {
+				t.Errorf("%d failing checks, want %d: %+v", fails, tc.fails, plan.Checks)
+			}
+			if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id}); err == nil {
+				t.Errorf("a blocked plan must not merge")
+			}
+		})
+	}
+}
+
 func writeComments(t *testing.T, dir string, states ...string) {
 	t.Helper()
 	var comments []map[string]string
