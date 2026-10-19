@@ -40,17 +40,29 @@ function optionTags(html: string): string[] {
     return html.match(/<button[^>]*data-option="[^"]*"[^>]*>/g) ?? [];
 }
 
-describe("the agent choice options (#890)", () => {
-    it("shows the two ways as buttons, the default one current and the only tab stop", () => {
+function footerOf(html: string): string {
+    return html.slice(html.indexOf("data-dialog-buttons"));
+}
+
+function validateTag(html: string): string {
+    return /<button[^>]*data-testid="agent-choice-validate"[^>]*>/.exec(html)?.[0] ?? "";
+}
+
+describe("the agent choice options (#890, #930)", () => {
+    it("shows the two ways as a radio group, the default one checked and the only tab stop", () => {
         const html = render(pending());
         const [background, together] = optionTags(html);
+        expect(background).toContain('role="radio"');
+        expect(background).toContain('aria-checked="true"');
         expect(background).toContain('data-option="background"');
         expect(background).toContain("data-selected");
         expect(background).toContain('tabindex="0"');
+        expect(together).toContain('role="radio"');
+        expect(together).toContain('aria-checked="false"');
         expect(together).toContain('data-option="together"');
         expect(together).not.toContain("data-selected");
         expect(together).toContain('tabindex="-1"');
-        expect(html).toContain('role="group" aria-label="How the agent works"');
+        expect(html).toContain('role="radiogroup" aria-label="How the agent works"');
     });
 
     it("names each option by its title and describes it by its text", () => {
@@ -65,21 +77,29 @@ describe("the agent choice options (#890)", () => {
         expect(html).toContain("Investigate and fix with the agent");
     });
 
-    it("leaves only Cancel in the footer", () => {
+    it("puts Cancel and a primary Validate in the footer, never the options", () => {
         const html = render(pending());
-        const footer = html.slice(html.indexOf("data-dialog-buttons"));
-        expect(footer.match(/<button/g)).toHaveLength(1);
-        expect(footer).toContain('data-testid="agent-choice-cancel"');
+        const footer = footerOf(html);
+        expect(footer.match(/<button/g)).toHaveLength(2);
+        expect(footer).not.toContain("data-option");
+        expect(footer.indexOf('data-testid="agent-choice-cancel"')).toBeLessThan(
+            footer.indexOf('data-testid="agent-choice-validate"')
+        );
+        const validate = validateTag(html);
+        expect(validate).toContain("molten-btn");
+        expect(validate).not.toContain(' disabled=""');
+        expect(footer).toMatch(/data-testid="agent-choice-validate"[^>]*>Validate<i class="molten-btn-wave"/);
     });
 
-    it("disables the options while no agent can start", () => {
+    it("disables the options and Validate while no agent can start", () => {
         const html = render(pending({ missing: "Gemini", agents: [] }));
         for (const tag of optionTags(html)) {
             expect(tag).toContain("disabled");
         }
+        expect(validateTag(html)).toContain(' disabled=""');
     });
 
-    it("answers with the pressed option's mode, and the agent only when the developer switched", () => {
+    it("answers with the selected mode, and the agent only when the developer switched", () => {
         const p = pending();
         answerAgentChoice(p, null, "together");
         expect(p.answer).toHaveBeenLastCalledWith("together", undefined);
