@@ -9,7 +9,7 @@ import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
-import { blockingText } from "./review-stepper";
+import { blockingText, checkDetail } from "./review-stepper";
 
 const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging", "queued"];
 
@@ -57,6 +57,22 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
         return t("review.merge.confirmWarnings");
     }
     return "";
+}
+
+// mergeWaitingText: Merge is disabled only because a check is still running (the CI, GitHub computing), so the line
+// under the steps says what it waits for instead of reading as a failure (#925); "" otherwise.
+export function mergeWaitingText(plan: ReviewMergePlan, record: ReviewMergeRecord): string {
+    if (plan == null || plan.canmerge || mergeRunning(record)) {
+        return "";
+    }
+    const check = plan.checks.find((c) => c.id === plan.blocking);
+    if (check?.state !== "pending") {
+        return "";
+    }
+    if (check.id === "ci") {
+        return t("review.validate.mergeWaitsCi", { detail: checkDetail(t, check) });
+    }
+    return t("review.validate.mergeWaits", { reason: blockingText(t, check) });
 }
 
 // chosenMethod is the method the merge uses: the one picked in the sheet while the plan allows it, else the plan's

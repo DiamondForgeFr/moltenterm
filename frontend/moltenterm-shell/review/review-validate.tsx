@@ -27,6 +27,7 @@ import {
     mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
+    mergeWaitingText,
     sheetRecord,
     validateErrorText,
 } from "./review-merge";
@@ -82,6 +83,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const method = chosenMethod(plan, v.method);
     const enabled = canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null;
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
+    const waitingText = mergeWaitingText(plan, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
     const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref, method });
     const locked = record != null || v.clicked != null;
@@ -168,8 +170,8 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                     }
                 />
                 {record == null && plan != null && !plan.canmerge ? (
-                    <div className="text-danger" data-testid="validate-reason">
-                        {t("review.validate.mergeDisabled", { reason: disabledReason })}
+                    <div className={waitingText ? "text-secondary" : "text-danger"} data-testid="validate-reason">
+                        {waitingText || t("review.validate.mergeDisabled", { reason: disabledReason })}
                     </div>
                 ) : null}
             </div>
