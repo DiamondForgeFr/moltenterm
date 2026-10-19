@@ -129,6 +129,8 @@ type SettingsType struct {
 	ReviewPublishLanguage string `json:"review:publishlanguage,omitempty" jsonschema_description:"The language review comments are published in on GitHub (en, English, fr...) when the project's .saasfoundry.json declares none; unset, detected from the project's pull requests and README, else English"`
 	// MOLTENTERM-PATCH (#847): the developer's first name on the PRs they validate (pkg/molten/review/reviewer.go).
 	ReviewReviewerName string `json:"review:reviewername,omitempty" jsonschema_description:"Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name"`
+	// MOLTENTERM-PATCH (#912): Validate stays blocked while checks run instead of queuing the PR (FR-REV-026 AC10).
+	ReviewValidateGreenOnly bool `json:"review:validategreenonly,omitempty" jsonschema_description:"Validate a pull request only once its CI is green; off (the default), a pull request whose checks still run can be validated and the merge queue merges it once green"`
 	// MOLTENTERM-PATCH (#623): the interface language (FR-I18N-001, frontend/moltenterm-shell/i18n).
 	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
 

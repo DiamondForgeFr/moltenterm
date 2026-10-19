@@ -711,7 +711,11 @@
             "moltenterm:terminalscreenreader": {
                 "label": "Prise en charge des lecteurs d’écran",
                 "description": "Automatique suit le système. Activé et Désactivé remplacent la détection, sans redémarrer les terminaux.",
-                "options": { "auto": "Automatique", "on": "Activé", "off": "Désactivé" }
+                "options": {
+                    "auto": "Automatique",
+                    "on": "Activé",
+                    "off": "Désactivé"
+                }
             },
             "term:copyonselect": {
                 "label": "Copier à la sélection",
@@ -1117,6 +1121,10 @@
             "review:reviewername": {
                 "label": "Votre prénom",
                 "description": "Écrit en « Reviewed by » dans les pull requests que vous validez ; vide : d'après le nom d'utilisateur git du projet."
+            },
+            "review:validategreenonly": {
+                "label": "Valider seulement une fois la CI verte",
+                "description": "Désactivé : une PR dont les checks tournent peut être validée ; la file de fusion la fusionne une fois verte."
             }
         },
         "mods": {
@@ -5718,8 +5726,8 @@
         },
         "review": {
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
-            "batchrunning": "Une fusion groupée tourne déjà dans ce projet.",
-            "batchgone": "Cette fusion groupée ne tourne plus.",
+            "batchrunning": "La file de fusion de ce projet est en cours d'annulation ; réessayez dans un instant.",
+            "batchgone": "Cette file de fusion ne tourne plus.",
             "batchnotstopped": "La fusion groupée n'attend pas de décision.",
             "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",
             "mergebase": "La base de fusion de {branch} et du head de la PR n'a pas pu être lue : {detail}",
@@ -5782,7 +5790,11 @@
             "questiongone": "Cette question n'attend plus : elle a été envoyée ou retirée.",
             "readpr": "La pull request n'a pas pu être lue sur GitHub : {detail}",
             "headnotcommit": "La tête {head} n'est pas un identifiant de commit.",
-            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}."
+            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}.",
+            "queue": {
+                "merging": "#{number} est déjà en cours de fusion.",
+                "notqueued": "#{number} n'est pas dans la file de fusion."
+            }
         },
         "handoff": {
             "notwaiting": "Cette demande de passage de relais n'est plus en attente.",
@@ -6082,8 +6094,8 @@
                     "goTo": "Aller au terminal",
                     "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
                     "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
-                    "doneTitle": "Fusion groupée — PR fusionnées : {merged} sur {total}",
-                    "cancelledTitle": "Fusion groupée annulée — PR fusionnées : {merged} sur {total}",
+                    "doneTitle": "File de fusion : {merged} PR sur {total} fusionnées",
+                    "cancelledTitle": "File de fusion annulée : {merged} PR sur {total} fusionnées",
                     "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}{trunk}",
                     "trunkUpdated": " {branch} local mis à jour : +{count} commits.",
                     "trunkUpdatedOne": " {branch} local mis à jour : +1 commit.",
@@ -6120,7 +6132,9 @@
                         "cancelled": "annulée",
                         "interrupted": "MoltenTerm a redémarré",
                         "notreached": "pas atteinte",
-                        "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
+                        "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur",
+                        "pushed": "un push après votre validation",
+                        "withdrawn": "validation annulée"
                     }
                 },
                 "trunk": {
@@ -6136,6 +6150,18 @@
                         "inprogress": "un rebase, une fusion, un cherry-pick ou un bisect est en cours dans {path}",
                         "failed": "git a échoué : {detail}"
                     }
+                },
+                "queue": {
+                    "investigate": "Analyser et corriger",
+                    "failedTitle": "#{number} validée mais la CI a échoué : {names}",
+                    "failed": "Elle n'est pas fusionnée tant qu'un check échoue. Elle fusionne dès que ses checks passent sur le même commit ; un nouveau push demande une nouvelle validation.",
+                    "stoppedTitle": "#{number} a besoin de vous : la file de fusion s'est arrêtée dessus",
+                    "stopped": "Raison : {reason}. Les autres pull requests validées continuent ; validez-la de nouveau une fois le point réglé.",
+                    "voidedTitle": "#{number} a changé après votre validation",
+                    "voided": "Quelqu'un a poussé {head} dessus : elle a quitté la file de fusion et revient à relire. Relisez les nouveaux commits et validez-la de nouveau.",
+                    "mergedTitle": "#{number} fusionnée (validée à {time})",
+                    "merged": "La file de fusion l'a fusionnée dans {base}.",
+                    "resumedTitle": "La file de fusion de {base} a repris : {count} PR validées"
                 }
             }
         },

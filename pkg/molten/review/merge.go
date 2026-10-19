@@ -192,6 +192,10 @@ type MergePlan struct {
 	// CanMerge: no check fails or waits; Blocking: the id of the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
 	Blocking string `json:"blocking,omitempty"`
+	// CanQueue: nothing fails and only the CI runs, so the PR can be validated now and merged by the merge queue once
+	// green (FR-REV-026, #912). GreenOnly: the review:validategreenonly setting is on and keeps it blocked.
+	CanQueue  bool `json:"canqueue,omitempty"`
+	GreenOnly bool `json:"greenonly,omitempty"`
 	// Warnings the developer confirms to merge anyway (unpublished comments, a restart in flight).
 	Warnings  []string `json:"warnings"`
 	CreatedAt int64    `json:"createdat"`
@@ -300,6 +304,8 @@ type Merger struct {
 	branchRules map[string]branchRules
 	// reviewer: the developer's first name for the PR body's "Reviewed by" line (#847); nil writes no line.
 	reviewer func(dir string) string
+	// greenOnly: the review:validategreenonly setting (#912); nil reads off.
+	greenOnly func() bool
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
@@ -500,6 +506,27 @@ func blockingOf(checks []MergeCheck) *MergeCheck {
 	return nil
 }
 
+// checkCodeWaitsCi: GitHub blocks the merge only because the required checks still run (#925).
+const checkCodeWaitsCi = "waitsci"
+
+// queueable: no check fails and what waits is the CI, or GitHub's block while it runs (#925). Such a PR can be
+// validated now: the merge queue merges it once green (FR-REV-026).
+func queueable(checks []MergeCheck) bool {
+	pending := false
+	for _, c := range checks {
+		switch c.State {
+		case CheckFail:
+			return false
+		case CheckPending:
+			if c.Id != CheckIdCi && !(c.Id == CheckIdBlocked && c.Code == checkCodeWaitsCi) {
+				return false
+			}
+			pending = true
+		}
+	}
+	return pending
+}
+
 func warningsOf(checks []MergeCheck) []string {
 	rtn := []string{}
 	for _, c := range checks {
@@ -583,6 +610,10 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 	if blocking != nil {
 		plan.Blocking = blocking.Id
 	}
+	if queueable(checks) {
+		plan.GreenOnly = m.greenOnly != nil && m.greenOnly()
+		plan.CanQueue = !plan.GreenOnly
+	}
 	methods := m.planMethods(ctx, req.Dir, req.Repo, pr.BaseRefName)
 	plan.Methods, plan.Method, plan.MethodRule, plan.Queue = methods.methods, methods.method, methods.rule, methods.queue
 	plan.Steps = planSteps(plan)
@@ -657,6 +688,40 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	m.running[k] = run
 	m.done[k] = done
 	return plan, run, done, nil
+}
+
+// takeQueuePlan hands a plan to the merge queue (FR-REV-026): the developer validated it while the CI runs, so it is
+// bound to its head, its method and the warnings they confirmed; the queue merges it once green. Used once, like any
+// plan.
+func (m *Merger) takeQueuePlan(req MergeRequest) (MergePlan, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	k := req.PrKey
+	if m.running[k] != nil {
+		return MergePlan{}, mergeError(MergeErrRunning)
+	}
+	plan, ok := m.plans[k]
+	if !ok || plan.Id != req.PlanId {
+		return MergePlan{}, mergeError(MergeErrStale)
+	}
+	if m.now().Sub(time.UnixMilli(plan.CreatedAt)) > planMaxAge {
+		delete(m.plans, k)
+		return MergePlan{}, mergeError(MergeErrOld)
+	}
+	if !plan.CanQueue && !plan.CanMerge {
+		return MergePlan{}, mergeError(MergeErrBlocked)
+	}
+	if len(plan.Warnings) > 0 && !req.Override {
+		return MergePlan{}, mergeError(MergeErrConfirm)
+	}
+	if req.Method != "" && !hasMethod(plan.Methods, req.Method) {
+		return MergePlan{}, mergeError(MergeErrMethod)
+	}
+	if req.Method != "" {
+		plan.Method = req.Method
+	}
+	delete(m.plans, k)
+	return plan, nil
 }
 
 func (m *Merger) finishRun(k PrKey, run *runningMerge) {

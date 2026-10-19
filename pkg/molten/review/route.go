@@ -221,6 +221,9 @@ func Start() {
 				wps.Broker.Publish(wps.WaveEvent{Event: BatchEvent, Scopes: []string{run.Dir}, Data: run})
 			},
 		})
+		service.merger.greenOnly = func() bool {
+			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewValidateGreenOnly
+		}
 		service.publishNotes = func(notes Notes) {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
@@ -235,6 +238,8 @@ func Start() {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
 			return
 		}
+		// The PRs the developer validated are merged even across a restart (FR-REV-026 AC2).
+		service.batch.Resume()
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(mcpreview.Event, func(event *wps.WaveEvent) {
 			var update mcpreview.Update
@@ -583,8 +588,8 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.MarkReady(ctx, req)
-	case BatchStartCommand, BatchGetCommand, BatchCancelCommand, BatchDecideCommand, BatchDismissCommand:
-		// NFR-REV-003: a batch merge starts and is decided on the developer's clicks in a window only.
+	case QueueAddCommand, QueueWithdrawCommand, BatchGetCommand, BatchCancelCommand, BatchDismissCommand:
+		// NFR-REV-003: a PR joins or leaves the merge queue on the developer's clicks in a window only.
 		return s.handleBatch(command, data)
 	case NoteKeepCommand:
 		req, err := decode[NoteKeepRequest](data)

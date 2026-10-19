@@ -71,6 +71,7 @@ const (
 	ConfigKey_ReviewLanguage                 = "review:language"
 	ConfigKey_ReviewPublishLanguage          = "review:publishlanguage"
 	ConfigKey_ReviewReviewerName             = "review:reviewername"
+	ConfigKey_ReviewValidateGreenOnly        = "review:validategreenonly"
 
 	ConfigKey_AppLanguage                    = "app:language"
 

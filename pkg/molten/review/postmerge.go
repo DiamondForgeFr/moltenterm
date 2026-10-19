@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
@@ -128,7 +129,16 @@ func (s *Service) Run(ctx context.Context, pr MergedPr) {
 	if s.cleaner == nil {
 		return
 	}
-	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket, PlannedAgentTree: pr.AgentTree, BatchPrs: pr.BatchPrs})
+	batchPrs := pr.BatchPrs
+	if s.batch != nil {
+		// The merge queue rebases its PRs itself, after any merge (#912): asking their agents would void them.
+		for _, n := range s.batch.QueuedPrs(pr.Dir, pr.BaseRef) {
+			if n != pr.Number && !slices.Contains(batchPrs, n) {
+				batchPrs = append(batchPrs, n)
+			}
+		}
+	}
+	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket, PlannedAgentTree: pr.AgentTree, BatchPrs: batchPrs})
 	if err != nil {
 		log.Printf("%s %s#%d: the cleanup after the merge: %v\n", logPrefix, pr.Repo, pr.Number, err)
 	}

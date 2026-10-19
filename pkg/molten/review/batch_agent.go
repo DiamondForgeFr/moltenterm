@@ -68,15 +68,15 @@ func (b *BatchRunner) makeTree(run BatchRun) (string, error) {
 // batchPromptLine holds the rules that must hold even if the brief is not read; it fits the guarded typing path's 600
 // characters, so the result file is named in the brief only (the brief's path with .result for .md).
 func batchPromptLine(item BatchItem, base string, tree string, brief string) string {
-	return fmt.Sprintf("MoltenTerm batch merge: rebase PR #%d (%s) on origin/%s in %s, resolve the conflicts, run the "+
+	return fmt.Sprintf("MoltenTerm merge queue: rebase PR #%d (%s) on origin/%s in %s, resolve the conflicts, run the "+
 		"project's checks, push with --force-with-lease, never merge the PR. Follow the brief %s: its last step writes "+
 		"the result.", item.Number, item.HeadRef, base, tree, brief)
 }
 
 func renderBatchBrief(run BatchRun, item BatchItem, tree string, result string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Batch merge: rebase PR #%d on %s\n\n", item.Number, run.Base)
-	fmt.Fprintf(&b, "MoltenTerm wrote this brief: the developer started a batch merge of %d PRs into %s and confirmed it. ", len(run.Items), run.Base)
+	fmt.Fprintf(&b, "# Merge queue: rebase PR #%d on %s\n\n", item.Number, run.Base)
+	fmt.Fprintf(&b, "MoltenTerm wrote this brief: the developer validated %d PRs into %s, and MoltenTerm's merge queue merges them one after the other. ", len(run.Items), run.Base)
 	fmt.Fprintf(&b, "PR #%d conflicts with %s now that the PRs before it are merged. MoltenTerm merges each PR itself once "+
 		"its checks pass; your part is the rebase. You work under the developer's usual permissions, in a worktree of "+
 		"your own: the developer's main checkout is not touched.\n\n", item.Number, run.Base)
@@ -159,7 +159,7 @@ func (b *BatchRunner) startBatchAgent(ctl *batchCtl, agent *batchAgent, k PrKey,
 	}
 	name := agent.tabName
 	if name == "" {
-		name = "Batch merge"
+		name = "Merge queue"
 	}
 	tabId, err := r.env.AgentTab(ctx, run.WorkspaceId, name, waveobj.MetaMapType{AgentTabMetaKey: "batch:" + strings.ToLower(run.Repo)}, true)
 	if err != nil {
@@ -201,7 +201,7 @@ func (b *BatchRunner) startBatchAgent(ctl *batchCtl, agent *batchAgent, k PrKey,
 }
 
 // typeBatchLine hands the next brief to the batch's agent once it can take it.
-func (b *BatchRunner) typeBatchLine(ctl *batchCtl, agent *batchAgent, line string) (batchStop, int) {
+func (b *BatchRunner) typeBatchLine(ctl *batchCtl, agent *batchAgent, i int, line string) (batchStop, int) {
 	r := b.env.Agents
 	if r.env.TypePrompt == nil {
 		return batchStop{reason: BatchReasonAgentStart, detail: "MoltenTerm cannot type in terminals yet"}, batchStopped
@@ -220,7 +220,7 @@ func (b *BatchRunner) typeBatchLine(ctl *batchCtl, agent *batchAgent, line strin
 		if !out.Retry {
 			return batchStop{reason: BatchReasonAgentStart, detail: out.Message}, batchStopped
 		}
-		if b.cancelAsked(ctl) {
+		if b.stopAsked(ctl, i) {
 			return batchStop{}, batchCancelled
 		}
 		if b.env.Now().Sub(start) > b.env.AgentLimit {
@@ -232,7 +232,8 @@ func (b *BatchRunner) typeBatchLine(ctl *batchCtl, agent *batchAgent, line strin
 
 // rebase hands PR i to the agent and waits for its result; batchMerged here means pushed, the caller reads the PR
 // again and waits for its checks.
-func (b *BatchRunner) rebase(ctl *batchCtl, agent *batchAgent, i int, pr ghMergePr) (batchStop, int) {
+func (b *BatchRunner) rebase(ctl *batchCtl, i int, pr ghMergePr) (batchStop, int) {
+	agent := ctl.agent
 	if b.env.Agents == nil {
 		return batchStop{reason: BatchReasonNoAgent}, batchStopped
 	}
@@ -259,7 +260,7 @@ func (b *BatchRunner) rebase(ctl *batchCtl, agent *batchAgent, i int, pr ghMerge
 		if stop, ok := b.startBatchAgent(ctl, agent, k, line); !ok {
 			return stop, batchStopped
 		}
-	} else if stop, out := b.typeBatchLine(ctl, agent, line); out != batchMerged {
+	} else if stop, out := b.typeBatchLine(ctl, agent, i, line); out != batchMerged {
 		return stop, out
 	}
 	log.Printf("%s batch %s: #%d handed to %s\n", logPrefix, run.Id, item.Number, agent.agent)
@@ -275,7 +276,8 @@ func (b *BatchRunner) waitAgent(ctl *batchCtl, agent *batchAgent, i int, result 
 			if stopped {
 				return batchStop{reason: BatchReasonAmbiguous, note: note}, batchStopped
 			}
-			b.setItem(ctl, i, func(it *BatchItem) { it.Head = pushed })
+			// The queue's own push: the validation follows it.
+			b.setItem(ctl, i, func(it *BatchItem) { it.Head, it.Valid = pushed, pushed })
 			return batchStop{}, batchMerged
 		}
 		if env.BlockExists != nil && !env.BlockExists(context.Background(), agent.blockId) {
@@ -297,7 +299,7 @@ func (b *BatchRunner) waitAgent(ctl *batchCtl, agent *batchAgent, i int, result 
 		if b.read(ctl).Items[i].Waiting != waiting {
 			b.setItem(ctl, i, func(it *BatchItem) { it.Waiting = waiting })
 		}
-		if b.cancelAsked(ctl) && !(running && info.State == molten.AgentStateWorking) {
+		if b.stopAsked(ctl, i) && !(running && info.State == molten.AgentStateWorking) {
 			return batchStop{}, batchCancelled
 		}
 		if b.env.Now().Sub(start) > b.env.AgentLimit {
