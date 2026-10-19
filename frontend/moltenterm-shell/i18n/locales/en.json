@@ -6381,7 +6381,8 @@
         "notInstalled": "{agent}: not installed",
         "missing": "{missing}, the agent chosen for this project, is not installed on this computer. Choose another agent for this run.",
         "missingNone": "{missing}, the agent chosen for this project, is not installed on this computer, and no other supported agent is.",
-        "thisRunOnly": "For this run only: the project's choice stays as it is."
+        "thisRunOnly": "For this run only: the project's choice stays as it is.",
+        "validate": "Validate"
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",

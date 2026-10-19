@@ -5,8 +5,9 @@
 // starts for a rebase (Ask for a rebase, the Validate sheet's offer after a merge) or for Restart work, this dialog says
 // what will happen and asks how: Let the agent handle it (out of sight: no tab, no focus change; its progress shows in
 // the Reviews row and in Sessions, a notification says when it is done or needs them), or Go through it with the agent
-// (its own tab, shown, terminal focused). The two options are the choice (#890): a click or Enter on one starts the
-// agent that way, the arrows move between them, the default has the focus at open, Escape cancels.
+// (its own tab, shown, terminal focused). The two options are a radio group (#930): a click or the arrows only select,
+// the default is selected and focused at open. Validate (or Enter) starts the agent in the selected mode; Cancel and
+// Escape start nothing.
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -15,6 +16,7 @@ import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
+import { MoltenWave } from "../molten-button";
 import { registerNotificationGesture } from "../notifications-store";
 import { showTabFromHere } from "../opener-tab";
 import { AgentMode, AgentStart, openReviewTab, ReviewPrInfo, ReviewRestartResult } from "../review/review-client";
@@ -157,8 +159,8 @@ export function pickedAgent(pending: AgentChoiceRequest, picked: string): string
     return pending.missing ? "" : (pending.agentid ?? "");
 }
 
-// answerAgentChoice: an option pressed (or null for Cancel) answers the dialog; an option does nothing while no agent
-// can start. The agent travels only when the developer switched, or the project's choice is missing.
+// answerAgentChoice: Validate with the selected mode (or null for Cancel) answers the dialog; Validate does nothing
+// while no agent can start. The agent travels only when the developer switched, or the project's choice is missing.
 export function answerAgentChoice(pending: PendingChoice, picked: string, mode: AgentMode) {
     const agent = pickedAgent(pending, picked);
     if (mode != null && !agent) {
@@ -207,11 +209,11 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     const t = useT();
     const defaultRef = useRef<HTMLButtonElement>(null);
     const [picked, setPicked] = useState<string>(null);
-    const [current, setCurrent] = useState<AgentMode>(DefaultMode);
+    const [selected, setSelected] = useState<AgentMode>(DefaultMode);
     const agent = pickedAgent(pending, picked);
     const installed = (pending.agents ?? []).filter((a) => a.installed);
     const absent = (pending.agents ?? []).filter((a) => !a.installed);
-    const answer = (mode: AgentMode) => answerAgentChoice(pending, picked, mode);
+    const validate = () => answerAgentChoice(pending, picked, selected);
     useEffect(() => {
         defaultRef.current?.focus();
     }, [pending]);
@@ -238,21 +240,28 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
         },
         { mode: "together", icon: "fa-terminal", title: t(keys.together), text: t("agentChoice.together.text", vars) },
     ];
+    // Enter anywhere in the body validates, on a radio too: preventDefault keeps the radio's native click from
+    // running as well.
     const onKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key !== "Enter" || (e.target as HTMLElement)?.tagName === "BUTTON") {
+        if (e.key !== "Enter") {
             return;
         }
         e.preventDefault();
-        answer(current);
+        validate();
     };
     const onOptionsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-option]"));
-        const next = nextToggleIndex(e.key, buttons.indexOf(document.activeElement as HTMLButtonElement), buttons.length);
+        const next = nextToggleIndex(
+            e.key,
+            buttons.indexOf(document.activeElement as HTMLButtonElement),
+            buttons.length
+        );
         if (next < 0) {
             return;
         }
         e.preventDefault();
         buttons[next].focus();
+        setSelected(buttons[next].dataset.option as AgentMode);
     };
     return (
         <DialogFrame
@@ -263,14 +272,26 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
             widthClass="w-[520px]"
             trapFocus
             buttons={
-                <button
-                    type="button"
-                    className={PlainButton}
-                    onClick={() => pending.answer(null)}
-                    data-testid="agent-choice-cancel"
-                >
-                    {t("common.cancel")}
-                </button>
+                <>
+                    <button
+                        type="button"
+                        className={PlainButton}
+                        onClick={() => pending.answer(null)}
+                        data-testid="agent-choice-cancel"
+                    >
+                        {t("common.cancel")}
+                    </button>
+                    <button
+                        type="button"
+                        className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12 disabled:cursor-default"
+                        onClick={validate}
+                        disabled={!agent}
+                        data-testid="agent-choice-validate"
+                    >
+                        {t("agentChoice.validate")}
+                        <MoltenWave />
+                    </button>
+                </>
             }
         >
             <div className="flex flex-col gap-3 text-12 leading-5" onKeyDown={onKeyDown} data-testid="agent-choice">
@@ -300,7 +321,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
                 ) : null}
                 <p className="text-secondary">{t(keys.what, vars)}</p>
                 <div
-                    role="group"
+                    role="radiogroup"
                     aria-label={t("agentChoice.how")}
                     className="df-option-list overflow-hidden rounded-4 border border-border"
                     onKeyDown={onOptionsKeyDown}
@@ -315,10 +336,9 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
                             title={o.title}
                             text={o.text}
                             isDefault={o.mode === DefaultMode}
-                            current={o.mode === current}
+                            selected={o.mode === selected}
                             disabled={!agent}
-                            onFocus={() => setCurrent(o.mode)}
-                            onChoose={() => answer(o.mode)}
+                            onSelect={() => setSelected(o.mode)}
                         />
                     ))}
                 </div>
@@ -328,7 +348,7 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     );
 }
 
-// One way to run the agent, drawn like the suite's OptionRow; pressing it is the answer.
+// One way to run the agent, drawn like the suite's OptionRow; pressing it only selects it.
 function ChoiceOption({
     ref,
     mode,
@@ -336,10 +356,9 @@ function ChoiceOption({
     title,
     text,
     isDefault,
-    current,
+    selected,
     disabled,
-    onFocus,
-    onChoose,
+    onSelect,
 }: {
     ref?: React.Ref<HTMLButtonElement>;
     mode: AgentMode;
@@ -347,10 +366,9 @@ function ChoiceOption({
     title: string;
     text: string;
     isDefault: boolean;
-    current: boolean;
+    selected: boolean;
     disabled: boolean;
-    onFocus: () => void;
-    onChoose: () => void;
+    onSelect: () => void;
 }) {
     const t = useT();
     const titleId = useId();
@@ -364,15 +382,16 @@ function ChoiceOption({
                 "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
                 "disabled:cursor-default"
             )}
-            data-selected={current ? "" : undefined}
+            role="radio"
+            aria-checked={selected}
+            data-selected={selected ? "" : undefined}
             data-disabled={disabled ? "" : undefined}
             data-option={mode}
             disabled={disabled}
-            tabIndex={current ? 0 : -1}
+            tabIndex={selected ? 0 : -1}
             aria-labelledby={titleId}
             aria-describedby={textId}
-            onFocus={onFocus}
-            onClick={onChoose}
+            onClick={onSelect}
             data-testid={`agent-choice-${mode}`}
         >
             <span className="mt-0.5">
