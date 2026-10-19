@@ -4894,7 +4894,7 @@
             "briefNewHead": "Briefer le nouveau head",
             "askAgain": "Redemander",
             "starting": "Démarrage de votre agent dans le worktree de la PR…",
-            "running": "{agent} relit cette PR, en lecture seule, dans le terminal sous ce panneau.",
+            "running": "{agent} relit cette PR, en lecture seule, dans son propre terminal. Ses options sont dans le menu de ce panneau.",
             "toolsConnect": "Ses outils de revue se connectent à son démarrage.",
             "showTerminal": "Afficher son terminal",
             "startFailed": "La session de revue n'a pas pu démarrer.",
