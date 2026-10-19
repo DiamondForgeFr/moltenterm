@@ -8,6 +8,7 @@ import { EventEmitter } from "node:events";
 import { getBuilderWindowByWebContentsId } from "./emain-builder";
 import { getWaveWindowByWebContentsId } from "./emain-window";
 import { contextMenuRole, ownedMenuGuest, supportedMenuImage } from "./moltenterm-contextmenu-policy";
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 
 type Target = {
     host: WebContents;
@@ -95,7 +96,7 @@ function watch(contents: WebContents) {
 }
 function capture(host: WebContents, guestId?: number): Target {
     if (!liveContextMenuHost(host)) return null;
-    const guest = guestId != null ? webContents.fromId(guestId) : null;
+    const guest = guestId != null ? liveWebContentsFromId(guestId) : null;
     if (guestId != null && (!ownedMenuGuest(host, guest) || !activeGuests.get(host.id)?.has(guestId))) return null;
     const target = guest ?? host;
     watch(host);
@@ -148,7 +149,7 @@ export function initMoltentermContextMenu(
     });
     onAppIpc("moltenterm-contextmenu-guest", (event, guestId: number, active: boolean) => {
         if (!liveContextMenuHost(event.sender, false) || !Number.isInteger(guestId)) return;
-        const guest = webContents.fromId(guestId);
+        const guest = liveWebContentsFromId(guestId);
         if (!ownedMenuGuest(event.sender, guest)) return;
         const set = activeGuests.get(event.sender.id) ?? new Set<number>();
         activeGuests.set(event.sender.id, set);

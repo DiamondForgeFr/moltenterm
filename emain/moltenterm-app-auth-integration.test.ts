@@ -22,7 +22,13 @@ const env = vi.hoisted(() => ({
 }));
 vi.mock("electron", () => ({
     ipcMain: { on: (name: string, callback: any) => env.ipc.set(name, callback) },
-    webContents: { fromId: (id: number) => env.contents.get(id) },
+    webContents: {
+        fromId: (id: number) => {
+            // Electron throws on anything but an integer (#928).
+            if (!Number.isInteger(id)) throw new TypeError(`conversion failure from ${typeof id}`);
+            return env.contents.get(id);
+        },
+    },
     session: { fromPartition: () => env.appSession },
     net: undefined,
 }));
@@ -109,6 +115,38 @@ describe("Electron app caller integration", () => {
         app.mainFrame.url = getAppDocumentUrl();
         app.emit("destroyed");
         expect(request(app)).toEqual({ Range: "bytes=0-3" });
+    });
+
+    it("never throws for a request without a usable webContentsId, and gives it no credentials (#928)", () => {
+        const app = contents(9);
+        const copied = { "x-authkey": "copied", "X-Molten-Caller": "main", "x-molten-proof": "copied", Range: "bytes=0-3" };
+        const base = { frame: app.mainFrame, resourceType: "xhr", url: "http://127.0.0.1:12345/info" };
+        for (const webContentsId of [undefined, null, "9", 9.5, NaN, Number.MAX_SAFE_INTEGER + 1, 404]) {
+            const callback = vi.fn();
+            expect(() => env.beforeHeaders({ ...base, webContentsId, requestHeaders: { ...copied } }, callback)).not.toThrow();
+            expect(callback).toHaveBeenCalledOnce();
+            expect(callback.mock.calls[0][0]).toEqual({ requestHeaders: { Range: "bytes=0-3" } });
+        }
+    });
+
+    it("sends the request on without credentials when the hook fails (#928)", () => {
+        const app = contents(10);
+        const failing = {
+            webContentsId: app.id,
+            frame: app.mainFrame,
+            url: "http://127.0.0.1:12345/info",
+            requestHeaders: { "x-authkey": "copied", "X-Molten-Caller": "main", "x-molten-proof": "copied", Range: "bytes=0-3" },
+            get resourceType(): string {
+                throw new Error("detached");
+            },
+        };
+        const callback = vi.fn();
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        expect(() => env.beforeHeaders(failing, callback)).not.toThrow();
+        error.mockRestore();
+        expect(callback).toHaveBeenCalledOnce();
+        expect(callback.mock.calls[0][0]).toEqual({ requestHeaders: { Range: "bytes=0-3" } });
+        expect(request(app)["X-AuthKey"]).toBe(AuthKey);
     });
 
     it("gates get-auth-key on the live registered main frame", () => {
