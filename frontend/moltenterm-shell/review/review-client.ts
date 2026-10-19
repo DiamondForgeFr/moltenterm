@@ -211,6 +211,10 @@ export type ReviewMergePlan = {
     canmerge: boolean;
     // The id of the first check that fails or waits.
     blocking?: string;
+    // Only the CI runs: validated now, the merge queue merges it once green (FR-REV-026); greenonly: the
+    // review:validategreenonly setting keeps it blocked instead.
+    canqueue?: boolean;
+    greenonly?: boolean;
     warnings: string[];
     createdat: number;
 };

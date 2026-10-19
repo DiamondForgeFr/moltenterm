@@ -12,6 +12,7 @@ import {
     mergeDisabledReason,
     mergeRunning,
     mergeWaitingText,
+    queuesOnClick,
     sheetRecord,
     validateErrorText,
 } from "./review-merge";
@@ -85,6 +86,21 @@ describe("Validate's plan sheet", () => {
         expect(mergeWaitingText(rules, null)).toBe("");
         expect(mergeDisabledReason(rules, false, null)).toMatch(/a required check or review is missing/);
         expect(mergeWaitingText(plan(), null)).toBe("");
+    });
+
+    // FR-REV-026 AC1, AC10: checks running and none failing, Validate puts the PR in the merge queue, unless the
+    // setting keeps it blocked.
+    it("validates while CI runs, or names the setting that keeps it blocked", () => {
+        const running = { id: "ci", state: "pending" as const, code: "running", count: 2, names: ["build", "lint"] };
+        const queueable = plan({ canmerge: false, canqueue: true, blocking: "ci", checks: [running] });
+        expect(queuesOnClick(queueable)).toBe(true);
+        expect(canClickMerge(queueable, false, null)).toBe(true);
+        expect(mergeButtonLabel(queueable, "rebase")).toBe("Validate — merges when CI is green");
+        expect(queuesOnClick(plan())).toBe(false);
+        expect(canClickMerge({ ...queueable, warnings: ["comments"] }, false, null)).toBe(false);
+        const greenOnly = plan({ canmerge: false, greenonly: true, blocking: "ci", checks: [running] });
+        expect(canClickMerge(greenOnly, false, null)).toBe(false);
+        expect(mergeDisabledReason(greenOnly, false, null)).toContain("Validate only once CI is green");
     });
 
     it("never offers a second merge while one runs", () => {

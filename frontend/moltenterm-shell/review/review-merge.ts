@@ -31,9 +31,16 @@ export function sheetRecord(record: ReviewMergeRecord, planid: string): ReviewMe
     return null;
 }
 
-// Merge is clickable when the plan allows it, its warnings are confirmed and no merge of the PR is running (AC4).
+// queuesOnClick: the plan waits only for the CI, so the click validates the PR into the merge queue, which merges it
+// once green (FR-REV-026), instead of merging now.
+export function queuesOnClick(plan: ReviewMergePlan): boolean {
+    return plan != null && !plan.canmerge && !!plan.canqueue;
+}
+
+// Merge is clickable when the plan allows it (now, or once the CI is green), its warnings are confirmed and no merge of
+// the PR is running (AC4).
 export function canClickMerge(plan: ReviewMergePlan, override: boolean, record: ReviewMergeRecord): boolean {
-    if (plan == null || !plan.canmerge || mergeRunning(record)) {
+    if (plan == null || !(plan.canmerge || plan.canqueue) || mergeRunning(record)) {
         return false;
     }
     return (plan.warnings ?? []).length === 0 || override;
@@ -47,7 +54,10 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
     if (mergeRunning(record)) {
         return t("review.merge.running");
     }
-    if (!plan.canmerge) {
+    if (!plan.canmerge && !plan.canqueue) {
+        if (plan.greenonly) {
+            return t("review.validate.greenOnly");
+        }
         return blockingText(
             t,
             plan.checks.find((c) => c.id === plan.blocking)
@@ -86,6 +96,9 @@ export function chosenMethod(plan: ReviewMergePlan, picked: ReviewMergeMethod): 
 }
 
 export function mergeButtonLabel(plan: ReviewMergePlan, method: ReviewMergeMethod): string {
+    if (queuesOnClick(plan)) {
+        return t("review.merge.button.whenGreen");
+    }
     if (plan?.queue) {
         return t("review.merge.button.queue");
     }
