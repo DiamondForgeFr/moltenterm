@@ -4894,7 +4894,7 @@
             "briefNewHead": "Brief the new head",
             "askAgain": "Ask again",
             "starting": "Starting your agent in the PR's worktree…",
-            "running": "{agent} reviews this PR, read-only, in the terminal under this panel.",
+            "running": "{agent} reviews this PR, read-only, in its own terminal. Its options are in this panel's menu.",
             "toolsConnect": "Its review tools connect when it starts.",
             "showTerminal": "Show its terminal",
             "startFailed": "The review session could not start.",

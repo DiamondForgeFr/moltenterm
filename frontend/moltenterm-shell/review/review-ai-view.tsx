@@ -104,7 +104,11 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
     const t = useT();
     const ai = useAtomValue(review.aiAtom);
     const worktree = useAtomValue(review.worktreeAtom);
-    const focusTerminal = () => review.showSessionTerminal();
+    // The click must not reach the AI panel's block, which would take the focus back from the terminal just laid out.
+    const focusTerminal = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        review.showSessionTerminal();
+    };
     return (
         <div
             className="molten-review-ai flex h-full min-h-0 w-full flex-col gap-3 overflow-auto p-3 text-12"
@@ -264,7 +268,7 @@ function AiStatus({
 }: {
     ai: ReviewAiState;
     onRetry: () => void;
-    onShowTerminal: () => void;
+    onShowTerminal: (e: React.MouseEvent) => void;
     onStartWith: (agent: string) => void;
 }) {
     const t = useT();
