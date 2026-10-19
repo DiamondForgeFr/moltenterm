@@ -229,6 +229,8 @@ var settings = []Setting{
 	{Key: "review:publishlanguage", Section: SectionAgents, Group: "Code review", Label: "Publication language", Description: "Language of review comments on GitHub when the project names none; empty: from its PRs and README.", Control: ControlText},
 	// Agents, Code review (#847).
 	{Key: "review:reviewername", Section: SectionAgents, Group: "Code review", Label: "Your first name", Description: "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.", Control: ControlText},
+	// Agents, Code review (FR-REV-026 AC10, #912).
+	{Key: "review:validategreenonly", Section: SectionAgents, Group: "Code review", Label: "Validate only once CI is green", Description: "Off: a PR whose checks still run can be validated; the merge queue merges it once green.", Control: ControlToggle},
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.

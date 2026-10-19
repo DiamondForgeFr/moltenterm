@@ -589,7 +589,11 @@
             "moltenterm:terminalscreenreader": {
                 "label": "Screen reader support",
                 "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
-                "options": { "auto": "Automatic", "on": "On", "off": "Off" }
+                "options": {
+                    "auto": "Automatic",
+                    "on": "On",
+                    "off": "Off"
+                }
             },
             "term:transparency": {
                 "label": "Transparency",
@@ -999,6 +1003,10 @@
             "review:reviewername": {
                 "label": "Your first name",
                 "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name."
+            },
+            "review:validategreenonly": {
+                "label": "Validate only once CI is green",
+                "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green."
             }
         },
         "title": "Settings",
@@ -5718,8 +5726,8 @@
         },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
-            "batchrunning": "A batch merge already runs in this project.",
-            "batchgone": "This batch merge no longer runs.",
+            "batchrunning": "The merge queue of this project is being cancelled; try again in a moment.",
+            "batchgone": "This merge queue no longer runs.",
             "batchnotstopped": "The batch merge is not waiting for a decision.",
             "basemissing": "The base branch {branch} was not found in the project or on origin.",
             "mergebase": "The merge base of {branch} and the pull request's head could not be read: {detail}",
@@ -5782,7 +5790,11 @@
             "questiongone": "This question is no longer waiting: it was sent or removed.",
             "readpr": "The pull request could not be read on GitHub: {detail}",
             "headnotcommit": "The head {head} is not a commit id.",
-            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}."
+            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}.",
+            "queue": {
+                "merging": "#{number} is being merged already.",
+                "notqueued": "#{number} is not in the merge queue."
+            }
         },
         "handoff": {
             "notwaiting": "This handoff request is no longer waiting.",
@@ -6082,8 +6094,8 @@
                     "goTo": "Go to the terminal",
                     "stoppedTitle": "The batch merge stopped on #{number}",
                     "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
-                    "doneTitle": "Batch merge: {merged} of {total} PRs merged",
-                    "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
+                    "doneTitle": "Merge queue: {merged} of {total} PRs merged",
+                    "cancelledTitle": "Merge queue cancelled: {merged} of {total} PRs merged",
                     "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
                     "trunkUpdated": " Local {branch} updated: +{count} commits.",
                     "trunkUpdatedOne": " Local {branch} updated: +1 commit.",
@@ -6120,7 +6132,9 @@
                         "cancelled": "cancelled",
                         "interrupted": "MoltenTerm restarted",
                         "notreached": "not reached",
-                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
+                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer",
+                        "pushed": "pushed after your validation",
+                        "withdrawn": "validation cancelled"
                     }
                 },
                 "trunk": {
@@ -6136,6 +6150,18 @@
                         "inprogress": "a rebase, merge, cherry-pick or bisect is in progress in {path}",
                         "failed": "git failed: {detail}"
                     }
+                },
+                "queue": {
+                    "investigate": "Investigate and fix",
+                    "failedTitle": "#{number} validated but CI failed: {names}",
+                    "failed": "It is not merged while a check fails. It merges once its checks pass on the same commit; a new push needs a new validation.",
+                    "stoppedTitle": "#{number} needs you: the merge queue stopped on it",
+                    "stopped": "Reason: {reason}. The other validated pull requests go on; validate it again once it is sorted out.",
+                    "voidedTitle": "#{number} changed after your validation",
+                    "voided": "Someone pushed {head} on it: it left the merge queue and is back to review. Review the new commits and validate it again.",
+                    "mergedTitle": "#{number} merged (validated at {time})",
+                    "merged": "The merge queue merged it into {base}.",
+                    "resumedTitle": "The merge queue of {base} resumed: {count} validated PRs"
                 }
             }
         },

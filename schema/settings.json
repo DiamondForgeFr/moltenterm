@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 109
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 124
+            "order": 125
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 110
           }
         },
         "term:fontsize": {
@@ -605,6 +605,18 @@
             "order": 104
           }
         },
+        "review:validategreenonly": {
+          "type": "boolean",
+          "description": "Validate a pull request only once its CI is green; off (the default), a pull request whose checks still run can be validated and the merge queue merges it once green",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Code review",
+            "label": "Validate only once CI is green",
+            "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green.",
+            "control": "toggle",
+            "order": 105
+          }
+        },
         "app:language": {
           "type": "string",
           "description": "The interface language: system (the OS preferred languages, the default), en, fr or an installed language",
@@ -616,7 +628,7 @@
             "control": "select",
             "optionsfrom": "languages",
             "unsetlabel": "Same as the system",
-            "order": 105
+            "order": 106
           }
         },
         "companion:usagegauges": {
@@ -772,7 +784,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 111
           }
         },
         "web:openlinksinternally": {
@@ -929,35 +941,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 112
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 118
+            "order": 119
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 119
+            "order": 120
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 120
+            "order": 121
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 121
+            "order": 122
           }
         },
         "markdown:fontsize": {
@@ -1325,7 +1337,7 @@
                 "label": "Off"
               }
             ],
-            "order": 107
+            "order": 108
           }
         },
         "moltenterm:codingagent": {
@@ -1352,28 +1364,28 @@
               }
             ],
             "unsetlabel": "The first installed",
-            "order": 106
+            "order": 107
           }
         },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 113
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 123
+            "order": 124
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 114
           }
         },
         "window:fullscreenonlaunch": {
@@ -1655,21 +1667,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 115
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 122
+            "order": 123
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 116
           }
         },
         "conn:askbeforewshinstall": {
@@ -1712,7 +1724,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 117
           }
         },
         "debug:pprofport": {
@@ -1765,7 +1777,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 117
+            "order": 118
           }
         },
         "tsunami:scaffoldpath": {

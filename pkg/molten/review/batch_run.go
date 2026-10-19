@@ -15,9 +15,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 )
 
-// The run's state machine (DS-REV-017): each PR in the order the modal showed goes queued → checking → (rebasing by the
-// agent → waiting for its checks) → merging → merged, or stops the run, or is skipped. Every step starts from a fresh
-// read of the PR on GitHub, so the run follows what really happened (a PR merged elsewhere, a push, a base that moved).
+// The queue's state machine (DS-REV-017): the first PR waiting, in the suggested order, goes queued → checking →
+// (rebasing by the agent → waiting for its checks) → merging → merged; a failing check sets it aside (failed, watched on
+// its head), another stop takes it out of the queue for the developer, a push the queue did not make voids it. Every
+// step starts from a fresh read of the PR on GitHub, so the queue follows what really happened (a PR merged elsewhere, a
+// push, a base that moved).
 
 const (
 	batchMerged = iota
@@ -26,9 +28,11 @@ const (
 	batchCancelled
 	// batchAgain: read the PR again (the head or the base moved under the merge).
 	batchAgain
+	// batchVoided: a push the queue did not make; the validation no longer holds.
+	batchVoided
 )
 
-// batchStop is why a PR stops the run (or is skipped): a reason and its data.
+// batchStop is why a PR stops (or is skipped): a reason and its data.
 type batchStop struct {
 	reason string
 	names  []string
@@ -43,11 +47,18 @@ func (b *BatchRunner) cancelAsked(ctl *batchCtl) bool {
 	return ctl.run.CancelAsked
 }
 
+// stopAsked: the queue is cancelled, or the developer withdrew PR i.
+func (b *BatchRunner) stopAsked(ctl *batchCtl, i int) bool {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return ctl.run.CancelAsked || ctl.withdrawn[ctl.run.Items[i].Number]
+}
+
 func (b *BatchRunner) setItem(ctl *batchCtl, i int, fn func(item *BatchItem)) BatchRun {
 	return b.change(ctl, func(run *BatchRun) { fn(&run.Items[i]) })
 }
 
-// sleep waits d, false when the run was cancelled meanwhile.
+// sleep waits d, false when the wait was cancelled meanwhile.
 func (b *BatchRunner) sleep(ctx context.Context, d time.Duration) bool {
 	if ctx.Err() != nil {
 		return false
@@ -55,86 +66,147 @@ func (b *BatchRunner) sleep(ctx context.Context, d time.Duration) bool {
 	return b.env.Sleep(ctx, d)
 }
 
-func (b *BatchRunner) loop(ctx context.Context, ctl *batchCtl, tabName string) {
-	agent := &batchAgent{tabName: tabName}
-	ended := false
-	count := len(b.read(ctl).Items)
-	for i := 0; i < count && !ended; i++ {
+// next: the first PR waiting its turn, -1 when none; it becomes the current one.
+func (b *BatchRunner) next(ctl *batchCtl) int {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for i, it := range ctl.run.Items {
+		if it.State == BatchItemQueued {
+			return i
+		}
+	}
+	return -1
+}
+
+func (b *BatchRunner) hasFailed(ctl *batchCtl) bool {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for _, it := range ctl.run.Items {
+		if it.State == BatchItemFailed {
+			return true
+		}
+	}
+	return false
+}
+
+// tryFinish ends the queue when nothing waits in it any more, atomically with Add: a PR joining after that starts a
+// new queue.
+func (b *BatchRunner) tryFinish(ctl *batchCtl) bool {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	if !ctl.run.CancelAsked {
+		for _, it := range ctl.run.Items {
+			if itemOpen(it.State) {
+				return false
+			}
+		}
+	}
+	ctl.run.State = BatchDone
+	if ctl.run.CancelAsked {
+		ctl.run.State = BatchCancelled
+	}
+	return true
+}
+
+// idle waits for a PR to join, or for the next look at the failed ones.
+func (b *BatchRunner) idle(ctx context.Context, ctl *batchCtl) bool {
+	wctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-ctl.wake:
+			cancel()
+		case <-wctx.Done():
+		}
+	}()
+	b.env.Sleep(wctx, b.env.Every)
+	return ctx.Err() == nil
+}
+
+func (b *BatchRunner) loop(ctx context.Context, ctl *batchCtl) {
+	for {
 		if b.cancelAsked(ctl) {
 			break
 		}
-		b.change(ctl, func(run *BatchRun) {
-			run.Current = i
-			run.Items[i].StartedAt = b.env.Now().UnixMilli()
-		})
-		override := false
-		for {
-			out := b.process(ctx, ctl, agent, i, override)
-			if out == batchCancelled {
-				ended = true
+		b.recheckFailed(ctl)
+		i := b.next(ctl)
+		if i < 0 {
+			if !b.hasFailed(ctl) && b.tryFinish(ctl) {
 				break
 			}
-			if out != batchStopped {
+			if !b.idle(ctx, ctl) {
 				break
 			}
-			decision := b.pause(ctl, i)
-			b.resolveStopNotice(ctl)
-			if decision == BatchDecisionRetry || decision == BatchDecisionOverride {
-				override = decision == BatchDecisionOverride
-				b.change(ctl, func(run *BatchRun) {
-					if run.State == BatchPaused {
-						run.State = BatchRunning
-					}
-					it := &run.Items[i]
-					it.State, it.Reason, it.Names, it.Note, it.Detail, it.Code = BatchItemChecking, "", nil, "", "", ""
-				})
-				continue
-			}
-			b.change(ctl, func(run *BatchRun) {
-				if run.State == BatchPaused {
-					run.State = BatchRunning
-				}
-				it := &run.Items[i]
-				it.State, it.ByYou, it.EndedAt = BatchItemSkipped, true, b.env.Now().UnixMilli()
-			})
-			if decision != BatchDecisionSkip {
-				ended = true
-			}
-			break
+			continue
 		}
+		b.runItem(ctx, ctl, i)
 	}
-	b.finish(ctl, agent, ended)
+	b.finish(ctl)
 }
 
-// pause stops the run on PR i and waits for the developer's decision (a cancel ends it).
-func (b *BatchRunner) pause(ctl *batchCtl, i int) string {
-	// A decision left from before this stop (a cancel's) is not this stop's.
-	select {
-	case <-ctl.decide:
-	default:
-	}
-	if b.cancelAsked(ctl) {
-		return BatchDecisionEnd
-	}
-	// The notification goes first: a window that sees the run paused finds it there.
-	b.notifyStop(ctl, b.read(ctl), i)
+// runItem takes PR i through its turn.
+func (b *BatchRunner) runItem(ctx context.Context, ctl *batchCtl, i int) {
+	itemCtx, itemStop := context.WithCancel(ctx)
+	defer itemStop()
+	b.lock.Lock()
+	ctl.itemStop = itemStop
+	b.lock.Unlock()
 	b.change(ctl, func(run *BatchRun) {
-		if !run.CancelAsked {
-			run.State = BatchPaused
+		run.Current = i
+		run.Items[i].StartedAt = b.env.Now().UnixMilli()
+		run.Items[i].State = BatchItemChecking
+	})
+	out := b.process(itemCtx, ctl, i)
+	b.lock.Lock()
+	ctl.itemStop = nil
+	number := ctl.run.Items[i].Number
+	withdrawn := ctl.withdrawn[number]
+	delete(ctl.withdrawn, number)
+	preempted := ctl.preempt && !withdrawn && !ctl.run.CancelAsked
+	ctl.preempt = false
+	order := ctl.order
+	b.lock.Unlock()
+	b.change(ctl, func(run *BatchRun) {
+		run.Current = -1
+		it := &run.Items[i]
+		it.Waiting = false
+		if out == batchCancelled && preempted && !batchItemEnded(it.State) {
+			// A PR before it in the suggested order joined: it waits its turn again.
+			it.State = BatchItemQueued
+			reorder(run.Items, -1, order)
+			return
+		}
+		if out == batchCancelled && !batchItemEnded(it.State) {
+			it.State, it.Reason, it.EndedAt = BatchItemWithdrawn, BatchReasonCancelled, b.env.Now().UnixMilli()
+			if withdrawn {
+				it.Reason, it.ByYou = BatchReasonWithdrawn, true
+			}
 		}
 	})
-	if b.cancelAsked(ctl) {
-		return BatchDecisionEnd
+	run := b.read(ctl)
+	switch out {
+	case batchMerged:
+		b.notifyMerged(run, i)
+	case batchStopped:
+		b.notifyStop(run, i)
+	case batchVoided:
+		b.notifyVoided(run, i)
 	}
-	return <-ctl.decide
 }
 
 func (b *BatchRunner) stopItem(ctl *batchCtl, i int, stop batchStop) int {
+	state := BatchItemStopped
+	if stop.reason == BatchReasonFailing {
+		state = BatchItemFailed
+	}
 	b.setItem(ctl, i, func(it *BatchItem) {
-		it.State, it.Reason, it.Names, it.Note, it.Detail, it.Code = BatchItemStopped, stop.reason, stop.names, stop.note, stop.detail, stop.code
+		it.State, it.Reason, it.Names, it.Note, it.Detail, it.Code = state, stop.reason, stop.names, stop.note, stop.detail, stop.code
 		it.Waiting = false
+		if state == BatchItemStopped {
+			it.EndedAt = b.env.Now().UnixMilli()
+		}
 	})
-	log.Printf("%s batch: #%d stopped: %s %s%s\n", logPrefix, b.read(ctl).Items[i].Number, stop.reason, strings.Join(stop.names, ","), stop.detail)
+	log.Printf("%s queue: #%d %s: %s %s%s\n", logPrefix, b.read(ctl).Items[i].Number, state, stop.reason, strings.Join(stop.names, ","), stop.detail)
 	return batchStopped
 }
 
@@ -143,6 +215,79 @@ func (b *BatchRunner) skipItem(ctl *batchCtl, i int, reason string) int {
 		it.State, it.Reason, it.EndedAt = BatchItemSkipped, reason, b.env.Now().UnixMilli()
 	})
 	return batchSkipped
+}
+
+func (b *BatchRunner) voidItem(ctl *batchCtl, i int, head string) int {
+	b.setItem(ctl, i, func(it *BatchItem) {
+		it.State, it.Reason, it.Head, it.EndedAt = BatchItemVoided, BatchReasonPushed, head, b.env.Now().UnixMilli()
+	})
+	log.Printf("%s queue: #%d voided, pushed %s after the validation\n", logPrefix, b.read(ctl).Items[i].Number, shortHead(head))
+	return batchVoided
+}
+
+// ownHead tells whether head is the one the validation is bound to: the reviewed head, or one the queue pushed itself
+// (the agent's conflict rebase, GitHub's update of the branch by Validate's merge, as the review store recorded it).
+func (b *BatchRunner) ownHead(ctl *batchCtl, i int, k PrKey, head string) bool {
+	item := b.read(ctl).Items[i]
+	if item.Valid == "" || head == item.Valid {
+		return true
+	}
+	m := b.env.Merger
+	if m == nil || m.store == nil {
+		return false
+	}
+	state, err := m.store.Get(k)
+	if err != nil || state.Merge == nil {
+		return false
+	}
+	rec := state.Merge
+	if !rec.Updated || rec.PlanHead != item.Valid || rec.Head != head {
+		return false
+	}
+	b.setItem(ctl, i, func(it *BatchItem) { it.Valid = head })
+	return true
+}
+
+// recheckFailed looks again at the PRs set aside on a failing check: one whose checks were rerun on the same head (a
+// flaky job rerun by the agent, #896) comes back without a new validation; a push voids it; merged or closed elsewhere,
+// it leaves.
+func (b *BatchRunner) recheckFailed(ctl *batchCtl) {
+	run := b.read(ctl)
+	for i, it := range run.Items {
+		if it.State != BatchItemFailed || b.cancelAsked(ctl) {
+			continue
+		}
+		k := PrKey{Repo: run.Repo, Number: it.Number}
+		pr, err := b.viewPr(run.Dir, k)
+		if err != nil {
+			continue
+		}
+		switch strings.ToUpper(pr.State) {
+		case "MERGED":
+			b.skipItem(ctl, i, BatchReasonMergedAway)
+			b.resolvePrNotice(run, it.Number)
+			continue
+		case "CLOSED":
+			b.skipItem(ctl, i, BatchReasonClosed)
+			b.resolvePrNotice(run, it.Number)
+			continue
+		}
+		if !b.ownHead(ctl, i, k, pr.HeadRefOid) {
+			b.voidItem(ctl, i, pr.HeadRefOid)
+			b.resolvePrNotice(run, it.Number)
+			b.notifyVoided(b.read(ctl), i)
+			continue
+		}
+		ci, _ := mission.ParseReviewChecks(pr.StatusCheckRollup)
+		if len(namesIn(ci.Checks, mission.ReviewCheckFailure)) > 0 {
+			continue
+		}
+		b.setItem(ctl, i, func(it *BatchItem) {
+			it.State, it.Reason, it.Names = BatchItemQueued, "", nil
+		})
+		b.resolvePrNotice(run, it.Number)
+		log.Printf("%s queue: #%d back, its checks were rerun on the validated head\n", logPrefix, it.Number)
+	}
 }
 
 func (b *BatchRunner) viewPr(dir string, k PrKey) (ghMergePr, error) {
@@ -198,16 +343,17 @@ func missingChecks(expected []mission.ReviewCheck, checks []mission.ReviewCheck,
 }
 
 // process takes PR i to its merge, a stop or a skip. A PR that merges cleanly with green checks is merged at once; one
-// that conflicts goes to the agent, then waits for its checks on the rebased head; one whose checks fail stops the run.
-func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAgent, i int, override bool) int {
+// that conflicts goes to the agent, then waits for its checks on the rebased head; one whose checks fail is set aside.
+// The checks the developer chose to wait for have no time limit.
+func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, i int) int {
 	run := b.read(ctl)
 	item := run.Items[i]
 	k := PrKey{Repo: run.Repo, Number: item.Number}
-	var computingSince, waitingSince, rebasedAt time.Time
+	var computingSince, rebasedAt time.Time
 	var expected []mission.ReviewCheck
 	readErrors, blockedPolls, tries := 0, 0, 0
 	for {
-		if b.cancelAsked(ctl) {
+		if b.stopAsked(ctl, i) {
 			return batchCancelled
 		}
 		pr, err := b.viewPr(run.Dir, k)
@@ -237,6 +383,9 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 		if pr.IsDraft {
 			return b.stopItem(ctl, i, batchStop{reason: BatchReasonDraft})
 		}
+		if !b.ownHead(ctl, i, k, pr.HeadRefOid) {
+			return b.voidItem(ctl, i, pr.HeadRefOid)
+		}
 		ci, _ := mission.ParseReviewChecks(pr.StatusCheckRollup)
 		switch mission.ReviewConflictOf(pr.Mergeable, pr.MergeStateStatus) {
 		case mission.ReviewConflictComputing:
@@ -257,7 +406,7 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 			if len(ci.Checks) > 0 {
 				expected = ci.Checks
 			}
-			stop, out := b.rebase(ctl, agent, i, pr)
+			stop, out := b.rebase(ctl, i, pr)
 			if out == batchCancelled {
 				return batchCancelled
 			}
@@ -269,7 +418,6 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 				run.Items[i].CiRuns++
 				run.CiRuns++
 			})
-			waitingSince = time.Time{}
 			rebasedAt = b.env.Now()
 			continue
 		}
@@ -280,11 +428,6 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 		settled := b.env.Now().Sub(rebasedAt) >= b.env.ChecksSettle
 		if ci.Pending > 0 || len(missingChecks(expected, ci.Checks, settled)) > 0 {
 			b.setItem(ctl, i, func(it *BatchItem) { it.State = BatchItemWaitingChecks })
-			if waitingSince.IsZero() {
-				waitingSince = b.env.Now()
-			} else if b.env.Now().Sub(waitingSince) > b.ciLimit() {
-				return b.stopItem(ctl, i, batchStop{reason: BatchReasonCiTimeout, names: namesIn(ci.Checks, mission.ReviewCheckPending)})
-			}
 			if !b.sleep(ctx, b.env.Every) {
 				return batchCancelled
 			}
@@ -302,7 +445,7 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 			continue
 		}
 		blockedPolls = 0
-		out, stop := b.merge(ctl, i, k, pr, override)
+		out, stop := b.merge(ctl, i, k, pr)
 		if out != batchAgain {
 			if out == batchStopped {
 				return b.stopItem(ctl, i, stop)
@@ -319,28 +462,57 @@ func (b *BatchRunner) process(ctx context.Context, ctl *batchCtl, agent *batchAg
 	}
 }
 
-func (b *BatchRunner) ciLimit() time.Duration {
-	if b.env.Merger != nil && b.env.Merger.ciTimeout > 0 {
-		return b.env.Merger.ciTimeout
-	}
-	return defaultCiTimeout
-}
-
-// remaining: the PRs after i not merged or skipped yet; the cleanup after each merge leaves them to the batch.
+// remaining: the queue's other PRs not merged or out of it; the cleanup after each merge leaves them to the queue.
 func (b *BatchRunner) remaining(ctl *batchCtl, i int) []int {
 	run := b.read(ctl)
 	var rtn []int
-	for _, it := range run.Items[i+1:] {
-		if !batchItemEnded(it.State) {
+	for j, it := range run.Items {
+		if j != i && itemOpen(it.State) {
 			rtn = append(rtn, it.Number)
 		}
 	}
 	return rtn
 }
 
+// beginMerging: from here the PR can no longer be withdrawn; false when it was withdrawn first.
+func (b *BatchRunner) beginMerging(ctl *batchCtl, i int) bool {
+	b.pubLock.Lock()
+	defer b.pubLock.Unlock()
+	b.lock.Lock()
+	if ctl.run.CancelAsked || ctl.withdrawn[ctl.run.Items[i].Number] || ctl.preempt {
+		b.lock.Unlock()
+		return false
+	}
+	ctl.run.Items[i].State = BatchItemMerging
+	run := copyRun(ctl.run)
+	current := b.runs[ctl.key] == ctl
+	b.lock.Unlock()
+	if current {
+		b.publish(run)
+	}
+	return true
+}
+
+// covers: the developer confirmed every warning of the plan when they validated it.
+func covers(confirmed []string, warnings []string) bool {
+	for _, w := range warnings {
+		found := false
+		for _, c := range confirmed {
+			if c == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 // merge goes through Validate's path (FR-REV-012): a plan read fresh, then the merge bound to its head, with the
-// repository's method; its cleanup runs after it as after a manual merge.
-func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr, override bool) (int, batchStop) {
+// method validated; its cleanup runs after it as after a manual merge.
+func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr) (int, batchStop) {
 	m := b.env.Merger
 	if m == nil {
 		return batchStopped, batchStop{reason: BatchReasonMergeFailed, detail: "Validate is not available"}
@@ -363,21 +535,27 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr, overrid
 			return batchAgain, batchStop{}
 		case blocking.Id == CheckIdCi && blocking.State == CheckFail:
 			return batchStopped, batchStop{reason: BatchReasonFailing, names: blocking.Names}
-		case blocking.Id == CheckIdBlocked:
+		case blocking.Id == CheckIdBlocked && blocking.State == CheckFail:
 			return batchStopped, batchStop{reason: BatchReasonBlocked}
 		case blocking.Id == CheckIdOpen && blocking.Code == CheckCodeDraft:
 			return batchStopped, batchStop{reason: BatchReasonDraft}
 		}
 		return batchAgain, batchStop{reason: BatchReasonMergeFailed, code: blocking.Code}
 	}
+	override := len(plan.Warnings) > 0 && covers(item.Overridden, plan.Warnings)
 	if len(plan.Warnings) > 0 && !override {
 		return batchStopped, batchStop{reason: BatchReasonWarnings, names: plan.Warnings}
 	}
-	method := run.Method
+	method := item.Method
+	if method == "" {
+		method = run.Method
+	}
 	if !hasMethod(plan.Methods, method) {
 		method = ""
 	}
-	b.setItem(ctl, i, func(it *BatchItem) { it.State = BatchItemMerging })
+	if !b.beginMerging(ctl, i) {
+		return batchCancelled, batchStop{}
+	}
 	if _, err := m.Merge(MergeRequest{PrKey: k, PlanId: plan.Id, Override: override, Method: method, Batch: b.remaining(ctl, i)}); err != nil {
 		return batchStopped, batchStop{reason: BatchReasonMergeFailed, detail: err.Error()}
 	}
@@ -386,6 +564,10 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr, overrid
 		b.change(ctl, func(run *BatchRun) {
 			run.Items[i].CiRuns++
 			run.CiRuns++
+			// GitHub's update of the branch is the queue's own push.
+			if final.Head != "" && final.PlanHead == run.Items[i].Valid {
+				run.Items[i].Valid = final.Head
+			}
 		})
 	}
 	switch final.State {
@@ -403,12 +585,14 @@ func (b *BatchRunner) merge(ctl *batchCtl, i int, k PrKey, pr ghMergePr, overrid
 		if final.Refused == RefusedCheck && final.Blocking != nil && final.Blocking.Id == CheckIdCi && final.Blocking.State == CheckFail {
 			return batchStopped, batchStop{reason: BatchReasonFailing, names: final.Blocking.Names}
 		}
+		b.setItem(ctl, i, func(it *BatchItem) { it.State = BatchItemChecking })
 		return batchAgain, batchStop{reason: BatchReasonMergeFailed, code: final.Code}
 	}
 	switch final.Code {
 	case MergeCodeCiFailed:
 		return batchStopped, batchStop{reason: BatchReasonFailing, names: final.Names}
 	case MergeCodeConflict:
+		b.setItem(ctl, i, func(it *BatchItem) { it.State = BatchItemChecking })
 		return batchAgain, batchStop{reason: BatchReasonConflict}
 	case MergeCodeCiTimeout:
 		return batchStopped, batchStop{reason: BatchReasonCiTimeout}
@@ -446,38 +630,28 @@ func (b *BatchRunner) waitMerge(ctl *batchCtl, k PrKey) MergeRecord {
 	}
 }
 
-// finish ends the run: the PRs not reached are skipped, the agent's terminal and worktree go when nothing would be
-// lost, and a notification sums it up.
-func (b *BatchRunner) finish(ctl *batchCtl, agent *batchAgent, ended bool) {
-	b.cleanAgent(ctl, agent)
+// finish ends the queue: the PRs still in it are withdrawn (a cancel), the agent's terminal and worktree go when
+// nothing would be lost, and a queue of several PRs sums up by notification.
+func (b *BatchRunner) finish(ctl *batchCtl) {
+	b.cleanAgent(ctl, ctl.agent)
+	b.tryFinish(ctl)
 	run := b.change(ctl, func(run *BatchRun) {
-		cancelled := run.CancelAsked || ended
 		for i := range run.Items {
 			it := &run.Items[i]
 			if batchItemEnded(it.State) {
 				continue
 			}
-			switch {
-			case it.State == BatchItemStopped:
-				it.State = BatchItemSkipped
-			case it.State == BatchItemQueued:
-				it.State, it.Reason = BatchItemSkipped, BatchReasonNotReached
-			default:
-				it.State, it.Reason = BatchItemSkipped, BatchReasonCancelled
-			}
+			it.State, it.Reason = BatchItemWithdrawn, BatchReasonCancelled
 			it.Waiting = false
-			if it.EndedAt == 0 && it.StartedAt != 0 {
+			if it.EndedAt == 0 {
 				it.EndedAt = b.env.Now().UnixMilli()
 			}
-		}
-		run.State = BatchDone
-		if cancelled {
-			run.State = BatchCancelled
 		}
 		run.Current = -1
 		run.EndedAt = b.env.Now().UnixMilli()
 	})
-	b.resolveStopNotice(ctl)
-	b.notifyEnd(run)
-	log.Printf("%s batch %s: %s, %d CI runs redone\n", logPrefix, run.Id, run.State, run.CiRuns)
+	if len(run.Items) > 1 || run.State == BatchCancelled {
+		b.notifyEnd(run)
+	}
+	log.Printf("%s queue %s: %s, %d CI runs redone\n", logPrefix, run.Id, run.State, run.CiRuns)
 }
