@@ -3,7 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ReviewsRailBadges } from "./reviews-rail-badge";
+import { draftsBadge, ReviewsRailBadges } from "./reviews-rail-badge";
 
 function badges(html: string): { toreview: string; mergeable: string } {
     const read = (cls: string) => new RegExp(`${cls}[^"]*"[^>]*>([^<]*)<`).exec(html)?.[1] ?? null;
@@ -61,7 +61,7 @@ describe("ReviewsRailBadges (#688 AC4, #775)", () => {
         const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 2, mergeable: 1, drafts: 3 }} />);
         expect(drafts(html)).toBe("3");
         expect(badges(html)).toEqual({ toreview: "2", mergeable: "1" });
-        expect(html).toMatch(/molten-reviews-drafts[^"]*bottom-0[^"]*left-0[^"]*bg-muted/);
+        expect(html).toMatch(/molten-reviews-drafts left-0 bg-muted[^"]*bottom-0/);
         expect(html).toMatch(/class="[^"]*ring-2[^"]*molten-reviews-drafts/);
         expect(html).not.toMatch(/molten-reviews-drafts[^"]*right-0/);
         expect(html).toMatch(/molten-reviews-toreview[^"]*right-0/);
@@ -76,5 +76,26 @@ describe("ReviewsRailBadges (#688 AC4, #775)", () => {
         expect(
             drafts(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 4, mergeable: 2, drafts: 0 }} />))
         ).toBe(null);
+    });
+
+    it("keeps the drafts badge clear of the two others whatever the counts (#934)", () => {
+        const at = (toreview: number, mergeable: number, drafts: number) =>
+            draftsBadge({ toreview, mergeable, drafts });
+        expect(at(0, 0, 0)).toBe(null);
+        expect(at(5, 4, 3)).toEqual({ text: "3", top: false, dot: false });
+        expect(at(5, 4, 12)).toEqual({ text: "12", top: false, dot: false });
+        expect(at(0, 0, 140)).toEqual({ text: "99+", top: false, dot: false });
+        // Two wide counts on the bottom row: the drafts move up beside a narrow count to review.
+        expect(at(2, 11, 14)).toEqual({ text: "14", top: true, dot: false });
+        expect(at(0, 4, 140)).toEqual({ text: "99+", top: true, dot: false });
+        expect(at(3, 4, 140)).toEqual({ text: "9+", top: false, dot: false });
+        expect(at(12, 15, 7)).toEqual({ text: "7", top: false, dot: false });
+        expect(at(12, 15, 40)).toEqual({ text: "", top: false, dot: true });
+        expect(at(120, 150, 3)).toEqual({ text: "", top: false, dot: true });
+        const html = renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 120, mergeable: 150, drafts: 3 }} />);
+        expect(html).toMatch(/class="[^"]*molten-reviews-drafts[^"]*bottom-0[^"]*h-2 w-2 min-w-0 p-0"[^>]*><\/span>/);
+        expect(renderToStaticMarkup(<ReviewsRailBadges counts={{ toreview: 2, mergeable: 11, drafts: 14 }} />)).toMatch(
+            /molten-reviews-drafts[^"]*top-0[^"]*"[^>]*>14</
+        );
     });
 });
