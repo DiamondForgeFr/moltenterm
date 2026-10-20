@@ -33,6 +33,7 @@ type fakeEnv struct {
 	resolved []string
 	dataDir  string
 	onNotify func(input molten.NotificationInput)
+	handoffs [][2]string
 }
 
 func (e *fakeEnv) VerifyToken(token string) (string, error) {
@@ -122,6 +123,18 @@ func (e *fakeEnv) ResolveNotification(key string) {
 
 func (e *fakeEnv) DataDir() string {
 	return e.dataDir
+}
+
+func (e *fakeEnv) RecordHandoff(ctx context.Context, fromBlockId string, toBlockId string) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e.handoffs = append(e.handoffs, [2]string{fromBlockId, toBlockId})
+}
+
+func (e *fakeEnv) recordedHandoffs() [][2]string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([][2]string(nil), e.handoffs...)
 }
 
 // Camille in project A (workspace "A"), Jérôme in project B (workspace "B"), Léa remote.
@@ -246,6 +259,10 @@ func TestFirstSendAsksThenAlwaysIsRemembered(t *testing.T) {
 	if !strings.HasPrefix(res.BriefPath, env.dataDir) || within(res.BriefPath, projA) || within(res.BriefPath, projB) {
 		t.Fatalf("brief path: %s", res.BriefPath)
 	}
+	// The Sessions table nests the receiver under the sender (#933).
+	if got := env.recordedHandoffs(); len(got) != 1 || got[0] != [2]string{"blockA", "blockB"} {
+		t.Fatalf("recorded handoffs: %v", got)
+	}
 	// Always holds for the pair, in both directions.
 	env.onNotify = nil
 	if _, err := m.Send(context.Background(), SendRequest{Token: "tokB", To: "Camille", Brief: Brief{Goal: "Done"}}); err != nil {
@@ -267,6 +284,9 @@ func TestBlockAndNoAnswer(t *testing.T) {
 	}
 	if len(env.typedLines()) != 0 {
 		t.Fatal("nothing may be typed for a blocked pair")
+	}
+	if len(env.recordedHandoffs()) != 0 {
+		t.Fatal("a blocked handoff links no sessions")
 	}
 }
 

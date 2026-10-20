@@ -65,6 +65,8 @@ type Snapshot struct {
 	Procs map[string]ProcInfo
 	// By folder asked (a worktree link, a shell's folder): the linked worktree it is in, nil when none.
 	Worktrees map[string]*molten.SessionWorktree
+	// Context answers what a session works on from caches (#933); nil knows nothing beyond the origin.
+	Context func(q molten.SessionContextQuery) *molten.SessionContext
 }
 
 type pane struct {
@@ -235,6 +237,7 @@ func fillShown(s *Snapshot, job *waveobj.Job, p pane, ds *molten.DurableSession)
 		ds.AgentName = info.AgentName
 		ds.AgentState = info.State
 	}
+	fillIdentity(s, p.block, ds)
 	rt := s.RTInfo[p.block.OID]
 	if rt != nil && rt.ShellState == shellStateRunning && rt.ShellLastCmd != "" {
 		ds.Command = rt.ShellLastCmd
@@ -287,6 +290,7 @@ func Join(s *Snapshot) molten.DurableSessionsData {
 		}
 		rtn.Sessions = append(rtn.Sessions, ds)
 	}
+	linkParents(s, rtn.Sessions)
 	sort.SliceStable(rtn.Sessions, func(i, j int) bool {
 		a, b := rtn.Sessions[i], rtn.Sessions[j]
 		if a.WorkspaceOrder != b.WorkspaceOrder {

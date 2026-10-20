@@ -80,6 +80,9 @@ type Env interface {
 	Notify(input molten.NotificationInput)
 	ResolveNotification(key string)
 	DataDir() string
+	// RecordHandoff keeps on the receiver's terminal the first terminal that handed it work, which the Sessions table
+	// nests it under (FR-SHELL-058, #933).
+	RecordHandoff(ctx context.Context, fromBlockId string, toBlockId string)
 }
 
 // pendingAnswer is a request waiting for the developer. late: the sender stopped waiting, so the answer, whenever it
@@ -404,6 +407,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 		return SendResult{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
 	}
 	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now()}
+	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
 	return m.deliver(ctx, d)
 }
 

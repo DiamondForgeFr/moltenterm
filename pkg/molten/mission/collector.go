@@ -612,6 +612,8 @@ func Start() {
 		go groups.Refreshed()
 		go reviews.Refreshed(snap)
 	})
+	// The sessions list reads its PRs from this cache (#933).
+	useSessionCollector(collector)
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
 	runs := MakeRuns(RunsDir(dataDir), trust, func(rec RunRecord) {
 		publishRun(rec)

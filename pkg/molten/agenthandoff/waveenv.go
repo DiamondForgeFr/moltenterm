@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -140,4 +141,28 @@ func (waveEnv) ResolveNotification(key string) {
 
 func (waveEnv) DataDir() string {
 	return wavebase.GetWaveDataDir()
+}
+
+// RecordHandoff sets the receiver's parent once: a session that later gets work from others stays under the first.
+func (waveEnv) RecordHandoff(ctx context.Context, fromBlockId string, toBlockId string) {
+	if fromBlockId == "" || toBlockId == "" || fromBlockId == toBlockId {
+		return
+	}
+	block, err := wstore.DBGet[*waveobj.Block](ctx, toBlockId)
+	if err != nil || block == nil || block.Meta.GetString(molten.HandedByMetaKey, "") != "" {
+		return
+	}
+	oref := waveobj.MakeORef(waveobj.OType_Block, toBlockId)
+	if err := wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{molten.HandedByMetaKey: fromBlockId}, false); err != nil {
+		log.Printf("molten: handoff parent not kept: %v\n", err)
+		return
+	}
+	// The update event wcore sends (wcore imports this package): the sessions list rebuilds on it.
+	if updated, err := wstore.DBGet[*waveobj.Block](ctx, toBlockId); err == nil && updated != nil {
+		wps.Broker.Publish(wps.WaveEvent{
+			Event:  wps.Event_WaveObjUpdate,
+			Scopes: []string{oref.String()},
+			Data:   waveobj.WaveObjUpdate{UpdateType: waveobj.UpdateType_Update, OType: waveobj.OType_Block, OID: toBlockId, Obj: updated},
+		})
+	}
 }
