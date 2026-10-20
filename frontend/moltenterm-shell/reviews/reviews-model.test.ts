@@ -321,16 +321,16 @@ describe("reviews model", () => {
             ],
             drafts: [pr(3, { draft: true }), pr(4, { draft: true })],
         });
-        expect(reviewCounts(a)).toEqual({ toreview: 4, mergeable: 1 });
-        // A draft marked ready here counts at once (#687), mergeable when GitHub found it clean.
-        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 2000 })).toEqual({ toreview: 4, mergeable: 2 });
-        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 500 })).toEqual({ toreview: 4, mergeable: 1 });
+        expect(reviewCounts(a)).toEqual({ toreview: 4, mergeable: 1, drafts: 2 });
+        // A draft marked ready here counts at once (#687), mergeable when GitHub found it clean, and leaves the drafts.
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 2000 })).toEqual({ toreview: 4, mergeable: 2, drafts: 1 });
+        expect(reviewCounts(a, { [rebaseAskKey("/p", 3)]: 500 })).toEqual({ toreview: 4, mergeable: 1, drafts: 2 });
         expect(mergeableNow(pr(9))).toBe(true);
         expect(mergeableNow(pr(9, { draft: true }))).toBe(false);
         for (const state of ["nogh", "loggedout", "norepo", "error", ""] as const) {
-            expect(reviewCounts(answer({ state }))).toEqual({ toreview: 0, mergeable: 0 });
+            expect(reviewCounts(answer({ state }))).toEqual({ toreview: 0, mergeable: 0, drafts: 0 });
         }
-        expect(reviewCounts(null)).toEqual({ toreview: 0, mergeable: 0 });
+        expect(reviewCounts(null)).toEqual({ toreview: 0, mergeable: 0, drafts: 0 });
     });
 
     it("splits the PRs waiting for review into two counts that add up to them (#775 AC1, AC2)", () => {
@@ -341,18 +341,37 @@ describe("reviews model", () => {
                     i < mergeable ? pr(i + 1) : pr(i + 1, i % 2 ? { merge: "conflicts" } : { ci: failing })
                 ),
             });
-        expect(reviewCounts(waiting(9, 4))).toEqual({ toreview: 5, mergeable: 4 });
-        expect(reviewCounts(waiting(13, 11))).toEqual({ toreview: 2, mergeable: 11 });
-        expect(reviewCounts(waiting(4, 4))).toEqual({ toreview: 0, mergeable: 4 });
+        expect(reviewCounts(waiting(9, 4))).toEqual({ toreview: 5, mergeable: 4, drafts: 1 });
+        expect(reviewCounts(waiting(13, 11))).toEqual({ toreview: 2, mergeable: 11, drafts: 1 });
+        expect(reviewCounts(waiting(4, 4))).toEqual({ toreview: 0, mergeable: 4, drafts: 1 });
     });
 
     it("words the rail's counts with plurals and shows real numbers up to 99 (#688 AC1, #775 AC2, AC3)", () => {
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 0 })).toBe("Reviews · pull requests waiting for your review");
-        expect(reviewsRailLabel({ toreview: 5, mergeable: 4 })).toBe("Reviews — 5 to review, 4 ready to merge");
-        expect(reviewsRailLabel({ toreview: 1, mergeable: 0 })).toBe("Reviews — 1 to review");
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 1 })).toBe("Reviews — 1 ready to merge");
-        expect(reviewsRailLabel({ toreview: 2, mergeable: 11 })).toBe("Reviews — 2 to review, 11 ready to merge");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 0 })).toBe(
+            "Reviews · pull requests waiting for your review"
+        );
+        expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
+            "Reviews — 5 to review, 4 ready to merge"
+        );
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 0 })).toBe("Reviews — 1 to review");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 1, drafts: 0 })).toBe("Reviews — 1 ready to merge");
+        expect(reviewsRailLabel({ toreview: 2, mergeable: 11, drafts: 0 })).toBe(
+            "Reviews — 2 to review, 11 ready to merge"
+        );
         expect(railCountText(1)).toBe("1");
+        expect(railCountText(150)).toBe("99+");
+    });
+
+    it("counts the open drafts and adds them to the rail's label (#934)", () => {
+        const drafts = (n: number) =>
+            answer({ ready: [], drafts: Array.from({ length: n }, (_, i) => pr(i + 1, { draft: true })) });
+        expect(reviewCounts(drafts(3))).toEqual({ toreview: 0, mergeable: 0, drafts: 3 });
+        expect(reviewCounts({ ...drafts(3), state: "error" })).toEqual({ toreview: 0, mergeable: 0, drafts: 0 });
+        expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
+            "Reviews — 2 to review, 1 ready to merge, 3 drafts"
+        );
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Reviews — 1 draft");
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 12 })).toBe("Reviews — 1 to review, 12 drafts");
         expect(railCountText(11)).toBe("11");
         expect(railCountText(99)).toBe("99");
         expect(railCountText(100)).toBe("99+");
@@ -363,9 +382,17 @@ describe("reviews model", () => {
         afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
 
         it("words the rail's counts (#775 AC3)", () => {
-            expect(reviewsRailLabel({ toreview: 5, mergeable: 4 })).toBe("Revues — 5 à relire, 4 prêtes à fusionner");
-            expect(reviewsRailLabel({ toreview: 1, mergeable: 1 })).toBe("Revues — 1 à relire, 1 prête à fusionner");
-            expect(reviewsRailLabel({ toreview: 0, mergeable: 11 })).toBe("Revues — 11 prêtes à fusionner");
+            expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
+                "Revues — 5 à relire, 4 prêtes à fusionner"
+            );
+            expect(reviewsRailLabel({ toreview: 1, mergeable: 1, drafts: 0 })).toBe(
+                "Revues — 1 à relire, 1 prête à fusionner"
+            );
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 11, drafts: 0 })).toBe("Revues — 11 prêtes à fusionner");
+            expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
+                "Revues — 2 à relire, 1 prête à fusionner, 3 brouillons"
+            );
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Revues — 1 brouillon");
         });
 
         it("names a failed check and why the merge is blocked (#797)", () => {

@@ -3733,6 +3733,10 @@
                 "mergeable": {
                     "one": "1 ready to merge",
                     "other": "{count} ready to merge"
+                },
+                "drafts": {
+                    "one": "1 draft",
+                    "other": "{count} drafts"
                 }
             },
             "moreWidgets": "{count} more widgets",
