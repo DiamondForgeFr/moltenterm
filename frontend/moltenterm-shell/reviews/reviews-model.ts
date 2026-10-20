@@ -534,7 +534,7 @@ export function splitReviews(answer: ReviewsAnswer, readied?: ReadiedPrs): Revie
     };
 }
 
-export type ReviewCounts = { toreview: number; mergeable: number };
+export type ReviewCounts = { toreview: number; mergeable: number; drafts: number };
 
 // mergeableNow: GitHub says the PR merges cleanly (#683) and no check fails or still runs.
 export function mergeableNow(pr: ReviewPr): boolean {
@@ -546,15 +546,15 @@ export function mergeableNow(pr: ReviewPr): boolean {
 }
 
 // The rail's counts (#688, #775): the PRs waiting for review (the list's ready group) split in two disjoint sets that
-// add up to them, those that cannot merge yet and those that can merge now. Nothing while GitHub could not be read:
-// no badge then.
+// add up to them, those that cannot merge yet and those that can merge now; and the open drafts, the list's drafts
+// group (#934). Nothing while GitHub could not be read: no badge then.
 export function reviewCounts(answer: ReviewsAnswer, readied?: ReadiedPrs): ReviewCounts {
     if (answer?.state !== "ok") {
-        return { toreview: 0, mergeable: 0 };
+        return { toreview: 0, mergeable: 0, drafts: 0 };
     }
-    const ready = splitReviews(answer, readied).ready;
-    const mergeable = ready.filter(mergeableNow).length;
-    return { toreview: ready.length - mergeable, mergeable };
+    const split = splitReviews(answer, readied);
+    const mergeable = split.ready.filter(mergeableNow).length;
+    return { toreview: split.ready.length - mergeable, mergeable, drafts: split.drafts.length };
 }
 
 export function railCountText(count: number): string {
@@ -565,9 +565,10 @@ function plural(n: number, key: string): string {
     return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
-// The Reviews icon's tooltip and accessible name: "Reviews — 5 to review, 4 ready to merge".
+// The Reviews icon's tooltip and accessible name: "Reviews — 5 to review, 4 ready to merge, 3 drafts".
 export function reviewsRailLabel(counts: ReviewCounts): string {
-    if (counts == null || (counts.toreview === 0 && counts.mergeable === 0)) {
+    const drafts = counts?.drafts ?? 0;
+    if (counts == null || (counts.toreview === 0 && counts.mergeable === 0 && drafts === 0)) {
         return t("rail.tools.reviews");
     }
     const parts: string[] = [];
@@ -576,6 +577,9 @@ export function reviewsRailLabel(counts: ReviewCounts): string {
     }
     if (counts.mergeable > 0) {
         parts.push(plural(counts.mergeable, "rail.tools.reviewsCount.mergeable"));
+    }
+    if (drafts > 0) {
+        parts.push(plural(drafts, "rail.tools.reviewsCount.drafts"));
     }
     return t("rail.tools.reviewsCounts", { counts: parts.join(", ") });
 }

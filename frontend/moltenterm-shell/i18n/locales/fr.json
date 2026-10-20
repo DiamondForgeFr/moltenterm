@@ -3733,6 +3733,10 @@
                 "mergeable": {
                     "one": "1 prête à fusionner",
                     "other": "{count} prêtes à fusionner"
+                },
+                "drafts": {
+                    "one": "1 brouillon",
+                    "other": "{count} brouillons"
                 }
             },
             "moreWidgets": "{count} widgets de plus",
