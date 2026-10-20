@@ -4807,7 +4807,6 @@
         "view": {
             "worktree": "Worktree {path}",
             "worktreeOn": "Worktree {path} on {branch}",
-            "upTitle": "Up {age}",
             "selectRow": "Select {name}, {what}",
             "reconnect": "Reconnect",
             "end": "End…",
@@ -4817,9 +4816,7 @@
             "selectAll": "Select every session",
             "colName": "Name",
             "colActions": "Actions",
-            "colFolder": "Folder",
             "colAgent": "Agent",
-            "colLastActive": "Last active",
             "selectedCount": "{count} selected",
             "noAgentSelected": "No selected session runs a local coding agent in a pane.",
             "sendCommand": "Send a command…",
@@ -4837,8 +4834,77 @@
             "loading": "Loading sessions…",
             "shownCount": "{count} shown",
             "tableLabel": "Durable sessions",
-            "endsLater": "{what} ends once {connection} is back."
-        }
+            "endsLater": "{what} ends once {connection} is back.",
+            "colWorktree": "Worktree",
+            "colActivity": "Activity",
+            "join": "Join",
+            "joinTitle": "Go to this session's terminal",
+            "interrupt": "Interrupt",
+            "interruptTitle": "Interrupt the agent's current turn",
+            "interrupting": "interrupting…",
+            "interrupted": "{name}: turn interrupted.",
+            "stop": "Stop…",
+            "update": "Update…",
+            "updating": "updating…",
+            "updateAll": "Update all outdated ({count})…",
+            "outdated": "outdated",
+            "outdatedTitle": "Started on an older MoltenTerm version: its tools and settings are not the current ones.",
+            "copied": "Path copied",
+            "copyPathTitle": "{title}\nClick to copy the path"
+        },
+        "kind": {
+            "direct": "Direct",
+            "rebase": "Rebase",
+            "restart": "Restart work",
+            "investigate": "Analyse and fix",
+            "batch": "Batch merge",
+            "review": "Review panel"
+        },
+        "kindTitle": {
+            "direct": "Your own session: a terminal or an agent you started.",
+            "started": "An agent MoltenTerm started for you: {action}."
+        },
+        "from": {
+            "reviews": "Reviews list",
+            "reviewTab": "Review tab",
+            "mergeQueue": "Merge queue",
+            "reviewPanel": "Review panel",
+            "label": "From {where}"
+        },
+        "prState": {
+            "draft": "draft",
+            "open": "open",
+            "merged": "merged",
+            "closed": "closed"
+        },
+        "context": {
+            "ticket": "#{number}",
+            "ticketTitle": "Ticket #{number}",
+            "pr": "PR #{number}",
+            "prStateUnknown": "state not known yet",
+            "openLink": "Open {what}"
+        },
+        "effort": "effort {effort}",
+        "activity": {
+            "started": "Started {at}",
+            "running": "Running for {age}"
+        },
+        "subSession": "Handed work by {name}",
+        "update": {
+            "title": "Update {name}?",
+            "subtitleAgent": "{agent} exits and starts again on the current MoltenTerm version, resuming its conversation when it can.",
+            "subtitleShell": "The terminal's shell starts again on the current MoltenTerm version.",
+            "warningWorking": "{agent} is working: it is only restarted once its turn ends.",
+            "warningWaiting": "{agent} is waiting for you: it is only restarted once answered.",
+            "confirm": "Update the session"
+        },
+        "updateAll": {
+            "title": "Update {sessions}?",
+            "subtitle": "Each one starts again on the current MoltenTerm version; agents resume their conversation when they can. A working or waiting agent is left as it is.",
+            "confirm": "Update {sessions}",
+            "running": "Updating…"
+        },
+        "namedWhat": "{name} ({what})"
     },
     "review": {
         "ready": {

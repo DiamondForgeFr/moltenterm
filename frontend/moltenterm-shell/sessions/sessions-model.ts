@@ -24,6 +24,20 @@ export const FocusBlockMetaKey = "molten:focusblock";
 export type SessionConnState = "connected" | "reconnecting" | "disconnected";
 export type SessionReason = "detached" | "panegone" | "replaced" | "olderversion" | "ending";
 
+// must match SessionOrigin and SessionContext in pkg/molten/durablesession.go (#933)
+export type SessionOriginKind = "rebase" | "restart" | "investigate" | "batch" | "review";
+export type SessionOrigin = { kind: SessionOriginKind; repo?: string; number?: number; at?: number };
+export type SessionPrState = "draft" | "open" | "merged" | "closed";
+export type SessionContext = {
+    repo?: string;
+    branch?: string;
+    ticket?: number;
+    pr?: number;
+    prtitle?: string;
+    prurl?: string;
+    prstate?: SessionPrState;
+};
+
 // must match DurableSession in pkg/molten/durablesession.go
 export type DurableSession = {
     id: string;
@@ -35,9 +49,16 @@ export type DurableSession = {
     agent?: string;
     agentname?: string;
     agentstate?: string;
+    firstname?: string;
+    model?: string;
+    modelname?: string;
+    effort?: string;
+    origin?: SessionOrigin;
+    context?: SessionContext;
+    parentid?: string;
     command?: string;
     folder?: string;
-    worktree?: { path: string; branch?: string };
+    worktree?: { path: string; branch?: string; main?: string };
     startedat?: number;
     lastoutputat?: number;
     workspaceid?: string;
@@ -112,15 +133,77 @@ export type SessionGroup = {
     color?: string;
     current?: boolean;
     sessions: DurableSession[];
+    // Sub-sessions (#933): a session's depth under the session that handed it work; absent is 0.
+    depths?: Record<string, number>;
 };
 
 export const HiddenGroupId = "hidden";
 
+// A sub-session's parent when it is listed (never itself).
+function listedParent(s: DurableSession, ids: Set<string>): string {
+    return s.parentid && s.parentid !== s.id && ids.has(s.parentid) ? s.parentid : null;
+}
+
+// Sub-sessions follow their parent, in the parent's group, one level deeper (FR-SHELL-058, #933). A session whose
+// parents loop back to it is shown at the top level.
+export function nestGroup(group: SessionGroup, all: DurableSession[]): SessionGroup {
+    const ids = new Set(all.map((s) => s.id));
+    const children = new Map<string, DurableSession[]>();
+    for (const s of all) {
+        const parent = listedParent(s, ids);
+        if (parent != null) {
+            children.set(parent, [...(children.get(parent) ?? []), s]);
+        }
+    }
+    if (children.size === 0) {
+        return group;
+    }
+    const sessions: DurableSession[] = [];
+    const depths: Record<string, number> = {};
+    const seen = new Set<string>();
+    const visit = (s: DurableSession, depth: number) => {
+        if (seen.has(s.id)) {
+            return;
+        }
+        seen.add(s.id);
+        sessions.push(s);
+        if (depth > 0) {
+            depths[s.id] = depth;
+        }
+        for (const child of sortSessions(children.get(s.id) ?? [])) {
+            visit(child, depth + 1);
+        }
+    };
+    group.sessions.forEach((s) => visit(s, 0));
+    return { ...group, sessions, depths };
+}
+
 // "Not in a pane" first when it has rows (they need an action), then one group per workspace in the rail's order.
 export function groupSessions(list: DurableSession[], currentWorkspaceId: string): SessionGroup[] {
-    const hidden = (list ?? []).filter((s) => !s.shown);
+    const all = list ?? [];
+    const ids = new Set(all.map((s) => s.id));
+    const byId = new Map(all.map((s) => [s.id, s]));
+    // A sub-session goes where its top parent goes; a loop of parents leaves its sessions at the top.
+    const isRoot = (s: DurableSession) => {
+        const seen = new Set<string>([s.id]);
+        let cur = s;
+        for (;;) {
+            const parent = listedParent(cur, ids);
+            if (parent == null) {
+                return cur === s;
+            }
+            if (seen.has(parent)) {
+                return true;
+            }
+            seen.add(parent);
+            cur = byId.get(parent);
+        }
+    };
+    const roots = all.filter(isRoot);
+    const nest = (group: SessionGroup) => nestGroup(group, all);
+    const hidden = roots.filter((s) => !s.shown);
     const byWs = new Map<string, SessionGroup & { order: number }>();
-    for (const s of list ?? []) {
+    for (const s of roots) {
         if (!s.shown) {
             continue;
         }
@@ -141,11 +224,11 @@ export function groupSessions(list: DurableSession[], currentWorkspaceId: string
     }
     const rtn: SessionGroup[] = [];
     if (hidden.length > 0) {
-        rtn.push({ id: HiddenGroupId, title: t("sessions.notInPaneTitle"), sessions: sortSessions(hidden) });
+        rtn.push(nest({ id: HiddenGroupId, title: t("sessions.notInPaneTitle"), sessions: sortSessions(hidden) }));
     }
     const groups = [...byWs.values()].sort((a, b) => a.order - b.order);
     for (const { order: _order, ...group } of groups) {
-        rtn.push({ ...group, sessions: sortSessions(group.sessions) });
+        rtn.push(nest({ ...group, sessions: sortSessions(group.sessions) }));
     }
     return rtn;
 }
@@ -409,7 +492,8 @@ export type ConfirmText = { title: string; subtitle: string; warning?: string; c
 
 export function endConfirmText(s: DurableSession, home: string, nowMs: number): ConfirmText {
     const folder = displayFolder(s, home);
-    const what = sessionWhat(s);
+    // The confirmation names the session by its agent's first name when it has one (#933).
+    const what = s.firstname ? t("sessions.namedWhat", { name: s.firstname, what: sessionWhat(s) }) : sessionWhat(s);
     const up = formatAge(s.startedat, nowMs);
     const subtitle = [placeText(s), s.connection || t("sessions.local"), up ? t("sessions.up", { age: up }) : ""]
         .filter((p) => !!p)
@@ -517,4 +601,200 @@ export function rowAriaLabel(s: DurableSession, home: string, nowMs: number): st
     }
     parts.push(placeText(s));
     return parts.filter((p) => !!p).join(", ");
+}
+
+// Who, what, from where (FR-SHELL-058, #933).
+
+// The name a row leads with: its agent's first name, else its place.
+export function rowName(s: DurableSession, home: string): string {
+    return s.firstname || sessionName(s, home);
+}
+
+const OriginKinds: SessionOriginKind[] = ["rebase", "restart", "investigate", "batch", "review"];
+
+function knownOrigin(s: DurableSession): SessionOrigin {
+    return s.origin != null && OriginKinds.includes(s.origin.kind) ? s.origin : null;
+}
+
+// Direct: the developer's own terminal or agent; else the MoltenTerm action that started it.
+export function sessionKind(s: DurableSession): "direct" | "started" {
+    return knownOrigin(s) != null ? "started" : "direct";
+}
+
+export function sessionKindLabel(s: DurableSession): string {
+    const origin = knownOrigin(s);
+    return origin != null ? t(`sessions.kind.${origin.kind}`) : t("sessions.kind.direct");
+}
+
+// The surface each MoltenTerm action is started from.
+const OriginSurfaces: Record<SessionOriginKind, string> = {
+    investigate: "reviews",
+    rebase: "reviews",
+    restart: "reviewTab",
+    batch: "mergeQueue",
+    review: "reviewPanel",
+};
+
+// Where the session was started: the surface of a MoltenTerm action, else the workspace and tab it lives in.
+export function startedFrom(s: DurableSession): string {
+    const origin = knownOrigin(s);
+    if (origin != null) {
+        return t(`sessions.from.${OriginSurfaces[origin.kind]}`);
+    }
+    return placeText(s);
+}
+
+export type ContextLink = { kind: "ticket" | "pr"; label: string; url?: string; state?: SessionPrState; title: string };
+
+const PrStates: SessionPrState[] = ["draft", "open", "merged", "closed"];
+const RepoName = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+export function prStateLabel(state: string): string {
+    return PrStates.includes(state as SessionPrState) ? t(`sessions.prState.${state}`) : "";
+}
+
+// The ticket and the PR the session works on, with their links when the repository is known.
+export function contextLinks(s: DurableSession): ContextLink[] {
+    const ctx = s.context;
+    if (ctx == null) {
+        return [];
+    }
+    const repo = RepoName.test(ctx.repo ?? "") ? ctx.repo : "";
+    const rtn: ContextLink[] = [];
+    if (ctx.ticket > 0 && ctx.ticket !== ctx.pr) {
+        rtn.push({
+            kind: "ticket",
+            label: t("sessions.context.ticket", { number: ctx.ticket }),
+            url: repo ? `https://github.com/${repo}/issues/${ctx.ticket}` : undefined,
+            title: t("sessions.context.ticketTitle", { number: ctx.ticket }),
+        });
+    }
+    if (ctx.pr > 0) {
+        const state = PrStates.includes(ctx.prstate) ? ctx.prstate : undefined;
+        const title = [ctx.prtitle, state ? prStateLabel(state) : t("sessions.context.prStateUnknown")]
+            .filter((p) => !!p)
+            .join(" · ");
+        rtn.push({
+            kind: "pr",
+            label: t("sessions.context.pr", { number: ctx.pr }),
+            url: ctx.prurl || (repo ? `https://github.com/${repo}/pull/${ctx.pr}` : undefined),
+            state,
+            title,
+        });
+    }
+    return rtn;
+}
+
+// "Opus 5.5 · effort high", as the agent last reported them; "" when it said nothing.
+export function modelText(s: DurableSession): string {
+    if (!s.agent) {
+        return "";
+    }
+    const model = s.modelname || s.model;
+    const effort = s.effort ? t("sessions.effort", { effort: s.effort }) : "";
+    return [model, effort].filter((p) => !!p).join(" · ");
+}
+
+// What the worktree column shows: the worktree's branch (or its folder's name), else the folder.
+export function placeColumn(s: DurableSession, home: string): { label: string; title: string; copy: string } {
+    const wt = s.worktree;
+    if (wt != null) {
+        const label = wt.branch || baseName(wt.path) || wt.path;
+        const title = wt.branch
+            ? t("sessions.view.worktreeOn", { path: wt.path, branch: wt.branch })
+            : t("sessions.view.worktree", { path: wt.path });
+        return { label, title, copy: wt.path };
+    }
+    const folder = displayFolder(s, home);
+    return { label: folder, title: s.folder ?? "", copy: s.folder ?? "" };
+}
+
+function sameDay(a: Date, b: Date): boolean {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// When it started: the time today, else the date and the time.
+export function startedAtText(s: DurableSession, nowMs: number, locale?: string): string {
+    if (!s.startedat) {
+        return "";
+    }
+    const at = new Date(s.startedat);
+    const time = at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (sameDay(at, new Date(nowMs))) {
+        return time;
+    }
+    return `${at.toLocaleDateString(locale, { day: "numeric", month: "short" })} ${time}`;
+}
+
+// The activity cell's hover: started at, running for, last output.
+export function activityTitle(s: DurableSession, nowMs: number, locale?: string): string {
+    const lines: string[] = [];
+    const started = startedAtText(s, nowMs, locale);
+    if (started) {
+        lines.push(t("sessions.activity.started", { at: started }));
+        lines.push(t("sessions.activity.running", { age: formatAge(s.startedat, nowMs) }));
+    }
+    const output = outputText(s, nowMs);
+    if (output) {
+        lines.push(output);
+    }
+    return lines.join("\n");
+}
+
+// Row actions (#933): Interrupt reaches an agent working now in a local pane.
+export function canInterrupt(s: DurableSession): boolean {
+    return (
+        !!s.agent &&
+        s.agentstate === "working" &&
+        s.shown &&
+        !!s.blockid &&
+        !s.connection &&
+        s.reason !== "olderversion" &&
+        s.reason !== "ending"
+    );
+}
+
+// Up to date (#933): outdated is a terminal Update terminal knows (FR-SHELL-041) — its shell or its agent started with
+// an older MoltenTerm environment; an older version is a session the installed MoltenTerm can only end.
+export type VersionMark = "outdated" | "older" | null;
+
+export function versionMark(s: DurableSession, outdatedBlocks: Set<string>): VersionMark {
+    if (s.reason === "olderversion") {
+        return "older";
+    }
+    if (s.blockid && outdatedBlocks.has(s.blockid) && !s.connection) {
+        return "outdated";
+    }
+    return null;
+}
+
+export function canUpdate(s: DurableSession, outdatedBlocks: Set<string>): boolean {
+    return versionMark(s, outdatedBlocks) === "outdated" && s.shown && s.reason !== "ending";
+}
+
+export function updateConfirmText(s: DurableSession, home: string): ConfirmText {
+    const name = rowName(s, home);
+    const agent = s.agent ? s.agentname || s.agent : "";
+    let warning: string;
+    if (s.agent && s.agentstate === "working") {
+        warning = t("sessions.update.warningWorking", { agent });
+    } else if (s.agent && s.agentstate === "waiting") {
+        warning = t("sessions.update.warningWaiting", { agent });
+    }
+    return {
+        title: t("sessions.update.title", { name }),
+        subtitle: agent ? t("sessions.update.subtitleAgent", { agent }) : t("sessions.update.subtitleShell"),
+        warning,
+        confirm: t("sessions.update.confirm"),
+    };
+}
+
+export function updateAllConfirmText(list: DurableSession[]): ConfirmText {
+    const n = list.length;
+    const sessions = plural(n, "sessions.count.sessions");
+    return {
+        title: t("sessions.updateAll.title", { sessions }),
+        subtitle: t("sessions.updateAll.subtitle"),
+        confirm: t("sessions.updateAll.confirm", { sessions }),
+    };
 }
