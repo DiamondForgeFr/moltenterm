@@ -14,4 +14,6 @@ import (
 func init() {
 	sessions.UseContextLookup(mission.SessionContextOf)
 	mission.UseStarter(sessions.Start)
+	// Clean branches closes the sessions holding a merged pull request's worktree (#932).
+	mission.UseTerminalCloser(sessions.CloseTerminal)
 }

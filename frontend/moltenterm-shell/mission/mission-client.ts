@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { serverErrorText, ServerText } from "../i18n/server-text";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import type { WorktreeTerminal } from "../worktree-model";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import {
@@ -59,6 +60,8 @@ export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
 export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
 export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
 export const MissionBranchesAutoDeleteCommand = "moltenmissionbranchesautodelete";
+export const MissionBranchesCloseCommand = "moltenmissionbranchesclose";
+export const MissionTreePrsCommand = "moltenmissiontreeprs";
 export const MissionGitInitCommand = "moltenmissiongitinit";
 // must match pkg/molten/mission/github_run.go
 export const MissionGithubRunLogCommand = "moltenmissionghrunlog";
@@ -581,6 +584,8 @@ export type BranchPlan = {
     pr?: number;
     // MoltenTerm's worktree holding the branch (#906): removed with it, or why it stays.
     worktree?: string;
+    // The terminals holding that worktree open, with worktree-in-use (#932).
+    terminals?: WorktreeTerminal[];
 };
 export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
 export type BranchesCleanResult = {
@@ -597,6 +602,24 @@ export function branchesPlan(dir: string): Promise<BranchesPlan> {
 
 export function branchesClean(dir: string, names: string[]): Promise<BranchesCleanResult> {
     return releaseCall(MissionBranchesCleanCommand, { dir, names });
+}
+
+// Closes the terminals holding a merged PR's worktree, then cleans its branch (#932): wavesrv plans twice, hence the
+// longer wait.
+export function branchesCloseAndClean(dir: string, name: string, blockIds: string[]): Promise<BranchesCleanResult> {
+    return TabRpcClient.wshRpcCall(
+        MissionBranchesCloseCommand,
+        { dir, name, blockids: blockIds },
+        { route: MissionRouteId, timeout: 2 * ReleaseFactsTimeoutMs + 10000 }
+    );
+}
+
+// must match TreeBranch and TreePr in pkg/molten/mission/branches_close.go
+export type TreeBranch = { path: string; branch: string };
+export type TreePr = { path: string; branch: string; pr: number };
+
+export function treePrs(trees: TreeBranch[]): Promise<{ merged: TreePr[] }> {
+    return releaseCall(MissionTreePrsCommand, { trees });
 }
 
 export function branchesAutoDelete(dir: string, enable: boolean): Promise<void> {

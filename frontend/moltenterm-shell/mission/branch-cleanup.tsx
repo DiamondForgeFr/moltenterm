@@ -5,19 +5,26 @@
 // and what stays with why, then nothing leaves without a click on the delete button. wavesrv checks each branch again
 // before deleting it: the plan shown is not trusted blindly.
 
+import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { useRestoreFocus } from "../busy-close";
 import { DialogFrame } from "../dialog-frame";
 import { t, tCount, useT, useTCount } from "../i18n/i18n";
 import { serverErrorText, serverText, ServerText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { showPanel } from "../review/review-panels";
+import { DurableSession, sessionName } from "../sessions/sessions-model";
+import { DurableSessions } from "../sessions/sessions-store";
 import { DominoLoader } from "../suite/suite";
+import type { WorktreeTerminal } from "../worktree-model";
 import { ActionSecondaryClass } from "./action-button";
 import {
     branchesAutoDelete,
     branchesClean,
     BranchesCleanResult,
+    branchesCloseAndClean,
     branchesPlan,
     BranchesPlan,
     BranchKeepReason,
@@ -44,8 +51,27 @@ export function branchLabel(b: BranchPlan): string {
     return b.remote ? `origin/${b.name}` : b.name;
 }
 
-// Why a branch goes or stays, as the list shows it next to the branch (#571).
-export function branchReason(b: BranchPlan, trunk: string): string {
+// A session holding a merged PR's worktree open (#932): its terminal's block, and its name as the Sessions list shows
+// it (else its tab's name).
+export type BranchHolder = { blockid: string; name: string };
+
+export function branchHolders(b: BranchPlan, sessions: DurableSession[], home: string): BranchHolder[] {
+    if (b.reason !== "worktree-in-use" || b.remote) {
+        return [];
+    }
+    return (b.terminals ?? []).map((term: WorktreeTerminal) => {
+        const session = (sessions ?? []).find((s) => s.blockid === term.blockid);
+        const name = session ? sessionName(session, home) : (term.tab ?? "").trim() || t("sessions.terminal");
+        return { blockid: term.blockid, name };
+    });
+}
+
+export function holdersText(holders: BranchHolder[]): string {
+    return [...new Set(holders.map((h) => h.name))].join(", ");
+}
+
+// Why a branch goes or stays, as the list shows it next to the branch (#571); a worktree held open names who holds it.
+export function branchReason(b: BranchPlan, trunk: string, holders?: BranchHolder[]): string {
     switch (b.reason) {
         case "merged-pr":
             return t("mc.branches.reason.mergedPr", { pr: b.pr });
@@ -62,6 +88,12 @@ export function branchReason(b: BranchPlan, trunk: string): string {
         case "worktree-changes":
             return t("mc.branches.keep.worktreeChanges", { pr: b.pr });
         case "worktree-in-use":
+            if (holders?.length > 0) {
+                return tCount("mc.branches.keep.worktreeHeldBy", holders.length, {
+                    pr: b.pr,
+                    sessions: holdersText(holders),
+                });
+            }
             return t("mc.branches.keep.worktreeInUse", { pr: b.pr });
     }
     const key = KeepReasonKeys[b.reason as keyof typeof KeepReasonKeys];
@@ -75,17 +107,108 @@ export function isMainBranch(b: BranchPlan): boolean {
 
 // A main branch takes the shell's info blue, apart from the delete red and the warning amber, so the secondary
 // branches stand out at a glance; its reason stays next to it, the colour is never the only signal (#920).
-export function KeptBranchRow({ branch, trunk }: { branch: BranchPlan; trunk: string }) {
+export function KeptBranchRow({
+    branch,
+    trunk,
+    holders,
+}: {
+    branch: BranchPlan;
+    trunk: string;
+    holders?: BranchHolder[];
+}) {
     const main = isMainBranch(branch);
     return (
         <div className="flex items-center gap-2 py-0.5" data-main-branch={main ? "true" : undefined}>
             <i className={cn("fa fa-solid fa-code-branch w-3.5 text-11", main ? "text-info" : "text-muted")} />
             <code className={main ? "text-info" : undefined}>{branchLabel(branch)}</code>
             <span className="text-muted" title={branch.worktree}>
-                — {branchReason(branch, trunk)}
+                — {branchReason(branch, trunk, holders)}
             </span>
         </div>
     );
+}
+
+// The sessions holding a merged PR's worktree open (#932): Show the session takes the window to it; Close the session
+// and clean asks first, naming them and saying a running agent stops. wavesrv offers it only while nothing is
+// uncommitted in the worktree (worktree-in-use), and checks that again before closing anything.
+export function HeldBranchActions({
+    branch,
+    holders,
+    busy,
+    confirming,
+    setConfirming,
+    onShow,
+    onCloseAndClean,
+}: {
+    branch: BranchPlan;
+    holders: BranchHolder[];
+    busy: boolean;
+    confirming: boolean;
+    setConfirming: (confirming: boolean) => void;
+    onShow: (holder: BranchHolder) => void;
+    onCloseAndClean: () => void;
+}) {
+    const t = useT();
+    const tCount = useTCount();
+    if (holders.length === 0) {
+        return null;
+    }
+    const sessions = holdersText(holders);
+    if (confirming) {
+        return (
+            <div
+                role="alertdialog"
+                aria-label={tCount("mc.branches.closeTitle", holders.length, { sessions })}
+                className="my-1 ml-5.5 flex flex-col gap-2 rounded-6 border border-error/40 bg-error/10 px-3 py-2"
+                data-testid="close-and-clean-confirm"
+            >
+                <div className="text-12 text-primary">
+                    {tCount("mc.branches.closeConfirm", holders.length, { sessions, branch: branch.name })}
+                </div>
+                <div className="flex justify-end gap-2">
+                    <button type="button" disabled={busy} onClick={() => setConfirming(false)} className={PlainButton}>
+                        {t("common.cancel")}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onCloseAndClean}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
+                    >
+                        {busy ? <DominoLoader /> : <i className="fa fa-solid fa-power-off text-11" />}
+                        {t("mc.branches.closeAndCleanConfirm")}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="mb-1 ml-5.5 flex flex-wrap items-center gap-1.5" data-testid="held-branch-actions">
+            {holders.map((h) => (
+                <button key={h.blockid} type="button" disabled={busy} onClick={() => onShow(h)} className={PlainButton}>
+                    {holders.length === 1
+                        ? t("mc.branches.showSession")
+                        : t("mc.branches.showNamed", { session: h.name })}
+                </button>
+            ))}
+            <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirming(true)}
+                className={cn(PlainButton, "text-danger hover:text-danger")}
+            >
+                {tCount("mc.branches.closeAndClean", holders.length)}
+            </button>
+        </div>
+    );
+}
+
+function homeDir(): string {
+    try {
+        return getApi()?.getHomeDir?.() ?? "";
+    } catch {
+        return "";
+    }
 }
 
 // cleanErrorLines words the branches the cleaning could not delete; a kept branch's reason is worded as the list does.
@@ -131,6 +254,12 @@ export function BranchCleanupDialog({
     // null while the offer is unanswered in this dialog, then "on" or "later".
     const [offerAnswer, setOfferAnswer] = useState<"on" | "later">(null);
     const [offerBusy, setOfferBusy] = useState(false);
+    // A branch whose sessions were closed and cleaned (#932): its result line, and the plan read again.
+    const [closing, setClosing] = useState<string>(null);
+    const [confirmingClose, setConfirmingClose] = useState<string>(null);
+    const [closedLines, setClosedLines] = useState<string[]>(null);
+    const [planRound, setPlanRound] = useState(0);
+    const sessionsData = useAtomValue(DurableSessions.getInstance().dataAtom);
     useEffect(() => {
         let cancelled = false;
         fireAndForget(async () => {
@@ -148,7 +277,38 @@ export function BranchCleanupDialog({
         return () => {
             cancelled = true;
         };
-    }, [dir]);
+    }, [dir, planRound]);
+    const home = homeDir();
+    const holdersOf = (b: BranchPlan) => branchHolders(b, sessionsData?.sessions, home);
+    const showHolder = (holder: BranchHolder) =>
+        fireAndForget(async () => {
+            try {
+                await showPanel(holder.blockid);
+                onClose();
+            } catch (e) {
+                setError(serverErrorText(e));
+            }
+        });
+    const closeAndClean = (b: BranchPlan) =>
+        fireAndForget(async () => {
+            setClosing(b.name);
+            setError(null);
+            try {
+                const res = await branchesCloseAndClean(
+                    dir,
+                    b.name,
+                    holdersOf(b).map((h) => h.blockid)
+                );
+                setClosedLines([cleanResultLine(res), ...cleanErrorLines(res, trunk)]);
+                onCleaned();
+                setPlanRound((n) => n + 1);
+            } catch (e) {
+                setError(serverErrorText(e));
+            } finally {
+                setClosing(null);
+                setConfirmingClose(null);
+            }
+        });
     const going = (plan?.branches ?? []).filter((b) => b.action === "delete");
     const staying = (plan?.branches ?? []).filter((b) => b.action === "keep");
     const nothingToDelete = plan != null && going.length === 0;
@@ -243,6 +403,19 @@ export function BranchCleanupDialog({
                     </div>
                 ) : plan ? (
                     <div className="flex flex-col gap-4">
+                        {closedLines ? (
+                            <div
+                                className="flex flex-col gap-0.5 rounded-6 border border-border px-3 py-2 text-12"
+                                role="status"
+                                data-testid="close-and-clean-result"
+                            >
+                                {closedLines.map((line, i) => (
+                                    <p key={i} className={i === 0 ? "text-primary" : "text-muted"}>
+                                        {line}
+                                    </p>
+                                ))}
+                            </div>
+                        ) : null}
                         {plan.autodeleteoffer && offerAnswer !== "later" ? (
                             <AutoDeleteOffer done={offerAnswer === "on"} busy={offerBusy} onAnswer={answerOffer} />
                         ) : null}
@@ -267,9 +440,23 @@ export function BranchCleanupDialog({
                             <div className="mb-1.5 font-medium text-muted">
                                 {t("mc.branches.stay", { count: staying.length })}
                             </div>
-                            {staying.map((b) => (
-                                <KeptBranchRow key={branchLabel(b)} branch={b} trunk={trunk} />
-                            ))}
+                            {staying.map((b) => {
+                                const holders = holdersOf(b);
+                                return (
+                                    <div key={branchLabel(b)}>
+                                        <KeptBranchRow branch={b} trunk={trunk} holders={holders} />
+                                        <HeldBranchActions
+                                            branch={b}
+                                            holders={holders}
+                                            busy={closing != null || busy}
+                                            confirming={confirmingClose === b.name}
+                                            setConfirming={(on) => setConfirmingClose(on ? b.name : null)}
+                                            onShow={showHolder}
+                                            onCloseAndClean={() => closeAndClean(b)}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 ) : null}

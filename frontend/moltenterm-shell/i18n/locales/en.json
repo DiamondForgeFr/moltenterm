@@ -2636,6 +2636,10 @@
                 "notInPr": "it holds commits #{pr} never carried",
                 "worktreeChanges": "merged in #{pr}, but its worktree has uncommitted changes",
                 "worktreeInUse": "merged in #{pr}, but a terminal is open in its worktree",
+                "worktreeHeldBy": {
+                    "one": "merged in #{pr}, but the session {sessions} has a terminal open in its worktree",
+                    "other": "merged in #{pr}, but the sessions {sessions} have terminals open in its worktree"
+                },
                 "prAssets": "holds pull request assets",
                 "tool": "a tool branch"
             },
@@ -2667,7 +2671,22 @@
             "autoDeleteDone": "GitHub now deletes head branches when their pull request is merged.",
             "autoDeleteOffer": "GitHub keeps head branches after their pull request is merged on this repository. Turn on its “Automatically delete head branches” setting so merged branches stop piling up?",
             "notNow": "Not now",
-            "turnOn": "Turn on"
+            "turnOn": "Turn on",
+            "showSession": "Show the session",
+            "showNamed": "Show {session}",
+            "closeAndClean": {
+                "one": "Close the session and clean…",
+                "other": "Close the sessions and clean…"
+            },
+            "closeTitle": {
+                "one": "Close {sessions} and clean?",
+                "other": "Close {sessions} and clean?"
+            },
+            "closeConfirm": {
+                "one": "Close the session {sessions}? Its terminal closes, and an agent running in it stops. Then its worktree and the branch {branch} are deleted, as the cleaning would.",
+                "other": "Close the sessions {sessions}? Their terminals close, and any agent running in them stops. Then their worktree and the branch {branch} are deleted, as the cleaning would."
+            },
+            "closeAndCleanConfirm": "Close and clean"
         },
         "cicd": {
             "viewName": "CI/CD",
@@ -4807,6 +4826,8 @@
         "view": {
             "worktree": "Worktree {path}",
             "worktreeOn": "Worktree {path} on {branch}",
+            "prMerged": "PR #{pr} merged",
+            "prMergedTitle": "The pull request #{pr} of {branch} is merged: this session's work has shipped.",
             "selectRow": "Select {name}, {what}",
             "reconnect": "Reconnect",
             "end": "End…",
@@ -6089,7 +6110,10 @@
                 "readTrunk": "{ref} could not be read: {detail}",
                 "kept": "{branch}: kept ({reason})",
                 "deleteFailed": "{branch}: {detail}",
-                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}"
+                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}",
+                "gone": "{branch} is no longer a branch.",
+                "newTerminal": "Another terminal opened in the worktree of {branch} since: nothing was closed.",
+                "closeFailed": "A terminal could not be closed: {detail}"
             },
             "jobs": {
                 "tooLarge": "The file is too large to read.",

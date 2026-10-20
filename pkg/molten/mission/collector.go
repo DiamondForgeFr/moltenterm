@@ -64,6 +64,8 @@ const (
 	BranchesPlanCommand     = "moltenmissionbranchesplan"
 	BranchesCleanCommand    = "moltenmissionbranchesclean"
 	BranchesAutoDeleteCmd   = "moltenmissionbranchesautodelete"
+	BranchesCloseCommand    = "moltenmissionbranchesclose"
+	TreePrsCommand          = "moltenmissiontreeprs"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
 	UpdateEvent             = "molten:mission:update"
