@@ -108,7 +108,7 @@ const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "Pag
 // column (it is in the name's tooltip) and lays the actions over the row's end on hover, so the name and the agent
 // keep the width.
 const TableColumns =
-    "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,max-content)_minmax(56px,auto)] @2xl:grid-cols-[28px_minmax(96px,max-content)_auto_minmax(0,1fr)_minmax(120px,auto)_minmax(64px,auto)]";
+    "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,max-content)_minmax(56px,auto)] @2xl:grid-cols-[28px_minmax(160px,1.6fr)_auto_minmax(150px,1fr)_minmax(120px,auto)_minmax(64px,auto)]";
 const FolderCell = "hidden @2xl:block";
 const ActionsCell =
     "absolute top-1/2 right-1 -translate-y-1/2 rounded-6 bg-surface-2 px-1 shadow-e1 @2xl:static @2xl:translate-y-0 @2xl:bg-transparent @2xl:px-0 @2xl:shadow-none";
@@ -522,10 +522,10 @@ function SessionRow({
                         aria-hidden="true"
                     />
                 ) : null}
-                <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
-                            className="max-w-[16rem] min-w-0 shrink truncate text-12 font-medium text-primary"
+                            className="max-w-[16rem] min-w-[3rem] shrink truncate text-12 font-medium text-primary"
                             title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
                             data-testid="session-name"
                         >
@@ -904,7 +904,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const orderKey = order.join("\n");
     const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
     const outdatedBlocks = useMemo(() => new Set(outdated.terminals.map((term) => term.blockid)), [outdated]);
-    const updatable = sessions.filter((s) => canUpdate(s, outdatedBlocks));
+    const updatable = order.map((id) => byId.get(id)).filter((s) => s != null && canUpdate(s, outdatedBlocks));
 
     // A row that went away hands the focus to the one that took its place, if the list had it; it leaves the checks.
     useEffect(() => {
