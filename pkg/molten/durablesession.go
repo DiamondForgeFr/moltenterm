@@ -43,11 +43,57 @@ const (
 	SessionReasonEnding       = "ending"
 
 	ShortSessionIdLength = 8
+
+	// HandedByMetaKey: the terminal block of the agent that first handed work to this one (FR-CONT-015); the
+	// Sessions table nests the receiver under it (FR-SHELL-058, #933).
+	HandedByMetaKey = "molten:handedby"
+
+	// SessionOriginReview: a Review panel session (FR-REV); the other origins are the kinds of the agents the review
+	// actions start (pkg/molten/review/agentstart.go).
+	SessionOriginReview = "review"
+
+	// The state of a session's pull request, "" when the collector does not know it.
+	SessionPrDraft  = "draft"
+	SessionPrOpen   = "open"
+	SessionPrMerged = "merged"
+	SessionPrClosed = "closed"
 )
 
 type SessionWorktree struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch,omitempty"`
+	// Main: the repository's main checkout (the project), "" when unknown.
+	Main string `json:"main,omitempty"`
+}
+
+// SessionOrigin says which MoltenTerm action started the session's agent (#933); nil for a direct session.
+type SessionOrigin struct {
+	Kind   string `json:"kind"`
+	Repo   string `json:"repo,omitempty"`
+	Number int    `json:"number,omitempty"`
+	// At: when the developer asked, Unix milliseconds.
+	At int64 `json:"at,omitempty"`
+}
+
+// SessionContext is what a session works on (#933): its ticket and its pull request, read from what MoltenTerm
+// already knows (the collector's cache, the branch naming), never from a new call to GitHub.
+type SessionContext struct {
+	Repo    string `json:"repo,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+	Ticket  int    `json:"ticket,omitempty"`
+	Pr      int    `json:"pr,omitempty"`
+	PrTitle string `json:"prtitle,omitempty"`
+	PrUrl   string `json:"prurl,omitempty"`
+	PrState string `json:"prstate,omitempty"`
+}
+
+// SessionContextQuery is what a build asks of the context lookup: the project (a worktree's main checkout), the
+// branch, and the repository and PR an origin names.
+type SessionContextQuery struct {
+	Project string
+	Branch  string
+	Repo    string
+	Number  int
 }
 
 type DurableSession struct {
@@ -61,6 +107,16 @@ type DurableSession struct {
 	Agent      string `json:"agent,omitempty"`
 	AgentName  string `json:"agentname,omitempty"`
 	AgentState string `json:"agentstate,omitempty"`
+	// FirstName: the agent's first name (FR-CONT-014); Model, ModelName, Effort: as the agent last reported them.
+	FirstName string `json:"firstname,omitempty"`
+	Model     string `json:"model,omitempty"`
+	ModelName string `json:"modelname,omitempty"`
+	Effort    string `json:"effort,omitempty"`
+	// Origin: the MoltenTerm action that started it, nil for a direct session; Context: its ticket and PR.
+	Origin  *SessionOrigin  `json:"origin,omitempty"`
+	Context *SessionContext `json:"context,omitempty"`
+	// ParentId: the session that handed it work, when that one is listed.
+	ParentId string `json:"parentid,omitempty"`
 	// The command line running, or the shell's name and "at prompt".
 	Command string `json:"command,omitempty"`
 

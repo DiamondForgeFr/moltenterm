@@ -12,5 +12,6 @@ import (
 // sessions package imports Wave's job controller, which imports packages importing Mission Control, so Mission Control
 // cannot import it. wavesrv's main is built from its main file alone, so the wiring lives in a package it imports.
 func init() {
+	sessions.UseContextLookup(mission.SessionContextOf)
 	mission.UseStarter(sessions.Start)
 }

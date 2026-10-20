@@ -78,7 +78,7 @@ func (c *worktreeCache) get(dir string) *molten.SessionWorktree {
 	}
 	var info *molten.SessionWorktree
 	if wt, err := c.resolve(dir); err == nil {
-		info = &molten.SessionWorktree{Path: wt.Path, Branch: wt.Branch}
+		info = &molten.SessionWorktree{Path: wt.Path, Branch: wt.Branch, Main: wt.Main}
 	}
 	c.put(dir, info)
 	return info
@@ -170,7 +170,42 @@ func (src *liveSources) snapshot(ctx context.Context) (*Snapshot, error) {
 	for _, dir := range WorktreeQueries(s) {
 		s.Worktrees[dir] = src.worktrees.get(dir)
 	}
+	s.Context = buildContextLookup()
 	return s, nil
+}
+
+var contextLookupLock sync.Mutex
+var contextLookup func(q molten.SessionContextQuery) *molten.SessionContext
+
+// UseContextLookup sets where a build reads what a session works on (Mission Control's caches, #933); wavesrv's
+// wiring calls it before Start, since Mission Control starts this package.
+func UseContextLookup(lookup func(q molten.SessionContextQuery) *molten.SessionContext) {
+	contextLookupLock.Lock()
+	defer contextLookupLock.Unlock()
+	contextLookup = lookup
+}
+
+func getContextLookup() func(q molten.SessionContextQuery) *molten.SessionContext {
+	contextLookupLock.Lock()
+	defer contextLookupLock.Unlock()
+	return contextLookup
+}
+
+// buildContextLookup answers each question once per build: sessions in one worktree ask the same one.
+func buildContextLookup() func(q molten.SessionContextQuery) *molten.SessionContext {
+	lookup := getContextLookup()
+	if lookup == nil {
+		return nil
+	}
+	answers := map[molten.SessionContextQuery]*molten.SessionContext{}
+	return func(q molten.SessionContextQuery) *molten.SessionContext {
+		if ctx, ok := answers[q]; ok {
+			return ctx
+		}
+		ctx := lookup(q)
+		answers[q] = ctx
+		return ctx
+	}
 }
 
 func (src *liveSources) readPanes(ctx context.Context, s *Snapshot, blockIds []string) error {
