@@ -2636,6 +2636,10 @@
                 "notInPr": "elle contient des commits que #{pr} n'a jamais portés",
                 "worktreeChanges": "fusionnée dans #{pr}, mais son worktree a des modifications non commitées",
                 "worktreeInUse": "fusionnée dans #{pr}, mais un terminal est ouvert dans son worktree",
+                "worktreeHeldBy": {
+                    "one": "fusionnée dans #{pr}, mais la session {sessions} a un terminal ouvert dans son worktree",
+                    "other": "fusionnée dans #{pr}, mais les sessions {sessions} ont des terminaux ouverts dans son worktree"
+                },
                 "prAssets": "contient les ressources des pull requests",
                 "tool": "une branche d'outil"
             },
@@ -2667,7 +2671,22 @@
             "autoDeleteDone": "GitHub supprime désormais les branches de tête quand leur pull request est fusionnée.",
             "autoDeleteOffer": "Sur ce dépôt, GitHub garde les branches de tête après la fusion de leur pull request. Activer son réglage « Automatically delete head branches » pour que les branches fusionnées ne s'accumulent plus ?",
             "notNow": "Pas maintenant",
-            "turnOn": "Activer"
+            "turnOn": "Activer",
+            "showSession": "Afficher la session",
+            "showNamed": "Afficher {session}",
+            "closeAndClean": {
+                "one": "Fermer la session et nettoyer…",
+                "other": "Fermer les sessions et nettoyer…"
+            },
+            "closeTitle": {
+                "one": "Fermer {sessions} et nettoyer ?",
+                "other": "Fermer {sessions} et nettoyer ?"
+            },
+            "closeConfirm": {
+                "one": "Fermer la session {sessions} ? Son terminal se ferme, et un agent qui y tourne s'arrête. Ensuite son worktree et la branche {branch} sont supprimés, comme le ferait le nettoyage.",
+                "other": "Fermer les sessions {sessions} ? Leurs terminaux se ferment, et tout agent qui y tourne s'arrête. Ensuite leur worktree et la branche {branch} sont supprimés, comme le ferait le nettoyage."
+            },
+            "closeAndCleanConfirm": "Fermer et nettoyer"
         },
         "cicd": {
             "viewName": "CI/CD",
@@ -4807,6 +4826,8 @@
         "view": {
             "worktree": "Worktree {path}",
             "worktreeOn": "Worktree {path} sur {branch}",
+            "prMerged": "PR #{pr} fusionnée",
+            "prMergedTitle": "La pull request #{pr} de {branch} est fusionnée : le travail de cette session est livré.",
             "selectRow": "Sélectionner {name}, {what}",
             "reconnect": "Reconnecter",
             "end": "Terminer…",
@@ -6089,7 +6110,10 @@
                 "readTrunk": "{ref} n'a pas pu être lu : {detail}",
                 "kept": "{branch} : gardée ({reason})",
                 "deleteFailed": "{branch} : {detail}",
-                "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}"
+                "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}",
+                "gone": "{branch} n'est plus une branche.",
+                "newTerminal": "Un autre terminal s'est ouvert depuis dans le worktree de {branch} : rien n'a été fermé.",
+                "closeFailed": "Un terminal n'a pas pu être fermé : {detail}"
             },
             "jobs": {
                 "tooLarge": "Le fichier est trop volumineux pour être lu.",

@@ -574,7 +574,7 @@ export function sessionsSummary(data: DurableSessionsData): string {
 }
 
 // What a screen reader reads for a row.
-export function rowAriaLabel(s: DurableSession, home: string, nowMs: number): string {
+export function rowAriaLabel(s: DurableSession, home: string, nowMs: number, mergedPr = 0): string {
     const parts = [sessionWhat(s)];
     if (s.agent && s.agentstate) {
         parts.push(agentStateLabel(s.agentstate));
@@ -591,6 +591,9 @@ export function rowAriaLabel(s: DurableSession, home: string, nowMs: number): st
     }
     if (s.worktree?.branch) {
         parts.push(t("sessions.aria.branch", { branch: s.worktree.branch }));
+    }
+    if (mergedPr > 0) {
+        parts.push(t("sessions.view.prMerged", { pr: mergedPr }));
     }
     if (s.startedat) {
         parts.push(t("sessions.up", { age: formatAge(s.startedat, nowMs) }));

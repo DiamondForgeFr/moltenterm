@@ -79,6 +79,8 @@ type BranchPlan struct {
 	Pr int `json:"pr,omitempty"`
 	// Worktree: MoltenTerm's worktree holding the branch, removed with it (merged-pr-worktree) or the reason it stays.
 	Worktree string `json:"worktree,omitempty"`
+	// Terminals: the terminals holding the worktree open (worktree-in-use), so the dialog names their sessions (#932).
+	Terminals []WorktreeTerminal `json:"terminals,omitempty"`
 	// risk: what the worktree held when it was read, so the removal refuses a worktree that grew since.
 	risk *WorktreeRisk
 }
@@ -131,6 +133,7 @@ type branchFacts struct {
 	ownTree    string
 	ownTreeFit string
 	treeRisk   *WorktreeRisk
+	treeTerms  []WorktreeTerminal
 }
 
 func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
@@ -155,6 +158,9 @@ func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
 			return b
 		}
 		b.Pr, b.Worktree = f.mergedPr, f.ownTree
+		if b.Reason == BranchKeepTreeInUse {
+			b.Terminals = f.treeTerms
+		}
 		return b
 	case f.checkedOut:
 		return keep(BranchKeepCheckedOut)
@@ -333,22 +339,22 @@ func ownTree(dataDir string, path string) bool {
 // ownTreeFit reads MoltenTerm's worktree of a merged pull request as closing it would (Worktrees.Plan): "" when it can
 // go with its branch, else why it stays. Git-ignored files go with it, as after a merge (review/loss.go); the branch's
 // commits are checked against the pull request instead of the remote, deleted by the merge.
-func (r *Runs) ownTreeFit(path string) (string, *WorktreeRisk) {
+func (r *Runs) ownTreeFit(path string) (string, *WorktreeRisk, []WorktreeTerminal) {
 	if r.worktrees == nil {
-		return BranchKeepCheckedOut, nil
+		return BranchKeepCheckedOut, nil, nil
 	}
 	plan, err := r.worktrees.Plan(WorktreeRequest{Dir: path})
 	switch {
 	case err != nil || plan.Locked || plan.Refused != "":
-		return BranchKeepCheckedOut, nil
+		return BranchKeepCheckedOut, nil, nil
 	case plan.Missing:
-		return "", nil
+		return "", nil, nil
 	case plan.ChangeCount != 0:
-		return BranchKeepTreeChanges, nil
+		return BranchKeepTreeChanges, nil, nil
 	case len(plan.Terminals) > 0:
-		return BranchKeepTreeInUse, nil
+		return BranchKeepTreeInUse, nil, plan.Terminals
 	}
-	return "", &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
+	return "", &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}, nil
 }
 
 // readPrs reads the open pull requests' head names and the merged ones by head name; each nil when GitHub did not
@@ -459,7 +465,7 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 		}
 		if f.checkedOut && tree != "" && ownTree(r.dataDir, tree) && f.mergedPr > 0 && f.openPr != nil && !*f.openPr {
 			f.ownTree = tree
-			f.ownTreeFit, f.treeRisk = r.ownTreeFit(tree)
+			f.ownTreeFit, f.treeRisk, f.treeTerms = r.ownTreeFit(tree)
 		}
 		decided := protected[name] || f.tool != "" || f.checkedOut || (f.openPr != nil && *f.openPr) ||
 			(f.mergedPr > 0 && f.openPr != nil) || f.afterPr > 0

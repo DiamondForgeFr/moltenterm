@@ -40,6 +40,7 @@ import {
 } from "../widget-options";
 import { effectiveWorkspaceFolder } from "../workspace-project";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
+import { MergedPrMark, sessionMergedPr, useMergedPrs } from "./merged-prs";
 import { showPane } from "./pane-focus";
 import {
     BulkAction,
@@ -440,6 +441,7 @@ function SessionRow({
     home,
     now,
     version,
+    mergedPr,
     rowRef,
     onFocusRow,
     onCheck,
@@ -459,6 +461,7 @@ function SessionRow({
     home: string;
     now: number;
     version: VersionMark;
+    mergedPr: number;
     rowRef: (elem: HTMLDivElement) => void;
     onFocusRow: () => void;
     onCheck: (shift: boolean) => void;
@@ -486,7 +489,7 @@ function SessionRow({
             tabIndex={tabIndex}
             aria-selected={checked}
             data-session-row={session.id}
-            aria-label={rowAriaLabel(session, home, now)}
+            aria-label={rowAriaLabel(session, home, now, mergedPr)}
             onFocus={(e) => {
                 if (e.target === e.currentTarget) {
                     onFocusRow();
@@ -547,6 +550,7 @@ function SessionRow({
                         ) : null}
                         <VersionChip mark={version} />
                         <WorktreeMark session={session} />
+                        <MergedPrMark session={session} pr={mergedPr} />
                         <ConnectionChip session={session} />
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-11 text-muted">
@@ -905,6 +909,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
     const outdatedBlocks = useMemo(() => new Set(outdated.terminals.map((term) => term.blockid)), [outdated]);
     const updatable = order.map((id) => byId.get(id)).filter((s) => s != null && canUpdate(s, outdatedBlocks));
+    const mergedPrs = useMergedPrs(allSessions, panelId);
 
     // A row that went away hands the focus to the one that took its place, if the list had it; it leaves the checks.
     useEffect(() => {
@@ -1305,6 +1310,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                                             busy={busy[s.id]}
                                             home={home}
                                             now={now}
+                                            mergedPr={sessionMergedPr(s, mergedPrs)}
                                             rowRef={(elem) => {
                                                 if (elem) {
                                                     rowRefs.current.set(s.id, elem);
