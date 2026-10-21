@@ -216,11 +216,18 @@ test("signature evidence rejects ad-hoc, wrong team, missing runtime/timestamp a
         const fake = verificationFixture({ entitlements: { "com.apple.security.get-task-allow": value } });
         await assert.rejects(verifySigned("dummy", inputs, { run: fake.run }), /entitlements/);
     }
+    const unentitled = verificationFixture({ rawEntitlements: "" });
+    await verifySigned("dummy.dylib", inputs, { run: unentitled.run });
+    assert.equal(
+        unentitled.calls.some((call) => call.file.endsWith("plutil")),
+        false
+    );
     const fake = verificationFixture();
     await verifySigned("dummy", inputs, { run: fake.run });
     assert.match(
         fake.calls[0].args[fake.calls[0].args.indexOf("-R") + 1],
-        /anchor apple generic.*100\.6\.1\.13.*TESTTEAM01/
+        // codesign reads a requirement without the leading "=" as a file path (#880).
+        /^=anchor apple generic.*100\.6\.1\.13.*TESTTEAM01/
     );
 });
 

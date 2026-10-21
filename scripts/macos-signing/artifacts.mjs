@@ -85,13 +85,20 @@ async function machFiles(app) {
 }
 
 export async function verifySigned(file, inputs, { run = command, runtime = true, app = false } = {}) {
-    await run("/usr/bin/codesign", ["--verify", "--strict", "-R", appleRequirement(inputs.teamId), file]);
+    // Without the leading "=", codesign takes the requirement for the path of a compiled requirement file.
+    await run("/usr/bin/codesign", ["--verify", "--strict", "-R", `=${appleRequirement(inputs.teamId)}`, file]);
     const display = await run("/usr/bin/codesign", ["--display", "--verbose=4", file]);
     checkedSignature(`${display.stdout}\n${display.stderr}\n`, inputs, { runtime, app });
     if (runtime) {
         const raw = await run("/usr/bin/codesign", ["--display", "--entitlements", ":-", file]);
-        const parsed = await run("/usr/bin/plutil", ["-convert", "json", "-o", "-", "--", "-"], { input: raw.stdout });
-        const entitlements = JSON.parse(parsed.stdout);
+        // Electron's frameworks, dylibs and native modules are signed without entitlements: codesign then prints
+        // nothing, which plutil cannot parse, and which grants nothing (#880).
+        const entitlements = raw.stdout.trim()
+            ? JSON.parse(
+                  (await run("/usr/bin/plutil", ["-convert", "json", "-o", "-", "--", "-"], { input: raw.stdout }))
+                      .stdout
+              )
+            : {};
         if (
             !entitlements ||
             Array.isArray(entitlements) ||
