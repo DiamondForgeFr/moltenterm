@@ -175,6 +175,8 @@ export async function refreshMetadata(files, artifacts, changed, { yaml, buildBl
 }
 
 export async function finalizeArtifacts(manifest, inputs, { run = command, notarize, yaml, buildBlockMap }) {
+    // A fixed label for the failure message: the builder's and Apple's own errors are never shown.
+    let stage = "artifact layout";
     try {
         const root = await fs.realpath(manifest.outDir);
         const resolveOwned = async (file) => assertWithin(root, await fs.realpath(file));
@@ -187,19 +189,23 @@ export async function finalizeArtifacts(manifest, inputs, { run = command, notar
                 throw new Error("Missing release app architecture");
             const app = manifest.apps.find((app) => app.arch === arch);
             const appPath = await resolveOwned(app.path);
+            stage = `embedded inventory (${arch})`;
             const inventory = await embeddedInventory(appPath, manifest.version, arch);
             for (const binary of inventory.darwin) {
                 const expectedArch = path.basename(binary).endsWith("arm64") ? "arm64" : "x86_64";
                 const output = await run("/usr/bin/lipo", ["-archs", binary]);
                 if (output.stdout.trim() !== expectedArch) throw new Error("Embedded helper architecture mismatch");
             }
+            stage = `app verification (${arch})`;
             await verifyApp(appPath, inputs, { run });
         }
+        stage = "artifact layout";
         if (manifest.apps.length !== 2) throw new Error("Unexpected extra release app");
         const dmgs = files.filter((file) => file.endsWith(".dmg"));
         if (dmgs.length !== 2 || files.filter((file) => file.endsWith(".zip")).length !== 2)
             throw new Error("Unexpected release formats");
         for (const file of dmgs) {
+            stage = "disk image signing";
             // Explicit secure timestamp; builder's optional DMG signing alone is insufficient evidence.
             await run("/usr/bin/codesign", [
                 "--force",
@@ -211,9 +217,12 @@ export async function finalizeArtifacts(manifest, inputs, { run = command, notar
                 file,
             ]);
             await verifySigned(file, inputs, { run, runtime: false });
+            stage = "disk image notarization";
             await notarize(file);
+            stage = "disk image ticket";
             await run("/usr/bin/xcrun", ["stapler", "validate", file]);
             await verifySigned(file, inputs, { run, runtime: false });
+            stage = "disk image gatekeeper";
             await run("/usr/sbin/spctl", [
                 "--assess",
                 "--type",
@@ -224,8 +233,9 @@ export async function finalizeArtifacts(manifest, inputs, { run = command, notar
                 file,
             ]);
         }
+        stage = "update metadata";
         await refreshMetadata(metadata, files, dmgs, { yaml, buildBlockMap });
     } catch {
-        throw new Error("Final macOS artifact verification failed");
+        throw new Error(`Final macOS artifact verification failed at: ${stage}`);
     }
 }
