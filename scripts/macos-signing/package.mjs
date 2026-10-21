@@ -16,7 +16,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 import { finalizeArtifacts } from "./artifacts.mjs";
-import { loadToolchain, sessionContext } from "./hooks.mjs";
+import { loadToolchain, readStage, sessionContext } from "./hooks.mjs";
 import { ARCHES, MODE_DEVELOPER_ID, signingMode } from "./policy.mjs";
 import { runOwnedProcess } from "./process.mjs";
 import { command, withSigningSession } from "./session.mjs";
@@ -119,26 +119,46 @@ export async function packageRelease({
             log(
                 "Packaging and signing both macOS architectures (builder output is not shown: it can hold credentials)"
             );
-            await runProcess(process.execPath, [cli, ...args], { env: builderEnv, cwd: projectDir, signal });
+            // The session reports any failure as "Signing session failed": name the stage first, with fixed labels only.
+            try {
+                await runProcess(process.execPath, [cli, ...args], { env: builderEnv, cwd: projectDir, signal });
+            } catch (error) {
+                const hookStage = await readStage(scoped.CSC_KEYCHAIN);
+                log(
+                    hookStage
+                        ? `::error::The builder failed in the ${hookStage}`
+                        : "::error::The builder failed outside the sign hook (packaging, or its notarization of an app)"
+                );
+                throw error;
+            }
             log("Verifying the apps, notarizing the disk images and refreshing the update files");
-            const manifest = await collectRelease(layout, { run });
-            const inputs = await sessionContext(builderEnv);
-            const t = toolchain();
-            await finalizeArtifacts(manifest, inputs, {
-                run,
-                yaml: t.yaml,
-                buildBlockMap: t.buildBlockMap,
-                notarize: (file) =>
-                    t.notarize({
-                        appPath: file,
-                        tool: "notarytool",
-                        appleApiKey: inputs.appleApiKey,
-                        appleApiKeyId: inputs.keyId,
-                        appleApiIssuer: inputs.issuer,
-                    }),
-            });
-            log("Developer ID signed, notarized and stapled: both apps and disk images verified");
-            return manifest;
+            let stage = "collecting the built apps";
+            try {
+                const manifest = await collectRelease(layout, { run });
+                stage = "checking the signing session";
+                const inputs = await sessionContext(builderEnv);
+                const t = toolchain();
+                stage = "finalizing";
+                await finalizeArtifacts(manifest, inputs, {
+                    run,
+                    yaml: t.yaml,
+                    buildBlockMap: t.buildBlockMap,
+                    notarize: (file) =>
+                        t.notarize({
+                            appPath: file,
+                            tool: "notarytool",
+                            appleApiKey: inputs.appleApiKey,
+                            appleApiKeyId: inputs.keyId,
+                            appleApiIssuer: inputs.issuer,
+                        }),
+                });
+                log("Developer ID signed, notarized and stapled: both apps and disk images verified");
+                return manifest;
+            } catch (error) {
+                const own = /^Final macOS artifact verification failed at: [a-z0-9 ()-]+$/.test(error.message);
+                log(`::error::Developer ID packaging failed ${own ? `(${error.message})` : `while ${stage}`}`);
+                throw error;
+            }
         },
         sessionOptions
     );

@@ -19,7 +19,7 @@ import {
     verificationFixture,
     version,
 } from "./fixtures.mjs";
-import { createHooks } from "./hooks.mjs";
+import { createHooks, readStage } from "./hooks.mjs";
 import { APP_ID, SIGNING_INPUTS, binaryFormat, checkedSignature, signingInputs, signingMode } from "./policy.mjs";
 import { withSigningSession } from "./session.mjs";
 
@@ -366,7 +366,16 @@ test("notary rejection, missing tickets and nested signature failures redact err
                 },
             }),
             (error) => {
-                assert.equal(error.message, "Final macOS artifact verification failed");
+                assert.equal(
+                    error.message,
+                    `Final macOS artifact verification failed at: ${
+                        {
+                            notary: "disk image notarization",
+                            ticket: "app verification (arm64)",
+                            signature: "app verification (arm64)",
+                        }[mode]
+                    }`
+                );
                 assert.doesNotMatch(error.stack, /dummy-secret/);
                 return true;
             }
@@ -442,11 +451,13 @@ test("real hook contract preserves Electron options, excludes foreign payloads a
                 ),
                 /package signing failed/
             );
+            assert.equal(await readStage(session.keychain), "sign hook builder signing options");
             packager.info.options.publish = "always";
             await assert.rejects(
                 createHooks({ env, run: verifier.run, platform: "darwin", tools: unused }).sign(options, packager),
                 /package signing failed/
             );
+            assert.equal(await readStage(session.keychain), "sign hook publishing check");
         },
         { run: security.run, platform: "darwin", tempRoot: root, signals: security.signals }
     );
