@@ -9,7 +9,7 @@ import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
-import { blockingText, checkDetail } from "./review-stepper";
+import { blockingText, checkDetail, listNames } from "./review-stepper";
 
 const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging", "queued"];
 
@@ -44,6 +44,16 @@ export function canClickMerge(plan: ReviewMergePlan, override: boolean, record: 
         return false;
     }
     return (plan.warnings ?? []).length === 0 || override;
+}
+
+// overrideText is the confirmation the developer ticks to merge despite the plan's warnings: red checks GitHub does
+// not require are named there (#943), since they are why a PR GitHub would merge asks first.
+export function overrideText(plan: ReviewMergePlan): string {
+    const ci = plan?.checks?.find((c) => c.id === "ci");
+    if (ci?.code !== "failingoptional" || !(plan.warnings ?? []).includes("ci")) {
+        return t("review.validate.mergeAnyway");
+    }
+    return t("review.validate.validateAnyway", { names: listNames(t, ci.names ?? []) });
 }
 
 // Why Merge is disabled, as its tooltip and the line under the steps say.

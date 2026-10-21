@@ -4549,8 +4549,7 @@
             "title": "Rebase and merge: opens the Validate sheet with the plan",
             "draft": "Draft: mark it ready for review first.",
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
-            "blocked": "GitHub blocks the merge: a required check or review is missing.",
-            "failing": "Failing checks ({count}): fix them first."
+            "blocked": "GitHub blocks the merge: a required check or review is missing."
         },
         "rebase": {
             "button": "Ask for a rebase",
@@ -5217,6 +5216,7 @@
             "recheck": "Re-check",
             "mergeTitle": "Merge, bound to head {oid}",
             "mergeAnyway": "Merge anyway: I have read the warnings above.",
+            "validateAnyway": "Validate anyway: I have seen the red checks ({names}) and the warnings above.",
             "mergeDisabled": "Merge is disabled: {reason}",
             "mergeWaitsCi": "Merge waits for the CI ({detail}): re-check once it is green.",
             "mergeWaits": "Merge waits: {reason}",
@@ -5260,7 +5260,8 @@
             "checkCode": {
                 "notopen": "The pull request is {state}.",
                 "draft": "The pull request is a draft: mark it ready for review first.",
-                "failing": "{count} failing: {names}",
+                "failing": "{count} failing: {names}. GitHub requires them and refuses the merge while they fail.",
+                "failingoptional": "{count} failed: {names}. GitHub does not require them: you can validate anyway.",
                 "running": "{count} still running: {names}",
                 "nocheck": "No check reported on this pull request.",
                 "passed": "{count} passed",
@@ -5324,6 +5325,7 @@
                 "githubheadmoved": "GitHub refused the merge because the branch moved: review the new commits, then Validate again.",
                 "check": "Not merged: {reason}",
                 "newwarning": "Not merged: a new warning appeared since the plan. Validate again.",
+                "newred": "Not merged: checks failed since the plan ({names}). Validate again.",
                 "mergeerror": "The merge failed and is not retried.",
                 "updateerror": "GitHub could not update the branch with its base: nothing was merged.",
                 "stopped": "Stopped while waiting for CI: nothing was merged.",

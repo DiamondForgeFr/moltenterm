@@ -237,10 +237,6 @@ func TestMergePlanBlocks(t *testing.T) {
 		check  string
 		state  string
 	}{
-		{"failing check", func(p *fakePr) {
-			p.Checks = append(p.Checks, map[string]string{"name": "lint", "status": "COMPLETED", "conclusion": "FAILURE"})
-			p.MergeState = "UNSTABLE"
-		}, CheckIdCi, CheckFail},
 		{"pending check", func(p *fakePr) {
 			p.Checks = append(p.Checks, map[string]string{"name": "lint", "status": "IN_PROGRESS"})
 		}, CheckIdCi, CheckPending},
@@ -327,6 +323,142 @@ func TestMergePlanBlockedByRunningCi(t *testing.T) {
 			}
 			if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id}); err == nil {
 				t.Errorf("a blocked plan must not merge")
+			}
+		})
+	}
+}
+
+func redCheck(name string) map[string]string {
+	return map[string]string{"name": name, "status": "COMPLETED", "conclusion": "FAILURE"}
+}
+
+// Red checks GitHub does not require (UNSTABLE, PR #938's case) never block Validate: they are a warning naming them,
+// and the merge runs once the developer confirmed it (#943).
+func TestMergeOptionalRedChecksAskForConfirmation(t *testing.T) {
+	SetPostMerge(nil)
+	pr := cleanPr()
+	pr.Checks = append(pr.Checks, redCheck("sync-review"))
+	pr.MergeState = "UNSTABLE"
+	gh := &fakeGh{views: []fakePr{pr}}
+	m, dir, _ := testMerger(t, gh)
+	plan, err := m.Plan(context.Background(), planReq(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.CanMerge || plan.Blocking != "" || plan.CanQueue {
+		t.Fatalf("GitHub merges it, so the plan does: %+v", plan)
+	}
+	ci := checkOf(plan, CheckIdCi)
+	if ci.State != CheckWarn || ci.Code != CheckCodeFailingOptional || ci.Count != 1 || len(ci.Names) != 1 || ci.Names[0] != "sync-review" {
+		t.Errorf("ci check: %+v", ci)
+	}
+	if len(plan.Warnings) != 1 || plan.Warnings[0] != CheckIdCi {
+		t.Fatalf("the red checks are a warning to confirm: %+v", plan.Warnings)
+	}
+	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id}); err == nil || err.Error() != mergeErrorPrefix+MergeErrConfirm {
+		t.Fatalf("merge without the confirmation must be refused: %v", err)
+	}
+	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id, Override: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.wait(testKey)
+	state, _ := m.store.Get(testKey)
+	if state.Merge == nil || state.Merge.State != MergeMerged || len(state.Merge.Overridden) != 1 || state.Merge.Overridden[0] != CheckIdCi {
+		t.Fatalf("merged with the confirmation recorded: %+v", state.Merge)
+	}
+}
+
+// Under branch protection GitHub says BLOCKED while a required check is red: Validate keeps refusing (#943).
+func TestMergeRequiredRedChecksStillBlock(t *testing.T) {
+	pr := cleanPr()
+	pr.Checks = append(pr.Checks, redCheck("build-required"))
+	pr.MergeState = "BLOCKED"
+	gh := &fakeGh{views: []fakePr{pr}}
+	m, dir, _ := testMerger(t, gh)
+	plan, err := m.Plan(context.Background(), planReq(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.CanMerge || plan.CanQueue || plan.Blocking != CheckIdCi {
+		t.Fatalf("GitHub refuses, so does the plan: %+v", plan)
+	}
+	if c := checkOf(plan, CheckIdCi); c.State != CheckFail || c.Code != CheckCodeFailing {
+		t.Errorf("ci check: %+v", c)
+	}
+	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id, Override: true}); err == nil {
+		t.Errorf("a blocked plan must not merge, even confirmed")
+	}
+	if len(gh.writes()) != 0 {
+		t.Errorf("nothing written: %v", gh.writes())
+	}
+}
+
+// A check that turned red after the confirmation was not seen: the merge refuses and names it (#943).
+func TestMergeRefusesANewRedCheck(t *testing.T) {
+	SetPostMerge(nil)
+	pr := cleanPr()
+	pr.Checks = append(pr.Checks, redCheck("sync-review"))
+	pr.MergeState = "UNSTABLE"
+	worse := pr
+	worse.Checks = append(append([]map[string]string{}, pr.Checks...), redCheck("lint"))
+	gh := &fakeGh{views: []fakePr{pr, worse}}
+	m, dir, _ := testMerger(t, gh)
+	plan, _ := m.Plan(context.Background(), planReq(dir))
+	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id, Override: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.wait(testKey)
+	state, _ := m.store.Get(testKey)
+	if state.Merge.State != MergeRefused || state.Merge.Code != MergeCodeNewRed || len(state.Merge.Names) != 1 || state.Merge.Names[0] != "lint" {
+		t.Fatalf("refused on the new red check: %+v", state.Merge)
+	}
+	if len(gh.writes()) != 0 {
+		t.Errorf("nothing merged: %v", gh.writes())
+	}
+}
+
+// Behind its base: the confirmed red check fails again on the updated head and the merge goes on; another one stops it.
+func TestMergeBehindWithConfirmedRedCheck(t *testing.T) {
+	SetPostMerge(nil)
+	behind := cleanPr()
+	behind.MergeState = "BEHIND"
+	behind.Checks = append(behind.Checks, redCheck("sync-review"))
+	rebased := cleanPr()
+	rebased.Head = oidB
+	rebased.MergeState = "UNSTABLE"
+	rebased.Checks = append(rebased.Checks, redCheck("sync-review"))
+	rebasedWorse := rebased
+	rebasedWorse.Checks = append(append([]map[string]string{}, rebased.Checks...), redCheck("lint"))
+	for _, tc := range []struct {
+		name  string
+		after fakePr
+		state string
+	}{{"same red check", rebased, MergeMerged}, {"another red check", rebasedWorse, MergeFailed}} {
+		t.Run(tc.name, func(t *testing.T) {
+			gh := &fakeGh{views: []fakePr{behind, behind}}
+			gh.onCall = func(g *fakeGh, args []string) {
+				if args[1] == "update-branch" {
+					g.views = append(g.views[:g.viewed], tc.after)
+				}
+			}
+			m, dir, _ := testMerger(t, gh)
+			plan, err := m.Plan(context.Background(), planReq(dir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !plan.CanMerge || len(plan.Warnings) != 1 {
+				t.Fatalf("plan: %+v", plan)
+			}
+			if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id, Override: true}); err != nil {
+				t.Fatal(err)
+			}
+			m.wait(testKey)
+			state, _ := m.store.Get(testKey)
+			if state.Merge.State != tc.state {
+				t.Fatalf("record: %+v", state.Merge)
+			}
+			if tc.state == MergeFailed && (state.Merge.Code != MergeCodeCiFailed || len(state.Merge.Names) != 1 || state.Merge.Names[0] != "lint") {
+				t.Errorf("stopped on the new red check only: %+v", state.Merge)
 			}
 		})
 	}

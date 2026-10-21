@@ -4549,8 +4549,7 @@
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
             "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
             "conflicts": "Conflits avec {base} : demandez d'abord un rebase.",
-            "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
-            "failing": "Vérifications en échec ({count}) : corrigez-les d'abord."
+            "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque."
         },
         "rebase": {
             "button": "Demander un rebase",
@@ -5217,6 +5216,7 @@
             "recheck": "Revérifier",
             "mergeTitle": "Fusionner, lié au head {oid}",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
+            "validateAnyway": "Valider quand même : j'ai vu les vérifications en échec ({names}) et les avertissements ci-dessus.",
             "mergeDisabled": "Fusion désactivée : {reason}",
             "mergeWaitsCi": "La fusion attend la CI ({detail}) : revérifiez une fois qu'elle est verte.",
             "mergeWaits": "La fusion attend : {reason}",
@@ -5260,7 +5260,8 @@
             "checkCode": {
                 "notopen": "La pull request est {state}.",
                 "draft": "La pull request est un brouillon : marquez-la prête pour la revue d'abord.",
-                "failing": "{count} en échec : {names}",
+                "failing": "{count} en échec : {names}. GitHub les exige et refuse la fusion tant qu'elles échouent.",
+                "failingoptional": "{count} en échec : {names}. GitHub ne les exige pas : vous pouvez valider quand même.",
                 "running": "{count} encore en cours : {names}",
                 "nocheck": "Aucune vérification signalée sur cette pull request.",
                 "passed": "{count} réussies",
@@ -5324,6 +5325,7 @@
                 "githubheadmoved": "GitHub a refusé la fusion car la branche a bougé : relisez les nouveaux commits, puis validez à nouveau.",
                 "check": "Non fusionnée : {reason}",
                 "newwarning": "Non fusionnée : un nouvel avertissement est apparu depuis le plan. Validez à nouveau.",
+                "newred": "Non fusionnée : des vérifications ont échoué depuis le plan ({names}). Validez à nouveau.",
                 "mergeerror": "La fusion a échoué et n'est pas retentée.",
                 "updateerror": "GitHub n'a pas pu mettre la branche à jour avec sa base : rien n'a été fusionné.",
                 "stopped": "Arrêtée pendant l'attente de la CI : rien n'a été fusionné.",

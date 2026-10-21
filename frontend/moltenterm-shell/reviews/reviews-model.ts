@@ -159,9 +159,10 @@ export function mergeLabelOf(pr: ReviewPr): { label: string; tone: Tone; title: 
     return { ...label, title: t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") }) };
 }
 
-// validateBlocked is why a row's Validate cannot open the sheet, "" when it can (#683). It names the checks the Validate
-// plan fails on and the row already knows (pkg/molten/review/merge.go's evaluate); running checks and a merge state
-// still computing do not block: the sheet waits for them.
+// validateBlocked is why a row's Validate cannot open the sheet, "" when it can (#683). It names only what GitHub
+// refuses and the row already knows (pkg/molten/review/merge.go's evaluate): a draft, conflicts, a blocked state. Red
+// checks GitHub does not require (merge "failing", GitHub's UNSTABLE) never block: the sheet asks to confirm them
+// (#943). Running checks and a merge state still computing do not block either: the sheet waits for them.
 export function validateBlocked(pr: ReviewPr): string {
     if (pr.draft) {
         return t("reviews.validate.draft");
@@ -171,9 +172,6 @@ export function validateBlocked(pr: ReviewPr): string {
     }
     if (pr.merge === "blocked") {
         return t("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") });
-    }
-    if (pr.ci?.state === "failure") {
-        return t("reviews.validate.failing", { count: pr.ci.failure });
     }
     return "";
 }

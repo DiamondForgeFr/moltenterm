@@ -167,7 +167,9 @@ describe("Validate's stepper", () => {
         expect(c.state).toBe("failed");
         expect(c.collapsed).toBeFalsy();
         expect(c.rows.map((r) => r.state)).toEqual(["done", "failed", "needs"]);
-        expect(c.rows[1].lines).toEqual(["1 failing: lint"]);
+        expect(c.rows[1].lines).toEqual([
+            "1 failing: lint. GitHub requires them and refuses the merge while they fail.",
+        ]);
         expect(c.rows[2].lines[0]).toMatch(/^2 comments written here/);
     });
 
@@ -588,6 +590,7 @@ describe("Validate's stepper", () => {
                 "notopen",
                 "draft",
                 "failing",
+                "failingoptional",
                 "running",
                 "nocheck",
                 "passed",
@@ -618,6 +621,7 @@ describe("Validate's stepper", () => {
                 "citimeout",
                 "pollerror",
                 "cifailed",
+                "newred",
                 "conflict",
                 "basemoved",
                 "rebasedblocked",

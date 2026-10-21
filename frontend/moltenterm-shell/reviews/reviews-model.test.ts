@@ -78,8 +78,18 @@ describe("reviews model", () => {
         expect(validateBlocked(pr(1, { merge: "unknown", ci: running }))).toBe("");
         expect(validateBlocked(pr(1, { merge: "conflicts" }))).toBe("Conflicts with develop: ask for a rebase first.");
         expect(validateBlocked(pr(1, { merge: "blocked" }))).toContain("GitHub blocks the merge");
-        expect(validateBlocked(pr(1, { ci: failing }))).toBe("Failing checks (2): fix them first.");
         expect(validateBlocked(pr(1, { draft: true, merge: "conflicts" }))).toContain("Draft");
+    });
+
+    it("never blocks Validate on red checks GitHub does not require (#943)", () => {
+        const failing = { state: "failure" as const, success: 1, failure: 1, pending: 0, checks: [] };
+        // PR #938's case: GitHub says UNSTABLE, the only red check is not required.
+        expect(validateBlocked(pr(1, { merge: "failing", ci: failing }))).toBe("");
+        expect(validateBlocked(pr(1, { merge: "clean", ci: failing }))).toBe("");
+        expect(validateBlocked(pr(1, { merge: "blocked", ci: failing }))).toContain("GitHub blocks the merge");
+        expect(validateBlocked(pr(1, { merge: "conflicts", ci: failing }))).toBe(
+            "Conflicts with develop: ask for a rebase first."
+        );
     });
 
     it("keeps a rebase asked until the PR's head changes (#683 AC3)", () => {
