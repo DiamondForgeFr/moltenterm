@@ -76,11 +76,14 @@ export async function preflight(log = (message) => console.log(message)) {
         throw new Error(`Signing inputs: ${error.message}`);
     }
     log("Signing inputs: all seven present, shapes valid");
-    const count = await inSession("Keychain and notary preflight", async ({ inputs, apiKey }, run) => {
+    const entries = await inSession("Keychain and notary preflight", async ({ inputs, apiKey }, run) => {
         log("Keychain: Developer ID Application identity imported, fingerprint and team match");
-        return (await notaryHistory(apiKey, inputs, run)).length;
+        return notaryHistory(apiKey, inputs, run);
     });
-    log(`Notary API key: accepted by Apple (${count} earlier submissions visible)`);
+    log(`Notary API key: accepted by Apple (${entries.length} earlier submissions visible)`);
+    // Apple can keep a team's first submissions In Progress for hours: show where the earlier ones stand.
+    for (const entry of entries.slice(0, 10))
+        log(`  ${entry.id}  ${entry.status}  ${entry.createdDate}  ${entry.name}`);
 }
 
 export async function history(since, log = (message) => console.log(message)) {

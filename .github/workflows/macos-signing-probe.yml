@@ -38,7 +38,8 @@ jobs:
         name: Developer ID probe (arm64, x64)
         if: github.ref == 'refs/heads/macos-signing-probe'
         runs-on: macos-latest
-        timeout-minutes: 120
+        # Apple can keep a team's first notarizations In Progress for hours; 6 h is GitHub's ceiling.
+        timeout-minutes: 350
         environment: release
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
