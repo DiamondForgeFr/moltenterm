@@ -1,0 +1,189 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: Apache-2.0
+
+# Developer ID probe (#880): proves, before a release candidate, that the seven secrets of the `release` environment
+# import, sign with the Developer ID (hardened runtime, secure timestamp), notarize (Accepted), staple and pass
+# Gatekeeper, through the real release path: the same build steps as release.yml's Developer ID job, then
+# `scripts/macos-signing/package.mjs package` (withSigningSession, the builder's sign hook and app notarization,
+# finalizeArtifacts for the disk images).
+#
+# It publishes nothing: no tag, no GitHub release, no update channel (`-p never`). Its disk images are kept as this
+# run's artifact for 3 days only, named as a probe. Run it by pushing the commit to test to the dedicated branch:
+#
+#   git push --force origin HEAD:refs/heads/macos-signing-probe
+#
+# A push trigger, not workflow_dispatch: a dispatched workflow must exist on the default branch, and this one has to
+# run from a ticket branch before it is merged. The `release` environment's deployment rule must admit that branch
+# besides the `v*` tags (RELEASE.md, "macOS signing"); release.yml's rehearsal still never gets the environment.
+
+name: macOS signing probe
+
+on:
+    push:
+        branches: [macos-signing-probe]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: macos-signing-probe
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 22
+    NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+    probe:
+        name: Developer ID probe (arm64, x64)
+        if: github.ref == 'refs/heads/macos-signing-probe'
+        runs-on: macos-latest
+        timeout-minutes: 120
+        environment: release
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache: false
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: npm ci --no-audit --no-fund
+            # A probe without the full set proves nothing: anything but developer-id fails. Only the mode is printed.
+            - name: Signing mode
+              env:
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: |
+                  signing="$(node scripts/macos-signing/package.mjs mode)"
+                  echo "macOS signing: $signing"
+                  if [ "$signing" != developer-id ]; then
+                      echo "::error::The probe needs the seven Developer ID secrets of the release environment"
+                      exit 1
+                  fi
+            - name: Test the macOS signing orchestration
+              run: node --test scripts/macos-signing/*.node-test.mjs
+            # Before any build: a wrong secret is named by the check it fails (never its value).
+            - name: Preflight (keychain import, identity, notary API key)
+              env:
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: node scripts/macos-signing/probe.mjs preflight
+            # As in release.yml: compilation never sees a secret.
+            - name: Build (Developer ID)
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: rc
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+              run: |
+                  task clean
+                  task build:backend
+                  task build:tsunamiscaffold
+                  npm run build:prod
+            - name: Start time
+              id: start
+              run: echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+            - name: Package, sign and notarize (Developer ID)
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: rc
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+                  OWNER: ${{ github.repository_owner }}
+                  REPO: ${{ github.event.repository.name }}
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: >-
+                  node scripts/macos-signing/package.mjs package
+                  -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
+            # The checks of release.yml, then the same on the bytes a user gets: the extracted ZIP and the mounted DMG.
+            - name: Check the signatures
+              run: |
+                  for app in make/mac*/*.app; do
+                      codesign --verify --deep --strict "$app"
+                      spctl --assess --type execute "$app"
+                      xcrun stapler validate "$app"
+                  done
+                  for dmg in make/*.dmg; do
+                      codesign --verify --strict "$dmg"
+                      spctl --assess --type open --context context:primary-signature "$dmg"
+                      xcrun stapler validate "$dmg"
+                  done
+            - name: Evidence
+              run: |
+                  evidence="$RUNNER_TEMP/evidence.txt"
+                  {
+                      for app in make/mac*/*.app; do
+                          echo "### $app"
+                          codesign -dvv "$app" 2>&1
+                          spctl --assess --type execute -vv "$app" 2>&1
+                          xcrun stapler validate "$app" 2>&1
+                      done
+                      for dmg in make/*.dmg; do
+                          echo "### $dmg"
+                          codesign -dvv "$dmg" 2>&1
+                          spctl --assess --type open --context context:primary-signature -vv "$dmg" 2>&1
+                          xcrun stapler validate "$dmg" 2>&1
+                          mount="$(mktemp -d "$RUNNER_TEMP/dmg.XXXXXX")"
+                          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg" > /dev/null
+                          echo "### $dmg mounted: MoltenTerm.app"
+                          codesign --verify --deep --strict "$mount/MoltenTerm.app" 2>&1
+                          spctl --assess --type execute -vv "$mount/MoltenTerm.app" 2>&1
+                          xcrun stapler validate "$mount/MoltenTerm.app" 2>&1
+                          hdiutil detach "$mount" > /dev/null
+                      done
+                      for zip in make/*-darwin-*.zip; do
+                          out="$(mktemp -d "$RUNNER_TEMP/zip.XXXXXX")"
+                          ditto -x -k "$zip" "$out"
+                          echo "### $zip extracted: MoltenTerm.app"
+                          codesign --verify --deep --strict "$out/MoltenTerm.app" 2>&1
+                          spctl --assess --type execute -vv "$out/MoltenTerm.app" 2>&1
+                          xcrun stapler validate "$out/MoltenTerm.app" 2>&1
+                      done
+                  } > "$evidence"
+                  cat "$evidence"
+                  if [ "$(grep -c '^source=Notarized Developer ID$' "$evidence")" -ne 8 ]; then
+                      echo "::error::Expected Gatekeeper's Notarized Developer ID verdict on 8 items (2 apps, 2 DMGs, their mounted and extracted apps)"
+                      exit 1
+                  fi
+                  { echo '## Developer ID probe'; echo; echo '```'; cat "$evidence"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            - name: Notarization submissions (Accepted)
+              env:
+                  SINCE: ${{ steps.start.outputs.since }}
+                  MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+                  MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+                  MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+                  APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+              run: |
+                  node scripts/macos-signing/probe.mjs history "$SINCE" | tee "$RUNNER_TEMP/history.txt"
+                  { echo; echo '### Notarization submissions'; echo; echo '```'; cat "$RUNNER_TEMP/history.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            # Never taken for a release's files: a probe name, 3 days.
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: ${{ github.event.repository.name }}-signing-probe-not-a-release-${{ github.sha }}
+                  path: make/*.dmg
+                  if-no-files-found: error
+                  retention-days: 3
