@@ -108,7 +108,12 @@ export async function artifactFixture(root) {
     return { outDir: root, version, apps, artifacts, metadata, document };
 }
 
-export function verificationFixture({ reject = () => false, entitlements = {}, signature } = {}) {
+export function verificationFixture({
+    reject = () => false,
+    entitlements = {},
+    rawEntitlements = "<plist><dict/></plist>",
+    signature,
+} = {}) {
     const calls = [];
     return {
         calls,
@@ -128,7 +133,9 @@ export function verificationFixture({ reject = () => false, entitlements = {}, s
                 stderr =
                     signature ??
                     `Identifier=${APP_ID}\nAuthority=Developer ID Application: Dummy (${inputs.teamId})\nTeamIdentifier=${inputs.teamId}\nCodeDirectory v=20500 size=123 flags=0x10000(runtime) hashes=1\nTimestamp=Oct 17, 2026\n`;
-            if (file.endsWith("codesign") && args.includes(":-")) stdout = "<plist><dict/></plist>";
+            if (file.endsWith("codesign") && args.includes(":-")) stdout = rawEntitlements;
+            // Like the real plutil, an empty input is an error (code signed without entitlements).
+            if (file.endsWith("plutil") && !options?.input) throw new Error("plutil: empty input");
             if (file.endsWith("plutil")) stdout = JSON.stringify(entitlements);
             return { stdout, stderr };
         },
