@@ -104,6 +104,8 @@ export async function withSigningSession(
         await security(["set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", password, keychain]);
         checkedIdentity((await security(["find-identity", "-v", "-p", "codesigning", keychain])).stdout, inputs);
         await fs.unlink(certificate);
+        // `security create-keychain` leaves the file world-readable (0644), which the sign hook rightly refuses (#880).
+        await fs.chmod(keychain, 0o600);
         if (interrupted) throw new Error("Signing session interrupted");
         // Inputs are scoped to the packaging child, never exported to install/build steps.
         const childEnv = {

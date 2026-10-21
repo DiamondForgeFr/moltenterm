@@ -53,7 +53,7 @@ export function securityFixture({ failAt = -1 } = {}) {
             if (args[0] === "list-keychains" && args.length === 3)
                 return { stdout: list.map((file) => `    "${file}"`).join("\n"), stderr: "" };
             if (args[0] === "list-keychains") list = args.slice(4);
-            if (args[0] === "create-keychain") await fs.writeFile(args.at(-1), "dummy-keychain", { mode: 0o600 });
+            if (args[0] === "create-keychain") await fs.writeFile(args.at(-1), "dummy-keychain", { mode: 0o644 });
             if (args[0] === "find-identity")
                 return {
                     stdout: `1) ${inputs.identity} "Developer ID Application: Dummy (${inputs.teamId})"\n  1 valid identities found`,
