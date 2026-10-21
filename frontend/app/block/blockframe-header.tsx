@@ -197,7 +197,8 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         );
     }
 
-    // MOLTENTERM-PATCH (#705): a magnified panel shows no ×, only un-magnify; the slot stays so nothing slides under it
+    // MOLTENTERM-PATCH (#705, #939): a magnified panel shows no × and keeps no slot, so un-magnify ends the row
+    // flush right; right after un-magnify the × ignores clicks until the pointer leaves it
     endIconsElem.push(
         <HeaderCloseButton
             key="close"
