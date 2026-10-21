@@ -87,6 +87,8 @@ export function checkDetail(t: Translate, check: ReviewMergeCheck): string {
             return t("review.validate.checkCode.draft");
         case "failing":
             return t("review.validate.checkCode.failing", { count: check.count ?? 0, names });
+        case "failingoptional":
+            return t("review.validate.checkCode.failingoptional", { count: check.count ?? 0, names });
         case "running":
             return t("review.validate.checkCode.running", { count: check.count ?? 0, names });
         case "nocheck":
@@ -206,6 +208,8 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
         case "cifailed":
             return t("review.validate.outcome.cifailed", { names: listNames(t, record.names ?? []) });
+        case "newred":
+            return t("review.validate.outcome.newred", { names: listNames(t, record.names ?? []) });
         case "citimeout":
             return t("review.validate.outcome.citimeout", { minutes: record.minutes ?? 0 });
         case "reread":

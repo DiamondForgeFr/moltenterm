@@ -12,6 +12,7 @@ import {
     mergeDisabledReason,
     mergeRunning,
     mergeWaitingText,
+    overrideText,
     queuesOnClick,
     sheetRecord,
     validateErrorText,
@@ -52,12 +53,38 @@ describe("Validate's plan sheet", () => {
         });
         expect(canClickMerge(blocked, true, null)).toBe(false);
         expect(mergeDisabledReason(blocked, true, null)).toBe(
-            "CI is green, local-* statuses included: 2 failing: build, lint"
+            "CI is green, local-* statuses included: 2 failing: build, lint. GitHub requires them and refuses the merge while they fail."
         );
         const warned = plan({ warnings: ["comments"] });
         expect(canClickMerge(warned, false, null)).toBe(false);
         expect(mergeDisabledReason(warned, false, null)).toMatch(/Confirm the warnings/);
         expect(canClickMerge(warned, true, null)).toBe(true);
+    });
+
+    it("asks to confirm red checks GitHub does not require, and only those (#943)", () => {
+        const red = plan({
+            warnings: ["ci"],
+            checks: [{ id: "ci", state: "warn", code: "failingoptional", count: 1, names: ["sync-review"] }],
+        });
+        expect(canClickMerge(red, false, null)).toBe(false);
+        expect(mergeDisabledReason(red, false, null)).toMatch(/Confirm the warnings/);
+        expect(overrideText(red)).toBe(
+            "Validate anyway: I have seen the red checks (sync-review) and the warnings above."
+        );
+        expect(canClickMerge(red, true, null)).toBe(true);
+        expect(mergeDisabledReason(red, true, null)).toBe("");
+
+        const green = plan({ checks: [{ id: "ci", state: "ok", code: "passed", count: 3 }] });
+        expect(canClickMerge(green, false, null)).toBe(true);
+        expect(overrideText(plan({ warnings: ["comments"] }))).toBe("Merge anyway: I have read the warnings above.");
+
+        const required = plan({
+            canmerge: false,
+            blocking: "ci",
+            checks: [{ id: "ci", state: "fail", code: "failing", count: 1, names: ["build"] }],
+        });
+        expect(canClickMerge(required, true, null)).toBe(false);
+        expect(mergeDisabledReason(required, true, null)).toContain("GitHub requires them");
     });
 
     it("says Merge waits for the CI while it runs, and stays a failure otherwise (#925)", () => {

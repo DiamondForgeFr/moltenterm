@@ -30,6 +30,7 @@ import {
     mergeDisabledReason,
     mergeRunning,
     mergeWaitingText,
+    overrideText,
     queuesOnClick,
     sheetRecord,
     validateErrorText,
@@ -157,7 +158,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                                     onChange={(e) => model.setValidateOverride(e.target.checked)}
                                     data-testid="validate-override"
                                 />
-                                <span>{t("review.validate.mergeAnyway")}</span>
+                                <span>{overrideText(plan)}</span>
                             </label>
                         ) : null
                     }
