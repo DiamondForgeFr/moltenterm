@@ -10,7 +10,7 @@
 // Taskfile exports GOTOOLCHAIN=<pinned version> (from this script), which makes `go` fetch and run exactly that one.
 //
 // Usage:
-//   node scripts/moltenterm-go-toolchain.mjs           print the pinned version (e.g. go1.26.9)
+//   node scripts/moltenterm-go-toolchain.mjs           print the pinned version (e.g. go1.26.10)
 //   node scripts/moltenterm-go-toolchain.mjs --check   print the version `go` runs here and exit 1 when it differs
 
 /* global console, process */
