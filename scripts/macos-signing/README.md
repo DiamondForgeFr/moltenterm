@@ -131,6 +131,17 @@ checks the command order of a whole run (keychain session, builder, final verifi
 its failure paths. These tests validate orchestration and rejection paths, not Apple acceptance. The pull-request run
 of `release.yml` runs the tests that need no dependencies; the macOS job runs all of them before packaging.
 
+## Developer ID probe (#880)
+
+`.github/workflows/macos-signing-probe.yml` runs the real path above with the `release` environment's secrets, without
+publishing anything, so a credential problem shows before a release candidate. Push the commit to test to the
+dedicated branch: `git push --force origin HEAD:refs/heads/macos-signing-probe`. It builds as `release.yml` does, then
+`probe.mjs preflight` (input shapes, keychain import and identity, notary API key, each named when it fails), then
+`package.mjs package`, then `release.yml`'s signature checks plus the evidence: `codesign -dvv`, `spctl -vv` (Gatekeeper's
+`source=Notarized Developer ID` on both apps, both DMGs, the mounted DMGs and the extracted ZIPs), `stapler validate`,
+and `probe.mjs history`, Apple's notarization submissions of the run (id and status, all Accepted). The DMGs are kept as
+the run's artifact for 3 days. No tag, no release, no update file is published.
+
 ## Remaining real validation (#880)
 
 Keep #880 open until actual credentials exist. It requires Accepted submissions, validated app and DMG tickets, valid

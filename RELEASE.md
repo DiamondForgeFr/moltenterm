@@ -149,8 +149,9 @@ partial set fails the run. A rehearsal is always ad hoc. The mechanics are in `s
 
 Settings › Environments › New environment `release`:
 
-- Deployment branches and tags: **Selected branches and tags**, add the tag rule `v*`. Only a release tag's run can then
-  read the secrets; a rehearsal, a pull request or any branch cannot.
+- Deployment branches and tags: **Selected branches and tags**, add the tag rule `v*` and the branch rule
+  `macos-signing-probe`. Only a release tag's run and the Developer ID probe (`macos-signing-probe.yml`, #880, publishes
+  nothing) can then read the secrets; a rehearsal, a pull request or any other branch cannot.
 - Optionally, Required reviewers: the developer, to approve each release's signing job.
 - Environment secrets (never repository secrets: those would reach every job):
 
