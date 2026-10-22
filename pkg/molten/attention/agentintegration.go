@@ -5,11 +5,13 @@ package attention
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 )
 
 // What the agent launcher added to each pane's agent run (FR-SHELL-036, DS-SHELL-051), kept in memory: the launcher
@@ -168,6 +170,49 @@ func RecordAgentIntegration(report molten.AgentIntegrationReport) error {
 func AgentIntegration(blockId string) (molten.AgentIntegrationReport, bool) {
 	rec, hasRun := defaultAgentStates.runRecord(blockId)
 	return defaultIntegrationReports.current(blockId, rec, hasRun)
+}
+
+// integrationRuns tells, per running agent, whether its run got the integration and the browser server (#947): from
+// the launcher's report, else from the agent's arguments, since the report is lost when MoltenTerm restarts while
+// the agent keeps running in its durable shell.
+func integrationRuns(runs []molten.AgentRunInfo, reportOf func(blockId string) (molten.AgentIntegrationReport, bool), argsOf func(pid int32) []string) []molten.AgentIntegrationRun {
+	rtn := make([]molten.AgentIntegrationRun, 0, len(runs))
+	for _, run := range runs {
+		if !run.Running || run.Agent == "" {
+			continue
+		}
+		if rep, ok := reportOf(run.BlockId); ok {
+			entry := molten.RunOfReport(rep)
+			entry.BlockId = run.BlockId
+			entry.Agent = run.Agent
+			rtn = append(rtn, entry)
+			continue
+		}
+		entry := molten.AgentIntegrationRun{BlockId: run.BlockId, Agent: run.Agent, Integration: molten.RunIntegrationUnknown, Browser: molten.RunBrowserUnknown}
+		if run.Pid != 0 {
+			seen := agentlaunch.IntegrationInArgs(run.Agent, argsOf(run.Pid))
+			entry.Integration = molten.RunIntegrationOff
+			entry.Browser = molten.RunBrowserNone
+			if seen.Integrated {
+				entry.Integration = molten.RunIntegrationOn
+			}
+			if seen.Browser {
+				entry.Browser = molten.RunBrowserAdded
+			}
+		}
+		rtn = append(rtn, entry)
+	}
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i].BlockId < rtn[j].BlockId })
+	return rtn
+}
+
+// AgentIntegrationRunsNow lists the running agents' integration.
+func AgentIntegrationRunsNow() molten.AgentIntegrationRuns {
+	argsOf := func(pid int32) []string {
+		_, args := readProcessArgs(pid)
+		return args
+	}
+	return molten.AgentIntegrationRuns{Runs: integrationRuns(AgentRuns(), AgentIntegration, argsOf)}
 }
 
 // IsAgentIntegrated tells whether the agent running in a block got, at launch, MoltenTerm's integration of its

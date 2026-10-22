@@ -107,3 +107,45 @@ func TestRunEndDropsIntegrationReport(t *testing.T) {
 		t.Fatalf("the run ended: its report must go")
 	}
 }
+
+// #947: a run's browser server is known from the launcher's report, else from the agent's arguments once MoltenTerm
+// restarted and lost the report.
+func TestIntegrationRunsFromReportOrArgs(t *testing.T) {
+	runs := []molten.AgentRunInfo{
+		{BlockId: "b4", Agent: "claude", Running: true},
+		{BlockId: "b1", Agent: "claude", Running: true, Pid: 11},
+		{BlockId: "b2", Agent: "claude", Running: true, Pid: 12},
+		{BlockId: "b3", Agent: "codex", Running: true, Pid: 13},
+		{BlockId: "b5", Agent: "claude", Running: false, Pid: 15},
+		{BlockId: "b6", Agent: "claude", Running: true, Pid: 16},
+	}
+	reports := map[string]molten.AgentIntegrationReport{
+		"b3": {BlockId: "b3", Agent: "codex", Added: []molten.IntegrationItem{{Kind: molten.IntegrationNotify}},
+			Skipped: []molten.IntegrationItem{{Kind: molten.IntegrationBrowser, Reason: "already yours"}}},
+		"b6": {BlockId: "b6", Agent: "claude", StepAside: "the integration is turned off"},
+	}
+	args := map[int32][]string{
+		11: {"node", "/opt/claude", "--mcp-config=/d/molten/agent-launch/claude-mcp-ab.json", "--settings", "/d/molten/agent-launch/claude-cd.json"},
+		12: {"node", "/opt/claude"},
+	}
+	reportOf := func(blockId string) (molten.AgentIntegrationReport, bool) {
+		rep, ok := reports[blockId]
+		return rep, ok
+	}
+	got := integrationRuns(runs, reportOf, func(pid int32) []string { return args[pid] })
+	want := []molten.AgentIntegrationRun{
+		{BlockId: "b1", Agent: "claude", Integration: molten.RunIntegrationOn, Browser: molten.RunBrowserAdded},
+		{BlockId: "b2", Agent: "claude", Integration: molten.RunIntegrationOff, Browser: molten.RunBrowserNone},
+		{BlockId: "b3", Agent: "codex", Integration: molten.RunIntegrationOn, Browser: molten.RunBrowserSkipped, BrowserReason: "already yours"},
+		{BlockId: "b4", Agent: "claude", Integration: molten.RunIntegrationUnknown, Browser: molten.RunBrowserUnknown},
+		{BlockId: "b6", Agent: "claude", Integration: molten.RunIntegrationOff, Browser: molten.RunBrowserNone},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d runs %+v, want %d", len(got), got, len(want))
+	}
+	for i := range want {
+		if got[i].BlockId != want[i].BlockId || got[i].Integration != want[i].Integration || got[i].Browser != want[i].Browser || got[i].BrowserReason != want[i].BrowserReason {
+			t.Errorf("run %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

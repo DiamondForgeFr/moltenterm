@@ -553,8 +553,8 @@
           "x-moltenterm": {
             "section": "agents",
             "group": "Integration",
-            "label": "Without integration",
-            "description": "Agents started without the integration while the others keep it.",
+            "label": "Agents with the integration",
+            "description": "Unticked agents start without it. Applies to sessions started from now on.",
             "control": "multi",
             "options": [
               {
@@ -566,6 +566,7 @@
                 "label": "Codex"
               }
             ],
+            "inverted": true,
             "order": 102
           }
         },

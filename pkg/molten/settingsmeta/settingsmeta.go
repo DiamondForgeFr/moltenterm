@@ -88,7 +88,9 @@ type Setting struct {
 	// darwin, linux or windows, comma separated: the row shows on those platforms only.
 	Platform string `json:"platform,omitempty"`
 	Hidden   bool   `json:"hidden,omitempty"`
-	Order    int    `json:"order"`
+	// Inverted: a multi whose list holds the options turned off, shown ticked when absent from it (#947).
+	Inverted bool `json:"inverted,omitempty"`
+	Order    int  `json:"order"`
 }
 
 func rng(min, max, step float64) *Range {
@@ -223,7 +225,7 @@ var settings = []Setting{
 	// Agents, Integration (FR-SHELL-040): kept here so adding them renumbers only the hidden rows; the screen sorts by
 	// section first.
 	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
-	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Agents with the integration", Description: "Unticked agents start without it. Applies to sessions started from now on.", Control: ControlMulti, Inverted: true, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	// Agents, Code review (FR-REV-005).
 	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: the interface language.", Control: ControlText},
 	// Agents, Code review (FR-REV-010).

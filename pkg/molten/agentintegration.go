@@ -119,6 +119,59 @@ func (r AgentIntegrationReport) Integrated() bool {
 	return r.StepAside == "" && len(r.Added) > 0
 }
 
+// What a running agent's integration is, for the share menu and the settings (#947): RunIntegration* says whether
+// the run got MoltenTerm's integration, RunBrowser* whether it got the browser server.
+const (
+	AgentIntegrationRunsCommand = "moltenagentintegrationruns"
+
+	RunIntegrationOn      = "on"
+	RunIntegrationOff     = "off"
+	RunIntegrationUnknown = "unknown"
+
+	RunBrowserAdded   = "added"
+	RunBrowserSkipped = "skipped"
+	RunBrowserNone    = "none"
+	RunBrowserUnknown = "unknown"
+)
+
+// AgentIntegrationRun is one running agent's integration. Must match frontend/moltenterm-shell/agent-integration-runs.ts.
+type AgentIntegrationRun struct {
+	BlockId     string `json:"blockid"`
+	Agent       string `json:"agent"`
+	Integration string `json:"integration"`
+	Browser     string `json:"browser"`
+	// BrowserReason: why the launcher left the browser server out (Browser skipped), in English and by its code.
+	BrowserReason     string      `json:"browserreason,omitempty"`
+	BrowserReasonText *uimsg.Text `json:"browserreasontext,omitempty"`
+}
+
+type AgentIntegrationRuns struct {
+	Runs []AgentIntegrationRun `json:"runs"`
+}
+
+// RunOfReport is what a launcher's report tells of its run.
+func RunOfReport(r AgentIntegrationReport) AgentIntegrationRun {
+	rtn := AgentIntegrationRun{BlockId: r.BlockId, Agent: r.Agent, Integration: RunIntegrationOff, Browser: RunBrowserNone}
+	if !r.Integrated() {
+		return rtn
+	}
+	rtn.Integration = RunIntegrationOn
+	for _, it := range r.Added {
+		if it.Kind == IntegrationBrowser {
+			rtn.Browser = RunBrowserAdded
+			return rtn
+		}
+	}
+	for _, it := range r.Skipped {
+		if it.Kind == IntegrationBrowser {
+			rtn.Browser = RunBrowserSkipped
+			rtn.BrowserReason = it.Reason
+			rtn.BrowserReasonText = it.ReasonText
+		}
+	}
+	return rtn
+}
+
 type AgentIntegrationStatusRequest struct {
 	BlockId string `json:"blockid"`
 }
