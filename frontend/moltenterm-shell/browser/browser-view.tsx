@@ -26,6 +26,7 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
 import { agentStatesOfWorkspace } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
@@ -125,6 +126,7 @@ import {
     shareAgents,
     shareLabel,
     shareMenuItems,
+    shareStateText,
     unshareableReason,
 } from "./browser-share";
 import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
@@ -840,7 +842,16 @@ export class BrowserViewModel implements ViewModel {
                 }
             })
         );
-        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta));
+        let runs: AgentIntegrationRun[] = [];
+        if (states.length > 0 && states.some((s) => !sessions.some((x) => x.blockid === s.blockid))) {
+            try {
+                runs = await loadIntegrationRuns();
+            } catch (e) {
+                console.log("browser share: no integration runs", e);
+            }
+        }
+        const settings = globalStore.get(atoms.settingsAtom) as Record<string, unknown>;
+        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta), { runs, settings });
     }
 
     async shareItems(tab: BrowserTab): Promise<ContextMenuItem[]> {
@@ -1663,12 +1674,14 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const list = useAtomValue(model.engines.listAtom);
     const sessions = useAtomValue(model.agents.sessionsAtom);
     const tabBlockIds = useAtomValue(model.tabBlockIdsAtom);
+    const agentTabs = useAtomValue(model.agents.tabsAtom);
     useEffect(() => {
         model.agents.refreshSessions();
     }, [model, agentData, tabBlockIds]);
     if (tab == null) {
         return null;
     }
+    const state = shareStateText(agentTabs[tab.id] ?? null);
     const running = ofTab(agentStatesOfWorkspace(agentData, workspace?.oid), tabBlockIds).filter(
         (s) => s.agent || s.agentname
     );
@@ -1682,7 +1695,7 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
             type="button"
             aria-label={shareLabel()}
             aria-disabled={reason ? true : undefined}
-            title={reason || shareLabel()}
+            title={t("browser.share.buttonTitle", { action: reason || shareLabel(), state })}
             onMouseEnter={() => model.agents.refreshSessions()}
             onClick={(e) => {
                 if (!reason) {

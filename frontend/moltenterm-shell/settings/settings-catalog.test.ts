@@ -7,6 +7,7 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { integrationRunRows, integrationRunText } from "../agent-integration-runs";
 import { hasKey, translate } from "../i18n/i18n-core";
 import { SuiteIcons } from "../suite/suite-icons";
 import {
@@ -19,6 +20,8 @@ import {
     localizeCatalog,
     localizeSection,
     localizeSettingEntry,
+    multiOptionOn,
+    multiToggled,
     searchSettings,
     sectionEntries,
     sectionTitle,
@@ -251,7 +254,11 @@ describe("settings in the interface language (FR-I18N-001)", () => {
         const all = localizeCatalog(catalog(), fr);
         expect(all.find((e) => e.key === "term:scrollback").unit).toBe("lignes");
         expect(all.find((e) => e.key === "moltenterm:hiddentabviewsmb").unit).toBe("Mo");
-        const units = new Set(catalog().map((e) => e.unit).filter((u) => !!u));
+        const units = new Set(
+            catalog()
+                .map((e) => e.unit)
+                .filter((u) => !!u)
+        );
         expect([...units].filter((u) => !hasKey(`settings.units.${u}`))).toEqual([]);
     });
 
@@ -320,5 +327,42 @@ describe("short choices as option rows (#658)", () => {
         }
         expect(settingsGroupIcon("360View")).toBe("overview");
         expect(settingsGroupIcon("ciCd")).toBe("ci");
+    });
+});
+
+describe("Agents with the integration (FR-SHELL-040, #947)", () => {
+    it("shows agent:integrateoff inverted: a ticked agent gets the integration", () => {
+        const entry = catalog().find((e) => e.key === "agent:integrateoff");
+        expect(entry).toMatchObject({ label: "Agents with the integration", inverted: true, control: "multi" });
+        expect(entry.description).toMatch(/from now on/);
+        expect(multiOptionOn(entry, null, "claude")).toBe(true);
+        expect(multiOptionOn(entry, ["codex"], "codex")).toBe(false);
+        expect(multiOptionOn(entry, ["codex"], "claude")).toBe(true);
+        expect(multiToggled(entry, null, "codex")).toEqual(["codex"]);
+        expect(multiToggled(entry, ["codex"], "codex")).toBeNull();
+    });
+
+    it("keeps a plain multi ticked when its value is in the list", () => {
+        const entry = catalog().find((e) => e.key === "companion:usagegauges");
+        expect(entry.inverted).toBeUndefined();
+        expect(multiOptionOn(entry, ["claude"], "claude")).toBe(true);
+        expect(multiOptionOn(entry, null, "claude")).toBe(false);
+    });
+
+    it("lists the running sessions with or without the integration", () => {
+        const states = {
+            b1: { blockid: "b1", agent: "claude", agentname: "Claude Code", firstname: "Valentin", version: 1 },
+        };
+        const rows = integrationRunRows(
+            [
+                { blockid: "b2", agent: "codex", integration: "off", browser: "none" },
+                { blockid: "b1", agent: "claude", integration: "on", browser: "added" },
+            ],
+            states
+        );
+        expect(rows.map((r) => [r.label, integrationRunText(r.integration)])).toEqual([
+            ["codex", "Without the integration"],
+            ["Valentin · Claude Code", "With the integration"],
+        ]);
     });
 });

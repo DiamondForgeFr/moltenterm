@@ -20,6 +20,7 @@ import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
+import { IntegrateOffKey } from "../companion/companion-integration-model";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
@@ -45,6 +46,8 @@ import {
     jsonSummary,
     localizeCatalog,
     localizeSection,
+    multiOptionOn,
+    multiToggled,
     searchSettings,
     sectionEntries,
     sectionTitle,
@@ -57,6 +60,7 @@ import {
     SettingsSections,
 } from "./settings-catalog";
 import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
+import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
@@ -283,20 +287,16 @@ function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unkn
 }
 
 function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
-    const chosen = Array.isArray(value) ? (value as string[]) : [];
     return (
         <span role="group" aria-label={entry.label} className="inline-flex flex-wrap justify-end gap-1">
             {(entry.options ?? []).map((o) => {
-                const on = chosen.includes(o.value);
+                const on = multiOptionOn(entry, value, o.value);
                 return (
                     <button
                         key={o.value}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => {
-                            const next = on ? chosen.filter((v) => v !== o.value) : [...chosen, o.value];
-                            onSet(next.length ? next : null);
-                        }}
+                        onClick={() => onSet(multiToggled(entry, value, o.value))}
                         className={cn(
                             "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border px-2 text-12 transition-colors duration-120 ease-mt",
                             on
@@ -911,6 +911,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                         onOpenJson={openSettingsJson}
                                                     />
                                                 ))}
+                                                {g.entries.some((e) => e.key === IntegrateOffKey) ? (
+                                                    <IntegrationRuns />
+                                                ) : null}
                                             </PageCard>
                                         ))}
                                         {section === "mods" ? <ModsSection /> : null}

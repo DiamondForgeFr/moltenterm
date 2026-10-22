@@ -661,8 +661,8 @@
                 "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited."
             },
             "agent:integrateoff": {
-                "label": "Without integration",
-                "description": "Agents started without the integration while the others keep it.",
+                "label": "Agents with the integration",
+                "description": "Unticked agents start without it. Applies to sessions started from now on.",
                 "options": {
                     "claude": "Claude Code",
                     "codex": "Codex"
@@ -1017,6 +1017,13 @@
         "default": "Default",
         "auto": "Auto",
         "notSet": "Not set",
+        "integrationRuns": {
+            "title": "Running sessions",
+            "none": "No agent session is running.",
+            "on": "With the integration",
+            "off": "Without the integration",
+            "unknown": "Not known"
+        },
         "editInJson": "Edit in JSON",
         "thisWorkspace": "This workspace",
         "sectionsLabel": "Settings sections",
@@ -1944,9 +1951,19 @@
         },
         "share": {
             "noAgent": "No agent is running in this tab",
-            "share": "Share with agent",
-            "shareTell": "Share and tell",
-            "setup": "Set up the MoltenTerm browser for {agent}",
+            "share": "Share with…",
+            "andTell": "Share and tell {name}",
+            "stateShared": "Shared with {name}",
+            "stateOpened": "Opened by {name}",
+            "stateNone": "Not shared with an agent",
+            "buttonTitle": "{action} ({state})",
+            "offAll": "Agent integration is off: turn it on in Settings › Agents › Integration, then restart {name}",
+            "offAgent": "{agent} is unticked in Settings › Agents › Integration › Agents with the integration: tick it, then restart {name}",
+            "lostMcp": "{name} lost its connection to MoltenTerm's browser: in its session, run /mcp and reconnect molten-browser, or restart it",
+            "lost": "{name} lost its connection to MoltenTerm's browser: restart its session",
+            "startedWithout": "{name} started without MoltenTerm's browser: restart its session to give it the browser",
+            "skipped": "{name} started without MoltenTerm's browser: {reason}",
+            "notConnected": "{name} is not connected to MoltenTerm's browser: restart its session to connect it",
             "tabGone": "This tab is no longer in the panel",
             "openElsewhere": "This page is open in {browser}: open it in MoltenTerm to share it",
             "anotherBrowser": "another browser",
@@ -1955,7 +1972,6 @@
             "error": "{name} stopped on an error",
             "stop": "Stop sharing with {name}",
             "integrationSettings": "Agent integration settings…",
-            "shareNow": "Share with agent (now {name})",
             "moveTitle": "Move this tab to {target}?",
             "moveMessage": "It is shared with {holder}, which loses it at once.",
             "anotherAgent": "another agent",

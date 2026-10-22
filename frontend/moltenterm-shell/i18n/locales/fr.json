@@ -463,6 +463,13 @@
         "default": "Par défaut",
         "auto": "Auto",
         "notSet": "Non défini",
+        "integrationRuns": {
+            "title": "Sessions en cours",
+            "none": "Aucune session d'agent n'est en cours.",
+            "on": "Avec l'intégration",
+            "off": "Sans l'intégration",
+            "unknown": "Inconnu"
+        },
         "editInJson": "Modifier en JSON",
         "thisWorkspace": "Cet espace de travail",
         "sectionsLabel": "Sections des réglages",
@@ -787,8 +794,8 @@
                 "description": "claude et codex reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
             },
             "agent:integrateoff": {
-                "label": "Sans intégration",
-                "description": "Les agents lancés sans l'intégration, tandis que les autres la gardent.",
+                "label": "Agents avec l'intégration",
+                "description": "Les agents décochés démarrent sans elle. S'applique aux sessions démarrées à partir de maintenant.",
                 "options": {
                     "claude": "Claude Code",
                     "codex": "Codex"
@@ -1944,9 +1951,19 @@
         },
         "share": {
             "noAgent": "Aucun agent ne tourne dans cet onglet",
-            "share": "Partager avec un agent",
-            "shareTell": "Partager et prévenir",
-            "setup": "Configurer le navigateur MoltenTerm pour {agent}",
+            "share": "Partager avec…",
+            "andTell": "Partager et prévenir {name}",
+            "stateShared": "Partagé avec {name}",
+            "stateOpened": "Ouvert par {name}",
+            "stateNone": "Non partagé avec un agent",
+            "buttonTitle": "{action} ({state})",
+            "offAll": "L'intégration des agents est désactivée : activez-la dans Réglages › Agents › Intégration, puis relancez {name}",
+            "offAgent": "{agent} est décoché dans Réglages › Agents › Intégration › Agents avec l'intégration : cochez-le, puis relancez {name}",
+            "lostMcp": "{name} a perdu sa connexion au navigateur de MoltenTerm : dans sa session, lancez /mcp et reconnectez molten-browser, ou relancez-la",
+            "lost": "{name} a perdu sa connexion au navigateur de MoltenTerm : relancez sa session",
+            "startedWithout": "{name} a démarré sans le navigateur de MoltenTerm : relancez sa session pour lui donner le navigateur",
+            "skipped": "{name} a démarré sans le navigateur de MoltenTerm : {reason}",
+            "notConnected": "{name} n'est pas connecté au navigateur de MoltenTerm : relancez sa session pour le connecter",
             "tabGone": "Cet onglet n'est plus dans le panneau",
             "openElsewhere": "Cette page est ouverte dans {browser} : ouvrez-la dans MoltenTerm pour la partager",
             "anotherBrowser": "un autre navigateur",
@@ -1955,7 +1972,6 @@
             "error": "{name} s'est arrêté sur une erreur",
             "stop": "Ne plus partager avec {name}",
             "integrationSettings": "Réglages de l'intégration des agents…",
-            "shareNow": "Partager avec un agent (actuellement {name})",
             "moveTitle": "Déplacer cet onglet vers {target} ?",
             "moveMessage": "Il est partagé avec {holder}, qui le perd aussitôt.",
             "anotherAgent": "un autre agent",

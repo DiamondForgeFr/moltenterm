@@ -98,6 +98,8 @@ func handleAgentCommand(command string, data any) (any, error) {
 			return molten.AgentIntegrationStatus{}, nil
 		}
 		return molten.AgentIntegrationStatus{Found: true, Report: &rep}, nil
+	case molten.AgentIntegrationRunsCommand:
+		return AgentIntegrationRunsNow(), nil
 	}
 	return nil, fmt.Errorf("unknown agent state command %q", command)
 }

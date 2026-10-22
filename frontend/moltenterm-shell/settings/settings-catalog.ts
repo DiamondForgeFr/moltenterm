@@ -107,6 +107,8 @@ export type SettingEntry = {
     // What the app uses when the key is unset.
     defaultValue?: unknown;
     platform?: string;
+    // A multi whose list holds the options turned off: an option shows ticked when it is absent (#947).
+    inverted?: boolean;
     scope: SettingScope;
     order: number;
 };
@@ -125,6 +127,7 @@ type SchemaMeta = {
     default?: unknown;
     platform?: string;
     hidden?: boolean;
+    inverted?: boolean;
     order?: number;
 };
 
@@ -206,6 +209,7 @@ export function buildCatalog(
             unit: meta.unit,
             defaultValue: defaults?.[key] ?? meta.default,
             platform: meta.platform,
+            inverted: meta.inverted || undefined,
             scope: "global",
             order: meta.order ?? idx,
         });
@@ -456,4 +460,18 @@ export function settingChoices(
         list.unshift({ value: "", label: entry.unsetLabel });
     }
     return list.length <= MaxChoiceRows ? list : null;
+}
+
+// A multi's option is ticked when its value is in the list, or, inverted, when it is absent (#947: "Agents with the
+// integration" stores the agents turned off in agent:integrateoff).
+export function multiOptionOn(entry: SettingEntry, value: unknown, option: string): boolean {
+    const chosen = Array.isArray(value) ? (value as string[]) : [];
+    return entry.inverted ? !chosen.includes(option) : chosen.includes(option);
+}
+
+// The list to write once the option is clicked; null clears an empty list.
+export function multiToggled(entry: SettingEntry, value: unknown, option: string): string[] {
+    const chosen = Array.isArray(value) ? (value as string[]) : [];
+    const next = chosen.includes(option) ? chosen.filter((v) => v !== option) : [...chosen, option];
+    return next.length ? next : null;
 }
