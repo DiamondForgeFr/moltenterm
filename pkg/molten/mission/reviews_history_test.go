@@ -230,6 +230,14 @@ func TestMergedHistoryWithoutIssueTypes(t *testing.T) {
 	}
 }
 
+func TestSortReleaseTags(t *testing.T) {
+	got := SortReleaseTags([]string{"v1.0.0", "v1.0.0-10", "v1.0.0-2", "v0.9.0", "nightly", "v1.0.0-rc.1", "v1.1.0-1", "v1.0.1"}, "v")
+	want := "v0.9.0,v1.0.0-2,v1.0.0-10,v1.0.0-rc.1,v1.0.0,v1.0.1,v1.1.0-1,nightly"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("got %v", got)
+	}
+}
+
 // AC2, AC4: where each merge commit ships, for the whole history at once, as ReadShips says it for one.
 func TestReadHistoryShips(t *testing.T) {
 	dir := makeGitFlowRepo(t)
@@ -262,9 +270,17 @@ func TestReadHistoryShips(t *testing.T) {
 		t.Fatal("a commit the clone lacks has no answer")
 	}
 	gitRun(t, dir, "tag", "v1.1.0-2", next)
-	_, ships = ReadHistoryShips(ctx, plainRunner, dir, []string{first, next}, "v", "main", "develop")
+	// The release cut later carries both: each still ships in the candidate that carried it first.
+	gitRun(t, dir, "tag", "v1.1.0", next)
+	tags, ships = ReadHistoryShips(ctx, plainRunner, dir, []string{first, next}, "v", "main", "develop")
+	if strings.Join(tags, ",") != "v1.0.0,v1.1.0-1,v1.1.0-2,v1.1.0" {
+		t.Fatalf("tags: %v", tags)
+	}
 	check(first, ReviewShipsTag, "v1.1.0-1")
 	check(next, ReviewShipsTag, "v1.1.0-2")
+	if where, in, _ := ReadShips(ctx, plainRunner, dir, next, "v", "main"); where != ReviewShipsTag || in != "v1.1.0-2" {
+		t.Fatalf("Recently merged says %s %s", where, in)
+	}
 	noTags, ships := ReadHistoryShips(ctx, plainRunner, dir, []string{next}, "release-", "", "develop")
 	if len(noTags) != 0 {
 		t.Fatalf("no tag of that prefix: %v", noTags)
