@@ -25,7 +25,7 @@ func makeRouteWorld(t *testing.T) (*Manager, *fakeEnv, *routetest.Env, *localrou
 	return m, env, e, link
 }
 
-// emain reports takeover without asking for an answer: the command runs all the same, and nothing is sent back.
+// A takeover sent without asking for an answer: the command runs all the same, and nothing is sent back.
 func TestRouteRunsCommandsWithoutReqId(t *testing.T) {
 	m, env, e, link := makeRouteWorld(t)
 	sid := hello(t, m, e.Terminal().Source, "tok-a", "a")

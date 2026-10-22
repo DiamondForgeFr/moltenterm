@@ -12,6 +12,8 @@ import {
     horizontalWheelDelta,
     routeHorizontalWheel,
 } from "../frontend/moltenterm-shell/view360/carpet-wheel";
+// MOLTENTERM-PATCH (#971)
+import { GateEventTypes, WebviewInputGate } from "./moltenterm-webview-input-gate";
 
 // MOLTENTERM-PATCH (#371): a single trusted request after the page can suppress its own menu.
 document.addEventListener("contextmenu", (event) => {
@@ -44,29 +46,17 @@ document.addEventListener("mouseup", (event) => {
     }
 });
 
-// MOLTENTERM-PATCH (#300, #302): a click or key of the user in a page an agent drives takes over (emain/moltenterm-browseragent.ts
-// ignores it for pages under no agent's control). Captured before the page's own listeners. emain tells the agent's own
-// input from the user's by matching each report against the input it dispatched, so the report says which button and
-// point, or which key: never the text of a field.
-function moltentermNoteInput(event: Event) {
-    if (!event.isTrusted) {
-        return;
-    }
-    if (event instanceof MouseEvent) {
-        ipcRenderer.send("moltenterm-webview-input", {
-            type: "mousedown",
-            button: event.button,
-            x: event.clientX,
-            y: event.clientY,
-        });
-        return;
-    }
-    if (event instanceof KeyboardEvent) {
-        ipcRenderer.send("moltenterm-webview-input", { type: "keydown", key: event.key, code: event.code });
-    }
+// MOLTENTERM-PATCH (#300, #302, #971): a click or key of the user in a page an agent drives is held back until the user
+// takes over in the panel (emain/moltenterm-webview-input-gate.ts); emain answers that a page under no agent's control
+// takes all input. Captured before the page's own listeners. emain tells the agent's own input from the user's by
+// matching each report against the input it dispatched, so the report says which button and point, or which key: never
+// the text of a field.
+const moltentermInputGate = new WebviewInputGate(
+    (report) => ipcRenderer.sendSync("moltenterm-webview-input", report) !== false
+);
+for (const type of GateEventTypes) {
+    window.addEventListener(type, (event) => moltentermInputGate.handle(event as any), true);
 }
-window.addEventListener("mousedown", moltentermNoteInput, true);
-window.addEventListener("keydown", moltentermNoteInput, true);
 
 // MOLTENTERM-PATCH (#676): in 360 view the page's wheel never reaches the host's carpet. The host says whether this
 // panel lies on a scrollable carpet and has the focus; a horizontal scroll the panel should not keep is cancelled here

@@ -217,31 +217,21 @@ export function initIpcHandlers() {
     });
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
-    // MOLTENTERM-PATCH (#300, #302): a user's click or key in an agent's tab takes over, and a download the agent's tab
-    // starts waits for the user's Allow (route molten:browseragent)
-    initMoltentermBrowserAgent(
-        (blockId, browserTabId) =>
-            fireAndForget(() =>
-                ElectronWshClient.wshRpcCall(
-                    "moltenbrowseragentcontrol",
-                    { blockid: blockId, browsertabid: browserTabId, action: "takeover" },
-                    { route: "molten:browseragent", noresponse: true }
-                )
-            ),
-        async (blockId, browserTabId, host) => {
-            try {
-                const answer = await ElectronWshClient.wshRpcCall(
-                    "moltenbrowseragentdownload",
-                    { blockid: blockId, browsertabid: browserTabId, host },
-                    { route: "molten:browseragent", timeout: 130000 }
-                );
-                return answer?.allow === true;
-            } catch (e) {
-                console.log("molten browser agent: download answer failed", e);
-                return false;
-            }
+    // MOLTENTERM-PATCH (#300, #302, #971): a download the agent's tab starts waits for the user's Allow (route
+    // molten:browseragent); taking a tab over is the user's explicit act in the panel, never a click in the page
+    initMoltentermBrowserAgent(async (blockId, browserTabId, host) => {
+        try {
+            const answer = await ElectronWshClient.wshRpcCall(
+                "moltenbrowseragentdownload",
+                { blockid: blockId, browsertabid: browserTabId, host },
+                { route: "molten:browseragent", timeout: 130000 }
+            );
+            return answer?.allow === true;
+        } catch (e) {
+            console.log("molten browser agent: download answer failed", e);
+            return false;
         }
-    );
+    });
     // MOLTENTERM-PATCH (#663): one scheme rule for every link handed to the system (emain/moltenterm-external-links.ts)
     onAppIpc("open-external", (event, url) => {
         fireAndForget(() => openExternalLink(url, event.sender));

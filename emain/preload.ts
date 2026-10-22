@@ -122,6 +122,18 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
+    // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
+    onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
+        const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
+        ipcRenderer.on("moltenterm-agent-press", listener);
+        return () => ipcRenderer.removeListener("moltenterm-agent-press", listener);
+    },
+    // MOLTENTERM-PATCH (#971): the user's click or key in a page an agent drives was held back
+    onMoltentermAgentInputHeld: (callback: (webContentsId: number) => void) => {
+        const listener = (_event, webContentsId: number) => callback(webContentsId);
+        ipcRenderer.on("moltenterm-agent-input-held", listener);
+        return () => ipcRenderer.removeListener("moltenterm-agent-input-held", listener);
+    },
     // MOLTENTERM-PATCH (#663): the user's answer to a page's permission question (emain/moltenterm-site-permissions.ts)
     moltentermSitePermissionAnswer: (requestId: string, decision: string) =>
         ipcRenderer.send("moltenterm-site-permission-answer", requestId, decision),

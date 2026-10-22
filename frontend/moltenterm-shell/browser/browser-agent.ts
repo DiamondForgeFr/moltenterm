@@ -46,6 +46,8 @@ const ShareTellTimeoutMs = 15000;
 const ListTimeoutMs = 1500;
 // A cue shows where the agent just acted, then fades out.
 export const ActionCueMs = 1500;
+// How long the bar says how to take over after the user's click or key was held back (#971).
+export const HeldHintMs = 4000;
 
 // A request waiting on a tab: a site permission, or one sensitive action, whose words say what (must match
 // PermissionPrompt in pkg/molten/browseragent/env.go).
@@ -92,6 +94,8 @@ export type ControlBarButton = { label: string; action: AgentControlAction; prim
 
 export type ControlBarView = {
     takenOver: boolean;
+    // The user's click or key was just held back: the detail says how to take over (#971).
+    held?: boolean;
     title: string;
     detail: string;
     // The emulated viewport, e.g. "390 × 844", or "".
@@ -125,8 +129,9 @@ export function agentName(tab: AgentTab): string {
     return tab?.agentname?.trim() || t("browser.agent.anAgent");
 }
 
-// The bar of a controlled tab, or null when no agent controls it (DS-BRW-011).
-export function controlBarView(tab: AgentTab): ControlBarView {
+// The bar of a controlled tab, or null when no agent controls it (DS-BRW-011). Taking over is the user's explicit act
+// (#971): the bar offers Take over, and says so when emain just held back the user's click or key (held).
+export function controlBarView(tab: AgentTab, held = false): ControlBarView {
     if (tab == null) {
         return null;
     }
@@ -139,7 +144,7 @@ export function controlBarView(tab: AgentTab): ControlBarView {
             detail: t("browser.agent.waitsGiveBack", { name }),
             viewport,
             buttons: [
-                { label: t("browser.agent.giveBack"), action: "giveback", primary: true },
+                { label: t("browser.agent.giveBackTo", { name }), action: "giveback", primary: true },
                 { label: t("browser.agent.stop"), action: "stop", primary: false },
             ],
         };
@@ -150,9 +155,13 @@ export function controlBarView(tab: AgentTab): ControlBarView {
     return {
         takenOver: false,
         title: t("browser.agent.controlling", { name }),
-        detail: serverText(tab.actiontext, tab.action ?? ""),
+        detail: held ? t("browser.agent.heldHint", { name }) : serverText(tab.actiontext, tab.action ?? ""),
         viewport,
-        buttons: [{ label: t("browser.agent.stop"), action: "stop", primary: false }],
+        held,
+        buttons: [
+            { label: t("browser.agent.takeOver"), action: "takeover", primary: held },
+            { label: t("browser.agent.stop"), action: "stop", primary: false },
+        ],
     };
 }
 
@@ -330,9 +339,28 @@ export class BrowserAgentModel {
     unsubscribe: () => void = null;
     // A snapshot must not overwrite an event or a user action that arrived while it was in flight.
     stateVersion = 0;
+    // The tabs where emain just held back the user's click or key (#971), whose bar says how to take over.
+    heldAtom = atom({}) as PrimitiveAtom<Record<string, true>>;
+    heldTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     constructor(blockId: string) {
         this.blockId = blockId;
+    }
+
+    noteHeldInput(browserTabId: string): void {
+        if (this.tabs()[browserTabId]?.state !== AgentStateActive) {
+            return;
+        }
+        clearTimeout(this.heldTimers.get(browserTabId));
+        globalStore.set(this.heldAtom, { ...globalStore.get(this.heldAtom), [browserTabId]: true });
+        this.heldTimers.set(
+            browserTabId,
+            setTimeout(() => {
+                this.heldTimers.delete(browserTabId);
+                const { [browserTabId]: _gone, ...rest } = globalStore.get(this.heldAtom);
+                globalStore.set(this.heldAtom, rest);
+            }, HeldHintMs)
+        );
     }
 
     tabs(): AgentTabs {
@@ -462,5 +490,9 @@ export class BrowserAgentModel {
     dispose(): void {
         this.unsubscribe?.();
         this.unsubscribe = null;
+        for (const timer of this.heldTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.heldTimers.clear();
     }
 }

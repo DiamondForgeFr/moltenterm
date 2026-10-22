@@ -65,7 +65,7 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpbrowser.CallRe
 		outcome = resultSentence(result)
 	}
 	m.logCall(s, req.Tool, entry, outcome, start)
-	return result
+	return m.withNotices(s.id, result)
 }
 
 // dispatch runs one tool, on its own or as an item of browser_batch.
@@ -259,6 +259,8 @@ type tabEntry struct {
 	Owner string `json:"owner"`
 	State string `json:"state"`
 	Site  string `json:"site,omitempty"`
+	// Note: "shared just now" or "given back", until the agent has been told (#971).
+	Note string `json:"note,omitempty"`
 }
 
 type tabPage struct {
@@ -324,7 +326,7 @@ func (m *Manager) readTabs(ctx context.Context, s sessionInfo, loc BlockLocation
 			}
 			reads[i] = read{
 				ok:    true,
-				entry: tabEntry{TabId: info.id, Owner: owner, State: resolved.info.state, Site: siteOf(page.Url)},
+				entry: tabEntry{TabId: info.id, Owner: owner, State: resolved.info.state, Site: siteOf(page.Url), Note: m.tabNote(s.id, info.id)},
 				page:  tabPage{TabId: info.id, Title: page.Title, Url: page.Url},
 			}
 		}(i, info)

@@ -51,6 +51,7 @@ var englishFields = map[string]string{
 	"reviewsession.sourceInfo.Why":         "review_context output, agent-facing",
 	"reviewsession.ciInfo.Why":             "review_context output, agent-facing",
 	"reviewsession.untrustedText.Note":     "MCP tool output, agent-facing",
+	"browseragent.tabEntry.Note":           "tabs_context output, agent-facing (#971)",
 	"reviewsession.reviewContext.Note":     "review_context output, agent-facing",
 	"reviewsession.translateInfo.Note":     "MCP tool output, agent-facing",
 	"mcpreview.BriefResult.Reason":         "a code (#652) the Review tab words (review-session-text.ts)",

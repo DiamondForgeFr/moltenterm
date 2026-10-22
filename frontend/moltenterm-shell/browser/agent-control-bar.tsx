@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The control bar of a tab an agent drives (FR-BRW-008, DS-BRW-011): above the page, in the engine choice's slot and
-// style, calm (no warning colour, no modal). "<Agent> is controlling this tab", the last action on one line, and Stop;
-// after the user's own click or key, "You took over" with Give back.
+// style, calm (no warning colour, no modal). "<Agent> is controlling this tab", the last action on one line, Take over
+// and Stop; the user's click or key in the page is held back and the line says how to take over (#971). After Take
+// over, "You took over" with "Give back to <Agent>".
 
 import { Button } from "@/app/element/button";
 import { cn } from "@/util/util";
@@ -15,7 +16,8 @@ import { ActionCueMs, activeCue, BrowserAgentModel, controlBarView, permissionBa
 export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const t = useT();
     const tabs = useAtomValue(agents.tabsAtom);
-    const view = controlBarView(tabs[tabId]);
+    const held = useAtomValue(agents.heldAtom);
+    const view = controlBarView(tabs[tabId], held[tabId] === true);
     // The site permission bar takes this slot while the agent waits for the user's answer.
     if (view == null || permissionBarView(tabs[tabId]) != null) {
         return null;

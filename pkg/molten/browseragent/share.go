@@ -204,7 +204,7 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 		return ShareResult{}, shareError(refusal)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
-	outcome := m.shareTab(s.id, key, req.Move)
+	outcome := m.shareTab(s.id, key, req.Move, siteOf(page.Url))
 	switch outcome.result {
 	case shareHeld:
 		return ShareResult{Result: ShareResultMove, AgentName: s.agentName, Holder: outcome.holder.agentName}, nil
@@ -216,6 +216,11 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 	if outcome.moved {
 		m.env.SetControl(key, false)
 		m.logf("%s session=%s agent=%q control=moved\n", logPrefix, shortId(outcome.holder.id), outcome.holder.agentName)
+	}
+	if outcome.resumed {
+		// emain paused the tab on the user's input; sharing it again hands it back, as Give back does.
+		m.env.SetControl(key, true)
+		m.logf("%s session=%s agent=%q control=giveback (shared again)\n", logPrefix, shortId(s.id), s.agentName)
 	}
 	m.publishPanel(key.PanelId)
 	if outcome.tabId != 0 {
@@ -246,12 +251,14 @@ type shareOutcome struct {
 	result int
 	tabId  int64
 	moved  bool
-	holder sessionInfo
+	// resumed: the session held the tab, taken over by the user; sharing it again gave it back (#971).
+	resumed bool
+	holder  sessionInfo
 }
 
 // shareTab takes the tab from its holder (with move) and adds it to the session, in one step so no call can slip in
-// between.
-func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome {
+// between. A share always leaves the tab active for the session (#971).
+func (m *Manager) shareTab(sessionId string, key TabKey, move bool, site string) shareOutcome {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
@@ -261,7 +268,13 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 	var out shareOutcome
 	if holderId, held := m.owners[key]; held {
 		if holderId == sessionId {
-			return shareOutcome{result: shareKept}
+			t := s.tabFor(key)
+			if t == nil || t.state != TabStateTakenOver {
+				return shareOutcome{result: shareKept}
+			}
+			t.state = TabStateActive
+			s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
+			return shareOutcome{result: shareKept, tabId: t.id, resumed: true}
 		}
 		holder := m.sessions[holderId]
 		if holder != nil {
@@ -300,6 +313,7 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool) shareOutcome
 		calls:     make(map[int64]context.CancelFunc),
 	}
 	m.owners[key] = sessionId
+	s.addNotice(m.nextTabId, noteSharedJustNow, sharedNotice(m.nextTabId, site))
 	out.result = shareAdded
 	out.tabId = m.nextTabId
 	return out

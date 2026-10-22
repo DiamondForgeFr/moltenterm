@@ -52,6 +52,7 @@ import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-mo
 import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
+import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import {
     AgentControlAction,
     agentName,
@@ -144,11 +145,13 @@ const PersistDelayMs = 400;
 const FallbackUrl = "about:blank";
 
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
-type BrowserAgentElectronApi = ElectronApi & {
-    moltentermRegisterWebview?: (blockId: string, browserTabId: string, webContentsId: number) => void;
-};
+type BrowserAgentElectronApi = ElectronApi &
+    AgentPressApi & {
+        moltentermRegisterWebview?: (blockId: string, browserTabId: string, webContentsId: number) => void;
+    };
 
 function registerWebview(blockId: string, browserTabId: string, webContentsId: number): void {
+    listenAgentPresses(getApi() as BrowserAgentElectronApi);
     (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(blockId, browserTabId, webContentsId);
 }
 
@@ -1188,7 +1191,10 @@ function TabWebview({
             menu.push(...splitMenuItems(model.blockId));
             ContextMenuModel.getInstance().showContextMenu(menu, event);
         });
-        const onFocus = () => {
+        const onFocus = (e: FocusEvent) => {
+            if (keepUserFocus(webview.getWebContentsId(), webview, e.relatedTarget as HTMLElement)) {
+                return;
+            }
             getApi().setWebviewFocus(webview.getWebContentsId());
             model.nodeModel.focusNode();
         };
@@ -1215,8 +1221,11 @@ function TabWebview({
         };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
+        let offHeld: () => void = null;
         const onDomReady = () => {
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
+            offHeld?.();
+            offHeld = onInputHeld(webview.getWebContentsId(), () => model.agents.noteHeldInput(tab.id));
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
             getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
             reportWebviewShown(
@@ -1257,6 +1266,7 @@ function TabWebview({
         webview.addEventListener("did-fail-load", onFailLoad);
         webview.addEventListener("page-favicon-updated", onFavicon);
         return () => {
+            offHeld?.();
             webview.removeEventListener("did-start-loading", onStartLoading);
             webview.removeEventListener("did-stop-loading", onStopLoading);
             webview.removeEventListener("did-fail-load", onFailLoad);
