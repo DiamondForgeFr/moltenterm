@@ -290,7 +290,7 @@ export function shareMenuItems(
             { label: t("browser.share.integrationSettings"), icon: "gear", click: () => actions.openAgentSettings() }
         );
     }
-    menu.push({ label: shareLabel(), icon: "share-nodes", type: "submenu", submenu: entries });
+    menu.push({ type: "submenu", label: shareLabel(), icon: "share-nodes", submenu: entries });
     return menu;
 }
 
