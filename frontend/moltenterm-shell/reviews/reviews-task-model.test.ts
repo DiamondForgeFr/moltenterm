@@ -90,6 +90,15 @@ describe("prTaskState (#954 AC6)", () => {
         expect(prTaskState(rebase, conflicted, null, Asked + StuckGraceMs)).toBe("stuck");
         const other = bruno("idle", Asked + 10, { blockId: "b2", name: "Rita" });
         expect(prTaskState(rebase, conflicted, other, Asked + StuckGraceMs)).toBe("stuck");
+        const guess: AgentBarFacts = {
+            kind: "background",
+            agent: "claude",
+            name: "",
+            state: "background",
+            since: Asked,
+        };
+        expect(prTaskState(rebase, conflicted, guess, Asked + StuckGraceMs)).toBe("stuck");
+        expect(prTaskState({ ...rebase, blockId: "" }, conflicted, guess, Asked + StuckGraceMs)).toBe("running");
     });
 
     it("follows a check of the PR to done only when nothing is left but the report", () => {
