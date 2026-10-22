@@ -81,7 +81,7 @@ describe("chipView", () => {
             tone: "future",
             label: "feature/109-suite-domino-loader · browser.testContext.futurePr",
         });
-        const unknown = chipView({ url: "", host: "localhost", port: 4000, known: false, reason: "noprocess" }, t);
+        const unknown = chipView({ url: "", host: "localhost", port: 4000, known: false, unknown: "noprocess" }, t);
         expect(unknown.tone).toBe("unknown");
         expect(unknown.label).toBe("browser.testContext.unknown");
         expect(unknown.title).toContain("browser.testContext.reason.noProcess");
@@ -120,9 +120,9 @@ describe("details", () => {
 
     it("explains each unknown source", () => {
         const base = { url: "", host: "localhost", port: 1, known: false };
-        expect(reasonText({ ...base, reason: "notlocal" }, t)).toBe("browser.testContext.reason.notLocal");
-        expect(reasonText({ ...base, reason: "nofolder", pid: 3 }, t)).toContain('"process":"3"');
-        expect(reasonText({ ...base, reason: "norepo", cwd: "/srv" }, t)).toContain("/srv");
+        expect(reasonText({ ...base, unknown: "notlocal" }, t)).toBe("browser.testContext.reason.notLocal");
+        expect(reasonText({ ...base, unknown: "nofolder", pid: 3 }, t)).toContain('"process":"3"');
+        expect(reasonText({ ...base, unknown: "norepo", cwd: "/srv" }, t)).toContain("/srv");
     });
 });
 
