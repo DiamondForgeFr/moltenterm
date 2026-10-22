@@ -29,13 +29,13 @@ import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
-    batchActive,
     batchPlan,
     BatchRowMark,
     batchRowMark,
     batchSelectable,
     batchShown,
     batchStartRequest,
+    queueOrder,
     toggleBatchSelection,
 } from "./reviews-batch-model";
 import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
@@ -286,12 +286,12 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         [forecast, split, forecastActive]
     );
     const status = forecastStatus(forecast, forecastReq);
-    // The batch merge (FR-REV-025): the PRs selected for it, the confirmation modal, and the run wavesrv publishes.
-    const batchRun = useBatchRun(dir);
+    // The batch merge (FR-REV-025): the PRs selected for it, the confirmation modal, and the merge queue they join
+    // (FR-REV-026), which wavesrv publishes.
+    const batchRun = useBatchRun(dir, answer.target);
     const [selecting, setSelecting] = useState(false);
     const [batchSelected, setBatchSelected] = useState<number[]>([]);
     const [confirming, setConfirming] = useState(false);
-    const batchRunning = batchActive(batchRun);
     const plannedBatch = useMemo(
         () =>
             confirming
@@ -312,8 +312,15 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const startBatch = async (): Promise<string> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
-            await BatchRuns.getInstance().start(
-                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, workspaceId)
+            const listed = [...listSplit.ready, ...listSplit.drafts];
+            const order = queueOrder(
+                forecast,
+                listed,
+                batchRun,
+                plannedBatch.steps.map((s) => s.pr.number)
+            );
+            await BatchRuns.getInstance().add(
+                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, workspaceId, order)
             );
         } catch (e) {
             return serverErrorText(e);
@@ -421,7 +428,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     {t("reviews.waiting")}
                     <span className="text-12 font-normal text-muted">{split.ready.length}</span>
                     <ForecastStatusLine status={status} />
-                    {split.ready.length > 1 && !selecting && !batchRunning ? (
+                    {split.ready.length > 1 && !selecting ? (
                         <button
                             type="button"
                             onClick={() => {
@@ -860,8 +867,9 @@ export function ReviewRow({
                     <span className="min-w-0">{outcome.text}</span>
                 </div>
             ) : null}
-            <RowAgentBar dir={dir} branch={pr.branch} />
             <PrSignature agents={pr.agents} testId="reviews-signature" />
+            {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
+            <RowAgentBar dir={dir} branch={pr.branch} />
         </div>
     );
 }

@@ -12,19 +12,24 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
-// The batch's notifications (FR-REV-025 AC-5, AC-7, AC-8): a stop names its PR and its reason and waits in the
-// notification center until the developer decided; the end sums up what was merged, what was skipped and why, and how
-// many CI runs the batch redid. Both reach the agent's terminal when there is one; nothing opens by itself.
+// The merge queue's notifications (FR-REV-025, FR-REV-026 AC8): each merge says when the PR was validated; each stop
+// names its PR and its reason (a failing check offers Investigate and fix) and stays until the PR merged, came back
+// or left; a push the queue did not make says the validation is void; the end of a queue of several PRs sums up what
+// was merged, what was not and why, and how many CI runs the queue redid. Nothing opens by itself.
 
 const (
 	batchNoticePrefix = "review:batch:"
 	// ReviewsViewName opens the Reviews list from a notification; must match MoltentermReviewsView.
 	ReviewsViewName = "molten-reviews"
+	// InvestigateGesture runs Investigate and fix on a PR from a notification; must match
+	// frontend/moltenterm-shell/reviews/reviews-queue-gesture.ts.
+	InvestigateGesture = "review:investigate"
 )
 
 func batchNoticeKey(dir string, what string) string {
@@ -43,13 +48,18 @@ func (b *BatchRunner) notify(input molten.NotificationInput) {
 	}
 }
 
-func (b *BatchRunner) resolveStopNotice(ctl *batchCtl) {
+func prNoticeKey(run BatchRun, number int) string {
+	return batchNoticeKey(run.Dir, "pr:"+run.Base+":"+strconv.Itoa(number)+":")
+}
+
+// resolvePrNotice: a PR's "needs you" is over once it merged, came back or left the queue.
+func (b *BatchRunner) resolvePrNotice(run BatchRun, number int) {
 	if b.env.Agents == nil || b.env.Agents.env.ResolveNotices == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
 	defer cancel()
-	key := batchNoticeKey(b.read(ctl).Dir, "stop:")
+	key := prNoticeKey(run, number)
 	if err := b.env.Agents.env.ResolveNotices(ctx, key); err != nil {
 		log.Printf("%s %s: the notification could not be resolved: %v\n", logPrefix, key, err)
 	}
@@ -112,29 +122,103 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 		return "cancelled", uimsg.Make("notif.review.batch.why.cancelled")
 	case BatchReasonInterrupted:
 		return "MoltenTerm restarted", uimsg.Make("notif.review.batch.why.interrupted")
+	case BatchReasonPushed:
+		return "pushed after your validation", uimsg.Make("notif.review.batch.why.pushed")
+	case BatchReasonWithdrawn:
+		return "validation cancelled", uimsg.Make("notif.review.batch.why.withdrawn")
 	}
 	return "not reached", uimsg.Make("notif.review.batch.why.notreached")
 }
 
-func (b *BatchRunner) notifyStop(ctl *batchCtl, run BatchRun, i int) {
+// investigateAction: Investigate and fix (#896) on the PR whose checks failed, from the notification.
+func investigateAction(run BatchRun, it BatchItem) molten.NotificationAction {
+	return molten.NotificationAction{Id: "investigate", Label: "Investigate and fix", LabelText: uimsg.Make("notif.review.queue.investigate"),
+		Kind: "gesture", Gesture: InvestigateGesture, Lasting: true,
+		Args: map[string]any{"dir": run.Dir, "repo": run.Repo, "number": it.Number}}
+}
+
+// notifyStop: one "needs you" per stop (FR-REV-026 AC4, AC8). A failing check names the checks and offers Investigate
+// and fix; the PR stays watched on its head. Any other stop takes it out of the queue until a new validation.
+func (b *BatchRunner) notifyStop(run BatchRun, i int) {
 	it := run.Items[i]
 	number := strconv.Itoa(it.Number)
 	reason, reasonText := batchReasonText(it, run.Base)
 	input := molten.NotificationInput{
-		Key:         batchNoticeKey(run.Dir, "stop:"+run.Id+":"+number),
+		Key:         prNoticeKey(run, it.Number) + "stop:" + strconv.FormatInt(b.env.Now().UnixMilli(), 10),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       "The batch merge stopped on #" + number,
-		TitleText:   uimsg.Make("notif.review.batch.stoppedTitle", "number", number),
-		Message:     "Reason: " + reason + ". The PRs after it wait for your decision in the Reviews list.",
-		MessageText: uimsg.Make("notif.review.batch.stopped").With("reason", reasonText),
+		Title:       "#" + number + " needs you: the merge queue stopped on it",
+		TitleText:   uimsg.Make("notif.review.queue.stoppedTitle", "number", number),
+		Message:     "Reason: " + reason + ". The other validated PRs go on; validate it again once it is sorted out.",
+		MessageText: uimsg.Make("notif.review.queue.stopped").With("reason", reasonText),
 		WorkspaceId: run.WorkspaceId,
 		Actions:     []molten.NotificationAction{reviewsAction()},
 	}
-	if run.BlockId != "" {
+	if it.State == BatchItemFailed {
+		names := strings.Join(it.Names, ", ")
+		input.Kind = "error"
+		input.Title = "#" + number + " validated but CI failed: " + names
+		input.TitleText = uimsg.Make("notif.review.queue.failedTitle", "number", number, "names", names)
+		input.Message = "It is not merged while a check fails. It merges once its checks pass on the same head; a new push needs a new validation."
+		input.MessageText = uimsg.Make("notif.review.queue.failed")
+		input.Actions = []molten.NotificationAction{investigateAction(run, it), reviewsAction()}
+	} else if run.BlockId != "" && (it.Reason == BatchReasonAmbiguous || it.Reason == BatchReasonAgentExited || it.Reason == BatchReasonAgentTimeout) {
 		input.TabId, input.BlockId = run.TabId, run.BlockId
+		input.Actions = []molten.NotificationAction{terminalAction(run), reviewsAction()}
 	}
 	b.notify(input)
+}
+
+// notifyVoided: a push the queue did not make changed the validated code (FR-REV-026 AC5).
+func (b *BatchRunner) notifyVoided(run BatchRun, i int) {
+	it := run.Items[i]
+	number := strconv.Itoa(it.Number)
+	b.notify(molten.NotificationInput{
+		Key:         prNoticeKey(run, it.Number) + "voided:" + strconv.FormatInt(b.env.Now().UnixMilli(), 10),
+		Source:      "agent",
+		Kind:        "warning",
+		Title:       "#" + number + " changed after your validation",
+		TitleText:   uimsg.Make("notif.review.queue.voidedTitle", "number", number),
+		Message:     "Someone pushed " + shortHead(it.Head) + " on it: it left the merge queue and is back to review. Review the new commits and validate it again.",
+		MessageText: uimsg.Make("notif.review.queue.voided", "head", shortHead(it.Head)),
+		WorkspaceId: run.WorkspaceId,
+		Actions:     []molten.NotificationAction{reviewsAction()},
+	})
+}
+
+// notifyMerged: "#N merged (validated at HH:MM)" (FR-REV-026 AC8).
+func (b *BatchRunner) notifyMerged(run BatchRun, i int) {
+	it := run.Items[i]
+	number := strconv.Itoa(it.Number)
+	at := time.UnixMilli(it.ValidatedAt).Format("15:04")
+	b.resolvePrNotice(run, it.Number)
+	b.notify(molten.NotificationInput{
+		Key:         prNoticeKey(run, it.Number) + "merged",
+		Source:      "agent",
+		Kind:        "success",
+		Title:       "#" + number + " merged (validated at " + at + ")",
+		TitleText:   uimsg.Make("notif.review.queue.mergedTitle", "number", number, "time", at),
+		Message:     "The merge queue merged it into " + run.Base + ".",
+		MessageText: uimsg.Make("notif.review.queue.merged", "base", run.Base),
+		WorkspaceId: run.WorkspaceId,
+		Actions:     []molten.NotificationAction{reviewsAction()},
+	})
+}
+
+// notifyResumed: the queue says it resumed after a restart (FR-REV-026 AC2).
+func (b *BatchRunner) notifyResumed(run BatchRun, count int) {
+	if count == 0 {
+		return
+	}
+	b.notify(molten.NotificationInput{
+		Key:         batchNoticeKey(run.Dir, "resumed:"+run.Id+":"+strconv.FormatInt(run.ResumedAt, 10)),
+		Source:      "agent",
+		Kind:        "info",
+		Title:       fmt.Sprintf("The merge queue of %s resumed: %d validated PRs", run.Base, count),
+		TitleText:   uimsg.Make("notif.review.queue.resumedTitle", "base", run.Base, "count", strconv.Itoa(count)),
+		WorkspaceId: run.WorkspaceId,
+		Actions:     []molten.NotificationAction{reviewsAction()},
+	})
 }
 
 // batchList chains the skipped PRs as parts, so the window words each reason: "#4 (checks failing: ci), #5 (not
@@ -220,13 +304,13 @@ func (b *BatchRunner) notifyEnd(run BatchRun) {
 		Key:         batchNoticeKey(run.Dir, "end:"+run.Id),
 		Source:      "agent",
 		Kind:        "success",
-		Title:       fmt.Sprintf("Batch merge: %s of %s PRs merged", count, total),
+		Title:       fmt.Sprintf("Merge queue: %s of %s PRs merged", count, total),
 		TitleText:   uimsg.Make("notif.review.batch.doneTitle", "merged", count, "total", total),
 		WorkspaceId: run.WorkspaceId,
 		Actions:     []molten.NotificationAction{reviewsAction()},
 	}
 	if run.State == BatchCancelled {
-		input.Title = fmt.Sprintf("Batch merge cancelled: %s of %s PRs merged", count, total)
+		input.Title = fmt.Sprintf("Merge queue cancelled: %s of %s PRs merged", count, total)
 		input.TitleText = uimsg.Make("notif.review.batch.cancelledTitle", "merged", count, "total", total)
 	}
 	if len(skipped) > 0 {

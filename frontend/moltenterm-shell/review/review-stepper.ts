@@ -87,6 +87,8 @@ export function checkDetail(t: Translate, check: ReviewMergeCheck): string {
             return t("review.validate.checkCode.draft");
         case "failing":
             return t("review.validate.checkCode.failing", { count: check.count ?? 0, names });
+        case "failingoptional":
+            return t("review.validate.checkCode.failingoptional", { count: check.count ?? 0, names });
         case "running":
             return t("review.validate.checkCode.running", { count: check.count ?? 0, names });
         case "nocheck":
@@ -101,6 +103,8 @@ export function checkDetail(t: Translate, check: ReviewMergeCheck): string {
             return t("review.validate.checkCode.computing");
         case "blocked":
             return t("review.validate.checkCode.blocked");
+        case "waitsci":
+            return t("review.validate.checkCode.waitsci");
         case "behind":
             return t("review.validate.checkCode.behind", { base: check.base ?? "" });
         case "unpublished":
@@ -149,7 +153,9 @@ function checksStep(t: Translate, plan: ReviewMergePlan, record: ReviewMergeReco
         const detail = checkDetail(t, c);
         return { id: c.id, label: checkLabel(t, c), state: checkRowState(c.state), lines: detail ? [detail] : [] };
     });
-    const problems = step.rows.filter((r) => r.state !== "done").length;
+    // A row still running (CI, GitHub computing) waits; it does not need the developer (#925).
+    const problems = step.rows.filter((r) => r.state === "failed" || r.state === "needs").length;
+    const waiting = step.rows.filter((r) => r.state === "running").length;
     if (step.rows.some((r) => r.state === "failed")) {
         step.state = "failed";
     } else if (step.rows.some((r) => r.state === "running")) {
@@ -159,11 +165,13 @@ function checksStep(t: Translate, plan: ReviewMergePlan, record: ReviewMergeReco
     } else {
         step.state = "done";
     }
-    if (problems === 0) {
+    if (problems > 0) {
+        step.lines.push(plural(t, "review.validate.checks.problems", problems));
+    } else if (waiting > 0) {
+        step.lines.push(plural(t, "review.validate.checks.waiting", waiting));
+    } else {
         step.collapsed = true;
         step.lines.push(plural(t, "review.validate.checks.allPass", step.rows.length));
-    } else {
-        step.lines.push(plural(t, "review.validate.checks.problems", problems));
     }
     return step;
 }
@@ -200,6 +208,8 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
         case "cifailed":
             return t("review.validate.outcome.cifailed", { names: listNames(t, record.names ?? []) });
+        case "newred":
+            return t("review.validate.outcome.newred", { names: listNames(t, record.names ?? []) });
         case "citimeout":
             return t("review.validate.outcome.citimeout", { minutes: record.minutes ?? 0 });
         case "reread":

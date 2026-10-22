@@ -86,6 +86,9 @@ func (a *agentStates) output(blockId string) {
 	}
 	p := a.paneLocked(blockId)
 	if p.hookedAgent == rec.agent {
+		if rec.fromActivity && rec.state == molten.AgentStateWorking && now.Sub(p.typed) >= activityEchoWindow {
+			p.lastOut = now
+		}
 		return
 	}
 	if now.Sub(p.typed) < activityEchoWindow {
@@ -107,6 +110,24 @@ func (a *agentStates) output(blockId string) {
 	}
 	a.setStateLocked(blockId, rec, molten.AgentStateWorking, "")
 	rec.fromActivity = true
+}
+
+// isInterruptKey: the keys that stop an agent's turn, typed alone (an arrow key also starts with Escape).
+func isInterruptKey(data []byte) bool {
+	return len(data) == 1 && (data[0] == 0x1b || data[0] == 0x03)
+}
+
+// interruptedLocked: an interrupt key typed while the agent works (#915). Claude Code reports no end of turn when it
+// is interrupted, so a hook's working would last until its next turn ends. The key alone proves nothing (Escape also
+// closes the agent's own menus): the working state is left to the output activity, which keeps it while the agent
+// draws its spinner and returns it to idle once the pane stays quiet. A hook reporting again takes it back.
+func (a *agentStates) interruptedLocked(blockId string, now time.Time) {
+	rec := a.records[blockId]
+	if rec == nil || !rec.running || rec.state != molten.AgentStateWorking || rec.fromActivity {
+		return
+	}
+	rec.fromActivity = true
+	a.paneLocked(blockId).lastOut = now
 }
 
 // settleActivity sends back to idle the agents whose working state came from output that has stayed quiet.

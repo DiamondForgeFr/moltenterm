@@ -38,7 +38,7 @@ for macOS (Apple Silicon and Intel) and Linux (x64 and arm64, AppImage and .deb)
 
 ## Build from source
 
-Requirements: Go ≥ 1.26.9, [Task](https://taskfile.dev) v3, Node.js 22 with npm 10, and the Xcode Command Line Tools
+Requirements: Go ≥ 1.26.10, [Task](https://taskfile.dev) v3, Node.js 22 with npm 10, and the Xcode Command Line Tools
 on macOS.
 
 ```bash

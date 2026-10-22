@@ -534,29 +534,62 @@ func newBatchFixture(t *testing.T, setup func(prs map[int]*hubPr)) *batchFixture
 	f := &batchFixture{t: t, dir: dir, data: data, hub: hub, prs: prs, runner: runner, merger: merger, agent: agent, notices: notices}
 	// Registered after the temp folders: cleanups run in reverse order, so the run and the agent end first.
 	t.Cleanup(func() {
-		f.runner.Cancel(BatchRequest{Dir: dir})
+		f.runner.Cancel(BatchRequest{Dir: dir, Base: "develop"})
 		f.waitDone()
 		f.agent.stop()
 	})
 	return f
 }
 
+// start is a batch from the Reviews list: the PRs in the order shown, bound to their listed heads.
 func (f *batchFixture) start(numbers ...int) BatchRun {
 	f.t.Helper()
 	var prs []BatchPr
 	for _, n := range numbers {
 		prs = append(prs, f.prs[n])
 	}
-	run, err := f.runner.Start(BatchStartRequest{Dir: f.dir, Repo: testRepo, Base: "develop", Method: "merge", Prs: prs, WorkspaceId: "ws"})
+	run, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", Method: "merge", Prs: prs, Source: BatchSourceBatch,
+		Order: numbers, WorkspaceId: "ws"})
 	if err != nil {
 		f.t.Fatal(err)
 	}
 	return run
 }
 
+// validate is Validate on one PR from its sheet: a fresh plan, then the queue, with the suggested order of the window.
+func (f *batchFixture) validate(number int, order ...int) (BatchRun, error) {
+	f.t.Helper()
+	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: number}, Dir: f.dir})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	pr := f.prs[number]
+	pr.PlanId = plan.Id
+	return f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", Prs: []BatchPr{pr}, Order: order, WorkspaceId: "ws"})
+}
+
+func (f *batchFixture) setPr(number int, fn func(pr *hubPr)) {
+	f.hub.lock.Lock()
+	defer f.hub.lock.Unlock()
+	fn(f.hub.prs[number])
+}
+
+// push is someone else's commit on the PR's branch on origin.
+func (f *batchFixture) push(number int) string {
+	f.t.Helper()
+	f.hub.lock.Lock()
+	defer f.hub.lock.Unlock()
+	branch := "refs/heads/" + f.hub.prs[number].branch
+	head := f.hub.mustGit("rev-parse", branch)
+	tree := f.hub.mustGit("rev-parse", head+"^{tree}")
+	next := f.hub.mustGit("commit-tree", tree, "-p", head, "-m", "a push after the validation")
+	f.hub.mustGit("update-ref", branch, next, head)
+	return next
+}
+
 func (f *batchFixture) get() BatchRun {
 	f.t.Helper()
-	run, err := f.runner.Get(BatchRequest{Dir: f.dir})
+	run, err := f.runner.Get(BatchRequest{Dir: f.dir, Base: "develop"})
 	if err != nil || run == nil {
 		f.t.Fatalf("no run: %v", err)
 	}
@@ -588,7 +621,7 @@ func (f *batchFixture) waitDone() {
 	f.t.Helper()
 	done := make(chan struct{})
 	go func() {
-		f.runner.wait(f.dir)
+		f.runner.wait(f.dir, "develop")
 		close(done)
 	}()
 	select {
@@ -730,81 +763,196 @@ func TestMissingChecks(t *testing.T) {
 	}
 }
 
-// TC-REV-019: the second PR's checks fail after its rebase; the batch stops on it and the third is not merged.
-func TestBatchStopsOnAFailingCheckAndWaitsForTheDecision(t *testing.T) {
+// TC-REV-019, FR-REV-026 AC4: #3's checks fail after its rebase; it is set aside with its notification and #1 after it
+// is merged all the same. Nothing red is merged.
+func TestQueueFailingCheckStopsOnlyThatPr(t *testing.T) {
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[3].failAfterPush = true })
 	f.start(2, 3, 1)
-	run := f.waitFor("the stop on #3", func(run BatchRun) bool { return run.State == BatchPaused })
+	run := f.waitFor("#1 merged after #3 failed", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemMerged })
 	three := itemOf(run, 3)
-	if three.State != BatchItemStopped || three.Reason != BatchReasonFailing || !slices.Equal(three.Names, []string{"ci"}) {
+	if three.State != BatchItemFailed || three.Reason != BatchReasonFailing || !slices.Equal(three.Names, []string{"ci"}) {
 		t.Fatalf("#3: %+v", three)
 	}
-	if got := f.hub.merged(); !slices.Equal(got, []int{2}) {
-		t.Fatalf("merged %v while stopped, want only 2", got)
+	if got := f.hub.merged(); !slices.Equal(got, []int{2, 1}) {
+		t.Fatalf("merged %v, want 2 then 1", got)
 	}
-	stop := f.notices.find(":stop:")
-	if stop == nil || stop.TitleText.Vars["number"] != "3" || stop.MessageText.Parts["reason"].Vars["names"] != "ci" || stop.BlockId != "block-agent" {
-		t.Fatalf("the stop notification should name #3, its failing check and the agent's terminal: %+v", stop)
+	failed := f.notices.find(":stop:")
+	if failed == nil || failed.TitleText.Code != "notif.review.queue.failedTitle" || failed.TitleText.Vars["number"] != "3" ||
+		failed.TitleText.Vars["names"] != "ci" || len(failed.Actions) == 0 || failed.Actions[0].Gesture != InvestigateGesture {
+		t.Fatalf("the notification should say #3 failed on ci and offer Investigate and fix: %+v", failed)
 	}
-	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionSkip}); err != nil {
+	if run.State != BatchRunning {
+		t.Fatalf("the queue keeps watching #3: %s", run.State)
+	}
+	if _, err := f.runner.Withdraw(QueueWithdrawRequest{Dir: f.dir, Base: "develop", Number: 3}); err != nil {
 		t.Fatal(err)
 	}
 	run = f.waitEnd()
-	if got := f.hub.merged(); !slices.Equal(got, []int{2, 1}) {
-		t.Fatalf("merged %v, want 2 then 1 after skipping 3", got)
-	}
-	// Skipping the PR sets the run going again for the PRs after it.
-	if states := f.notices.runStates(); !slices.Equal(states, []string{BatchRunning, BatchPaused, BatchRunning, BatchDone}) {
-		t.Fatalf("run states %v", states)
-	}
-	three = itemOf(run, 3)
-	if three.State != BatchItemSkipped || !three.ByYou || three.Reason != BatchReasonFailing || run.State != BatchDone {
+	if three := itemOf(run, 3); three.State != BatchItemWithdrawn || !three.ByYou || run.State != BatchDone {
 		t.Fatalf("run %s, #3 %+v", run.State, three)
 	}
 	end := f.notices.find(":end:")
 	if end == nil || end.Kind != "warning" || end.MessageText.Parts["skipped"].Vars["number"] != "3" {
-		t.Fatalf("the end notification should list #3 as skipped: %+v", end)
+		t.Fatalf("the end notification should list #3 as not merged: %+v", end)
+	}
+	merged := f.notices.find(":merged")
+	if merged == nil || merged.TitleText.Code != "notif.review.queue.mergedTitle" || merged.TitleText.Vars["time"] == "" {
+		t.Fatalf("each merge says when the PR was validated: %+v", merged)
 	}
 }
 
-func TestBatchEndDecisionMergesNothingMore(t *testing.T) {
+// A failed PR whose checks are rerun green on the same head (a flaky job rerun by the agent, #896) merges without a new
+// validation.
+func TestQueueFailedPrComesBackWhenItsChecksPassAgain(t *testing.T) {
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[4].failing = true })
-	f.start(4, 1)
-	run := f.waitFor("the stop on #4", func(run BatchRun) bool { return run.State == BatchPaused })
-	if f.agent.started != 0 {
-		t.Fatalf("a failing PR that merges cleanly needs no agent")
+	f.start(4)
+	f.waitFor("#4 failed", func(run BatchRun) bool { return itemOf(run, 4).State == BatchItemFailed })
+	if len(f.hub.merged()) != 0 {
+		t.Fatalf("a red PR was merged: %v", f.hub.merged())
 	}
-	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionEnd}); err != nil {
+	f.setPr(4, func(pr *hubPr) { pr.failing = false })
+	run := f.waitEnd()
+	if !slices.Equal(f.hub.merged(), []int{4}) || run.State != BatchDone || f.hub.checksAtMerge[4] != hubCheckSuccess {
+		t.Fatalf("state %s, merged %v, checks at merge %s", run.State, f.hub.merged(), f.hub.checksAtMerge[4])
+	}
+}
+
+// FR-REV-026 AC1, AC3: Validate on a PR whose checks run queues it; it merges once they pass, with no time limit.
+func TestQueueValidateWhileCiRunsMergesOnceGreen(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
+	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 1}, Dir: f.dir})
+	if err != nil {
 		t.Fatal(err)
 	}
-	run = f.waitEnd()
-	if len(f.hub.merged()) != 0 || run.State != BatchCancelled {
-		t.Fatalf("merged %v, state %s", f.hub.merged(), run.State)
+	if plan.CanMerge || !plan.CanQueue || plan.GreenOnly {
+		t.Fatalf("a plan whose only wait is the CI can be validated now: canmerge %v, canqueue %v", plan.CanMerge, plan.CanQueue)
 	}
-	if one := itemOf(run, 1); one.State != BatchItemSkipped || one.Reason != BatchReasonNotReached {
-		t.Fatalf("#1: %+v", one)
+	if _, err := f.validate(1); err != nil {
+		t.Fatal(err)
+	}
+	run := f.waitFor("#1 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemWaitingChecks })
+	if one := itemOf(run, 1); one.Valid != f.prs[1].HeadOid || one.Source != BatchSourceValidate || one.Method != "merge" {
+		t.Fatalf("the validation is bound to the reviewed head: %+v", one)
+	}
+	if len(f.hub.merged()) != 0 {
+		t.Fatalf("merged while its checks run: %v", f.hub.merged())
+	}
+	f.setPr(1, func(pr *hubPr) { pr.pendingForever = false })
+	run = f.waitEnd()
+	if !slices.Equal(f.hub.merged(), []int{1}) || f.hub.checksAtMerge[1] != hubCheckSuccess || run.State != BatchDone {
+		t.Fatalf("state %s, merged %v at %s", run.State, f.hub.merged(), f.hub.checksAtMerge[1])
 	}
 }
 
-// TC-REV-020: Cancel while the first PR waits for its checks ends the batch; nothing is merged.
+// Developer decision 2026-10-17 (AC10): with review:validategreenonly on, Validate stays blocked while checks run.
+func TestQueueGreenOnlySettingKeepsValidateBlocked(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
+	f.merger.greenOnly = func() bool { return true }
+	plan, err := f.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 1}, Dir: f.dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.CanQueue || !plan.GreenOnly || plan.CanMerge {
+		t.Fatalf("the setting keeps it blocked and says so: canqueue %v, greenonly %v", plan.CanQueue, plan.GreenOnly)
+	}
+	pr := f.prs[1]
+	pr.PlanId = plan.Id
+	if _, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", Prs: []BatchPr{pr}, WorkspaceId: "ws"}); err == nil ||
+		!strings.Contains(err.Error(), mergeErrorPrefix+MergeErrBlocked) {
+		t.Fatalf("the queue refuses a plan the setting blocks: %v", err)
+	}
+	failing := newBatchFixture(t, func(prs map[int]*hubPr) { prs[4].failing = true })
+	plan, _ = failing.merger.Plan(context.Background(), MergePlanRequest{PrKey: PrKey{Repo: testRepo, Number: 4}, Dir: failing.dir})
+	if plan.CanQueue {
+		t.Fatalf("a failing check blocks Validate either way")
+	}
+}
+
+// FR-REV-026 AC2: two PRs validated in the reverse of the suggested order merge in the suggested order; the first one
+// validated only waited for its checks and gives its turn back.
+func TestQueueMergesInTheSuggestedOrder(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) {
+		prs[4].pendingForever = true
+		prs[1].pendingForever = true
+	})
+	if _, err := f.validate(4, 1, 4); err != nil {
+		t.Fatal(err)
+	}
+	f.waitFor("#4 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 4).State == BatchItemWaitingChecks })
+	if _, err := f.validate(1, 1, 4); err != nil {
+		t.Fatal(err)
+	}
+	run := f.waitFor("#1 first", func(run BatchRun) bool {
+		return len(run.Items) == 2 && run.Items[0].Number == 1 && itemOf(run, 1).State == BatchItemWaitingChecks
+	})
+	if four := itemOf(run, 4); four.State != BatchItemQueued {
+		t.Fatalf("#4 waits its turn again: %+v", four)
+	}
+	f.setPr(4, func(pr *hubPr) { pr.pendingForever = false })
+	f.setPr(1, func(pr *hubPr) { pr.pendingForever = false })
+	f.waitEnd()
+	if got := f.hub.merged(); !slices.Equal(got, []int{1, 4}) {
+		t.Fatalf("merged %v, want the suggested order 1 then 4", got)
+	}
+}
+
+// FR-REV-026 AC5: a push the queue did not make voids the validation: the PR leaves the queue, never merged.
+func TestQueuePushBySomeoneElseVoidsTheValidation(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
+	if _, err := f.validate(1); err != nil {
+		t.Fatal(err)
+	}
+	f.waitFor("#1 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemWaitingChecks })
+	pushed := f.push(1)
+	run := f.waitEnd()
+	one := itemOf(run, 1)
+	if one.State != BatchItemVoided || one.Reason != BatchReasonPushed || one.Head != pushed || len(f.hub.merged()) != 0 {
+		t.Fatalf("#1 %+v, merged %v", one, f.hub.merged())
+	}
+	voided := f.notices.find(":voided:")
+	if voided == nil || voided.TitleText.Code != "notif.review.queue.voidedTitle" || voided.MessageText.Vars["head"] != shortHead(pushed) {
+		t.Fatalf("the notification should say #1 changed after the validation: %+v", voided)
+	}
+}
+
+// FR-REV-026 AC7: Cancel validation withdraws a PR before its merge; the others go on.
+func TestQueueCancelValidationBeforeTheMerge(t *testing.T) {
+	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
+	f.start(1, 4)
+	f.waitFor("#1 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemWaitingChecks })
+	if _, err := f.runner.Withdraw(QueueWithdrawRequest{Dir: f.dir, Base: "develop", Number: 1}); err != nil {
+		t.Fatal(err)
+	}
+	run := f.waitEnd()
+	if one := itemOf(run, 1); one.State != BatchItemWithdrawn || one.Reason != BatchReasonWithdrawn || !one.ByYou {
+		t.Fatalf("#1: %+v", one)
+	}
+	if !slices.Equal(f.hub.merged(), []int{4}) || run.State != BatchDone {
+		t.Fatalf("state %s, merged %v", run.State, f.hub.merged())
+	}
+	if _, err := f.runner.Withdraw(QueueWithdrawRequest{Dir: f.dir, Base: "develop", Number: 4}); err == nil {
+		t.Fatalf("a merged PR cannot be withdrawn")
+	}
+}
+
+// TC-REV-020: Cancel while the first PR waits for its checks ends the queue; nothing is merged.
 func TestBatchCancelWhileWaitingForChecks(t *testing.T) {
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
 	f.start(1, 4)
 	run := f.waitFor("#1 waiting for its checks", func(run BatchRun) bool {
 		return itemOf(run, 1).State == BatchItemWaitingChecks
 	})
-	if _, err := f.runner.Cancel(BatchRequest{Dir: f.dir, Id: run.Id}); err != nil {
+	if _, err := f.runner.Cancel(BatchRequest{Dir: f.dir, Base: "develop", Id: run.Id}); err != nil {
 		t.Fatal(err)
 	}
 	run = f.waitEnd()
 	if run.State != BatchCancelled || len(f.hub.merged()) != 0 {
 		t.Fatalf("state %s, merged %v", run.State, f.hub.merged())
 	}
-	if one := itemOf(run, 1); one.State != BatchItemSkipped || one.Reason != BatchReasonCancelled {
-		t.Fatalf("#1: %+v", one)
-	}
-	if four := itemOf(run, 4); four.State != BatchItemSkipped || four.Reason != BatchReasonNotReached {
-		t.Fatalf("#4: %+v", four)
+	for _, n := range []int{1, 4} {
+		if it := itemOf(run, n); it.State != BatchItemWithdrawn || it.Reason != BatchReasonCancelled {
+			t.Fatalf("#%d: %+v", n, it)
+		}
 	}
 	end := f.notices.find(":end:")
 	if end == nil || end.TitleText.Code != "notif.review.batch.cancelledTitle" {
@@ -812,38 +960,36 @@ func TestBatchCancelWhileWaitingForChecks(t *testing.T) {
 	}
 }
 
+// An ambiguous conflict takes its PR out of the queue for the developer; the PR after it is still rebased and merged.
 func TestBatchStopsOnAnAmbiguousConflict(t *testing.T) {
 	f := newBatchFixture(t, nil)
 	f.agent.ambiguous[5] = true
 	f.start(2, 5, 3)
-	run := f.waitFor("the stop on #5", func(run BatchRun) bool { return run.State == BatchPaused })
+	run := f.waitEnd()
 	five := itemOf(run, 5)
-	if five.Reason != BatchReasonAmbiguous || !strings.Contains(five.Note, "line 2") {
+	if five.State != BatchItemStopped || five.Reason != BatchReasonAmbiguous || !strings.Contains(five.Note, "line 2") {
 		t.Fatalf("#5: %+v", five)
 	}
-	if got := f.hub.merged(); !slices.Equal(got, []int{2}) {
-		t.Fatalf("merged %v", got)
+	if got := f.hub.merged(); !slices.Equal(got, []int{2, 3}) {
+		t.Fatalf("merged %v, want 2 then 3", got)
 	}
-	if _, err := f.runner.Cancel(BatchRequest{Dir: f.dir, Id: run.Id}); err != nil {
-		t.Fatal(err)
+	stop := f.notices.find(":stop:")
+	if stop == nil || stop.TitleText.Code != "notif.review.queue.stoppedTitle" || stop.TitleText.Vars["number"] != "5" ||
+		stop.MessageText.Parts["reason"].Code != "notif.review.batch.why.ambiguousNote" {
+		t.Fatalf("one needs-you notification on #5: %+v", stop)
 	}
-	run = f.waitEnd()
-	if run.State != BatchCancelled || !slices.Equal(f.hub.merged(), []int{2}) {
-		t.Fatalf("state %s, merged %v", run.State, f.hub.merged())
-	}
-	// The agent aborted its rebase and pushed nothing: its worktree is clean and goes.
 	if !run.Cleaned {
 		t.Fatalf("the agent's worktree should go: kept %q", run.Kept)
 	}
 }
 
-// An agent that does not start stops the run; its empty terminal goes, and Try again starts a new one.
-func TestBatchAgentThatDoesNotStartStopsAndRetryStartsAnother(t *testing.T) {
+// An agent that does not start stops its PR; its empty terminal goes, and validating it again starts a new one.
+func TestQueueAgentStartFails(t *testing.T) {
 	f := newBatchFixture(t, nil)
 	f.agent.failStarts = 1
 	f.start(2, 3)
-	run := f.waitFor("the stop on #3", func(run BatchRun) bool { return run.State == BatchPaused })
-	if three := itemOf(run, 3); three.Reason != BatchReasonAgentStart || run.BlockId != "" {
+	run := f.waitEnd()
+	if three := itemOf(run, 3); three.State != BatchItemStopped || three.Reason != BatchReasonAgentStart || run.BlockId != "" {
 		t.Fatalf("#3 %+v, block %q", three, run.BlockId)
 	}
 	f.agent.lock.Lock()
@@ -852,28 +998,10 @@ func TestBatchAgentThatDoesNotStartStopsAndRetryStartsAnother(t *testing.T) {
 	if !closed {
 		t.Fatalf("the terminal without an agent should be closed")
 	}
-	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionRetry}); err != nil {
-		t.Fatal(err)
-	}
+	f.start(3)
 	run = f.waitEnd()
 	if !slices.Equal(f.hub.merged(), []int{2, 3}) || run.State != BatchDone || f.agent.started != 1 {
 		t.Fatalf("state %s, merged %v, started %d", run.State, f.hub.merged(), f.agent.started)
-	}
-}
-
-func TestBatchRetryAfterTheDeveloperFixedThePr(t *testing.T) {
-	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[4].failing = true })
-	f.start(4)
-	run := f.waitFor("the stop on #4", func(run BatchRun) bool { return run.State == BatchPaused })
-	f.hub.lock.Lock()
-	f.hub.prs[4].failing = false
-	f.hub.lock.Unlock()
-	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionRetry}); err != nil {
-		t.Fatal(err)
-	}
-	run = f.waitEnd()
-	if !slices.Equal(f.hub.merged(), []int{4}) || run.State != BatchDone {
-		t.Fatalf("state %s, merged %v", run.State, f.hub.merged())
 	}
 }
 
@@ -889,47 +1017,97 @@ func TestBatchSkipsAPrMergedElsewhere(t *testing.T) {
 	}
 }
 
-func TestBatchStartChecks(t *testing.T) {
+func TestQueueAddChecks(t *testing.T) {
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
-	if _, err := f.runner.Start(BatchStartRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws"}); err == nil {
+	if _, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws"}); err == nil {
 		t.Fatalf("an empty batch should be refused")
 	}
 	bad := f.prs[1]
 	bad.HeadOid = "nope"
-	if _, err := f.runner.Start(BatchStartRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws", Prs: []BatchPr{bad}}); err == nil {
+	if _, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws", Prs: []BatchPr{bad}}); err == nil {
 		t.Fatalf("a PR without its head should be refused")
 	}
-	run := f.start(1)
-	if _, err := f.runner.Start(BatchStartRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws", Prs: []BatchPr{f.prs[4]}}); err == nil {
-		t.Fatalf("a second batch in the same project should be refused")
+	stale := f.prs[4]
+	stale.PlanId = "no-such-plan"
+	if _, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws", Prs: []BatchPr{stale}}); err == nil {
+		t.Fatalf("a plan wavesrv does not hold should be refused")
 	}
-	if _, err := f.runner.Decide(BatchDecideRequest{Dir: f.dir, Id: run.Id, Decision: BatchDecisionSkip}); err == nil {
-		t.Fatalf("a decision while nothing stopped should be refused")
+	run := f.start(1)
+	more, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", WorkspaceId: "ws", Prs: []BatchPr{f.prs[4]}})
+	if err != nil || more.Id != run.Id || len(more.Items) != 2 {
+		t.Fatalf("a PR validated later joins the same queue: %+v, %v", more, err)
 	}
 }
 
-func TestBatchRunIsKeptAndReadsInterruptedAfterARestart(t *testing.T) {
+// FR-REV-026 AC2: a queue kept as running when wavesrv stopped resumes when it starts again, and says so.
+func TestQueueResumesAfterARestart(t *testing.T) {
 	f := newBatchFixture(t, nil)
 	f.start(1)
 	done := f.waitEnd()
-	again := MakeBatchRunner(BatchEnv{DataDir: f.data})
-	kept, err := again.Get(BatchRequest{Dir: f.dir})
-	if err != nil || kept == nil || kept.Id != done.Id || kept.State != BatchDone {
-		t.Fatalf("the ended run should be read back: %+v, %v", kept, err)
+	if done.State != BatchDone {
+		t.Fatalf("state %s", done.State)
 	}
-	if _, err := again.Dismiss(BatchRequest{Dir: f.dir}); err != nil {
+	kept := done
+	kept.Id, kept.State, kept.Current, kept.Dismissed, kept.EndedAt = "kept-queue", BatchRunning, 0, false, 0
+	four := BatchItem{BatchPr: f.prs[4], State: BatchItemWaitingChecks, Valid: f.prs[4].HeadOid, ValidatedAt: 1}
+	kept.Items = []BatchItem{four}
+	f.runner.save(kept)
+	restarted := MakeBatchRunner(f.runner.env)
+	f.runner = restarted
+	restarted.Resume()
+	run := f.waitEnd()
+	if run.Id != "kept-queue" || run.ResumedAt == 0 || run.State != BatchDone || !slices.Equal(f.hub.merged(), []int{1, 4}) {
+		t.Fatalf("the kept queue should resume and merge #4: %+v, merged %v", run, f.hub.merged())
+	}
+	resumed := f.notices.find(":resumed:")
+	if resumed == nil || resumed.TitleText.Code != "notif.review.queue.resumedTitle" || resumed.TitleText.Vars["count"] != "1" {
+		t.Fatalf("the queue should say it resumed: %+v", resumed)
+	}
+	again := MakeBatchRunner(BatchEnv{DataDir: f.data})
+	if _, err := again.Dismiss(BatchRequest{Dir: f.dir, Base: "develop"}); err != nil {
 		t.Fatal(err)
 	}
-	if kept, _ := again.Get(BatchRequest{Dir: f.dir}); kept == nil || !kept.Dismissed {
-		t.Fatalf("a dismissed run stays dismissed: %+v", kept)
+	if read, _ := again.Get(BatchRequest{Dir: f.dir, Base: "develop"}); read == nil || !read.Dismissed || read.Id != "kept-queue" {
+		t.Fatalf("a dismissed queue stays dismissed: %+v", read)
 	}
-	running := done
-	running.Id, running.State, running.Current, running.Dismissed = "interrupted-run", BatchRunning, 0, false
-	running.Items = []BatchItem{{BatchPr: f.prs[4], State: BatchItemWaitingChecks}}
-	again.save(running)
-	kept, _ = again.Get(BatchRequest{Dir: f.dir})
-	if kept == nil || kept.State != BatchInterrupted || kept.Items[0].Reason != BatchReasonInterrupted {
-		t.Fatalf("a run wavesrv no longer runs reads interrupted: %+v", kept)
+}
+
+func TestReorderKeepsStartedPrsInPlace(t *testing.T) {
+	items := []BatchItem{
+		{BatchPr: BatchPr{Number: 1}, State: BatchItemMerged},
+		{BatchPr: BatchPr{Number: 2}, State: BatchItemWaitingChecks},
+		{BatchPr: BatchPr{Number: 3}, State: BatchItemQueued},
+		{BatchPr: BatchPr{Number: 4}, State: BatchItemQueued},
+		{BatchPr: BatchPr{Number: 5}, State: BatchItemQueued},
+	}
+	reorder(items, 1, []int{4, 2, 3})
+	var got []int
+	for _, it := range items {
+		got = append(got, it.Number)
+	}
+	if !slices.Equal(got, []int{1, 2, 4, 3, 5}) {
+		t.Fatalf("order %v", got)
+	}
+}
+
+func TestQueueableWaitsOnlyForTheCi(t *testing.T) {
+	pending := MergeCheck{Id: CheckIdCi, State: CheckPending}
+	cases := []struct {
+		checks []MergeCheck
+		want   bool
+	}{
+		{[]MergeCheck{pending, {Id: CheckIdConflict, State: CheckOk}}, true},
+		{[]MergeCheck{pending, {Id: CheckIdBlocked, State: CheckPending, Code: checkCodeWaitsCi}}, true},
+		{[]MergeCheck{pending, {Id: CheckIdComments, State: CheckWarn}}, true},
+		{[]MergeCheck{{Id: CheckIdCi, State: CheckOk}}, false},
+		{[]MergeCheck{pending, {Id: CheckIdBlocked, State: CheckFail}}, false},
+		{[]MergeCheck{pending, {Id: CheckIdConflict, State: CheckPending}}, false},
+		{[]MergeCheck{{Id: CheckIdCi, State: CheckFail}}, false},
+	}
+	for i, c := range cases {
+		if got := queueable(c.checks); got != c.want {
+			t.Errorf("case %d: queueable %v, want %v", i, got, c.want)
+		}
 	}
 }
 
@@ -937,7 +1115,8 @@ func TestBatchReasonsAreWorded(t *testing.T) {
 	for _, reason := range []string{BatchReasonFailing, BatchReasonAmbiguous, BatchReasonConflict, BatchReasonAgentExited,
 		BatchReasonAgentTimeout, BatchReasonNoAgent, BatchReasonAgentStart, BatchReasonBlocked, BatchReasonWarnings,
 		BatchReasonCiTimeout, BatchReasonUnknown, BatchReasonMergeFailed, BatchReasonRead, BatchReasonHeadMoved,
-		BatchReasonDraft, BatchReasonMergedAway, BatchReasonClosed, BatchReasonCancelled, BatchReasonInterrupted} {
+		BatchReasonDraft, BatchReasonMergedAway, BatchReasonClosed, BatchReasonCancelled, BatchReasonInterrupted,
+		BatchReasonPushed, BatchReasonWithdrawn} {
 		_, text := batchReasonText(BatchItem{Reason: reason, Names: []string{"ci"}}, "develop")
 		if text.Code == "notif.review.batch.why.notreached" {
 			t.Errorf("reason %s has no sentence", reason)

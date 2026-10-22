@@ -12,6 +12,8 @@ import { useEffect } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { useBatchRun } from "../reviews/reviews-batch-client";
+import { BatchItem, batchRowMark, batchStepText, canWithdraw, queueItem } from "../reviews/reviews-batch-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { SegmentedControl } from "../segmented-control";
 import { DominoLoader } from "../suite/suite";
@@ -27,6 +29,9 @@ import {
     mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
+    mergeWaitingText,
+    overrideText,
+    queuesOnClick,
     sheetRecord,
     validateErrorText,
 } from "./review-merge";
@@ -72,6 +77,8 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     useEffect(() => {
         ReviewsModel.getInstance().noteCleanupRebases(pr?.dir, storedCleanup);
     }, [pr?.dir, storedCleanup]);
+    // The merge queue of the PR's base (FR-REV-026): the PR's place once validated while its CI runs.
+    const queueRun = useBatchRun(v.open ? pr?.dir : null, v.plan?.baseref || pr?.baseref);
     if (!v.open || pr == null) {
         return null;
     }
@@ -80,11 +87,14 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const record = v.result ? (state?.merge ?? null) : sheetRecord(state?.merge, v.clicked ?? null);
     const baseref = plan?.baseref ?? pr.baseref;
     const method = chosenMethod(plan, v.method);
-    const enabled = canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null;
+    const queued = record == null ? queueItem(queueRun, pr.number) : null;
+    const enabled =
+        canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null && queued == null;
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
+    const waitingText = mergeWaitingText(plan, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
     const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref, method });
-    const locked = record != null || v.clicked != null;
+    const locked = record != null || v.clicked != null || queued != null;
     const keptAgent = cleanupNeedsConfirmation(cleanup?.steps);
     const keptReview = cleanup?.steps?.find(
         (s) => s.id === "review-worktree" && (s.code === "kept" || s.code === "inuse")
@@ -112,6 +122,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                     enabled={enabled}
                     disabledReason={disabledReason}
                     loading={v.loading}
+                    queued={queued}
                 />
             }
         >
@@ -147,7 +158,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                                     onChange={(e) => model.setValidateOverride(e.target.checked)}
                                     data-testid="validate-override"
                                 />
-                                <span>{t("review.validate.mergeAnyway")}</span>
+                                <span>{overrideText(plan)}</span>
                             </label>
                         ) : null
                     }
@@ -167,9 +178,27 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                         )
                     }
                 />
-                {record == null && plan != null && !plan.canmerge ? (
-                    <div className="text-danger" data-testid="validate-reason">
-                        {t("review.validate.mergeDisabled", { reason: disabledReason })}
+                {queued != null ? (
+                    <div
+                        className="rounded-4 border border-accent/40 bg-accent/5 px-2 py-1.5 text-secondary"
+                        data-testid="validate-queued"
+                        data-state={queued.state}
+                    >
+                        <span className="font-medium text-primary">
+                            {t("review.validate.queued", {
+                                base: baseref,
+                                place: batchRowMark(queueRun, pr.number)?.label ?? "",
+                            })}
+                        </span>{" "}
+                        {batchStepText(queueRun, queued)}
+                    </div>
+                ) : record == null && queuesOnClick(plan) ? (
+                    <div className="text-secondary" data-testid="validate-whengreen">
+                        {t("review.validate.whenGreenNote", { number: pr.number, base: baseref })}
+                    </div>
+                ) : record == null && plan != null && !plan.canmerge ? (
+                    <div className={waitingText ? "text-secondary" : "text-danger"} data-testid="validate-reason">
+                        {waitingText || t("review.validate.mergeDisabled", { reason: disabledReason })}
                     </div>
                 ) : null}
             </div>
@@ -186,6 +215,7 @@ function SheetButtons({
     enabled,
     disabledReason,
     loading,
+    queued,
 }: {
     model: ReviewValidateModel;
     plan: ReviewMergePlan;
@@ -195,8 +225,29 @@ function SheetButtons({
     enabled: boolean;
     disabledReason: string;
     loading: boolean;
+    queued: BatchItem;
 }) {
     const t = useT();
+    if (queued != null) {
+        return (
+            <>
+                {canWithdraw(queued) ? (
+                    <button
+                        type="button"
+                        className={PlainButton}
+                        onClick={() => fireAndForget(() => model.withdraw())}
+                        title={t("reviews.batch.withdrawTitle", { number: queued.number })}
+                        data-testid="validate-withdraw"
+                    >
+                        {t("reviews.batch.withdraw")}
+                    </button>
+                ) : null}
+                <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
+                    {t("common.close")}
+                </button>
+            </>
+        );
+    }
     if (record != null && record.state === "refused" && record.refused === "headmoved") {
         return (
             <>
@@ -269,7 +320,13 @@ function SheetButtons({
                 type="button"
                 className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-4 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50"
                 disabled={!enabled}
-                title={enabled ? t("review.validate.mergeTitle", { oid: shortOid(plan?.headoid) }) : disabledReason}
+                title={
+                    !enabled
+                        ? disabledReason
+                        : queuesOnClick(plan)
+                          ? t("review.validate.whenGreenTitle", { oid: shortOid(plan?.headoid) })
+                          : t("review.validate.mergeTitle", { oid: shortOid(plan?.headoid) })
+                }
                 onClick={() => fireAndForget(() => model.merge())}
                 data-testid="validate-merge"
             >

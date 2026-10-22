@@ -167,8 +167,54 @@ describe("Validate's stepper", () => {
         expect(c.state).toBe("failed");
         expect(c.collapsed).toBeFalsy();
         expect(c.rows.map((r) => r.state)).toEqual(["done", "failed", "needs"]);
-        expect(c.rows[1].lines).toEqual(["1 failing: lint"]);
+        expect(c.rows[1].lines).toEqual([
+            "1 failing: lint. GitHub requires them and refuses the merge while they fail.",
+        ]);
         expect(c.rows[2].lines[0]).toMatch(/^2 comments written here/);
+    });
+
+    it("reads a merge blocked while the CI runs as waiting, not failed (#925)", () => {
+        const checks: ReviewMergeCheck[] = [
+            okChecks[0],
+            { id: "ci", state: "pending", code: "running", count: 9, names: ["build"] },
+            { id: "conflict", state: "ok", base: "develop" },
+            { id: "blocked", state: "pending", code: "waitsci" },
+        ];
+        for (const [t, line] of [
+            [en, "2 checks are still running: nothing needs you yet."],
+            [fr, "2 vérifications tournent encore : rien ne vous attend pour l'instant."],
+        ] as const) {
+            const c = step(
+                buildValidateSteps(t, {
+                    plan: plan({ checks }),
+                    record: null,
+                    cleanup: null,
+                    headref: "x",
+                    baseref: "d",
+                }),
+                "checks"
+            );
+            expect(c.state).toBe("running");
+            expect(c.rows.map((r) => r.state)).toEqual(["done", "running", "done", "running"]);
+            expect(c.lines).toEqual([line]);
+        }
+        const failing: ReviewMergeCheck[] = [
+            okChecks[0],
+            { id: "ci", state: "fail", code: "failing", count: 1, names: ["lint"] },
+            { id: "blocked", state: "pending", code: "waitsci" },
+        ];
+        const c = step(
+            buildValidateSteps(en, {
+                plan: plan({ checks: failing }),
+                record: null,
+                cleanup: null,
+                headref: "x",
+                baseref: "d",
+            }),
+            "checks"
+        );
+        expect(c.state).toBe("failed");
+        expect(c.lines).toEqual(["1 check needs your attention."]);
     });
 
     it("removes a worktree holding only generated files and says nothing was lost", () => {
@@ -544,12 +590,14 @@ describe("Validate's stepper", () => {
                 "notopen",
                 "draft",
                 "failing",
+                "failingoptional",
                 "running",
                 "nocheck",
                 "passed",
                 "conflicting",
                 "computing",
                 "blocked",
+                "waitsci",
                 "behind",
                 "unpublished",
                 "inflight",
@@ -573,6 +621,7 @@ describe("Validate's stepper", () => {
                 "citimeout",
                 "pollerror",
                 "cifailed",
+                "newred",
                 "conflict",
                 "basemoved",
                 "rebasedblocked",

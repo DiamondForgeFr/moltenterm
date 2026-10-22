@@ -63,6 +63,8 @@ import {
     applyRememberedPanelSizes,
     recordDraggedPanelSizes,
 } from "../../moltenterm-shell/panel-size/panel-size-store";
+// MOLTENTERM-PATCH (#916): a panel running hidden is spared by the orphan cleanup
+import { isHiddenMeta } from "../../moltenterm-shell/hidden-panel-meta";
 // MOLTENTERM-PATCH (#614): 360 view, the first column fixed and the others on a carpet that scrolls horizontally
 import { View360Model } from "../../moltenterm-shell/view360/view360-model";
 // MOLTENTERM-PATCH (#825): equalize the panel columns once, or after every change while the tab's auto mode is on
@@ -445,6 +447,11 @@ export class LayoutModel {
 
         for (const blockId of tab.blockids || []) {
             if (!layoutBlockIds.has(blockId)) {
+                // MOLTENTERM-PATCH (#916): a panel running hidden (the review session's terminal) is not an orphan
+                const block = await WOS.loadAndPinWaveObject<Block>(WOS.makeORef("block", blockId)).catch(() => null);
+                if (isHiddenMeta(block?.meta)) {
+                    continue;
+                }
                 console.log("Cleaning up orphaned block:", blockId);
                 if (this.onNodeDelete) {
                     await this.onNodeDelete({ blockId });

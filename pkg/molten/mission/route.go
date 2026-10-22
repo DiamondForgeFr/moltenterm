@@ -28,6 +28,7 @@ type routeLink struct {
 	groups    *Groups
 	reviews   *Reviews
 	branchCi  *BranchCi
+	treePrs   *TreePrs
 }
 
 type ciLogRequest struct {
@@ -178,6 +179,18 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return nil, l.runs.AnswerAutoDelete(req)
+	case BranchesCloseCommand:
+		var req BranchesCloseRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.CloseAndCleanBranch(req, registeredTerminalCloser())
+	case TreePrsCommand:
+		var req TreePrsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.treePrs.Read(req)
 	case ReleaseStartCommand:
 		var req ReleaseStartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -377,6 +390,7 @@ var windowCommands = map[string]string{
 	TrustCommand:          "a project's commands can only be trusted from a MoltenTerm window",
 	BranchesCleanCommand:  "branches can only be deleted from a MoltenTerm window",
 	BranchesAutoDeleteCmd: "the repository setting can only be changed from a MoltenTerm window",
+	BranchesCloseCommand:  "sessions can only be closed for a branch cleanup from a MoltenTerm window",
 	GitInitCommand:        "a repository can only be initialized here from a MoltenTerm window",
 	GithubRunRerunCommand: "a GitHub run can only be started again from a MoltenTerm window",
 	ReviewsRerunCommand:   "a pull request's failed jobs can only be rerun from a MoltenTerm window",
@@ -409,7 +423,7 @@ func (l *routeLink) route() localroute.Route {
 
 func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
-		branchCi: MakeBranchCi(collector, runs, ExecRunner)}
+		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner)}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }

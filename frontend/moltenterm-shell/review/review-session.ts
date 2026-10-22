@@ -56,7 +56,7 @@ export type ReviewStartRequest = {
     agent?: string;
     // The agent starts by briefing the PR (FR-REV-005).
     brief?: boolean;
-    // The session's terminal is split under this block (the AI panel).
+    // The AI panel. The session's terminal runs hidden (#916): the window splits it under this block when shown.
     afterblockid?: string;
 };
 

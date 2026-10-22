@@ -59,11 +59,42 @@ export async function sessionContext(env) {
     return { ...identifiers, keychain, appleApiKey: apiKey };
 }
 
+// The builder's output is never shown, so the hook leaves the name of the check that failed (a fixed label, never a
+// value) in the session's own directory, where package.mjs reads it before the session is cleaned up.
+export function stageFile(keychain) {
+    if (typeof keychain !== "string" || !path.isAbsolute(keychain)) return null;
+    const directory = path.dirname(keychain);
+    if (!path.basename(directory).startsWith("moltenterm-signing-")) return null;
+    return path.join(directory, "failed-stage");
+}
+
+async function recordStage(keychain, stage) {
+    const file = stageFile(keychain);
+    if (!file) return;
+    try {
+        await fs.writeFile(file, stage, { mode: 0o600 });
+    } catch {
+        // Best effort: the failure itself is still reported.
+    }
+}
+
+export async function readStage(keychain) {
+    const file = stageFile(keychain);
+    if (!file) return null;
+    try {
+        const stage = (await fs.readFile(file, "utf8")).trim();
+        return /^[a-z0-9 ()-]{1,80}$/.test(stage) ? stage : null;
+    } catch {
+        return null;
+    }
+}
+
 export function createHooks({ env = process.env, run = command, tools, platform = process.platform } = {}) {
     const signed = new Map();
     const toolchain = () => (tools ??= loadToolchain());
     return {
         async sign(options, packager) {
+            let stage = "publishing check";
             try {
                 if (
                     platform !== "darwin" ||
@@ -71,7 +102,9 @@ export function createHooks({ env = process.env, run = command, tools, platform 
                     packager.info.options.publish !== "never"
                 )
                     throw new Error("Builder publishing must be disabled");
+                stage = "session context";
                 const inputs = await sessionContext(env);
+                stage = "builder signing options";
                 const config = packager.platformSpecificBuildOptions;
                 if (
                     config.identity !== inputs.identity ||
@@ -83,6 +116,7 @@ export function createHooks({ env = process.env, run = command, tools, platform 
                     !options.optionsForFile
                 )
                     throw new Error("Unsafe builder signing options");
+                stage = "app identity and architecture";
                 const app = await fs.realpath(options.app);
                 if (signed.has(app)) throw new Error("App signed more than once");
                 const version = packager.appInfo.version,
@@ -90,7 +124,9 @@ export function createHooks({ env = process.env, run = command, tools, platform 
                 const native = await run("/usr/bin/lipo", ["-archs", path.join(app, "Contents/MacOS", productName)]);
                 const arch =
                     native.stdout.trim() === "arm64" ? "arm64" : native.stdout.trim() === "x86_64" ? "x64" : null;
+                stage = `embedded inventory (${arch})`;
                 const inventory = await embeddedInventory(app, version, arch);
+                stage = `upstream signing (${arch})`;
                 const goFiles = new Set(inventory.darwin),
                     foreignFiles = new Set(inventory.foreign.keys());
                 const goEntitlements = fileURLToPath(new URL("./go-entitlements.plist", import.meta.url));
@@ -105,11 +141,14 @@ export function createHooks({ env = process.env, run = command, tools, platform 
                         hardenedRuntime: true,
                     }),
                 });
+                stage = `foreign payloads unchanged (${arch})`;
                 await assertForeignUnchanged(inventory);
+                stage = `helper signature evidence (${arch})`;
                 // Verify the certificate chain requirement, not only a matching certificate display name.
                 for (const file of inventory.darwin) await verifySigned(file, inputs, { run });
                 signed.set(app, { arch, version, productName, inventory });
             } catch {
+                await recordStage(env.CSC_KEYCHAIN, `sign hook ${stage}`);
                 throw new Error("macOS package signing failed");
             }
         },

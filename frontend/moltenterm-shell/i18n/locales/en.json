@@ -589,7 +589,11 @@
             "moltenterm:terminalscreenreader": {
                 "label": "Screen reader support",
                 "description": "Automatic follows system detection. On and Off override it, without restarting terminals.",
-                "options": { "auto": "Automatic", "on": "On", "off": "Off" }
+                "options": {
+                    "auto": "Automatic",
+                    "on": "On",
+                    "off": "Off"
+                }
             },
             "term:transparency": {
                 "label": "Transparency",
@@ -999,6 +1003,10 @@
             "review:reviewername": {
                 "label": "Your first name",
                 "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name."
+            },
+            "review:validategreenonly": {
+                "label": "Validate only once CI is green",
+                "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green."
             }
         },
         "title": "Settings",
@@ -2628,6 +2636,10 @@
                 "notInPr": "it holds commits #{pr} never carried",
                 "worktreeChanges": "merged in #{pr}, but its worktree has uncommitted changes",
                 "worktreeInUse": "merged in #{pr}, but a terminal is open in its worktree",
+                "worktreeHeldBy": {
+                    "one": "merged in #{pr}, but the session {sessions} has a terminal open in its worktree",
+                    "other": "merged in #{pr}, but the sessions {sessions} have terminals open in its worktree"
+                },
                 "prAssets": "holds pull request assets",
                 "tool": "a tool branch"
             },
@@ -2659,7 +2671,22 @@
             "autoDeleteDone": "GitHub now deletes head branches when their pull request is merged.",
             "autoDeleteOffer": "GitHub keeps head branches after their pull request is merged on this repository. Turn on its “Automatically delete head branches” setting so merged branches stop piling up?",
             "notNow": "Not now",
-            "turnOn": "Turn on"
+            "turnOn": "Turn on",
+            "showSession": "Show the session",
+            "showNamed": "Show {session}",
+            "closeAndClean": {
+                "one": "Close the session and clean…",
+                "other": "Close the sessions and clean…"
+            },
+            "closeTitle": {
+                "one": "Close {sessions} and clean?",
+                "other": "Close {sessions} and clean?"
+            },
+            "closeConfirm": {
+                "one": "Close the session {sessions}? Its terminal closes, and an agent running in it stops. Then its worktree and the branch {branch} are deleted, as the cleaning would.",
+                "other": "Close the sessions {sessions}? Their terminals close, and any agent running in them stops. Then their worktree and the branch {branch} are deleted, as the cleaning would."
+            },
+            "closeAndCleanConfirm": "Close and clean"
         },
         "cicd": {
             "viewName": "CI/CD",
@@ -3725,6 +3752,10 @@
                 "mergeable": {
                     "one": "1 ready to merge",
                     "other": "{count} ready to merge"
+                },
+                "drafts": {
+                    "one": "1 draft",
+                    "other": "{count} drafts"
                 }
             },
             "moreWidgets": "{count} more widgets",
@@ -4221,7 +4252,7 @@
     },
     "reviews": {
         "batch": {
-            "tabName": "Batch merge",
+            "tabName": "Merge queue",
             "yourAgent": "Your agent",
             "method": {
                 "merge": "merge commit",
@@ -4231,7 +4262,7 @@
             },
             "select": {
                 "start": "Merge several…",
-                "startTitle": "Select pull requests and hand them to your agent, which merges them one after the other in the suggested order",
+                "startTitle": "Select pull requests and add them to the merge queue: they merge one after the other in the suggested order",
                 "count": {
                     "one": "{count} pull request selected",
                     "other": "{count} pull requests selected"
@@ -4256,22 +4287,18 @@
                 "costUnknown": "The conflict forecast is not ready: the CI runs this order redoes are not known yet.",
                 "costUpToDate": "This base requires branches to be up to date: each merge reruns the CI of the pull requests left.",
                 "what": "For each pull request in turn: one that still merges cleanly with green checks is merged at once, with no rebase and no new CI run. One that conflicts goes to your agent, out of sight in its own copy of the repository: it rebases it on the updated {base}, resolves the conflicts and pushes, and MoltenTerm merges it once its checks pass.",
-                "stops": "A pull request whose checks fail is never merged: the batch stops on it and asks you, and the ones after it wait. Cancel stops the batch after the current step.",
+                "stops": "A pull request whose checks fail is never merged: it is set aside with a notification and the others go on. A push on a pull request after this takes it out of the queue. Cancel validation, on the banner, takes one out until its merge starts.",
                 "checkout": "Your main checkout is not touched.",
-                "start": "Start the batch merge"
+                "start": "Add to the merge queue"
             },
             "banner": {
                 "running": {
-                    "one": "An agent is merging {count} PR — {progress}",
-                    "other": "An agent is merging {count} PRs — {progress}"
+                    "one": "Merge queue: {count} PR validated — {progress}",
+                    "other": "Merge queue: {count} PRs validated — {progress}"
                 },
                 "cancelling": {
                     "one": "Cancelling after the current step — {progress}",
                     "other": "Cancelling after the current step — {progress}"
-                },
-                "paused": {
-                    "one": "The batch merge stopped on #{number} — {merged} of {count} merged",
-                    "other": "The batch merge stopped on #{number} — {merged} of {count} merged"
                 },
                 "progress": "{merged} of {count} merged, #{number} {now}",
                 "progressIdle": "{merged} of {count} merged",
@@ -4285,16 +4312,16 @@
                     "other": "is in progress"
                 },
                 "done": {
-                    "one": "Batch merge done: {merged} of {count} PR merged",
-                    "other": "Batch merge done: {merged} of {count} PRs merged"
+                    "one": "Merge queue done: {merged} of {count} PR merged",
+                    "other": "Merge queue done: {merged} of {count} PRs merged"
                 },
                 "cancelled": {
-                    "one": "Batch merge cancelled: {merged} of {count} PR merged",
-                    "other": "Batch merge cancelled: {merged} of {count} PRs merged"
+                    "one": "Merge queue cancelled: {merged} of {count} PR merged",
+                    "other": "Merge queue cancelled: {merged} of {count} PRs merged"
                 },
                 "interrupted": {
-                    "one": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PR merged",
-                    "other": "Batch merge interrupted when MoltenTerm restarted: {merged} of {count} PRs merged"
+                    "one": "Merge queue interrupted when MoltenTerm restarted: {merged} of {count} PR merged",
+                    "other": "Merge queue interrupted when MoltenTerm restarted: {merged} of {count} PRs merged"
                 }
             },
             "step": {
@@ -4305,7 +4332,8 @@
                 "waitingChecks": "Waiting for its checks",
                 "waitingRebased": "Waiting for its checks on the rebased head",
                 "merging": "Merging",
-                "merged": "Merged"
+                "merged": "Merged",
+                "failed": "CI failed on {names}: merged once its checks pass again on the same commit"
             },
             "why": {
                 "failing": "Checks failing: {names}",
@@ -4329,20 +4357,15 @@
                 "notreached": "Not reached",
                 "cancelled": "Cancelled",
                 "interrupted": "MoltenTerm restarted",
-                "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
+                "agentmissing": "{detail}, the agent you chose, is not installed on this computer",
+                "pushed": "Pushed after your validation: back to review",
+                "withdrawn": "Validation cancelled"
             },
-            "decide": {
-                "retry": "Try again",
-                "override": "Merge anyway",
-                "skip": "Skip this PR",
-                "end": "End the batch"
-            },
-            "waitsForYou": "The pull requests after it wait for you:",
             "goTo": "Go to the agent",
             "goToTitle": "Show {name}'s terminal",
-            "cancel": "Cancel",
+            "cancel": "Cancel all",
             "cancelling": "Cancelling…",
-            "cancelTitle": "Stop the batch merge after the current step; nothing more is merged",
+            "cancelTitle": "Cancel every validation not being merged; nothing more is merged",
             "dismiss": "Hide",
             "kept": {
                 "changes": "The agent's copy has uncommitted files: it is kept.",
@@ -4354,7 +4377,7 @@
             "summary": {
                 "merged": "Merged: {list}.",
                 "mergedNone": "Nothing merged.",
-                "skipped": "Skipped: {list}.",
+                "skipped": "Not merged: {list}.",
                 "skippedItem": "#{number} ({reason})",
                 "ciRuns": {
                     "one": "{count} CI run redone.",
@@ -4362,12 +4385,25 @@
                 }
             },
             "row": {
-                "merged": "Merged by the batch",
-                "stopped": "Stopped the batch",
-                "skipped": "Skipped by the batch",
-                "queued": "Batch: {rank}",
-                "current": "Batch: in progress"
-            }
+                "merged": "Merged by the queue",
+                "stopped": "Needs you",
+                "skipped": "Left the queue",
+                "queued": "In queue: {rank}",
+                "current": "Merge queue: in progress",
+                "next": "Next in queue",
+                "waiting": "Validated — waiting for CI",
+                "waitingRebased": "Rebased — waiting for CI",
+                "rebasing": "Rebasing",
+                "merging": "Merging",
+                "failed": "Validated — CI failed",
+                "voided": "Validation void: new push",
+                "withdrawn": "Validation cancelled",
+                "needsAnswer": "Your agent waits for you"
+            },
+            "withdraw": "Cancel validation",
+            "withdrawTitle": "Take #{number} out of the merge queue: it is not merged and goes back to review",
+            "resumed": "Resumed after MoltenTerm restarted.",
+            "investigateGone": "This pull request is no longer listed in Reviews."
         },
         "viewName": "Reviews",
         "into": "into",
@@ -4513,8 +4549,7 @@
             "title": "Rebase and merge: opens the Validate sheet with the plan",
             "draft": "Draft: mark it ready for review first.",
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
-            "blocked": "GitHub blocks the merge: a required check or review is missing.",
-            "failing": "Failing checks ({count}): fix them first."
+            "blocked": "GitHub blocks the merge: a required check or review is missing."
         },
         "rebase": {
             "button": "Ask for a rebase",
@@ -4790,7 +4825,8 @@
         "view": {
             "worktree": "Worktree {path}",
             "worktreeOn": "Worktree {path} on {branch}",
-            "upTitle": "Up {age}",
+            "prMerged": "PR #{pr} merged",
+            "prMergedTitle": "The pull request #{pr} of {branch} is merged: this session's work has shipped.",
             "selectRow": "Select {name}, {what}",
             "reconnect": "Reconnect",
             "end": "End…",
@@ -4800,9 +4836,7 @@
             "selectAll": "Select every session",
             "colName": "Name",
             "colActions": "Actions",
-            "colFolder": "Folder",
             "colAgent": "Agent",
-            "colLastActive": "Last active",
             "selectedCount": "{count} selected",
             "noAgentSelected": "No selected session runs a local coding agent in a pane.",
             "sendCommand": "Send a command…",
@@ -4820,8 +4854,77 @@
             "loading": "Loading sessions…",
             "shownCount": "{count} shown",
             "tableLabel": "Durable sessions",
-            "endsLater": "{what} ends once {connection} is back."
-        }
+            "endsLater": "{what} ends once {connection} is back.",
+            "colWorktree": "Worktree",
+            "colActivity": "Activity",
+            "join": "Join",
+            "joinTitle": "Go to this session's terminal",
+            "interrupt": "Interrupt",
+            "interruptTitle": "Interrupt the agent's current turn",
+            "interrupting": "interrupting…",
+            "interrupted": "{name}: turn interrupted.",
+            "stop": "Stop…",
+            "update": "Update…",
+            "updating": "updating…",
+            "updateAll": "Update all outdated ({count})…",
+            "outdated": "outdated",
+            "outdatedTitle": "Started on an older MoltenTerm version: its tools and settings are not the current ones.",
+            "copied": "Path copied",
+            "copyPathTitle": "{title}\nClick to copy the path"
+        },
+        "kind": {
+            "direct": "Direct",
+            "rebase": "Rebase",
+            "restart": "Restart work",
+            "investigate": "Analyse and fix",
+            "batch": "Batch merge",
+            "review": "Review panel"
+        },
+        "kindTitle": {
+            "direct": "Your own session: a terminal or an agent you started.",
+            "started": "An agent MoltenTerm started for you: {action}."
+        },
+        "from": {
+            "reviews": "Reviews list",
+            "reviewTab": "Review tab",
+            "mergeQueue": "Merge queue",
+            "reviewPanel": "Review panel",
+            "label": "From {where}"
+        },
+        "prState": {
+            "draft": "draft",
+            "open": "open",
+            "merged": "merged",
+            "closed": "closed"
+        },
+        "context": {
+            "ticket": "#{number}",
+            "ticketTitle": "Ticket #{number}",
+            "pr": "PR #{number}",
+            "prStateUnknown": "state not known yet",
+            "openLink": "Open {what}"
+        },
+        "effort": "effort {effort}",
+        "activity": {
+            "started": "Started {at}",
+            "running": "Running for {age}"
+        },
+        "subSession": "Handed work by {name}",
+        "update": {
+            "title": "Update {name}?",
+            "subtitleAgent": "{agent} exits and starts again on the current MoltenTerm version, resuming its conversation when it can.",
+            "subtitleShell": "The terminal's shell starts again on the current MoltenTerm version.",
+            "warningWorking": "{agent} is working: it is only restarted once its turn ends.",
+            "warningWaiting": "{agent} is waiting for you: it is only restarted once answered.",
+            "confirm": "Update the session"
+        },
+        "updateAll": {
+            "title": "Update {sessions}?",
+            "subtitle": "Each one starts again on the current MoltenTerm version; agents resume their conversation when they can. A working or waiting agent is left as it is.",
+            "confirm": "Update {sessions}",
+            "running": "Updating…"
+        },
+        "namedWhat": "{name} ({what})"
     },
     "review": {
         "ready": {
@@ -4894,7 +4997,7 @@
             "briefNewHead": "Brief the new head",
             "askAgain": "Ask again",
             "starting": "Starting your agent in the PR's worktree…",
-            "running": "{agent} reviews this PR, read-only, in the terminal under this panel.",
+            "running": "{agent} reviews this PR, read-only, in its own terminal. Its options are in this panel's menu.",
             "toolsConnect": "Its review tools connect when it starts.",
             "showTerminal": "Show its terminal",
             "startFailed": "The review session could not start.",
@@ -5040,7 +5143,8 @@
                 "merge": "Merge",
                 "squash": "Squash and merge",
                 "rebase": "Rebase and merge",
-                "queue": "Add to the merge queue"
+                "queue": "Add to the merge queue",
+                "whenGreen": "Validate — merges when CI is green"
             }
         },
         "select": {
@@ -5112,7 +5216,10 @@
             "recheck": "Re-check",
             "mergeTitle": "Merge, bound to head {oid}",
             "mergeAnyway": "Merge anyway: I have read the warnings above.",
+            "validateAnyway": "Validate anyway: I have seen the red checks ({names}) and the warnings above.",
             "mergeDisabled": "Merge is disabled: {reason}",
+            "mergeWaitsCi": "Merge waits for the CI ({detail}): re-check once it is green.",
+            "mergeWaits": "Merge waits: {reason}",
             "cleaningUp": "Cleaning up after the merge…",
             "stepsLabel": "Validation steps",
             "andMore": "{names} and {count} more",
@@ -5153,7 +5260,8 @@
             "checkCode": {
                 "notopen": "The pull request is {state}.",
                 "draft": "The pull request is a draft: mark it ready for review first.",
-                "failing": "{count} failing: {names}",
+                "failing": "{count} failing: {names}. GitHub requires them and refuses the merge while they fail.",
+                "failingoptional": "{count} failed: {names}. GitHub does not require them: you can validate anyway.",
                 "running": "{count} still running: {names}",
                 "nocheck": "No check reported on this pull request.",
                 "passed": "{count} passed",
@@ -5161,6 +5269,7 @@
                 "conflicting": "The branch conflicts with {base}: it needs a rebase (Restart work can hand it to an agent).",
                 "computing": "GitHub is still computing whether it merges cleanly: re-check in a moment.",
                 "blocked": "GitHub blocks the merge: a required check or review is missing.",
+                "waitsci": "GitHub holds the merge until the required checks pass: the CI line above says where they stand.",
                 "behind": "Behind {base}: GitHub rebases it first, then the merge waits for CI on the new head.",
                 "unpublished": {
                     "one": "1 comment written here is not published: it stays here, unpublished.",
@@ -5176,6 +5285,10 @@
                 "problems": {
                     "one": "1 check needs your attention.",
                     "other": "{count} checks need your attention."
+                },
+                "waiting": {
+                    "one": "1 check is still running: nothing needs you yet.",
+                    "other": "{count} checks are still running: nothing needs you yet."
                 },
                 "passedBefore": "Checked before the merge.",
                 "show": "Show",
@@ -5212,6 +5325,7 @@
                 "githubheadmoved": "GitHub refused the merge because the branch moved: review the new commits, then Validate again.",
                 "check": "Not merged: {reason}",
                 "newwarning": "Not merged: a new warning appeared since the plan. Validate again.",
+                "newred": "Not merged: checks failed since the plan ({names}). Validate again.",
                 "mergeerror": "The merge failed and is not retried.",
                 "updateerror": "GitHub could not update the branch with its base: nothing was merged.",
                 "stopped": "Stopped while waiting for CI: nothing was merged.",
@@ -5460,7 +5574,11 @@
                 "squash": "Turn the pull request into one commit on the base",
                 "rebase": "Replay every commit on top of the base, without a merge commit"
             },
-            "methodLabel": "Merge method"
+            "methodLabel": "Merge method",
+            "greenOnly": "Checks are still running, and \"Validate only once CI is green\" is on (Settings › Agents › Code review).",
+            "queued": "Validated, in the merge queue of {base}: {place}.",
+            "whenGreenNote": "Checks are still running. Validate puts #{number} in the merge queue of {base}, which merges it once they pass; a push before that cancels the validation.",
+            "whenGreenTitle": "Validate commit {oid}: the merge queue merges it once its checks pass"
         },
         "view": {
             "viewName": "Review",
@@ -5711,8 +5829,8 @@
         },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
-            "batchrunning": "A batch merge already runs in this project.",
-            "batchgone": "This batch merge no longer runs.",
+            "batchrunning": "The merge queue of this project is being cancelled; try again in a moment.",
+            "batchgone": "This merge queue no longer runs.",
             "batchnotstopped": "The batch merge is not waiting for a decision.",
             "basemissing": "The base branch {branch} was not found in the project or on origin.",
             "mergebase": "The merge base of {branch} and the pull request's head could not be read: {detail}",
@@ -5775,7 +5893,11 @@
             "questiongone": "This question is no longer waiting: it was sent or removed.",
             "readpr": "The pull request could not be read on GitHub: {detail}",
             "headnotcommit": "The head {head} is not a commit id.",
-            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}."
+            "headmissing": "The pull request's head commit {head} is not in the project, even after fetching {branch}.",
+            "queue": {
+                "merging": "#{number} is being merged already.",
+                "notqueued": "#{number} is not in the merge queue."
+            }
         },
         "handoff": {
             "notwaiting": "This handoff request is no longer waiting.",
@@ -5990,7 +6112,10 @@
                 "readTrunk": "{ref} could not be read: {detail}",
                 "kept": "{branch}: kept ({reason})",
                 "deleteFailed": "{branch}: {detail}",
-                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}"
+                "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}",
+                "gone": "{branch} is no longer a branch.",
+                "newTerminal": "Another terminal opened in the worktree of {branch} since: nothing was closed.",
+                "closeFailed": "A terminal could not be closed: {detail}"
             },
             "jobs": {
                 "tooLarge": "The file is too large to read.",
@@ -6075,8 +6200,8 @@
                     "goTo": "Go to the terminal",
                     "stoppedTitle": "The batch merge stopped on #{number}",
                     "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
-                    "doneTitle": "Batch merge: {merged} of {total} PRs merged",
-                    "cancelledTitle": "Batch merge cancelled: {merged} of {total} PRs merged",
+                    "doneTitle": "Merge queue: {merged} of {total} PRs merged",
+                    "cancelledTitle": "Merge queue cancelled: {merged} of {total} PRs merged",
                     "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
                     "trunkUpdated": " Local {branch} updated: +{count} commits.",
                     "trunkUpdatedOne": " Local {branch} updated: +1 commit.",
@@ -6113,7 +6238,9 @@
                         "cancelled": "cancelled",
                         "interrupted": "MoltenTerm restarted",
                         "notreached": "not reached",
-                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer"
+                        "agentmissing": "{detail}, the agent you chose, is not installed on this computer",
+                        "pushed": "pushed after your validation",
+                        "withdrawn": "validation cancelled"
                     }
                 },
                 "trunk": {
@@ -6129,6 +6256,18 @@
                         "inprogress": "a rebase, merge, cherry-pick or bisect is in progress in {path}",
                         "failed": "git failed: {detail}"
                     }
+                },
+                "queue": {
+                    "investigate": "Investigate and fix",
+                    "failedTitle": "#{number} validated but CI failed: {names}",
+                    "failed": "It is not merged while a check fails. It merges once its checks pass on the same commit; a new push needs a new validation.",
+                    "stoppedTitle": "#{number} needs you: the merge queue stopped on it",
+                    "stopped": "Reason: {reason}. The other validated pull requests go on; validate it again once it is sorted out.",
+                    "voidedTitle": "#{number} changed after your validation",
+                    "voided": "Someone pushed {head} on it: it left the merge queue and is back to review. Review the new commits and validate it again.",
+                    "mergedTitle": "#{number} merged (validated at {time})",
+                    "merged": "The merge queue merged it into {base}.",
+                    "resumedTitle": "The merge queue of {base} resumed: {count} validated PRs"
                 }
             }
         },
@@ -6381,7 +6520,8 @@
         "notInstalled": "{agent}: not installed",
         "missing": "{missing}, the agent chosen for this project, is not installed on this computer. Choose another agent for this run.",
         "missingNone": "{missing}, the agent chosen for this project, is not installed on this computer, and no other supported agent is.",
-        "thisRunOnly": "For this run only: the project's choice stays as it is."
+        "thisRunOnly": "For this run only: the project's choice stays as it is.",
+        "validate": "Validate"
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Started by you at {time} after merging #{merged}, to rebase #{number} on {base}",

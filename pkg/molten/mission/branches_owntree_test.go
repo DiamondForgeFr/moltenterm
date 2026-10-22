@@ -19,6 +19,8 @@ type ownTreeFixture struct {
 	dir     string
 	trees   string
 	devTree string
+	// The terminals open in work-12, by block id; a test closes one by removing it (#932).
+	terms map[string]WorktreeTerminal
 }
 
 func (f ownTreeFixture) tree(n int) string {
@@ -127,11 +129,16 @@ func makeOwnTreeFixture(t *testing.T) ownTreeFixture {
 		return plainRunner(ctx, d, name, args...)
 	}
 	inUse := realPath(f.tree(12))
+	f.terms = map[string]WorktreeTerminal{"block-12": {BlockId: "block-12", Tab: "Review"}}
 	r.UseWorktrees(MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
-		if realPath(path) == inUse {
-			return []WorktreeTerminal{{BlockId: "block-12", Tab: "Review"}}
+		rtn := []WorktreeTerminal{}
+		if realPath(path) != inUse {
+			return rtn
 		}
-		return []WorktreeTerminal{}
+		for _, term := range f.terms {
+			rtn = append(rtn, term)
+		}
+		return rtn
 	}), data)
 	f.r = r
 	return f

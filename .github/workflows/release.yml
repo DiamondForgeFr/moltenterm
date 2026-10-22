@@ -164,7 +164,9 @@ jobs:
         if: needs.meta.outputs.mode != 'check'
         # Both architectures on one runner: electron-builder writes one latest-mac.yml listing both.
         runs-on: macos-latest
-        timeout-minutes: 90
+        # Four notarizations (two apps, two DMGs) took 33 to 54 min each on the first probe (#880): 90 min would
+        # cancel a signed release. 6 h is GitHub's ceiling.
+        timeout-minutes: 350
         # The Developer ID secrets are environment secrets of `release`, whose deployment rule admits only `v*` tags
         # (RELEASE.md, "macOS signing"). A rehearsal gets no environment, hence no secret, and stays ad hoc.
         environment: ${{ needs.meta.outputs.mode == 'release' && 'release' || '' }}

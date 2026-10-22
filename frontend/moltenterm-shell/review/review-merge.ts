@@ -9,7 +9,7 @@ import { t } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
-import { blockingText } from "./review-stepper";
+import { blockingText, checkDetail, listNames } from "./review-stepper";
 
 const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging", "queued"];
 
@@ -31,12 +31,29 @@ export function sheetRecord(record: ReviewMergeRecord, planid: string): ReviewMe
     return null;
 }
 
-// Merge is clickable when the plan allows it, its warnings are confirmed and no merge of the PR is running (AC4).
+// queuesOnClick: the plan waits only for the CI, so the click validates the PR into the merge queue, which merges it
+// once green (FR-REV-026), instead of merging now.
+export function queuesOnClick(plan: ReviewMergePlan): boolean {
+    return plan != null && !plan.canmerge && !!plan.canqueue;
+}
+
+// Merge is clickable when the plan allows it (now, or once the CI is green), its warnings are confirmed and no merge of
+// the PR is running (AC4).
 export function canClickMerge(plan: ReviewMergePlan, override: boolean, record: ReviewMergeRecord): boolean {
-    if (plan == null || !plan.canmerge || mergeRunning(record)) {
+    if (plan == null || !(plan.canmerge || plan.canqueue) || mergeRunning(record)) {
         return false;
     }
     return (plan.warnings ?? []).length === 0 || override;
+}
+
+// overrideText is the confirmation the developer ticks to merge despite the plan's warnings: red checks GitHub does
+// not require are named there (#943), since they are why a PR GitHub would merge asks first.
+export function overrideText(plan: ReviewMergePlan): string {
+    const ci = plan?.checks?.find((c) => c.id === "ci");
+    if (ci?.code !== "failingoptional" || !(plan.warnings ?? []).includes("ci")) {
+        return t("review.validate.mergeAnyway");
+    }
+    return t("review.validate.validateAnyway", { names: listNames(t, ci.names ?? []) });
 }
 
 // Why Merge is disabled, as its tooltip and the line under the steps say.
@@ -47,7 +64,10 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
     if (mergeRunning(record)) {
         return t("review.merge.running");
     }
-    if (!plan.canmerge) {
+    if (!plan.canmerge && !plan.canqueue) {
+        if (plan.greenonly) {
+            return t("review.validate.greenOnly");
+        }
         return blockingText(
             t,
             plan.checks.find((c) => c.id === plan.blocking)
@@ -57,6 +77,22 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
         return t("review.merge.confirmWarnings");
     }
     return "";
+}
+
+// mergeWaitingText: Merge is disabled only because a check is still running (the CI, GitHub computing), so the line
+// under the steps says what it waits for instead of reading as a failure (#925); "" otherwise.
+export function mergeWaitingText(plan: ReviewMergePlan, record: ReviewMergeRecord): string {
+    if (plan == null || plan.canmerge || mergeRunning(record)) {
+        return "";
+    }
+    const check = plan.checks.find((c) => c.id === plan.blocking);
+    if (check?.state !== "pending") {
+        return "";
+    }
+    if (check.id === "ci") {
+        return t("review.validate.mergeWaitsCi", { detail: checkDetail(t, check) });
+    }
+    return t("review.validate.mergeWaits", { reason: blockingText(t, check) });
 }
 
 // chosenMethod is the method the merge uses: the one picked in the sheet while the plan allows it, else the plan's
@@ -70,6 +106,9 @@ export function chosenMethod(plan: ReviewMergePlan, picked: ReviewMergeMethod): 
 }
 
 export function mergeButtonLabel(plan: ReviewMergePlan, method: ReviewMergeMethod): string {
+    if (queuesOnClick(plan)) {
+        return t("review.merge.button.whenGreen");
+    }
     if (plan?.queue) {
         return t("review.merge.button.queue");
     }

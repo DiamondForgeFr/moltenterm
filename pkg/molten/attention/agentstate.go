@@ -338,12 +338,17 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 }
 
 // input sees what the user types in a terminal: Enter in a pane whose agent waits (or is done) is an answer. The
-// agent's UserPromptSubmit hook, if any, reports working right after.
+// agent's UserPromptSubmit hook, if any, reports working right after. An interrupt key while it works may end its
+// turn without any hook (#915): the output activity then judges it (interruptedLocked).
 func (a *agentStates) input(blockId string, data []byte) {
 	now := a.now()
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.typedLocked(blockId, now)
+	if isInterruptKey(data) {
+		a.interruptedLocked(blockId, now)
+		return
+	}
 	if !bytes.ContainsAny(data, "\r\n") {
 		return
 	}

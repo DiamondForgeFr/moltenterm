@@ -711,7 +711,11 @@
             "moltenterm:terminalscreenreader": {
                 "label": "Prise en charge des lecteurs d’écran",
                 "description": "Automatique suit le système. Activé et Désactivé remplacent la détection, sans redémarrer les terminaux.",
-                "options": { "auto": "Automatique", "on": "Activé", "off": "Désactivé" }
+                "options": {
+                    "auto": "Automatique",
+                    "on": "Activé",
+                    "off": "Désactivé"
+                }
             },
             "term:copyonselect": {
                 "label": "Copier à la sélection",
@@ -1117,6 +1121,10 @@
             "review:reviewername": {
                 "label": "Votre prénom",
                 "description": "Écrit en « Reviewed by » dans les pull requests que vous validez ; vide : d'après le nom d'utilisateur git du projet."
+            },
+            "review:validategreenonly": {
+                "label": "Valider seulement une fois la CI verte",
+                "description": "Désactivé : une PR dont les checks tournent peut être validée ; la file de fusion la fusionne une fois verte."
             }
         },
         "mods": {
@@ -2628,6 +2636,10 @@
                 "notInPr": "elle contient des commits que #{pr} n'a jamais portés",
                 "worktreeChanges": "fusionnée dans #{pr}, mais son worktree a des modifications non commitées",
                 "worktreeInUse": "fusionnée dans #{pr}, mais un terminal est ouvert dans son worktree",
+                "worktreeHeldBy": {
+                    "one": "fusionnée dans #{pr}, mais la session {sessions} a un terminal ouvert dans son worktree",
+                    "other": "fusionnée dans #{pr}, mais les sessions {sessions} ont des terminaux ouverts dans son worktree"
+                },
                 "prAssets": "contient les ressources des pull requests",
                 "tool": "une branche d'outil"
             },
@@ -2659,7 +2671,22 @@
             "autoDeleteDone": "GitHub supprime désormais les branches de tête quand leur pull request est fusionnée.",
             "autoDeleteOffer": "Sur ce dépôt, GitHub garde les branches de tête après la fusion de leur pull request. Activer son réglage « Automatically delete head branches » pour que les branches fusionnées ne s'accumulent plus ?",
             "notNow": "Pas maintenant",
-            "turnOn": "Activer"
+            "turnOn": "Activer",
+            "showSession": "Afficher la session",
+            "showNamed": "Afficher {session}",
+            "closeAndClean": {
+                "one": "Fermer la session et nettoyer…",
+                "other": "Fermer les sessions et nettoyer…"
+            },
+            "closeTitle": {
+                "one": "Fermer {sessions} et nettoyer ?",
+                "other": "Fermer {sessions} et nettoyer ?"
+            },
+            "closeConfirm": {
+                "one": "Fermer la session {sessions} ? Son terminal se ferme, et un agent qui y tourne s'arrête. Ensuite son worktree et la branche {branch} sont supprimés, comme le ferait le nettoyage.",
+                "other": "Fermer les sessions {sessions} ? Leurs terminaux se ferment, et tout agent qui y tourne s'arrête. Ensuite leur worktree et la branche {branch} sont supprimés, comme le ferait le nettoyage."
+            },
+            "closeAndCleanConfirm": "Fermer et nettoyer"
         },
         "cicd": {
             "viewName": "CI/CD",
@@ -3725,6 +3752,10 @@
                 "mergeable": {
                     "one": "1 prête à fusionner",
                     "other": "{count} prêtes à fusionner"
+                },
+                "drafts": {
+                    "one": "1 brouillon",
+                    "other": "{count} brouillons"
                 }
             },
             "moreWidgets": "{count} widgets de plus",
@@ -4221,7 +4252,7 @@
     },
     "reviews": {
         "batch": {
-            "tabName": "Fusion groupée",
+            "tabName": "File de fusion",
             "yourAgent": "Votre agent",
             "method": {
                 "merge": "commit de fusion",
@@ -4231,7 +4262,7 @@
             },
             "select": {
                 "start": "Fusionner plusieurs…",
-                "startTitle": "Sélectionnez des pull requests et confiez-les à votre agent, qui les fusionne l'une après l'autre dans l'ordre suggéré",
+                "startTitle": "Sélectionnez des pull requests et ajoutez-les à la file de fusion : elles fusionnent l'une après l'autre dans l'ordre suggéré",
                 "count": {
                     "one": "{count} pull request sélectionnée",
                     "other": "{count} pull requests sélectionnées"
@@ -4256,22 +4287,18 @@
                 "costUnknown": "La prévision des conflits n'est pas prête : les CI que cet ordre relance ne sont pas encore connues.",
                 "costUpToDate": "Cette base exige des branches à jour : chaque fusion relance la CI des pull requests restantes.",
                 "what": "Pour chaque pull request à son tour : celle qui fusionne encore proprement avec des checks au vert est fusionnée tout de suite, sans rebase ni nouvelle CI. Celle qui est en conflit part à votre agent, hors de vue dans sa propre copie du dépôt : il la rebase sur {base} à jour, résout les conflits et pousse, puis MoltenTerm la fusionne une fois ses checks passés.",
-                "stops": "Une pull request dont les checks échouent n'est jamais fusionnée : la fusion groupée s'arrête dessus et vous demande, et les suivantes attendent. Annuler arrête la fusion groupée après l'étape en cours.",
+                "stops": "Une pull request dont les checks échouent n'est jamais fusionnée : elle est mise de côté avec une notification et les autres continuent. Un push sur une pull request après ce choix la sort de la file. Annuler la validation, sur le bandeau, en retire une tant que sa fusion n'a pas commencé.",
                 "checkout": "Votre checkout principal n'est pas touché.",
-                "start": "Lancer la fusion groupée"
+                "start": "Ajouter à la file de fusion"
             },
             "banner": {
                 "running": {
-                    "one": "Un agent fusionne {count} PR — {progress}",
-                    "other": "Un agent fusionne {count} PR — {progress}"
+                    "one": "File de fusion : {count} PR validée — {progress}",
+                    "other": "File de fusion : {count} PR validées — {progress}"
                 },
                 "cancelling": {
                     "one": "Annulation après l'étape en cours — {progress}",
                     "other": "Annulation après l'étape en cours — {progress}"
-                },
-                "paused": {
-                    "one": "La fusion groupée s'est arrêtée sur #{number} — {merged} sur {count} fusionnées",
-                    "other": "La fusion groupée s'est arrêtée sur #{number} — {merged} sur {count} fusionnées"
                 },
                 "progress": "{merged} sur {count} fusionnées, #{number} {now}",
                 "progressIdle": "{merged} sur {count} fusionnées",
@@ -4285,16 +4312,16 @@
                     "other": "est en cours"
                 },
                 "done": {
-                    "one": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}",
-                    "other": "Fusion groupée terminée — PR fusionnées : {merged} sur {count}"
+                    "one": "File de fusion terminée — PR fusionnées : {merged} sur {count}",
+                    "other": "File de fusion terminée — PR fusionnées : {merged} sur {count}"
                 },
                 "cancelled": {
-                    "one": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}",
-                    "other": "Fusion groupée annulée — PR fusionnées : {merged} sur {count}"
+                    "one": "File de fusion annulée — PR fusionnées : {merged} sur {count}",
+                    "other": "File de fusion annulée — PR fusionnées : {merged} sur {count}"
                 },
                 "interrupted": {
-                    "one": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}",
-                    "other": "Fusion groupée interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}"
+                    "one": "File de fusion interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}",
+                    "other": "File de fusion interrompue au redémarrage de MoltenTerm — PR fusionnées : {merged} sur {count}"
                 }
             },
             "step": {
@@ -4305,7 +4332,8 @@
                 "waitingChecks": "Attend ses checks",
                 "waitingRebased": "Attend ses checks sur la tête rebasée",
                 "merging": "Fusion en cours",
-                "merged": "Fusionnée"
+                "merged": "Fusionnée",
+                "failed": "La CI a échoué sur {names} : fusionnée dès que ses checks repassent sur le même commit"
             },
             "why": {
                 "failing": "Checks en échec : {names}",
@@ -4329,20 +4357,15 @@
                 "notreached": "Pas atteinte",
                 "cancelled": "Annulée",
                 "interrupted": "MoltenTerm a redémarré",
-                "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
+                "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur",
+                "pushed": "Un push après votre validation : à relire de nouveau",
+                "withdrawn": "Validation annulée"
             },
-            "decide": {
-                "retry": "Réessayer",
-                "override": "Fusionner quand même",
-                "skip": "Passer cette PR",
-                "end": "Terminer la fusion groupée"
-            },
-            "waitsForYou": "Les pull requests suivantes vous attendent :",
             "goTo": "Aller à l'agent",
             "goToTitle": "Afficher le terminal de {name}",
-            "cancel": "Annuler",
+            "cancel": "Tout annuler",
             "cancelling": "Annulation…",
-            "cancelTitle": "Arrêter la fusion groupée après l'étape en cours ; rien de plus n'est fusionné",
+            "cancelTitle": "Annuler chaque validation qui n'est pas en cours de fusion ; rien de plus n'est fusionné",
             "dismiss": "Masquer",
             "kept": {
                 "changes": "La copie de l'agent a des fichiers non commités : elle est gardée.",
@@ -4354,7 +4377,7 @@
             "summary": {
                 "merged": "Fusionnées : {list}.",
                 "mergedNone": "Rien n'a été fusionné.",
-                "skipped": "Passées : {list}.",
+                "skipped": "Non fusionnées : {list}.",
                 "skippedItem": "#{number} ({reason})",
                 "ciRuns": {
                     "one": "{count} CI relancée.",
@@ -4362,12 +4385,25 @@
                 }
             },
             "row": {
-                "merged": "Fusionnée par le lot",
-                "stopped": "A arrêté le lot",
-                "skipped": "Passée par le lot",
-                "queued": "Lot : {rank}",
-                "current": "Lot : en cours"
-            }
+                "merged": "Fusionnée par la file",
+                "stopped": "A besoin de vous",
+                "skipped": "Sortie de la file",
+                "queued": "En file : {rank}",
+                "current": "File de fusion : en cours",
+                "next": "Prochaine dans la file",
+                "waiting": "Validée — attend la CI",
+                "waitingRebased": "Rebasée — attend la CI",
+                "rebasing": "Rebase en cours",
+                "merging": "Fusion en cours",
+                "failed": "Validée — CI en échec",
+                "voided": "Validation caduque : nouveau push",
+                "withdrawn": "Validation annulée",
+                "needsAnswer": "Votre agent vous attend"
+            },
+            "withdraw": "Annuler la validation",
+            "withdrawTitle": "Retirer #{number} de la file de fusion : elle n'est pas fusionnée et revient à relire",
+            "resumed": "Reprise après le redémarrage de MoltenTerm.",
+            "investigateGone": "Cette pull request n'est plus listée dans Revues."
         },
         "viewName": "Revues",
         "into": "vers",
@@ -4513,8 +4549,7 @@
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
             "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
             "conflicts": "Conflits avec {base} : demandez d'abord un rebase.",
-            "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
-            "failing": "Vérifications en échec ({count}) : corrigez-les d'abord."
+            "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque."
         },
         "rebase": {
             "button": "Demander un rebase",
@@ -4790,7 +4825,8 @@
         "view": {
             "worktree": "Worktree {path}",
             "worktreeOn": "Worktree {path} sur {branch}",
-            "upTitle": "Active depuis {age}",
+            "prMerged": "PR #{pr} fusionnée",
+            "prMergedTitle": "La pull request #{pr} de {branch} est fusionnée : le travail de cette session est livré.",
             "selectRow": "Sélectionner {name}, {what}",
             "reconnect": "Reconnecter",
             "end": "Terminer…",
@@ -4800,9 +4836,7 @@
             "selectAll": "Sélectionner toutes les sessions",
             "colName": "Nom",
             "colActions": "Actions",
-            "colFolder": "Dossier",
             "colAgent": "Agent",
-            "colLastActive": "Activité",
             "selectedCount": "{count} sélectionnée(s)",
             "noAgentSelected": "Aucune session sélectionnée n'exécute un agent de code local dans un panneau.",
             "sendCommand": "Envoyer une commande…",
@@ -4820,8 +4854,77 @@
             "loading": "Chargement des sessions…",
             "shownCount": "{count} affichée(s)",
             "tableLabel": "Sessions durables",
-            "endsLater": "{what} s'arrêtera quand {connection} reviendra."
-        }
+            "endsLater": "{what} s'arrêtera quand {connection} reviendra.",
+            "colWorktree": "Worktree",
+            "colActivity": "Activité",
+            "join": "Rejoindre",
+            "joinTitle": "Aller au terminal de cette session",
+            "interrupt": "Interrompre",
+            "interruptTitle": "Interrompre le tour en cours de l'agent",
+            "interrupting": "interruption…",
+            "interrupted": "{name} : tour interrompu.",
+            "stop": "Arrêter…",
+            "update": "Mettre à jour…",
+            "updating": "mise à jour…",
+            "updateAll": "Tout mettre à jour ({count})…",
+            "outdated": "pas à jour",
+            "outdatedTitle": "Lancée sur une ancienne version de MoltenTerm : ses outils et réglages ne sont pas les actuels.",
+            "copied": "Chemin copié",
+            "copyPathTitle": "{title}\nCliquer pour copier le chemin"
+        },
+        "kind": {
+            "direct": "Directe",
+            "rebase": "Rebase",
+            "restart": "Reprendre le travail",
+            "investigate": "Analyser et corriger",
+            "batch": "Fusion groupée",
+            "review": "Panneau de revue"
+        },
+        "kindTitle": {
+            "direct": "Votre propre session : un terminal ou un agent que vous avez lancé.",
+            "started": "Un agent lancé par MoltenTerm pour vous : {action}."
+        },
+        "from": {
+            "reviews": "Liste des revues",
+            "reviewTab": "Onglet de revue",
+            "mergeQueue": "File de fusion",
+            "reviewPanel": "Panneau de revue",
+            "label": "Depuis {where}"
+        },
+        "prState": {
+            "draft": "brouillon",
+            "open": "ouverte",
+            "merged": "fusionnée",
+            "closed": "fermée"
+        },
+        "context": {
+            "ticket": "#{number}",
+            "ticketTitle": "Ticket #{number}",
+            "pr": "PR #{number}",
+            "prStateUnknown": "état pas encore connu",
+            "openLink": "Ouvrir {what}"
+        },
+        "effort": "effort {effort}",
+        "activity": {
+            "started": "Lancée {at}",
+            "running": "En cours depuis {age}"
+        },
+        "subSession": "Travail confié par {name}",
+        "update": {
+            "title": "Mettre à jour {name} ?",
+            "subtitleAgent": "{agent} quitte puis redémarre sur la version actuelle de MoltenTerm, en reprenant sa conversation quand c'est possible.",
+            "subtitleShell": "Le shell du terminal redémarre sur la version actuelle de MoltenTerm.",
+            "warningWorking": "{agent} travaille : il n'est redémarré qu'une fois son tour terminé.",
+            "warningWaiting": "{agent} attend votre réponse : il n'est redémarré qu'une fois la réponse donnée.",
+            "confirm": "Mettre à jour la session"
+        },
+        "updateAll": {
+            "title": "Mettre à jour {sessions} ?",
+            "subtitle": "Chacune redémarre sur la version actuelle de MoltenTerm ; les agents reprennent leur conversation quand c'est possible. Un agent qui travaille ou attend une réponse est laissé tel quel.",
+            "confirm": "Mettre à jour {sessions}",
+            "running": "Mise à jour…"
+        },
+        "namedWhat": "{name} ({what})"
     },
     "review": {
         "ready": {
@@ -4894,7 +4997,7 @@
             "briefNewHead": "Briefer le nouveau head",
             "askAgain": "Redemander",
             "starting": "Démarrage de votre agent dans le worktree de la PR…",
-            "running": "{agent} relit cette PR, en lecture seule, dans le terminal sous ce panneau.",
+            "running": "{agent} relit cette PR, en lecture seule, dans son propre terminal. Ses options sont dans le menu de ce panneau.",
             "toolsConnect": "Ses outils de revue se connectent à son démarrage.",
             "showTerminal": "Afficher son terminal",
             "startFailed": "La session de revue n'a pas pu démarrer.",
@@ -5040,7 +5143,8 @@
                 "merge": "Fusionner",
                 "squash": "Squasher et fusionner",
                 "rebase": "Rebaser et fusionner",
-                "queue": "Ajouter à la file de fusion"
+                "queue": "Ajouter à la file de fusion",
+                "whenGreen": "Valider — fusionne quand la CI est verte"
             }
         },
         "select": {
@@ -5112,7 +5216,10 @@
             "recheck": "Revérifier",
             "mergeTitle": "Fusionner, lié au head {oid}",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
+            "validateAnyway": "Valider quand même : j'ai vu les vérifications en échec ({names}) et les avertissements ci-dessus.",
             "mergeDisabled": "Fusion désactivée : {reason}",
+            "mergeWaitsCi": "La fusion attend la CI ({detail}) : revérifiez une fois qu'elle est verte.",
+            "mergeWaits": "La fusion attend : {reason}",
             "cleaningUp": "Nettoyage après la fusion…",
             "stepsLabel": "Étapes de la validation",
             "andMore": "{names} et {count} de plus",
@@ -5153,7 +5260,8 @@
             "checkCode": {
                 "notopen": "La pull request est {state}.",
                 "draft": "La pull request est un brouillon : marquez-la prête pour la revue d'abord.",
-                "failing": "{count} en échec : {names}",
+                "failing": "{count} en échec : {names}. GitHub les exige et refuse la fusion tant qu'elles échouent.",
+                "failingoptional": "{count} en échec : {names}. GitHub ne les exige pas : vous pouvez valider quand même.",
                 "running": "{count} encore en cours : {names}",
                 "nocheck": "Aucune vérification signalée sur cette pull request.",
                 "passed": "{count} réussies",
@@ -5161,6 +5269,7 @@
                 "conflicting": "La branche est en conflit avec {base} : elle doit être rebasée (Reprendre le travail peut la confier à un agent).",
                 "computing": "GitHub calcule encore si elle fusionne proprement : revérifiez dans un instant.",
                 "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
+                "waitsci": "GitHub retient la fusion jusqu'à ce que les vérifications requises passent : la ligne CI ci-dessus dit où elles en sont.",
                 "behind": "En retard sur {base} : GitHub la rebase d'abord, puis la fusion attend la CI sur le nouveau head.",
                 "unpublished": {
                     "one": "1 commentaire écrit ici n'est pas publié : il reste ici, non publié.",
@@ -5176,6 +5285,10 @@
                 "problems": {
                     "one": "1 vérification demande votre attention.",
                     "other": "{count} vérifications demandent votre attention."
+                },
+                "waiting": {
+                    "one": "1 vérification tourne encore : rien ne vous attend pour l'instant.",
+                    "other": "{count} vérifications tournent encore : rien ne vous attend pour l'instant."
                 },
                 "passedBefore": "Vérifiée avant la fusion.",
                 "show": "Afficher",
@@ -5212,6 +5325,7 @@
                 "githubheadmoved": "GitHub a refusé la fusion car la branche a bougé : relisez les nouveaux commits, puis validez à nouveau.",
                 "check": "Non fusionnée : {reason}",
                 "newwarning": "Non fusionnée : un nouvel avertissement est apparu depuis le plan. Validez à nouveau.",
+                "newred": "Non fusionnée : des vérifications ont échoué depuis le plan ({names}). Validez à nouveau.",
                 "mergeerror": "La fusion a échoué et n'est pas retentée.",
                 "updateerror": "GitHub n'a pas pu mettre la branche à jour avec sa base : rien n'a été fusionné.",
                 "stopped": "Arrêtée pendant l'attente de la CI : rien n'a été fusionné.",
@@ -5460,7 +5574,11 @@
                 "squash": "Faire de la pull request un seul commit sur la base",
                 "rebase": "Rejouer chaque commit au-dessus de la base, sans commit de fusion"
             },
-            "methodLabel": "Méthode de fusion"
+            "methodLabel": "Méthode de fusion",
+            "greenOnly": "Les checks tournent encore, et « Valider seulement une fois la CI verte » est activé (Réglages › Agents › Revue de code).",
+            "queued": "Validée, dans la file de fusion de {base} : {place}.",
+            "whenGreenNote": "Les checks tournent encore. Valider place #{number} dans la file de fusion de {base}, qui la fusionne dès qu'ils passent ; un push d'ici là annule la validation.",
+            "whenGreenTitle": "Valider le commit {oid} : la file de fusion le fusionne dès que ses checks passent"
         },
         "view": {
             "viewName": "Revue",
@@ -5711,8 +5829,8 @@
         },
         "review": {
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
-            "batchrunning": "Une fusion groupée tourne déjà dans ce projet.",
-            "batchgone": "Cette fusion groupée ne tourne plus.",
+            "batchrunning": "La file de fusion de ce projet est en cours d'annulation ; réessayez dans un instant.",
+            "batchgone": "Cette file de fusion ne tourne plus.",
             "batchnotstopped": "La fusion groupée n'attend pas de décision.",
             "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",
             "mergebase": "La base de fusion de {branch} et du head de la PR n'a pas pu être lue : {detail}",
@@ -5775,7 +5893,11 @@
             "questiongone": "Cette question n'attend plus : elle a été envoyée ou retirée.",
             "readpr": "La pull request n'a pas pu être lue sur GitHub : {detail}",
             "headnotcommit": "La tête {head} n'est pas un identifiant de commit.",
-            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}."
+            "headmissing": "Le commit de tête {head} de la PR n'est pas dans le projet, même après avoir récupéré {branch}.",
+            "queue": {
+                "merging": "#{number} est déjà en cours de fusion.",
+                "notqueued": "#{number} n'est pas dans la file de fusion."
+            }
         },
         "handoff": {
             "notwaiting": "Cette demande de passage de relais n'est plus en attente.",
@@ -5990,7 +6112,10 @@
                 "readTrunk": "{ref} n'a pas pu être lu : {detail}",
                 "kept": "{branch} : gardée ({reason})",
                 "deleteFailed": "{branch} : {detail}",
-                "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}"
+                "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}",
+                "gone": "{branch} n'est plus une branche.",
+                "newTerminal": "Un autre terminal s'est ouvert depuis dans le worktree de {branch} : rien n'a été fermé.",
+                "closeFailed": "Un terminal n'a pas pu être fermé : {detail}"
             },
             "jobs": {
                 "tooLarge": "Le fichier est trop volumineux pour être lu.",
@@ -6075,8 +6200,8 @@
                     "goTo": "Aller au terminal",
                     "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
                     "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
-                    "doneTitle": "Fusion groupée — PR fusionnées : {merged} sur {total}",
-                    "cancelledTitle": "Fusion groupée annulée — PR fusionnées : {merged} sur {total}",
+                    "doneTitle": "File de fusion : {merged} PR sur {total} fusionnées",
+                    "cancelledTitle": "File de fusion annulée : {merged} PR sur {total} fusionnées",
                     "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}{trunk}",
                     "trunkUpdated": " {branch} local mis à jour : +{count} commits.",
                     "trunkUpdatedOne": " {branch} local mis à jour : +1 commit.",
@@ -6113,7 +6238,9 @@
                         "cancelled": "annulée",
                         "interrupted": "MoltenTerm a redémarré",
                         "notreached": "pas atteinte",
-                        "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur"
+                        "agentmissing": "{detail}, l'agent que vous avez choisi, n'est pas installé sur cet ordinateur",
+                        "pushed": "un push après votre validation",
+                        "withdrawn": "validation annulée"
                     }
                 },
                 "trunk": {
@@ -6129,6 +6256,18 @@
                         "inprogress": "un rebase, une fusion, un cherry-pick ou un bisect est en cours dans {path}",
                         "failed": "git a échoué : {detail}"
                     }
+                },
+                "queue": {
+                    "investigate": "Analyser et corriger",
+                    "failedTitle": "#{number} validée mais la CI a échoué : {names}",
+                    "failed": "Elle n'est pas fusionnée tant qu'un check échoue. Elle fusionne dès que ses checks passent sur le même commit ; un nouveau push demande une nouvelle validation.",
+                    "stoppedTitle": "#{number} a besoin de vous : la file de fusion s'est arrêtée dessus",
+                    "stopped": "Raison : {reason}. Les autres pull requests validées continuent ; validez-la de nouveau une fois le point réglé.",
+                    "voidedTitle": "#{number} a changé après votre validation",
+                    "voided": "Quelqu'un a poussé {head} dessus : elle a quitté la file de fusion et revient à relire. Relisez les nouveaux commits et validez-la de nouveau.",
+                    "mergedTitle": "#{number} fusionnée (validée à {time})",
+                    "merged": "La file de fusion l'a fusionnée dans {base}.",
+                    "resumedTitle": "La file de fusion de {base} a repris : {count} PR validées"
                 }
             }
         },
@@ -6381,7 +6520,8 @@
         "notInstalled": "{agent} : non installé",
         "missing": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur. Choisissez un autre agent pour ce lancement.",
         "missingNone": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur, et aucun autre agent pris en charge ne l'est.",
-        "thisRunOnly": "Pour ce lancement seulement : le choix du projet ne change pas."
+        "thisRunOnly": "Pour ce lancement seulement : le choix du projet ne change pas.",
+        "validate": "Valider"
     },
     "agentOrigin": {
         "rebaseAfterMerge": "Lancé par vous à {time} après la fusion de #{merged}, pour rebaser #{number} sur {base}",

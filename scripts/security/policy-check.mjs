@@ -40,12 +40,12 @@ function disposition(finding, extra = {}) {
 const now = new Date("2026-10-17T00:00:00Z");
 const evaluate = (findings, dispositions = [], exceptions = []) => evaluatePolicy(findings, { ...policy(), dispositions, exceptions }, now);
 const scope = { module: ".", target: "linux/amd64", cgo: 0, packages: ["./cmd/...", "./pkg/..."] };
-const config = { protocol_version: "v1.0.0", scanner_name: "govulncheck", scanner_version: "v1.9.0", go_version: "go1.26.9", scan_mode: "source", scan_level: "symbol", db: "https://vuln.go.dev", db_last_modified: "2026-10-08T00:00:00Z" };
+const config = { protocol_version: "v1.0.0", scanner_name: "govulncheck", scanner_version: "v1.9.0", go_version: "go1.26.10", scan_mode: "source", scan_level: "symbol", db: "https://vuln.go.dev", db_last_modified: "2026-10-08T00:00:00Z" };
 const osv = { id: "GO-2026-1234", aliases: ["CVE-2026-1234"], summary: "fixture", affected: [{ package: { name: "example.test/module" }, ranges: [{ type: "SEMVER", events: [{ introduced: "0" }, { fixed: "1.2.0" }] }] }] };
 const trace = { module: "example.test/module", version: "v1.0.0" };
-const records = () => [{ config: clone(config) }, { SBOM: { go_version: "go1.26.9", roots: ["example.test/module/app"], modules: [{ path: "example.test/module", version: "v1.0.0" }] } }, { osv: clone(osv) }, { finding: { osv: osv.id, trace: [clone(trace)] } }];
+const records = () => [{ config: clone(config) }, { SBOM: { go_version: "go1.26.10", roots: ["example.test/module/app"], modules: [{ path: "example.test/module", version: "v1.0.0" }] } }, { osv: clone(osv) }, { finding: { osv: osv.id, trace: [clone(trace)] } }];
 const stream = (r) => r.map((entry) => JSON.stringify(entry, null, 2)).join("\n");
-const go = (r = records(), code = 0) => normalizeGo(stream(r), code, scope, policy(), "go1.26.9");
+const go = (r = records(), code = 0) => normalizeGo(stream(r), code, scope, policy(), "go1.26.10");
 
 test("runtime classification follows resolved graph; Electron dev executable is runtime, its installer is build", () => {
     const inventory = npmInventory(lock, policy());
@@ -218,7 +218,7 @@ test("scanner orchestration keeps raw evidence and separates scanner failure, po
 const fs=require("node:fs"),path=require("node:path");
 const name=path.basename(process.argv[1]),args=process.argv.slice(2);
 if(name==="go"){
- if(args[0]==="env") console.log(JSON.stringify({GOVERSION:"go1.26.9",GOHOSTOS:"linux",GOHOSTARCH:"amd64"}));
+ if(args[0]==="env") console.log(JSON.stringify({GOVERSION:"go1.26.10",GOHOSTOS:"linux",GOHOSTARCH:"amd64"}));
  else if(args[0]==="install"){fs.copyFileSync(process.argv[1],path.join(process.env.GOBIN,"govulncheck"));fs.chmodSync(path.join(process.env.GOBIN,"govulncheck"),0o755);}
  else process.exit(2);
 } else if(name==="npm"){

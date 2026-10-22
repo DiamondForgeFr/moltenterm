@@ -69,18 +69,21 @@ const (
 	RefusedMergedAway = "mergedaway"
 
 	// What the sheet writes under a check (#672: Go gives codes and data, the frontend writes the sentences).
-	CheckCodeNotOpen     = "notopen"
-	CheckCodeDraft       = "draft"
-	CheckCodeFailing     = "failing"
-	CheckCodeRunning     = "running"
-	CheckCodeNoCheck     = "nocheck"
-	CheckCodePassed      = "passed"
-	CheckCodeConflicting = "conflicting"
-	CheckCodeComputing   = "computing"
-	CheckCodeBlocked     = "blocked"
-	CheckCodeBehind      = "behind"
-	CheckCodeUnpublished = "unpublished"
-	CheckCodeInFlight    = "inflight"
+	CheckCodeNotOpen = "notopen"
+	CheckCodeDraft   = "draft"
+	CheckCodeFailing = "failing"
+	// failingoptional: red checks GitHub does not require (it does not block the merge): a warning to confirm (#943).
+	CheckCodeFailingOptional = "failingoptional"
+	CheckCodeRunning         = "running"
+	CheckCodeNoCheck         = "nocheck"
+	CheckCodePassed          = "passed"
+	CheckCodeConflicting     = "conflicting"
+	CheckCodeComputing       = "computing"
+	CheckCodeBlocked         = "blocked"
+	CheckCodeWaitsCi         = "waitsci"
+	CheckCodeBehind          = "behind"
+	CheckCodeUnpublished     = "unpublished"
+	CheckCodeInFlight        = "inflight"
 
 	// What the sheet writes about a merge's outcome (MergeRecord.Code).
 	MergeCodeMerged         = "merged"
@@ -90,6 +93,7 @@ const (
 	MergeCodeGithubMoved    = "githubheadmoved"
 	MergeCodeCheck          = "check"
 	MergeCodeNewWarning     = "newwarning"
+	MergeCodeNewRed         = "newred"
 	MergeCodeMergeError     = "mergeerror"
 	MergeCodeUpdateError    = "updateerror"
 	MergeCodeStopped        = "stopped"
@@ -191,11 +195,17 @@ type MergePlan struct {
 	// CanMerge: no check fails or waits; Blocking: the id of the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
 	Blocking string `json:"blocking,omitempty"`
+	// CanQueue: nothing fails and only the CI runs, so the PR can be validated now and merged by the merge queue once
+	// green (FR-REV-026, #912). GreenOnly: the review:validategreenonly setting is on and keeps it blocked.
+	CanQueue  bool `json:"canqueue,omitempty"`
+	GreenOnly bool `json:"greenonly,omitempty"`
 	// Warnings the developer confirms to merge anyway (unpublished comments, a restart in flight).
 	Warnings  []string `json:"warnings"`
 	CreatedAt int64    `json:"createdat"`
 
 	ciNames []string
+	// redNames: the red checks GitHub does not require that the developer confirms merging with (#943).
+	redNames []string
 	// batch: the PRs a batch merge still has to merge after this one (FR-REV-025).
 	batch []int
 }
@@ -299,6 +309,8 @@ type Merger struct {
 	branchRules map[string]branchRules
 	// reviewer: the developer's first name for the PR body's "Reviewed by" line (#847); nil writes no line.
 	reviewer func(dir string) string
+	// greenOnly: the review:validategreenonly setting (#912); nil reads off.
+	greenOnly func() bool
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
@@ -439,8 +451,14 @@ func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round
 	case pr.IsDraft:
 		open.State, open.Code = CheckFail, CheckCodeDraft
 	}
-	checks = append(checks, open, ciCheck(ci))
 	mergeState := strings.ToUpper(pr.MergeStateStatus)
+	ciRow := ciCheck(ci)
+	if ciRow.Code == CheckCodeFailing && mergeState != "BLOCKED" {
+		// GitHub's mergeStateStatus is the judge of what it requires (#943): red checks it does not block on (UNSTABLE)
+		// are not required, so they ask for a confirmation instead of refusing what GitHub would merge.
+		ciRow.State, ciRow.Code = CheckWarn, CheckCodeFailingOptional
+	}
+	checks = append(checks, open, ciRow)
 	conflict := MergeCheck{Id: CheckIdConflict, State: CheckOk, Base: pr.BaseRefName}
 	switch mission.ReviewConflictOf(pr.Mergeable, pr.MergeStateStatus) {
 	case mission.ReviewConflictConflicting:
@@ -450,7 +468,13 @@ func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round
 	}
 	checks = append(checks, conflict)
 	blocked := MergeCheck{Id: CheckIdBlocked, State: CheckOk}
-	if mergeState == "BLOCKED" {
+	switch {
+	case mergeState != "BLOCKED":
+	case ciRow.State == CheckPending || ciRow.State == CheckFail:
+		// GitHub says BLOCKED until the required checks pass (#925): the CI row carries the verdict, running or
+		// failed, and the rules' row waits for it instead of counting a second failure.
+		blocked.State, blocked.Code = CheckPending, CheckCodeWaitsCi
+	default:
 		blocked.State, blocked.Code = CheckFail, CheckCodeBlocked
 	}
 	checks = append(checks, blocked)
@@ -490,6 +514,52 @@ func blockingOf(checks []MergeCheck) *MergeCheck {
 		}
 	}
 	return nil
+}
+
+// checkCodeWaitsCi: GitHub blocks the merge only because the required checks still run (#925).
+const checkCodeWaitsCi = "waitsci"
+
+// queueable: no check fails and what waits is the CI, or GitHub's block while it runs (#925). Such a PR can be
+// validated now: the merge queue merges it once green (FR-REV-026).
+func queueable(checks []MergeCheck) bool {
+	pending := false
+	for _, c := range checks {
+		switch c.State {
+		case CheckFail:
+			return false
+		case CheckPending:
+			if c.Id != CheckIdCi && !(c.Id == CheckIdBlocked && c.Code == checkCodeWaitsCi) {
+				return false
+			}
+			pending = true
+		}
+	}
+	return pending
+}
+
+// redNamesOf: the red checks GitHub does not require, as the CI row names them (#943).
+func redNamesOf(checks []MergeCheck) []string {
+	for _, c := range checks {
+		if c.Id == CheckIdCi && c.Code == CheckCodeFailingOptional {
+			return c.Names
+		}
+	}
+	return nil
+}
+
+// newRed: the red checks not among the ones the developer confirmed (#943).
+func newRed(red []string, confirmed []string) []string {
+	known := map[string]bool{}
+	for _, n := range confirmed {
+		known[n] = true
+	}
+	var rtn []string
+	for _, n := range red {
+		if !known[n] {
+			rtn = append(rtn, n)
+		}
+	}
+	return rtn
 }
 
 func warningsOf(checks []MergeCheck) []string {
@@ -571,9 +641,14 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 		Warnings:   warningsOf(checks),
 		CreatedAt:  m.now().UnixMilli(),
 		ciNames:    checkNames(ci.Checks),
+		redNames:   redNamesOf(checks),
 	}
 	if blocking != nil {
 		plan.Blocking = blocking.Id
+	}
+	if queueable(checks) {
+		plan.GreenOnly = m.greenOnly != nil && m.greenOnly()
+		plan.CanQueue = !plan.GreenOnly
 	}
 	methods := m.planMethods(ctx, req.Dir, req.Repo, pr.BaseRefName)
 	plan.Methods, plan.Method, plan.MethodRule, plan.Queue = methods.methods, methods.method, methods.rule, methods.queue
@@ -649,6 +724,40 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	m.running[k] = run
 	m.done[k] = done
 	return plan, run, done, nil
+}
+
+// takeQueuePlan hands a plan to the merge queue (FR-REV-026): the developer validated it while the CI runs, so it is
+// bound to its head, its method and the warnings they confirmed; the queue merges it once green. Used once, like any
+// plan.
+func (m *Merger) takeQueuePlan(req MergeRequest) (MergePlan, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	k := req.PrKey
+	if m.running[k] != nil {
+		return MergePlan{}, mergeError(MergeErrRunning)
+	}
+	plan, ok := m.plans[k]
+	if !ok || plan.Id != req.PlanId {
+		return MergePlan{}, mergeError(MergeErrStale)
+	}
+	if m.now().Sub(time.UnixMilli(plan.CreatedAt)) > planMaxAge {
+		delete(m.plans, k)
+		return MergePlan{}, mergeError(MergeErrOld)
+	}
+	if !plan.CanQueue && !plan.CanMerge {
+		return MergePlan{}, mergeError(MergeErrBlocked)
+	}
+	if len(plan.Warnings) > 0 && !req.Override {
+		return MergePlan{}, mergeError(MergeErrConfirm)
+	}
+	if req.Method != "" && !hasMethod(plan.Methods, req.Method) {
+		return MergePlan{}, mergeError(MergeErrMethod)
+	}
+	if req.Method != "" {
+		plan.Method = req.Method
+	}
+	delete(m.plans, k)
+	return plan, nil
 }
 
 func (m *Merger) finishRun(k PrKey, run *runningMerge) {
@@ -775,6 +884,11 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	}
 	if !record.overrides(warningsOf(checks)) {
 		m.end(k, record, MergeRefused, RefusedCheck, MergeCodeNewWarning, nil)
+		return
+	}
+	if red := newRed(redNamesOf(checks), plan.redNames); len(red) > 0 {
+		record.Names = red
+		m.end(k, record, MergeRefused, RefusedCheck, MergeCodeNewRed, nil)
 		return
 	}
 	head := plan.HeadOid
@@ -927,7 +1041,7 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 			m.end(k, headMoved(record, pr.HeadRefOid, newHead), MergeRefused, RefusedHeadMoved, MergeCodeHeadMoved, nil)
 			return "", record, false
 		}
-		verdict := ciOnNewHead(pr, plan.ciNames)
+		verdict := ciOnNewHead(pr, plan.ciNames, plan.redNames)
 		if !verdict.done && verdict.refused != "" {
 			// Every check passed but GitHub still blocks: past a short grace, a missing review will not come by itself.
 			blockedPolls++
@@ -960,13 +1074,14 @@ type ciVerdict struct {
 }
 
 // ciOnNewHead tells whether the rebased head can be merged: every check the plan saw has run again and passed, and
-// GitHub says it merges cleanly.
-func ciOnNewHead(pr ghMergePr, planChecks []string) ciVerdict {
+// GitHub says it merges cleanly. The red checks the developer confirmed (#943) may fail again: GitHub still decides
+// whether they block (BLOCKED waits, then refuses).
+func ciOnNewHead(pr ghMergePr, planChecks []string, confirmedRed []string) ciVerdict {
 	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
 	if err != nil {
 		return ciVerdict{}
 	}
-	if failing := namesIn(ci.Checks, mission.ReviewCheckFailure); len(failing) > 0 {
+	if failing := newRed(namesIn(ci.Checks, mission.ReviewCheckFailure), confirmedRed); len(failing) > 0 {
 		return ciVerdict{done: true, outcome: MergeFailed, code: MergeCodeCiFailed, names: failing}
 	}
 	mergeState := strings.ToUpper(pr.MergeStateStatus)

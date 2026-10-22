@@ -1434,6 +1434,7 @@ declare global {
         "review:language"?: string;
         "review:publishlanguage"?: string;
         "review:reviewername"?: string;
+        "review:validategreenonly"?: boolean;
         "app:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;

@@ -18,12 +18,17 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentStateLabel } from "../agent-state-model";
 import { AgentStateDot } from "../agent-state-ui";
+import { InterruptAction } from "../command-panel/agent-commands";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
-import { I18nModel, t as translate, useT } from "../i18n/i18n";
+import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
+import { openWebLink } from "../open-web-link";
 import { sessionRowDragProps } from "../split/drop-zones";
 import { whileShown } from "../tab-activity";
+import { copyText } from "../term-copy/term-copy";
+import { TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
+import { TermUpdates } from "../termupdate/termupdate-store";
 import { showToast } from "../toast-store";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
@@ -35,6 +40,7 @@ import {
 } from "../widget-options";
 import { effectiveWorkspaceFolder } from "../workspace-project";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
+import { MergedPrMark, sessionMergedPr, useMergedPrs } from "./merged-prs";
 import { showPane } from "./pane-focus";
 import {
     BulkAction,
@@ -48,36 +54,47 @@ import {
     pruneSelected,
     rangeSelected,
     runBulk,
+    sendResult,
     toggleAll,
     toggleSelected,
     unseenBulkSummary,
 } from "./sessions-bulk";
-import { BulkDialog, CleanupDialog, EndSessionDialog } from "./sessions-dialogs";
+import { BulkDialog, CleanupDialog, EndSessionDialog, UpdateAllDialog, UpdateSessionDialog } from "./sessions-dialogs";
 import {
+    activityTitle,
     agentCell,
+    canInterrupt,
     canReconnect,
+    canUpdate,
     cleanupResultText,
     connChip,
-    displayFolder,
+    contextLinks,
     DurableSession,
     flattenGroups,
     formatAge,
     groupSessions,
     HiddenGroupId,
     lastActive,
-    middleTruncate,
+    modelText,
     MoltentermSessionsView,
     moveSelection,
     nextSelection,
-    outputText,
+    placeColumn,
+    prStateLabel,
     reasonLabel,
     reasonTitle,
     rowAriaLabel,
+    rowName,
     SessionGroup,
+    sessionKind,
+    sessionKindLabel,
     sessionName,
     sessionsSummary,
     sessionWhat,
     showLabel,
+    startedFrom,
+    VersionMark,
+    versionMark,
 } from "./sessions-model";
 import { DurableSessions } from "./sessions-store";
 import "./sessions.css";
@@ -85,7 +102,6 @@ import "./sessions.css";
 export { MoltentermSessionsView };
 
 const AgeRefreshMs = 15000;
-const FolderMaxChars = 56;
 const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"]);
 
 // DS-SHELL-100: select, name, actions, folder, agent, last active. Rows are subgrids of the table, so the actions
@@ -93,7 +109,7 @@ const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "Pag
 // column (it is in the name's tooltip) and lays the actions over the row's end on hover, so the name and the agent
 // keep the width.
 const TableColumns =
-    "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,max-content)_minmax(56px,auto)] @2xl:grid-cols-[28px_minmax(96px,max-content)_auto_minmax(0,1fr)_minmax(120px,auto)_minmax(64px,auto)]";
+    "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,max-content)_minmax(56px,auto)] @2xl:grid-cols-[28px_minmax(160px,1.6fr)_auto_minmax(150px,1fr)_minmax(120px,auto)_minmax(64px,auto)]";
 const FolderCell = "hidden @2xl:block";
 const ActionsCell =
     "absolute top-1/2 right-1 -translate-y-1/2 rounded-6 bg-surface-2 px-1 shadow-e1 @2xl:static @2xl:translate-y-0 @2xl:bg-transparent @2xl:px-0 @2xl:shadow-none";
@@ -149,6 +165,8 @@ function getHomeDir(): string {
 
 type Dialog =
     | { kind: "end"; id: string }
+    | { kind: "update"; id: string }
+    | { kind: "updateAll"; ids: string[] }
     | { kind: "cleanup"; ids: string[] }
     | { kind: "bulk"; action: BulkAction; ids: string[]; snapshot: DurableSession[] };
 type Notice = { text: string; error?: boolean };
@@ -170,6 +188,7 @@ function ConnectionChip({ session }: { session: DurableSession }) {
     );
 }
 
+// In a narrow pane the worktree column is gone: the name line keeps its chip.
 function WorktreeMark({ session }: { session: DurableSession }) {
     const t = useT();
     const wt = session.worktree;
@@ -179,7 +198,7 @@ function WorktreeMark({ session }: { session: DurableSession }) {
     return (
         <span
             className={cn(
-                "inline-flex max-w-[9rem] min-w-0 shrink items-center gap-1 rounded-4 border px-1.5 text-11 leading-[16px]",
+                "inline-flex max-w-[9rem] min-w-0 shrink items-center gap-1 rounded-4 border px-1.5 text-11 leading-[16px] @2xl:hidden",
                 worktreeColor(wt.path)
             )}
             title={
@@ -194,23 +213,114 @@ function WorktreeMark({ session }: { session: DurableSession }) {
     );
 }
 
+// Direct, or the MoltenTerm action that started the session (#933).
+function KindChip({ session }: { session: DurableSession }) {
+    const t = useT();
+    const label = sessionKindLabel(session);
+    if (sessionKind(session) === "direct") {
+        return (
+            <span className="shrink-0 text-11 whitespace-nowrap text-muted" title={t("sessions.kindTitle.direct")}>
+                {label}
+            </span>
+        );
+    }
+    return (
+        <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-4 bg-accent/15 px-1.5 text-11 leading-[16px] whitespace-nowrap text-accent"
+            title={t("sessions.kindTitle.started", { action: label })}
+            data-testid="session-kind-started"
+        >
+            <i className={cn(makeIconClass("wand-magic-sparkles", true), "text-10")} aria-hidden="true" />
+            {label}
+        </span>
+    );
+}
+
+const PrStateClasses: Record<string, string> = {
+    open: "bg-success/15 text-success",
+    draft: "bg-surface-2 text-secondary",
+    merged: "bg-accent/15 text-accent",
+    closed: "bg-error/15 text-danger",
+};
+
+function ContextLinks({ session }: { session: DurableSession }) {
+    const t = useT();
+    const links = contextLinks(session);
+    if (links.length === 0) {
+        return null;
+    }
+    return (
+        <>
+            {links.map((link) => {
+                const body = (
+                    <>
+                        {link.kind === "pr" ? (
+                            <i className={cn(makeIconClass("code-pull-request", true), "text-10")} aria-hidden="true" />
+                        ) : null}
+                        <span>{link.label}</span>
+                        {link.state ? (
+                            <span className={cn("rounded-4 px-1 leading-[14px]", PrStateClasses[link.state])}>
+                                {prStateLabel(link.state)}
+                            </span>
+                        ) : null}
+                    </>
+                );
+                const className =
+                    "inline-flex shrink-0 items-center gap-1 rounded-4 text-11 whitespace-nowrap text-secondary";
+                if (!link.url) {
+                    return (
+                        <span key={link.kind} className={className} title={link.title}>
+                            {body}
+                        </span>
+                    );
+                }
+                return (
+                    <button
+                        key={link.kind}
+                        type="button"
+                        tabIndex={-1}
+                        className={cn(className, "cursor-pointer hover:text-primary hover:underline")}
+                        title={link.title}
+                        aria-label={t("sessions.context.openLink", { what: link.label })}
+                        data-testid={`session-context-${link.kind}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            fireAndForget(() => openWebLink(link.url));
+                        }}
+                    >
+                        {body}
+                    </button>
+                );
+            })}
+        </>
+    );
+}
+
 function AgentCellView({ session }: { session: DurableSession }) {
     useT();
     const cell = agentCell(session);
     if (cell.kind === "agent") {
+        const model = modelText(session);
         return (
-            <span className="flex min-w-0 items-center gap-1.5">
-                <AgentStateDot
-                    info={{
-                        blockid: session.blockid ?? session.id,
-                        agent: session.agent,
-                        agentname: session.agentname,
-                        state: (session.agentstate || "idle") as any,
-                        version: 0,
-                    }}
-                />
-                <span className="truncate text-12 text-primary">{cell.label}</span>
-                <span className="shrink-0 text-11 text-muted">{agentStateLabel(session.agentstate || "idle")}</span>
+            <span className="flex min-w-0 flex-col">
+                <span className="flex min-w-0 items-center gap-1.5">
+                    <AgentStateDot
+                        info={{
+                            blockid: session.blockid ?? session.id,
+                            agent: session.agent,
+                            agentname: session.agentname,
+                            state: (session.agentstate || "idle") as any,
+                            version: 0,
+                        }}
+                    />
+                    <span className="truncate text-12 text-primary">{cell.label}</span>
+                    <span className="shrink-0 text-11 text-muted">{agentStateLabel(session.agentstate || "idle")}</span>
+                </span>
+                {model ? (
+                    <span className="truncate pl-3.5 text-11 text-muted" data-testid="session-model">
+                        {model}
+                    </span>
+                ) : null}
             </span>
         );
     }
@@ -270,42 +380,108 @@ function Check({
     );
 }
 
+function VersionChip({ mark }: { mark: VersionMark }) {
+    const t = useT();
+    if (mark !== "outdated") {
+        return null;
+    }
+    return (
+        <span
+            className="shrink-0 rounded-4 bg-warning/15 px-1 text-11 whitespace-nowrap text-warning"
+            title={t("sessions.view.outdatedTitle")}
+            data-testid="session-outdated"
+        >
+            {t("sessions.view.outdated")}
+        </span>
+    );
+}
+
+// The worktree column: the branch in full (wrapping rather than cut), the path on hover; a click copies the path.
+function PlaceCell({ session, home, onCopied }: { session: DurableSession; home: string; onCopied: () => void }) {
+    const t = useT();
+    const place = placeColumn(session, home);
+    if (!place.label) {
+        return <span className="text-muted">—</span>;
+    }
+    const wt = session.worktree;
+    return (
+        <button
+            type="button"
+            tabIndex={-1}
+            className={cn(
+                "flex max-w-full min-w-0 cursor-pointer items-start gap-1 text-left font-mono text-11 break-all hover:text-primary",
+                wt != null ? "text-primary" : "text-secondary"
+            )}
+            title={t("sessions.view.copyPathTitle", { title: place.title })}
+            data-testid="session-place"
+            onClick={(e) => {
+                e.stopPropagation();
+                copyText(place.copy);
+                onCopied();
+            }}
+        >
+            {wt != null ? (
+                <i
+                    className={cn("fa fa-solid mt-0.5 shrink-0 text-10", `fa-${WorktreeIcon}`, worktreeColor(wt.path))}
+                    aria-hidden="true"
+                />
+            ) : null}
+            <span className="line-clamp-2">{place.label}</span>
+        </button>
+    );
+}
+
 function SessionRow({
     session,
+    depth,
+    parentName,
     focused,
     checked,
     busy,
     home,
     now,
+    version,
+    mergedPr,
     rowRef,
     onFocusRow,
     onCheck,
     onShow,
     onEnd,
     onReconnect,
+    onInterrupt,
+    onUpdate,
+    onCopied,
 }: {
     session: DurableSession;
+    depth: number;
+    parentName: string;
     focused: boolean;
     checked: boolean;
     busy: string;
     home: string;
     now: number;
+    version: VersionMark;
+    mergedPr: number;
     rowRef: (elem: HTMLDivElement) => void;
     onFocusRow: () => void;
     onCheck: (shift: boolean) => void;
     onShow: () => void;
     onEnd: () => void;
     onReconnect: () => void;
+    onInterrupt: () => void;
+    onUpdate: (() => void) | null;
+    onCopied: () => void;
 }) {
     const t = useT();
+    const locale = useLocale();
     const name = sessionName(session, home);
-    const folder = displayFolder(session, home);
+    const shownName = rowName(session, home);
     const active = lastActive(session, now);
     const up = formatAge(session.startedat, now);
-    const output = outputText(session, now);
+    const from = startedFrom(session);
     const tabIndex = focused ? 0 : -1;
-    const showTitle = session.canshow ? undefined : reasonTitle(session.reason);
-    const activeTitle = [up ? t("sessions.view.upTitle", { age: up }) : "", output].filter((p) => !!p).join(" · ");
+    const showTitle = session.canshow ? t("sessions.view.joinTitle") : reasonTitle(session.reason);
+    const activeTitle = activityTitle(session, now, locale);
     return (
         <div
             ref={rowRef}
@@ -313,7 +489,7 @@ function SessionRow({
             tabIndex={tabIndex}
             aria-selected={checked}
             data-session-row={session.id}
-            aria-label={rowAriaLabel(session, home, now)}
+            aria-label={rowAriaLabel(session, home, now, mergedPr)}
             onFocus={(e) => {
                 if (e.target === e.currentTarget) {
                     onFocusRow();
@@ -324,39 +500,68 @@ function SessionRow({
             {...sessionRowDragProps(session, sessionWhat(session))}
             className={cn(
                 RowGrid,
-                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
+                "group relative min-h-11 cursor-pointer rounded-6 py-1 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
                 checked && "bg-accent/10",
                 focused && !checked && "bg-hover/60"
             )}
         >
-            <div role="cell" className="flex items-center justify-center">
+            <div role="cell" className="flex items-center justify-center self-start pt-0.5">
                 <Check
                     state={checked ? "all" : "none"}
-                    label={t("sessions.view.selectRow", { name, what: sessionWhat(session) })}
+                    label={t("sessions.view.selectRow", { name: shownName, what: sessionWhat(session) })}
                     onToggle={onCheck}
                     tabIndex={tabIndex}
                 />
             </div>
-            <div role="cell" className="flex min-w-0 items-center gap-1.5 pr-1">
-                <span
-                    className="max-w-[16rem] min-w-0 shrink truncate text-12 font-medium text-primary"
-                    title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
-                >
-                    {name}
-                </span>
-                {session.reason ? (
-                    <span
-                        className={cn(
-                            "shrink-0 rounded-4 px-1 text-11 whitespace-nowrap",
-                            session.reason === "ending" ? "bg-error/15 text-primary" : "bg-warning/15 text-warning"
-                        )}
-                        title={reasonTitle(session.reason)}
-                    >
-                        {reasonLabel(session.reason)}
-                    </span>
+            <div
+                role="cell"
+                className="flex min-w-0 items-start gap-1.5 pr-1"
+                style={depth > 0 ? { paddingLeft: `${Math.min(depth, 3) * 14}px` } : undefined}
+            >
+                {depth > 0 ? (
+                    <i
+                        className={cn(makeIconClass("turn-up", true), "mt-1 shrink-0 rotate-90 text-10 text-muted")}
+                        title={parentName ? t("sessions.subSession", { name: parentName }) : undefined}
+                        aria-hidden="true"
+                    />
                 ) : null}
-                <WorktreeMark session={session} />
-                <ConnectionChip session={session} />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <span
+                            className="max-w-[16rem] min-w-[3rem] shrink truncate text-12 font-medium text-primary"
+                            title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
+                            data-testid="session-name"
+                        >
+                            {shownName}
+                        </span>
+                        <KindChip session={session} />
+                        {session.reason ? (
+                            <span
+                                className={cn(
+                                    "shrink-0 rounded-4 px-1 text-11 whitespace-nowrap",
+                                    session.reason === "ending"
+                                        ? "bg-error/15 text-primary"
+                                        : "bg-warning/15 text-warning"
+                                )}
+                                title={reasonTitle(session.reason)}
+                            >
+                                {reasonLabel(session.reason)}
+                            </span>
+                        ) : null}
+                        <VersionChip mark={version} />
+                        <WorktreeMark session={session} />
+                        <MergedPrMark session={session} pr={mergedPr} />
+                        <ConnectionChip session={session} />
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-11 text-muted">
+                        {from ? (
+                            <span className="min-w-0 truncate" data-testid="session-from">
+                                {t("sessions.from.label", { where: from })}
+                            </span>
+                        ) : null}
+                        <ContextLinks session={session} />
+                    </div>
+                </div>
             </div>
             <div
                 role="cell"
@@ -387,39 +592,75 @@ function SessionRow({
                     className={RowButton}
                     disabled={!!busy || !session.canshow}
                     title={showTitle}
+                    data-testid="session-join"
                     onClick={(e) => {
                         e.stopPropagation();
                         onShow();
                     }}
                 >
-                    {showLabel(session)}
+                    {session.shown ? t("sessions.view.join") : showLabel(session)}
                 </button>
+                {canInterrupt(session) ? (
+                    <button
+                        type="button"
+                        tabIndex={tabIndex}
+                        className={RowButton}
+                        disabled={!!busy}
+                        title={t("sessions.view.interruptTitle")}
+                        data-testid="session-interrupt"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onInterrupt();
+                        }}
+                    >
+                        {t("sessions.view.interrupt")}
+                    </button>
+                ) : null}
+                {onUpdate != null ? (
+                    <button
+                        type="button"
+                        tabIndex={tabIndex}
+                        className={RowButton}
+                        disabled={!!busy}
+                        title={t("sessions.view.outdatedTitle")}
+                        data-testid="session-update"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdate();
+                        }}
+                    >
+                        {t("sessions.view.update")}
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     tabIndex={tabIndex}
                     className={RowDangerButton}
                     disabled={!!busy || !session.canend}
                     title={session.canend ? undefined : reasonTitle(session.reason)}
+                    data-testid="session-stop"
                     onClick={(e) => {
                         e.stopPropagation();
                         onEnd();
                     }}
                 >
-                    {t("sessions.view.end")}
+                    {t("sessions.view.stop")}
                 </button>
+            </div>
+            <div role="cell" className={cn(FolderCell, "min-w-0 pr-3")}>
+                <PlaceCell session={session} home={home} onCopied={onCopied} />
+            </div>
+            <div role="cell" className="min-w-0 self-start pt-0.5 pr-3">
+                <AgentCellView session={session} />
             </div>
             <div
                 role="cell"
-                className={cn(FolderCell, "min-w-0 truncate pr-3 font-mono text-11 text-secondary")}
-                title={session.folder}
+                className="flex flex-col items-end self-start pt-0.5 pr-2 text-11 whitespace-nowrap text-muted"
+                title={activeTitle}
+                data-testid="session-activity"
             >
-                {folder ? middleTruncate(folder, FolderMaxChars) : <span className="text-muted">—</span>}
-            </div>
-            <div role="cell" className="min-w-0 pr-3">
-                <AgentCellView session={session} />
-            </div>
-            <div role="cell" className="pr-2 text-right text-11 whitespace-nowrap text-muted" title={activeTitle}>
-                {active}
+                <span>{active}</span>
+                {up ? <span>{t("sessions.up", { age: up })}</span> : null}
             </div>
         </div>
     );
@@ -495,13 +736,13 @@ function TableHeader({ checks, onCheckAll }: { checks: CheckState; onCheckAll: (
                 <span className="sr-only">{t("sessions.view.colActions")}</span>
             </div>
             <div role="columnheader" className={cn(FolderCell, head)}>
-                {t("sessions.view.colFolder")}
+                {t("sessions.view.colWorktree")}
             </div>
             <div role="columnheader" className={head}>
                 {t("sessions.view.colAgent")}
             </div>
             <div role="columnheader" className={cn(head, "pr-2 text-right")}>
-                {t("sessions.view.colLastActive")}
+                {t("sessions.view.colActivity")}
             </div>
         </div>
     );
@@ -634,6 +875,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const agentFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsAgentMetaKey as keyof MetaType));
     const folderFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsFolderMetaKey as keyof MetaType));
     const stateFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsStateMetaKey as keyof MetaType));
+    const termUpdates = TermUpdates.getInstance();
+    const outdated = useAtomValue(termUpdates.dataAtom);
     const [now, setNow] = useState(Date.now());
     const [focused, setFocused] = useState<string>(null);
     const [checked, setChecked] = useState<Set<string>>(() => new Set());
@@ -664,6 +907,9 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const order = useMemo(() => flattenGroups(groups), [groups]);
     const orderKey = order.join("\n");
     const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+    const outdatedBlocks = useMemo(() => new Set(outdated.terminals.map((term) => term.blockid)), [outdated]);
+    const updatable = order.map((id) => byId.get(id)).filter((s) => s != null && canUpdate(s, outdatedBlocks));
+    const mergedPrs = useMergedPrs(allSessions, panelId);
 
     // A row that went away hands the focus to the one that took its place, if the list had it; it leaves the checks.
     useEffect(() => {
@@ -683,8 +929,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     // A session that ended elsewhere while its dialog was open closes the dialog. A bulk run keeps its own list.
     useEffect(() => {
         const gone =
-            (dialog?.kind === "end" && !byId.has(dialog.id)) ||
-            (dialog?.kind === "cleanup" && !dialog.ids.some((id) => byId.has(id)));
+            ((dialog?.kind === "end" || dialog?.kind === "update") && !byId.has(dialog.id)) ||
+            ((dialog?.kind === "cleanup" || dialog?.kind === "updateAll") && !dialog.ids.some((id) => byId.has(id)));
         if (!gone) {
             return;
         }
@@ -793,6 +1039,55 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         setDialog({ kind: "end", id: s.id });
     };
 
+    // Interrupt (#933): the agent's interrupt key, as the AI panel's Interrupt (FR-REV-005).
+    const interrupt = (s: DurableSession) => {
+        if (!canInterrupt(s)) {
+            return;
+        }
+        void run(s.id, t("sessions.view.interrupting"), async () => {
+            const out = await AgentInputs.getInstance().send({
+                blockid: s.blockid,
+                agent: s.agent,
+                action: InterruptAction,
+            });
+            const result = sendResult(s.id, out);
+            setNotice({
+                text:
+                    result.kind === "done"
+                        ? t("sessions.view.interrupted", { name: rowName(s, home) })
+                        : result.message,
+                error: result.kind === "failed",
+            });
+        });
+    };
+
+    const askUpdate = (s: DurableSession) => {
+        if (!canUpdate(s, outdatedBlocks)) {
+            return;
+        }
+        setFocused(s.id);
+        setDialog({ kind: "update", id: s.id });
+    };
+
+    // Update terminal (FR-SHELL-041) confirmed: the shell starts again on the current version; an idle agent exits and
+    // resumes its conversation, with the guarantees of Restart with current settings (#389).
+    const updateOne = async (s: DurableSession) => {
+        const outcome = await termUpdates.run(s.blockid, true);
+        return { blockid: s.blockid, outcome };
+    };
+
+    const askUpdateAll = () => {
+        const ids = updatable.map((s) => s.id);
+        if (ids.length > 0) {
+            setDialog({ kind: "updateAll", ids });
+        }
+    };
+
+    const reportUpdates = (results: { blockid: string; outcome: TermUpdateOutcome }[]) => {
+        const summary = updateAllSummary(results);
+        showToast({ kind: summary.kind, title: summary.title, message: summary.message || undefined });
+    };
+
     const hiddenGroup = groups.find((g) => g.id === HiddenGroupId);
     const askCleanup = () => {
         const ids = (hiddenGroup?.sessions ?? []).filter((s) => s.canend).map((s) => s.id);
@@ -896,6 +1191,9 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     };
 
     const endSession = dialog?.kind === "end" ? byId.get(dialog.id) : null;
+    const updateSession = dialog?.kind === "update" ? byId.get(dialog.id) : null;
+    const updateAllSessions =
+        dialog?.kind === "updateAll" ? dialog.ids.map((id) => byId.get(id)).filter((s) => s != null) : [];
     const cleanupSessions =
         dialog?.kind === "cleanup" ? dialog.ids.map((id) => byId.get(id)).filter((s) => s != null) : [];
     // A session that ends while its bulk dialog is open keeps its row there (its last known state): the run reports it.
@@ -920,6 +1218,17 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                         <span className="shrink-0 text-12 whitespace-nowrap text-muted" data-testid="sessions-filtered">
                             {t("sessions.view.shownCount", { count: sessions.length })}
                         </span>
+                    ) : null}
+                    {updatable.length > 0 ? (
+                        <button
+                            type="button"
+                            className={BarButton}
+                            onClick={askUpdateAll}
+                            data-testid="sessions-update-all"
+                        >
+                            <i className={cn(makeIconClass("arrows-rotate", true), "mr-1.5 text-11")} />
+                            {t("sessions.view.updateAll", { count: updatable.length })}
+                        </button>
                     ) : null}
                     {notice ? (
                         <span
@@ -986,11 +1295,22 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                                         <SessionRow
                                             key={s.id}
                                             session={s}
+                                            depth={group.depths?.[s.id] ?? 0}
+                                            parentName={
+                                                s.parentid && byId.has(s.parentid)
+                                                    ? rowName(byId.get(s.parentid), home)
+                                                    : ""
+                                            }
+                                            version={versionMark(s, outdatedBlocks)}
+                                            onInterrupt={() => interrupt(s)}
+                                            onUpdate={canUpdate(s, outdatedBlocks) ? () => askUpdate(s) : null}
+                                            onCopied={() => setNotice({ text: t("sessions.view.copied") })}
                                             focused={s.id === firstFocusable}
                                             checked={checked.has(s.id)}
                                             busy={busy[s.id]}
                                             home={home}
                                             now={now}
+                                            mergedPr={sessionMergedPr(s, mergedPrs)}
                                             rowRef={(elem) => {
                                                 if (elem) {
                                                     rowRefs.current.set(s.id, elem);
@@ -1027,6 +1347,39 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                                 }),
                             });
                         }
+                        closeDialog();
+                    }}
+                />
+            ) : null}
+            {updateSession != null ? (
+                <UpdateSessionDialog
+                    session={updateSession}
+                    home={home}
+                    onKeep={closeDialog}
+                    onUpdate={async () => {
+                        reportUpdates([await updateOne(updateSession)]);
+                        closeDialog();
+                    }}
+                />
+            ) : null}
+            {dialog?.kind === "updateAll" && updateAllSessions.length > 0 ? (
+                <UpdateAllDialog
+                    sessions={updateAllSessions}
+                    home={home}
+                    onKeep={closeDialog}
+                    onUpdate={async () => {
+                        const results: { blockid: string; outcome: TermUpdateOutcome }[] = [];
+                        for (const s of updateAllSessions) {
+                            try {
+                                results.push(await updateOne(s));
+                            } catch (e) {
+                                results.push({
+                                    blockid: s.blockid,
+                                    outcome: { status: "failed", message: serverErrorText(e) },
+                                });
+                            }
+                        }
+                        reportUpdates(results);
                         closeDialog();
                     }}
                 />

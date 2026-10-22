@@ -31,7 +31,7 @@ import { pinActions, pinActionShortcut, usePanelPlacement } from "../view360/vie
 import { trackContextMenuPoint } from "./block-menus";
 import { CommandPanelModel, OpenCommandPanel, OpenMark, PaintedMeasure } from "./command-panel-store";
 import "./command-panel.css";
-import { makePanelContext } from "./panel-context";
+import { makePanelContext, panelAgentBlockIdAtom } from "./panel-context";
 import {
     activeScope,
     buildRows,
@@ -713,7 +713,10 @@ function CommandPanel({ open }: CommandPanelProps) {
     const blockId = open.blockId;
     const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
-    const agent = useAtomValue(blockId ? AgentStates.getInstance().blockAtom(blockId) : NullAgentAtom);
+    // The agent the Agent section drives: this terminal's, or the one of the terminal a view drives (#916).
+    const agentBlockIdAtom = useMemo(() => panelAgentBlockIdAtom(blockId), [blockId]);
+    const agentBlockId = useAtomValue(agentBlockIdAtom);
+    const agent = useAtomValue(agentBlockId ? AgentStates.getInstance().blockAtom(agentBlockId) : NullAgentAtom);
     const layoutModel = getLayoutModelForStaticTab();
     const magnifiedNodeId = useAtomValue(layoutModel?.magnifiedNodeIdAtom ?? NullStringAtom);
     const pinPlacement = usePanelPlacement(blockId);
@@ -763,7 +766,10 @@ function CommandPanel({ open }: CommandPanelProps) {
         []
     );
 
-    const ctx = useMemo(() => makePanelContext(blockId), [blockId, block, fullConfig, agent, tick, sources]);
+    const ctx = useMemo(
+        () => makePanelContext(blockId),
+        [blockId, block, fullConfig, agentBlockId, agent, tick, sources]
+    );
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
     const node = layoutModel?.getNodeByBlockId(blockId);
     const magnified = node != null && magnifiedNodeId === node.id;
@@ -950,6 +956,10 @@ function CommandPanel({ open }: CommandPanelProps) {
     const applyResult = (result: PanelActionResult, closeOnNothing: boolean) => {
         if (result === "close" || (result == null && closeOnNothing)) {
             closePanel();
+            return;
+        }
+        if (result === "away") {
+            closePanel(false);
             return;
         }
         if (result === "dismiss") {

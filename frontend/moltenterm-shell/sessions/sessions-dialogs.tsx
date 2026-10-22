@@ -36,8 +36,11 @@ import {
     endConfirmText,
     endRunningNote,
     reasonLabel,
+    rowName,
     sessionName,
     sessionWhat,
+    updateAllConfirmText,
+    updateConfirmText,
 } from "./sessions-model";
 
 const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
@@ -131,6 +134,119 @@ export function EndSessionDialog({
             <div className="text-secondary">
                 {session.shown ? t("sessions.dialog.paneStays") : t("sessions.dialog.noPane")}
             </div>
+            {error ? <div className="text-danger">{error}</div> : null}
+        </DialogFrame>
+    );
+}
+
+// Update the session (#933): the confirmation names it and says what restarts; a busy agent is left to its turn.
+export function UpdateSessionDialog({
+    session,
+    home,
+    onKeep,
+    onUpdate,
+}: {
+    session: DurableSession;
+    home: string;
+    onKeep: () => void;
+    onUpdate: () => Promise<void>;
+}) {
+    const t = useT();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>(null);
+    const text = updateConfirmText(session, home);
+    const confirm = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            await onUpdate();
+        } catch (e) {
+            setError(serverErrorText(e));
+            setBusy(false);
+        }
+    };
+    return (
+        <DialogFrame
+            role="molten-session-update"
+            onEscape={busy ? undefined : onKeep}
+            title={text.title}
+            subtitle={text.subtitle}
+            buttons={
+                <DialogButtons
+                    confirm={text.confirm}
+                    busy={busy}
+                    onKeep={onKeep}
+                    onConfirm={confirm}
+                    busyLabel={t("sessions.updateAll.running")}
+                    destructive={false}
+                />
+            }
+        >
+            {text.warning ? <div className="text-warning">{text.warning}</div> : null}
+            {error ? <div className="text-danger">{error}</div> : null}
+        </DialogFrame>
+    );
+}
+
+// Update all outdated sessions (#933): one confirmation listing them.
+export function UpdateAllDialog({
+    sessions,
+    home,
+    onKeep,
+    onUpdate,
+}: {
+    sessions: DurableSession[];
+    home: string;
+    onKeep: () => void;
+    onUpdate: () => Promise<void>;
+}) {
+    const t = useT();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>(null);
+    const text = updateAllConfirmText(sessions);
+    const confirm = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            await onUpdate();
+        } catch (e) {
+            setError(serverErrorText(e));
+            setBusy(false);
+        }
+    };
+    return (
+        <DialogFrame
+            role="molten-session-update-all"
+            onEscape={busy ? undefined : onKeep}
+            title={text.title}
+            subtitle={text.subtitle}
+            wide
+            buttons={
+                <DialogButtons
+                    confirm={text.confirm}
+                    busy={busy}
+                    onKeep={onKeep}
+                    onConfirm={confirm}
+                    keepLabel={t("sessions.dialog.keepThem")}
+                    busyLabel={t("sessions.updateAll.running")}
+                    destructive={false}
+                />
+            }
+        >
+            <ul className="flex flex-col gap-1.5">
+                {sessions.map((s) => {
+                    const note = busyNote("restart", s);
+                    return (
+                        <li key={s.id} className="flex min-w-0 flex-col gap-0.5">
+                            <div className="flex min-w-0 items-baseline gap-2">
+                                <span className="shrink-0 font-medium text-primary">{rowName(s, home)}</span>
+                                <span className="min-w-0 truncate text-secondary">{agentCell(s).label}</span>
+                            </div>
+                            {note ? <div className="text-muted">{note}</div> : null}
+                        </li>
+                    );
+                })}
+            </ul>
             {error ? <div className="text-danger">{error}</div> : null}
         </DialogFrame>
     );

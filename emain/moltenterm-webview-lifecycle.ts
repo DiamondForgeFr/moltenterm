@@ -8,6 +8,7 @@
 
 import { webContents, type WebContents } from "electron";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
+import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 import { isAgentControlledContents, onBrowserAgentControl } from "./moltenterm-browseragent";
 import { CdpProtocolVersion } from "./moltenterm-browseragent-policy";
 import {
@@ -35,8 +36,7 @@ const targets = new Map<number, Target>();
 let tracker: WebviewLifecycleTracker = null;
 
 function liveContents(id: number): WebContents {
-    const wc = webContents.fromId(id);
-    return wc == null || wc.isDestroyed() ? null : wc;
+    return liveWebContentsFromId(id);
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {

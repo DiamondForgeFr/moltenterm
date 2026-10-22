@@ -19,7 +19,7 @@ import {
     verificationFixture,
     version,
 } from "./fixtures.mjs";
-import { createHooks } from "./hooks.mjs";
+import { createHooks, readStage } from "./hooks.mjs";
 import { APP_ID, SIGNING_INPUTS, binaryFormat, checkedSignature, signingInputs, signingMode } from "./policy.mjs";
 import { withSigningSession } from "./session.mjs";
 
@@ -216,11 +216,18 @@ test("signature evidence rejects ad-hoc, wrong team, missing runtime/timestamp a
         const fake = verificationFixture({ entitlements: { "com.apple.security.get-task-allow": value } });
         await assert.rejects(verifySigned("dummy", inputs, { run: fake.run }), /entitlements/);
     }
+    const unentitled = verificationFixture({ rawEntitlements: "" });
+    await verifySigned("dummy.dylib", inputs, { run: unentitled.run });
+    assert.equal(
+        unentitled.calls.some((call) => call.file.endsWith("plutil")),
+        false
+    );
     const fake = verificationFixture();
     await verifySigned("dummy", inputs, { run: fake.run });
     assert.match(
         fake.calls[0].args[fake.calls[0].args.indexOf("-R") + 1],
-        /anchor apple generic.*100\.6\.1\.13.*TESTTEAM01/
+        // codesign reads a requirement without the leading "=" as a file path (#880).
+        /^=anchor apple generic.*100\.6\.1\.13.*TESTTEAM01/
     );
 });
 
@@ -366,7 +373,16 @@ test("notary rejection, missing tickets and nested signature failures redact err
                 },
             }),
             (error) => {
-                assert.equal(error.message, "Final macOS artifact verification failed");
+                assert.equal(
+                    error.message,
+                    `Final macOS artifact verification failed at: ${
+                        {
+                            notary: "disk image notarization",
+                            ticket: "app verification (arm64)",
+                            signature: "app verification (arm64)",
+                        }[mode]
+                    }`
+                );
                 assert.doesNotMatch(error.stack, /dummy-secret/);
                 return true;
             }
@@ -442,11 +458,13 @@ test("real hook contract preserves Electron options, excludes foreign payloads a
                 ),
                 /package signing failed/
             );
+            assert.equal(await readStage(session.keychain), "sign hook builder signing options");
             packager.info.options.publish = "always";
             await assert.rejects(
                 createHooks({ env, run: verifier.run, platform: "darwin", tools: unused }).sign(options, packager),
                 /package signing failed/
             );
+            assert.equal(await readStage(session.keychain), "sign hook publishing check");
         },
         { run: security.run, platform: "darwin", tempRoot: root, signals: security.signals }
     );
