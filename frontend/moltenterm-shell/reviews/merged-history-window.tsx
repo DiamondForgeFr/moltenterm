@@ -13,6 +13,7 @@ import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { dateLocale, formatWhen } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
+import { DominoLoader } from "../suite/suite";
 import { useReviewNotes } from "../review/review-notes";
 import {
     AllKey,
@@ -190,7 +191,7 @@ export function MergedHistoryWindow({
                         className="mr-auto cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:opacity-50"
                         data-testid="merged-history-refresh"
                     >
-                        <i className={cn("fa fa-solid fa-rotate mr-1.5", answer?.loading && "fa-spin")} aria-hidden />
+                        <i className="fa fa-solid fa-rotate mr-1.5" aria-hidden />
                         {t("reviews.history.refresh")}
                     </button>
                     <button
@@ -281,7 +282,7 @@ export function MergedHistoryWindow({
                         data-testid="merged-history-status"
                     >
                         {loading && !askError && !answer?.error ? (
-                            <i className="fa fa-solid fa-spinner fa-spin mr-1.5" aria-hidden />
+                            <DominoLoader className="mr-1.5 text-accent" />
                         ) : null}
                         {status}
                     </div>

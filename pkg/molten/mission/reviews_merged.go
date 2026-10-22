@@ -304,7 +304,8 @@ func (r *Reviews) readShips(dir string) {
 	}
 }
 
-// ReadShips says where a merge commit ships: the first release tag that carries it (in version order), else the
+// ReadShips says where a merge commit ships: the first release tag that carries it (in version order, a version's
+// candidates before it, #960), else the
 // release branch when it carries it, else the next release. Not ok when git cannot read the commit (not fetched yet).
 func ReadShips(ctx context.Context, run Runner, dir string, oid string, tagPrefix string, release string) (string, string, bool) {
 	if !commitOidRe.MatchString(oid) {
@@ -322,10 +323,8 @@ func ReadShips(ctx context.Context, run Runner, dir string, oid string, tagPrefi
 		log.Printf("molten: reading the tags that carry %s in %s: %v\n", oid, dir, err)
 		return "", "", false
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if tag := strings.TrimSpace(line); tag != "" {
-			return ReviewShipsTag, tag, true
-		}
+	if tags := SortReleaseTags(gitLines(out), tagPrefix); len(tags) > 0 {
+		return ReviewShipsTag, tags[0], true
 	}
 	if release != "" && !strings.HasPrefix(release, "-") {
 		for _, ref := range []string{"refs/remotes/origin/" + release, "refs/heads/" + release} {

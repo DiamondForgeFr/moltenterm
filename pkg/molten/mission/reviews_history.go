@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -336,7 +337,7 @@ func (r *Reviews) MergedHistory(req MergedHistoryRequest) (MergedHistoryAnswer, 
 		answer.Loading = true
 		return answer, nil
 	}
-	if snap.Github == nil ||snap.Github.State != GithubStateOk || snap.Github.Repo == "" {
+	if snap.Github == nil || snap.Github.State != GithubStateOk || snap.Github.Repo == "" {
 		answer.Error = "GitHub could not be read for this project"
 		if snap.Github != nil && snap.Github.Message != "" {
 			answer.Error = snap.Github.Message
@@ -693,10 +694,7 @@ func ReadHistoryShips(ctx context.Context, run Runner, dir string, oids []string
 		log.Printf("molten: listing the release tags of %s: %v\n", dir, err)
 		return []string{}, ships
 	}
-	tags := gitLines(out)
-	if tags == nil {
-		tags = []string{}
-	}
+	tags := SortReleaseTags(gitLines(out), tagPrefix)
 	now := time.Now()
 	assign := func(rev string, exclude []string, where string, in string) bool {
 		revArgs := append([]string{"rev-list", rev}, "--not")
@@ -739,6 +737,78 @@ func ReadHistoryShips(ctx context.Context, run Runner, dir string, oids []string
 		}
 	}
 	return tags, rtn
+}
+
+var releaseTagRe = regexp.MustCompile(`^(\d+(?:\.\d+)*)(?:-(.+))?$`)
+
+type tagVersion struct {
+	nums []int
+	pre  string
+	ok   bool
+}
+
+func parseTagVersion(tag string, prefix string) tagVersion {
+	m := releaseTagRe.FindStringSubmatch(strings.TrimPrefix(tag, prefix))
+	if m == nil {
+		return tagVersion{}
+	}
+	rtn := tagVersion{pre: m[2], ok: true}
+	for _, part := range strings.Split(m[1], ".") {
+		n := 0
+		fmt.Sscanf(part, "%d", &n)
+		rtn.nums = append(rtn.nums, n)
+	}
+	return rtn
+}
+
+// naturalLess orders "rc.2" before "rc.10" and "6" before "10".
+func naturalLess(a string, b string) bool {
+	na, ea := strconv.Atoi(a)
+	nb, eb := strconv.Atoi(b)
+	if ea == nil && eb == nil {
+		return na < nb
+	}
+	return a < b
+}
+
+// SortReleaseTags puts the release tags in version order with a version's candidates before it: git's v:refname
+// puts v1.0.0 before v1.0.0-1, which would say a commit first shipped in a candidate ships in the release. A tag that
+// is not a version keeps git's order, after the versions.
+func SortReleaseTags(tags []string, prefix string) []string {
+	rtn := append([]string{}, tags...)
+	versions := make(map[string]tagVersion, len(rtn))
+	for _, tag := range rtn {
+		versions[tag] = parseTagVersion(tag, prefix)
+	}
+	sort.SliceStable(rtn, func(i, j int) bool {
+		a, b := versions[rtn[i]], versions[rtn[j]]
+		if !a.ok || !b.ok {
+			return a.ok && !b.ok
+		}
+		for k := 0; k < max(len(a.nums), len(b.nums)); k++ {
+			var x, y int
+			if k < len(a.nums) {
+				x = a.nums[k]
+			}
+			if k < len(b.nums) {
+				y = b.nums[k]
+			}
+			if x != y {
+				return x < y
+			}
+		}
+		if a.pre == "" || b.pre == "" {
+			return a.pre != "" && b.pre == ""
+		}
+		pa, pb := strings.Split(a.pre, "."), strings.Split(b.pre, ".")
+		for k := 0; k < min(len(pa), len(pb)); k++ {
+			if pa[k] != pb[k] {
+				return naturalLess(pa[k], pb[k])
+			}
+		}
+		return len(pa) < len(pb)
+	})
+	return rtn
 }
 
 func tagRefs(tags []string) []string {
