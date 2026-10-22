@@ -26,6 +26,7 @@ const ViewedCommand = "moltenreviewviewed";
 const ShownCommand = "moltenreviewshown";
 const MergePlanCommand = "moltenreviewmergeplan";
 const MergeCommand = "moltenreviewmerge";
+const MergeMethodsCommand = "moltenreviewmergemethods";
 const MergeCancelCommand = "moltenreviewmergecancel";
 const AiPaneCommand = "moltenreviewaipane";
 const CommentCommand = "moltenreviewcomment";
@@ -204,6 +205,8 @@ export type ReviewMergePlan = {
     methodrule?: "queue" | "ruleset" | "linear";
     // A merge queue merges the PR, with its own method.
     queue?: boolean;
+    // The repository's remembered method GitHub no longer allows: the sheet says what replaces it (#957).
+    methodrefused?: ReviewMergeMethod;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
     // The cleanup after the merge, every step planned.
@@ -413,6 +416,20 @@ export function reviewMerge(
     method?: ReviewMergeMethod
 ): Promise<ReviewMergeRecord> {
     return call(MergeCommand, { repo, number: num, planid, override: override || undefined, method });
+}
+
+// Validate's method for a repository's base, for the batch modal (#957): must match MergeMethods in
+// pkg/molten/review/mergemethod.go.
+export type ReviewMergeMethods = {
+    methods: ReviewMergeMethod[];
+    method: ReviewMergeMethod;
+    methodrule?: "queue" | "ruleset" | "linear";
+    queue?: boolean;
+    methodrefused?: ReviewMergeMethod;
+};
+
+export function reviewMergeMethods(dir: string, repo: string, base: string): Promise<ReviewMergeMethods> {
+    return call(MergeMethodsCommand, { dir, repo, base }, GitTimeoutMs);
 }
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {

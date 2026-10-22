@@ -7,6 +7,7 @@
 // (pkg/molten/review/batch.go). Pure, so it is tested without a window.
 
 import { t, tCount } from "../i18n/i18n";
+import type { ReviewMergeMethod, ReviewMergeMethods } from "../review/review-client";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr, Tone } from "./reviews-model";
 import { MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
@@ -55,7 +56,8 @@ export type BatchReason =
     | "cancelled"
     | "interrupted"
     | "pushed"
-    | "withdrawn";
+    | "withdrawn"
+    | "method";
 
 // The reasons worded under reviews.batch.why; any other reads "not reached".
 const WordedReasons = new Set<BatchReason>([
@@ -82,6 +84,7 @@ const WordedReasons = new Set<BatchReason>([
     "interrupted",
     "pushed",
     "withdrawn",
+    "method",
 ]);
 export type BatchKept = "changes" | "unpushed" | "rebasing" | "working" | "unread";
 export type BatchMethod = "merge" | "squash" | "rebase";
@@ -256,12 +259,26 @@ export function batchPrOf(pr: ReviewPr): BatchPr {
     };
 }
 
-// batchStartRequest: the modal's PRs join the queue in the order shown, bound to the heads listed.
+// batchMethodShown is the batch modal's method (#957): the developer's pick while the repository allows it, else the
+// repository's default; none while unknown, and the modal does not start then.
+export function batchMethodShown(methods: ReviewMergeMethods, picked: ReviewMergeMethod): ReviewMergeMethod {
+    if (methods == null) {
+        return null;
+    }
+    if (picked != null && !methods.queue && (methods.methods ?? []).includes(picked)) {
+        return picked;
+    }
+    return methods.method ?? null;
+}
+
+// batchStartRequest: the modal's PRs join the queue in the order shown, bound to the heads listed, with the method
+// shown (#957): the queue merges each of them with it, or stops it.
 export function batchStartRequest(
     dir: string,
     repo: string,
     base: string,
     plan: BatchPlan,
+    method: ReviewMergeMethod,
     workspaceid: string,
     order?: number[]
 ): QueueAddRequest {
@@ -270,7 +287,7 @@ export function batchStartRequest(
         dir,
         repo,
         base,
-        method: plan.method || undefined,
+        method,
         prs: plan.steps.map((s) => batchPrOf(s.pr)),
         source: "batch",
         order: order?.length ? order : shown,
@@ -412,6 +429,9 @@ export function batchReasonText(item: BatchItem, base: string): string {
     };
     if (item.reason === "ambiguous" && item.note) {
         return t("reviews.batch.why.ambiguousNote", vars);
+    }
+    if (item.reason === "method") {
+        return t("reviews.batch.why.method", { method: methodText(item.names?.[0] ?? "") });
     }
     if (!WordedReasons.has(item.reason)) {
         return t("reviews.batch.why.notreached", vars);
