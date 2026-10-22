@@ -41,12 +41,16 @@ export type BranchAgent = {
     parentfirstname?: string;
 };
 
+// must match UpcomingDraft in pkg/molten/mission/upcoming.go
+export type UpcomingDraft = { branch: string; ticket?: number; status?: string; commitat?: number };
+
 // must match UpcomingAnswer in pkg/molten/mission/upcoming.go
 export type UpcomingAnswer = {
     dir: string;
     target?: string;
     branches: UpcomingBranch[];
     agents: BranchAgent[];
+    drafts?: UpcomingDraft[];
     error?: string;
     errortext?: ServerText;
     ticketserror?: string;
@@ -148,9 +152,35 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
 
 const BarUrgency: Record<BarState, number> = { waiting: 4, working: 3, done: 2, idle: 1, background: 0 };
 
-// A draft is the developer's to validate when no agent is on its branch (AC3).
-export function draftIsYours(draft: boolean, agent: AgentBarFacts): boolean {
-    return draft && agent == null;
+// The board columns of the SaaSFoundry workflows (.saasfoundry.json → workflow statuses) by whose turn they are
+// (#954): the agent's while it builds or tests, the developer's at the human gates. A Solo workflow has no Human
+// Testing: its AI Testing drafts are the agent's, which mark them ready themselves.
+const AgentTurnStatuses = new Set(["in progress", "ai drafting", "spawning", "ai testing"]);
+const TestTurnStatuses = new Set(["human testing"]);
+const ReviewTurnStatuses = new Set(["human review", "in review"]);
+
+// A commit this recent on a draft's branch means someone, probably an agent started outside MoltenTerm, works on it.
+export const DraftActiveMs = 30 * 60_000;
+
+// What a draft expects of the developer, for its row's chip: the agent's turn, a test, marking it ready, or theirs to
+// finish when nothing says an agent is on it.
+export type DraftTurn = { owner: "agent" | "developer"; kind: "agent" | "test" | "ready" | "yours"; status?: string };
+
+export function draftTurn(agent: AgentBarFacts, draft: UpcomingDraft, now: number): DraftTurn {
+    const status = (draft?.status ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    if (agent != null || AgentTurnStatuses.has(status)) {
+        return { owner: "agent", kind: "agent", status: draft?.status };
+    }
+    if (TestTurnStatuses.has(status)) {
+        return { owner: "developer", kind: "test", status: draft?.status };
+    }
+    if (ReviewTurnStatuses.has(status)) {
+        return { owner: "developer", kind: "ready", status: draft?.status };
+    }
+    if (draft?.commitat && now - draft.commitat < DraftActiveMs) {
+        return { owner: "agent", kind: "agent" };
+    }
+    return { owner: "developer", kind: "yours", status: draft?.status };
 }
 
 const ClockFormats = new Map<string, Intl.DateTimeFormat>();

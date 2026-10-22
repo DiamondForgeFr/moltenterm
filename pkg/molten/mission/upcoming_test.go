@@ -153,7 +153,7 @@ func TestUpcomingGet(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bgTree, "new.txt"), []byte("work"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	prs, _ := json.Marshal([]map[string]any{{"headRefName": "feature/6-pr", "baseRefName": "develop"}})
+	prs, _ := json.Marshal([]map[string]any{{"headRefName": "feature/6-pr", "baseRefName": "develop", "isDraft": true}})
 	snap := Snapshot{Dir: dir, Github: &GithubSnapshot{State: GithubStateOk, Repo: "o/r", Url: "https://github.com/o/r", Prs: prs}}
 	var ghCalls atomic.Int32
 	run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
@@ -164,6 +164,7 @@ func TestUpcomingGet(t *testing.T) {
 		return []byte(`{"data":{"repository":{
 			"t4":{"title":"Thing","url":"u4","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"In progress"}}]}},
 			"t5":{"title":"Plain","url":"u5","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"AI Testing"}}]}},
+			"t6":{"title":"Draft","url":"u6","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"AI Testing"}}]}},
 			"t8":{"title":"Done","url":"u8","state":"OPEN","projectItems":{"nodes":[{"status":{"name":"Done"}}]}},
 			"t11":{"title":"Agent","url":"u11","state":"OPEN","projectItems":{"nodes":[]}},
 			"t12":{"title":"Background","url":"u12","state":"OPEN","projectItems":{"nodes":[]}}}}}`), nil
@@ -202,6 +203,11 @@ func TestUpcomingGet(t *testing.T) {
 	}
 	if _, ok := byBranch["feature/8-done"]; ok {
 		t.Fatalf("a Done ticket is not upcoming")
+	}
+	// #954: a draft carries its ticket's board Status and its last commit, so the list knows whose turn it is.
+	if len(answer.Drafts) != 1 || answer.Drafts[0].Branch != "feature/6-pr" || answer.Drafts[0].Ticket != 6 ||
+		answer.Drafts[0].Status != "AI Testing" || answer.Drafts[0].CommitAt == 0 {
+		t.Fatalf("drafts: %+v", answer.Drafts)
 	}
 	agents := map[string]BranchAgent{}
 	for _, a := range answer.Agents {

@@ -4272,8 +4272,6 @@
         "goToTitle": "Show {name}'s panel",
         "parent": "{name}'s session",
         "parentTitle": "Show {name}'s panel: it probably started this agent",
-        "yours": "Yours",
-        "yoursTitle": "No agent works on this draft: it is yours to finish or validate.",
         "upcoming": {
             "title": "Upcoming",
             "none": "No ticket branch is waiting for its pull request.",
@@ -4336,6 +4334,17 @@
             "cancel": "Cancel",
             "noSession": "This agent's session cannot be ended from here: go to its panel.",
             "failed": "The session could not be ended. {message}"
+        },
+        "draft": {
+            "agent": "waiting for the agent",
+            "agentTitle": "An agent works on this draft (its terminal, its board column, or a recent commit on its branch): it marks it ready when done.",
+            "test": "needs your test",
+            "testTitle": "The ticket waits for your test before the draft is marked ready.",
+            "ready": "ready for you to mark ready",
+            "readyTitle": "The ticket is at your review: mark the draft ready, or ask for changes.",
+            "yours": "yours to finish or mark ready",
+            "yoursTitle": "No agent works on this draft and its branch has not moved lately: it is yours to finish or mark ready.",
+            "status": "On the board: {status}"
         }
     },
     "reviews": {

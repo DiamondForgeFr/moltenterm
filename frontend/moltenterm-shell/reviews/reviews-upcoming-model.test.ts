@@ -12,7 +12,8 @@ import {
     BoardStatusKeys,
     boardStatusText,
     branchAgent,
-    draftIsYours,
+    DraftActiveMs,
+    draftTurn,
     durationText,
     UpcomingAnswer,
     upcomingRows,
@@ -137,11 +138,35 @@ describe("branchAgent (#712 AC2, AC4)", () => {
     });
 });
 
-describe("draftIsYours (#712 AC3)", () => {
-    it("marks a draft without agent only", () => {
-        expect(draftIsYours(true, null)).toBe(true);
-        expect(draftIsYours(true, { kind: "panel", name: "V", state: "working", since: 1 })).toBe(false);
-        expect(draftIsYours(false, null)).toBe(false);
+describe("draftTurn (#712 AC3, #954)", () => {
+    const Now = 10 * 3600_000;
+    const old = Now - 5 * 3600_000;
+
+    it("never gives the developer a draft an agent works on", () => {
+        const agent = { kind: "panel" as const, name: "V", state: "working" as const, since: 1 };
+        expect(draftTurn(agent, { branch: "b", status: "Human Testing", commitat: old }, Now).owner).toBe("agent");
+    });
+
+    it("follows the workflow's board column: AI Testing is the agent's on a Solo workflow", () => {
+        expect(draftTurn(null, { branch: "b", status: "AI Testing", commitat: old }, Now)).toMatchObject({
+            owner: "agent",
+            kind: "agent",
+        });
+        expect(draftTurn(null, { branch: "b", status: "In progress", commitat: old }, Now).owner).toBe("agent");
+        expect(draftTurn(null, { branch: "b", status: "Human Testing", commitat: old }, Now)).toMatchObject({
+            owner: "developer",
+            kind: "test",
+        });
+        expect(draftTurn(null, { branch: "b", status: "In Review", commitat: old }, Now).kind).toBe("ready");
+    });
+
+    it("reads a recent commit as an agent at work, even one started outside MoltenTerm", () => {
+        expect(draftTurn(null, { branch: "b", commitat: Now - DraftActiveMs / 2 }, Now).owner).toBe("agent");
+        expect(draftTurn(null, { branch: "b", commitat: old }, Now)).toMatchObject({
+            owner: "developer",
+            kind: "yours",
+        });
+        expect(draftTurn(null, null, Now).kind).toBe("yours");
     });
 });
 

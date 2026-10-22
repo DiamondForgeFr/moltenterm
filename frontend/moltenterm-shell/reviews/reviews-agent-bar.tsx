@@ -27,7 +27,15 @@ import { PrSignature, signatureLine } from "./pr-signature";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
 import { PrTask, PrTaskState, prTaskState, taskAgentLive, taskStateText } from "./reviews-task-model";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
-import { AgentBarFacts, barStateText, barTimeText, branchAgent, draftIsYours } from "./reviews-upcoming-model";
+import {
+    AgentBarFacts,
+    barStateText,
+    barTimeText,
+    boardStatusText,
+    branchAgent,
+    DraftTurn,
+    draftTurn,
+} from "./reviews-upcoming-model";
 
 const MinuteMs = 60_000;
 
@@ -453,22 +461,52 @@ export function RowAgentLine({
     );
 }
 
-// A draft no agent works on is the developer's (AC3).
-export function YoursMarker({ dir, branch, draft }: { dir: string; branch: string; draft: boolean }) {
+const DraftChipClasses: Record<DraftTurn["owner"], string> = {
+    agent: "border-border bg-hover text-muted",
+    developer: "border-warning/40 bg-warning/10 text-warning",
+};
+
+const DraftChipIcons: Record<DraftTurn["kind"], string> = {
+    agent: "fa-robot",
+    test: "fa-vial",
+    ready: "fa-flag-checkered",
+    yours: "fa-user",
+};
+
+// Whose turn a draft is (AC3, #954), as a chip of the row: never the developer's while an agent works on its branch,
+// is in an agent's column of the board, or pushed a commit lately; else what the developer is expected to do.
+export function DraftTurnChip({ dir, branch }: { dir: string; branch: string }) {
     const t = useT();
     const facts = useBranchAgent(dir, branch);
     const upcoming = useUpcomingAnswer(dir);
-    // Before wavesrv answered, nobody knows whose the draft is.
-    if (upcoming == null || !draftIsYours(draft, facts)) {
+    const now = useMinuteNow();
+    const draft = upcoming?.drafts?.find((d) => d.branch === branch);
+    // Before wavesrv read this draft (its answer can predate GitHub's), nobody knows whose it is: no chip rather than
+    // a wrong "yours". An agent seen on the branch is enough.
+    if (upcoming == null || (draft == null && facts == null)) {
         return null;
     }
+    const turn = draftTurn(facts, draft, now);
+    const status = turn.status ? boardStatusText(t, turn.status) : "";
+    const title = [
+        t(`reviewsAgents.draft.${turn.kind}Title`),
+        status ? t("reviewsAgents.draft.status", { status }) : "",
+    ]
+        .filter((s) => !!s)
+        .join("\n");
     return (
         <span
-            className="ml-1.5 inline-flex h-4 items-center rounded-3 border border-border px-1 align-[1px] text-10 font-semibold tracking-[0.08em] text-secondary uppercase"
-            title={t("reviewsAgents.yoursTitle")}
-            data-testid="reviews-yours"
+            className={cn(
+                "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap",
+                DraftChipClasses[turn.owner]
+            )}
+            title={title}
+            data-testid="reviews-draft-turn"
+            data-owner={turn.owner}
+            data-kind={turn.kind}
         >
-            {t("reviewsAgents.yours")}
+            <i className={cn("fa fa-solid text-10", DraftChipIcons[turn.kind])} aria-hidden />
+            {t(`reviewsAgents.draft.${turn.kind}`)}
         </span>
     );
 }
