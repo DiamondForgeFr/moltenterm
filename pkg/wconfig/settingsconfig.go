@@ -203,6 +203,8 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#188): the notification of a newer release (FR-REL-005, emain/moltenterm-release-feed.ts).
 	MoltentermReleaseNotify *bool `json:"moltenterm:releasenotify,omitempty" jsonschema_description:"A release build asks GitHub at start, at most once a day, whether a newer release of its channel is out, and says so once with its notes and a download link; false never asks. Golds and dev builds never ask"`
+	// MOLTENTERM-PATCH (#948): whether release candidates are offered, whatever build was installed first (FR-REL-005).
+	MoltentermReleaseCandidates bool `json:"moltenterm:releasecandidates,omitempty" jsonschema_description:"Also offer release candidates (previews of the next version, possibly less stable) besides public releases. Off by default: only public releases are offered, also to a release candidate install, which moves to the next newer public release and is never downgraded. Applies at the next check"`
 
 	// MOLTENTERM-PATCH (#489): a close that would stop what runs in a terminal asks first (FR-SHELL-061, frontend/moltenterm-shell/busy-close*.ts).
 	MoltentermConfirmBusyClose *bool `json:"moltenterm:confirmbusyclose,omitempty" jsonschema_description:"Closing a pane, a tab or replacing a terminal in which something runs (a coding agent, even idle, or a command other than the shell) asks first and names what would stop; false closes at once as before (the worktree and Sessions confirmations still ask)"`

@@ -18,7 +18,13 @@ import {
     resolveMoltentermNotification,
 } from "../notifications-store";
 import { openWebLink } from "../open-web-link";
-import { notesAsText, ReleaseCheck, releaseFeedEnabled, ReleaseOffer } from "./release-feed";
+import {
+    notesAsText,
+    ReleaseCandidatesSettingKey,
+    ReleaseCheck,
+    releaseFeedEnabled,
+    ReleaseOffer,
+} from "./release-feed";
 
 export const ReleaseNotifySettingKey = "moltenterm:releasenotify";
 const ReleaseDownloadGesture = "release:download";
@@ -86,10 +92,15 @@ export class ReleaseUpdateModel {
         const onFocus = () => this.check();
         window.addEventListener("focus", onFocus);
         const unsubscribe = globalStore.sub(getSettingsKeyAtom(ReleaseNotifySettingKey as any), () => this.check());
+        // The preference applies at once: emain picks the offer again, withdrawing one no longer made (#948).
+        const unsubscribeCandidates = globalStore.sub(getSettingsKeyAtom(ReleaseCandidatesSettingKey as any), () =>
+            this.check()
+        );
         return () => {
             cancelIdleCallback(idle);
             window.removeEventListener("focus", onFocus);
             unsubscribe();
+            unsubscribeCandidates();
             unregister();
             this.started = false;
         };

@@ -977,6 +977,10 @@
                 "label": "M'informer des nouvelles versions",
                 "description": "Une fois par jour au plus, demander à GitHub une version plus récente et afficher ses notes avec un lien de téléchargement."
             },
+            "moltenterm:releasecandidates": {
+                "label": "Recevoir aussi les versions candidates",
+                "description": "Les versions candidates préfigurent la prochaine version et peuvent être moins stables. Désactivé : versions publiques uniquement."
+            },
             "moltenterm:confirmbusyclose": {
                 "label": "Demander avant d'arrêter ce qui tourne",
                 "description": "Fermer un panneau ou un onglet où tourne un agent ou une commande demande d'abord, en nommant ce qui s'arrêterait."

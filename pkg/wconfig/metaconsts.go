@@ -127,6 +127,7 @@ const (
 	ConfigKey_MoltentermHiddenPageFreeze     = "moltenterm:hiddenpagefreeze"
 	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
 	ConfigKey_MoltentermReleaseNotify        = "moltenterm:releasenotify"
+	ConfigKey_MoltentermReleaseCandidates    = "moltenterm:releasecandidates"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
 	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"

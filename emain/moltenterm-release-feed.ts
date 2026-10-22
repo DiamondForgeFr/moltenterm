@@ -3,27 +3,30 @@
 
 // The release notification's request (#188): asks the repository's GitHub Releases at most once a day for every
 // window together, and keeps the releases it read in <data>/molten/update/release-check.json so a restart does not ask
-// again. The offer is picked from them at every answer, for the version and channel running then: an upgrade or a
-// channel change never shows an offer made for another build. The request is anonymous, from a session of its own,
+// again. The offer is picked from them at every answer, for the version running then and the release candidates preference
+// read then (#948): an upgrade or a change of the preference never shows an offer made for another build or choice. The request is anonymous, from a session of its own,
 // and carries nothing about the user; nothing is downloaded.
 
 import * as electron from "electron";
-import { handleAppIpc } from "./moltenterm-privileged-ipc";
 import fs from "fs";
 import path from "path";
-import { MoltentermRepoUrl } from "../frontend/util/moltenterm-identity";
+import { RpcApi } from "../frontend/app/store/wshclientapi";
 import {
     dueForCheck,
     feedReleasesOf,
     MoltentermReleaseCheckChannel,
     pickReleaseOffer,
+    ReleaseCandidatesSettingKey,
     ReleaseCheck,
     ReleaseCheckCache,
     releaseFeedEnabled,
     ReleaseFeedTimeoutMs,
     releaseFeedUrl,
 } from "../frontend/moltenterm-shell/update/release-feed";
+import { MoltentermRepoUrl } from "../frontend/util/moltenterm-identity";
 import { getWaveDataDir } from "./emain-platform";
+import { ElectronWshClient } from "./emain-wsh";
+import { handleAppIpc } from "./moltenterm-privileged-ipc";
 
 declare const __MOLTENTERM_CHANNEL__: string;
 
@@ -128,8 +131,8 @@ async function currentReleases(): Promise<ReleaseCheckCache> {
 
 // The offer for the build running now. The first window to hear of a release announces it; a release no longer
 // offered (installed since, or replaced by a newer one) is withdrawn from the notification center.
-function answer(cache: ReleaseCheckCache, channel: string): ReleaseCheck {
-    const offer = pickReleaseOffer(cache.releases, channel, electron.app.getVersion(), Rules);
+function answer(cache: ReleaseCheckCache, includeCandidates: boolean): ReleaseCheck {
+    const offer = pickReleaseOffer(cache.releases, includeCandidates, electron.app.getVersion(), Rules);
     const rtn: ReleaseCheck = { enabled: true, offer, checkedat: cache.checkedat, error: cache.error };
     if (offer != null && cache.notifiedtag !== offer.tag) {
         rtn.announce = true;
@@ -156,7 +159,20 @@ export async function checkReleaseFeed(): Promise<ReleaseCheck> {
             inflight = null;
         });
     }
-    return answer(await inflight, channel);
+    const releases = await inflight;
+    return answer(releases, await wantsReleaseCandidates());
+}
+
+// Read at every answer, so a change applies at the next check without a restart. The build's own channel never
+// decides (#948): a candidate install with the preference off moves to the next public release.
+async function wantsReleaseCandidates(): Promise<boolean> {
+    try {
+        const config = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+        return config?.settings?.[ReleaseCandidatesSettingKey] === true;
+    } catch (e) {
+        console.log("[release-feed] could not read the release candidates preference:", e?.message ?? e);
+        return false;
+    }
 }
 
 export function initMoltentermReleaseFeed() {
