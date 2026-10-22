@@ -467,10 +467,10 @@ const DraftChipClasses: Record<DraftTurn["owner"], string> = {
 };
 
 const DraftChipIcons: Record<DraftTurn["kind"], string> = {
-    agent: "fa-robot",
-    test: "fa-vial",
-    ready: "fa-flag-checkered",
-    yours: "fa-user",
+    agent: "robot",
+    test: "vial",
+    ready: "flag-checkered",
+    yours: "user",
 };
 
 // Whose turn a draft is (AC3, #954), as a chip of the row: never the developer's while an agent works on its branch,
@@ -505,7 +505,7 @@ export function DraftTurnChip({ dir, branch }: { dir: string; branch: string }) 
             data-owner={turn.owner}
             data-kind={turn.kind}
         >
-            <i className={cn("fa fa-solid text-10", DraftChipIcons[turn.kind])} aria-hidden />
+            <i className={cn("fa fa-solid text-10", `fa-${DraftChipIcons[turn.kind]}`)} aria-hidden />
             {t(`reviewsAgents.draft.${turn.kind}`)}
         </span>
     );
