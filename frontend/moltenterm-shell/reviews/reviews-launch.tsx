@@ -13,6 +13,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
+import { TabActivity } from "../tab-activity";
 import { LaunchAsk, LaunchModel, useLaunchState } from "./reviews-launch-client";
 import {
     launchActive,
@@ -384,10 +385,14 @@ function LaunchLogDialog({
                 cancelled = true;
             };
         }
-        const timer = setInterval(() => fireAndForget(read), LogPollMs);
+        const stopPolling = TabActivity.getInstance().every(
+            { active: LogPollMs, visible: LogPollMs },
+            () => fireAndForget(read),
+            "launch-log"
+        );
         return () => {
             cancelled = true;
-            clearInterval(timer);
+            stopPolling();
         };
     }, [dir, step, live, state.id]);
     useEffect(() => {
