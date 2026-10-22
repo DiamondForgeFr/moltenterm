@@ -151,6 +151,54 @@ func TestValidatePipelineStepEnvironments(t *testing.T) {
 	}
 }
 
+func TestValidatePipelineLaunch(t *testing.T) {
+	report := validateWith(t, map[string]string{
+		".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "launch": {
+	    "where": "worktree",
+	    "prepare": [{"id": "install", "title": "Install", "run": "npm install"}, {"id": "migrate", "run": "npm run db:update:dev -w apps/api"}],
+	    "servers": [{"id": "api", "run": "npm run dev", "cwd": "apps/api", "port": 3500}, {"id": "web", "run": "npm run dev", "cwd": "apps/web", "port": 5173}],
+	    "url": "http://localhost:5173"
+	  }
+	}`,
+		"apps/api/package.json": "{}",
+		"apps/web/package.json": "{}",
+	})
+	if !report.Valid || len(report.Errors) != 0 || len(report.Warnings) != 0 {
+		t.Fatalf("errors: %v, warnings: %v", report.Errors, report.Warnings)
+	}
+	launch := report.Pipeline.Launch
+	if launch.Where != PipelineLaunchWhereWorktree || len(launch.Prepare) != 2 || launch.Servers[1].Port != 5173 || launch.Servers[0].Cwd != "apps/api" {
+		t.Fatalf("launch: %+v", launch)
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "launch": {
+	    "where": "elsewhere",
+	    "prepare": [{"id": "a", "run": ""}],
+	    "servers": [{"id": "a", "run": "true", "port": 70000}, {"id": "b", "run": "true", "port": 80}, {"id": "c", "run": "true", "port": 80}],
+	    "url": "localhost:5173"
+	  }
+	}`})
+	for _, want := range []string{
+		`launch.where must be "main" or "worktree"`,
+		"launch.prepare[0] (a): run is empty",
+		`launch.servers[0]: id "a" is used twice`,
+		"port must be between 1 and 65535",
+		"port 80 is declared twice",
+		"launch.url must start with http://",
+	} {
+		if !hasMessage(report.Errors, want) {
+			t.Errorf("missing error %q in %v", want, report.Errors)
+		}
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "launch": {"servers": []}}`})
+	if !hasMessage(report.Errors, "launch.servers is empty") {
+		t.Errorf("empty servers: %v", report.Errors)
+	}
+}
+
 func TestValidatePipelineUnknownFieldAndBrokenJson(t *testing.T) {
 	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "command": "x"}]}}`})
 	if report.Valid || !hasMessage(report.Errors, `unknown field "command"`) {

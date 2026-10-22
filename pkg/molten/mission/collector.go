@@ -660,7 +660,9 @@ func Start() {
 	reviews.notify = attention.PublishNotification
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews); err != nil {
+	// Launching a PR's or a branch's version from Reviews (FR-REV-031).
+	launches := MakeLaunches(LaunchDir(dataDir), ExecRunner, publishLaunch)
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

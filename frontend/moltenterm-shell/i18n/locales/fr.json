@@ -4391,6 +4391,97 @@
         }
     },
     "reviews": {
+        "launch": {
+            "button": "Lancer",
+            "buttonTitle": "Lancer {target} sur cet ordinateur et l'ouvrir dans le navigateur",
+            "runningHere": "Lancée ici",
+            "startingHere": "Démarre ici",
+            "open": "Ouvrir",
+            "stop": "Arrêter",
+            "retry": "Réessayer",
+            "logs": "Journaux",
+            "back": "Revenir sur {trunk}",
+            "backTitle": "Basculer sur {trunk}, le mettre à jour, lancer la préparation et redémarrer les serveurs",
+            "barTitle": "Version lancée",
+            "stepsTitle": "Étapes du lancement",
+            "stepLogTitle": "Voir le journal de {step}",
+            "targetPr": "PR #{number}",
+            "trunk": "la branche principale",
+            "step": {
+                "checkout": "Basculer",
+                "install": "Installer les dépendances",
+                "migrate": "Migrer {name}",
+                "server": "Serveur {name}",
+                "serverPort": "Serveur {name} (:{port})"
+            },
+            "status": {
+                "starting": "Démarrage de {target}…",
+                "startingStep": "Démarrage de {target} : {step}…",
+                "running": "{target} tourne ici",
+                "failed": "{target} n'a pas pu démarrer",
+                "failedStep": "{target} : échec de {step}",
+                "stopped": "{target} est arrêtée"
+            },
+            "stashed": "Les modifications non commitées ont été mises de côté dans le stash « {stash} » (git stash list).",
+            "logTitle": "Journal du lancement de {target}",
+            "logEmpty": "Rien d'écrit pour l'instant.",
+            "errorTitle": "Lancement",
+            "confirm": {
+                "title": "Lancer {target} ?",
+                "backTitle": "Revenir sur {trunk} ?",
+                "launch": "Lancer",
+                "stashAndLaunch": "Mettre de côté et lancer",
+                "dirty": "{count} fichiers ont des modifications non commitées dans ce checkout :",
+                "dirtyStash": "Elles bloquent la bascule. Le lancement les met de côté dans un stash nommé d'après ce lancement : rien n'est perdu, et git stash pop les rend."
+            },
+            "plan": {
+                "stopsRunning": "Arrête la version lancée : {target}.",
+                "stopsHolder": "Arrête {name} (processus {pid}) qui écoute sur le port {port}.",
+                "portBusy": "Le port {port} est occupé par un processus inconnu : le lancement peut échouer.",
+                "detachedAt": "le commit détaché {commit}",
+                "worktree": "Sert le worktree de la branche {folder} tel quel.",
+                "trunk": "Bascule {folder} sur {branch} et le met à jour.",
+                "switch": "Bascule {folder} de {from} vers {target}, détaché sur sa tête.",
+                "switchFresh": "Bascule {folder} sur {target}, détaché sur sa tête.",
+                "prepare": "Puis lance : {steps}.",
+                "servers": "Démarre : {servers}.",
+                "opens": "Ouvre {url} dans le navigateur une fois prêt."
+            },
+            "recipe": {
+                "title": "Recette de lancement",
+                "edit": "Recette…",
+                "editTitle": "Modifier la façon de lancer ce projet",
+                "fromSaved": "La recette que vous avez confirmée pour ce projet.",
+                "fromProject": "Proposée par le .molten/project.json du projet. Vérifiez-la, puis enregistrez.",
+                "fromDetected": "Déduite des scripts package.json du projet. Vérifiez-la, puis enregistrez.",
+                "fromNothing": "MoltenTerm n'a pas pu déduire comment démarrer ce projet : indiquez ses serveurs.",
+                "intro": "Le lancement exécute ces commandes sur cet ordinateur, dans l'ordre, dans le dossier servi. MoltenTerm garde cette recette pour ce projet et n'écrit rien dans le dépôt.",
+                "where": "Où la version est servie",
+                "whereMain": "Le checkout principal, détaché sur la tête de la version",
+                "whereWorktree": "Le worktree de la branche s'il existe (laissé tel quel), sinon le checkout principal",
+                "prepare": "Préparation, dans l'ordre",
+                "prepareHint": "Par exemple, installer les dépendances, puis migrer la base de développement.",
+                "servers": "Serveurs",
+                "serversHint": "Chacun tourne jusqu'à l'arrêt de la version ; son port indique quand il est prêt.",
+                "name": "Nom",
+                "command": "Commande",
+                "folder": "Dossier",
+                "port": "Port",
+                "addStep": "Ajouter une étape",
+                "addServer": "Ajouter un serveur",
+                "remove": "Retirer",
+                "url": "Page à ouvrir",
+                "urlHint": "Ouverte dans le navigateur une fois tous les serveurs prêts ; vide : le port du premier serveur.",
+                "saveContinue": "Enregistrer et continuer",
+                "problem": {
+                    "noServer": "Ajoutez au moins un serveur avec sa commande.",
+                    "port": "{port} n'est pas un port (1 à 65535).",
+                    "portTwice": "Le port {port} est utilisé deux fois.",
+                    "folder": "Le dossier {folder} sort du projet.",
+                    "url": "La page doit commencer par http:// ou https://."
+                }
+            }
+        },
         "batch": {
             "tabName": "File de fusion",
             "yourAgent": "Votre agent",
@@ -6267,6 +6358,22 @@
             }
         },
         "mission": {
+            "launch": {
+                "interrupted": "MoltenTerm s'est arrêté pendant le démarrage de la version.",
+                "lost": "Un serveur de la version s'est arrêté pendant que MoltenTerm était fermé.",
+                "gitFailed": "git a échoué : {detail}",
+                "noRecipe": "Ce projet n'a pas encore de recette de lancement confirmée.",
+                "dirty": "{count} fichiers ont des modifications non commitées dans le checkout : confirmez d'abord leur mise de côté.",
+                "portsBusy": "D'autres processus écoutent sur le port {ports} : confirmez d'abord leur arrêt.",
+                "noTrunk": "La branche principale du projet est inconnue.",
+                "portHolderStuck": "Un processus écoute encore sur le port {ports}.",
+                "notFailed": "Aucun lancement en échec à réessayer.",
+                "fetchFailed": "La version de {branch} n'a pas pu être récupérée : {detail}",
+                "startFailed": "L'étape n'a pas pu démarrer : {detail}",
+                "stepFailed": "Terminée avec le code {code} : {line}",
+                "serverExited": "Le serveur s'est arrêté (code {code}) : {line}",
+                "notReady": "Le port {port} n'a pas répondu en {seconds} s."
+            },
             "noPipeline": "Le projet n'a pas de pipeline (.molten/project.json).",
             "pipelineProblems": "Le pipeline a des problèmes : {detail}",
             "ci": {

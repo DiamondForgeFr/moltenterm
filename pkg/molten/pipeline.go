@@ -167,6 +167,37 @@ type Pipeline struct {
 	Builds   []PipelineBuild       `json:"builds,omitempty"`
 	Release  *PipelineRelease      `json:"release,omitempty"`
 	Steps    []PipelineAdapterStep `json:"steps,omitempty"`
+	// How the Reviews view serves a version of the project on this computer (FR-REV-031): proposed, never run, until
+	// the developer confirms it in the launch recipe dialog.
+	Launch *PipelineLaunch `json:"launch,omitempty"`
+}
+
+const (
+	PipelineLaunchWhereMain     = "main"
+	PipelineLaunchWhereWorktree = "worktree"
+)
+
+type PipelineLaunchStep struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	PipelineCommand
+}
+
+type PipelineLaunchServer struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	// Ready once a connection to this local port is accepted; 0: started is ready.
+	Port int `json:"port,omitempty"`
+	PipelineCommand
+}
+
+type PipelineLaunch struct {
+	// "main" (default): the main checkout, detached at the version's head; "worktree": the branch's worktree when it has one.
+	Where   string                 `json:"where,omitempty"`
+	Prepare []PipelineLaunchStep   `json:"prepare,omitempty"`
+	Servers []PipelineLaunchServer `json:"servers"`
+	// The page opened in the browser once every server is ready.
+	Url string `json:"url,omitempty"`
 }
 
 // must match the sections in frontend/moltenterm-shell/mission and pipeline-format.md
@@ -609,8 +640,42 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.checkStepEnvironment(label, step, environments)
 		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
 	}
-	if p.Ci == nil && len(p.Builds) == 0 && p.Release == nil && len(p.Steps) == 0 {
-		c.warnf("the pipeline declares nothing to run (ci, builds, release, steps)")
+	if p.Launch != nil {
+		c.checkLaunch(p.Launch)
+	}
+	if p.Ci == nil && len(p.Builds) == 0 && p.Release == nil && len(p.Steps) == 0 && p.Launch == nil {
+		c.warnf("the pipeline declares nothing to run (ci, builds, release, steps, launch)")
+	}
+}
+
+func (c *pipelineChecker) checkLaunch(l *PipelineLaunch) {
+	if l.Where != "" && l.Where != PipelineLaunchWhereMain && l.Where != PipelineLaunchWhereWorktree {
+		c.errorf("launch.where must be %q or %q (got %q)", PipelineLaunchWhereMain, PipelineLaunchWhereWorktree, l.Where)
+	}
+	seen := map[string]bool{}
+	for i, step := range l.Prepare {
+		label := fmt.Sprintf("launch.prepare[%d]", i)
+		c.checkId(label, step.Id, seen)
+		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+	}
+	if len(l.Servers) == 0 {
+		c.errorf("launch.servers is empty: declare at least one server")
+	}
+	ports := map[int]bool{}
+	for i, server := range l.Servers {
+		label := fmt.Sprintf("launch.servers[%d]", i)
+		c.checkId(label, server.Id, seen)
+		c.checkCommand(label+" ("+server.Id+")", server.PipelineCommand)
+		if server.Port < 0 || server.Port > 65535 {
+			c.errorf("%s (%s): port must be between 1 and 65535 (got %d)", label, server.Id, server.Port)
+		}
+		if server.Port > 0 && ports[server.Port] {
+			c.errorf("%s (%s): port %d is declared twice", label, server.Id, server.Port)
+		}
+		ports[server.Port] = true
+	}
+	if l.Url != "" && !strings.HasPrefix(l.Url, "http://") && !strings.HasPrefix(l.Url, "https://") {
+		c.errorf("launch.url must start with http:// or https:// (got %q)", l.Url)
 	}
 }
 

@@ -14,6 +14,8 @@ import { serverText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { AgentBar, useBranchAgent } from "./reviews-agent-bar";
+import { LaunchCardActions } from "./reviews-launch";
+import { launchTargetOfBranch } from "./reviews-launch-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
 import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
@@ -196,6 +198,9 @@ function UpcomingRow({
                             {boardStatusText(t, branch.status)}
                         </span>
                     ) : null}
+                    <span className="ml-auto">
+                        <LaunchCardActions dir={dir} target={launchTargetOfBranch(branch)} />
+                    </span>
                 </div>
             </div>
             <AgentBar facts={agent} />

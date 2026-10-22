@@ -4391,6 +4391,97 @@
         }
     },
     "reviews": {
+        "launch": {
+            "button": "Launch",
+            "buttonTitle": "Launch {target} on this computer and open it in the browser",
+            "runningHere": "Running here",
+            "startingHere": "Starting here",
+            "open": "Open",
+            "stop": "Stop",
+            "retry": "Retry",
+            "logs": "Logs",
+            "back": "Back to {trunk}",
+            "backTitle": "Check out {trunk}, pull it, run the preparation and restart the servers",
+            "barTitle": "Launched version",
+            "stepsTitle": "Launch steps",
+            "stepLogTitle": "Show the log of {step}",
+            "targetPr": "PR #{number}",
+            "trunk": "the trunk",
+            "step": {
+                "checkout": "Check out",
+                "install": "Install dependencies",
+                "migrate": "Migrate {name}",
+                "server": "{name} server",
+                "serverPort": "{name} server (:{port})"
+            },
+            "status": {
+                "starting": "Starting {target}…",
+                "startingStep": "Starting {target}: {step}…",
+                "running": "{target} is running here",
+                "failed": "{target} could not start",
+                "failedStep": "{target}: {step} failed",
+                "stopped": "{target} stopped"
+            },
+            "stashed": "Uncommitted changes were set aside in the stash \"{stash}\" (git stash list).",
+            "logTitle": "Launch log of {target}",
+            "logEmpty": "Nothing logged yet.",
+            "errorTitle": "Launch",
+            "confirm": {
+                "title": "Launch {target}?",
+                "backTitle": "Back to {trunk}?",
+                "launch": "Launch",
+                "stashAndLaunch": "Set aside and launch",
+                "dirty": "{count} files have uncommitted changes in this checkout:",
+                "dirtyStash": "They block the switch. Launch sets them aside in a stash named after this launch: nothing is discarded, and git stash pop brings them back."
+            },
+            "plan": {
+                "stopsRunning": "Stops the running version: {target}.",
+                "stopsHolder": "Stops {name} (process {pid}) listening on port {port}.",
+                "portBusy": "Port {port} is busy and its process is unknown: the launch may fail.",
+                "detachedAt": "the detached commit {commit}",
+                "worktree": "Serves the branch's worktree {folder} as it is.",
+                "trunk": "Checks out {branch} in {folder} and pulls it.",
+                "switch": "Switches {folder} from {from} to {target}, detached at its head.",
+                "switchFresh": "Checks out {target} in {folder}, detached at its head.",
+                "prepare": "Then runs: {steps}.",
+                "servers": "Starts: {servers}.",
+                "opens": "Opens {url} in the browser once ready."
+            },
+            "recipe": {
+                "title": "Launch recipe",
+                "edit": "Recipe…",
+                "editTitle": "Edit how this project is launched",
+                "fromSaved": "The recipe you confirmed for this project.",
+                "fromProject": "Proposed from the project's .molten/project.json. Check it, then save.",
+                "fromDetected": "Detected from the project's package.json scripts. Check it, then save.",
+                "fromNothing": "MoltenTerm could not tell how to start this project: fill in its servers.",
+                "intro": "Launch runs these commands on this computer, in order, in the folder served. MoltenTerm keeps this recipe for this project and writes nothing in the repository.",
+                "where": "Where the version is served",
+                "whereMain": "The main checkout, detached at the version's head",
+                "whereWorktree": "The branch's worktree when it has one (left as it is), else the main checkout",
+                "prepare": "Preparation, in order",
+                "prepareHint": "For example, install the dependencies, then migrate the dev database.",
+                "servers": "Servers",
+                "serversHint": "Each one runs until the version is stopped; its port tells when it is ready.",
+                "name": "Name",
+                "command": "Command",
+                "folder": "Folder",
+                "port": "Port",
+                "addStep": "Add a step",
+                "addServer": "Add a server",
+                "remove": "Remove",
+                "url": "Page to open",
+                "urlHint": "Opened in the browser once every server is ready; empty: the first server's port.",
+                "saveContinue": "Save and continue",
+                "problem": {
+                    "noServer": "Add at least one server with its command.",
+                    "port": "{port} is not a port (1 to 65535).",
+                    "portTwice": "Port {port} is used twice.",
+                    "folder": "The folder {folder} leaves the project.",
+                    "url": "The page must start with http:// or https://."
+                }
+            }
+        },
         "batch": {
             "tabName": "Merge queue",
             "yourAgent": "Your agent",
@@ -6267,6 +6358,22 @@
             }
         },
         "mission": {
+            "launch": {
+                "interrupted": "MoltenTerm stopped while the version was starting.",
+                "lost": "A server of the version stopped while MoltenTerm was closed.",
+                "gitFailed": "git failed: {detail}",
+                "noRecipe": "This project has no confirmed launch recipe yet.",
+                "dirty": "{count} files have uncommitted changes in the checkout: confirm setting them aside first.",
+                "portsBusy": "Other processes listen on port {ports}: confirm stopping them first.",
+                "noTrunk": "The project's trunk is unknown.",
+                "portHolderStuck": "A process keeps listening on port {ports}.",
+                "notFailed": "There is no failed launch to retry.",
+                "fetchFailed": "The version of {branch} could not be fetched: {detail}",
+                "startFailed": "The step could not start: {detail}",
+                "stepFailed": "Exited with code {code}: {line}",
+                "serverExited": "The server stopped (code {code}): {line}",
+                "notReady": "Port {port} did not answer within {seconds} s."
+            },
             "noPipeline": "The project has no pipeline (.molten/project.json).",
             "pipelineProblems": "The pipeline has problems: {detail}",
             "ci": {
