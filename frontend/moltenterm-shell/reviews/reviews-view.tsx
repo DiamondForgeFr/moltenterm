@@ -24,8 +24,7 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
-import { PrSignature } from "./pr-signature";
-import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
+import { RowAgentLine, YoursMarker } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
@@ -38,6 +37,7 @@ import {
     queueOrder,
     toggleBatchSelection,
 } from "./reviews-batch-model";
+import { CheckAgentsBar } from "./reviews-check";
 import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { useReviews } from "./reviews-client";
 import {
@@ -418,6 +418,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         >
             <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
             {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
+            <CheckAgentsBar dir={dir} repo={answer.repo} prs={[...split.ready, ...split.drafts]} />
             {answer.reportserror ? (
                 <div className="text-11 text-muted" title={answer.reportserror}>
                     {t("reviews.reportsError")}
@@ -733,6 +734,21 @@ export function ReviewRow({
             }
         });
     };
+    // Retry (#954): the row's task again, its outcome on the row's line like the first ask's.
+    const retry = () => {
+        if (asking || rebaseAsk == null) {
+            return;
+        }
+        setAsking(true);
+        setOutcome(null);
+        fireAndForget(async () => {
+            try {
+                setOutcome(await ReviewsModel.getInstance().retryTask(dir, pr, repo, rebaseAsk.kind ?? "rebase"));
+            } finally {
+                setAsking(false);
+            }
+        });
+    };
     const openReport = (e: React.MouseEvent) => {
         e.stopPropagation();
         fireAndForget(() => openWebLink(pr.report.url));
@@ -867,9 +883,15 @@ export function ReviewRow({
                     <span className="min-w-0">{outcome.text}</span>
                 </div>
             ) : null}
-            <PrSignature agents={pr.agents} testId="reviews-signature" />
             {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
-            <RowAgentBar dir={dir} branch={pr.branch} />
+            <RowAgentLine
+                dir={dir}
+                pr={pr}
+                task={rebaseAsk}
+                onRetry={retry}
+                onOpenWork={(blockId) => ReviewsModel.getInstance().openAgentWork(dir, pr, repo, blockId)}
+                onStop={(blockId) => ReviewsModel.getInstance().stopAgent(blockId)}
+            />
         </div>
     );
 }

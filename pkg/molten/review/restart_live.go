@@ -52,6 +52,14 @@ func (s *Service) AskInvestigate(ctx context.Context, req InvestigateRequest) (R
 	return s.restarter.AskInvestigate(ctx, req)
 }
 
+// AskFinish is Check the agents in the Reviews list (#954), for one PR.
+func (s *Service) AskFinish(ctx context.Context, req FinishRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskFinish(ctx, req)
+}
+
 // AskReleaseResolve is the developer's click on Analyze and resolve or Investigate together on a failed release step
 // (#945).
 func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveRequest) (RestartResult, error) {

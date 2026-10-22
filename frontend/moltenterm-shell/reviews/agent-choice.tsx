@@ -28,7 +28,7 @@ import { investigateGesture, InvestigateGesture } from "./reviews-queue-gesture"
 export const ReviewOpenGesture = "review:open";
 
 export type AgentChoiceRequest = {
-    kind: "rebase" | "restart" | "investigate";
+    kind: "rebase" | "restart" | "investigate" | "finish";
     number: number;
     branch: string;
     base: string;
@@ -86,6 +86,13 @@ const ChoiceKeys: Record<
         together: "agentChoice.together.investigate",
         tab: "agentChoice.tab.investigate",
         checkout: "agentChoice.checkoutInvestigate",
+    },
+    finish: {
+        title: "agentChoice.title.finish",
+        what: "agentChoice.what.finish",
+        together: "agentChoice.together.finish",
+        tab: "agentChoice.tab.finish",
+        checkout: "agentChoice.checkout",
     },
 };
 

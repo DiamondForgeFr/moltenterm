@@ -4297,6 +4297,45 @@
             "openTicket": "Open the ticket",
             "openAgent": "Go to the agent working on it",
             "ticketsError": "The tickets' titles and statuses could not be read."
+        },
+        "task": {
+            "what": {
+                "rebase": "the rebase",
+                "investigate": "the CI fix",
+                "finish": "the check of the pull request"
+            },
+            "left": {
+                "conflicts": "conflicts with {base} remain",
+                "ci": "the CI is still red",
+                "changes": "changes are still requested",
+                "report": "no test report yet"
+            },
+            "stuck": "stopped before finishing {what}: {left}",
+            "gone": "its session ended before finishing {what}: {left}",
+            "done": {
+                "rebase": "rebase done, no conflict left",
+                "investigate": "CI fixed",
+                "finish": "nothing left on this pull request"
+            }
+        },
+        "signedBy": "signed {who}",
+        "signedMore": "{name} +{count}",
+        "retry": "Retry",
+        "retryTitle": "Send {what} to {name} again, in its session, with the pull request as it is now",
+        "retryGoneTitle": "{name}'s session is gone: start a new agent on {what}",
+        "work": {
+            "button": "Open its work",
+            "title": "Put the diff of #{number} beside {name}'s terminal, in its tab, to take it over together",
+            "failed": "Its work could not be opened. {message}",
+            "gone": "Its terminal is no longer open."
+        },
+        "stop": {
+            "button": "Stop",
+            "title": "End {name}'s session",
+            "confirm": "Stop {name}? Its session ends; what it pushed stays.",
+            "cancel": "Cancel",
+            "noSession": "This agent's session cannot be ended from here: go to its panel.",
+            "failed": "The session could not be ended. {message}"
         }
     },
     "reviews": {
@@ -4490,8 +4529,6 @@
         "opened": "opened {when}",
         "updated": "updated {when}",
         "signature": {
-            "unknown": "unknown agent",
-            "unknownTitle": "No agent signed this pull request: no commit carries a Molten-Agent trailer and its description has no signature. Agents started outside MoltenTerm do not sign.",
             "title": "Agents on this pull request, the last one first:\n{list}",
             "more": {
                 "one": "+{count} agent",
@@ -4700,6 +4737,45 @@
             "norepoHint": "Reviews lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
             "errorTitle": "GitHub could not be read",
             "errorHint": "gh could not answer. Try again in a moment."
+        },
+        "check": {
+            "button": "Check the agents",
+            "buttonTitle": "Ask the agent on each pull request with something left (conflicts, red CI, requested changes, no test report) to check it against its ticket and finish it. The others are skipped; nothing starts without your confirmation.",
+            "checking": "Checking…",
+            "checked": {
+                "one": "{count} checked",
+                "other": "{count} checked"
+            },
+            "needs": {
+                "one": "{count} needs work",
+                "other": "{count} need work"
+            },
+            "sent": {
+                "one": "1 sent to its agent",
+                "other": "{count} sent to their agents"
+            },
+            "busy": {
+                "one": "1 agent already busy, left alone",
+                "other": "{count} agents already busy, left alone"
+            },
+            "started": {
+                "one": "1 new agent started out of sight",
+                "other": "{count} new agents started out of sight"
+            },
+            "failed": {
+                "one": "1 could not be asked",
+                "other": "{count} could not be asked"
+            },
+            "offers": "No agent works on {list} any more. Start a new agent on each, out of sight, to finish it?",
+            "start": {
+                "one": "Start an agent",
+                "other": "Start {count} agents"
+            },
+            "notNow": "Not now",
+            "asked": "Asked {name} to check this pull request and finish what is left.",
+            "startedHidden": "{name} checks {branch} and finishes what is left, out of sight: a notification tells you when it is done or needs you.",
+            "offer": "No agent works on {branch}. Start one to check it and finish what is left?",
+            "askFailed": "The agent could not be asked. {message}"
         }
     },
     "sessions": {
@@ -6230,6 +6306,7 @@
             "review": {
                 "rebasedTitle": "#{number} rebased on {base} by {name}, ready for review",
                 "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}, ready for review",
+                "finishedTitle": "{name} pushed what was left on #{number}, ready for review",
                 "needsTitle": "{name} needs you on #{number}",
                 "stopped": "{name} stopped before pushing {branch}: its terminal says what it needs.",
                 "exited": "{name}'s session ended before {branch} was pushed.",
@@ -6542,13 +6619,15 @@
         "title": {
             "rebase": "Rebase #{number} with an agent",
             "restart": "Restart work on #{number} with an agent",
-            "investigate": "Investigate and fix the failed CI of #{number} with an agent"
+            "investigate": "Investigate and fix the failed CI of #{number} with an agent",
+            "finish": "Check and finish #{number} with an agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
             "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
-            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch} and resolves the cause: a fix pushed on the branch, a rebase on the base pushed with lease, or a rerun of a flaky job with its ticket. It never merges and asks you only for a real decision."
+            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch} and resolves the cause: a fix pushed on the branch, a rebase on the base pushed with lease, or a rerun of a flaky job with its ticket. It never merges and asks you only for a real decision.",
+            "finish": "{agent} checks {branch} against its ticket in an isolated copy of the branch and finishes what is left: conflicts with {base}, red CI, requested changes. It pushes with lease and never merges."
         },
         "background": {
             "button": "Let the agent handle it",
@@ -6558,7 +6637,8 @@
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
             "investigate": "Investigate and fix with the agent",
-            "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later."
+            "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later.",
+            "finish": "Go through it with the agent"
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
         "checkoutInvestigate": "Your main checkout is not touched. The agent turns green only once the pull request's required checks pass; its terminal stays open with its account until you close it.",
@@ -6568,7 +6648,8 @@
         "tab": {
             "rebase": "Rebase #{number}",
             "restart": "Restart #{number}",
-            "investigate": "CI #{number}"
+            "investigate": "CI #{number}",
+            "finish": "Finish #{number}"
         },
         "noReview": "The pull request to open is not known.",
         "agent": "Agent",
@@ -6584,6 +6665,7 @@
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
         "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}",
+        "finish": "Started by you at {time} to check #{number} and finish what is left",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
     },

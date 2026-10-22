@@ -369,7 +369,7 @@ func commandTimeout(command string) time.Duration {
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand:
+	case RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand, FinishCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -581,6 +581,13 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskInvestigate(ctx, req)
+	case FinishCommand:
+		// The developer's click on Check the agents (#954): like Ask for a rebase, never an agent's from a terminal.
+		req, err := decode[FinishRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskFinish(ctx, req)
 	case ReleaseResolveCommand:
 		// The developer's click on Analyze and resolve or Investigate together on a failed release step (#945): a
 		// window's only, never an agent's from a terminal.

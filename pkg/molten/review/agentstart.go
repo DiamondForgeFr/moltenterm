@@ -28,6 +28,8 @@ const (
 	AgentOriginInvestigate = "investigate"
 	// AgentOriginBatch: the batch merge's agent (FR-REV-025, batch_agent.go), for Count PRs into Base.
 	AgentOriginBatch = "batch"
+	// AgentOriginFinish: Check the agents (#954), the agent verifies the PR and finishes what is left.
+	AgentOriginFinish = "finish"
 
 	// OriginMetaKey: the AgentOrigin of a terminal MoltenTerm started; must match
 	// frontend/moltenterm-shell/reviews/agent-origin.ts.
@@ -67,6 +69,9 @@ func defaultAgentTabName(kind string, number int) string {
 	}
 	if kind == AgentOriginInvestigate {
 		return "CI #" + strconv.Itoa(number)
+	}
+	if kind == AgentOriginFinish {
+		return "Finish #" + strconv.Itoa(number)
 	}
 	return "Rebase #" + strconv.Itoa(number)
 }
