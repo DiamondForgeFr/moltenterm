@@ -89,6 +89,21 @@ export function upcomingRows(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): 
     return upcoming.branches.filter((b) => !withPr.has(b.branch));
 }
 
+// How long a future PR's entry asked by another surface stays marked (the PR rows' mark lasts as long).
+export const UpcomingFocusMarkMs = 4000;
+
+// The branch of a focus request (ReviewsFocus) this section answers: a future PR's, for this project, once listed.
+export function upcomingFocusBranch(
+    focus: { dir: string; number: number; branch?: string },
+    dir: string,
+    rows: UpcomingBranch[]
+): string {
+    if (focus == null || focus.dir !== dir || focus.number > 0 || !focus.branch) {
+        return null;
+    }
+    return rows.some((row) => row.branch === focus.branch) ? focus.branch : null;
+}
+
 function barState(info: AgentStateInfo): BarState {
     switch (info?.state) {
         case "working":

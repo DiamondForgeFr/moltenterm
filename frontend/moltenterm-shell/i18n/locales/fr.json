@@ -2028,7 +2028,38 @@
             "alwaysThere": "{site} s'ouvre toujours là.",
             "reopen": "Rouvrir la page"
         },
-        "reloading": "Rechargement de la page…"
+        "reloading": "Rechargement de la page…",
+        "testContext": {
+            "title": "Servie depuis",
+            "unknown": "Source inconnue",
+            "chipTitle": "Cette page est servie depuis {where} (port {port}). Cliquer pour le détail",
+            "chipTitleUnknown": "Source inconnue : {reason}",
+            "futurePr": "future PR",
+            "futurePrHint": "Future PR : cette branche n'a pas encore de pull request",
+            "detachedAt": "détachée sur {at}",
+            "noBranch": "aucune branche",
+            "folder": "Dossier",
+            "worktree": "Worktree",
+            "project": "Projet",
+            "branch": "Branche",
+            "commit": "Commit",
+            "commitDirty": "{sha} + modifications non commitées",
+            "served": "Servie par",
+            "servedBy": "{process} (pid {pid}) sur le port {port}",
+            "prDraft": "Brouillon, en test",
+            "prReady": "Prête pour la revue",
+            "prUnknown": "Pull requests pas encore lues pour ce projet",
+            "noPr": "Aucune pull request",
+            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : Reviews montre le projet du workspace.",
+            "openInReviews": "Ouvrir dans Reviews",
+            "openPr": "Ouvrir la pull request",
+            "reason": {
+                "notLocal": "cette page n'est pas servie depuis cet ordinateur.",
+                "noProcess": "rien n'écoute sur le port {port} de cet ordinateur.",
+                "noFolder": "le dossier de {process} ne peut pas être lu.",
+                "noRepo": "{folder} n'est pas dans un dépôt git."
+            }
+        }
     },
     "cmdpanel": {
         "agent": {

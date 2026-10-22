@@ -2028,7 +2028,38 @@
             "alwaysThere": "{site} always opens there.",
             "reopen": "Reopen the page"
         },
-        "reloading": "Reloading the page…"
+        "reloading": "Reloading the page…",
+        "testContext": {
+            "title": "Served from",
+            "unknown": "Source unknown",
+            "chipTitle": "This page is served from {where} (port {port}). Click for details",
+            "chipTitleUnknown": "Source unknown: {reason}",
+            "futurePr": "future PR",
+            "futurePrHint": "Future PR: this branch has no pull request yet",
+            "detachedAt": "detached at {at}",
+            "noBranch": "no branch",
+            "folder": "Folder",
+            "worktree": "Worktree",
+            "project": "Project",
+            "branch": "Branch",
+            "commit": "Commit",
+            "commitDirty": "{sha} + uncommitted changes",
+            "served": "Served by",
+            "servedBy": "{process} (pid {pid}) on port {port}",
+            "prDraft": "Draft, in testing",
+            "prReady": "Ready for review",
+            "prUnknown": "Pull requests not read yet for this project",
+            "noPr": "No pull request",
+            "otherProject": "This app belongs to {name}, not to this workspace's project: Reviews shows the workspace's project.",
+            "openInReviews": "Open in Reviews",
+            "openPr": "Open the pull request",
+            "reason": {
+                "notLocal": "this page is not served from this computer.",
+                "noProcess": "nothing on this computer listens on port {port}.",
+                "noFolder": "the folder of {process} cannot be read.",
+                "noRepo": "{folder} is not in a git repository."
+            }
+        }
     },
     "cmdpanel": {
         "agent": {

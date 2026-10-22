@@ -5,16 +5,26 @@
 // commits and no PR yet, each with its ticket, branch, commits ahead and board status, and the bar of the agent on it.
 // A tile opens the agent when one works on it, else the ticket. A branch leaves as soon as its PR is listed.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo, useState } from "react";
+import { useAtomValue } from "jotai";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { AgentBar, useBranchAgent } from "./reviews-agent-bar";
 import type { ReviewsAnswer } from "./reviews-model";
+import { ReviewsModel } from "./reviews-store";
 import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
-import { aheadText, boardStatusText, UpcomingBranch, upcomingRows } from "./reviews-upcoming-model";
+import {
+    aheadText,
+    boardStatusText,
+    UpcomingBranch,
+    upcomingFocusBranch,
+    UpcomingFocusMarkMs,
+    upcomingRows,
+} from "./reviews-upcoming-model";
 
 const Chip = "inline-flex items-center gap-1 rounded-3 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
 
@@ -31,6 +41,38 @@ export function UpcomingSection({ dir, reviews }: { dir: string; reviews: Review
     const upcoming = useUpcomingAnswer(dir);
     const [open, setOpen] = useState(true);
     const rows = useMemo(() => upcomingRows(upcoming, reviews), [upcoming, reviews]);
+    const model = ReviewsModel.getInstance();
+    const focus = useAtomValue(model.focusAtom);
+    const [marked, setMarked] = useState<string>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    // A future PR's entry asked by another surface (the browser's test context, #962): brought into sight and marked.
+    useEffect(() => {
+        const branch = upcomingFocusBranch(focus, dir, rows);
+        if (branch == null) {
+            return;
+        }
+        globalStore.set(model.focusAtom, null);
+        setOpen(true);
+        setMarked(branch);
+    }, [focus, dir, rows, model]);
+    useEffect(() => {
+        if (marked == null) {
+            return;
+        }
+        const timer = setTimeout(() => setMarked(null), UpcomingFocusMarkMs);
+        return () => clearTimeout(timer);
+    }, [marked]);
+    useEffect(() => {
+        if (marked == null || !open) {
+            return;
+        }
+        for (const row of listRef.current?.querySelectorAll<HTMLElement>("[data-branch]") ?? []) {
+            if (row.dataset.branch === marked) {
+                row.scrollIntoView?.({ block: "nearest" });
+                row.focus();
+            }
+        }
+    }, [marked, open, rows]);
     return (
         <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.upcoming.title")}>
             <button
@@ -60,12 +102,19 @@ export function UpcomingSection({ dir, reviews }: { dir: string; reviews: Review
                 </p>
             ) : (
                 <div
+                    ref={listRef}
                     className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
                     role="list"
                     data-testid="reviews-upcoming"
                 >
                     {rows.map((branch) => (
-                        <UpcomingRow key={branch.branch} dir={dir} branch={branch} repoUrl={reviews?.url} />
+                        <UpcomingRow
+                            key={branch.branch}
+                            dir={dir}
+                            branch={branch}
+                            repoUrl={reviews?.url}
+                            marked={marked === branch.branch}
+                        />
                     ))}
                 </div>
             )}
@@ -78,7 +127,17 @@ export function UpcomingSection({ dir, reviews }: { dir: string; reviews: Review
     );
 }
 
-function UpcomingRow({ dir, branch, repoUrl }: { dir: string; branch: UpcomingBranch; repoUrl: string }) {
+function UpcomingRow({
+    dir,
+    branch,
+    repoUrl,
+    marked,
+}: {
+    dir: string;
+    branch: UpcomingBranch;
+    repoUrl: string;
+    marked: boolean;
+}) {
     const t = useT();
     const agent = useBranchAgent(dir, branch.branch);
     const url = ticketUrl(branch, repoUrl);
@@ -105,7 +164,11 @@ function UpcomingRow({ dir, branch, repoUrl }: { dir: string; branch: UpcomingBr
                 e.preventDefault();
                 open();
             }}
-            className="flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover"
+            aria-current={marked || undefined}
+            className={cn(
+                "flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
+                marked && "bg-hover/60 ring-2 ring-accent/70 ring-inset"
+            )}
             title={goesToAgent ? t("reviewsAgents.upcoming.openAgent") : t("reviewsAgents.upcoming.openTicket")}
             data-testid="reviews-upcoming-row"
         >
