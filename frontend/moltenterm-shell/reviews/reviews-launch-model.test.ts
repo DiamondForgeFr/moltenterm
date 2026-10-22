@@ -144,7 +144,7 @@ describe("launch confirmation (FR-REV-031 AC2, AC3)", () => {
     it("names the switch, the steps and the page", () => {
         const lines = launchPlanLines(t, plan(), target).map((line) => line.text);
         expect(lines).toEqual([
-            "Switches /p from develop to PR #12, detached at its head.",
+            "Switches /p (develop) to PR #12, detached at its head.",
             "Then runs: Install dependencies, Migrate api.",
             "Starts: api server (:3500), web server (:5173).",
             "Opens http://localhost:5173 in the browser once ready.",
@@ -170,7 +170,7 @@ describe("launch confirmation (FR-REV-031 AC2, AC3)", () => {
             "Serves the branch's worktree /wt as it is."
         );
         expect(launchPlanLines(t, plan({ branch: "" }), target)[0].text).toBe(
-            "Switches /p from the detached commit abc1234 to PR #12, detached at its head."
+            "Switches /p (detached at abc1234) to PR #12, detached at its head."
         );
         expect(launchPlanLines(t, plan(), { kind: "trunk" }, "develop")[0].text).toBe(
             "Checks out develop in /p and pulls it."
