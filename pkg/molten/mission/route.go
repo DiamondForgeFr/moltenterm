@@ -298,6 +298,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.reviews.RerunFailed(req)
 	}
+	if command == MergedHistoryCommand {
+		var req MergedHistoryRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.reviews.MergedHistory(req)
+	}
 	if command == UpcomingCommand {
 		var req UpcomingRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
