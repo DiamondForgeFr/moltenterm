@@ -588,6 +588,8 @@ type Reviews struct {
 	reports   map[string]*reviewReportsState
 	// Where the merged PRs ship, by project (#843).
 	ships map[string]*reviewShipsState
+	// The merged history, by project (#960).
+	history map[string]*mergedHistoryState
 	// The upcoming work and the agents on each branch (#712), made on the first ask.
 	upcoming *Upcoming
 	// notify tells a rerun's outcome (#797); rerunEvery: how often a rerun run is read (rerunFollowEvery when 0).
@@ -596,7 +598,7 @@ type Reviews struct {
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
-	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}}
+	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}, history: map[string]*mergedHistoryState{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {

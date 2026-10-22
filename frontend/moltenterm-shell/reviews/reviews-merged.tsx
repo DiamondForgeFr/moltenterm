@@ -3,18 +3,23 @@
 
 // The Reviews view's Recently merged section (#843), last in the panel: a merged PR leaves the review list, and this
 // says it merged, when, by whom and where it ships. A row opens the PR on GitHub; its notes chip shows the review
-// notes kept on it in the Notes section.
+// notes kept on it in the Notes section. Its last line opens the whole merged history (#960, FR-REV-030).
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { formatWhen, timeAgo } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
 import { useReviewNotes } from "../review/review-notes";
+import { PrSignature } from "./pr-signature";
 import { MergedDays, MergedOpenPref, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
 import type { ReviewsAnswer } from "./reviews-model";
-import { PrSignature } from "./pr-signature";
+
+// The merged history (#960) loads on its first opening: most views never open it.
+const MergedHistoryWindow = lazy(() =>
+    import("./merged-history-window").then((m) => ({ default: m.MergedHistoryWindow }))
+);
 
 const Chip = "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
 
@@ -36,6 +41,7 @@ export function MergedSection({
     const { notes } = useReviewNotes(answer.repo);
     const noteCounts = useMemo(() => notesByPr(notes?.notes), [notes]);
     const merged = answer.merged ?? [];
+    const [historyOpen, setHistoryOpen] = useState(false);
     return (
         <section className="flex flex-col gap-2" aria-label={t("reviews.merged.title")} data-testid="reviews-merged">
             <button
@@ -85,6 +91,30 @@ export function MergedSection({
                     ))}
                 </div>
             )}
+            {open ? (
+                <button
+                    type="button"
+                    onClick={() => setHistoryOpen(true)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-12 text-accent hover:underline"
+                    title={t("reviews.merged.allTitle", { target: answer.target })}
+                    data-testid="reviews-merged-all"
+                >
+                    <i className="fa fa-solid fa-clock-rotate-left text-11" aria-hidden />
+                    {t("reviews.merged.all")}
+                </button>
+            ) : null}
+            {historyOpen ? (
+                <Suspense fallback={null}>
+                    <MergedHistoryWindow
+                        dir={answer.dir}
+                        repo={answer.repo}
+                        target={answer.target}
+                        onClose={() => setHistoryOpen(false)}
+                        onShowNotes={onShowNotes}
+                    />
+                </Suspense>
+            ) : null}
         </section>
     );
 }

@@ -87,6 +87,9 @@ describe("Recently merged (#843)", () => {
         expect(html).toContain("in v1.0.0-4");
         expect(html).toContain("2 notes");
         expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(2);
+        // #960: the section ends with the way to the whole history, which opens only when asked.
+        expect(html).toContain("All merged pull requests");
+        expect(html).not.toContain("merged-history");
     });
 
     it("remembers collapsed and expanded", () => {
@@ -100,11 +103,14 @@ describe("Recently merged (#843)", () => {
         const html = renderToStaticMarkup(<MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} />);
         expect(html).toContain('aria-expanded="false"');
         expect(html).not.toContain("reviews-merged-row");
+        expect(html).not.toContain("reviews-merged-all");
     });
 
     it("tells an empty window", () => {
         vi.stubGlobal("localStorage", memoryStorage());
         const html = renderToStaticMarkup(<MergedSection answer={answer([])} onShowNotes={() => {}} />);
         expect(html).toContain("No pull request merged into develop in the last 7 days.");
+        // Older PRs stay reachable (#960).
+        expect(html).toContain("reviews-merged-all");
     });
 });
