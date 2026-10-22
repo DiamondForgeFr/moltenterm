@@ -3,7 +3,7 @@
 
 /* The browser panel's tab strip and header buttons (FR-SHELL-051, DS-SHELL-092). The tabs take the app's tab look
    (tab-bar.css, DS-SHELL-098) at 28 px: a 14 px icon, a left-aligned 12/500 name, a quiet fill on the active tab and
-   the close control floating over the end of the tab on hover or focus only, the name fading under it. */
+   the close control in its own slot at the end, shown on hover, focus and the active tab (#955). */
 
 .molten-browser-tab {
     padding: 0 1px;
@@ -34,7 +34,7 @@
 }
 
 .molten-browser-tab-name {
-    flex: 1 1 auto;
+    flex: 1 1000 auto;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -78,31 +78,34 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-name {
     color: var(--mt-text-main);
 }
 
-body:not(.nohover) .molten-browser-tab.closable:hover .molten-browser-tab-inner,
-.molten-browser-tab.closable:focus-within .molten-browser-tab-inner {
-    mask-image: linear-gradient(to right, black calc(100% - 26px), transparent calc(100% - 18px));
+/* The close control keeps its own slot at the end of the row even while hidden (#955): the name's ellipsis always ends
+   before it, so revealing it on hover never covers or shifts the name, as in a mainstream browser's tabs. */
+.molten-browser-tab.closable .molten-browser-tab-inner {
+    padding-right: 4px;
 }
 
 .molten-browser-tab-close {
-    position: absolute;
-    top: 50%;
-    right: 6px;
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     width: 18px;
     height: 18px;
-    transform: translateY(-50%);
+    padding: 0;
     border-radius: var(--mt-radius-4);
     font-size: var(--mt-text-11);
     color: var(--mt-text-secondary);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
 }
 
 body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
-.molten-browser-tab:focus-within .molten-browser-tab-close {
+.molten-browser-tab:focus-within .molten-browser-tab-close,
+.molten-browser-tab.active .molten-browser-tab-close {
     opacity: 1;
     pointer-events: auto;
 }
@@ -142,9 +145,11 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     opacity: 0.45 !important;
 }
 
-/* A tab shared with an agent (FR-BRW-011): the Pill keeps the agent's name readable, the page name gives way first. */
+/* A tab shared with an agent (FR-BRW-011): the Pill keeps the agent's name readable, the page name gives way first;
+   on a tab narrower than the badge it shrinks too, so the favicon and close control keep their size (#955). */
 .molten-browser-tab .molten-pill.molten-browser-share-badge {
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
     max-width: 96px;
     height: 18px;
 }

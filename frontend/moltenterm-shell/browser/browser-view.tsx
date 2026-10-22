@@ -1405,21 +1405,21 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                 {browserTabTitle(tab) || t("browser.tabs.newTab")}
                             </span>
                             <AgentTabMarker model={model} agentTabs={agentTabs} tabId={tab.id} />
+                            {state.tabs.length > 1 ? (
+                                <button
+                                    type="button"
+                                    aria-label={t("browser.tabs.closeTab")}
+                                    title={t("browser.tabs.closeTab")}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        model.closeTab(tab.id);
+                                    }}
+                                    className="molten-browser-tab-close cursor-pointer"
+                                >
+                                    <i className="fa fa-solid fa-xmark" />
+                                </button>
+                            ) : null}
                         </div>
-                        {state.tabs.length > 1 ? (
-                            <button
-                                type="button"
-                                aria-label={t("browser.tabs.closeTab")}
-                                title={t("browser.tabs.closeTab")}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    model.closeTab(tab.id);
-                                }}
-                                className="molten-browser-tab-close cursor-pointer"
-                            >
-                                <i className="fa fa-solid fa-xmark" />
-                            </button>
-                        ) : null}
                     </div>
                 ))}
             </div>
