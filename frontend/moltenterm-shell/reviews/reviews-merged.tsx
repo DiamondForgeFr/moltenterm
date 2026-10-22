@@ -13,6 +13,7 @@ import { formatWhen, timeAgo } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
 import { useReviewNotes } from "../review/review-notes";
 import { PrSignature } from "./pr-signature";
+import { LaunchBackButton } from "./reviews-launch";
 import { MergedDays, MergedOpenPref, notesByPr, ReviewMergedPr, shipsLabel } from "./reviews-merged-model";
 import type { ReviewsAnswer } from "./reviews-model";
 
@@ -84,6 +85,8 @@ export function MergedSection({
                     {merged.map((pr) => (
                         <MergedRow
                             key={pr.number}
+                            dir={answer.dir}
+                            trunk={answer.target}
                             pr={pr}
                             notes={noteCounts[pr.number] ?? 0}
                             onShowNotes={() => onShowNotes(`#${pr.number}`)}
@@ -119,7 +122,19 @@ export function MergedSection({
     );
 }
 
-function MergedRow({ pr, notes, onShowNotes }: { pr: ReviewMergedPr; notes: number; onShowNotes: () => void }) {
+function MergedRow({
+    dir,
+    trunk,
+    pr,
+    notes,
+    onShowNotes,
+}: {
+    dir: string;
+    trunk: string;
+    pr: ReviewMergedPr;
+    notes: number;
+    onShowNotes: () => void;
+}) {
     const t = useT();
     const ships = shipsLabel(pr);
     const openPr = () => fireAndForget(() => openWebLink(pr.url));
@@ -165,6 +180,7 @@ function MergedRow({ pr, notes, onShowNotes }: { pr: ReviewMergedPr; notes: numb
                     <PrSignature agents={pr.agents} reviewed={pr.reviewed} testId="reviews-merged-signature" />
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
+                    <LaunchBackButton dir={dir} number={pr.number} trunk={trunk} />
                     {ships ? (
                         <span
                             className={cn(Chip, ShipsClasses[ships.tone])}

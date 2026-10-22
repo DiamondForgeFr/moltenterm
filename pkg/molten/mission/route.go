@@ -30,6 +30,7 @@ type routeLink struct {
 	branchCi  *BranchCi
 	treePrs   *TreePrs
 	testCtx   *TestContexts
+	launches  *Launches
 }
 
 type ciLogRequest struct {
@@ -357,6 +358,12 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	if command == JobsCommand || command == JobDescribeCommand {
 		return handleJobs(command, data)
 	}
+	if strings.HasPrefix(command, "moltenmissionlaunch") {
+		if l.launches == nil {
+			return nil, fmt.Errorf("launching versions is not available")
+		}
+		return l.handleLaunch(command, data)
+	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
 	}
@@ -416,6 +423,57 @@ var windowCommands = map[string]string{
 	ReleaseStepCommand:    "a release step is run from a MoltenTerm window",
 	ReleaseRerunCommand:   "a release's jobs are run again from a MoltenTerm window",
 	ReleaseSaveCommand:    "release notes are saved from a MoltenTerm window",
+	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
+	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
+	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
+	LaunchStopCommand:       "a launched version is stopped from a MoltenTerm window",
+	LaunchRetryCommand:      "a launch is retried from a MoltenTerm window",
+}
+
+func (l *routeLink) handleLaunch(command string, data any) (any, error) {
+	switch command {
+	case LaunchRecipeCommand:
+		var req LaunchRecipeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.RecipeOf(req)
+	case LaunchSaveRecipeCommand:
+		var req LaunchSaveRecipeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.SaveRecipe(req)
+	case LaunchPlanCommand:
+		var req LaunchPlanRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.Plan(req)
+	case LaunchStartCommand:
+		var req LaunchStartRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.Start(req)
+	case LaunchLogCommand:
+		var req LaunchLogRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.launches.ReadLog(req)
+	}
+	var req LaunchDirRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	switch command {
+	case LaunchStopCommand:
+		return l.launches.Stop(req)
+	case LaunchRetryCommand:
+		return l.launches.Retry(req)
+	}
+	return l.launches.State(req)
 }
 
 // route: everything else answers the windows and local terminals (`molten ci`, `molten project`, `molten review`),
@@ -436,10 +494,10 @@ func (l *routeLink) route() localroute.Route {
 	}
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches) error {
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
-		testCtx: MakeTestContexts(panes, collector)}
+		testCtx: MakeTestContexts(panes, collector), launches: launches}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }

@@ -52,6 +52,8 @@ import {
 } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
+import { LaunchBar, LaunchCardActions, LaunchDialogs } from "./reviews-launch";
+import { launchTargetOfPr } from "./reviews-launch-model";
 import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
 import { MergedSection } from "./reviews-merged";
 import {
@@ -252,6 +254,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
+    const mergedNumbers = useMemo(() => (answer.merged ?? []).map((pr) => pr.number), [answer.merged]);
     // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
     const forecastReq = useMemo(() => forecastRequestOf(answer, listSplit), [answer, listSplit]);
     useForecastWatch(dir, forecastReq);
@@ -425,6 +428,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         >
             <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
             {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
+            <LaunchBar dir={dir} mergedNumbers={mergedNumbers} trunk={answer.target} />
+            <LaunchDialogs trunk={answer.target} />
             <CheckAgentsBar dir={dir} repo={answer.repo} prs={[...split.ready, ...split.drafts]} />
             {answer.reportserror ? (
                 <div className="text-11 text-muted" title={answer.reportserror}>
@@ -866,6 +871,7 @@ export function ReviewRow({
                 {onInvestigate != null ? (
                     <CiFailureButtons pr={pr} rerun={rerun} investigating={investigating} onInvestigate={investigate} />
                 ) : null}
+                <LaunchCardActions dir={dir} target={launchTargetOfPr(pr)} />
                 {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
                     when it fits, so the link never wraps to a line of its own. */}
                 <div
