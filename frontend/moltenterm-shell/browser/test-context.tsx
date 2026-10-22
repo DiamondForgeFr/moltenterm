@@ -48,7 +48,7 @@ const ToneClasses: Record<ChipTone, string> = {
     unknown: "text-muted",
 };
 
-const ToneIcons: Record<ChipTone, string> = {
+const ToneGlyph: Record<ChipTone, string> = {
     pr: "fa-code-pull-request",
     future: "fa-code-branch",
     branch: "fa-code-branch",
@@ -152,7 +152,7 @@ export function TestContextChip({ url }: { url: string }) {
                     ToneClasses[view.tone]
                 )}
             >
-                <i className={cn("fa fa-solid shrink-0 text-11", ToneIcons[view.tone])} aria-hidden />
+                <i className={cn("fa fa-solid shrink-0 text-11", ToneGlyph[view.tone])} aria-hidden />
                 <span className="truncate">{view.label}</span>
                 {answer.dirty ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" aria-hidden /> : null}
             </button>
