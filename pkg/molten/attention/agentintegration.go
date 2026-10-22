@@ -56,7 +56,8 @@ func clipItems(items []molten.IntegrationItem) []molten.IntegrationItem {
 	}
 	rtn := make([]molten.IntegrationItem, 0, len(items))
 	for _, it := range items {
-		rtn = append(rtn, molten.IntegrationItem{Kind: clipText(it.Kind), Name: clipText(it.Name), Reason: clipText(it.Reason)})
+		// The codes stay (#947): the windows show the name and reason in the interface language (#656).
+		rtn = append(rtn, molten.IntegrationItem{Kind: clipText(it.Kind), Name: clipText(it.Name), NameText: it.NameText, Reason: clipText(it.Reason), ReasonText: it.ReasonText})
 	}
 	return rtn
 }
