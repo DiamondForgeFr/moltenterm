@@ -253,21 +253,36 @@ func (c *TestContexts) describe(answer *TestContext, state PaneState, workspaceD
 	if answer.Branch != "" {
 		answer.Ticket = TicketOfBranch(state.Project, answer.Branch)
 	}
-	var gh *GithubSnapshot
-	if c.collector != nil {
-		if snap, ok := c.collector.Cached(state.Project); ok && snap.Github != nil && snap.Github.State == GithubStateOk {
-			gh = snap.Github
-		}
+	gh := c.cachedGithub(state.Project)
+	// git names a worktree's main checkout with symlinks resolved (/private/tmp on macOS), the workspace by the path
+	// the user linked: the collector keeps the project under the latter.
+	if gh == nil && answer.SameProject {
+		gh = c.cachedGithub(workspaceDir)
 	}
 	answer.PrKnown = gh != nil && len(gh.Prs) > 0
-	if state.Pr != nil {
-		answer.Pr = &TestContextPr{Number: state.Pr.Number, Title: state.Pr.Title, Url: state.Pr.Url, Draft: state.Pr.Draft}
+	pr := state.Pr
+	if pr == nil && gh != nil && answer.Branch != "" {
+		pr = matchPullRequest(gh.Prs, answer.Branch)
+	}
+	if pr != nil {
+		answer.Pr = &TestContextPr{Number: pr.Number, Title: pr.Title, Url: pr.Url, Draft: pr.Draft}
 		if gh != nil {
-			answer.Pr.Ci = cachedPrCi(gh.Prs, state.Pr.Number)
+			answer.Pr.Ci = cachedPrCi(gh.Prs, pr.Number)
 		}
 		return
 	}
 	answer.FuturePr = answer.PrKnown && answer.Branch != "" && !isBaseBranch(state.Project, answer.Branch)
+}
+
+func (c *TestContexts) cachedGithub(project string) *GithubSnapshot {
+	if c.collector == nil || project == "" {
+		return nil
+	}
+	snap, ok := c.collector.Cached(filepath.Clean(project))
+	if !ok || snap.Github == nil || snap.Github.State != GithubStateOk {
+		return nil
+	}
+	return snap.Github
 }
 
 // isBaseBranch: the trunk, the release branch or the PR target, which PRs merge into rather than come from.

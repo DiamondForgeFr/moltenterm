@@ -148,7 +148,7 @@ export function TestContextChip({ url }: { url: string }) {
                 data-testid="browser-test-context"
                 data-tone={view.tone}
                 className={cn(
-                    "flex h-6 max-w-[45%] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-4 border border-border px-2 text-12 hover:bg-hover hover:text-primary",
+                    "flex h-6 max-w-[35%] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-4 border border-border px-2 text-12 hover:bg-hover hover:text-primary",
                     ToneClasses[view.tone]
                 )}
             >
@@ -195,7 +195,7 @@ function TestContextDetails({
                     {rows.map((row) => (
                         <div key={row.label} className="contents">
                             <dt className="text-muted">{row.label}</dt>
-                            <dd className="min-w-0 truncate font-mono text-primary" title={row.title ?? row.value}>
+                            <dd className="min-w-0 font-mono break-all text-primary" title={row.title ?? row.value}>
                                 {row.value}
                             </dd>
                         </div>

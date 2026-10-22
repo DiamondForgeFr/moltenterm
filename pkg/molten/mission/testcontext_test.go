@@ -131,6 +131,22 @@ func TestTestContextOfAPullRequestBranch(t *testing.T) {
 	}
 }
 
+// A worktree's project is its main checkout with symlinks resolved; the collector keeps it under the linked path.
+func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
+	base, clone := makePaneRepo(t)
+	tree := filepath.Join(base, "wt")
+	gitRun(t, clone, "worktree", "add", "-q", "-b", "feature/12-loader", tree)
+	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
+		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: tree}}
+	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3950", WorkspaceDir: clone})
+	if !answer.Worktree || !answer.SameProject || answer.Pr == nil || answer.Pr.Number != 110 || answer.Pr.Draft {
+		t.Fatalf("worktree on a PR branch: %+v", answer)
+	}
+}
+
 func TestTestContextFuturePr(t *testing.T) {
 	_, clone := makePaneRepo(t)
 	collector := MakeCollector(t.TempDir(), plainRunner, nil)
