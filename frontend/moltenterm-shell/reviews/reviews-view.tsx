@@ -343,9 +343,15 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         }
         setSelected(focus.number);
         setMarked(focus.number);
+    }, [focus, dir, split, model]);
+    // Its own effect: clearing the focus above re-runs that one, whose cleanup would cancel the timer (#962).
+    useEffect(() => {
+        if (marked == null) {
+            return;
+        }
         const timer = setTimeout(() => setMarked(null), FocusMarkMs);
         return () => clearTimeout(timer);
-    }, [focus, dir, split, model]);
+    }, [marked]);
     useEffect(() => {
         if (selected == null) {
             return;

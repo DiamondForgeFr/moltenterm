@@ -16,6 +16,7 @@ import {
     draftTurn,
     durationText,
     UpcomingAnswer,
+    upcomingFocusBranch,
     upcomingRows,
 } from "./reviews-upcoming-model";
 
@@ -45,6 +46,23 @@ describe("upcomingRows (#712 AC1)", () => {
         const reviews = { dir: "/p", ready: [], drafts: [{ branch: "feature/2-b" } as ReviewPr] } as ReviewsAnswer;
         expect(upcomingRows(upcoming, reviews).map((b) => b.branch)).toEqual(["feature/1-a"]);
         expect(upcomingRows(null, reviews)).toEqual([]);
+    });
+});
+
+describe("upcomingFocusBranch (#962)", () => {
+    const rows = [{ branch: "feature/109-loader", ticket: 109, ahead: 1 }];
+
+    it("answers a future PR's focus for this project once its entry is listed", () => {
+        expect(upcomingFocusBranch({ dir: "/p", number: 0, branch: "feature/109-loader" }, "/p", rows)).toBe(
+            "feature/109-loader"
+        );
+        expect(upcomingFocusBranch({ dir: "/p", number: 0, branch: "feature/109-loader" }, "/p", [])).toBeNull();
+    });
+
+    it("leaves a PR's focus, another project's and an empty one to others", () => {
+        expect(upcomingFocusBranch({ dir: "/p", number: 110 }, "/p", rows)).toBeNull();
+        expect(upcomingFocusBranch({ dir: "/q", number: 0, branch: "feature/109-loader" }, "/p", rows)).toBeNull();
+        expect(upcomingFocusBranch(null, "/p", rows)).toBeNull();
     });
 });
 

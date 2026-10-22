@@ -136,6 +136,7 @@ import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
+import { TestContextChip } from "./test-context";
 
 export { MoltentermBrowserView };
 
@@ -1623,6 +1624,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       (e) => model.reloadActive(e.shiftKey),
                       t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" })
                   )}
+            <TestContextChip url={active?.url ?? ""} />
             <input
                 ref={model.urlInputRef}
                 value={draft}

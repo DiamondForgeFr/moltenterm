@@ -49,8 +49,9 @@ import {
 } from "./reviews-model";
 import { checkAgentsPlan, CheckReport, prLeft, PrTaskKind } from "./reviews-task-model";
 
-// The PR a Reviews view brings into sight and marks, asked by another surface.
-export type ReviewsFocus = { dir: string; number: number; at: number };
+// The PR a Reviews view brings into sight and marks, asked by another surface; or, by its branch, a future PR's
+// Upcoming entry (number 0, #962).
+export type ReviewsFocus = { dir: string; number: number; branch?: string; at: number };
 
 export type ReviewsValidateSheet = { model: ReviewValidateModel; blockId?: string };
 
@@ -75,10 +76,13 @@ export class ReviewsModel {
         return ReviewsModel.instance;
     }
 
-    // Opens the Reviews view of the active tab (or focuses it), on a PR when one is named.
-    async openReviews(dir?: string, number?: number): Promise<void> {
+    // Opens the Reviews view of the active tab (or focuses it), on a PR when one is named, else on the Upcoming entry
+    // of a branch when one is named.
+    async openReviews(dir?: string, number?: number, branch?: string): Promise<void> {
         if (dir && number) {
             globalStore.set(this.focusAtom, { dir, number, at: Date.now() });
+        } else if (dir && branch) {
+            globalStore.set(this.focusAtom, { dir, number: 0, branch, at: Date.now() });
         }
         await openMoltentermView(MoltentermReviewsView);
     }

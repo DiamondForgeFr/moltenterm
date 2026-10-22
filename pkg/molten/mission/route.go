@@ -29,6 +29,7 @@ type routeLink struct {
 	reviews   *Reviews
 	branchCi  *BranchCi
 	treePrs   *TreePrs
+	testCtx   *TestContexts
 }
 
 type ciLogRequest struct {
@@ -270,6 +271,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.panes.Get(req)
 	}
+	if command == TestContextCommand {
+		var req TestContextRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.testCtx.Get(req)
+	}
 	if command == ProjectTabCommand {
 		var req ProjectTabRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -423,7 +431,8 @@ func (l *routeLink) route() localroute.Route {
 
 func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
-		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner)}
+		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
+		testCtx: MakeTestContexts(panes, collector)}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }
