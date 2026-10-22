@@ -65,36 +65,78 @@ describe("release notification (#188)", () => {
         expect(isNewerRelease(parseVersion("1.0.1"), "not a version")).toBe(false);
     });
 
-    it("offers a public build only public releases, newer than itself", () => {
+    it("offers only public releases, newer than the build, when candidates are off", () => {
         const releases = [
             release("v1.0.0"),
             release("v1.0.1-1"),
             release("v1.0.1", { draft: true }),
             release("v0.9.0"),
         ];
-        expect(pickReleaseOffer(releases, "public", "1.0.0", Rules)).toBeNull();
-        const offer = pickReleaseOffer([...releases, release("v1.0.1")], "public", "1.0.0", Rules);
+        expect(pickReleaseOffer(releases, false, "1.0.0", Rules)).toBeNull();
+        const offer = pickReleaseOffer([...releases, release("v1.0.1")], false, "1.0.0", Rules);
         expect(offer.tag).toBe("v1.0.1");
         expect(offer.version).toBe("1.0.1");
         expect(offer.notes).toBe("Notes of v1.0.1");
         expect(releaseNotificationTitle(offer)).toBe("MoltenTerm 1.0.1 is available");
     });
 
-    it("offers a release candidate the newer of the next candidate and a public release", () => {
+    it("offers the newer of the next candidate and a public release when candidates are on", () => {
         const releases = [release("v1.0.0-1"), release("v1.0.0-2"), release("v1.0.0")];
-        expect(pickReleaseOffer(releases, "rc", "1.0.0-1", Rules).tag).toBe("v1.0.0");
-        expect(pickReleaseOffer(releases.slice(0, 2), "rc", "1.0.0-1", Rules).tag).toBe("v1.0.0-2");
-        expect(pickReleaseOffer(releases, "rc", "1.0.0", Rules)).toBeNull();
+        expect(pickReleaseOffer(releases, true, "1.0.0-1", Rules).tag).toBe("v1.0.0");
+        expect(pickReleaseOffer(releases.slice(0, 2), true, "1.0.0-1", Rules).tag).toBe("v1.0.0-2");
+        expect(pickReleaseOffer(releases, true, "1.0.0", Rules)).toBeNull();
     });
 
-    it("never offers a public build a release marked as prerelease, a foreign tag or an unsafe link", () => {
-        expect(pickReleaseOffer([release("v1.1.0", { prerelease: true })], "public", "1.0.0", Rules)).toBeNull();
-        expect(pickReleaseOffer([release("v0.14.5")], "rc", "0.1.0", Rules)).toBeNull();
-        expect(pickReleaseOffer([release("nightly")], "rc", "1.0.0-0", Rules)).toBeNull();
+    // #948: the preference alone decides, whatever build was installed first.
+    describe("installed version × release candidates preference × available releases", () => {
+        const feed = [
+            release("v0.9.0"),
+            release("v1.0.0-5"),
+            release("v1.0.0-6"),
+            release("v1.0.0-7"),
+            release("v1.0.0"),
+            release("v1.0.1-1"),
+        ];
+        const cases: [string, string, boolean, readonly GithubRelease[], string][] = [
+            ["a candidate install, off, a newer public release out", "1.0.0-6", false, feed, "v1.0.0"],
+            ["a candidate install, off, only newer candidates out", "1.0.0-6", false, feed.slice(0, 4), null],
+            ["a candidate install, off, only an older public release", "1.0.0-6", false, [release("v0.9.0")], null],
+            ["a candidate install, on, a newer candidate only", "1.0.0-6", true, feed.slice(0, 4), "v1.0.0-7"],
+            ["a candidate install, on, candidate and public out", "1.0.0-6", true, feed, "v1.0.1-1"],
+            ["a public install, off, only a newer candidate", "1.0.0", false, feed, null],
+            ["a public install, on, a newer candidate", "1.0.0", true, feed, "v1.0.1-1"],
+            [
+                "a public install, on, a newer public release beats an older candidate",
+                "1.0.0",
+                true,
+                [...feed, release("v1.0.1")],
+                "v1.0.1",
+            ],
+            ["a public install, off, a newer public release", "1.0.0", false, [...feed, release("v1.0.1")], "v1.0.1"],
+            ["a public install, on, nothing newer", "1.0.1", true, feed, null],
+            [
+                "a candidate install, off, a prerelease without -N is still a candidate",
+                "1.0.0-6",
+                false,
+                [release("v1.0.0", { prerelease: true })],
+                null,
+            ],
+        ];
+        for (const [name, installed, candidates, releases, expected] of cases) {
+            it(name, () => {
+                expect(pickReleaseOffer(releases, candidates, installed, Rules)?.tag ?? null).toBe(expected);
+            });
+        }
+    });
+
+    it("never offers a release marked as prerelease when candidates are off, a foreign tag or an unsafe link", () => {
+        expect(pickReleaseOffer([release("v1.1.0", { prerelease: true })], false, "1.0.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([release("v0.14.5")], true, "0.1.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([release("nightly")], true, "1.0.0-0", Rules)).toBeNull();
         expect(
-            pickReleaseOffer([release("v1.0.1", { html_url: "javascript:alert(1)" })], "public", "1.0.0", Rules)
+            pickReleaseOffer([release("v1.0.1", { html_url: "javascript:alert(1)" })], false, "1.0.0", Rules)
         ).toBeNull();
-        expect(pickReleaseOffer([null, { tag_name: null } as any], "public", "1.0.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([null, { tag_name: null } as any], false, "1.0.0", Rules)).toBeNull();
     });
 
     it("shows the public notes only, shortened", () => {
@@ -160,7 +202,7 @@ describe("release notification (#188)", () => {
         // An unsafe link on the newest release falls back to the next one.
         const offer = pickReleaseOffer(
             [release("v1.0.2", { html_url: "https://evil.example/r" }), release("v1.0.1")],
-            "public",
+            false,
             "1.0.0",
             Rules
         );

@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { dialog, Notification } from "electron";
-import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { autoUpdater } from "electron-updater";
-import { readFileSync } from "fs";
-import path from "path";
-import YAML from "yaml";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
 import { fireAndForget } from "../frontend/util/util";
@@ -14,26 +10,17 @@ import { setUserConfirmedQuit } from "./emain-activity";
 import { delay } from "./emain-util";
 import { focusedWaveWindow, getAllWaveWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 
 export let updater: Updater;
 
-function getUpdateChannel(settings: SettingsType): string {
-    const updaterConfigPath = path.join(process.resourcesPath!, "app-update.yml");
-    const updaterConfig = YAML.parse(readFileSync(updaterConfigPath, { encoding: "utf8" }).toString());
-    console.log("Updater config from binary:", updaterConfig);
-    const updaterChannel: string = updaterConfig.channel ?? "latest";
-    const settingsChannel = settings["autoupdate:channel"];
-    let retVal = settingsChannel;
-
-    // If the user setting doesn't exist yet, set it to the value of the updater config.
-    // If the user was previously on the `latest` channel and has downloaded a `beta` version, update their configured channel to `beta` to prevent downgrading.
-    if (!settingsChannel || (settingsChannel == "latest" && updaterChannel == "beta")) {
-        console.log("Update channel setting does not exist, setting to value from updater config.");
-        RpcApi.SetConfigCommand(ElectronWshClient, { "autoupdate:channel": updaterChannel });
-        retVal = updaterChannel;
-    }
-    console.log("Update channel:", retVal);
-    return retVal;
+// MOLTENTERM-PATCH (#948): the channel is no longer seeded from the binary's app-update.yml (a candidate install then
+// stayed on candidates for good). release.yml publishes one latest-*.yml per release, candidates included, so the
+// channel is always "latest" and the user's "Also get release candidates" preference alone allows prereleases.
+function applyReleaseCandidatesPreference(settings: SettingsType) {
+    autoUpdater.channel = "latest";
+    autoUpdater.allowPrerelease = settings?.["moltenterm:releasecandidates"] === true;
+    console.log("Update channel: latest, release candidates:", autoUpdater.allowPrerelease);
 }
 
 export class Updater {
@@ -59,8 +46,7 @@ export class Updater {
         autoUpdater.autoInstallOnAppQuit = settings["autoupdate:installonquit"];
         console.log("Install update on quit:", settings["autoupdate:installonquit"]);
 
-        // Only update the release channel if it's specified, otherwise use the one configured in the updater.
-        autoUpdater.channel = getUpdateChannel(settings);
+        applyReleaseCandidatesPreference(settings);
         autoUpdater.allowDowngrade = false;
 
         autoUpdater.removeAllListeners();

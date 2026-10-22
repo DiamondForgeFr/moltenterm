@@ -1477,6 +1477,7 @@ declare global {
         "moltenterm:hiddenpagefreeze"?: boolean;
         "moltenterm:hiddenpagediscardmin"?: number;
         "moltenterm:releasenotify"?: boolean;
+        "moltenterm:releasecandidates"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;

@@ -13,7 +13,7 @@ Wave's `RELEASES.md` describes Wave's own process and does not apply.
 | Dev | `task dev` | the developer, from the checkout | `moltenterm-dev` folders |
 | Gold | Mission Control › Build local › Gold (`scripts/moltenterm-build-gold.sh`) | the developer's daily app, updated from the local builds folder (#64) | `fr.diamondforge.moltenterm.gold`, `moltenterm-gold` folders, signed "MoltenTerm Local" |
 | Rehearsal | CI/CD › CD › Rehearse (`molten release rehearse`, `release.yml` dispatched) | nobody: 14-day artifacts of the run, to install and check | the release's |
-| Release candidate `vX.Y.Z-N` | Release › Release candidate | whoever installs it from its GitHub prerelease; never the latest release | `fr.diamondforge.moltenterm`, `moltenterm` folders |
+| Release candidate `vX.Y.Z-N` | Release › Release candidate | whoever installs it from its GitHub prerelease, and anyone with "Also get release candidates" on (off by default: a candidate install then moves to the next public release); never the latest release | `fr.diamondforge.moltenterm`, `moltenterm` folders |
 | Public `vX.Y.Z` | Release › Public | everyone, once the developer publishes its draft on GitHub | the same |
 
 Nothing of this is published by an agent: the tag is pushed on the developer's confirmed click (finalize), and a
@@ -263,10 +263,15 @@ On a machine or VM with a desktop session:
 
 ### 4. Update notification (#188)
 
-Needs two successive candidates, the earlier one installed:
+What is offered follows Settings › General › Updates › "Also get release candidates" (off by default, #948), never
+the build installed: off, public releases only (a candidate install is offered the next public release newer than
+itself, never an older one); on, candidates too. Needs two successive candidates, the earlier one installed:
 
-- [ ] At start (and at most once a day), the earlier candidate shows "MoltenTerm X is available" with the notes and a
-      download link to the release page. The link opens the right release.
+- [ ] With the option off (the default, also on a fresh candidate install), the earlier candidate shows nothing for the
+      later candidate; it shows the public release once one newer than it is out.
+- [ ] Turn "Also get release candidates" on: at the next check (a window getting the focus, no restart), the earlier
+      candidate shows "MoltenTerm X is available" with the notes and a download link to the release page. The link
+      opens the right release. Turning it off again withdraws the candidate's notification.
 - [ ] Turning the notification off in the settings stops it. A gold and a dev build never show it.
 
 ### 5. The release page

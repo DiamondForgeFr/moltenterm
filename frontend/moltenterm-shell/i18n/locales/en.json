@@ -851,6 +851,10 @@
                 "label": "Tell me about new releases",
                 "description": "Once a day at most, ask GitHub for a newer release and show its notes with a download link."
             },
+            "moltenterm:releasecandidates": {
+                "label": "Also get release candidates",
+                "description": "Release candidates preview the next version and may be less stable. Off: public releases only."
+            },
             "moltenterm:confirmbusyclose": {
                 "label": "Ask before stopping what runs",
                 "description": "Closing a pane or a tab in which an agent or a command runs asks first and names what would stop."
