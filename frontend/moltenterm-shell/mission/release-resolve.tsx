@@ -25,9 +25,14 @@ const SmallButton =
 
 type Busy = "" | "rerun" | AgentMode;
 
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+// What the card says after a click, worded at render: the interface language can change while it shows.
+type Said = { word: (t: Translate) => { text: string; error: boolean } };
+
 // resolveText: what the card says once wavesrv answered a start.
 export function resolveText(
-    t: (key: string, vars?: Record<string, string | number>) => string,
+    t: Translate,
     result: ReviewRestartResult,
     mode: AgentMode,
     step: string,
@@ -47,7 +52,7 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
     const t = useT();
     const [busy, setBusy] = useState<Busy>("");
     const [confirming, setConfirming] = useState(false);
-    const [said, setSaid] = useState<{ text: string; error: boolean }>(null);
+    const [said, setSaid] = useState<Said>(null);
     const failure = phase.failure;
     if (phase.status !== "failed" || failure == null) {
         return null;
@@ -56,6 +61,7 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
     const names = runs.map((r) => r.name).join(", ");
     // The build's own action already reruns the release workflow's failed jobs.
     const rerunnable = runs.length > 0 && phase.action?.kind !== "rerun";
+    const worded = said?.word(t);
     const rerun = () =>
         fireAndForget(async () => {
             setBusy("rerun");
@@ -63,9 +69,11 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
             try {
                 await actions.rerunRuns(runs);
                 setConfirming(false);
-                setSaid({ text: t("mc.releaseRun.resolve.rerunStarted", { names }), error: false });
+                setSaid({
+                    word: (tt) => ({ text: tt("mc.releaseRun.resolve.rerunStarted", { names }), error: false }),
+                });
             } catch (e) {
-                setSaid({ text: serverErrorText(e), error: true });
+                setSaid({ word: () => ({ text: serverErrorText(e), error: true }) });
             } finally {
                 setBusy("");
             }
@@ -77,9 +85,14 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
             setConfirming(false);
             try {
                 const { result, tab } = await actions.resolve(phase, mode);
-                setSaid(resolveText(t, result, mode, failure.step, tab));
+                setSaid({ word: (tt) => resolveText(tt, result, mode, failure.step, tab) });
             } catch (e) {
-                setSaid({ text: t("mc.releaseRun.resolve.failed", { message: serverErrorText(e) }), error: true });
+                setSaid({
+                    word: (tt) => ({
+                        text: tt("mc.releaseRun.resolve.failed", { message: serverErrorText(e) }),
+                        error: true,
+                    }),
+                });
             } finally {
                 setBusy("");
             }
@@ -154,13 +167,13 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                     </button>
                 </div>
             ) : null}
-            {said ? (
+            {worded ? (
                 <p
-                    className={said.error ? "text-right text-12 text-danger" : "text-right text-12 text-secondary"}
-                    role={said.error ? "alert" : "status"}
+                    className={worded.error ? "text-right text-12 text-danger" : "text-right text-12 text-secondary"}
+                    role={worded.error ? "alert" : "status"}
                     data-testid="release-run-resolve-said"
                 >
-                    {said.text}
+                    {worded.text}
                 </p>
             ) : null}
         </div>
