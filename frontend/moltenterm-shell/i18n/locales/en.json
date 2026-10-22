@@ -2974,6 +2974,24 @@
             "retryPreparation": "Retry the preparation",
             "preparing": "Preparing",
             "fixRetryPreparation": "Fix it, then retry the preparation.",
+            "resolve": {
+                "run": "run {id}",
+                "rerun": "Rerun failed jobs",
+                "rerunTitle": "Run the failed jobs of {names} again on GitHub",
+                "rerunConfirm": "GitHub runs the failed jobs of {names} again. Retry the step once they pass.",
+                "rerunYes": "Rerun",
+                "rerunning": "Rerunning…",
+                "rerunStarted": "Rerunning on GitHub: {names}. Retry the step once they pass.",
+                "analyze": "Analyze and resolve",
+                "analyzeTitle": "A work agent finds why {step} failed and resolves what it can within the release rules: a rerun of the failed jobs when the code is not the cause, or a fix in a pull request into the trunk. It never pushes the trunk, merges, tags or publishes; a notification tells you what it did.",
+                "together": "Investigate together",
+                "togetherTitle": "Opens a tab with the failing logs of {step} beside an agent that knows the failure, to work it out with you.",
+                "asking": "Starting…",
+                "started": "{name} looks into {step} out of sight: a notification tells you what it did and whether the step can be retried.",
+                "startedTogether": "{name} is in the “{tab}” tab, beside the failing logs.",
+                "tab": "Release {tag}",
+                "failed": "The agent could not be started: {message}"
+            },
             "preparationLost": "The preparation stopped without a word (the computer slept?).",
             "preparationFailed": "The preparation failed: {words}",
             "stepsDone": "{steps}: done.",
@@ -6172,6 +6190,12 @@
                 "left": "Open it again whenever you want, from the app menu or the command palette.",
                 "open": "Open Getting started"
             },
+            "release": {
+                "needsTitle": "{name} needs you on the release {tag}",
+                "doneTitle": "Release {tag}: {step} looked into",
+                "outcome": "{name}: {outcome}",
+                "silent": "{name} stopped on {tag} without saying what it did: its terminal says."
+            },
             "review": {
                 "rebasedTitle": "#{number} rebased on {base} by {name}, ready for review",
                 "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}, ready for review",
@@ -6528,7 +6552,9 @@
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
-        "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}"
+        "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}",
+        "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
+        "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
     },
     "codingAgent": {
         "section": "Coding agent",

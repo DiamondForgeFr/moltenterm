@@ -120,6 +120,9 @@ func (r *Restarter) startFollow(f agentFollow) {
 
 // followStep reads the agent once; false when the follow ends (cleaned up, or its terminal is gone).
 func (r *Restarter) followStep(ctx context.Context, f agentFollow, st *followState) bool {
+	if f.origin.Kind == AgentOriginRelease {
+		return r.followRelease(ctx, f, st)
+	}
 	if r.env.BlockExists != nil && !r.env.BlockExists(ctx, f.blockId) {
 		r.resolveNotice(ctx, f)
 		return false

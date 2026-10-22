@@ -44,10 +44,14 @@ type AgentOrigin struct {
 	Branch string `json:"branch"`
 	Base   string `json:"base,omitempty"`
 	// MergedPr: the merge that put the PR in conflict (#691); Round: the review round handed over (Restart work).
-	MergedPr int    `json:"mergedpr,omitempty"`
-	Round    int    `json:"round,omitempty"`
-	Count    int    `json:"count,omitempty"`
-	Mode     string `json:"mode"`
+	MergedPr int `json:"mergedpr,omitempty"`
+	Round    int `json:"round,omitempty"`
+	Count    int `json:"count,omitempty"`
+	// Tag, Phase and Step: the failed release step an agent works on (#945).
+	Tag   string `json:"tag,omitempty"`
+	Phase string `json:"phase,omitempty"`
+	Step  string `json:"step,omitempty"`
+	Mode  string `json:"mode"`
 	// At: when the developer asked, Unix milliseconds.
 	At int64 `json:"at"`
 }

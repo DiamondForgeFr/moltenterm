@@ -2974,6 +2974,24 @@
             "retryPreparation": "Relancer la préparation",
             "preparing": "Préparation",
             "fixRetryPreparation": "Corrigez, puis relancez la préparation.",
+            "resolve": {
+                "run": "run {id}",
+                "rerun": "Relancer les jobs en échec",
+                "rerunTitle": "Relancer sur GitHub les jobs en échec de {names}",
+                "rerunConfirm": "GitHub relance les jobs en échec de {names}. Relancez l'étape une fois qu'ils passent.",
+                "rerunYes": "Relancer",
+                "rerunning": "Relance…",
+                "rerunStarted": "Relance sur GitHub : {names}. Relancez l'étape une fois qu'ils passent.",
+                "analyze": "Analyser et résoudre",
+                "analyzeTitle": "Un agent de travail trouve pourquoi {step} a échoué et résout ce qu'il peut dans les règles de la release : une relance des jobs en échec quand le code n'est pas en cause, ou un correctif dans une pull request vers la branche principale. Il ne pousse jamais la branche principale, ne fusionne, ne tague ni ne publie ; une notification vous dit ce qu'il a fait.",
+                "together": "Enquêter ensemble",
+                "togetherTitle": "Ouvre un onglet avec les logs en échec de {step} à côté d'un agent qui connaît l'échec, pour le résoudre avec vous.",
+                "asking": "Démarrage…",
+                "started": "{name} examine {step} hors de vue : une notification vous dira ce qu'il a fait et si l'étape peut être relancée.",
+                "startedTogether": "{name} est dans l'onglet « {tab} », à côté des logs en échec.",
+                "tab": "Release {tag}",
+                "failed": "L'agent n'a pas pu démarrer : {message}"
+            },
             "preparationLost": "La préparation s'est arrêtée sans un mot (l'ordinateur s'est mis en veille ?).",
             "preparationFailed": "La préparation a échoué : {words}",
             "stepsDone": "{steps} : fait.",
@@ -6172,6 +6190,12 @@
                 "left": "Rouvrez-le quand vous voulez, depuis le menu de l'application ou la palette de commandes.",
                 "open": "Ouvrir Premiers pas"
             },
+            "release": {
+                "needsTitle": "{name} a besoin de vous sur la release {tag}",
+                "doneTitle": "Release {tag} : {step} examinée",
+                "outcome": "{name} : {outcome}",
+                "silent": "{name} s'est arrêté sur {tag} sans dire ce qu'il a fait : son terminal le dit."
+            },
             "review": {
                 "rebasedTitle": "#{number} rebasée sur {base} par {name}, prête pour la revue",
                 "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}, prête pour la revue",
@@ -6528,7 +6552,9 @@
         "rebase": "Lancé par vous à {time} pour rebaser #{number} sur {base}",
         "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
         "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
-        "investigate": "Lancé par vous à {time} pour analyser et résoudre l'échec de la CI de #{number}"
+        "investigate": "Lancé par vous à {time} pour analyser et résoudre l'échec de la CI de #{number}",
+        "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
+        "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
     },
     "codingAgent": {
         "section": "Agent de code",
