@@ -4297,6 +4297,45 @@
             "openTicket": "Ouvrir le ticket",
             "openAgent": "Aller à l'agent qui y travaille",
             "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus."
+        },
+        "task": {
+            "what": {
+                "rebase": "le rebase",
+                "investigate": "la correction de la CI",
+                "finish": "la vérification de la pull request"
+            },
+            "left": {
+                "conflicts": "des conflits avec {base} restent",
+                "ci": "la CI est toujours rouge",
+                "changes": "des changements sont toujours demandés",
+                "report": "pas encore de rapport de test"
+            },
+            "stuck": "s'est arrêté avant de finir {what} : {left}",
+            "gone": "sa session s'est terminée avant de finir {what} : {left}",
+            "done": {
+                "rebase": "rebase fait, plus de conflit",
+                "investigate": "CI corrigée",
+                "finish": "plus rien à faire sur cette pull request"
+            }
+        },
+        "signedBy": "signé {who}",
+        "signedMore": "{name} +{count}",
+        "retry": "Relancer",
+        "retryTitle": "Renvoyer {what} à {name}, dans sa session, avec la pull request telle qu'elle est maintenant",
+        "retryGoneTitle": "La session de {name} n'existe plus : lancer un nouvel agent sur {what}",
+        "work": {
+            "button": "Ouvrir son travail",
+            "title": "Mettre le diff de #{number} à côté du terminal de {name}, dans son onglet, pour reprendre ensemble",
+            "failed": "Son travail n'a pas pu être ouvert. {message}",
+            "gone": "Son terminal n'est plus ouvert."
+        },
+        "stop": {
+            "button": "Arrêter",
+            "title": "Terminer la session de {name}",
+            "confirm": "Arrêter {name} ? Sa session se termine ; ce qu'il a poussé reste.",
+            "cancel": "Annuler",
+            "noSession": "La session de cet agent ne peut pas être terminée d'ici : allez à son panneau.",
+            "failed": "La session n'a pas pu être terminée. {message}"
         }
     },
     "reviews": {
@@ -4490,8 +4529,6 @@
         "opened": "ouverte {when}",
         "updated": "mise à jour {when}",
         "signature": {
-            "unknown": "agent inconnu",
-            "unknownTitle": "Aucun agent n'a signé cette pull request : aucun commit ne porte de trailer Molten-Agent et sa description n'a pas de signature. Les agents lancés hors de MoltenTerm ne signent pas.",
             "title": "Agents de cette pull request, le dernier en premier :\n{list}",
             "more": {
                 "one": "+{count} agent",
@@ -4700,6 +4737,45 @@
             "norepoHint": "Revues liste les pull requests du dépôt GitHub du projet : ajoutez son dépôt distant, ou liez l'espace de travail à un autre dossier.",
             "errorTitle": "GitHub n'a pas pu être lu",
             "errorHint": "gh n'a pas pu répondre. Réessayez dans un instant."
+        },
+        "check": {
+            "button": "Vérifier les agents",
+            "buttonTitle": "Demander à l'agent de chaque pull request où il reste quelque chose (conflits, CI rouge, changements demandés, pas de rapport de test) de la vérifier par rapport à son ticket et de la finir. Les autres sont ignorées ; rien ne démarre sans votre confirmation.",
+            "checking": "Vérification…",
+            "checked": {
+                "one": "{count} vérifiée",
+                "other": "{count} vérifiées"
+            },
+            "needs": {
+                "one": "{count} a du travail restant",
+                "other": "{count} ont du travail restant"
+            },
+            "sent": {
+                "one": "1 envoyée à son agent",
+                "other": "{count} envoyées à leurs agents"
+            },
+            "busy": {
+                "one": "1 agent déjà occupé, laissé tranquille",
+                "other": "{count} agents déjà occupés, laissés tranquilles"
+            },
+            "started": {
+                "one": "1 nouvel agent lancé hors de vue",
+                "other": "{count} nouveaux agents lancés hors de vue"
+            },
+            "failed": {
+                "one": "1 n'a pas pu être demandée",
+                "other": "{count} n'ont pas pu être demandées"
+            },
+            "offers": "Plus aucun agent ne travaille sur {list}. Lancer un nouvel agent sur chacune, hors de vue, pour la finir ?",
+            "start": {
+                "one": "Lancer un agent",
+                "other": "Lancer {count} agents"
+            },
+            "notNow": "Pas maintenant",
+            "asked": "{name} doit vérifier cette pull request et finir ce qui reste.",
+            "startedHidden": "{name} vérifie {branch} et finit ce qui reste, hors de vue : une notification vous dit quand c'est fait ou s'il a besoin de vous.",
+            "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour la vérifier et finir ce qui reste ?",
+            "askFailed": "L'agent n'a pas pu être sollicité. {message}"
         }
     },
     "sessions": {
@@ -6230,6 +6306,7 @@
             "review": {
                 "rebasedTitle": "#{number} rebasée sur {base} par {name}, prête pour la revue",
                 "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}, prête pour la revue",
+                "finishedTitle": "{name} a poussé ce qui restait sur #{number}, prête pour la revue",
                 "needsTitle": "{name} a besoin de vous sur #{number}",
                 "stopped": "{name} s'est arrêté avant de pousser {branch} : son terminal dit ce qu'il attend.",
                 "exited": "La session de {name} s'est terminée avant que {branch} soit poussée.",
@@ -6542,13 +6619,15 @@
         "title": {
             "rebase": "Rebaser #{number} avec un agent",
             "restart": "Relancer le travail sur #{number} avec un agent",
-            "investigate": "Analyser et résoudre l'échec de la CI de #{number} avec un agent"
+            "investigate": "Analyser et résoudre l'échec de la CI de #{number} avec un agent",
+            "finish": "Vérifier et finir #{number} avec un agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebase {branch} sur {base} dans une copie isolée de la branche, résout les conflits, lance les vérifications du projet et pousse avec lease.",
             "restart": "{agent} applique les commentaires de la passe de revue {round} sur {branch} dans une copie isolée de la branche, commite, pousse et répond sur chaque fil.",
-            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch} et résout la cause : un correctif poussé sur la branche, un rebase sur la base poussé avec lease, ou une relance d'un job instable avec son ticket. Il ne fusionne jamais et ne vous sollicite que pour une vraie décision."
+            "investigate": "{agent} lit les logs en échec de {checks} dans une copie isolée de {branch} et résout la cause : un correctif poussé sur la branche, un rebase sur la base poussé avec lease, ou une relance d'un job instable avec son ticket. Il ne fusionne jamais et ne vous sollicite que pour une vraie décision.",
+            "finish": "{agent} vérifie {branch} par rapport à son ticket dans une copie isolée de la branche et finit ce qui reste : conflits avec {base}, CI rouge, changements demandés. Il pousse avec lease et ne fusionne jamais."
         },
         "background": {
             "button": "Laisser l'agent s'en charger",
@@ -6558,7 +6637,8 @@
             "rebase": "Faire le rebase avec l'agent",
             "restart": "Faire le travail avec l'agent",
             "investigate": "Analyser et résoudre avec l'agent",
-            "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend."
+            "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend.",
+            "finish": "Le faire avec l'agent"
         },
         "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
         "checkoutInvestigate": "Votre copie principale n'est pas touchée. L'agent ne passe au vert qu'une fois les checks requis de la pull request au vert ; son terminal reste ouvert avec son compte rendu jusqu'à ce que vous le fermiez.",
@@ -6568,7 +6648,8 @@
         "tab": {
             "rebase": "Rebase #{number}",
             "restart": "Relance #{number}",
-            "investigate": "CI #{number}"
+            "investigate": "CI #{number}",
+            "finish": "Finir #{number}"
         },
         "noReview": "La pull request à ouvrir n'est pas connue.",
         "agent": "Agent",
@@ -6584,6 +6665,7 @@
         "restart": "Lancé par vous à {time} pour appliquer les commentaires de la passe de revue {round} sur #{number}",
         "batch": "Lancé par vous à {time} pour la fusion groupée de {count} pull requests dans {base}",
         "investigate": "Lancé par vous à {time} pour analyser et résoudre l'échec de la CI de #{number}",
+        "finish": "Lancé par vous à {time} pour vérifier #{number} et finir ce qui reste",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
         "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
     },

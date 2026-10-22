@@ -684,6 +684,31 @@ export function askReviewInvestigate(
     return call(InvestigateCommand, req, RestartTimeoutMs);
 }
 
+// must match FinishCommand in pkg/molten/review/finish.go
+const FinishCommand = "moltenreviewfinish";
+
+// askReviewFinish is Check the agents in the Reviews list (#954), for one PR: the agent on its branch, or a new one once
+// the developer confirmed (Start), verifies the PR against its ticket and finishes what is left.
+export function askReviewFinish(
+    req: {
+        repo: string;
+        number: number;
+        dir: string;
+        headref: string;
+        baseref: string;
+        headoid?: string;
+        title?: string;
+        url?: string;
+        ticket?: number;
+        conflicts?: boolean;
+        failedchecks?: string[];
+        changesrequested?: boolean;
+        noreport?: boolean;
+    } & AgentStart
+): Promise<ReviewRestartResult> {
+    return call(FinishCommand, req, RestartTimeoutMs);
+}
+
 // must match ReleaseResolveCommand in pkg/molten/review/release_resolve.go
 const ReleaseResolveCommand = "moltenreviewreleaseresolve";
 

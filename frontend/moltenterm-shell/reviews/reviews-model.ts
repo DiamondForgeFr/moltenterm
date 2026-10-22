@@ -9,6 +9,7 @@ import { serverText, type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import type { ReviewMergedPr } from "./reviews-merged-model";
+import type { PrTaskKind } from "./reviews-task-model";
 
 export const MoltentermReviewsView = "molten-reviews";
 
@@ -177,14 +178,15 @@ export function validateBlocked(pr: ReviewPr): string {
 }
 
 // A rebase asked from a row: to whom, and on which head. It shows until the PR's head changes (the agent pushed).
-export type RebaseAsk = { name: string; head: string; at: number };
+// The work asked of a PR's agent (#683), by rebaseAskKey; kind (#954): a rebase when absent.
+export type RebaseAsk = { name: string; head: string; at: number; kind?: PrTaskKind; blockId?: string };
 
 export function rebaseAskKey(dir: string, number: number): string {
     return `${dir}#${number}`;
 }
 
 export function rebaseAskShown(ask: RebaseAsk, pr: ReviewPr): boolean {
-    if (ask == null) {
+    if (ask == null || (ask.kind != null && ask.kind !== "rebase")) {
         return false;
     }
     return !ask.head || !pr.headoid || ask.head === pr.headoid;
@@ -240,6 +242,7 @@ export type RebaseResult = {
     message?: string;
     messagetext?: ServerText;
     worktree?: string;
+    blockid?: string;
     agent?: string;
     agentname?: string;
     firstname?: string;
@@ -260,6 +263,7 @@ export type RebaseResult = {
 export type RebaseOutcome = {
     kind: "asked" | "offer" | "info" | "failed";
     name?: string;
+    blockId?: string;
     agent?: string;
     result?: RebaseResult;
     text: string;
@@ -293,13 +297,28 @@ const OutcomeKeys = {
         offer: "reviews.ci.investigate.offer",
         failed: "reviews.ci.investigate.failed",
     },
+    finish: {
+        asked: "reviews.check.asked",
+        startedHidden: "reviews.check.startedHidden",
+        offer: "reviews.check.offer",
+        failed: "reviews.check.askFailed",
+    },
 };
 
+// rebaseOutcome: the line for what wavesrv answered; an agent that took the work carries its terminal (#954).
 export function rebaseOutcome(
     result: RebaseResult,
     error?: string,
     what: keyof typeof OutcomeKeys = "rebase"
 ): RebaseOutcome {
+    const outcome = outcomeOf(result, error, what);
+    if (outcome?.kind === "asked" && result?.blockid) {
+        outcome.blockId = result.blockid;
+    }
+    return outcome;
+}
+
+function outcomeOf(result: RebaseResult, error: string, what: keyof typeof OutcomeKeys): RebaseOutcome {
     const keys = OutcomeKeys[what];
     if (error) {
         return { kind: "failed", text: t(keys.failed, { message: error }) };

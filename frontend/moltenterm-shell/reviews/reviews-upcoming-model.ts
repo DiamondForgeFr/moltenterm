@@ -68,6 +68,9 @@ export type AgentBarFacts = {
     since: number;
     parentBlockId?: string;
     parentName?: string;
+    // When the agent's state last changed, and whether it is in error (#954: a task's agent stopped since the ask).
+    stateSince?: number;
+    errored?: boolean;
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv.
@@ -130,6 +133,8 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
             name: (info.firstname || a.firstname || "").trim() || info.agentname || info.agent || a.agent || "",
             state: barState(info),
             since: a.started ?? 0,
+            stateSince: info.since ?? 0,
+            errored: info.state === "error",
         };
         if (info.messagetext != null) {
             facts.held = { text: info.messagetext, english: info.message ?? "" };

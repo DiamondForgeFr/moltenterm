@@ -10,7 +10,7 @@ const BarMarkup = `<div data-testid="row-agent-bar"></div>`;
 
 // The real bar needs wavesrv's agent facts; a stub stands for "an agent works on the PR's branch".
 vi.mock("./reviews-agent-bar", () => ({
-    RowAgentBar: () => <div data-testid="row-agent-bar" />,
+    RowAgentLine: () => <div data-testid="row-agent-bar" />,
     YoursMarker: () => null,
 }));
 
@@ -31,7 +31,8 @@ function pr(): ReviewPr {
 }
 
 describe("Reviews tile layout (#923)", () => {
-    it("keeps the agent bar as the tile's last child, the signature above it", () => {
+    // #954: the signature joined the agent line, the PR's one "who" line.
+    it("keeps the agent line as the tile's last child", () => {
         const html = renderToStaticMarkup(
             <ReviewRow
                 pr={pr()}
@@ -46,9 +47,7 @@ describe("Reviews tile layout (#923)", () => {
                 repo="a/b"
             />
         );
-        const signature = html.indexOf(`data-testid="reviews-signature"`);
-        expect(signature).toBeGreaterThan(-1);
         expect(html.endsWith(`${BarMarkup}</div>`)).toBe(true);
-        expect(signature).toBeLessThan(html.indexOf(BarMarkup));
+        expect(html).not.toContain(`data-testid="reviews-signature"`);
     });
 });

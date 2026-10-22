@@ -318,6 +318,10 @@ func (r *Restarter) finish(ctx context.Context, f agentFollow, run molten.AgentR
 		input.Title = name + " pushed the changes of review round " + round + " on #" + number + ", ready for review"
 		input.TitleText = uimsg.Make("notif.review.reworkedTitle", "name", name, "round", round, "number", number)
 	}
+	if f.origin.Kind == AgentOriginFinish {
+		input.Title = name + " pushed what was left on #" + number + ", ready for review"
+		input.TitleText = uimsg.Make("notif.review.finishedTitle", "name", name, "number", number)
+	}
 	if removed {
 		input.Message = "Its terminal is closed and its copy of " + branch + " removed: nothing was left behind."
 		input.MessageText = uimsg.Make("notif.review.cleanedUp", "branch", branch)
