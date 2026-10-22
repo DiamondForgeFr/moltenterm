@@ -147,6 +147,27 @@ func TestTestContextOfAWorktreeFindsTheLinkedProjectsPrs(t *testing.T) {
 	}
 }
 
+// The developer's case: the checkout serving the app is detached at a PR branch's tip (#961's resolution).
+func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
+	_, clone := makePaneRepo(t)
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
+	commit(t, clone, "l.txt", "feat(#12): loader")
+	gitRun(t, clone, "push", "-q", "origin", "feature/12-loader")
+	gitRun(t, clone, "checkout", "-q", "develop")
+	gitRun(t, clone, "branch", "-q", "-D", "feature/12-loader")
+	gitRun(t, clone, "fetch", "-q", "origin")
+	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/12-loader")
+	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
+		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader"}]`)}})
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
+	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
+	if !answer.Detached || answer.Branch != "feature/12-loader" || answer.Ticket != 12 || answer.Pr == nil || answer.Pr.Number != 110 {
+		t.Fatalf("detached at a PR branch: %+v", answer)
+	}
+}
+
 func TestTestContextFuturePr(t *testing.T) {
 	_, clone := makePaneRepo(t)
 	collector := MakeCollector(t.TempDir(), plainRunner, nil)
