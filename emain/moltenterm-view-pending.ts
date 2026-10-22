@@ -23,7 +23,8 @@ export const ViewPendingGraceMs = 60;
 export const StartupPendingGraceMs = 3000;
 export const PendingPageReloadUrl = "moltenterm-pending://reload";
 
-export type ViewPendingPhase = "loading" | "retrying" | "failed";
+// "stopped": the window lost its renderer more often than it is reloaded (#973, emain/moltenterm-renderer-gone.ts).
+export type ViewPendingPhase = "loading" | "retrying" | "failed" | "stopped";
 
 export type ViewPendingState = {
     phase: ViewPendingPhase;
@@ -104,7 +105,7 @@ export class ViewPendingController {
 
     // Nothing is left in the window's queue: a pending state that is not a failure has nothing left to wait for.
     settle() {
-        if (this.phase === "failed") {
+        if (this.phase === "failed" || this.phase === "stopped") {
             return;
         }
         this.hide();
@@ -184,18 +185,23 @@ function escapeHtml(s: string): string {
 export function makePendingPageHtml(state: ViewPendingState): string {
     const rawName = state.workspaceName || mt("shell.pending.workspace");
     const name = escapeHtml(rawName);
-    const failed = state.phase === "failed";
+    const stopped = state.phase === "stopped";
+    const failed = state.phase === "failed" || stopped;
     const caption = escapeHtml(
-        failed
-            ? mt("shell.pending.noAnswer")
-            : state.phase === "retrying"
-              ? mt("shell.pending.stillOpening")
-              : mt("shell.pending.opening")
+        stopped
+            ? mt("shell.pending.stoppedHint")
+            : failed
+              ? mt("shell.pending.noAnswer")
+              : state.phase === "retrying"
+                ? mt("shell.pending.stillOpening")
+                : mt("shell.pending.opening")
     );
     const title = escapeHtml(
-        state.workspaceName
-            ? mt("shell.pending.didNotOpen", { name: state.workspaceName })
-            : mt("shell.pending.workspaceDidNotOpen")
+        stopped
+            ? mt("shell.pending.stopped")
+            : state.workspaceName
+              ? mt("shell.pending.didNotOpen", { name: state.workspaceName })
+              : mt("shell.pending.workspaceDidNotOpen")
     );
     const openingLabel = escapeHtml(mt("shell.pending.openingName", { name: rawName }));
     const reload = escapeHtml(mt("shell.pending.reload"));

@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => ({
     hangListener: null as (hang: { ms: number; at: number }) => void,
+    reloadedListener: null as (notice: { reason: string; signal: string; at: number }) => void,
+    logShown: 0,
     copied: [] as string[],
 }));
 
@@ -16,6 +18,13 @@ vi.mock("@/app/store/global", () => ({
             env.hangListener = cb;
             return () => {};
         },
+        onMoltentermWindowReloaded: (cb: (notice: { reason: string; signal: string; at: number }) => void) => {
+            env.reloadedListener = cb;
+            return () => {};
+        },
+        moltentermShowLog: async () => {
+            env.logShown++;
+        },
         moltentermHangDiagnostics: async () => ({
             version: "1.0.0-4",
             buildtime: 1,
@@ -26,7 +35,7 @@ vi.mock("@/app/store/global", () => ({
 }));
 vi.mock("@/app/store/wos", () => ({ getObjectValue: () => null as any, makeORef: (t: string, id: string) => t + id }));
 
-import { startHangReport, WindowHangToastId } from "./hang-report";
+import { startHangReport, WindowHangToastId, WindowReloadedToastId } from "./hang-report";
 import { Toasts } from "./toast-store";
 
 describe("the window did not respond (#849)", () => {
@@ -56,5 +65,26 @@ describe("the window did not respond (#849)", () => {
         expect(env.copied[0]).toContain("window unresponsive: 5300 ms");
         expect(env.copied[0]).toContain("tab contents 3 unresponsive");
         expect(Toasts.getInstance().stack()[0].title).toBe("Diagnostics copied");
+    });
+});
+
+describe("the window was reloaded after its renderer was lost (#973, TC-PERF-020)", () => {
+    beforeEach(() => {
+        Toasts.resetInstance();
+        env.logShown = 0;
+    });
+
+    it("says the window stopped and was reloaded, with Show log", async () => {
+        startHangReport();
+        env.reloadedListener({ reason: "killed", signal: "SIGTERM", at: Date.now() });
+        const toast = Toasts.getInstance().stack()[0];
+        expect(toast.id).toBe(WindowReloadedToastId);
+        expect(toast.kind).toBe("warning");
+        expect(toast.title).toBe("The window stopped and was reloaded");
+        expect(toast.message).toBe("Its display process was ended (SIGTERM). Your sessions kept running.");
+        expect(toast.onOpen).toBeUndefined();
+        expect(toast.actions.map((a) => a.label)).toEqual(["Show log"]);
+        await toast.actions[0].run();
+        expect(env.logShown).toBe(1);
     });
 });

@@ -3670,7 +3670,9 @@
             "noAnswer": "Its view did not answer in time, even after a retry.",
             "reload": "Reload",
             "workspace": "Workspace",
-            "openingName": "Opening {name}"
+            "openingName": "Opening {name}",
+            "stopped": "The window stopped several times",
+            "stoppedHint": "It was reloaded 3 times within a minute and stopped again. Your sessions keep running."
         },
         "emptyState": {
             "details": "Details"
@@ -6895,6 +6897,10 @@
         "message": "It answers again. If this repeats, copy the diagnostics for a bug report.",
         "copy": "Copy diagnostics",
         "copied": "Diagnostics copied",
-        "copyFailed": "The diagnostics could not be copied"
+        "copyFailed": "The diagnostics could not be copied",
+        "reloadedTitle": "The window stopped and was reloaded",
+        "reloadedMessage": "Its display process was ended ({cause}). Your sessions kept running.",
+        "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
+        "showLog": "Show log"
     }
 }

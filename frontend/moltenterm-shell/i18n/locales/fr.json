@@ -3670,7 +3670,9 @@
             "noAnswer": "Sa vue n'a pas répondu à temps, même après un nouvel essai.",
             "reload": "Recharger",
             "workspace": "Espace de travail",
-            "openingName": "Ouverture de {name}"
+            "openingName": "Ouverture de {name}",
+            "stopped": "La fenêtre s'est arrêtée plusieurs fois",
+            "stoppedHint": "Elle a été rechargée 3 fois en une minute et s'est de nouveau arrêtée. Vos sessions continuent de tourner."
         },
         "emptyState": {
             "details": "Détails"
@@ -6895,6 +6897,10 @@
         "message": "Elle répond de nouveau. Si cela se répète, copiez les diagnostics pour un rapport de bug.",
         "copy": "Copier les diagnostics",
         "copied": "Diagnostics copiés",
-        "copyFailed": "Les diagnostics n'ont pas pu être copiés"
+        "copyFailed": "Les diagnostics n'ont pas pu être copiés",
+        "reloadedTitle": "La fenêtre s'est arrêtée et a été rechargée",
+        "reloadedMessage": "Son processus d'affichage a été arrêté ({cause}). Vos sessions ont continué de tourner.",
+        "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
+        "showLog": "Afficher le journal"
     }
 }
