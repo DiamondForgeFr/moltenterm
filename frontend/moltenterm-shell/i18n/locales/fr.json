@@ -3965,7 +3965,13 @@
             "heading": "Agents",
             "goToPane": "Cliquez pour aller à son panneau",
             "none": "Aucun agent de code dans cet espace de travail. Lancez-en un depuis la palette ({keys}).",
-            "more": "et {count} de plus"
+            "more": "et {count} de plus",
+            "subagents": "Sous-agents de {name}",
+            "subagentsMore": {
+                "one": "+{count} sous-agent",
+                "other": "+{count} sous-agents"
+            },
+            "subagentsLess": "Afficher moins de sous-agents"
         },
         "steps": {
             "none": "Aucune étape de projet pour la vue d'ensemble : le pipeline n'en déclare aucune dans sa section « {section} ».",

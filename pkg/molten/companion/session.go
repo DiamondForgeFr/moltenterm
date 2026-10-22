@@ -151,10 +151,13 @@ type Session struct {
 	name       string
 	customName bool
 	branch     string
-	topics     []*topic
-	prsSeen    map[int]bool
-	subagents  []*subagent
-	activity   *ActivityInfo
+	// folderBranch: the branch read from the session's folder on disk, once folderRead (#967, gitbranch.go).
+	folderBranch string
+	folderRead   bool
+	topics       []*topic
+	prsSeen      map[int]bool
+	subagents    []*subagent
+	activity     *ActivityInfo
 	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
 	// tickets.go).
 	model  string

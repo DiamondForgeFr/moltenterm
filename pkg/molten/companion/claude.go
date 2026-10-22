@@ -135,13 +135,15 @@ func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 	return rtn
 }
 
-// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers), effort and
-// branch: a sub-agent in a worktree names the worktree's branch.
+// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers) and effort,
+// and its branch from its own folder on disk (#967): its worktree's (agent-<id>.meta.json), else its records' cwd.
+// The branch its records name is never taken: Claude Code shares it across the worktrees of one process.
 func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
 	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
 		return SubagentFacts{}, false
 	}
-	path := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents", "agent-"+agentId+".jsonl")
+	subs := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents")
+	path := filepath.Join(subs, "agent-"+agentId+".jsonl")
 	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
 		return SubagentFacts{}, false
 	}
@@ -149,24 +151,29 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 	if err != nil {
 		return SubagentFacts{}, false
 	}
+	var meta struct {
+		WorktreePath string `json:"worktreePath"`
+	}
+	readSmallJSON(filepath.Join(subs, "agent-"+agentId+".meta.json"), claudeMaxMetaBytes, &meta)
+	dir := meta.WorktreePath
 	var facts SubagentFacts
 	lines := bytes.Split(tail, []byte("\n"))
 	for i := len(lines) - 1; i >= 0; i-- {
-		if facts.Model != "" && facts.Effort != "" && facts.Branch != "" {
+		if facts.Model != "" && facts.Effort != "" && dir != "" {
 			break
 		}
 		var rec struct {
-			GitBranch string `json:"gitBranch"`
-			Effort    string `json:"effort"`
-			Message   struct {
+			Cwd     string `json:"cwd"`
+			Effort  string `json:"effort"`
+			Message struct {
 				Model string `json:"model"`
 			} `json:"message"`
 		}
 		if len(lines[i]) == 0 || json.Unmarshal(lines[i], &rec) != nil {
 			continue
 		}
-		if facts.Branch == "" && rec.GitBranch != "" && rec.GitBranch != "HEAD" {
-			facts.Branch = cutString(rec.GitBranch, 300)
+		if dir == "" && rec.Cwd != "" {
+			dir = rec.Cwd
 		}
 		if facts.Effort == "" && rec.Effort != "" {
 			facts.Effort = cutString(rec.Effort, 40)
@@ -175,6 +182,7 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 			facts.Model = cutString(rec.Message.Model, 100)
 		}
 	}
+	facts.Branch = FolderBranch(dir)
 	return facts, facts != SubagentFacts{}
 }
 
@@ -296,6 +304,9 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	s.SetRecordTime(at)
 	if s.Id == "" {
 		s.Id = str(rec, "sessionId")
+	}
+	if cwd := str(rec, "cwd"); cwd != "" {
+		s.Cwd = cwd
 	}
 	// After the record: a prompt that comes with a new branch gives it to its own topic, not to the one before.
 	defer s.SetBranch(str(rec, "gitBranch"))

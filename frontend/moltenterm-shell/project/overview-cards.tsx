@@ -19,6 +19,7 @@ import {
     agentStateTitle,
 } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { useCompanionFollow } from "../companion/companion-follow";
 import { useLocale, useT } from "../i18n/i18n";
 import { AdapterSteps } from "../mission/adapter-steps";
 import { latestRun, MissionSnapshot, toTreeData } from "../mission/mission-model";
@@ -35,8 +36,10 @@ import {
     CardTone,
     clockElapsed,
     lastBuildLine,
+    MaxSubagentsShown,
     nextReleaseView,
     NowLine,
+    nowSubagents,
     releasesView,
     trunkCiLine,
 } from "./overview-cards-model";
@@ -161,27 +164,86 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
             })
         );
     return (
-        <button
-            type="button"
-            onClick={goTo}
-            title={`${agentStateTitle(info)}\n${t("project.agents.goToPane")}`}
-            className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
-            data-testid="project-agent"
+        <div className="flex min-w-0 flex-col">
+            <button
+                type="button"
+                onClick={goTo}
+                title={`${agentStateTitle(info)}\n${t("project.agents.goToPane")}`}
+                className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
+                data-testid="project-agent"
+            >
+                <span
+                    className={cn(
+                        "inline-block h-2 w-2 shrink-0 rounded-full",
+                        AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
+                        info.state === "working" && "mt-beat-blink"
+                    )}
+                    aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
+                <span
+                    className={cn("max-w-[55%] shrink-0 truncate text-12", AgentStateText[info.state] ?? "text-muted")}
+                >
+                    {agentStateLabel(info.state)}
+                    {branch ? <span className="text-muted"> · {branch}</span> : null}
+                </span>
+            </button>
+            <AgentSubagents info={info} onGoTo={goTo} />
+        </div>
+    );
+}
+
+// The agent's running sub-agents, as its companion lists them (#967, FR-MC-024): name, ticket, branch and state.
+function AgentSubagents({ info, onGoTo }: { info: AgentStateInfo; onGoTo: () => void }) {
+    const t = useT();
+    useLocale();
+    const view = useCompanionFollow(info.blockid);
+    const [expanded, setExpanded] = useState(false);
+    const subs = nowSubagents(view, info, expanded);
+    if (subs.rows.length === 0) {
+        return null;
+    }
+    return (
+        <ul
+            className="ml-[5px] flex min-w-0 flex-col border-l border-border pl-3"
+            aria-label={t("project.agents.subagents", { name: agentLabel(info) })}
+            data-testid="project-subagents"
         >
-            <span
-                className={cn(
-                    "inline-block h-2 w-2 shrink-0 rounded-full",
-                    AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                    info.state === "working" && "mt-beat-blink"
-                )}
-                aria-hidden
-            />
-            <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
-            <span className={cn("max-w-[55%] shrink-0 truncate text-12", AgentStateText[info.state] ?? "text-muted")}>
-                {agentStateLabel(info.state)}
-                {branch ? <span className="text-muted"> · {branch}</span> : null}
-            </span>
-        </button>
+            {subs.rows.map((row) => (
+                <li key={row.id} className="min-w-0">
+                    <button
+                        type="button"
+                        onClick={onGoTo}
+                        title={[row.name, row.configTitle, t("project.agents.goToPane")].filter((s) => !!s).join("\n")}
+                        className="-mx-1 flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-6 px-1 py-0.5 text-left text-12 hover:bg-hover"
+                        data-testid="project-subagent"
+                    >
+                        <span
+                            className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--mt-state-working)]"
+                            aria-hidden
+                        />
+                        <span className="min-w-0 flex-1 truncate text-primary">{row.name}</span>
+                        <span className="max-w-[55%] shrink-0 truncate text-[var(--mt-state-working)]">
+                            {row.stateLabel}
+                            {row.ticket ? <span className="text-muted"> · {row.ticket}</span> : null}
+                            {row.branch ? <span className="text-muted"> · {row.branch}</span> : null}
+                        </span>
+                    </button>
+                </li>
+            ))}
+            {subs.hidden > 0 || (expanded && subs.rows.length > MaxSubagentsShown) ? (
+                <li>
+                    <button
+                        type="button"
+                        onClick={() => setExpanded(!expanded)}
+                        className="cursor-pointer pt-0.5 text-11 text-muted hover:text-primary"
+                        data-testid="project-subagents-more"
+                    >
+                        {expanded ? t("project.agents.subagentsLess") : subs.moreLabel}
+                    </button>
+                </li>
+            ) : null}
+        </ul>
     );
 }
 

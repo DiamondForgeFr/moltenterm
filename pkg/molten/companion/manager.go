@@ -1256,12 +1256,28 @@ func (w *watcher) readAgentFacts() {
 	if w.session == nil {
 		return
 	}
+	if fetch {
+		w.readFolderBranch(dir)
+	}
 	if fetch && reader != nil {
 		w.readSubagents(reader)
 	}
 	w.session.ResolveTickets(func(number int, wanted bool) (string, bool) {
 		return w.m.ticketComplexity(dir, number, fetch && wanted)
 	})
+}
+
+// readFolderBranch reads the main agent's branch from its session's folder (its records' cwd, else the pane's), not
+// from the branch its records name (#967).
+func (w *watcher) readFolderBranch(paneDir string) {
+	dir := w.session.Cwd
+	if dir == "" {
+		dir = paneDir
+	}
+	if dir == "" {
+		return
+	}
+	w.session.SetFolderBranch(FolderBranch(dir))
 }
 
 // readSubagents reads the running sub-agents' own transcripts: the meta files only while one's agent id is unknown.
