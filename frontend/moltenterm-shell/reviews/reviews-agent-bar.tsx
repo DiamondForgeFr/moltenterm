@@ -442,7 +442,13 @@ export function RowAgentLine({
                     {error}
                 </div>
             ) : null}
-            <AgentBar facts={facts} signers={pr.agents} task={barTask} actions={actions} />
+            {/* A stuck task whose agent is gone is told by its own name, not by whoever is on the branch now. */}
+            <AgentBar
+                facts={!live && state === "stuck" ? null : facts}
+                signers={pr.agents}
+                task={barTask}
+                actions={actions}
+            />
         </>
     );
 }

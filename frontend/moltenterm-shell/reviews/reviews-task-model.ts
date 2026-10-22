@@ -75,8 +75,10 @@ export function taskAgentLive(task: PrTask, agent: AgentBarFacts): boolean {
     if (agent == null) {
         return false;
     }
+    // A background agent is a guess from the worktree's activity: it stands for the task's agent only when the task
+    // named no terminal.
     if (agent.kind === "background") {
-        return true;
+        return !task?.blockId;
     }
     return !task?.blockId || agent.blockId === task.blockId;
 }
