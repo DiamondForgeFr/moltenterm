@@ -71,6 +71,7 @@ var englishFields = map[string]string{
 	"mission.BranchPlan.Reason":            "a code (merged-pr, open-pr...) the window words under mc.branches.reason/keep",
 	"mission.GithubSnapshot.Message":       "gh's own error output, shown inside mc.github.state.error",
 	"mission.ReviewsAnswer.Message":        "gh's own error output (the collector's GithubSnapshot.Message)",
+	"mission.MergedHistoryAnswer.Error":    "gh's error reading the merged history (#960), only a tooltip under reviews.history.error",
 	"molten.PipelineReport.Errors":         "the project file validator's diagnostics, shared with `molten project validate` and the agents that fix the file",
 	"molten.PipelineReport.Warnings":       "the project file validator's diagnostics, shared with `molten project validate`",
 	"versions.BumpDecision.Reason":         "`molten release plan` output; the window computes its own plan (releases/versions.ts)",
