@@ -361,7 +361,7 @@ func TestLaunchFailedStepRetries(t *testing.T) {
 	f := makeLaunchFixture(t)
 	flag := filepath.Join(t.TempDir(), "db-up")
 	f.saveRecipe(t, LaunchRecipe{
-		Prepare: []LaunchRecipeStep{{Id: "install", Run: "echo installed"}, {Id: "migrate", Run: "test -f " + flag + " || { echo 'database is down'; exit 4; }"}},
+		Prepare: []LaunchRecipeStep{{Id: "install", Run: "echo installed"}, {Id: "migrate", Run: "test -f " + flag + " || { echo 'database is down'; echo 'npm error code 4'; echo 'npm error command sh -c node migrate.js'; exit 4; }"}},
 		Servers: []LaunchRecipeServer{{Id: "web", Run: fmt.Sprintf("exec node %s %d", f.server, f.port), Port: f.port}},
 	})
 	if _, err := f.l.Start(LaunchStartRequest{Dir: f.dir, Target: LaunchTarget{Kind: LaunchTargetBranch, Branch: "feature/2-upcoming"}}); err != nil {

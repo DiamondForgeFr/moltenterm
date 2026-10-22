@@ -1101,17 +1101,37 @@ func (l *Launches) lastLogLine(dir string, step string) string {
 	if len(data) > 8192 {
 		data = data[len(data)-8192:]
 	}
-	last := ""
+	last, lastOwn := "", ""
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		if line := strings.TrimSpace(scanner.Text()); line != "" {
-			last = line
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
 		}
+		last = line
+		if !launchRunnerTrailer(line) {
+			lastOwn = line
+		}
+	}
+	// The package manager's own report of the failure says less than the script's last words.
+	if lastOwn != "" {
+		last = lastOwn
 	}
 	if len(last) > 300 {
 		last = last[:300] + "…"
 	}
 	return last
+}
+
+var launchRunnerTrailers = []string{"npm error", "npm ERR!", "error Command failed", "info Visit https://yarnpkg.com", " ELIFECYCLE ", "ERR_PNPM_", "error: script \"", "▶ "}
+
+func launchRunnerTrailer(line string) bool {
+	for _, trailer := range launchRunnerTrailers {
+		if strings.HasPrefix(line, trailer) || (strings.HasPrefix(trailer, " ") && strings.Contains(line, trailer)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Launches) runPrepare(ctx context.Context, state *LaunchState, i int) bool {
