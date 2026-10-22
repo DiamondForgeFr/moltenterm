@@ -12,6 +12,9 @@ export const WindowHangChannel = "moltenterm-window-hang";
 export const HangDiagnosticsChannel = "moltenterm-hang-diagnostics";
 // Electron main writes the clipboard: the page's navigator.clipboard refuses when its document lacks the focus.
 export const HangCopyChannel = "moltenterm-hang-copy";
+// A window reloaded after its renderer was lost (#973), and the log it points to.
+export const WindowReloadedChannel = "moltenterm-window-reloaded";
+export const ShowLogChannel = "moltenterm-show-log";
 
 type SyncSender = {
     sendSync: (channel: string, ...args: any[]) => any;

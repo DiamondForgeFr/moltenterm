@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
-// MOLTENTERM-PATCH (#849): every sendSync is timed, and the page answers Electron main's heartbeat
+// MOLTENTERM-PATCH (#849, #973): every sendSync is timed, and the page answers Electron main's heartbeat
 import {
     HangCopyChannel,
     HangDiagnosticsChannel,
     HangPingChannel,
     HangPongChannel,
+    ShowLogChannel,
     timedSendSync,
     WindowHangChannel,
+    WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
 
@@ -196,6 +198,14 @@ contextBridge.exposeInMainWorld("api", {
     },
     moltentermHangDiagnostics: () => ipcRenderer.invoke(HangDiagnosticsChannel),
     moltentermHangCopy: (text: string) => ipcRenderer.invoke(HangCopyChannel, text),
+    // MOLTENTERM-PATCH (#973): the window was reloaded after its renderer was lost, and the log that says why
+    // (emain/moltenterm-renderer-gone.ts)
+    onMoltentermWindowReloaded: (callback: (notice: any) => void) => {
+        const listener = (_event, notice) => callback(notice);
+        ipcRenderer.on(WindowReloadedChannel, listener);
+        return () => ipcRenderer.removeListener(WindowReloadedChannel, listener);
+    },
+    moltentermShowLog: () => ipcRenderer.invoke(ShowLogChannel),
 });
 
 // Custom event for "new-window"

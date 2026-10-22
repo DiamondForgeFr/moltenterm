@@ -26,7 +26,14 @@ type HangApi = {
     onMoltentermWindowHang?: (callback: (hang: { ms: number; at: number }) => void) => () => void;
     moltentermHangDiagnostics?: () => Promise<MainHangDiagnostics>;
     moltentermHangCopy?: (text: string) => Promise<void>;
+    onMoltentermWindowReloaded?: (callback: (notice: WindowReloaded) => void) => () => void;
+    moltentermShowLog?: () => Promise<void>;
 };
+
+// must match WindowReloaded in emain/moltenterm-renderer-gone.ts
+type WindowReloaded = { reason: string; signal: string; at: number };
+
+export const WindowReloadedToastId = "window-reloaded";
 
 const limiter = new LongTaskLimiter();
 const recentLongTasks: string[] = [];
@@ -134,6 +141,28 @@ export function showWindowHang(hang: { ms: number; at: number }) {
     });
 }
 
+// The window's renderer was lost and Electron main loaded it again (#973, FR-PERF-004).
+export function showWindowReloaded(notice: WindowReloaded) {
+    const cause = notice?.signal ?? notice?.reason;
+    showToast({
+        id: WindowReloadedToastId,
+        kind: "warning",
+        title: t("hang.reloadedTitle"),
+        message: cause ? t("hang.reloadedMessage", { cause }) : t("hang.reloadedMessagePlain"),
+        actions: [
+            {
+                id: "log",
+                label: t("hang.showLog"),
+                run: () => {
+                    api()
+                        .moltentermShowLog?.()
+                        ?.catch((e) => console.log("hang report: show log failed", e));
+                },
+            },
+        ],
+    });
+}
+
 export function startHangReport() {
     if (started) {
         return;
@@ -141,4 +170,5 @@ export function startHangReport() {
     started = true;
     observeLongTasks();
     api().onMoltentermWindowHang?.((hang) => showWindowHang(hang));
+    api().onMoltentermWindowReloaded?.((notice) => showWindowReloaded(notice));
 }

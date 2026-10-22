@@ -137,6 +137,16 @@ describe("ViewPendingController (#450)", () => {
         c.end(token);
         expect(s.pages[2]).toBe("hidden");
     });
+
+    it("shows a stopped window on the page at once and keeps it when the queue settles (#973)", () => {
+        const s = makeSurface();
+        s.live = null;
+        const c = new ViewPendingController(s);
+        const token = c.begin(null, () => {}, Date.now(), 0);
+        c.setPhase(token, "stopped");
+        c.settle();
+        expect(s.pages).toEqual([{ phase: "stopped", workspaceName: null }]);
+    });
 });
 
 describe("pending page (#450)", () => {
@@ -149,6 +159,14 @@ describe("pending page (#450)", () => {
         const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
         expect(failed).toContain('href="moltenterm-pending://reload"');
         expect(failed).toContain("prefers-reduced-motion");
+    });
+
+    it("says the window stopped, with Reload, and keeps it when the queue settles (#973, TC-PERF-021)", () => {
+        const stopped = makePendingPageHtml({ phase: "stopped", workspaceName: "A" });
+        expect(stopped).toContain("The window stopped several times");
+        expect(stopped).toContain("Your sessions keep running.");
+        expect(stopped).toContain('href="moltenterm-pending://reload"');
+        expect(stopped).not.toContain('class="line"');
     });
 
     it("reads in the interface language and never names the machine (#665)", () => {
