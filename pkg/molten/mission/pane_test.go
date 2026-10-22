@@ -253,8 +253,22 @@ func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
 	if !state.Detached || state.DetachedBranch != "" || state.Pr != nil || state.GitError != "" || state.Sha == "" {
 		t.Fatalf("detached on no branch: %+v", state)
 	}
-	if !state.PrKnown {
-		t.Fatalf("the open PRs are known, so no PR means none yet: %+v", state)
+	if state.PrKnown {
+		t.Fatalf("a commit on no branch waits for no PR: %+v", state)
+	}
+
+	// A feature branch without a PR waits for one; the trunk never does.
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/110-next")
+	panes.now = func() time.Time { return time.Now().Add(4 * time.Second) }
+	state, _ = panes.Get(PaneRequest{Dir: clone})
+	if state.Branch != "feature/110-next" || state.Pr != nil || !state.PrKnown {
+		t.Fatalf("a branch with no PR yet: %+v", state)
+	}
+	gitRun(t, clone, "checkout", "-q", "develop")
+	panes.now = func() time.Time { return time.Now().Add(6 * time.Second) }
+	state, _ = panes.Get(PaneRequest{Dir: clone})
+	if state.Branch != "develop" || state.PrKnown {
+		t.Fatalf("the trunk waits for no PR: %+v", state)
 	}
 }
 

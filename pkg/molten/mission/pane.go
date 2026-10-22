@@ -399,13 +399,26 @@ func (p *Panes) addAnswerTime(state *PaneState) {
 			state.PrKnown = snap.Github.State == GithubStateOk && snap.Github.Errors["prs"] == ""
 		}
 	}
+	branch := state.Branch
 	if state.Detached {
 		state.DetachedBranch, state.Pr = pickDetachedBranch(prs, state.Heads, state.Sha)
-		return
+		branch = state.DetachedBranch
+	} else if branch != "" {
+		state.Pr = findPanePr(prs, branch)
 	}
-	if state.Branch != "" {
-		state.Pr = findPanePr(prs, state.Branch)
+	if state.PrKnown && state.Pr == nil && (branch == "" || longLivedBranch(state.Project, branch)) {
+		state.PrKnown = false
 	}
+}
+
+// longLivedBranch: a branch pull requests target, never one waiting for its own PR (the Reviews "Upcoming" rule).
+func longLivedBranch(project string, branch string) bool {
+	switch branch {
+	case "main", "master", "develop", "trunk":
+		return true
+	}
+	configured := ConfiguredBranches(project)
+	return branch == configured.Trunk || branch == configured.Release
 }
 
 // upToDate tells whether the last probe still answers a plain request: without a watch, while it is younger than
