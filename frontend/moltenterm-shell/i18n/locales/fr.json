@@ -2737,6 +2737,8 @@
             "notRunYet": "Jamais lancé",
             "wholeLog": "Journal complet",
             "retry": "Réessayer",
+            "cancelling": "Annulation…",
+            "closing": "Fermeture…",
             "noOutput": "(aucune sortie)",
             "state": {
                 "running": "en cours",
@@ -2949,6 +2951,15 @@
             }
         },
         "releaseRun": {
+            "pending": {
+                "preparing": "Préparation…",
+                "starting": "Lancement de {step}…",
+                "cutting": "Coupe de {tag}…",
+                "rerunning": "Relance…",
+                "rewriting": "Réécriture…",
+                "saving": "Enregistrement…",
+                "abandoning": "Abandon…"
+            },
             "phase": {
                 "prepare": "Préparer",
                 "cut": "Couper",
