@@ -248,6 +248,10 @@ func (c *TestContexts) describe(answer *TestContext, state PaneState, workspaceD
 	answer.Root, answer.Project, answer.Name, answer.Worktree = state.Root, state.Project, state.Name, state.Worktree
 	answer.Branch, answer.Sha, answer.Detached, answer.Dirty = state.Branch, state.Sha, state.Detached, state.Dirty
 	answer.GitError = state.GitError
+	// A detached HEAD keeps the branch it stands for, by the status bar's rules (#961).
+	if answer.Branch == "" && state.Detached {
+		answer.Branch = state.DetachedBranch
+	}
 	if workspaceDir != "" && filepath.IsAbs(workspaceDir) {
 		answer.SameProject = realPath(workspaceDir) == realPath(state.Project)
 	}
