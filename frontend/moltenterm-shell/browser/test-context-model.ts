@@ -16,7 +16,8 @@ export type TestContextAnswer = {
     host: string;
     port: number;
     known: boolean;
-    reason?: string;
+    // Why the source is unknown: notlocal, noprocess, nofolder or norepo.
+    unknown?: string;
     pid?: number;
     process?: string;
     cwd?: string;
@@ -113,7 +114,7 @@ export function branchText(answer: TestContextAnswer, t: Translate): string {
 }
 
 export function reasonText(answer: TestContextAnswer, t: Translate): string {
-    switch (answer?.reason) {
+    switch (answer?.unknown) {
         case "noprocess":
             return t("browser.testContext.reason.noProcess", { port: answer.port });
         case "nofolder":

@@ -172,19 +172,19 @@ func TestTestContextNeverGuesses(t *testing.T) {
 	panes := MakePanes(plainRunner, nil, nil)
 	host := &fakeTestContextHost{}
 	contexts := makeFakeTestContexts(panes, nil, host)
-	if a, _ := contexts.Get(TestContextRequest{Url: "https://example.com"}); a.Known || a.Reason != TestContextNotLocal {
+	if a, _ := contexts.Get(TestContextRequest{Url: "https://example.com"}); a.Known || a.Unknown != TestContextNotLocal {
 		t.Fatalf("remote page: %+v", a)
 	}
-	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4000"}); a.Known || a.Reason != TestContextNoProcess {
+	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4000"}); a.Known || a.Unknown != TestContextNoProcess {
 		t.Fatalf("nothing listens: %+v", a)
 	}
 	host.pids = []int32{21}
-	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4001"}); a.Known || a.Reason != TestContextNoFolder || a.Pid != 21 {
+	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4001"}); a.Known || a.Unknown != TestContextNoFolder || a.Pid != 21 {
 		t.Fatalf("unreadable folder: %+v", a)
 	}
 	plain := t.TempDir()
 	host.cwds = map[int32]string{21: plain}
-	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4002"}); a.Known || a.Reason != TestContextNoRepo || a.Cwd != plain {
+	if a, _ := contexts.Get(TestContextRequest{Url: "http://localhost:4002"}); a.Known || a.Unknown != TestContextNoRepo || a.Cwd != plain {
 		t.Fatalf("folder outside a repository: %+v", a)
 	}
 }

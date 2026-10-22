@@ -63,8 +63,9 @@ type TestContext struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	// Known: a process listening on the port runs from a git repository.
-	Known  bool   `json:"known"`
-	Reason string `json:"reason,omitempty"`
+	Known bool `json:"known"`
+	// Unknown: why not, a TestContext* code the window words.
+	Unknown string `json:"unknown,omitempty"`
 	// The listening process; several (a dev server and its workers) name the one whose folder was used.
 	Pid     int32  `json:"pid,omitempty"`
 	Process string `json:"process,omitempty"`
@@ -186,12 +187,12 @@ func (c *TestContexts) Get(req TestContextRequest) (TestContext, error) {
 	host, port, ok := LocalAppTarget(req.Url)
 	answer := TestContext{Url: req.Url, Host: host, Port: port, At: c.now().UnixMilli()}
 	if !ok {
-		answer.Reason = TestContextNotLocal
+		answer.Unknown = TestContextNotLocal
 		return answer, nil
 	}
 	pids, err := c.pidsOn(port, req.Fresh)
 	if err != nil || len(pids) == 0 {
-		answer.Reason = TestContextNoProcess
+		answer.Unknown = TestContextNoProcess
 		return answer, nil
 	}
 	pid, cwd, state := c.servingFolder(pids)
@@ -202,11 +203,11 @@ func (c *TestContexts) Get(req TestContextRequest) (TestContext, error) {
 	}
 	answer.Cwd = cwd
 	if cwd == "" {
-		answer.Reason = TestContextNoFolder
+		answer.Unknown = TestContextNoFolder
 		return answer, nil
 	}
 	if state.Root == "" {
-		answer.Reason = TestContextNoRepo
+		answer.Unknown = TestContextNoRepo
 		return answer, nil
 	}
 	answer.Known = true
