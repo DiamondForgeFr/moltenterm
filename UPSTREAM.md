@@ -105,6 +105,11 @@ them), and needed its grants once more. `RELEASE.md` has the release checklist.
 
 ## Continuous integration
 
+Local Vitest and ESLint discovery excludes `.claude/worktrees/**` relative to the checkout root (#820), while
+retaining framework defaults and the rest of the harness and workspace scope. A checkout located inside that
+directory still validates its own files. Run `node --test scripts/moltenterm-worktree-discovery.node-test.mjs` to verify
+both ignored nested failures and detected current-checkout failures with isolated disposable fixtures.
+
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them.
 
 | Job           | When                              | Steps                                                                                                                                         |
@@ -324,6 +329,10 @@ Everything else (directories, lock, socket, menus, About panel, permission promp
 `build.appId` or the directory name makes the OS treat the result as a new application, with fresh settings and data.
 
 ## Patch ledger
+
+| Wave file | Change | Why | Ticket |
+| --- | --- | --- | --- |
+| `vitest.config.ts`, `eslint.config.js` | Exclude checkout-relative nested worktree storage, retaining default exclusions | Validate only the current checkout | #820 |
 
 Terminal accessibility (#808, FR-SHELL-070) updates already-listed `frontend/app/view/term/termwrap.ts`,
 `emain/emain-ipc.ts`, `emain/preload.ts`, `frontend/types/custom.d.ts`,
