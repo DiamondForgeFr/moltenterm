@@ -1650,7 +1650,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                     }
                     e.currentTarget.blur();
                 }}
-                className="h-6 min-w-0 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
+                className="h-6 min-w-24 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
             />
             <ShareButton model={model} tab={active} />
             <EngineButton model={model} tab={active} />
