@@ -195,7 +195,10 @@ function TestContextDetails({
                     {rows.map((row) => (
                         <div key={row.label} className="contents">
                             <dt className="text-muted">{row.label}</dt>
-                            <dd className="min-w-0 font-mono break-all text-primary" title={row.title ?? row.value}>
+                            <dd
+                                className="min-w-0 font-mono [overflow-wrap:anywhere] text-primary"
+                                title={row.title ?? row.value}
+                            >
                                 {row.value}
                             </dd>
                         </div>
@@ -229,7 +232,7 @@ function TestContextDetails({
                     {target != null ? (
                         <button
                             type="button"
-                            className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"
+                            className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
                             data-testid="browser-test-context-reviews"
                             onClick={() => {
                                 onDone();
@@ -245,7 +248,7 @@ function TestContextDetails({
                     {answer.pr != null ? (
                         <button
                             type="button"
-                            className="cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+                            className="cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                             onClick={() => {
                                 onDone();
                                 fireAndForget(() => openWebLink(answer.pr.url));
