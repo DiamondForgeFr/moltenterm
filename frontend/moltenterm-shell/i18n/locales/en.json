@@ -3898,7 +3898,13 @@
                 "other": "{count} commits on no remote"
             },
             "uncommitted": "uncommitted changes",
-            "openProjectTab": "Open the Project tab"
+            "openProjectTab": "Open the Project tab",
+            "detachedLabel": "detached at {at}",
+            "onNoBranch": "on no branch",
+            "noPr": "No pull request yet"
+        },
+        "project": {
+            "below": "Repository in the subfolder {name}"
         }
     },
     "project": {

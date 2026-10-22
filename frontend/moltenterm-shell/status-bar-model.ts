@@ -78,6 +78,10 @@ export type PaneState = {
     // FR-SHELL-016: the tree is a linked worktree; the worktree the terminal is linked to, when it asked.
     worktree?: boolean;
     linked?: { path: string; branch?: string; sha?: string; dirty?: boolean; missing?: boolean; inside?: boolean };
+    // #961: the branch a detached HEAD stands for; the open PRs are known; root is the only repository below dir.
+    detachedbranch?: string;
+    prknown?: boolean;
+    below?: boolean;
 };
 
 export type PaneBlockMeta = { view?: string; connection?: string; "cmd:cwd"?: string; "molten:worktree"?: string };
@@ -153,6 +157,18 @@ function shortSha(sha: string): string {
     return (sha ?? "").slice(0, 7);
 }
 
+// A detached HEAD names the branch it stands for (#961), else its commit: never a bare "detached".
+function paneBranchLabel(state: PaneState): string {
+    if (state?.branch) {
+        return state.branch;
+    }
+    if (!state?.detached) {
+        return "";
+    }
+    const at = state.detachedbranch || shortSha(state.sha);
+    return at ? t("status.branch.detachedLabel", { at }) : "";
+}
+
 // state is the answer for folder, or null while it is asked (or for a folder of another tree).
 export function makePaneView(folder: string, state: PaneState, ws: Workspace): PaneView {
     const linkedDir = readWorkspaceProject(ws).dir;
@@ -160,7 +176,7 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
     const linked =
         linkedDir !== "" && (state?.project ? state.project === linkedDir : checkPathInside(folder, linkedDir));
     const projectName = state?.name || (linked ? pathBaseName(linkedDir) : pathBaseName(project));
-    const branch = state?.branch || (state?.detached ? shortSha(state.sha) : "");
+    const branch = paneBranchLabel(state);
     const branchLines: string[] = [];
     if (branch !== "") {
         branchLines.push(
@@ -168,6 +184,12 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
                 ? t("status.branch.detachedAt", { sha: shortSha(state.sha) })
                 : t("status.branch.at", { branch, sha: shortSha(state.sha) })
         );
+        if (state.detached && !state.detachedbranch) {
+            branchLines.push(t("status.branch.onNoBranch"));
+        }
+        if (state.prknown && !state.pr && (!state.detached || state.detachedbranch)) {
+            branchLines.push(t("status.branch.noPr"));
+        }
         if (state.upstream) {
             branchLines.push(
                 t("status.branch.aheadBehind", {
@@ -194,7 +216,13 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
         linked,
         projectName,
         projectLogo: state?.logo ?? "",
-        projectTitle: [projectName, folder].filter((s) => s).join("\n"),
+        projectTitle: [
+            projectName,
+            state?.below && state.root ? t("status.project.below", { name: pathBaseName(state.root) }) : "",
+            folder,
+        ]
+            .filter((s) => s)
+            .join("\n"),
         branch,
         branchTitle: branchLines.join("\n"),
         ahead: branch !== "" ? (state.ahead ?? 0) : 0,

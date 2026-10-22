@@ -177,3 +177,113 @@ func TestPaneReadsTheCollectorCacheOnly(t *testing.T) {
 		t.Fatal("reading the cache started a refresh")
 	}
 }
+
+func TestParseHeads(t *testing.T) {
+	out := strings.Join([]string{
+		"refs/remotes/origin/HEAD",
+		"refs/remotes/origin/feature/109-loader",
+		"refs/heads/feature/109-loader",
+		"refs/remotes/upstream/develop",
+		"refs/heads/develop",
+		"",
+	}, "\n")
+	heads := parseHeads(out)
+	want := []string{"feature/109-loader", "develop"}
+	if strings.Join(heads, ",") != strings.Join(want, ",") {
+		t.Fatalf("heads: %v", heads)
+	}
+	if parseHeads("") != nil {
+		t.Fatal("no ref, yet heads")
+	}
+}
+
+func TestPickDetachedBranch(t *testing.T) {
+	prs := parsePanePrs(json.RawMessage(`[{"number":7,"title":"Seven","url":"u7","headRefName":"feature/7-x","headRefOid":"aaa"},
+		{"number":9,"title":"Nine","url":"u9","headRefName":"feature/9-y","headRefOid":"bbb","isDraft":true}]`))
+	branch, pr := pickDetachedBranch(prs, []string{"develop", "feature/9-y"}, "bbb")
+	if branch != "feature/9-y" || pr == nil || pr.Number != 9 || !pr.Draft {
+		t.Fatalf("the branch with a PR wins: %q %+v", branch, pr)
+	}
+	branch, pr = pickDetachedBranch(prs, nil, "aaa")
+	if branch != "feature/7-x" || pr == nil || pr.Number != 7 {
+		t.Fatalf("the PR whose head is HEAD: %q %+v", branch, pr)
+	}
+	branch, pr = pickDetachedBranch(prs, []string{"develop", "main"}, "ccc")
+	if branch != "develop" || pr != nil {
+		t.Fatalf("the first branch, no PR: %q %+v", branch, pr)
+	}
+	branch, pr = pickDetachedBranch(nil, nil, "ccc")
+	if branch != "" || pr != nil {
+		t.Fatalf("a commit no branch points to: %q %+v", branch, pr)
+	}
+}
+
+// The reported case: a checkout detached at origin/<branch> because another worktree holds the branch.
+func TestPaneDetachedAtABranchHeldByAWorktree(t *testing.T) {
+	base, clone := makePaneRepo(t)
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/109-loader")
+	commit(t, clone, "l.txt", "feat(#109): loader")
+	gitRun(t, clone, "push", "-q", "origin", "feature/109-loader")
+	gitRun(t, clone, "checkout", "-q", "develop")
+	gitRun(t, clone, "worktree", "add", "-q", filepath.Join(base, "agent"), "feature/109-loader")
+	gitRun(t, clone, "checkout", "-q", "--detach", "origin/feature/109-loader")
+
+	cacheDir := t.TempDir()
+	collector := MakeCollector(cacheDir, plainRunner, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{
+		State: GithubStateOk,
+		Prs:   json.RawMessage(`[{"number":109,"title":"Loader","url":"u109","headRefName":"feature/109-loader"}]`),
+	}})
+	panes := MakePanes(plainRunner, nil, collector)
+	state, err := panes.Get(PaneRequest{Dir: clone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Detached || state.Branch != "" || state.GitError != "" {
+		t.Fatalf("detached checkout: %+v", state)
+	}
+	if state.DetachedBranch != "feature/109-loader" || state.Pr == nil || state.Pr.Number != 109 || !state.PrKnown {
+		t.Fatalf("detached at the PR branch: %+v", state)
+	}
+
+	// A commit made on the detached HEAD is on no branch: the short SHA stays, no PR, no error.
+	commit(t, clone, "x.txt", "chore(#109): try")
+	panes.now = func() time.Time { return time.Now().Add(2 * time.Second) }
+	state, _ = panes.Get(PaneRequest{Dir: clone})
+	if !state.Detached || state.DetachedBranch != "" || state.Pr != nil || state.GitError != "" || state.Sha == "" {
+		t.Fatalf("detached on no branch: %+v", state)
+	}
+	if !state.PrKnown {
+		t.Fatalf("the open PRs are known, so no PR means none yet: %+v", state)
+	}
+}
+
+func TestPaneFolderAboveARepository(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	parent := t.TempDir()
+	repo := filepath.Join(parent, "diamondforge")
+	os.MkdirAll(repo, 0755)
+	gitRun(t, repo, "init", "-q", "-b", "develop")
+	commit(t, repo, "a.txt", "feat(#1): first")
+	os.MkdirAll(filepath.Join(parent, "notes"), 0755)
+	os.MkdirAll(filepath.Join(parent, ".hidden", ".git"), 0755)
+
+	state, err := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Below || state.Root != repo || state.Branch != "develop" || state.Name != "diamondforge" || state.Dir != parent {
+		t.Fatalf("the only repository below the folder: %+v", state)
+	}
+
+	// Two repositories: the bar cannot tell which one the session works in, so it names none.
+	other := filepath.Join(parent, "other")
+	os.MkdirAll(other, 0755)
+	gitRun(t, other, "init", "-q", "-b", "main")
+	state, _ = MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: parent})
+	if state.Below || state.Root != "" || state.Branch != "" || state.Name != filepath.Base(parent) {
+		t.Fatalf("two repositories below: %+v", state)
+	}
+}
