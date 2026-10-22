@@ -52,6 +52,15 @@ func (s *Service) AskInvestigate(ctx context.Context, req InvestigateRequest) (R
 	return s.restarter.AskInvestigate(ctx, req)
 }
 
+// AskReleaseResolve is the developer's click on Analyze and resolve or Investigate together on a failed release step
+// (#945).
+func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.AskReleaseResolve(ctx, req)
+}
+
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {

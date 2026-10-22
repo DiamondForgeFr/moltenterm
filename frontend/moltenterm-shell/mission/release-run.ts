@@ -90,7 +90,18 @@ export type Phase = {
     redo?: PhaseAction;
     // The step whose last lines the phase shows.
     log?: ReleaseStepFact;
+    // A failed step an agent can look into (#945): the step, its own run in MoltenTerm, and the GitHub runs that failed.
+    failure?: PhaseFailure;
 };
+
+// A GitHub run a failed step names: the trunk's CI a promotion waited on, or the release workflow's run.
+export type FailedRun = { name: string; runid: number; url: string };
+
+export type PhaseFailure = { step: string; runid?: string; runs: FailedRun[] };
+
+const GithubRunUrlRe = /https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/actions\/runs\/(\d+)[^\s:;,)]*/g;
+// What `molten release promote` says when the trunk's CI is red (pkg/molten/release/ci.go requireCi).
+const PromoteRedRe = /(\S+) failed on \S+ \S+ (https:\/\/\S+?)[:,]?(\s|$)/;
 
 export type ReleaseRun = {
     active: boolean;
@@ -123,6 +134,28 @@ const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? 
 
 // A step that ended badly, or stopped without saying how it ended.
 const broke = (fact: ReleaseStepFact) => fact != null && !fact.running && fact.state !== "success";
+
+// runsInLog: the GitHub runs a step's last lines name, each once, named by the workflow the line says failed.
+export function runsInLog(lines: readonly string[]): FailedRun[] {
+    const rtn: FailedRun[] = [];
+    for (const line of lines ?? []) {
+        const named = PromoteRedRe.exec(line);
+        for (const m of line.matchAll(GithubRunUrlRe)) {
+            const runid = Number(m[1]);
+            if (!(runid > 0) || rtn.some((r) => r.runid === runid)) {
+                continue;
+            }
+            const name =
+                named != null && named[2].startsWith(m[0]) ? named[1] : t("mc.releaseRun.resolve.run", { id: runid });
+            rtn.push({ name, runid, url: m[0] });
+        }
+    }
+    return rtn;
+}
+
+function failureOf(step: string, fact: ReleaseStepFact): PhaseFailure {
+    return { step, runid: fact?.runid, runs: runsInLog(fact?.tail) };
+}
 
 // The steps of each phase, in their declared order. As declared (a step without a phase in a phased list joins the
 // phase of the step before it); when no step declares one, the first prepares and the others run in order through the
@@ -216,6 +249,7 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
                     : t("mc.releaseRun.stepFailed", { step: stepTitle(seq.failed), words: lastWords(fact) }),
             action: runAgain(seq.failed, facts),
             redo: before ? runAgain(before, facts) : undefined,
+            failure: failureOf(stepTitle(seq.failed), fact),
             log: fact,
         };
     }
@@ -250,6 +284,7 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
         };
     }
     if (broke(fact)) {
+        const at = steps.find((s) => s.id === fact.phases?.[fact.phases.length - 1]);
         return {
             ...base,
             status: "failed",
@@ -260,6 +295,7 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
                     : t("mc.releaseRun.preparationFailed", { words: lastWords(fact) }),
             action: retry,
             log: fact,
+            failure: failureOf(at ? stepTitle(at) : PhaseTitles.prepare, fact),
         };
     }
     if (fact?.state === "success") {
@@ -380,6 +416,10 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
                   conclusion: red[0].conclusion,
               }),
         action: { kind: "rerun", label: t("mc.remote.rerunFailed") },
+        failure: {
+            step: red.map((r) => r.workflowName).join(", "),
+            runs: red.map((r) => ({ name: r.workflowName, runid: r.databaseId, url: r.url })),
+        },
     };
 }
 

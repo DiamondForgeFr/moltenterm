@@ -262,6 +262,7 @@ export function NowCard({
             {showRelease ? (
                 <ReleaseRunSection
                     dir={project.dir}
+                    repo={snapshot?.github?.repo}
                     projectName={projectName}
                     pipeline={pipeline}
                     runs={runs}

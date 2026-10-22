@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { PipelineReleaseStep } from "./mission-model";
-import { ReleaseFacts, releaseRun, ReleaseStepFact, stepsByPhase } from "./release-run";
+import { ReleaseFacts, releaseRun, ReleaseStepFact, runsInLog, stepsByPhase } from "./release-run";
 
 const steps: PipelineReleaseStep[] = [
     { id: "warm", title: "Warm the cache", phase: "prepare", run: "x" },
@@ -320,5 +320,73 @@ describe("a pipeline without phases (#230)", () => {
         expect(by.prepare.map((s) => s.id)).toEqual(["a"]);
         expect(by.cut.map((s) => s.id)).toEqual(["b", "c"]);
         expect(by.back.map((s) => s.id)).toEqual(["d"]);
+    });
+});
+
+describe("a failed step an agent can look into (#945)", () => {
+    const red =
+        "ci.yml failed on develop 65542e1 https://github.com/acme/app/actions/runs/389: fix develop first, or re-run it (gh run rerun --failed) when the code was not the cause";
+
+    it("reads the GitHub runs a step's last lines name, each once", () => {
+        expect(runsInLog([red, "see https://github.com/acme/app/actions/runs/389/job/5", "no url here"])).toEqual([
+            { name: "ci.yml", runid: 389, url: "https://github.com/acme/app/actions/runs/389" },
+        ]);
+        expect(runsInLog(["https://github.com/acme/app/actions/runs/12/job/3 failed"])).toEqual([
+            { name: "run 12", runid: 12, url: "https://github.com/acme/app/actions/runs/12/job/3" },
+        ]);
+        expect(runsInLog(undefined)).toEqual([]);
+    });
+
+    it("gives a failed preparation its step, its run and the trunk's red CI", () => {
+        const failed = releaseRun(
+            facts({
+                preparation: ok({
+                    runid: "prep-1",
+                    state: "failure",
+                    exit: 1,
+                    phases: ["warm", "promote"],
+                    tail: [red],
+                }),
+            }),
+            steps
+        );
+        expect(failed.phases[0].failure).toEqual({
+            step: "Promote develop",
+            runid: "prep-1",
+            runs: [{ name: "ci.yml", runid: 389, url: "https://github.com/acme/app/actions/runs/389" }],
+        });
+    });
+
+    it("gives a failed step its title, and a red build its runs", () => {
+        const cut = releaseRun(
+            facts({
+                preparation: ok(),
+                steps: { draft: ok({ runid: "d-1", state: "failure", exit: 2, tail: ["boom"] }) },
+            }),
+            steps
+        );
+        expect(cut.phases[1].failure).toEqual({ step: "Prepare the cut", runid: "d-1", runs: [] });
+        const build = releaseRun(
+            facts({
+                tagexists: true,
+                runs: [
+                    {
+                        databaseId: 7,
+                        workflowName: "release.yml",
+                        headBranch: "v1.2.0-1",
+                        status: "completed",
+                        conclusion: "failure",
+                        url: "https://gh/run/7",
+                        createdAt: "2026-10-03T10:00:00Z",
+                    },
+                ],
+            }),
+            []
+        );
+        expect(build.phases[2].failure).toEqual({
+            step: "release.yml",
+            runs: [{ name: "release.yml", runid: 7, url: "https://gh/run/7" }],
+        });
+        expect(releaseRun(facts(), steps).phases[0].failure).toBeUndefined();
     });
 });

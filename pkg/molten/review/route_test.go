@@ -47,7 +47,7 @@ func TestRouteCallers(t *testing.T) {
 	notTerminals := append([]routetest.From{e.Window(), e.Electron()}, e.Forged()...)
 	routetest.MustRefuseWith(t, link, notTerminals, HandoffCommand, data, "from a local MoltenTerm terminal")
 	for _, command := range []string{OpenCommand, AiPaneCommand, WorktreeCommand, MergePlanCommand, MergeCommand, PublishCommand,
-		RestartCommand, RebaseCommand, InvestigateCommand, MarkReadyCommand, CleanupCommand, CommentCommand, TranslateCommand} {
+		RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand, MarkReadyCommand, CleanupCommand, CommentCommand, TranslateCommand} {
 		routetest.MustRefuse(t, link, e.NonWindows(), command, data)
 	}
 }

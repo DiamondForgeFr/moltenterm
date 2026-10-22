@@ -684,6 +684,27 @@ export function askReviewInvestigate(
     return call(InvestigateCommand, req, RestartTimeoutMs);
 }
 
+// must match ReleaseResolveCommand in pkg/molten/review/release_resolve.go
+const ReleaseResolveCommand = "moltenreviewreleaseresolve";
+
+// askReleaseResolve is the developer's click on Analyze and resolve (background) or Investigate together (together) on
+// a failed release step (#945): a new agent starts in its own copy of the trunk with the release's rules.
+export function askReleaseResolve(req: {
+    dir: string;
+    repo?: string;
+    tag: string;
+    phase: string;
+    step: string;
+    trunk: string;
+    log?: string;
+    runs?: InvestigateCheck[];
+    mode: AgentMode;
+    workspaceid: string;
+    tabname?: string;
+}): Promise<ReviewRestartResult> {
+    return call(ReleaseResolveCommand, req, RestartTimeoutMs);
+}
+
 const MarkReadyCommand = "moltenreviewmarkready";
 
 // markReviewReady is the developer's click on Mark ready for review (#687): gh pr ready on the draft PR.

@@ -11,7 +11,7 @@ import { useLocale, useT } from "../i18n/i18n";
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
-    kind: "rebase" | "restart" | "batch" | "investigate";
+    kind: "rebase" | "restart" | "batch" | "investigate" | "release";
     repo: string;
     number: number;
     branch: string;
@@ -20,11 +20,15 @@ export type AgentOrigin = {
     round?: number;
     // count: the PRs of a batch merge (FR-REV-025).
     count?: number;
+    // tag and step: the failed release step a release agent looks into (#945).
+    tag?: string;
+    phase?: string;
+    step?: string;
     mode: string;
     at: number;
 };
 
-const OriginKinds: AgentOrigin["kind"][] = ["rebase", "restart", "batch", "investigate"];
+const OriginKinds: AgentOrigin["kind"][] = ["rebase", "restart", "batch", "investigate", "release"];
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -55,7 +59,12 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
         merged: origin.mergedpr ?? 0,
         round: origin.round ?? 0,
         count: origin.count ?? 0,
+        tag: origin.tag ?? "",
+        step: origin.step ?? "",
     };
+    if (origin.kind === "release") {
+        return translate(origin.mode === "together" ? "agentOrigin.releaseTogether" : "agentOrigin.release", vars);
+    }
     if (origin.kind === "batch") {
         return translate("agentOrigin.batch", vars);
     }

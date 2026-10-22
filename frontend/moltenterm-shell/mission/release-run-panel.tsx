@@ -6,18 +6,24 @@
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
 // while it waits its public notes are read and edited here.
 
+import { atoms } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
-import { useLocale, useT } from "../i18n/i18n";
+import { t, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { askReleaseResolve } from "../review/review-client";
+import { showStartedAgent } from "../reviews/agent-choice";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import type { ReleaseCiAwait } from "./branch-ci";
 import { openCicdTab } from "./cicd-open";
 import {
+    githubRunRerun,
+    missionLog,
     missionTrust,
     releaseEnd,
     releaseNotes,
@@ -29,6 +35,7 @@ import {
 import { labelRecord } from "./mission-i18n";
 import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
 import { ReleaseSession } from "./release-model";
+import { ReleaseFailureActions, ReleaseResolveActions } from "./release-resolve";
 import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
 import { TrustPrompt } from "./runs-view";
 
@@ -65,7 +72,7 @@ export type ReleasePanelActions = {
     run: (action: PhaseAction) => Promise<void>;
     loadNotes: () => Promise<string>;
     saveNotes: (text: string) => Promise<void>;
-};
+} & Partial<ReleaseResolveActions>;
 
 function StatusIcon({ status, small }: { status: PhaseStatus; small?: boolean }) {
     switch (status) {
@@ -368,6 +375,13 @@ function Detail({
                     ))}
                 </div>
             ) : null}
+            {actions.resolve && actions.rerunRuns ? (
+                <ReleaseFailureActions
+                    key={`${phase.id}:${phase.failure?.runid ?? ""}`}
+                    phase={phase}
+                    actions={{ resolve: actions.resolve, rerunRuns: actions.rerunRuns }}
+                />
+            ) : null}
             {phase.action ? (
                 editing && notesDirty ? (
                     <p className="mt-3 text-right text-12 text-muted">{t("mc.releaseRun.saveBeforeCut")}</p>
@@ -494,6 +508,7 @@ export function ReleaseRunPanel({
 // end, by itself once all five phases are done or when the user abandons it.
 export function ReleaseRunSection({
     dir,
+    repo,
     projectName,
     pipeline,
     runs,
@@ -501,6 +516,8 @@ export function ReleaseRunSection({
     onEnded,
 }: {
     dir: string;
+    // The project on GitHub, owner/name: the failed runs an agent reads (#945).
+    repo?: string;
     projectName: string;
     pipeline: PipelineDef;
     runs: RunRecord[];
@@ -515,6 +532,7 @@ export function ReleaseRunSection({
     const locale = useLocale();
     const run = useMemo(() => releaseRun(facts, steps ?? []), [facts, steps, locale]);
     const tag = run?.tag;
+    const trunk = facts?.trunk;
     const actions = useMemo<ReleasePanelActions>(
         () => ({
             run: async (action) => {
@@ -534,8 +552,41 @@ export function ReleaseRunSection({
             },
             loadNotes: async () => (await releaseNotes(dir, tag))?.text ?? "",
             saveNotes: (text) => releaseNotesSave(dir, tag, text),
+            rerunRuns: async (failed) => {
+                for (const r of failed) {
+                    await githubRunRerun(dir, r.runid, true);
+                }
+                reload();
+            },
+            resolve: async (phase, mode) => {
+                const failure = phase.failure;
+                let log = (phase.log?.tail ?? []).join("\n");
+                if (failure.runid) {
+                    try {
+                        log = (await missionLog(dir, failure.runid, 0))?.text ?? log;
+                    } catch {
+                        // The step's last lines are enough for the agent to start from.
+                    }
+                }
+                const tab = t("mc.releaseRun.resolve.tab", { tag });
+                const result = await askReleaseResolve({
+                    dir,
+                    repo: repo || undefined,
+                    tag,
+                    phase: phase.id,
+                    step: failure.step,
+                    trunk: trunk || "main",
+                    log,
+                    runs: failure.runs.map((r) => ({ name: r.name, url: r.url, runid: r.runid })),
+                    mode,
+                    workspaceid: globalStore.get(atoms.workspace)?.oid,
+                    tabname: tab,
+                });
+                showStartedAgent(mode, result);
+                return { result, tab };
+            },
         }),
-        [dir, tag, reload]
+        [dir, tag, reload, repo, trunk]
     );
     const complete = run != null && !run.active;
     useEffect(() => {
