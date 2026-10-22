@@ -13,6 +13,8 @@ import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { topModal } from "../modal-focus";
 import { MoltenWave } from "../molten-button";
+import { MergeMethodPicker } from "../review/merge-method-picker";
+import { ReviewMergeMethod, ReviewMergeMethods, reviewMergeMethods } from "../review/review-client";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { BatchRuns } from "./reviews-batch-client";
@@ -21,6 +23,7 @@ import {
     batchConfirmKey,
     batchCurrent,
     batchItemEnded,
+    batchMethodShown,
     BatchPlan,
     batchPlanCostText,
     BatchRowMark,
@@ -123,13 +126,17 @@ export function BatchRowChip({ mark }: { mark: BatchRowMark }) {
 // The confirmation modal: nothing starts before Start; Enter starts, Escape cancels.
 export function BatchConfirmDialog({
     plan,
+    dir,
+    repo,
     base,
     onStart,
     onCancel,
 }: {
     plan: BatchPlan;
+    dir: string;
+    repo: string;
     base: string;
-    onStart: () => Promise<string>;
+    onStart: (method: ReviewMergeMethod) => Promise<string>;
     onCancel: () => void;
 }) {
     const t = useT();
@@ -137,15 +144,31 @@ export function BatchConfirmDialog({
     const startRef = useRef<HTMLButtonElement>(null);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState("");
+    // The method (#957): Validate's, read fresh for the repository's base, the developer's pick over it; nothing starts
+    // before it is known, so the queue never decides it at merge time.
+    const [methods, setMethods] = useState<ReviewMergeMethods>(null);
+    const [methodsError, setMethodsError] = useState("");
+    const [picked, setPicked] = useState<ReviewMergeMethod>(null);
+    useEffect(() => {
+        let live = true;
+        reviewMergeMethods(dir, repo, base).then(
+            (answer) => live && setMethods(answer),
+            (e) => live && setMethodsError(serverErrorText(e))
+        );
+        return () => {
+            live = false;
+        };
+    }, [dir, repo, base]);
+    const method = batchMethodShown(methods, picked);
     const count = plan.steps.length;
     const start = () => {
-        if (starting || count === 0) {
+        if (starting || count === 0 || method == null) {
             return;
         }
         setStarting(true);
         setError("");
         fireAndForget(async () => {
-            const problem = await onStart();
+            const problem = await onStart(method);
             setStarting(false);
             setError(problem);
         });
@@ -176,13 +199,13 @@ export function BatchConfirmDialog({
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [onCancel]);
-    const method = methodText(plan.method);
+    const methodLabel = methodText(method ?? "");
     return (
         <DialogFrame
             role="reviews-batch-confirm"
             onEscape={onCancel}
             title={tCount("reviews.batch.confirm.title", count)}
-            subtitle={t("reviews.batch.confirm.subtitle", { base, method })}
+            subtitle={t("reviews.batch.confirm.subtitle", { base, method: methodLabel })}
             widthClass="w-[560px]"
             trapFocus
             buttons={
@@ -200,6 +223,7 @@ export function BatchConfirmDialog({
                         type="button"
                         className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
                         aria-busy={starting || undefined}
+                        aria-disabled={method == null || undefined}
                         onClick={start}
                         data-testid="reviews-batch-confirm-start"
                     >
@@ -236,6 +260,29 @@ export function BatchConfirmDialog({
                 <p className="text-secondary" data-testid="reviews-batch-confirm-cost">
                     {batchPlanCostText(plan)}
                 </p>
+                {methods != null && method != null ? (
+                    <MergeMethodPicker
+                        methods={methods.methods}
+                        defaultMethod={methods.method}
+                        method={method}
+                        refused={methods.methodrefused}
+                        queue={methods.queue}
+                        onSelect={setPicked}
+                        testId="reviews-batch-confirm-method"
+                    />
+                ) : methodsError ? (
+                    <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-method-error">
+                        {t("reviews.batch.confirm.methodError", { detail: methodsError })}
+                    </p>
+                ) : (
+                    <p
+                        className="flex items-center gap-2 text-muted"
+                        data-testid="reviews-batch-confirm-method-loading"
+                    >
+                        <DominoLoader />
+                        {t("reviews.batch.confirm.methodLoading")}
+                    </p>
+                )}
                 <p className="text-secondary">{t("reviews.batch.confirm.what", { base })}</p>
                 <p className="text-secondary">{t("reviews.batch.confirm.stops")}</p>
                 <p className="text-muted">{t("reviews.batch.confirm.checkout")}</p>

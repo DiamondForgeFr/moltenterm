@@ -105,6 +105,26 @@ export function chosenMethod(plan: ReviewMergePlan, picked: ReviewMergeMethod): 
     return plan?.method ?? methods[0] ?? "rebase";
 }
 
+// mergeMethodNotes is what a sheet says under its merge method (#957): that the method is the repository's default
+// (or becomes it), that a merge queue sets it, and which remembered method GitHub no longer allows.
+export function mergeMethodNotes(
+    defaultMethod: ReviewMergeMethod,
+    chosen: ReviewMergeMethod,
+    refused: ReviewMergeMethod,
+    queue: boolean
+): { hint: string; refused: string } {
+    const method = t(`review.validate.method.${chosen}`);
+    const refusedText =
+        refused != null && refused !== chosen
+            ? t("review.validate.methodRefused", { refused: t(`review.validate.method.${refused}`), method })
+            : "";
+    if (queue) {
+        return { hint: t("review.validate.methodQueue", { method }), refused: refusedText };
+    }
+    const hint = chosen === defaultMethod ? t("review.validate.methodDefault") : t("review.validate.methodNewDefault");
+    return { hint, refused: refusedText };
+}
+
 export function mergeButtonLabel(plan: ReviewMergePlan, method: ReviewMergeMethod): string {
     if (queuesOnClick(plan)) {
         return t("review.merge.button.whenGreen");

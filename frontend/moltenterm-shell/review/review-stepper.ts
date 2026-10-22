@@ -204,6 +204,10 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
             return t(`review.validate.outcome.merged.${methodOf(record.method)}`, vars);
         case "queuetimeout":
             return t("review.validate.outcome.queuetimeout", { minutes: record.minutes ?? 0 });
+        case "methodrefused":
+            return t("review.validate.outcome.methodrefused", {
+                method: t(`review.validate.method.${methodOf(record.method)}`),
+            });
         case "check":
             return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
         case "cifailed":

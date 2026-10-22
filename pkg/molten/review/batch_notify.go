@@ -102,6 +102,8 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 		return "GitHub blocks the merge (a review or a rule)", uimsg.Make("notif.review.batch.why.blocked")
 	case BatchReasonWarnings:
 		return "unpublished comments or work in progress", uimsg.Make("notif.review.batch.why.warnings")
+	case BatchReasonMethod:
+		return "GitHub no longer allows the merge method shown (" + names + ")", uimsg.Make("notif.review.batch.why.method", "names", names)
 	case BatchReasonCiTimeout:
 		return "its checks did not finish in time", uimsg.Make("notif.review.batch.why.citimeout")
 	case BatchReasonUnknown:

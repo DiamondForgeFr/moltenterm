@@ -10,6 +10,7 @@ import {
     mergeButtonLabel,
     mergeCleanup,
     mergeDisabledReason,
+    mergeMethodNotes,
     mergeRunning,
     mergeWaitingText,
     overrideText,
@@ -163,6 +164,22 @@ describe("Validate's plan sheet", () => {
         expect(chosenMethod(all, "rebase")).toBe("rebase");
         expect(chosenMethod(plan({ methods: ["merge"], method: "merge" }), "rebase")).toBe("merge");
         expect(chosenMethod(plan(), null)).toBe("rebase");
+    });
+
+    // #957: the sheet says the method is the repository's default, or becomes it, and names a refused remembered one.
+    it("says what the method choice does for the repository", () => {
+        expect(mergeMethodNotes("rebase", "rebase", null, false)).toEqual({
+            hint: "Default for this repository",
+            refused: "",
+        });
+        expect(mergeMethodNotes("rebase", "merge", null, false).hint).toBe("Becomes the default for this repository");
+        expect(mergeMethodNotes("merge", "merge", "rebase", false)).toEqual({
+            hint: "Default for this repository",
+            refused: "Rebase is no longer allowed here: Merge commit instead.",
+        });
+        expect(mergeMethodNotes("squash", "squash", "rebase", true).hint).toBe(
+            "Set by the merge queue of this repository"
+        );
     });
 
     it("lets the wait stop, never the merge call", () => {

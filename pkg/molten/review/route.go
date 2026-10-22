@@ -45,9 +45,11 @@ const (
 	ShownCommand    = "moltenreviewshown"
 	AiPaneCommand   = "moltenreviewaipane"
 	// Validate (FR-REV-012): the plan, the merge and its cancel are a MoltenTerm window's only.
-	MergePlanCommand   = "moltenreviewmergeplan"
-	MergeCommand       = "moltenreviewmerge"
-	MergeCancelCommand = "moltenreviewmergecancel"
+	MergePlanCommand = "moltenreviewmergeplan"
+	// MergeMethodsCommand: Validate's method for a repository's base, for the batch modal (#957); read-only.
+	MergeMethodsCommand = "moltenreviewmergemethods"
+	MergeCommand        = "moltenreviewmerge"
+	MergeCancelCommand  = "moltenreviewmergecancel"
 	// Comments (FR-REV-003, FR-REV-009): saved, staged, dropped, discussed and moved to a new head from a MoltenTerm
 	// window only.
 	CommentCommand      = "moltenreviewcomment"
@@ -362,7 +364,7 @@ func (l *routeLink) route() localroute.Route {
 
 func commandTimeout(command string) time.Duration {
 	switch command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, MergeMethodsCommand, RelocateCommand, DiscussCommand,
 		PublishInfoCommand, TranslateCommand, NoteFileCommand, MarkReadyCommand:
 		return gitTimeout
 	case PublishCommand:
@@ -426,6 +428,12 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.store.GetNotes(req.Repo)
+	case MergeMethodsCommand:
+		req, err := decode[MergeMethodsRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.MergeMethods(ctx, req)
 	case ForecastCommand:
 		req, err := decode[ForecastRequest](data)
 		if err != nil {

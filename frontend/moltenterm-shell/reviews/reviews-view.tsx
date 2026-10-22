@@ -22,6 +22,7 @@ import { MissionSnapshot } from "../mission/mission-model";
 import { timeAgo } from "../mission/time-format";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
 import { PrSignature } from "./pr-signature";
@@ -309,7 +310,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         setBatchSelected([]);
         setConfirming(false);
     };
-    const startBatch = async (): Promise<string> => {
+    const startBatch = async (method: ReviewMergeMethod): Promise<string> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
             const listed = [...listSplit.ready, ...listSplit.drafts];
@@ -320,7 +321,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 plannedBatch.steps.map((s) => s.pr.number)
             );
             await BatchRuns.getInstance().add(
-                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, workspaceId, order)
+                batchStartRequest(dir, answer.repo, answer.target, plannedBatch, method, workspaceId, order)
             );
         } catch (e) {
             return serverErrorText(e);
@@ -455,6 +456,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 {confirming && plannedBatch != null ? (
                     <BatchConfirmDialog
                         plan={plannedBatch}
+                        dir={dir}
+                        repo={answer.repo}
                         base={answer.target}
                         onStart={startBatch}
                         onCancel={() => setConfirming(false)}

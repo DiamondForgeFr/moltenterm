@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -65,11 +66,32 @@ type branchRules struct {
 }
 
 // mergeMethods is the plan's part about the method.
+// refused: the method remembered for the repository that its settings or rules no longer allow, which the sheets
+// announce instead of falling back silently (#957).
 type mergeMethods struct {
 	methods []string
 	method  string
 	rule    string
 	queue   bool
+	refused string
+}
+
+// MergeMethodsRequest asks what Validate's method would be for a repository's base, for the sheets that merge without
+// a plan of their own (the batch modal, #957).
+type MergeMethodsRequest struct {
+	Dir  string `json:"dir"`
+	Repo string `json:"repo"`
+	Base string `json:"base"`
+}
+
+// MergeMethods: the methods allowed in GitHub's order, the default (the repository's remembered method when allowed),
+// what narrowed them, whether a merge queue sets the method, and the remembered method GitHub refuses.
+type MergeMethods struct {
+	Methods       []string `json:"methods"`
+	Method        string   `json:"method"`
+	MethodRule    string   `json:"methodrule,omitempty"`
+	Queue         bool     `json:"queue,omitempty"`
+	MethodRefused string   `json:"methodrefused,omitempty"`
 }
 
 type mergePrefs struct {
@@ -165,7 +187,11 @@ func parseBranchRules(out []byte) (branchRules, error) {
 // chooseMethods combines the repository, the base's rules and the last method used into the plan's methods.
 func chooseMethods(repo repoMethods, rules branchRules, last string) mergeMethods {
 	if rules.queue != "" {
-		return mergeMethods{methods: []string{rules.queue}, method: rules.queue, rule: MethodRuleQueue, queue: true}
+		rtn := mergeMethods{methods: []string{rules.queue}, method: rules.queue, rule: MethodRuleQueue, queue: true}
+		if last != "" && last != rules.queue {
+			rtn.refused = last
+		}
+		return rtn
 	}
 	rtn := mergeMethods{methods: repo.methods}
 	if rules.allowed != nil {
@@ -193,7 +219,42 @@ func chooseMethods(repo repoMethods, rules branchRules, last string) mergeMethod
 		rtn.methods = append([]string{}, allMergeMethods...)
 		rtn.method = MergeMethodMerge
 	}
+	if last != "" && last != rtn.method {
+		rtn.refused = last
+	}
 	return rtn
+}
+
+// MergeMethods answers what Validate's method would be for the repository's base, read like a plan's (#957).
+func (m *Merger) MergeMethods(ctx context.Context, req MergeMethodsRequest) (MergeMethods, error) {
+	if err := checkDir(req.Dir); err != nil {
+		return MergeMethods{}, err
+	}
+	if err := checkRepo(req.Repo); err != nil {
+		return MergeMethods{}, err
+	}
+	if !reviewsession.ValidRef(req.Base) {
+		return MergeMethods{}, errors.New("base must be the PRs' base branch")
+	}
+	methods := m.planMethods(ctx, req.Dir, req.Repo, req.Base)
+	return MergeMethods{Methods: methods.methods, Method: methods.method, MethodRule: methods.rule, Queue: methods.queue, MethodRefused: methods.refused}, nil
+}
+
+// keepChosenMethod saves the method the developer confirmed in a sheet as the repository's next default. A merge
+// queue's method is GitHub's, not a choice.
+func (m *Merger) keepChosenMethod(repo string, method string, queue bool) {
+	if queue || !ValidMergeMethod(method) {
+		return
+	}
+	if err := m.store.SetLastMergeMethod(repo, method); err != nil {
+		log.Printf("%s %s: the merge method could not be kept: %v\n", logPrefix, repo, err)
+	}
+}
+
+// methodRefusedError: GitHub refused the merge for its method ("Rebase merges are not allowed on this repository").
+func methodRefusedError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not allowed on this repository") || strings.Contains(msg, "merge method is not allowed")
 }
 
 // runGhApi runs gh api, which names the repository in its path (it takes no --repo).
