@@ -66,6 +66,16 @@ type session struct {
 	tabs      map[int64]*agentTab
 	// allowedOnce holds the sites the user allowed for this session only (Allow once).
 	allowedOnce map[string]bool
+	// notices are what the user did with the session's tabs (a share, a give back), told to the agent in its next tool
+	// result (#971): an agent never asked would not know a tab is its to use.
+	notices []tabNotice
+}
+
+type tabNotice struct {
+	tabId int64
+	// note is what tabs_context shows on the tab until the agent has been told.
+	note string
+	text string
 }
 
 // sessionInfo is a copy of a session's identity, read outside the lock.
@@ -274,7 +284,8 @@ func isUiSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab) || source == wshutil.ElectronRoute
 }
 
-// Control applies Stop, takeover or Give back to a tab (DS-BRW-011). Stop and takeover cancel the calls in flight on
+// Control applies Stop, Take over or Give back to a tab (DS-BRW-011), each an explicit act of the user in the panel
+// (#971). Stop and takeover cancel the calls in flight on
 // the tab before returning; Stop also releases the tab, which stays open as a user tab.
 func (m *Manager) Control(source string, req ControlRequest) error {
 	if !isUiSource(source) {
@@ -288,7 +299,8 @@ func (m *Manager) Control(source string, req ControlRequest) error {
 	if !changed {
 		return nil
 	}
-	if released {
+	if released || req.Action == ControlTakeOver {
+		// After Take over the page is the user's: emain stops holding back their clicks and keys (#971).
 		m.env.SetControl(key, false)
 	}
 	m.publishPanel(key.PanelId)
@@ -326,12 +338,15 @@ func (m *Manager) applyControl(key TabKey, action string) (bool, sessionInfo, bo
 		}
 		cancelCallsLocked(t)
 		t.state = TabStateTakenOver
+		// emain clears the emulated viewport when control ends.
+		t.viewport = nil
 		return true, info, false
 	case ControlGiveBack:
 		if t.state != TabStateTakenOver {
 			return false, info, false
 		}
 		t.state = TabStateActive
+		s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
 		return true, info, false
 	}
 	return false, info, false

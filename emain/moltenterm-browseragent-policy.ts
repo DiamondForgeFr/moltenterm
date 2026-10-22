@@ -815,7 +815,8 @@ export function downloadHost(url: string): string {
     }
 }
 
-// Any click or key from the user in a controlled page takes over (FR-BRW-008 AC7).
+// The user's click or key in a controlled page is held back (FR-BRW-008, #971: taking over is explicit); wheel and
+// moves stay free.
 export function isTakeoverKey(input: { type: string }): boolean {
     return input?.type === "keyDown" || input?.type === "rawKeyDown";
 }

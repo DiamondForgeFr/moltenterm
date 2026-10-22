@@ -273,7 +273,7 @@ function agentItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem
         items.push({
             id: "browser:agent:giveback",
             type: "action",
-            label: t("browser.agent.giveBack"),
+            label: t("browser.agent.giveBackTo", { name: tab.agentname?.trim() || t("browser.agent.anAgent") }),
             icon: "robot",
             run: () => bt.controlAgent(tab.browsertabid, "giveback"),
         });
