@@ -32,6 +32,8 @@ const (
 	paneMaxTrees      = 64
 	paneMaxProjects   = 256
 	paneMaxCi         = 256
+	// A folder outside any repository with more entries than this is not searched for a repository below it (#961).
+	paneMaxChildEntries = 512
 	// The worktree a terminal is linked to but not in (FR-SHELL-016) only needs its branch: an older probe will do.
 	paneLinkedMaxAge = 10 * time.Second
 	// A watched tree (FR-PERF-011) is probed again when git changed it, on a fresh request (a prompt back, a cd), and
@@ -91,6 +93,14 @@ type PaneState struct {
 	GitError string           `json:"giterror,omitempty"`
 	At       int64            `json:"at,omitempty"`
 	Linked   *PaneLinked      `json:"linked,omitempty"`
+	// DetachedBranch: on a detached HEAD, the branch the commit stands for (#961): picked at answer time among Heads.
+	DetachedBranch string `json:"detachedbranch,omitempty"`
+	// PrKnown: the collector holds the project's open pull requests, so no Pr means the branch has none yet.
+	PrKnown bool `json:"prknown,omitempty"`
+	// Below: the asked folder is outside any repository and Root is the only repository among its subfolders (#961).
+	Below bool `json:"below,omitempty"`
+	// Heads: on a detached HEAD, the branches whose tip is HEAD, local ones first, as the probe found them.
+	Heads []string `json:"-"`
 }
 
 type paneTree struct {
@@ -124,6 +134,11 @@ type paneProject struct {
 	readAt time.Time
 }
 
+type paneChild struct {
+	root   string
+	readAt time.Time
+}
+
 type paneCiKey struct {
 	project string
 	sha     string
@@ -141,6 +156,8 @@ type Panes struct {
 	sleep     func(time.Duration)
 	trees     map[string]*paneTree
 	projects  map[string]*paneProject
+	// The repository below a folder outside any repository, by folder (#961); read like the project info.
+	children map[string]*paneChild
 	// The local CI's verdict by project, commit and pipeline: it changes when a CI run ends (CiChanged).
 	ciVerdicts map[paneCiKey]string
 }
@@ -154,6 +171,7 @@ func MakePanes(run Runner, ci *Ci, collector *Collector) *Panes {
 		sleep:      time.Sleep,
 		trees:      map[string]*paneTree{},
 		projects:   map[string]*paneProject{},
+		children:   map[string]*paneChild{},
 		ciVerdicts: map[paneCiKey]string{},
 	}
 }
@@ -373,11 +391,20 @@ func (p *Panes) addAnswerTime(state *PaneState) {
 		return
 	}
 	state.Ci = p.ciVerdict(state.Project, state.Sha)
-	state.Pr = nil
-	if p.collector != nil && state.Branch != "" {
+	state.Pr, state.PrKnown, state.DetachedBranch = nil, false, ""
+	var prs []panePrEntry
+	if p.collector != nil && (state.Branch != "" || state.Detached) {
 		if snap, ok := p.collector.Cached(state.Project); ok && snap.Github != nil {
-			state.Pr = matchPullRequest(snap.Github.Prs, state.Branch)
+			prs = parsePanePrs(snap.Github.Prs)
+			state.PrKnown = snap.Github.State == GithubStateOk && snap.Github.Errors["prs"] == ""
 		}
+	}
+	if state.Detached {
+		state.DetachedBranch, state.Pr = pickDetachedBranch(prs, state.Heads, state.Sha)
+		return
+	}
+	if state.Branch != "" {
+		state.Pr = findPanePr(prs, state.Branch)
 	}
 }
 
@@ -395,6 +422,11 @@ func upToDate(read paneTreeRead, seq uint64, watched bool, maxAge time.Duration)
 func (p *Panes) getTree(dir string, fresh bool, maxAge time.Duration) PaneState {
 	root := molten.FindGitRoot(dir)
 	if root == "" {
+		if child := p.childRepository(dir); child != "" {
+			state := p.getTree(child, fresh, maxAge)
+			state.Below = true
+			return state
+		}
 		name, logo := p.projectInfo(dir)
 		return PaneState{Name: name, Logo: logo, At: p.now().UnixMilli()}
 	}
@@ -550,6 +582,9 @@ func (p *Panes) probe(root string, read paneTreeRead, seq uint64, watched bool) 
 	st := parsePaneStatus(out)
 	state.Sha, state.Branch, state.Detached = st.sha, st.branch, st.detached
 	state.Upstream, state.Ahead, state.Behind, state.Dirty = st.upstream, st.ahead, st.behind, st.dirty
+	if state.Detached && state.Sha != "" {
+		state.Heads = p.headsAt(ctx, root)
+	}
 	var unpushed paneUnpushed
 	if state.Sha != "" && state.Upstream == "" {
 		last := read.unpushed
@@ -577,24 +612,161 @@ func (p *Panes) unpushed(ctx context.Context, root string) int {
 	return count
 }
 
-func matchPullRequest(raw json.RawMessage, branch string) *PanePullRequest {
+// headsAt lists the branches whose tip is HEAD (#961): local ones first, then the remote-tracking ones without their
+// remote, each name once. A remote's HEAD only names its default branch, which is listed by its own name.
+func (p *Panes) headsAt(ctx context.Context, root string) []string {
+	out, err := p.git(ctx, root, "for-each-ref", "--points-at", "HEAD", "--format=%(refname)", "refs/heads", "refs/remotes")
+	if err != nil {
+		return nil
+	}
+	return parseHeads(out)
+}
+
+func parseHeads(out string) []string {
+	var local, remote []string
+	for _, ref := range strings.Split(out, "\n") {
+		ref = strings.TrimSpace(ref)
+		if name, ok := strings.CutPrefix(ref, "refs/heads/"); ok && name != "" {
+			local = append(local, name)
+			continue
+		}
+		rest, ok := strings.CutPrefix(ref, "refs/remotes/")
+		if !ok {
+			continue
+		}
+		_, name, ok := strings.Cut(rest, "/")
+		if !ok || name == "" || name == "HEAD" {
+			continue
+		}
+		remote = append(remote, name)
+	}
+	var heads []string
+	seen := map[string]bool{}
+	for _, name := range append(local, remote...) {
+		if !seen[name] {
+			seen[name] = true
+			heads = append(heads, name)
+		}
+	}
+	return heads
+}
+
+type panePrEntry struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	Url         string `json:"url"`
+	HeadRefName string `json:"headRefName"`
+	HeadRefOid  string `json:"headRefOid"`
+	IsDraft     bool   `json:"isDraft"`
+}
+
+func (pr panePrEntry) view() *PanePullRequest {
+	return &PanePullRequest{Number: pr.Number, Title: pr.Title, Url: pr.Url, Draft: pr.IsDraft}
+}
+
+func parsePanePrs(raw json.RawMessage) []panePrEntry {
 	if len(raw) == 0 {
 		return nil
 	}
-	var prs []struct {
-		Number      int    `json:"number"`
-		Title       string `json:"title"`
-		Url         string `json:"url"`
-		HeadRefName string `json:"headRefName"`
-		IsDraft     bool   `json:"isDraft"`
-	}
+	var prs []panePrEntry
 	if json.Unmarshal(raw, &prs) != nil {
 		return nil
 	}
+	return prs
+}
+
+func findPanePr(prs []panePrEntry, branch string) *PanePullRequest {
 	for _, pr := range prs {
 		if pr.HeadRefName == branch {
-			return &PanePullRequest{Number: pr.Number, Title: pr.Title, Url: pr.Url, Draft: pr.IsDraft}
+			return pr.view()
 		}
 	}
 	return nil
+}
+
+func matchPullRequest(raw json.RawMessage, branch string) *PanePullRequest {
+	return findPanePr(parsePanePrs(raw), branch)
+}
+
+// pickDetachedBranch names the branch a detached HEAD stands for (#961): a branch at HEAD with an open pull request,
+// else the open pull request whose head is HEAD (the branch moved on, or only GitHub has it), else the first branch
+// at HEAD. Empty for a commit no branch points to.
+func pickDetachedBranch(prs []panePrEntry, heads []string, sha string) (string, *PanePullRequest) {
+	for _, head := range heads {
+		if pr := findPanePr(prs, head); pr != nil {
+			return head, pr
+		}
+	}
+	if sha != "" {
+		for _, pr := range prs {
+			if pr.HeadRefOid == sha && pr.HeadRefName != "" {
+				return pr.HeadRefName, pr.view()
+			}
+		}
+	}
+	if len(heads) > 0 {
+		return heads[0], nil
+	}
+	return "", nil
+}
+
+// childRepository is the only repository among the direct subfolders of dir, a folder outside any repository (#961):
+// a session opened one level above its repository describes that repository. None, several, a folder too large to
+// list, the home folder or the file system's root give nothing: the bar shows the folder alone rather than a guess.
+func (p *Panes) childRepository(dir string) string {
+	if cached := p.cachedChild(dir); cached != nil && p.now().Sub(cached.readAt) < paneProjectMaxAge {
+		return cached.root
+	}
+	root := findChildRepository(dir)
+	p.storeChild(dir, &paneChild{root: root, readAt: p.now()})
+	return root
+}
+
+func (p *Panes) cachedChild(dir string) *paneChild {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.children[dir]
+}
+
+func (p *Panes) storeChild(dir string, child *paneChild) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	if _, known := p.children[dir]; !known && len(p.children) >= paneMaxProjects {
+		p.children = map[string]*paneChild{}
+	}
+	p.children[dir] = child
+}
+
+func findChildRepository(dir string) string {
+	if filepath.Dir(dir) == dir {
+		return ""
+	}
+	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == dir {
+		return ""
+	}
+	f, err := os.Open(dir)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(paneMaxChildEntries + 1)
+	if err != nil || len(entries) > paneMaxChildEntries {
+		return ""
+	}
+	found := ""
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() || strings.HasPrefix(name, ".") {
+			continue
+		}
+		child := filepath.Join(dir, name)
+		if _, err := os.Stat(filepath.Join(child, ".git")); err != nil {
+			continue
+		}
+		if found != "" {
+			return ""
+		}
+		found = child
+	}
+	return found
 }

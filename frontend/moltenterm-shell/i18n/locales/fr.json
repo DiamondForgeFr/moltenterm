@@ -3929,7 +3929,13 @@
                 "other": "{count} commits sans remote"
             },
             "uncommitted": "modifications non commitées",
-            "openProjectTab": "Ouvrir l'onglet Projet"
+            "openProjectTab": "Ouvrir l'onglet Projet",
+            "detachedLabel": "détachée sur {at}",
+            "onNoBranch": "sur aucune branche",
+            "noPr": "Pas encore de pull request"
+        },
+        "project": {
+            "below": "Dépôt du sous-dossier {name}"
         }
     },
     "project": {
