@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { AgentStateInfo } from "../agent-state-model";
+import { CompanionSubagent, CompanionView } from "../companion/companion-model";
+import { I18nModel } from "../i18n/i18n";
 import { CiState } from "../mission/ci-model";
 import { Milestone } from "../mission/github";
 import { MissionGit, RunRecord, toTreeData } from "../mission/mission-model";
@@ -13,6 +16,7 @@ import {
     lastBuildLine,
     nextReleaseView,
     notesExcerpt,
+    nowSubagents,
     pickMilestone,
     releaseBars,
     releasesView,
@@ -306,5 +310,68 @@ describe("now card", () => {
         expect(agoText(0, Now)).toBe("");
         expect(clockElapsed(3_725_000)).toBe("1:02:05");
         expect(clockElapsed(-5)).toBe("00:00");
+    });
+});
+
+// #967 (TC-MC-041): the developer's screenshot, an agent on develop with four background sub-agents in their own
+// worktrees. The Now card lists them under the agent as the companion does.
+describe("the Now card's sub-agents", () => {
+    const sub = (ticket: number, description: string, branch: string, started: number): CompanionSubagent => ({
+        id: `call-${ticket}`,
+        description,
+        kind: "general-purpose",
+        branch,
+        ticket,
+        complexity: "medium",
+        background: true,
+        state: "running",
+        started,
+    });
+    const view = {
+        blockid: "b",
+        agentname: "Claude Code",
+        subagents: [
+            sub(963, "#963 Reviews Launch", "feature/963-reviews-launch", Now - 4000),
+            sub(962, "#962 browser test context", "feature/962-browser-test-context", Now - 3000),
+            sub(961, "#961 status bar detached", "fix/961-status-bar-detached-head", Now - 2000),
+            sub(960, "#960 merged PR history", "feature/960-merged-history", Now - 1000),
+            { ...sub(959, "#959 done", "feature/959-x", Now - 9000), state: "done" as const },
+        ],
+    } as CompanionView;
+    const agent = { blockid: "b", agent: "claude", state: "working" } as AgentStateInfo;
+
+    it("shows the first three running sub-agents with their ticket and branch, the rest behind +N", () => {
+        const shown = nowSubagents(view, agent, false, Now);
+        expect(shown.rows.map((r) => [r.name, r.ticket, r.branch, r.stateLabel])).toEqual([
+            ["#960 merged PR history", "#960", "feature/960-merged-history", "running"],
+            ["#961 status bar detached", "#961", "fix/961-status-bar-detached-head", "running"],
+            ["#962 browser test context", "#962", "feature/962-browser-test-context", "running"],
+        ]);
+        expect(shown.hidden).toBe(1);
+        expect(shown.moreLabel).toBe("+1 sub-agent");
+        const all = nowSubagents(view, agent, true, Now);
+        expect(all.rows.map((r) => r.ticket)).toEqual(["#960", "#961", "#962", "#963"]);
+        expect(all.hidden).toBe(0);
+    });
+
+    it("lists nothing without a companion view or once the agent exited", () => {
+        expect(nowSubagents(null, agent, false, Now).rows).toEqual([]);
+        expect(nowSubagents({ ...view, ended: true }, agent, false, Now).rows).toEqual([]);
+    });
+
+    it("speaks French", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const shown = nowSubagents(
+                { ...view, subagents: [...view.subagents, sub(958, "#958", "", Now)] },
+                agent,
+                false,
+                Now
+            );
+            expect(shown.moreLabel).toBe("+2 sous-agents");
+            expect(shown.rows[0].stateLabel).not.toBe("running");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 });

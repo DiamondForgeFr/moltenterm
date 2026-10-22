@@ -3965,7 +3965,13 @@
             "heading": "Agents",
             "goToPane": "Click to go to its pane",
             "none": "No coding agent in this workspace. Start one from the palette ({keys}).",
-            "more": "and {count} more"
+            "more": "and {count} more",
+            "subagents": "Sub-agents of {name}",
+            "subagentsMore": {
+                "one": "+{count} sub-agent",
+                "other": "+{count} sub-agents"
+            },
+            "subagentsLess": "Show fewer sub-agents"
         },
         "steps": {
             "none": "No project step for the overview: the pipeline declares none in its \"{section}\" section.",

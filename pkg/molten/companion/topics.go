@@ -146,12 +146,30 @@ func (s *Session) SetBranch(branch string) {
 	}
 	s.branch = cutString(branch, 300)
 	if t := s.currentTopic(); t != nil {
-		t.branch = s.branch
+		t.branch = s.Branch()
 	}
 	s.touch()
 }
 
+// SetFolderBranch keeps the branch read from the session's folder on disk (#967), which wins over the records' from
+// then on, even when empty (a detached HEAD): no stale ticket rather than another worktree's.
+func (s *Session) SetFolderBranch(branch string) {
+	branch = cutString(strings.TrimSpace(branch), 300)
+	if s.folderRead && branch == s.folderBranch {
+		return
+	}
+	s.folderRead, s.folderBranch = true, branch
+	if t := s.currentTopic(); t != nil && branch != "" {
+		t.branch = branch
+	}
+	s.touch()
+}
+
+// Branch is the branch the agent works on: its folder's when read, else what its records say.
 func (s *Session) Branch() string {
+	if s.folderRead {
+		return s.folderBranch
+	}
 	return s.branch
 }
 
@@ -161,7 +179,7 @@ func (s *Session) Name() string {
 }
 
 func (s *Session) startTopic(text string, at int64) {
-	t := &topic{text: cutRunes(text, MaxTopicRunes), branch: s.branch, at: at, last: at}
+	t := &topic{text: cutRunes(text, MaxTopicRunes), branch: s.Branch(), at: at, last: at}
 	s.topics = append(s.topics, t)
 	if len(s.topics) > MaxTopics {
 		s.topics = append([]*topic(nil), s.topics[len(s.topics)-MaxTopics:]...)

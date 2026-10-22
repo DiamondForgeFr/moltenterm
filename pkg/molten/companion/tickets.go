@@ -20,8 +20,8 @@ import (
 )
 
 // The ticket each agent works on and its complexity (#601): the developer checks that an agent's model and effort are
-// in proportion with its task. The ticket comes from the agent's own records (its branch, else the pane's, else a #N
-// in what it was asked); its complexity is the sf-workflow's `complexity: …` label, read through the user's gh only
+// in proportion with its task. The ticket comes from the branch of the agent's own folder (gitbranch.go), else a #N
+// in what it was asked (#967); its complexity is the sf-workflow's `complexity: …` label, read through the user's gh only
 // when a companion that shows asks to look again, once per ticket while wavesrv runs (Epic #446: no poller).
 
 const (
@@ -72,12 +72,10 @@ func textTicket(text string) int {
 	return n
 }
 
-// resolveTicket takes the ticket from the agent's own branch, then the pane's branch, then a #N in its text.
-func resolveTicket(ownBranch string, paneBranch string, text string) int {
+// resolveTicket takes the ticket from the agent's own branch, then a #N in its own text (#967): a sub-agent never
+// inherits its parent's, which would name another agent's ticket while it works on its own.
+func resolveTicket(ownBranch string, text string) int {
 	if n := branchTicket(ownBranch); n > 0 {
-		return n
-	}
-	if n := branchTicket(paneBranch); n > 0 {
 		return n
 	}
 	return textTicket(text)
@@ -172,9 +170,9 @@ func (s *Session) ResolveTickets(complexity func(number int, fetch bool) (string
 	if t := s.currentTopic(); t != nil {
 		topic = t.text
 	}
-	changed = updateTicket(&s.ticket, resolveTicket(s.branch, "", topic), true, complexity) || changed
+	changed = updateTicket(&s.ticket, resolveTicket(s.Branch(), topic), true, complexity) || changed
 	for _, sa := range s.subagents {
-		number := resolveTicket(sa.branch, s.branch, sa.description)
+		number := resolveTicket(sa.branch, sa.description)
 		changed = updateTicket(&sa.ticket, number, sa.state == SubagentRunning, complexity) || changed
 	}
 	if changed {
