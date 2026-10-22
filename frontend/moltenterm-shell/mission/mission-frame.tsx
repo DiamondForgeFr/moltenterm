@@ -16,6 +16,7 @@ import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
@@ -371,12 +372,13 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
                     </button>
                     <button
                         type="button"
-                        className="molten-btn h-row cursor-pointer rounded-6 px-3 text-12 font-medium"
+                        className="molten-btn inline-flex h-row cursor-pointer items-center rounded-6 px-3 text-12 font-medium disabled:cursor-default"
                         onClick={confirm}
                         disabled={busy}
                         aria-busy={busy}
                         data-testid="mission-git-init-confirm"
                     >
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
                         {busy ? t("mc.frame.initializing") : t("mc.frame.initGit")}
                         <MoltenWave />
                     </button>

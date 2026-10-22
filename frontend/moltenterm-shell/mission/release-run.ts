@@ -71,10 +71,11 @@ export type ReleaseFacts = {
 
 export type PhaseLink = { label: string; url: string };
 
+// busy: what the button says from the click until the backend answered (#952).
 export type PhaseAction =
-    | { kind: "step"; step: string; label: string; confirm?: string }
-    | { kind: "prepare"; label: string }
-    | { kind: "rerun"; label: string };
+    | { kind: "step"; step: string; label: string; confirm?: string; busy?: string }
+    | { kind: "prepare"; label: string; busy?: string }
+    | { kind: "rerun"; label: string; busy?: string };
 
 export type Phase = {
     id: ReleasePhase;
@@ -129,6 +130,8 @@ export const PhaseTitles: Record<ReleasePhase, string> = labelRecord("mc.release
 const FailedConclusions = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
 
 const stepTitle = (step: PipelineReleaseStep) => step.title || step.id;
+
+const starting = (step: PipelineReleaseStep) => t("mc.releaseRun.pending.starting", { step: stepTitle(step) });
 
 const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? t("mc.releaseRun.noMessage");
 
@@ -223,11 +226,18 @@ function runAgain(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
         step: step.id,
         label: t("mc.releaseRun.runAgain", { step: stepTitle(step) }),
         confirm: confirmOf(step, facts),
+        busy: starting(step),
     };
 }
 
 function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
-    return { kind: "step", step: step.id, label: stepTitle(step), confirm: confirmOf(step, facts) };
+    return {
+        kind: "step",
+        step: step.id,
+        label: stepTitle(step),
+        confirm: confirmOf(step, facts),
+        busy: starting(step),
+    };
 }
 
 // The phase as its steps say, when they are not done yet: running, failed or waiting for a click.
@@ -272,7 +282,11 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     if (steps.length === 0) {
         return { ...base, expect: t("mc.releaseRun.nothingToPrepare") };
     }
-    const retry: PhaseAction = { kind: "prepare", label: t("mc.releaseRun.retryPreparation") };
+    const retry: PhaseAction = {
+        kind: "prepare",
+        label: t("mc.releaseRun.retryPreparation"),
+        busy: t("mc.releaseRun.pending.preparing"),
+    };
     const fact = facts.preparation;
     if (fact?.running) {
         const at = steps.find((s) => s.id === fact.phases[fact.phases.length - 1]);
@@ -354,7 +368,12 @@ function cut(
     const confirm = declared ?? t("mc.releaseRun.mayPush", { step: action.label, tag });
     return {
         ...phase,
-        action: { ...action, label: declared ? t("mc.releaseRun.cutTag", { tag }) : action.label, confirm },
+        action: {
+            ...action,
+            label: declared ? t("mc.releaseRun.cutTag", { tag }) : action.label,
+            confirm,
+            busy: t("mc.releaseRun.pending.cutting", { tag }),
+        },
         expect: facts.notes ? t("mc.releaseRun.readNotes") : t("mc.releaseRun.thenCut", { tag }),
     };
 }
@@ -415,7 +434,7 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
                   workflows: red.map((r) => r.workflowName).join(", "),
                   conclusion: red[0].conclusion,
               }),
-        action: { kind: "rerun", label: t("mc.remote.rerunFailed") },
+        action: { kind: "rerun", label: t("mc.remote.rerunFailed"), busy: t("mc.releaseRun.pending.rerunning") },
         failure: {
             step: red.map((r) => r.workflowName).join(", "),
             runs: red.map((r) => ({ name: r.workflowName, runid: r.databaseId, url: r.url })),

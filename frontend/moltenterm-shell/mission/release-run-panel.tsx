@@ -34,6 +34,7 @@ import {
 } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
 import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
+import { PendingLock, PendingLockContext, useCardLock, usePendingLock } from "./pending-action";
 import { ReleaseSession } from "./release-model";
 import { ReleaseFailureActions, ReleaseResolveActions } from "./release-resolve";
 import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
@@ -69,7 +70,8 @@ const AccentButton =
     "molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50";
 
 export type ReleasePanelActions = {
-    run: (action: PhaseAction) => Promise<void>;
+    // Resolves true when a step started: the card stays pending until it read the release again.
+    run: (action: PhaseAction) => Promise<boolean | void>;
     loadNotes: () => Promise<string>;
     saveNotes: (text: string) => Promise<void>;
 } & Partial<ReleaseResolveActions>;
@@ -155,21 +157,21 @@ function ActionButton({
     plain?: boolean;
 }) {
     const t = useT();
+    const lock = useCardLock();
     const [confirming, setConfirming] = useState(false);
-    const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const confirm = action.kind === "step" ? action.confirm : null;
+    const key = `${plain ? "redo" : "action"}:${action.label}`;
+    const busy = lock.pending === key;
     const go = () =>
         fireAndForget(async () => {
-            setBusy(true);
             setError(null);
             try {
-                await actions.run(action);
-                setConfirming(false);
+                if (await lock.run(key, () => actions.run(action))) {
+                    setConfirming(false);
+                }
             } catch (e) {
                 setError(serverErrorText(e));
-            } finally {
-                setBusy(false);
             }
         });
     return (
@@ -181,23 +183,43 @@ function ActionButton({
             ) : null}
             <div className="flex justify-end gap-2">
                 {confirming ? (
-                    <button type="button" className={PlainButton} onClick={() => setConfirming(false)}>
+                    <button
+                        type="button"
+                        disabled={lock.pending !== ""}
+                        className={PlainButton}
+                        onClick={() => setConfirming(false)}
+                    >
                         {t("common.cancel")}
                     </button>
                 ) : null}
                 <button
                     type="button"
-                    disabled={busy}
-                    className={plain ? PlainButton : AccentButton}
+                    disabled={lock.pending !== ""}
+                    aria-busy={busy}
+                    className={cn(plain ? PlainButton : AccentButton, "inline-flex items-center")}
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
+                    data-testid={plain ? "release-run-redo" : "release-run-action"}
                 >
                     {busy ? <DominoLoader className="mr-1.5" /> : null}
-                    {confirming ? t("common.confirm") : action.label}
+                    {busy ? (action.busy ?? action.label) : confirming ? t("common.confirm") : action.label}
                     {plain ? null : <MoltenWave />}
                 </button>
             </div>
-            {error ? <p className="text-right text-12 text-danger">{error}</p> : null}
+            {error ? (
+                <p className="text-right text-12 text-danger" role="alert">
+                    {error}
+                </p>
+            ) : null}
         </div>
+    );
+}
+
+function PendingLabel({ busy, label, idle }: { busy: boolean; label: string; idle: string }) {
+    return (
+        <>
+            {busy ? <DominoLoader className="mr-1.5" /> : null}
+            {busy ? label : idle}
+        </>
     );
 }
 
@@ -213,8 +235,18 @@ function NotesEditor({
     const t = useT();
     const [text, setText] = useState<string>(null);
     const [saved, setSaved] = useState<string>(null);
-    const [busy, setBusy] = useState(false);
+    const lock = useCardLock();
     const [error, setError] = useState<string>(null);
+    const locked = lock.pending !== "";
+    const runLocked = (key: string, fn: () => Promise<boolean | void>) =>
+        fireAndForget(async () => {
+            setError(null);
+            try {
+                await lock.run(key, fn);
+            } catch (e) {
+                setError(serverErrorText(e));
+            }
+        });
     const load = () =>
         fireAndForget(async () => {
             try {
@@ -243,47 +275,44 @@ function NotesEditor({
                 {rewrite ? (
                     <button
                         type="button"
-                        disabled={busy}
-                        className={PlainButton}
-                        onClick={() =>
-                            fireAndForget(async () => {
-                                setBusy(true);
-                                try {
-                                    await actions.run(rewrite);
-                                } catch (e) {
-                                    setError(serverErrorText(e));
-                                } finally {
-                                    setBusy(false);
-                                }
-                            })
-                        }
+                        disabled={locked}
+                        aria-busy={lock.pending === "notes:rewrite"}
+                        className={cn(PlainButton, "inline-flex items-center")}
+                        onClick={() => runLocked("notes:rewrite", () => actions.run(rewrite))}
+                        data-testid="release-run-rewrite"
                     >
-                        {t("mc.releaseRun.rewrite")}
+                        <PendingLabel
+                            busy={lock.pending === "notes:rewrite"}
+                            label={t("mc.releaseRun.pending.rewriting")}
+                            idle={t("mc.releaseRun.rewrite")}
+                        />
                     </button>
                 ) : null}
                 <button
                     type="button"
-                    disabled={!dirty || busy}
-                    className={PlainButton}
+                    disabled={!dirty || locked}
+                    aria-busy={lock.pending === "notes:save"}
+                    className={cn(PlainButton, "inline-flex items-center")}
                     onClick={() =>
-                        fireAndForget(async () => {
-                            setBusy(true);
-                            setError(null);
-                            try {
-                                await actions.saveNotes(text);
-                                setSaved(text);
-                            } catch (e) {
-                                setError(serverErrorText(e));
-                            } finally {
-                                setBusy(false);
-                            }
+                        runLocked("notes:save", async () => {
+                            await actions.saveNotes(text);
+                            setSaved(text);
                         })
                     }
+                    data-testid="release-run-save-notes"
                 >
-                    {t("common.save")}
+                    <PendingLabel
+                        busy={lock.pending === "notes:save"}
+                        label={t("mc.releaseRun.pending.saving")}
+                        idle={t("common.save")}
+                    />
                 </button>
             </div>
-            {error ? <p className="text-right text-12 text-danger">{error}</p> : null}
+            {error ? (
+                <p className="text-right text-12 text-danger" role="alert">
+                    {error}
+                </p>
+            ) : null}
         </div>
     );
 }
@@ -409,6 +438,8 @@ export function ReleaseRunPanel({
     actions,
     onAbandon,
     awaits,
+    lock,
+    revision,
 }: {
     run: ReleaseRun;
     jobs: ReleaseGhJob[];
@@ -417,90 +448,133 @@ export function ReleaseRunPanel({
     awaits?: ReleaseCiAwait;
     // Stops following it: the release launched from the Project tab ends, a tag cut at the terminal is no longer
     // followed.
-    onAbandon?: () => void;
+    onAbandon?: () => Promise<void>;
+    // The card's one-action-at-a-time lock (#952), when its owner also locks around it (the trust prompt).
+    lock?: PendingLock;
+    // Changes on each read of the release: a started step's button stays pending until then.
+    revision?: unknown;
 }) {
     const t = useT();
+    const own = usePendingLock(revision);
+    const cardLock = lock ?? own;
     const [picked, setPicked] = useState<ReleasePhase>(null);
     const [confirming, setConfirming] = useState(false);
+    const [abandonError, setAbandonError] = useState<string>(null);
     const shown = run.phases.find((p) => p.id === (picked ?? run.current)) ?? run.phases[run.phases.length - 1];
+    const locked = cardLock.pending !== "";
+    const abandoning = cardLock.pending === "abandon";
+    const abandon = () =>
+        fireAndForget(async () => {
+            setAbandonError(null);
+            try {
+                await cardLock.run("abandon", onAbandon);
+            } catch (e) {
+                setAbandonError(serverErrorText(e));
+            }
+        });
     return (
-        <section
-            className="rounded-6 border border-accent/40 bg-gradient-to-br from-accent/10 to-transparent p-4"
-            data-testid="release-run"
-        >
-            <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
-                <i className="fa fa-solid fa-tower-broadcast text-accent" />
-                {t("mc.releaseRun.inFlight")}
-                <span className="ml-auto rounded-full border border-border px-2 py-0.5 font-mono tracking-normal text-primary normal-case">
-                    {run.tag} · {run.channel === "rc" ? t("mc.releaseRun.internal") : t("mc.releaseRun.publicChannel")}
-                </span>
-            </div>
-            <ol className="flex items-start gap-1" aria-label={t("mc.releaseRun.phasesLabel")}>
-                {run.phases.map((p, i) => (
-                    <li key={p.id} className="flex flex-1 items-center gap-1 last:flex-none">
-                        <div className="flex flex-col items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setPicked(p.id === picked ? null : p.id)}
-                                aria-current={p.id === run.current ? "step" : undefined}
-                                aria-label={`${p.title}: ${Says[p.status]}`}
-                                data-status={p.status}
-                                data-testid={`release-run-phase-${p.id}`}
-                                className={cn(
-                                    "flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border",
-                                    NodeClasses[p.status],
-                                    p.id === shown.id && "ring-2 ring-accent/30"
-                                )}
-                            >
-                                <StatusIcon status={p.status} />
-                            </button>
-                            <span
-                                className={cn(
-                                    "text-11 whitespace-nowrap",
-                                    p.id === run.current ? "text-primary" : "text-muted"
-                                )}
-                            >
-                                {ShortTitles[p.id]}
-                            </span>
-                        </div>
-                        {i < run.phases.length - 1 ? (
-                            <span
-                                className={cn("mb-4 h-px flex-1", p.status === "done" ? "bg-success/60" : "bg-border")}
-                                aria-hidden
-                            />
-                        ) : null}
-                    </li>
-                ))}
-            </ol>
-            <Detail run={run} phase={shown} jobs={jobs} actions={actions} awaits={awaits} />
-            {onAbandon ? (
-                <div className="mt-3 flex items-center justify-end gap-2 text-11">
-                    {confirming ? (
-                        <>
-                            <span className="text-muted">{t("mc.releaseRun.stopFollowing", { tag: run.tag })}</span>
-                            <button type="button" className={PlainButton} onClick={() => setConfirming(false)}>
-                                {t("mc.releaseRun.no")}
-                            </button>
-                            <button
-                                type="button"
-                                className="cursor-pointer rounded-6 border border-error/50 px-2 py-1 text-12 text-danger hover:bg-error/10"
-                                onClick={onAbandon}
-                            >
-                                {t("mc.releaseRun.abandon")}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            type="button"
-                            className="cursor-pointer rounded-6 px-2 py-1 text-muted hover:text-primary"
-                            onClick={() => setConfirming(true)}
-                        >
-                            {t("mc.releaseRun.abandonRelease")}
-                        </button>
-                    )}
+        <PendingLockContext.Provider value={cardLock}>
+            <section
+                className="rounded-6 border border-accent/40 bg-gradient-to-br from-accent/10 to-transparent p-4"
+                data-testid="release-run"
+            >
+                <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
+                    <i className="fa fa-solid fa-tower-broadcast text-accent" />
+                    {t("mc.releaseRun.inFlight")}
+                    <span className="ml-auto rounded-full border border-border px-2 py-0.5 font-mono tracking-normal text-primary normal-case">
+                        {run.tag} ·{" "}
+                        {run.channel === "rc" ? t("mc.releaseRun.internal") : t("mc.releaseRun.publicChannel")}
+                    </span>
                 </div>
-            ) : null}
-        </section>
+                <ol className="flex items-start gap-1" aria-label={t("mc.releaseRun.phasesLabel")}>
+                    {run.phases.map((p, i) => (
+                        <li key={p.id} className="flex flex-1 items-center gap-1 last:flex-none">
+                            <div className="flex flex-col items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setPicked(p.id === picked ? null : p.id)}
+                                    aria-current={p.id === run.current ? "step" : undefined}
+                                    aria-label={`${p.title}: ${Says[p.status]}`}
+                                    data-status={p.status}
+                                    data-testid={`release-run-phase-${p.id}`}
+                                    className={cn(
+                                        "flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border",
+                                        NodeClasses[p.status],
+                                        p.id === shown.id && "ring-2 ring-accent/30"
+                                    )}
+                                >
+                                    <StatusIcon status={p.status} />
+                                </button>
+                                <span
+                                    className={cn(
+                                        "text-11 whitespace-nowrap",
+                                        p.id === run.current ? "text-primary" : "text-muted"
+                                    )}
+                                >
+                                    {ShortTitles[p.id]}
+                                </span>
+                            </div>
+                            {i < run.phases.length - 1 ? (
+                                <span
+                                    className={cn(
+                                        "mb-4 h-px flex-1",
+                                        p.status === "done" ? "bg-success/60" : "bg-border"
+                                    )}
+                                    aria-hidden
+                                />
+                            ) : null}
+                        </li>
+                    ))}
+                </ol>
+                <Detail run={run} phase={shown} jobs={jobs} actions={actions} awaits={awaits} />
+                {onAbandon ? (
+                    <div className="mt-3 flex items-center justify-end gap-2 text-11">
+                        {confirming ? (
+                            <>
+                                <span className="text-muted">{t("mc.releaseRun.stopFollowing", { tag: run.tag })}</span>
+                                <button
+                                    type="button"
+                                    disabled={locked}
+                                    className={PlainButton}
+                                    onClick={() => setConfirming(false)}
+                                >
+                                    {t("mc.releaseRun.no")}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={locked}
+                                    aria-busy={abandoning}
+                                    className="inline-flex cursor-pointer items-center rounded-6 border border-error/50 px-2 py-1 text-12 text-danger hover:bg-error/10 disabled:cursor-default disabled:opacity-50"
+                                    onClick={abandon}
+                                    data-testid="release-run-abandon-yes"
+                                >
+                                    <PendingLabel
+                                        busy={abandoning}
+                                        label={t("mc.releaseRun.pending.abandoning")}
+                                        idle={t("mc.releaseRun.abandon")}
+                                    />
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled={locked}
+                                className="cursor-pointer rounded-6 px-2 py-1 text-muted hover:text-primary disabled:cursor-default disabled:opacity-50"
+                                onClick={() => setConfirming(true)}
+                                data-testid="release-run-abandon"
+                            >
+                                {t("mc.releaseRun.abandonRelease")}
+                            </button>
+                        )}
+                    </div>
+                ) : null}
+                {abandonError ? (
+                    <p className="mt-2 text-right text-12 text-danger" role="alert">
+                        {abandonError}
+                    </p>
+                ) : null}
+            </section>
+        </PendingLockContext.Provider>
     );
 }
 
@@ -530,6 +604,7 @@ export function ReleaseRunSection({
     const [error, setError] = useState<string>(null);
     const steps = facts?.channel === "public" ? pipeline?.release?.public : pipeline?.release?.rc;
     const locale = useLocale();
+    const lock = usePendingLock(facts);
     const run = useMemo(() => releaseRun(facts, steps ?? []), [facts, steps, locale]);
     const tag = run?.tag;
     const trunk = facts?.trunk;
@@ -539,7 +614,7 @@ export function ReleaseRunSection({
                 if (action.kind === "rerun") {
                     await releaseRerunFailed(dir, tag);
                     reload();
-                    return;
+                    return true;
                 }
                 const result = await releaseRunStep(
                     dir,
@@ -548,7 +623,10 @@ export function ReleaseRunSection({
                 );
                 if (result?.untrusted) {
                     setPending({ action, info: result.untrusted });
+                    return false;
                 }
+                reload();
+                return true;
             },
             loadNotes: async () => (await releaseNotes(dir, tag))?.text ?? "",
             saveNotes: (text) => releaseNotesSave(dir, tag, text),
@@ -601,20 +679,24 @@ export function ReleaseRunSection({
     if (run == null || !run.active) {
         return null;
     }
-    const abandon = () =>
-        fireAndForget(async () => {
-            await releaseEnd(dir, run.tag);
-            onEnded();
-            reload();
-        });
+    const abandon = async () => {
+        await releaseEnd(dir, run.tag);
+        onEnded();
+        reload();
+    };
     const trustAndRun = () =>
         fireAndForget(async () => {
             const next = pending;
-            setPending(null);
+            setError(null);
             try {
-                await missionTrust(dir, next.info.hash);
-                await actions.run(next.action);
+                await lock.run("trust", async () => {
+                    await missionTrust(dir, next.info.hash);
+                    const started = await actions.run(next.action);
+                    setPending((p) => (p === next ? null : p));
+                    return started;
+                });
             } catch (e) {
+                setPending(null);
                 setError(serverErrorText(e));
             }
         });
@@ -626,8 +708,13 @@ export function ReleaseRunSection({
                 actions={actions}
                 onAbandon={abandon}
                 awaits={facts?.awaits}
+                lock={lock}
             />
-            {error ? <p className="text-12 text-danger">{error}</p> : null}
+            {error ? (
+                <p className="text-12 text-danger" role="alert">
+                    {error}
+                </p>
+            ) : null}
             {pending != null ? (
                 <TrustPrompt
                     projectName={projectName}
@@ -635,6 +722,7 @@ export function ReleaseRunSection({
                     info={pending.info}
                     onTrust={trustAndRun}
                     onCancel={() => setPending(null)}
+                    busy={lock.pending === "trust"}
                 />
             ) : null}
         </>

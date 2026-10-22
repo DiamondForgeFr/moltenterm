@@ -20,6 +20,7 @@ import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
 import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
 import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
+import { usePendingLock } from "./pending-action";
 import { timeAgo } from "./time-format";
 
 const StateClasses: Record<RunState, string> = {
@@ -32,6 +33,7 @@ const StateClasses: Record<RunState, string> = {
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
+const BusyButtonClass = "inline-flex items-center disabled:cursor-default disabled:opacity-50";
 
 export function TrustPrompt({
     projectName,
@@ -39,12 +41,15 @@ export function TrustPrompt({
     info,
     onTrust,
     onCancel,
+    busy,
 }: {
     projectName: string;
     dir: string;
     info: UntrustedInfo;
     onTrust: () => void;
     onCancel: () => void;
+    // The trust and the start it allows are on their way (#952): nothing in the prompt can be clicked.
+    busy?: boolean;
 }) {
     const t = useT();
     const cancelRef = useRef<HTMLButtonElement>(null);
@@ -56,24 +61,34 @@ export function TrustPrompt({
     return (
         <DialogFrame
             role="mc-trust"
-            onEscape={onCancel}
+            onEscape={busy ? undefined : onCancel}
             title={t("mc.trust.title", { project: projectName })}
             subtitle={t("mc.trust.body", { dir })}
             subtitleWraps
             widthClass="w-[560px]"
             trapFocus
-            onBackdrop={onCancel}
+            onBackdrop={busy ? undefined : onCancel}
             buttons={
                 <>
-                    <button ref={cancelRef} type="button" onClick={onCancel} className={PlainButton}>
+                    <button
+                        ref={cancelRef}
+                        type="button"
+                        onClick={onCancel}
+                        disabled={busy}
+                        className={cn(PlainButton, "disabled:cursor-default disabled:opacity-50")}
+                    >
                         {t("common.cancel")}
                     </button>
                     <button
                         type="button"
                         onClick={onTrust}
-                        className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12"
+                        disabled={busy}
+                        aria-busy={busy}
+                        className="molten-btn inline-flex cursor-pointer items-center rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50"
+                        data-testid="mc-trust-go"
                     >
-                        {t("mc.trust.trustAndRun")}
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
+                        {busy ? t("mc.common.starting") : t("mc.trust.trustAndRun")}
                         <MoltenWave />
                     </button>
                 </>
@@ -278,6 +293,19 @@ export function BuildRunCard({
     const t = useT();
     const log = useRunLog(run);
     const [full, setFull] = useState(false);
+    // A cancel holds until the run reads stopped: the process takes a moment to end (#952).
+    const lock = usePendingLock(run.state);
+    const [error, setError] = useState<string>(null);
+    const locked = lock.pending !== "";
+    const runLocked = (key: string, fn: () => Promise<boolean | void>) =>
+        fireAndForget(async () => {
+            setError(null);
+            try {
+                await lock.run(key, fn);
+            } catch (e) {
+                setError(serverErrorText(e));
+            }
+        });
     const view = buildRunView(run, phases, manifest);
     const lines = logTail(log, full ? 2000 : 8);
     const showLines = lines.length > 0 && (view.showLog || full);
@@ -330,10 +358,19 @@ export function BuildRunCard({
                 {run.state === "running" ? (
                     <button
                         type="button"
-                        onClick={() => fireAndForget(() => missionCancel(run.dir, run.id))}
-                        className={PlainButton}
+                        disabled={locked}
+                        aria-busy={lock.pending === "cancel"}
+                        onClick={() =>
+                            runLocked("cancel", async () => {
+                                await missionCancel(run.dir, run.id);
+                                return true;
+                            })
+                        }
+                        className={cn(PlainButton, BusyButtonClass)}
+                        data-testid="build-run-cancel"
                     >
-                        {t("common.cancel")}
+                        {lock.pending === "cancel" ? <DominoLoader className="mr-1.5" /> : null}
+                        {lock.pending === "cancel" ? t("mc.run.cancelling") : t("common.cancel")}
                     </button>
                 ) : null}
                 <button type="button" onClick={() => setFull(!full)} className={cn(PlainButton, "mr-auto")}>
@@ -358,13 +395,26 @@ export function BuildRunCard({
                 {run.state !== "running" ? (
                     <button
                         type="button"
-                        onClick={() => fireAndForget(() => missionClose(run.dir, run.id))}
-                        className={PlainButton}
+                        disabled={locked}
+                        aria-busy={lock.pending === "close"}
+                        onClick={() =>
+                            runLocked("close", async () => {
+                                await missionClose(run.dir, run.id);
+                            })
+                        }
+                        className={cn(PlainButton, BusyButtonClass)}
+                        data-testid="build-run-close"
                     >
-                        {t("common.close")}
+                        {lock.pending === "close" ? <DominoLoader className="mr-1.5" /> : null}
+                        {lock.pending === "close" ? t("mc.run.closing") : t("common.close")}
                     </button>
                 ) : null}
             </div>
+            {error ? (
+                <p className="mt-2 text-right text-12 text-danger" role="alert">
+                    {error}
+                </p>
+            ) : null}
         </section>
     );
 }

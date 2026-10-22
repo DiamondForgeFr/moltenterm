@@ -2721,6 +2721,8 @@
             "notRunYet": "Not run yet",
             "wholeLog": "Whole log",
             "retry": "Retry",
+            "cancelling": "Cancelling…",
+            "closing": "Closing…",
             "noOutput": "(no output)",
             "state": {
                 "running": "running",
@@ -2933,6 +2935,15 @@
             }
         },
         "releaseRun": {
+            "pending": {
+                "preparing": "Preparing…",
+                "starting": "Starting {step}…",
+                "cutting": "Cutting {tag}…",
+                "rerunning": "Rerunning…",
+                "rewriting": "Rewriting…",
+                "saving": "Saving…",
+                "abandoning": "Abandoning…"
+            },
             "phase": {
                 "prepare": "Prepare",
                 "cut": "Cut",

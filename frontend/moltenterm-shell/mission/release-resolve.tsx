@@ -13,6 +13,7 @@ import { serverErrorText, serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import type { AgentMode, ReviewRestartResult } from "../review/review-client";
 import { DominoLoader } from "../suite/suite";
+import { useCardLock } from "./pending-action";
 import type { FailedRun, Phase } from "./release-run";
 
 export type ReleaseResolveActions = {
@@ -24,6 +25,8 @@ const SmallButton =
     "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 type Busy = "" | "rerun" | AgentMode;
+
+const LockPrefix = "resolve:";
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -50,7 +53,10 @@ export function resolveText(
 
 export function ReleaseFailureActions({ phase, actions }: { phase: Phase; actions: ReleaseResolveActions }) {
     const t = useT();
-    const [busy, setBusy] = useState<Busy>("");
+    // The release card's lock (#952): while one of these starts, no action of the card can be clicked.
+    const lock = useCardLock();
+    const busy: Busy = lock.pending.startsWith(LockPrefix) ? (lock.pending.slice(LockPrefix.length) as Busy) : "";
+    const locked = lock.pending !== "";
     const [confirming, setConfirming] = useState(false);
     const [said, setSaid] = useState<Said>(null);
     const failure = phase.failure;
@@ -64,28 +70,28 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
     const worded = said?.word(t);
     const rerun = () =>
         fireAndForget(async () => {
-            setBusy("rerun");
-            setSaid(null);
             try {
-                await actions.rerunRuns(runs);
-                setConfirming(false);
-                setSaid({
-                    word: (tt) => ({ text: tt("mc.releaseRun.resolve.rerunStarted", { names }), error: false }),
+                await lock.run(LockPrefix + "rerun", async () => {
+                    setSaid(null);
+                    await actions.rerunRuns(runs);
+                    setConfirming(false);
+                    setSaid({
+                        word: (tt) => ({ text: tt("mc.releaseRun.resolve.rerunStarted", { names }), error: false }),
+                    });
                 });
             } catch (e) {
                 setSaid({ word: () => ({ text: serverErrorText(e), error: true }) });
-            } finally {
-                setBusy("");
             }
         });
     const start = (mode: AgentMode) =>
         fireAndForget(async () => {
-            setBusy(mode);
-            setSaid(null);
-            setConfirming(false);
             try {
-                const { result, tab } = await actions.resolve(phase, mode);
-                setSaid({ word: (tt) => resolveText(tt, result, mode, failure.step, tab) });
+                await lock.run(LockPrefix + mode, async () => {
+                    setSaid(null);
+                    setConfirming(false);
+                    const { result, tab } = await actions.resolve(phase, mode);
+                    setSaid({ word: (tt) => resolveText(tt, result, mode, failure.step, tab) });
+                });
             } catch (e) {
                 setSaid({
                     word: (tt) => ({
@@ -93,8 +99,6 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                         error: true,
                     }),
                 });
-            } finally {
-                setBusy("");
             }
         });
     return (
@@ -104,7 +108,7 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                     <button
                         type="button"
                         className={SmallButton}
-                        disabled={busy !== ""}
+                        disabled={locked}
                         aria-expanded={confirming}
                         title={t("mc.releaseRun.resolve.rerunTitle", { names })}
                         onClick={() => setConfirming(true)}
@@ -117,7 +121,7 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                 <button
                     type="button"
                     className={SmallButton}
-                    disabled={busy !== ""}
+                    disabled={locked}
                     title={t("mc.releaseRun.resolve.analyzeTitle", { step: failure.step })}
                     onClick={() => start("background")}
                     data-testid="release-run-analyze"
@@ -132,7 +136,7 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                 <button
                     type="button"
                     className={SmallButton}
-                    disabled={busy !== ""}
+                    disabled={locked}
                     title={t("mc.releaseRun.resolve.togetherTitle", { step: failure.step })}
                     onClick={() => start("together")}
                     data-testid="release-run-together"
@@ -150,18 +154,21 @@ export function ReleaseFailureActions({ phase, actions }: { phase: Phase; action
                     <span className="min-w-0 flex-1">{t("mc.releaseRun.resolve.rerunConfirm", { names })}</span>
                     <button
                         type="button"
-                        className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                        className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                        disabled={locked}
                         onClick={() => setConfirming(false)}
                     >
                         {t("common.cancel")}
                     </button>
                     <button
                         type="button"
-                        className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12"
-                        disabled={busy !== ""}
+                        className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 disabled:cursor-default disabled:opacity-50"
+                        disabled={locked}
+                        aria-busy={busy === "rerun"}
                         onClick={rerun}
                         data-testid="release-run-rerun-yes"
                     >
+                        {busy === "rerun" ? <DominoLoader /> : null}
                         {busy === "rerun" ? t("mc.releaseRun.resolve.rerunning") : t("mc.releaseRun.resolve.rerunYes")}
                         <MoltenWave />
                     </button>
