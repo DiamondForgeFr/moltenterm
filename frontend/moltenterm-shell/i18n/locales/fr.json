@@ -4272,8 +4272,6 @@
         "goToTitle": "Afficher le panneau de {name}",
         "parent": "Session de {name}",
         "parentTitle": "Afficher le panneau de {name} : il a probablement lancé cet agent",
-        "yours": "À vous",
-        "yoursTitle": "Aucun agent ne travaille sur ce brouillon : c'est à vous de le finir ou de le valider.",
         "upcoming": {
             "title": "À venir",
             "none": "Aucune branche de ticket n'attend sa pull request.",
@@ -4336,6 +4334,17 @@
             "cancel": "Annuler",
             "noSession": "La session de cet agent ne peut pas être terminée d'ici : allez à son panneau.",
             "failed": "La session n'a pas pu être terminée. {message}"
+        },
+        "draft": {
+            "agent": "en attente de l'agent",
+            "agentTitle": "Un agent travaille sur ce brouillon (son terminal, sa colonne du tableau, ou un commit récent sur sa branche) : il le marque prêt une fois fini.",
+            "test": "attend votre test",
+            "testTitle": "Le ticket attend votre test avant que le brouillon soit marqué prêt.",
+            "ready": "à marquer prêt par vous",
+            "readyTitle": "Le ticket est à votre revue : marquez le brouillon prêt, ou demandez des changements.",
+            "yours": "à vous de finir ou de marquer prêt",
+            "yoursTitle": "Aucun agent ne travaille sur ce brouillon et sa branche n'a pas bougé récemment : il est à vous de le finir ou de le marquer prêt.",
+            "status": "Sur le tableau : {status}"
         }
     },
     "reviews": {

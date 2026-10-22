@@ -94,11 +94,22 @@ type BranchAgent struct {
 	ParentFirstName string `json:"parentfirstname,omitempty"`
 }
 
+// UpcomingDraft is an open draft PR's branch (#954): its ticket's board Status and its last commit tell whose turn
+// the draft is, the developer's or an agent's started outside MoltenTerm.
+type UpcomingDraft struct {
+	Branch string `json:"branch"`
+	Ticket int    `json:"ticket,omitempty"`
+	Status string `json:"status,omitempty"`
+	// The branch's last commit (local or on origin, the newest), in Unix milliseconds.
+	CommitAt int64 `json:"commitat,omitempty"`
+}
+
 type UpcomingAnswer struct {
 	Dir          string           `json:"dir"`
 	Target       string           `json:"target,omitempty"`
 	Branches     []UpcomingBranch `json:"branches"`
 	Agents       []BranchAgent    `json:"agents"`
+	Drafts       []UpcomingDraft  `json:"drafts,omitempty"`
 	Error        string           `json:"error,omitempty"`
 	ErrorText    *uimsg.Text      `json:"errortext,omitempty"`
 	TicketsError string           `json:"ticketserror,omitempty"`
@@ -294,18 +305,25 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		}
 		branches = append(branches, c)
 	}
-	tickets, ticketErr := u.tickets(dir, snap, branches)
+	drafts := OpenDrafts(snap, refs, ticketRes)
+	tickets, ticketErr := u.tickets(dir, snap, branches, drafts)
 	answer.TicketsError = ticketErr
 	answer.Branches = ApplyUpcomingTickets(branches, tickets)
+	answer.Drafts = ApplyDraftTickets(drafts, tickets)
 	return answer
 }
 
 // tickets reads the candidate tickets' titles, states and board Status, at most once a minute for the same tickets.
-func (u *Upcoming) tickets(dir string, snap Snapshot, branches []UpcomingBranch) (map[int]upcomingTicket, string) {
+func (u *Upcoming) tickets(dir string, snap Snapshot, branches []UpcomingBranch, drafts []UpcomingDraft) (map[int]upcomingTicket, string) {
 	numbers := map[int]bool{}
 	for _, b := range branches {
 		if b.Ticket > 0 {
 			numbers[b.Ticket] = true
+		}
+	}
+	for _, d := range drafts {
+		if d.Ticket > 0 {
+			numbers[d.Ticket] = true
 		}
 	}
 	gh := snap.Github
@@ -424,6 +442,47 @@ func openPrHeads(snap Snapshot) (map[string]bool, bool) {
 		}
 	}
 	return heads, true
+}
+
+// OpenDrafts: the open draft PRs of the repository in the collector's snapshot, with their ticket (closing issue,
+// else the branch name) and their branch's last commit.
+func OpenDrafts(snap Snapshot, refs []branchRef, ticketRes []*regexp.Regexp) []UpcomingDraft {
+	gh := snap.Github
+	if gh == nil || gh.State != GithubStateOk || len(gh.Prs) == 0 {
+		return nil
+	}
+	var prs []ghReviewPr
+	if err := json.Unmarshal(gh.Prs, &prs); err != nil {
+		return nil
+	}
+	commitAt := map[string]int64{}
+	for _, ref := range refs {
+		if ref.commitAt > commitAt[ref.name] {
+			commitAt[ref.name] = ref.commitAt
+		}
+	}
+	var rtn []UpcomingDraft
+	for _, pr := range prs {
+		if !pr.IsDraft || pr.IsCrossRepository {
+			continue
+		}
+		ticket := ticketOfBranch(pr.HeadRefName, ticketRes)
+		if len(pr.ClosingIssuesReferences) > 0 {
+			ticket = pr.ClosingIssuesReferences[0].Number
+		}
+		rtn = append(rtn, UpcomingDraft{Branch: pr.HeadRefName, Ticket: ticket, CommitAt: commitAt[pr.HeadRefName]})
+	}
+	return rtn
+}
+
+// ApplyDraftTickets gives each draft its ticket's board Status.
+func ApplyDraftTickets(drafts []UpcomingDraft, tickets map[int]upcomingTicket) []UpcomingDraft {
+	for i, d := range drafts {
+		if ticket, ok := tickets[d.Ticket]; ok {
+			drafts[i].Status = ticket.Status
+		}
+	}
+	return drafts
 }
 
 func agentBranches(agents []BranchAgent) map[string]bool {

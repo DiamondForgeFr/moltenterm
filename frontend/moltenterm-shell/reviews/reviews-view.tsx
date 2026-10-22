@@ -25,7 +25,7 @@ import { openWebLink } from "../open-web-link";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
-import { RowAgentLine, YoursMarker } from "./reviews-agent-bar";
+import { DraftTurnChip, RowAgentLine } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
@@ -790,7 +790,6 @@ export function ReviewRow({
                         <MergeOrderRank order={order} />
                         {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
                         {head.title}
-                        <YoursMarker dir={dir} branch={pr.branch} draft={pr.draft} />
                     </div>
                     <div className="truncate text-12 text-muted">
                         PR #{pr.number} · <code>{pr.branch}</code>
@@ -825,6 +824,7 @@ export function ReviewRow({
                     <ToneChip label={report.label} tone={report.tone} title={report.title} testId="reviews-report" />
                 )}
                 <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
+                {pr.draft ? <DraftTurnChip dir={dir} branch={pr.branch} /> : null}
                 <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
                 <BatchRowChip mark={batchMark} />
                 {pr.unpublished > 0 ? (
