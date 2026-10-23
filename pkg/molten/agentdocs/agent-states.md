@@ -44,8 +44,8 @@ MoltenTerm learns the state from four sources:
    count, nor does a single redraw. Output never ends **waiting** or **done**: answer with Enter first.
 4. **The agent's hooks** (most precise): Claude Code and Codex run `molten agent hook` at each event, other agents
    `molten agent state <state>`. As soon as a hook reports in a pane (a session start counts), its output activity is
-   ignored there, for this agent, until the pane is closed: the hooks alone say when it works, and a turn end
-   reported by Codex's notify wrapper adds nothing.
+   ignored there, for this agent, until the pane is closed: the hooks alone say when it works, and once its `Stop`
+   hook reported a done there, a turn end reported by Codex's notify wrapper adds nothing.
 
 MoltenTerm never changes your agent's configuration by itself.
 
@@ -227,8 +227,9 @@ run only:
   gets none of MoltenTerm's;
 - `-c notify=[<molten>, "agent", "notify", "--agent", "codex", "--", <your own notify>]`, the fallback until the
   hooks are trusted: `molten agent notify` runs your own notify first, with the same JSON argument Codex gives it,
-  then reports done and links the companion to the session from the payload's thread id. Once the hooks report in
-  the pane, its done adds nothing. Your own `-c notify=...`, a profile or a project `.codex/config.toml` that sets
+  then reports done and links the companion to the session from the payload's thread id. Once MoltenTerm's `Stop`
+  hook reported a done in the pane, its done adds nothing (with your own `Stop` hook in its place, notify keeps
+  saying done). Your own `-c notify=...`, a profile or a project `.codex/config.toml` that sets
   notify leave notify as you set it;
 - `-c tui.notifications=["approval-requested","plan-mode-prompt","async-question"]`,
   `-c tui.notification_method="osc9"` and `-c tui.notification_condition="always"`, so an approval or a question

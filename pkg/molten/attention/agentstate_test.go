@@ -425,6 +425,9 @@ func TestSessionStartAndRedundantTurnEnd(t *testing.T) {
 	if h.state("b1") != molten.AgentStateWaiting {
 		t.Fatalf("a start while waiting keeps waiting: %q", h.state("b1"))
 	}
+	if h.states.turnEndRedundant(notify) {
+		t.Fatal("precise but no done from the hooks yet (the user's own Stop hook took its place): notify still says done")
+	}
 	h.clock = h.clock.Add(10 * time.Second)
 	h.report("b1", molten.AgentStateDone, "codex")
 	if !h.states.turnEndRedundant(notify) {
