@@ -20,6 +20,8 @@ import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { MissionPaneEvent } from "../pane-status";
+import { LaunchEvent } from "../reviews/reviews-launch-client";
+import type { LaunchState } from "../reviews/reviews-launch-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { TabActivity, whileShown } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
@@ -28,6 +30,7 @@ import {
     ChipTone,
     chipView,
     detailRows,
+    launchServesTarget,
     localAppTarget,
     prStateText,
     reasonText,
@@ -99,6 +102,23 @@ export function useTestContext(url: string, workspaceDir: string): TestContextAn
             "browser-test-context"
         );
     }, [key, ask]);
+    useEffect(() => {
+        if (!key || !workspaceDir) {
+            return;
+        }
+        // A Reviews Launch that replaces the version on this port keeps the tab's URL: nothing else tells the chip
+        // that another checkout now serves it (#1003).
+        return waveEventSubscribeSingle({
+            eventType: LaunchEvent as WaveEventName,
+            scope: workspaceDir,
+            handler: (event) => {
+                const state = event.data as LaunchState;
+                if (launchServesTarget(state, key)) {
+                    ask(true);
+                }
+            },
+        });
+    }, [key, workspaceDir, ask]);
     const current = answer?.key === key ? answer.value : null;
     const root = current?.root ?? "";
     const project = current?.project ?? "";

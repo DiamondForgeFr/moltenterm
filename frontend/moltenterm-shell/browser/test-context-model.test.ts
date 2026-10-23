@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import type { LaunchState } from "../reviews/reviews-launch-model";
 import {
     branchText,
     chipView,
     detailRows,
+    launchServesTarget,
     localAppTarget,
     prStateText,
     reasonText,
@@ -136,5 +138,29 @@ describe("reviewsTarget", () => {
         expect(reviewsTarget({ ...prBranch, pr: undefined, futurepr: true, ticket: 0 }, "/w/diamondforge")).toBeNull();
         expect(reviewsTarget({ ...prBranch, sameproject: false }, "/w/other")).toBeNull();
         expect(reviewsTarget({ ...prBranch, pr: undefined }, "/w/diamondforge")).toBeNull();
+    });
+});
+
+describe("a Reviews Launch on the tab's port (#1003)", () => {
+    const running = {
+        dir: "/w/shop",
+        id: "l1",
+        target: { kind: "pr", number: 110, branch: "feature/109-loader" },
+        servedir: "/w/shop",
+        state: "running",
+        steps: [{ id: "server-web", kind: "server", port: 5103, state: "running" }],
+        url: "http://localhost:5103",
+        startedat: 1,
+    } as LaunchState;
+
+    it("asks again once the launched version serves the tab", () => {
+        expect(launchServesTarget(running, "localhost:5103")).toBe(true);
+        expect(launchServesTarget({ ...running, url: "http://127.0.0.1:5173" }, "localhost:5103")).toBe(true);
+    });
+
+    it("ignores a launch still starting, another port, or no launch", () => {
+        expect(launchServesTarget({ ...running, state: "starting" }, "localhost:5103")).toBe(false);
+        expect(launchServesTarget(running, "localhost:3000")).toBe(false);
+        expect(launchServesTarget(null, "localhost:5103")).toBe(false);
     });
 });
