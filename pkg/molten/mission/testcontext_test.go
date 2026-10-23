@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,6 +77,31 @@ func TestListeningPidsFindsThisProcess(t *testing.T) {
 	if !slices.Contains(pids, int32(os.Getpid())) {
 		t.Fatalf("port %d: listeners %v, want %d", port, pids, os.Getpid())
 	}
+}
+
+// Launch names the processes on its ports through the same lookup as the test context (#1003).
+func TestLaunchHoldersUseTheTestContextLookup(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot listen: %v", err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if _, err := listeningPids(ctx, port); err != nil {
+		t.Skipf("the socket table cannot be read here: %v", err)
+	}
+	holders, err := listeningHolders(ctx, port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, holder := range holders {
+		if holder.Pid == os.Getpid() && holder.Port == port && holder.Name != "" {
+			return
+		}
+	}
+	t.Fatalf("port %d: holders %+v, want pid %d with its name", port, holders, os.Getpid())
 }
 
 type fakeTestContextHost struct {
@@ -165,6 +192,34 @@ func TestTestContextOfADetachedCheckoutAtAPrBranch(t *testing.T) {
 	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
 	if !answer.Detached || answer.Branch != "feature/12-loader" || answer.Ticket != 12 || answer.Pr == nil || answer.Pr.Number != 110 {
 		t.Fatalf("detached at a PR branch: %+v", answer)
+	}
+}
+
+// A Reviews Launch of a PR whose branch is not on origin detaches at GitHub's pull/<N>/head (#1003): the chip names
+// the PR's head branch and the PR, not a bare commit.
+func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
+	base, clone := makePaneRepo(t)
+	origin := filepath.Join(base, "origin")
+	gitRun(t, origin, "checkout", "-q", "-b", "feature/7-fork")
+	commit(t, origin, "f.txt", "feat(#7): from a fork")
+	gitRun(t, origin, "update-ref", "refs/pull/7/head", "HEAD")
+	gitRun(t, origin, "checkout", "-q", "develop")
+	gitRun(t, origin, "branch", "-q", "-D", "feature/7-fork")
+	gitRun(t, clone, "fetch", "-q", "--no-tags", "origin", "refs/pull/7/head")
+	gitRun(t, clone, "checkout", "-q", "--detach", "FETCH_HEAD")
+	out, err := exec.Command("git", "-C", clone, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sha := strings.TrimSpace(string(out))
+	collector := MakeCollector(t.TempDir(), plainRunner, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
+		`[{"number":7,"title":"Fork","url":"u","headRefName":"feature/7-fork","headRefOid":"` + sha + `"}]`)}})
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
+	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
+	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
+	if !answer.Detached || answer.Branch != "feature/7-fork" || answer.Ticket != 7 || answer.Pr == nil || answer.Pr.Number != 7 || !answer.SameProject {
+		t.Fatalf("detached at pull/7/head: %+v", answer)
 	}
 }
 
