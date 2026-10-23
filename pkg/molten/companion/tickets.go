@@ -128,13 +128,14 @@ func (s *Session) Ticket() (int, string) {
 type subagentLink struct {
 	callId  string
 	agentId string
+	started int64
 }
 
 func (s *Session) runningSubagents() []subagentLink {
 	var rtn []subagentLink
 	for _, sa := range s.subagents {
 		if sa.state == SubagentRunning {
-			rtn = append(rtn, subagentLink{callId: sa.id, agentId: sa.agentId})
+			rtn = append(rtn, subagentLink{callId: sa.id, agentId: sa.agentId, started: sa.started})
 		}
 	}
 	return rtn
@@ -156,6 +157,13 @@ func (s *Session) SetSubagentFacts(callId string, facts SubagentFacts) {
 	set(&sa.model, facts.Model)
 	set(&sa.effort, facts.Effort)
 	set(&sa.branch, facts.Branch)
+	// Only an agent found by its rollout takes its state from it: a recorded one's parent tells its end and its
+	// follow-ups, and a follow-up reaches the parent's records before the agent starts its next turn.
+	if sa.found && facts.Ended && sa.state == SubagentRunning {
+		sa.state = SubagentDone
+		sa.ended = s.recordAt
+		changed = true
+	}
 	if changed {
 		s.touch()
 	}

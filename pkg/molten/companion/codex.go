@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -35,6 +36,11 @@ var codexQuietTypes = map[string]bool{
 
 type CodexAdapter struct {
 	roots []string
+	// lock guards the sub-agent caches (codexsubagents.go).
+	lock sync.Mutex
+	// heads: what each rollout's header says (it never changes), by path; rollouts: a sub-agent's rollout by thread id.
+	heads    map[string]codexHead
+	rollouts map[string]string
 }
 
 // MakeCodexAdapter reads sessions under the given roots, or Codex's own and the
@@ -339,9 +345,13 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 	case "function_call":
 		name := str(item, "name")
 		args := str(item, "arguments")
-		s.AddToolCall(codexCallId(item), name, args, at)
 		var parsed map[string]any
 		_ = json.Unmarshal([]byte(args), &parsed)
+		if str(item, "namespace") == codexCollaboration {
+			args = codexCollaborationArgs(parsed)
+			a.parseCollaboration(codexCallId(item), name, parsed, s, at)
+		}
+		s.AddToolCall(codexCallId(item), name, args, at)
 		s.NoteActivity(name, activityTarget(parsed), at)
 		if name == "update_plan" {
 			var input map[string]any
@@ -357,6 +367,14 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 		s.NoteActivity("shell", activityTarget(obj(item, "action")), at)
 	case "function_call_output", "custom_tool_call_output":
 		s.ResolveTool(codexCallId(item))
+		if output, ok := item["output"].(string); ok && strings.HasPrefix(output, `{"task_name"`) {
+			var result struct {
+				TaskName string `json:"task_name"`
+			}
+			if json.Unmarshal([]byte(output), &result) == nil {
+				s.SetSubagentPath(codexCallId(item), result.TaskName)
+			}
+		}
 	}
 }
 
@@ -431,6 +449,8 @@ func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 			if !s.EditSeen(str(item, "id")) {
 				a.parseChanges(obj(item, "changes"), s, at)
 			}
+		case "SubAgentActivity":
+			a.parseSubagentActivity(item, s, at)
 		case "TodoList", "Plan":
 			todos := codexPlan(arr(item, "items"))
 			if todos == nil {

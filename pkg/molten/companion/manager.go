@@ -1282,6 +1282,9 @@ func (w *watcher) readFolderBranch(paneDir string) {
 
 // readSubagents reads the running sub-agents' own transcripts: the meta files only while one's agent id is unknown.
 func (w *watcher) readSubagents(reader SubagentReader) {
+	if finder, ok := reader.(SubagentFinder); ok {
+		w.findSubagents(finder)
+	}
 	running := w.session.runningSubagents()
 	var ids map[string]string
 	for _, sa := range running {
@@ -1302,6 +1305,34 @@ func (w *watcher) readSubagents(reader SubagentReader) {
 		if facts, ok := reader.ReadSubagent(w.path, agentId); ok {
 			w.session.SetSubagentFacts(sa.callId, facts)
 		}
+	}
+}
+
+// findSubagents looks, while sub-agents run, for the agents they started (#986), and for the thread of a running one
+// whose start gave none (the session's own children).
+func (w *watcher) findSubagents(finder SubagentFinder) {
+	running := w.session.runningSubagents()
+	if len(running) == 0 {
+		return
+	}
+	var parents []string
+	since := int64(0)
+	unlinked := false
+	for _, sa := range running {
+		if sa.agentId != "" {
+			parents = append(parents, sa.agentId)
+		} else {
+			unlinked = true
+		}
+		if sa.started > 0 && (since == 0 || sa.started < since) {
+			since = sa.started
+		}
+	}
+	if unlinked && w.session.Id != "" {
+		parents = append(parents, w.session.Id)
+	}
+	for _, f := range finder.FindSubagents(w.path, parents, since) {
+		w.session.AddFoundSubagent(f)
 	}
 }
 

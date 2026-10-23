@@ -74,7 +74,14 @@ type subagent struct {
 	state      string
 	started    int64
 	ended      int64
-	ticket     ticketRef
+	// woke: when a follow-up last sent it back to work (a Codex agent's "interacted" activity).
+	woke   int64
+	ticket ticketRef
+	// path: the agent's place in its tree as Codex names it (/root/audit_reliability), which links a sub-agent
+	// rollout to its call when no activity gave its thread id.
+	path string
+	// found: an agent read only from its own rollout (a sub-agent's sub-agent): its rollout's turns say its state.
+	found bool
 }
 
 // PRLink is a pull request the session pushed, as the agent recorded it (Claude Code's pr-link records).
@@ -328,7 +335,7 @@ func (s *Session) QuietSubagents(now int64, lastWrite func(agentId string) int64
 		if !sa.background || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
 			continue
 		}
-		last := sa.started
+		last := max(sa.started, sa.woke)
 		if sa.agentId != "" && lastWrite != nil {
 			last = max(last, lastWrite(sa.agentId))
 		}
@@ -388,6 +395,83 @@ func (s *Session) EndSubagent(id string, status string) {
 	}
 	sa.state = state
 	sa.ended = s.recordAt
+	s.touch()
+}
+
+// SubagentStarted records the thread a started sub-agent runs as (Codex's started activity, #986): the call that
+// spawned it gets its agent id, and the model and effort the activity gives when the call named none. Without a
+// recorded call (a version that wrote no spawn_agent), the activity starts the agent itself.
+func (s *Session) SubagentStarted(callId string, agentId string, path string, description string, model string, effort string, at int64) {
+	sa := s.subagent(callId)
+	if sa == nil {
+		sa = s.subagent(agentId)
+	}
+	if sa == nil {
+		s.StartSubagent(callId, description, "", model, effort, true, at)
+		sa = s.subagent(callId)
+		if sa == nil {
+			return
+		}
+	}
+	s.SetSubagentId(sa.id, agentId)
+	if sa.path == "" {
+		sa.path = cutString(path, 300)
+	}
+	if sa.model == "" {
+		sa.model = cutString(model, 100)
+	}
+	if sa.effort == "" {
+		sa.effort = cutString(effort, 40)
+	}
+	s.touch()
+}
+
+// SetSubagentPath keeps where a sub-agent sits in its tree, as its call's result names it.
+func (s *Session) SetSubagentPath(id string, path string) {
+	sa := s.subagent(id)
+	if sa == nil || path == "" || sa.path != "" {
+		return
+	}
+	sa.path = cutString(path, 300)
+}
+
+// WakeSubagent sends an agent back to work: a follow-up its parent sent after it ended its task.
+func (s *Session) WakeSubagent(id string, at int64) {
+	sa := s.subagent(id)
+	if sa == nil {
+		return
+	}
+	sa.woke = max(sa.woke, at)
+	if sa.state == SubagentRunning {
+		return
+	}
+	sa.state = SubagentRunning
+	sa.ended = 0
+	s.touch()
+}
+
+// AddFoundSubagent takes an agent found by its own rollout. A child of the session itself only gives its thread id
+// to the call that spawned it (matched by its path); a child of a sub-agent (nested) is listed with the others.
+func (s *Session) AddFoundSubagent(f FoundSubagent) {
+	if f.AgentId == "" || s.subagent(f.AgentId) != nil {
+		return
+	}
+	if f.Path != "" {
+		for _, sa := range s.subagents {
+			if sa.agentId == "" && sa.path == f.Path {
+				sa.agentId = cutString(f.AgentId, 200)
+				return
+			}
+		}
+	}
+	if !f.Nested {
+		return
+	}
+	s.subagents = append(s.subagents, &subagent{
+		id: cutString(f.AgentId, 200), agentId: cutString(f.AgentId, 200), description: cutRunes(oneLine(f.Name), MaxSubagentText),
+		kind: cutString(f.Kind, 100), background: true, state: SubagentRunning, started: f.Started, path: cutString(f.Path, 300), found: true,
+	})
+	s.trimSubagents()
 	s.touch()
 }
 
