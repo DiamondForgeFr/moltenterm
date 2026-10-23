@@ -13,14 +13,14 @@
 # runs its metadata and security jobs, which also makes GitHub know the workflow, so it can be dispatched before it is on
 # main.
 #
-# macOS (#507): a release is signed with the Developer ID and notarized when the seven signing secrets of the protected
-# `release` environment exist (scripts/macos-signing/README.md, RELEASE.md "macOS signing"). Until they do, and always
-# for a rehearsal, which never gets that environment, the builds are ad-hoc signed and the release text says how to
-# open them. A partial set of secrets fails the run: it never falls back to ad hoc. The channel feeds read by the app
+# macOS (#507, #976): public tags require the seven signing secrets of the protected `release` environment
+# (scripts/macos-signing/README.md, RELEASE.md "macOS signing"). Candidates may use ad hoc without them. Rehearsals
+# never get that environment and remain ad hoc. A partial set fails: it never falls back to ad hoc. The channel feeds
 # are #188's: the electron-builder update files (latest*.yml) are published with the binaries for it.
 #
-# SHA256SUMS.txt is signed with the DiamondForge release key once it exists (#576, scripts/moltenterm-release-sign.sh):
-# until then the release is published unsigned and the log says so; afterwards a signature that fails fails the run.
+# SHA256SUMS.txt requires the DiamondForge release key on public tags (#576, #976, scripts/moltenterm-release-sign.sh).
+# Candidates/rehearsals may remain unsigned only with all material absent. Final delivery evidence and the exact upload
+# inventory are checked before any mutation. Existing release assets, drafts included, are never replaced on a rerun.
 
 name: Release
 
@@ -52,6 +52,7 @@ on:
             - scripts/moltenterm-release-files.sh
             - scripts/moltenterm-release-sign.sh
             - scripts/moltenterm-release-sign-test.sh
+            - scripts/release-*.mjs
             - scripts/macos-signing/**
             - electron-builder.config.cjs
 
@@ -146,6 +147,23 @@ jobs:
                   echo "channel=$channel" >> "$GITHUB_OUTPUT"
                   echo "version=$version" >> "$GITHUB_OUTPUT"
                   echo "$TAG: $channel release $version"
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+            - name: Required checksum signing inputs
+              if: github.event_name == 'push'
+              env:
+                  RELEASE_MODE: ${{ steps.tag.outputs.mode }}
+                  RELEASE_CHANNEL: ${{ steps.tag.outputs.channel }}
+                  RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+                  RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+              run: node scripts/release-policy.mjs checksum-inputs
+            - name: Install fixture dependencies
+              if: github.event_name == 'pull_request'
+              run: npm ci --ignore-scripts --no-audit --no-fund
+            - name: Test release admission and publication
+              if: github.event_name == 'pull_request'
+              run: node --test scripts/release-*.node-test.mjs
             # The signing logic, with a throwaway key the test generates and deletes: never the release key (#576).
             - name: Test the release signing
               if: github.event_name == 'pull_request'
@@ -156,7 +174,7 @@ jobs:
               if: github.event_name == 'pull_request'
               run: >-
                   node --test scripts/macos-signing/signing.node-test.mjs scripts/macos-signing/process.node-test.mjs
-                  scripts/macos-signing/package.node-test.mjs
+                  scripts/macos-signing/package.node-test.mjs scripts/macos-signing/delivery.node-test.mjs
 
     macos:
         name: macOS (arm64, x64)
@@ -170,6 +188,13 @@ jobs:
         # The Developer ID secrets are environment secrets of `release`, whose deployment rule admits only `v*` tags
         # (RELEASE.md, "macOS signing"). A rehearsal gets no environment, hence no secret, and stays ad hoc.
         environment: ${{ needs.meta.outputs.mode == 'release' && 'release' || '' }}
+        env:
+            RELEASE_MODE: ${{ needs.meta.outputs.mode }}
+            RELEASE_CHANNEL: ${{ needs.meta.outputs.channel }}
+            RELEASE_VERSION: ${{ needs.meta.outputs.version }}
+            RELEASE_SHA: ${{ github.sha }}
+            RELEASE_RUN_ID: ${{ github.run_id }}
+            RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
         outputs:
             signing: ${{ steps.signing.outputs.mode }}
         steps:
@@ -207,7 +232,6 @@ jobs:
                       native-security-report/raw/
                   if-no-files-found: error
                   retention-days: 30
-            - run: npm ci --no-audit --no-fund
             # adhoc with no signing secret, developer-id with all seven; a partial set fails here, before any build.
             # Only the mode is printed, never a value.
             - name: Signing mode
@@ -224,15 +248,10 @@ jobs:
                   APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
               run: |
                   signing="$(node scripts/macos-signing/package.mjs mode)"
-                  if [ "$MODE" != release ] && [ "$signing" != adhoc ]; then
-                      echo "::error::A rehearsal must never see the signing secrets: keep them in the release environment only"
-                      exit 1
-                  fi
+                  node scripts/release-policy.mjs macos "$signing"
                   echo "mode=$signing" >> "$GITHUB_OUTPUT"
                   echo "macOS signing: $signing"
-                  if [ "$signing" = adhoc ] && [ "$MODE" = release ] && [ "$CHANNEL" = public ]; then
-                      echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
-                  fi
+            - run: npm ci --no-audit --no-fund
             - name: Test the macOS signing orchestration
               run: node --test scripts/macos-signing/*.node-test.mjs
             # Ad hoc (`-`): an unsigned arm64 app does not start at all, an ad-hoc one opens once Gatekeeper is told to.
@@ -311,6 +330,7 @@ jobs:
                       make/*.zip
                       make/*.blockmap
                       make/latest-mac.yml
+                      make/macos-verification.json
                   if-no-files-found: error
                   retention-days: ${{ needs.meta.outputs.mode == 'rehearsal' && 14 || 1 }}
 
@@ -400,6 +420,14 @@ jobs:
         if: needs.meta.outputs.mode == 'rehearsal'
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        env:
+            RELEASE_MODE: ${{ needs.meta.outputs.mode }}
+            RELEASE_CHANNEL: ${{ needs.meta.outputs.channel }}
+            RELEASE_VERSION: ${{ needs.meta.outputs.version }}
+            RELEASE_SHA: ${{ github.sha }}
+            RELEASE_RUN_ID: ${{ github.run_id }}
+            RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+            MACOS_SIGNING: ${{ needs.macos.outputs.signing }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -409,6 +437,10 @@ jobs:
                   pattern: ${{ github.event.repository.name }}-rehearsal-*
                   path: dist-rehearsal
                   merge-multiple: true
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+            - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-rehearsal
             # As on a release, so that the checklist covers the signature before a candidate is cut.
@@ -457,6 +489,14 @@ jobs:
         if: needs.meta.outputs.mode == 'release'
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        env:
+            RELEASE_MODE: ${{ needs.meta.outputs.mode }}
+            RELEASE_CHANNEL: ${{ needs.meta.outputs.channel }}
+            RELEASE_VERSION: ${{ needs.meta.outputs.version }}
+            RELEASE_SHA: ${{ github.sha }}
+            RELEASE_RUN_ID: ${{ github.run_id }}
+            RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+            MACOS_SIGNING: ${{ needs.macos.outputs.signing }}
         permissions:
             contents: write
         steps:
@@ -468,6 +508,10 @@ jobs:
                   pattern: release-*
                   path: dist-release
                   merge-multiple: true
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+            - run: npm ci --ignore-scripts --no-audit --no-fund
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-release
             # Closed failure once the key exists: a wrong secret fails the run here, before anything is published.
@@ -533,26 +577,4 @@ jobs:
                   GH_REPO: ${{ github.repository }}
                   TAG: ${{ github.ref_name }}
                   CHANNEL: ${{ needs.meta.outputs.channel }}
-              run: |
-                  files=(dist-release/*)
-                  if gh release view "$TAG" > /dev/null 2>&1; then
-                      if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ]; then
-                          # A re-run on a draft: the files are replaced, the text rewritten; `--tag` is sent again so
-                          # that editing a draft never detaches it from its tag.
-                          gh release upload "$TAG" "${files[@]}" --clobber
-                          gh release edit "$TAG" --tag "$TAG" --title "MoltenTerm $TAG" --notes-file release-body.md
-                      else
-                          # A published release keeps the files people downloaded: a re-run only adds missing ones.
-                          present="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
-                          for file in "${files[@]}"; do
-                              if ! grep -qxF "$(basename "$file")" <<< "$present"; then
-                                  gh release upload "$TAG" "$file"
-                              fi
-                          done
-                      fi
-                  elif [ "$CHANNEL" = rc ]; then
-                      gh release create "$TAG" "${files[@]}" --verify-tag --title "MoltenTerm $TAG" --notes-file release-body.md --prerelease --latest=false
-                  else
-                      gh release create "$TAG" "${files[@]}" --verify-tag --title "MoltenTerm $TAG" --notes-file release-body.md --draft
-                  fi
-                  gh release view "$TAG" --json url,isDraft,isPrerelease --jq '"\(.url) draft=\(.isDraft) prerelease=\(.isPrerelease)"'
+              run: node scripts/release-publish.mjs dist-release release-body.md
