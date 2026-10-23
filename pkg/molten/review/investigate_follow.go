@@ -277,7 +277,7 @@ func (r *Restarter) releaseState(f agentFollow, state string, message string, te
 func (r *Restarter) holdFixing(f agentFollow, st *followState) {
 	number := strconv.Itoa(f.req.Number)
 	st.stoppedAt, st.failSeen = time.Time{}, ""
-	r.holdState(f, st, molten.AgentStateWorking, "Fixing the CI of #"+number, uimsg.Make("agentHold.fixing", "number", number))
+	r.holdState(f, st, molten.AgentStateWorking, "Resolving what blocks #"+number, uimsg.Make("agentHold.fixing", "number", number))
 }
 
 func (r *Restarter) holdCi(f agentFollow, st *followState) {

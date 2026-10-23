@@ -6228,7 +6228,7 @@
     },
     "server": {
         "agentHold": {
-            "fixing": "corrige la CI de #{number}",
+            "fixing": "résout ce qui bloque #{number}",
             "ci": "attend la CI de #{number}",
             "localCi": "attend la CI locale de #{number} sur sa tête poussée",
             "green": "la CI de #{number} passe"
