@@ -57,6 +57,13 @@ type SettingsReader interface {
 	ReadSettings(path string) (molten.AgentSettings, bool)
 }
 
+// SessionNamer is an adapter whose agent keeps its sessions' names outside the transcript (Codex's session index):
+// the name is read for the session shown, like a name its transcript records (#991).
+type SessionNamer interface {
+	// SessionName gives the agent's current name of a session; false when it has none.
+	SessionName(sessionPath string, id string) (string, bool)
+}
+
 // SubagentWriter is an adapter whose background agents write transcripts of their own, next to their session's:
 // when one was last written tells whether the agent still works when its end was never recorded.
 type SubagentWriter interface {

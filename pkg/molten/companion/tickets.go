@@ -283,13 +283,13 @@ func ghProgram() (string, string) {
 	return molten.LookPathIn("gh", loginPath), loginPath
 }
 
-// GhIssueLabels reads a ticket's labels with `gh issue view N --json labels`, in the project's folder.
-func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error) {
+// runGh runs the user's gh in the project's folder and returns its output, at most max bytes.
+func runGh(ctx context.Context, dir string, max int, args ...string) ([]byte, error) {
 	program, loginPath := ghProgram()
 	if program == "" {
 		return nil, fmt.Errorf("gh is not installed")
 	}
-	cmd := spawns.Command(ctx, program, "issue", "view", strconv.Itoa(number), "--json", "labels")
+	cmd := spawns.Command(ctx, program, args...)
 	cmd.Dir = dir
 	env := os.Environ()
 	if loginPath != "" {
@@ -301,8 +301,17 @@ func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error
 	if err != nil {
 		return nil, err
 	}
-	if len(out) > maxLabelBytes {
+	if len(out) > max {
 		return nil, fmt.Errorf("gh answer too large")
+	}
+	return out, nil
+}
+
+// GhIssueLabels reads a ticket's labels with `gh issue view N --json labels`, in the project's folder.
+func GhIssueLabels(ctx context.Context, dir string, number int) ([]string, error) {
+	out, err := runGh(ctx, dir, maxLabelBytes, "issue", "view", strconv.Itoa(number), "--json", "labels")
+	if err != nil {
+		return nil, err
 	}
 	var answer struct {
 		Labels []struct {

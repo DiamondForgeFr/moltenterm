@@ -254,15 +254,37 @@ func (t *topic) worked() bool {
 	return len(t.files) > 0 || t.tools >= topicMinTools || len(t.prs) > 0
 }
 
-// Topics are the latest prompts whose turn did work, newest first.
+// Topics are the latest prompts whose turn did work, newest first. A topic shows the PRs the agent recorded during it
+// and its branch's PRs (#991): a branch PR goes on the newest topic of that branch, never on a second topic nor where
+// a recorded one already put it.
 func (s *Session) Topics() []TopicInfo {
 	var rtn []TopicInfo
-	for i := len(s.topics) - 1; i >= 0 && len(rtn) < MaxShownTopics; i-- {
-		t := s.topics[i]
-		if !t.worked() {
-			continue
+	shown := map[int]bool{}
+	for _, t := range s.shownTopics() {
+		prs := append([]PRLink(nil), t.prs...)
+		for _, pr := range s.branchPRs[t.branch] {
+			if len(prs) >= MaxTopicPRs {
+				break
+			}
+			if s.prsSeen[pr.Number] || shown[pr.Number] {
+				continue
+			}
+			prs = append(prs, pr)
 		}
-		rtn = append(rtn, TopicInfo{Text: t.text, Branch: t.branch, At: t.at, Last: t.last, Tools: t.tools, Files: len(t.files), PRs: append([]PRLink(nil), t.prs...)})
+		for _, pr := range prs {
+			shown[pr.Number] = true
+		}
+		rtn = append(rtn, TopicInfo{Text: t.text, Branch: t.branch, At: t.at, Last: t.last, Tools: t.tools, Files: len(t.files), PRs: prs})
+	}
+	return rtn
+}
+
+func (s *Session) shownTopics() []*topic {
+	var rtn []*topic
+	for i := len(s.topics) - 1; i >= 0 && len(rtn) < MaxShownTopics; i-- {
+		if s.topics[i].worked() {
+			rtn = append(rtn, s.topics[i])
+		}
 	}
 	return rtn
 }

@@ -156,8 +156,10 @@ type Session struct {
 	folderRead   bool
 	topics       []*topic
 	prsSeen      map[int]bool
-	subagents    []*subagent
-	activity     *ActivityInfo
+	// branchPRs: the pull requests of each topic branch, as gh answered (#991, branchprs.go).
+	branchPRs map[string][]PRLink
+	subagents []*subagent
+	activity  *ActivityInfo
 	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
 	// tickets.go).
 	model  string

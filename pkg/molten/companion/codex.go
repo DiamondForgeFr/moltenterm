@@ -41,6 +41,8 @@ type CodexAdapter struct {
 	// heads: what each rollout's header says (it never changes), by path; rollouts: a sub-agent's rollout by thread id.
 	heads    map[string]codexHead
 	rollouts map[string]string
+	// nameIndexes: what each session index last said of the threads' names (codexnames.go), by path.
+	nameIndexes map[string]*codexNameIndex
 }
 
 // MakeCodexAdapter reads sessions under the given roots, or Codex's own and the

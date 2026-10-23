@@ -217,29 +217,33 @@ type Manager struct {
 	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
 	complexities  map[string]*complexityEntry
 	ticketLookups int
+	// The pull requests of the topics' branches (#991, branchprs.go), by folder and branch, and the gh calls running.
+	prBranches map[string]*branchPREntry
+	prLookups  int
 	// The process links and settings follow of the agents' runs (processlink.go), by block, and which rollouts are
 	// sub-agents'.
 	tracks        map[string]*runTrack
 	subagentPaths map[string]bool
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
-	runOf         func(blockId string) (molten.AgentRunInfo, bool)
-	setSettings   func(blockId string, agent string, settings molten.AgentSettings)
-	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
-	allRuns       func() []molten.AgentRunInfo
-	blockInfo     func(blockId string) (blockInfo, error)
-	ticketLabels  func(ctx context.Context, dir string, number int) ([]string, error)
-	publish       func(view CompanionView)
-	publishUsage  func(info UsageInfo)
-	writeGauges   func(agents []string) error
-	writeSetting  func(key string, value any) error
-	adapterFor    func(agent string) Adapter
-	openFiles     func(pid int32) []string
-	procTable     func() (*proctree.Table, error)
-	settings      func() *wconfig.SettingsType
-	now           func() time.Time
-	tick          time.Duration
-	idleTick      time.Duration
+	runOf          func(blockId string) (molten.AgentRunInfo, bool)
+	setSettings    func(blockId string, agent string, settings molten.AgentSettings)
+	integrationOf  func(blockId string) (molten.AgentIntegrationReport, bool)
+	allRuns        func() []molten.AgentRunInfo
+	blockInfo      func(blockId string) (blockInfo, error)
+	ticketLabels   func(ctx context.Context, dir string, number int) ([]string, error)
+	branchPRLookup func(ctx context.Context, dir string, branch string) ([]PRLink, error)
+	publish        func(view CompanionView)
+	publishUsage   func(info UsageInfo)
+	writeGauges    func(agents []string) error
+	writeSetting   func(key string, value any) error
+	adapterFor     func(agent string) Adapter
+	openFiles      func(pid int32) []string
+	procTable      func() (*proctree.Table, error)
+	settings       func() *wconfig.SettingsType
+	now            func() time.Time
+	tick           time.Duration
+	idleTick       time.Duration
 }
 
 func MakeManager() *Manager {
@@ -1265,6 +1269,26 @@ func (w *watcher) readAgentFacts() {
 	w.session.ResolveTickets(func(number int, wanted bool) (string, bool) {
 		return w.m.ticketComplexity(dir, number, fetch && wanted)
 	})
+	prDir := w.session.Cwd
+	if prDir == "" {
+		prDir = dir
+	}
+	w.session.ResolveBranchPRs(func(branch string) []PRLink {
+		return w.m.branchPRs(prDir, branch, fetch)
+	})
+	w.readSessionName()
+}
+
+// readSessionName takes the name the agent keeps outside the transcript (Codex's session index, #991): a stat a
+// pass, the index read again only when it changed.
+func (w *watcher) readSessionName() {
+	namer, ok := w.adapter.(SessionNamer)
+	if !ok || w.session.Id == "" {
+		return
+	}
+	if name, ok := namer.SessionName(w.path, w.session.Id); ok {
+		w.session.SetSessionName(name, false)
+	}
 }
 
 // readFolderBranch reads the main agent's branch from its session's folder (its records' cwd, else the pane's), not
