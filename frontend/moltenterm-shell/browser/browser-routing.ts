@@ -18,15 +18,20 @@ import { BrowserEngineModel, browserOpen, BrowserRoute, EngineApp, fallbackNotic
 import {
     browserBlockDef,
     BrowserRecentMetaKey,
+    BrowserState,
     MoltentermBrowserView,
     noteBrowserFocus,
+    PanelTabs,
     pickBrowserPanel,
+    servingTabOf,
 } from "./browser-model";
 import { withFocusHandoff } from "./focus-handoff";
 import { choiceSite } from "./link-choice";
 
 // What BrowserViewModel offers here, without importing the view (which imports the global store).
 type BrowserPanelModel = ViewModel & {
+    state: () => BrowserState;
+    showUrlInTab: (id: string, url: string) => void;
     openUrlInNewTab: (url: string, askSite?: string) => void;
     addHandoffEntry: (url: string, engine: string) => void;
     showNotice: (text: string) => void;
@@ -91,6 +96,27 @@ async function openInBrowserPanelNow(url: string): Promise<void> {
         return;
     }
     await createBlock(browserBlockDef(url, notice, askSite != null));
+}
+
+// A launched version's page (FR-REV-031, #1005): the tab of this window tab that already shows a page the launch
+// serves loads it instead of a second tab; with none, it opens as any link does.
+export function openLaunchInBrowserPanel(url: string, serves: (tabUrl: string) => boolean): Promise<void> {
+    return withFocusHandoff(async () => {
+        const tab = currentTab();
+        const panels: PanelTabs[] = [];
+        for (const blockId of browserPanelsOfTab(tab)) {
+            const model = browserPanelModel(blockId);
+            if (model != null && typeof model.showUrlInTab === "function") {
+                panels.push({ blockId, state: model.state() });
+            }
+        }
+        const found = servingTabOf(panels, tab?.meta?.[BrowserRecentMetaKey], serves);
+        if (found == null) {
+            await openInBrowserPanelNow(url);
+            return;
+        }
+        browserPanelModel(found.blockId).showUrlInTab(found.tabId, url);
+    });
 }
 
 function linkChoiceSite(url: string): string {
