@@ -13,8 +13,14 @@ your settings files are only read, and what is added lives in MoltenTerm's data 
 
 | Agent | Added to the run | How |
 | --- | --- | --- |
-| Claude Code | Agent state hooks (working, waiting, done; the `Notification` hook only for the notifications that wait for you, not the idle reminder a minute after a turn ends), the session link (`SessionStart`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
-| Codex | A notify wrapper that runs your own `notify` first, then reports done and links the session; the MoltenTerm browser server; the coffee approvals hook, which Codex runs once you trust it in `/hooks` | `-c notify=...`, `-c mcp_servers.molten-browser...` and `-c hooks.PermissionRequest=...`, added before your arguments |
+| Claude Code | Agent state hooks (working, waiting, done; the `Notification` hook only for the notifications that wait for you, not the idle reminder a minute after a turn ends), the session link (`SessionStart`), the sub-agents (`SubagentStart`, `SubagentStop`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
+| Codex | The same state hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, `SubagentStart`, `SubagentStop`) and the coffee approvals hook, which Codex runs once you trust them in `/hooks`; until then, a notify wrapper that runs your own `notify` first, then reports done and links the session; Codex's own notifications for what waits for you (approvals, questions), sent to the pane whatever the focus; the MoltenTerm browser server | `-c hooks.<Event>=...`, `-c notify=...`, `-c tui.notifications=...` and `-c mcp_servers.molten-browser...`, added before your arguments |
+
+Both agents' hooks run the same command, `molten agent hook --agent <claude|codex>`: Claude Code and Codex give a
+hook the same JSON input, and the handler reads the event from it (`hook_event_name`). Codex trusts a hook against
+its exact definition, which MoltenTerm never changes: trust MoltenTerm's hooks once in Codex's `/hooks` (the first
+run warns that hooks need review) and every later run uses them. MoltenTerm never trusts them for you and never
+passes `--dangerously-bypass-hook-trust`.
 
 The MoltenTerm browser server also carries `list_agents` and `send_to_agent`: tell an agent "send this to Jérôme"
 and it hands its work to the agent of that first name with a brief (goal, context, files, links) written in
@@ -22,8 +28,10 @@ MoltenTerm's data folder, after you allow it. Its instructions tell the agent it
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
 What you already have is left alone and listed as such: your own hooks for a state, your own `SessionStart` hook
-running `molten agent session`, your own `-c notify=...`, your own `molten-browser` server, `--strict-mcp-config`.
-Claude Code with `disableAllHooks` gets nothing.
+running `molten agent session` or `molten agent hook`, your own `-c notify=...`, your own `molten-browser` server,
+`--strict-mcp-config`. For Codex, an event you already have hooks for (in a `config.toml` or a `hooks.json`) gets
+none of MoltenTerm's, your own `-c hooks...`, hooks turned off or managed hooks only leave every hook out, and your
+own `[tui]` notification settings stay as you set them. Claude Code with `disableAllHooks` gets nothing.
 
 Nothing is added outside a MoltenTerm terminal (another terminal app, SSH, WSL), inside an agent's own tools (a
 `claude -p` that Claude Code runs), for commands that start no session (`claude --version`, `codex login`), or when

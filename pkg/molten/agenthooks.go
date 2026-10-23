@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-
-	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
@@ -44,24 +42,47 @@ const (
 	HookOfferIntegrated = "integrated"
 )
 
-const claudeHooksSnippet = `{
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
-    ],
-    "PostToolUse": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
-    ],
-    "Notification": [
-      { "matcher": "` + agenthook.ClaudeWaitingNotificationMatcher + `", "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
-    ],
-    "Stop": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent claude || true" }] }
-    ]
-  }
-}`
+// The hooks of agent-states.md (#988): the same events and the same command as the launcher's, so a pasted copy is the
+// same handler (Claude Code runs it once; Codex trusts it once).
+var (
+	claudeHooksSnippet = hooksSnippet(AgentStateHooks(AgentIdClaude))
+	codexHooksSnippet  = hooksSnippet(AgentStateHooks(AgentIdCodex))
+)
 
+// The notify line an older agent-states.md offered Codex: a config.toml running it is still set up.
 const codexNotifySnippet = `notify = ["sh", "-c", "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent codex || true"]`
+
+// hooksSnippet writes hooks in the file shape Claude Code's settings and Codex's hooks.json share, one line per
+// handler.
+func hooksSnippet(entries []AgentHookEntry) string {
+	quote := func(s string) string {
+		var b strings.Builder
+		enc := json.NewEncoder(&b)
+		enc.SetEscapeHTML(false)
+		enc.Encode(s)
+		return strings.TrimSuffix(b.String(), "\n")
+	}
+	var b strings.Builder
+	b.WriteString("{\n  \"hooks\": {\n")
+	for i, e := range entries {
+		handler := `{ "type": "command", "command": ` + quote(e.Command)
+		if e.Timeout > 0 {
+			handler += fmt.Sprintf(`, "timeout": %d`, e.Timeout)
+		}
+		handler += " }"
+		group := `{ "hooks": [` + handler + `] }`
+		if e.Matcher != "" {
+			group = `{ "matcher": ` + quote(e.Matcher) + `, "hooks": [` + handler + `] }`
+		}
+		fmt.Fprintf(&b, "    %s: [\n      %s\n    ]", quote(e.Event), group)
+		if i < len(entries)-1 {
+			b.WriteString(",")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("  }\n}")
+	return b.String()
+}
 
 type agentHookSetup struct {
 	language string
@@ -83,14 +104,17 @@ var agentHookSetups = map[string]agentHookSetup{
 		configured: claudeHooksConfigured,
 	},
 	"codex": {
-		language:   "toml",
-		snippet:    codexNotifySnippet,
-		file:       func(env AgentEnv) string { return filepath.Join(codexHome(env), "config.toml") },
-		also:       "at the top level, replacing any notify line you already have",
-		brings:     "done when its turn ends",
+		language:   "json",
+		snippet:    codexHooksSnippet,
+		file:       func(env AgentEnv) string { return filepath.Join(codexHome(env), CodexHooksFile) },
+		also:       "or in a project's .codex/hooks.json, merged with the hooks you already have; Codex runs them once you trust them in /hooks",
+		brings:     "working while it works, done when its turn ends, and its session linked as soon as it starts",
 		configured: codexHooksConfigured,
 	},
 }
+
+// Codex's own hooks file, next to its config.toml (developers.openai.com/codex/hooks).
+const CodexHooksFile = "hooks.json"
 
 // AgentHookOffer is what the pane header shows for a terminal's agent. Reason says why it does not show.
 type AgentHookOffer struct {
@@ -176,12 +200,12 @@ func claudeFileHasHooks(path string) bool {
 	}
 	var settings claudeSettingsHooks
 	if err := json.Unmarshal(data, &settings); err != nil {
-		return strings.Contains(string(data), agentStateHookCommand)
+		return IsAgentStateHookCommand(string(data))
 	}
 	for _, matchers := range settings.Hooks {
 		for _, matcher := range matchers {
 			for _, hook := range matcher.Hooks {
-				if strings.Contains(hook.Command, agentStateHookCommand) {
+				if IsAgentStateHookCommand(hook.Command) {
 					return true
 				}
 			}
@@ -190,7 +214,12 @@ func claudeFileHasHooks(path string) bool {
 	return false
 }
 
+// codexHooksConfigured: a hooks.json of the user's that runs MoltenTerm's hooks (the same shape as Claude Code's
+// settings), or a config.toml with the older notify line.
 func codexHooksConfigured(env AgentEnv, cwd string) bool {
+	if claudeFileHasHooks(filepath.Join(codexHome(env), CodexHooksFile)) {
+		return true
+	}
 	data, err := os.ReadFile(filepath.Join(codexHome(env), "config.toml"))
 	if err != nil {
 		return false

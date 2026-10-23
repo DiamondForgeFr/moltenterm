@@ -42,9 +42,10 @@ MoltenTerm learns the state from four sources:
    **working**, and once it has stayed quiet for about four seconds the dot goes back to idle by itself. Only the
    timing of the output counts, never its content. The echo of what you type and the redraw after a resize do not
    count, nor does a single redraw. Output never ends **waiting** or **done**: answer with Enter first.
-4. **The agent's hooks** (most precise): the agent runs `molten agent state <state>` at the right moments. As soon as
-   a hook reports in a pane, its output activity is ignored there, for this agent, until the pane is closed: the
-   hooks alone say when it works.
+4. **The agent's hooks** (most precise): Claude Code and Codex run `molten agent hook` at each event, other agents
+   `molten agent state <state>`. As soon as a hook reports in a pane (a session start counts), its output activity is
+   ignored there, for this agent, until the pane is closed: the hooks alone say when it works, and a turn end
+   reported by Codex's notify wrapper adds nothing.
 
 MoltenTerm never changes your agent's configuration by itself.
 
@@ -61,17 +62,37 @@ integrated run never shows it), the pane header shows a small **Set up hooks** c
 apply it yourself. MoltenTerm only reads the agent's settings to know whether the hooks are already there (Claude
 Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`, the managed settings,
 and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its parents up to the
-repository's root; Codex: `~/.codex/config.toml` or `$CODEX_HOME/config.toml`, a line running `molten agent state`).
+repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running `molten agent hook`, or the
+older notify line running `molten agent state` in its `config.toml`).
 The chip does not show once your own hooks for the agent have reported, in this run or an earlier one (the hooks
 MoltenTerm's launcher adds do not count), nor for an agent you ran
 `molten agent remove` for. Its × (or **Don't offer again**) hides it for that agent for good; the choice is kept in
 `agent-guides.json`, in MoltenTerm's data folder under `molten/`.
 
-## The command
+## The commands
+
+```
+molten agent hook [--agent <name>]
+```
+
+The hook handler of Claude Code and Codex, which give their hooks the same JSON input on standard input. It reads
+the event (`hook_event_name`) and reports what it means, printing nothing:
+
+| Event | Reported |
+| --- | --- |
+| `SessionStart` | the session link (`transcript_path`, else `session_id`), and the pane's states are precise from now on: idle, unless the agent is working or waiting (after a compaction, the link only) |
+| `UserPromptSubmit`, `PostToolUse` | working |
+| `Notification` (Claude Code) | waiting, for the notifications that wait for you (see below) |
+| `Stop` | done |
+| `SubagentStart`, `SubagentStop` | the sub-agent (its id, type and, at its end, its transcript), for the companion |
+
+Any other event reports nothing.
 
 ```
 molten agent state <working|waiting|done|error|idle> [--agent <name>] [--message <text>] [--stdin]
 ```
+
+For other agents' hooks, plugins or notification commands:
 
 - It reports for the terminal it runs in (agents run their hooks in their own terminal).
 - `--agent` names the agent: `claude`, `codex`, `gemini`, `opencode`, or any short lowercase name for another
@@ -93,23 +114,32 @@ Either let Claude Code notify through the terminal (waiting only):
 claude config set --global preferredNotifChannel iterm2
 ```
 
-or, for all states, add these hooks to `~/.claude/settings.json` (or a project's `.claude/settings.json`), merged
-with the hooks you already have:
+or, for all states, the session link and the sub-agents, add these hooks to `~/.claude/settings.json` (or a
+project's `.claude/settings.json`), merged with the hooks you already have:
 
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
+    ],
     "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
     ],
     "PostToolUse": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
     ],
     "Notification": [
-      { "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|quota_auto_resume_stale", "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
+      { "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|quota_auto_resume_stale", "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent claude || true" }] }
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent claude || true" }] }
     ]
   }
 }
@@ -117,19 +147,23 @@ with the hooks you already have:
 
 `Notification` fires, for the types its matcher names, when Claude Code asks for a permission, an MCP server asks a
 question, or a session waits for you to continue; `Stop` when it ends its turn; `UserPromptSubmit` when you send a
-prompt; `PostToolUse` after each tool it runs, so the dot is working again once you approved a permission.
+prompt; `PostToolUse` after each tool it runs, so the dot is working again once you approved a permission;
+`SessionStart` when a session starts, also after `/clear`, a resume and a compaction.
 
 Claude Code also notifies about a minute after a turn ended ("Claude is waiting for your input", type `idle_prompt`),
-after a login, or when a usage limit lets it go on. Those ask nothing: `molten agent state waiting --stdin` reads the
-`notification_type` of the hook's input and leaves the state as it is for them, so a Notification hook pasted before
-the matcher existed keeps a finished agent done rather than waiting. Without a `notification_type` (an older Claude
-Code), the idle text is recognised the same way.
+after a login, or when a usage limit lets it go on. Those ask nothing: `molten agent hook` (and
+`molten agent state waiting --stdin`) reads the `notification_type` of the hook's input and leaves the state as it is
+for them, so a Notification hook without the matcher keeps a finished agent done rather than waiting. Without a
+`notification_type` (an older Claude Code), the idle text is recognised the same way.
+
+Hooks pasted from an earlier version of this page (`molten agent state ...`, `molten agent session ...`) keep
+working.
 
 ### Coffee approvals
 
 While a workspace's coffee is on, MoltenTerm approves the permission requests of the Claude Code sessions in it, except
 what its deny list keeps for you (deletions outside the session's folder, force pushes to main branches, credential
-files) and the questions only you can answer. `claude` started in a local MoltenTerm terminal gets this through
+files) and the questions only you can answer. A request the hook leaves to you turns the pane waiting. `claude` started in a local MoltenTerm terminal gets this through
 MoltenTerm's launcher. For a Claude Code started otherwise in a MoltenTerm terminal, add this hook:
 
 ```json
@@ -147,31 +181,72 @@ kept in the status bar's sleep list and in `molten/coffee-approvals.jsonl` in Mo
 
 ## Codex
 
-Codex runs its `notify` program when a turn completes, with a JSON argument MoltenTerm ignores. In
-`~/.codex/config.toml`:
+Codex has the same hook events as Claude Code, with the same JSON input (but no `Notification`). Add these hooks to
+`~/.codex/hooks.json` (or `$CODEX_HOME/hooks.json`, or a project's `.codex/hooks.json`), merged with the hooks you
+already have, then trust them once in Codex's `/hooks`:
 
-```toml
-notify = ["sh", "-c", "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent codex || true"]
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true", "timeout": 15 }] }
+    ]
+  }
+}
 ```
 
-Codex's own terminal notifications (`[tui] notifications = true`) send OSC 9, which MoltenTerm reads as well.
+Codex waits for you without a hook event of its own: its terminal notifications (`[tui] notifications`, OSC 9, which
+MoltenTerm reads) and the coffee approvals' `PermissionRequest` hook below, which reports waiting when it leaves the
+request to you, say so. An earlier version of this page offered a `notify` line in `config.toml` running
+`molten agent state done --agent codex`: it still works, for the done state only.
 
-In a local MoltenTerm terminal you do not need this line: `codex` runs MoltenTerm's launcher, which adds, for that run
-only, `-c notify=[<molten>, "agent", "notify", "--agent", "codex", "--", <your own notify>]` and the MoltenTerm
-browser server (`-c mcp_servers.molten-browser...`). `molten agent notify` runs your own notify first, with the same
-JSON argument Codex gives it, then reports done and links the companion to the session from the payload's thread id.
-Your `config.toml` is only read, never written. Your own `-c notify=...`, a profile or a project `.codex/config.toml`
-that sets notify, or a `config.toml` that cannot be read leave notify as you set it. `molten agent integration status`
-shows what a run gets; `MOLTENTERM_AGENT_INTEGRATION=0 codex` starts it with nothing added. Codex state hooks are
-not added: Codex runs hooks given for one run only after you trust them, and MoltenTerm never bypasses that trust.
+In a local MoltenTerm terminal you do not need any of this: `codex` runs MoltenTerm's launcher, which adds, for that
+run only:
+
+- the hooks above, `-c hooks.<Event>=[{hooks=[{type="command",command="[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent codex || true",timeout=15}]}]`.
+  Codex holds them for your review: the first time, it warns that hooks need review; type `/hooks` in Codex and trust
+  `molten agent hook`. Codex keeps that trust in its own configuration against the hook's definition, which
+  MoltenTerm never changes, so one trust is enough. Once trusted, the pane shows working and done from them, the
+  companion links the session as soon as Codex starts, and a line typed into an idle Codex by MoltenTerm (a handoff,
+  a review question) is sent with Enter. An event you already have hooks for in a `config.toml` or a `hooks.json`
+  gets none of MoltenTerm's;
+- `-c notify=[<molten>, "agent", "notify", "--agent", "codex", "--", <your own notify>]`, the fallback until the
+  hooks are trusted: `molten agent notify` runs your own notify first, with the same JSON argument Codex gives it,
+  then reports done and links the companion to the session from the payload's thread id. Once the hooks report in
+  the pane, its done adds nothing. Your own `-c notify=...`, a profile or a project `.codex/config.toml` that sets
+  notify leave notify as you set it;
+- `-c tui.notifications=["approval-requested","plan-mode-prompt","async-question"]`,
+  `-c tui.notification_method="osc9"` and `-c tui.notification_condition="always"`, so an approval or a question
+  turns the pane waiting even while you look at it (no trust needed). Your own `[tui]` notification settings are kept
+  as you set them;
+- the MoltenTerm browser server (`-c mcp_servers.molten-browser...`).
+
+Your `config.toml` and `hooks.json` are only read, never written, and a `config.toml` that cannot be read leaves
+everything out. Your own `-c hooks...`, hooks turned off (`[features] hooks = false`) or managed hooks only leave
+every hook out. `molten agent integration status` shows what a run gets; `MOLTENTERM_AGENT_INTEGRATION=0 codex`
+starts it with nothing added. MoltenTerm never trusts a hook for you and never passes
+`--dangerously-bypass-hook-trust`.
 
 ### Coffee approvals for Codex
 
-The one hook the launcher gives Codex is the coffee approvals' `PermissionRequest` hook, for that run only:
-`-c hooks.PermissionRequest=[{hooks=[{type="command",command="[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent codex || true",timeout=15}]}]`.
-Codex holds it for your review: the first time, it warns that hooks need review; type `/hooks` in Codex and trust
-`molten agent permission`. Codex keeps that trust in its own configuration against the hook's definition, which
-MoltenTerm never changes, so one trust is enough. Until then the coffee bud lists the session as still asking.
+The launcher also gives Codex the coffee approvals' `PermissionRequest` hook, for that run only:
+`-c hooks.PermissionRequest=[{hooks=[{type="command",command="[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent codex || true",timeout=15}]}]`,
+trusted in `/hooks` the same way as the state hooks. Until then the coffee bud lists the session as still asking.
 Once trusted, while the workspace's coffee is on, Codex's approval requests (shell commands, `apply_patch`, MCP
 tools) get the same answer as Claude Code's, the deny list included (for `apply_patch`, the files it deletes or
 touches); with the coffee off, Codex asks you as usual. MoltenTerm writes nothing in `~/.codex` and never passes
@@ -209,18 +284,8 @@ molten agent session [<transcript-path>] [--agent <name>] [--stdin]
   refused.
 
 A `claude` or `codex` started in a local MoltenTerm terminal already links its session through MoltenTerm's launcher.
-For a Claude Code started otherwise, add a `SessionStart` hook (it also runs after `/clear` and when a session is
-resumed):
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent session --agent claude --stdin || true" }] }
-    ]
-  }
-}
-```
+For one started otherwise, the `SessionStart` hook of the snippets above links it (it also runs after `/clear` and
+when a session is resumed); `molten agent session --stdin` in a `SessionStart` hook does the same.
 
 ### Sessions in another folder
 

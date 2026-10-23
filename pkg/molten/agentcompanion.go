@@ -28,7 +28,25 @@ const (
 	CompanionUsageEvent = "molten:companionusage"
 	// What `molten agent statusline` sends: the rate limit windows of Claude Code's status line input.
 	AgentStatusLineCommand = "moltenagentstatusline"
+	// What `molten agent hook` sends at SubagentStart and SubagentStop (#988).
+	CompanionSubagentCommand = "moltencompanionsubagent"
+
+	SubagentEventStart = "start"
+	SubagentEventStop  = "stop"
 )
+
+// AgentSubagentRequest is what an agent's SubagentStart or SubagentStop hook reports, for both agents (#988): which
+// sub-agent of the pane's session started or stopped. TranscriptPath (at stop: the sub-agent's own transcript) is what
+// the agent says, never checked here: a reader validates it as a reported session path first.
+type AgentSubagentRequest struct {
+	BlockId        string `json:"blockid"`
+	Agent          string `json:"agent,omitempty"`
+	Event          string `json:"event"`
+	SessionId      string `json:"sessionid,omitempty"`
+	AgentId        string `json:"agentid,omitempty"`
+	AgentType      string `json:"agenttype,omitempty"`
+	TranscriptPath string `json:"transcriptpath,omitempty"`
+}
 
 // SubagentSessionError is the error of a session reported by id that is a sub-agent's: `molten agent notify` then
 // reports no turn end either, since the pane's own agent is still at work.

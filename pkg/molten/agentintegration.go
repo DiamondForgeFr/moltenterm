@@ -4,18 +4,17 @@
 package molten
 
 import (
-	"encoding/json"
 	"path/filepath"
-	"sort"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // Agent integration at launch (FR-SHELL-036, DS-SHELL-045 to 048, FR-SHELL-038): in a local MoltenTerm terminal,
-// `claude` and `codex` run MoltenTerm's launcher (pkg/molten/agentlaunch), which adds the hooks and the status line
-// relay of this package (Claude Code) or the notify wrapper (Codex) for that run only, through the agent's own
-// per-run settings. Nothing of the user's is written (NFR-SHELL-019). The
+// `claude` and `codex` run MoltenTerm's launcher (pkg/molten/agentlaunch), which adds the hooks of this package (and
+// Claude Code's status line relay, Codex's notify wrapper) for that run only, through the agent's own per-run
+// settings. Nothing of the user's is written (NFR-SHELL-019). The
 // launcher tells the pane's agent states what it added (DS-SHELL-051); these names are shared with wsh.
 
 const (
@@ -24,11 +23,21 @@ const (
 	// Asked by `molten agent integration status`: the report of the agent running in a block.
 	AgentIntegrationStatusCommand = "moltenagentintegrationstatus"
 
-	// What the SessionStart hook of agent-states.md runs; a configuration that runs it links its sessions itself.
+	// What the SessionStart hook of an older agent-states.md runs; a configuration that runs it links its sessions
+	// itself.
 	agentSessionHookCommand = "molten agent session"
-	// The SessionStart hook of agent-states.md, byte for byte: an identical handler in the user's settings runs once.
-	ClaudeSessionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent session --agent claude --stdin || true`
-	ClaudeSessionHookEvent   = "SessionStart"
+	ClaudeSessionHookEvent  = "SessionStart"
+
+	// The one hook handler of both agents (#988): every state, session and sub-agent hook MoltenTerm gives runs it, and
+	// it reads the event from the hook's input. A configuration that runs it is set up.
+	agentHookCommand = "molten agent hook"
+	// Claude Code's, byte for byte as agent-states.md shows it: an identical handler in the user's settings runs once.
+	ClaudeStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent claude || true`
+	// Codex's. Codex trusts a hook against the hash of its definition, so this text and its timeout must not change
+	// from one run or version to the next: a change asks the developer to trust every state hook again in /hooks.
+	CodexStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent codex || true`
+	// Seconds: the handler waits 5 s at most for each of its (at most two) calls to wavesrv.
+	CodexStateHookTimeout = 15
 
 	// What the PermissionRequest hook runs (FR-SHELL-063, DS-SHELL-110): it answers allow while the pane's workspace
 	// has its coffee on, nothing otherwise. A configuration that runs it answers its prompts itself.
@@ -55,6 +64,8 @@ const (
 	IntegrationNotify = "notify"
 	// The PermissionRequest hook that answers the agent's prompts while a coffee holds (FR-SHELL-063).
 	IntegrationCoffeeApproval = "coffeeapproval"
+	// Codex's own terminal notifications for what waits for the user, sent as OSC 9 whatever the focus (#988).
+	IntegrationNotifications = "notifications"
 )
 
 // IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words). NameText and ReasonText
@@ -183,49 +194,60 @@ type AgentIntegrationStatus struct {
 	Report *AgentIntegrationReport `json:"report,omitempty"`
 }
 
-// ClaudeHookEntry is one hook of the state hooks of agent-states.md.
-type ClaudeHookEntry struct {
+// AgentHookEntry is one of the hooks MoltenTerm gives an agent for its states, its session and its sub-agents.
+type AgentHookEntry struct {
 	Event string
 	// Matcher: what the hook's group matches, "" for every occurrence (Notification: the types that wait, #784).
 	Matcher string
 	Command string
+	// Timeout in seconds, 0 for the agent's default.
+	Timeout int
 }
 
-// ClaudeStateHooks lists the state hooks of agent-states.md (claudeHooksSnippet) in their order, with their exact
-// command strings: the launcher adds the same handlers, which Claude Code runs once when the user pasted them too.
-func ClaudeStateHooks() []ClaudeHookEntry {
-	var parsed struct {
-		Hooks map[string][]struct {
-			Matcher string `json:"matcher"`
-			Hooks   []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
+// The hook events both agents share, in the order agent-states.md lists them. Codex has no Notification event: its
+// waiting comes from its PermissionRequest hook and its terminal notifications (FR-SHELL-038).
+var agentHookEvents = []string{
+	agenthook.HookEventSessionStart, agenthook.HookEventUserPromptSubmit, agenthook.HookEventPostToolUse,
+	agenthook.HookEventNotification, agenthook.HookEventStop, agenthook.HookEventSubagentStart, agenthook.HookEventSubagentStop,
+}
+
+// AgentStateHooks lists the hooks of agent-states.md for an agent (claude, codex), nil for another: one command for
+// every event, the launcher's and the setup offer's alike, so a pasted copy is the same handler.
+func AgentStateHooks(agent string) []AgentHookEntry {
+	var command string
+	timeout := 0
+	switch agent {
+	case AgentIdClaude:
+		command = ClaudeStateHookCommand
+	case AgentIdCodex:
+		command, timeout = CodexStateHookCommand, CodexStateHookTimeout
+	default:
+		return nil
 	}
-	if err := json.Unmarshal([]byte(claudeHooksSnippet), &parsed); err != nil {
-		panic("claudeHooksSnippet does not parse: " + err.Error())
-	}
-	order := map[string]int{"UserPromptSubmit": 0, "PostToolUse": 1, "Notification": 2, "Stop": 3}
-	var rtn []ClaudeHookEntry
-	for event, matchers := range parsed.Hooks {
-		for _, matcher := range matchers {
-			for _, hook := range matcher.Hooks {
-				rtn = append(rtn, ClaudeHookEntry{Event: event, Matcher: matcher.Matcher, Command: hook.Command})
+	var rtn []AgentHookEntry
+	for _, event := range agentHookEvents {
+		entry := AgentHookEntry{Event: event, Command: command, Timeout: timeout}
+		if event == agenthook.HookEventNotification {
+			if agent != AgentIdClaude {
+				continue
 			}
+			entry.Matcher = agenthook.ClaudeWaitingNotificationMatcher
 		}
+		rtn = append(rtn, entry)
 	}
-	sort.SliceStable(rtn, func(i, j int) bool { return order[rtn[i].Event] < order[rtn[j].Event] })
 	return rtn
 }
 
-// IsAgentStateHookCommand tells whether a hook command reports agent states (any variant of agent-states.md's).
+// IsAgentStateHookCommand tells whether a hook command reports agent states (`molten agent hook`, or any variant of
+// an older agent-states.md's `molten agent state`).
 func IsAgentStateHookCommand(command string) bool {
-	return strings.Contains(command, agentStateHookCommand)
+	return strings.Contains(command, agentStateHookCommand) || strings.Contains(command, agentHookCommand)
 }
 
-// IsAgentSessionHookCommand tells whether a hook command links the session (any variant of agent-states.md's).
+// IsAgentSessionHookCommand tells whether a hook command links the session (`molten agent hook`, or an older
+// `molten agent session`).
 func IsAgentSessionHookCommand(command string) bool {
-	return strings.Contains(command, agentSessionHookCommand)
+	return strings.Contains(command, agentSessionHookCommand) || strings.Contains(command, agentHookCommand)
 }
 
 // IsAgentPermissionHookCommand tells whether a hook command answers permission requests through MoltenTerm.

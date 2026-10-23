@@ -4,7 +4,7 @@
 //go:build !windows
 
 // The molten command of local terminals on macOS and Linux (FR-PERF-012, DS-PERF-011). Coding agents' hooks run
-// `molten agent state` and `molten agent statusline` up to once a second; this small program runs those two itself
+// `molten agent state`, `molten agent hook` and `molten agent statusline` up to once a second; this small program runs those itself
 // (pkg/molten/agenthook) and replaces itself with wsh, next to it, for every other molten command, which wsh runs as
 // before (it reads its name, molten, from the first argument). Windows and remote hosts keep molten as wsh.
 package main

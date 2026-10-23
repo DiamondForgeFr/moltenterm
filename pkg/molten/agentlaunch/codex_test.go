@@ -27,14 +27,24 @@ func (f fakeTree) codexCtx(args ...string) LaunchContext {
 
 func (f fakeTree) codexConfig() string { return filepath.Join(f.home, ".codex", "config.toml") }
 
-// codexPlan plans a run and returns its arguments without the coffee approvals' hook (codexpermission_test.go reads
-// it with codexPlanAll), so the browser and notify tests keep their own arguments' positions.
+// codexPlan plans a run and returns its arguments without the hooks and the notification keys MoltenTerm adds
+// (codexpermission_test.go and codexhooks_test.go read them with codexPlanAll), so the browser and notify tests keep
+// their own arguments' positions.
 func codexPlan(t *testing.T, ctx LaunchContext) (LaunchPlan, []string) {
 	t.Helper()
 	plan, args := codexPlanAll(t, ctx)
+	added := map[string]bool{codexPermissionOverrideKey + "=" + codexPermissionHookValue(): true}
+	for _, h := range molten.AgentStateHooks(molten.AgentIdCodex) {
+		added[codexHooksKey+"."+h.Event+"="+codexHookValue(h.Command, h.Timeout)] = true
+	}
+	var scratch LaunchPlan
+	notifications := planCodexNotifications(LaunchContext{MoltenPath: codexTestMolten}, codexArgs{overrides: map[string]string{}}, codexConfig{}, &scratch)
+	for i := 1; i < len(notifications); i += 2 {
+		added[notifications[i]] = true
+	}
 	var rtn []string
 	for i := 0; i < len(args); i++ {
-		if args[i] == codexConfigFlag && i+1 < len(args) && strings.HasPrefix(args[i+1], codexPermissionOverrideKey+"=") && args[i+1] == codexPermissionOverrideKey+"="+codexPermissionHookValue() {
+		if args[i] == codexConfigFlag && i+1 < len(args) && added[args[i+1]] {
 			i++
 			continue
 		}
@@ -130,7 +140,7 @@ func TestCodexPassThrough(t *testing.T) {
 }
 
 // AC1: stock Codex, no notify: the browser server and the wrapper with no user program, before the user's arguments,
-// which stay unchanged; no hook is added and the report says why.
+// which stay unchanged; the state hooks are added (codexhooks_test.go) and never a trust bypass.
 func TestCodexPlanStock(t *testing.T) {
 	tree := makeFakeTree(t)
 	plan, args := codexPlan(t, tree.codexCtx("--model", "o3", "fix the tests"))
@@ -150,11 +160,17 @@ func TestCodexPlanStock(t *testing.T) {
 	if names := itemNames(plan.Added, molten.IntegrationNotify); len(names) != 1 || names[0] != codexNotifyItemName+"|" {
 		t.Fatalf("added notify: %v", plan.Added)
 	}
-	if len(itemNames(plan.Added, molten.IntegrationSession)) != 1 || len(itemNames(plan.Added, molten.IntegrationBrowser)) != 1 {
+	if len(itemNames(plan.Added, molten.IntegrationSession)) != 2 || len(itemNames(plan.Added, molten.IntegrationBrowser)) != 1 {
 		t.Fatalf("added: %v", plan.Added)
 	}
-	if hooks := itemNames(plan.Skipped, molten.IntegrationStateHooks); len(hooks) != 1 || !strings.Contains(hooks[0], "trust") {
-		t.Fatalf("hooks must be reported as left out (AC8): %v", plan.Skipped)
+	if hooks := itemNames(plan.Added, molten.IntegrationStateHooks); len(hooks) != 1 || !strings.Contains(hooks[0], "trust") {
+		t.Fatalf("the state hooks are added, waiting for the developer's trust: %v", plan.Added)
+	}
+	_, all := codexPlanAll(t, tree.codexCtx("--model", "o3", "fix the tests"))
+	for _, a := range all {
+		if strings.Contains(a, "bypass") {
+			t.Fatalf("never a trust bypass: %q", all)
+		}
 	}
 	for _, a := range args {
 		if strings.Contains(a, "hooks") || strings.Contains(a, "bypass") || a == "-p" || a == "--profile" {

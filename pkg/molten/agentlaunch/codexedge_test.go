@@ -120,7 +120,7 @@ func TestCodexPlanSnippetAndShownArgs(t *testing.T) {
 	if !slices.Equal(notify[:7], []any{codexTestMolten, "agent", "notify", "--agent", "codex", NotifySessionOnlyFlag, "--"}) || notify[7] != "sh" {
 		t.Fatalf("the #221 snippet: the wrapper only links the session: %q", notify)
 	}
-	if len(itemNames(plan.Added, molten.IntegrationNotify)) != 0 || len(itemNames(plan.Added, molten.IntegrationSession)) != 1 {
+	if len(itemNames(plan.Added, molten.IntegrationNotify)) != 0 || !slices.Contains(itemNames(plan.Added, molten.IntegrationSession), codexSessionItemName+"|") {
 		t.Fatalf("the #221 snippet: added %v", plan.Added)
 	}
 
@@ -130,7 +130,8 @@ func TestCodexPlanSnippetAndShownArgs(t *testing.T) {
 	if strings.Contains(shown, "T0K3N") || !strings.Contains(shown, `"/bin/notify","<1 more of your arguments>"]`) || !strings.Contains(args[5], "T0K3N") {
 		t.Fatalf("the report never shows the user's notify arguments: %q", shown)
 	}
-	if len(plan.ShownArgs) != 8 {
-		t.Fatalf("shown args: %q", plan.ShownArgs)
+	_, all := codexPlanAll(t, tree.codexCtx())
+	if len(plan.ShownArgs) != len(all) {
+		t.Fatalf("every added argument is shown: %q", plan.ShownArgs)
 	}
 }

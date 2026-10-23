@@ -65,12 +65,14 @@ func (l *routeLink) route() localroute.Route {
 		Policy: localroute.Policy{
 			Default: localroute.AllowWindow,
 			Commands: map[string]string{
-				molten.CompanionSessionCommand: localroute.AllowLocalTerminal,
-				molten.AgentStatusLineCommand:  localroute.AllowLocalTerminal,
+				molten.CompanionSessionCommand:  localroute.AllowLocalTerminal,
+				molten.AgentStatusLineCommand:   localroute.AllowLocalTerminal,
+				molten.CompanionSubagentCommand: localroute.AllowLocalTerminal,
 			},
 			Refusals: map[string]string{
-				molten.CompanionSessionCommand: "no companion for a remote terminal",
-				molten.AgentStatusLineCommand:  "no companion for a remote terminal",
+				molten.CompanionSessionCommand:  "no companion for a remote terminal",
+				molten.AgentStatusLineCommand:   "no companion for a remote terminal",
+				molten.CompanionSubagentCommand: "no companion for a remote terminal",
 			},
 		},
 		Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
@@ -165,6 +167,15 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 			return nil, err
 		}
 		return nil, l.m.ReportSession(req)
+	case molten.CompanionSubagentCommand:
+		var req molten.AgentSubagentRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := ownBlock(caller, req.BlockId); err != nil {
+			return nil, err
+		}
+		return nil, defaultSubagentHooks.add(req)
 	}
 	return nil, fmt.Errorf("unknown companion command %q", command)
 }
@@ -212,6 +223,7 @@ func handleBlockClose(m *Manager, event *wps.WaveEvent) {
 		return
 	}
 	m.ForgetBlock(blockId)
+	ForgetHookSubagents(blockId)
 }
 
 var defaultManager *Manager

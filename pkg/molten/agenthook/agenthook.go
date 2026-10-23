@@ -26,13 +26,15 @@ const (
 	agentIdMaxLength = 32
 )
 
-// AgentStateRequest is molten.AgentStateRequest, as `molten agent state` sends it (FR-SHELL-011).
+// AgentStateRequest is molten.AgentStateRequest, as `molten agent state` and `molten agent hook` send it
+// (FR-SHELL-011).
 type AgentStateRequest struct {
 	BlockId string `json:"blockid"`
 	State   string `json:"state"`
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
+	Start   bool   `json:"start,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a
