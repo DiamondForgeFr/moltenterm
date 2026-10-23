@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -200,7 +201,7 @@ func LaunchDir(dataDir string) string {
 
 func MakeLaunches(baseDir string, git Runner, publish func(LaunchState)) *Launches {
 	return &Launches{baseDir: baseDir, recipes: &launchRecipes{file: filepath.Join(baseDir, launchRecipesFile)}, git: git,
-		publish: publish, now: time.Now, holders: lsofHolders, readyTimeout: launchReadyTimeout,
+		publish: publish, now: time.Now, holders: listeningHolders, readyTimeout: launchReadyTimeout,
 		states: map[string]*LaunchState{}, runs: map[string]*launchRun{}, exited: map[int]chan struct{}{},
 		watching: map[string]bool{}, stopping: map[int]bool{}}
 }
@@ -364,33 +365,20 @@ func (l *Launches) dirtyFiles(ctx context.Context, dir string) ([]string, error)
 	return rtn, nil
 }
 
-// lsofHolders lists the processes listening on a local TCP port.
-func lsofHolders(ctx context.Context, port int) ([]LaunchPortHolder, error) {
-	out, err := ExecRunner(ctx, "", "lsof", "-nP", "-iTCP:"+strconv.Itoa(port), "-sTCP:LISTEN", "-Fpc")
-	if err != nil && len(out) == 0 {
-		var missing *MissingProgramError
-		if errors.As(err, &missing) {
-			return nil, err
-		}
-		// lsof exits 1 when nothing listens.
-		return nil, nil
+// listeningHolders lists the processes listening on a local TCP port, through the test context's port lookup (#1003):
+// the Browser chip and Launch name the same processes, on every platform.
+func listeningHolders(ctx context.Context, port int) ([]LaunchPortHolder, error) {
+	pids, err := listeningPids(ctx, port)
+	if err != nil {
+		return nil, err
 	}
 	rtn := []LaunchPortHolder{}
-	var current *LaunchPortHolder
-	for _, line := range strings.Split(string(out), "\n") {
-		if len(line) < 2 {
-			continue
+	for _, pid := range pids {
+		holder := LaunchPortHolder{Port: port, Pid: int(pid)}
+		if exe := proctree.Exe(pid); exe != "" {
+			holder.Name = filepath.Base(exe)
 		}
-		switch line[0] {
-		case 'p':
-			pid, _ := strconv.Atoi(line[1:])
-			rtn = append(rtn, LaunchPortHolder{Port: port, Pid: pid})
-			current = &rtn[len(rtn)-1]
-		case 'c':
-			if current != nil {
-				current.Name = line[1:]
-			}
-		}
+		rtn = append(rtn, holder)
 	}
 	return rtn, nil
 }
