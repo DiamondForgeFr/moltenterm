@@ -36,7 +36,10 @@ const (
 type paneActivity struct {
 	// hookedAgent: the agent a hook reported for in this pane; its output activity is ignored.
 	hookedAgent string
-	typed       time.Time
+	// hookedDone: that agent's hooks reported a done in this pane (its Stop hook runs), so a turn end from Codex's
+	// notify adds nothing (#988). A pane whose Stop hook was left to the user's own keeps notify's done.
+	hookedDone bool
+	typed      time.Time
 	runStart    time.Time
 	lastOut     time.Time
 	chunks      int
@@ -71,6 +74,9 @@ func (a *agentStates) resized(blockId string) {
 
 func (a *agentStates) hookedLocked(blockId string, agent string) {
 	p := a.paneLocked(blockId)
+	if p.hookedAgent != agent {
+		p.hookedDone = false
+	}
 	p.hookedAgent = agent
 	p.chunks = 0
 }

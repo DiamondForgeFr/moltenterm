@@ -385,7 +385,7 @@ func (a *agentStates) turnEndRedundant(req molten.AgentStateRequest) bool {
 	defer a.lock.Unlock()
 	rec := a.records[req.BlockId]
 	p := a.panes[req.BlockId]
-	return rec != nil && p != nil && p.hookedAgent == rec.agent && (req.Agent == "" || req.Agent == rec.agent)
+	return rec != nil && p != nil && p.hookedAgent == rec.agent && p.hookedDone && (req.Agent == "" || req.Agent == rec.agent)
 }
 
 // report applies a hook's report; it returns the notification to raise, if any.
@@ -420,6 +420,9 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	}
 	if !req.TurnEnd {
 		a.hookedLocked(req.BlockId, rec.agent)
+		if req.State == molten.AgentStateDone {
+			a.paneLocked(req.BlockId).hookedDone = true
+		}
 		// Hooks MoltenTerm's launcher added for this run are not the user's: remembering them would hide the hook
 		// setup offer once the integration is off (FR-SHELL-040-AC5).
 		if a.integratedRun == nil || !a.integratedRun(req.BlockId, agentRunRecord{agent: rec.agent, running: rec.running, pid: rec.pid, started: rec.started, source: rec.source}) {
