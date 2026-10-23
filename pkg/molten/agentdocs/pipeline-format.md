@@ -6,6 +6,8 @@ and releases. It lives at `.molten/project.json` in the project's root, is writt
 
 MoltenTerm never runs a declared command on its own: the user starts it from a panel, the first run of a project's
 commands (and every change to them) asks the user to trust them, and every release step waits for the user's click.
+A run started from a terminal (`molten ci run`, `molten project sync`) on commands not trusted yet runs nothing: MoltenTerm
+asks the user by a notification, and tells you in your prompt once they trusted them; then run the command again.
 
 ## Example
 
@@ -170,7 +172,7 @@ Sync brings a stale dependency up to date. It is offered on the stale flag in Mi
 action and as `molten project sync [source]`; it never starts on its own, and MoltenTerm commits nothing:
 
 - The first sync of a project, and any change to its `sync`, asks the user to trust the project's commands, like every
-  declared command. From a terminal, `molten project sync` cannot trust: press Sync once in MoltenTerm.
+  declared command. From a terminal, `molten project sync` cannot trust: it asks the user by a notification and runs nothing.
 - MoltenTerm checks the source's watched branch tip out in a worktree of its own (in MoltenTerm's data folder, the
   source's hooks off), then runs `sync` in this repository's root, with:
   - `MOLTEN_DEP_SOURCE_DIR`: that worktree. The user's own checkout of the source may be on another branch, or dirty;

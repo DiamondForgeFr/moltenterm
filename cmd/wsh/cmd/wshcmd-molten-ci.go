@@ -31,7 +31,7 @@ const (
 	moltenCiStatusRed        = "failure"
 	moltenCiStatusRunning    = "running"
 	moltenCiExitNotRun       = 2
-	moltenCiUntrustedMessage = "the project's commands are not trusted yet: start the local CI once from Mission Control (CI/CD › CI local) to review and trust them"
+	moltenCiUntrustedMessage = "the commands declared in %s are not trusted yet, so nothing ran: MoltenTerm asked the developer to approve them (open the notification or the Review the commands button), then run this command again"
 )
 
 type moltenCiJob struct {
@@ -213,7 +213,7 @@ func moltenCiRunRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if started.Untrusted != nil || started.Run == nil {
-		return fmt.Errorf("%s", moltenCiUntrustedMessage)
+		return fmt.Errorf(moltenCiUntrustedMessage, dir)
 	}
 	if !moltenJson {
 		WriteStdout("local CI %s on %s: %d job(s)\n", started.Run.Id, moltenCiShort(started.Run.Sha), len(started.Run.Jobs))
