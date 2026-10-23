@@ -5,6 +5,7 @@
 // page of a browser tab is served from. wavesrv resolves it (pkg/molten/mission/testcontext.go); this file only reads
 // which tabs ask and how the answer reads.
 
+import type { LaunchState } from "../reviews/reviews-launch-model";
 import { pathBaseName } from "../workspace-project";
 
 // must match TestContextCommand in pkg/molten/mission/testcontext.go
@@ -70,6 +71,18 @@ export function localAppTarget(url: string): LocalTarget {
 // A tab asks once per server: the path and query of the page say nothing of where it is served from.
 export function targetKey(target: LocalTarget): string {
     return target == null ? "" : `${target.host}:${target.port}`;
+}
+
+// A Reviews Launch that is now running serves the tab's port, by its ready URL or one of its servers (#1003).
+export function launchServesTarget(state: LaunchState, key: string): boolean {
+    if (state?.state !== "running" || !key) {
+        return false;
+    }
+    if (targetKey(localAppTarget(state.url ?? "")) === key) {
+        return true;
+    }
+    const port = Number(key.slice(key.lastIndexOf(":") + 1));
+    return (state.steps ?? []).some((step) => step.kind === "server" && step.port === port);
 }
 
 export function shortSha(sha: string): string {
