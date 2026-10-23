@@ -266,6 +266,14 @@ func (c *TestContexts) describe(answer *TestContext, state PaneState, workspaceD
 	}
 	answer.PrKnown = gh != nil && len(gh.Prs) > 0
 	pr := state.Pr
+	// The status bar read the PRs under the repository's own path; the collector may keep them under the workspace's
+	// (symlinks): a HEAD detached at a PR's head that only GitHub names (pull/<N>/head, a Reviews Launch) is named here.
+	if pr == nil && answer.Branch == "" && state.Detached && gh != nil {
+		answer.Branch, pr = pickDetachedBranch(parsePanePrs(gh.Prs), state.Heads, state.Sha)
+	}
+	if answer.Branch != "" && answer.Ticket == 0 {
+		answer.Ticket = TicketOfBranch(state.Project, answer.Branch)
+	}
 	if pr == nil && gh != nil && answer.Branch != "" {
 		pr = matchPullRequest(gh.Prs, answer.Branch)
 	}

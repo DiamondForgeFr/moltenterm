@@ -212,12 +212,18 @@ func TestTestContextOfACheckoutDetachedAtAPrHead(t *testing.T) {
 		t.Fatal(err)
 	}
 	sha := strings.TrimSpace(string(out))
+	// The workspace links the project through a symlink (/tmp on macOS): the collector keeps its PRs under that path, the
+	// system gives the server's folder by its real one.
+	linked := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(clone, linked); err != nil {
+		t.Fatal(err)
+	}
 	collector := MakeCollector(t.TempDir(), plainRunner, nil)
-	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
+	collector.saveCache(Snapshot{Dir: linked, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
 		`[{"number":7,"title":"Fork","url":"u","headRefName":"feature/7-fork","headRefOid":"` + sha + `"}]`)}})
-	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: realPath(clone)}}
 	contexts := makeFakeTestContexts(MakePanes(plainRunner, nil, collector), collector, host)
-	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
+	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: linked})
 	if !answer.Detached || answer.Branch != "feature/7-fork" || answer.Ticket != 7 || answer.Pr == nil || answer.Pr.Number != 7 || !answer.SameProject {
 		t.Fatalf("detached at pull/7/head: %+v", answer)
 	}
