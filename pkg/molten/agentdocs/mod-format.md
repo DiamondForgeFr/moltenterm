@@ -55,6 +55,24 @@ permissions supported by the platform; Windows does not provide Unix executable 
 special permission bits and directory permissions are not preserved. `mods.json` records enabled state as data;
 its file permissions are not part of snapshot identity.
 
+History supports directory containers and ordinary files at included paths. Symbolic links, including links to
+another file inside the same mod, and special files such as FIFOs, sockets and devices are rejected rather than
+followed or flattened. This also applies to managed history roots, enabled-state files, metadata and existing
+snapshots. The usual hidden/editor and generated-typing exclusions apply before these checks: ignored entries are
+not followed. Empty directories are not part of snapshot identity or independently preserved.
+
+Before undo changes any current mod or enabled state, it checks the complete selected snapshot and current mod
+tree, reads both enabled-state files, and stages every replacement. Unsupported entries or preparation failures
+leave current mod contents, ordinary file permissions and enabled state intact. A missing selected snapshot is an
+error; an older snapshot without `mods.json` retains the legacy empty-enabled-list fallback. Invalid snapshot
+metadata is reported rather than used to select a different restore target.
+
+These checks protect history recording and restore preparation; they do not change the mod loader's trust model.
+Unix reads also use no-follow/nonblocking flags and check the opened file's type and identity; Windows uses portable
+path and descriptor checks. Neither provides a transaction against another process replacing ancestor directories,
+a crash, or arbitrary I/O failures after live replacements begin. Storage budgets and crash recovery are separate
+policies, not guarantees of this preflight check.
+
 Safe mode starts MoltenTerm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
 **Restart in Safe Mode** in the app menu, or start MoltenTerm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
 every window and `molten mod list` reports it. No Claude Code part of a mod loads either, in new terminals and in
