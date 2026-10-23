@@ -242,6 +242,7 @@ func Start() {
 	m.openFiles = proctree.OpenFiles
 	m.procTable = proctree.Read
 	m.ticketLabels = GhIssueLabels
+	m.branchPRLookup = GhBranchPRs
 	m.publish = publishView
 	m.publishUsage = publishUsage
 	m.writeGauges = writeGaugesSetting
