@@ -13,6 +13,7 @@
     z-index: var(--zindex-modal-wrapper);
 
     // MOLTENTERM-PATCH (#408): the one modal scrim of MoltenTerm (DS-SHELL-096, tokens.css), over the whole window.
+    // MOLTENTERM-PATCH (#1009): no backdrop-filter, as .molten-scrim (tokens.css says why).
     .modal-backdrop {
         position: fixed;
         top: 0;
@@ -20,7 +21,6 @@
         right: 0;
         bottom: 0;
         background-color: var(--mt-scrim);
-        backdrop-filter: blur(var(--mt-scrim-blur));
         z-index: var(--zindex-modal-backdrop);
     }
 }
