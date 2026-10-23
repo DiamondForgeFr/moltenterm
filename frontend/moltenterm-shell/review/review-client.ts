@@ -680,10 +680,26 @@ export function askReviewRebase(
 const InvestigateCommand = "moltenreviewinvestigate";
 
 // must match InvestigateCheck in pkg/molten/review/investigate.go
-export type InvestigateCheck = { name: string; workflow?: string; url?: string; runid?: number; jobid?: number };
+export type InvestigateCheck = {
+    name: string;
+    workflow?: string;
+    url?: string;
+    runid?: number;
+    jobid?: number;
+    local?: boolean;
+};
 
-// askReviewInvestigate is the developer's click on Investigate (#797): the agent on the PR's branch, or a new one once
-// the developer chose how (Start), reads the failed checks and proposes what to do.
+// The blockers a row read (#1020), as InvestigateRequest in pkg/molten/review/investigate.go names them.
+export type InvestigateBlockers = {
+    checks?: InvestigateCheck[];
+    merge?: "behind" | "conflicts";
+    changesrequested?: boolean;
+    noreport?: boolean;
+    localseen?: boolean;
+};
+
+// askReviewInvestigate is the developer's click on Analyze and resolve (#797, #1020): the agent on the PR's branch, or a
+// new one once the developer chose how (Start), resolves the PR's blockers in order.
 export function askReviewInvestigate(
     req: {
         repo: string;
@@ -695,8 +711,8 @@ export function askReviewInvestigate(
         title?: string;
         url?: string;
         ticket?: number;
-        checks: InvestigateCheck[];
-    } & AgentStart
+    } & InvestigateBlockers &
+        AgentStart
 ): Promise<ReviewRestartResult> {
     return call(InvestigateCommand, req, RestartTimeoutMs);
 }

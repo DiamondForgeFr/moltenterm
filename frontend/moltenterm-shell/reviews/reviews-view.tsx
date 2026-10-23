@@ -25,7 +25,7 @@ import { openWebLink } from "../open-web-link";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { DominoLoader } from "../suite/suite";
-import { DraftTurnChip, RowAgentLine } from "./reviews-agent-bar";
+import { DraftTurnChip, HeadStillFailsLine, RowAgentLine } from "./reviews-agent-bar";
 import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
@@ -898,6 +898,7 @@ export function ReviewRow({
                     <span className="min-w-0">{outcome.text}</span>
                 </div>
             ) : null}
+            <HeadStillFailsLine dir={dir} pr={pr} task={rebaseAsk} />
             {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
             <RowAgentLine
                 dir={dir}

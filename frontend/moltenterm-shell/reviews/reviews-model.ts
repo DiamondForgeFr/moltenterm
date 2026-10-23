@@ -8,6 +8,7 @@ import { t } from "../i18n/i18n";
 import { serverText, type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
+import type { InvestigateBlockers } from "../review/review-client";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import type { PrTaskKind } from "./reviews-task-model";
 
@@ -403,6 +404,93 @@ export function checkNames(checks: readonly ReviewCheck[]): string {
         return names.join(", ");
     }
     return t("reviews.ci.more", { names: names.join(", "), count: checks.length - NamedChecks });
+}
+
+// isLocalCheck: a status the local CI posts (molten ci run's local-<job>, or a check named after the local CI); must
+// match IsLocalCiCheck in pkg/molten/review/investigate.go.
+export function isLocalCheck(check: ReviewCheck): boolean {
+    const name = (check?.name ?? "").toLowerCase();
+    return !!check?.local || name.startsWith("local-") || name.includes("local ci") || name.includes("local-ci");
+}
+
+// What blocks a PR, in the order Analyze and resolve hands it to the agent (#1020, FR-REV-028 AC6): the rebase first,
+// then the remote checks, the local CI, the test report and the review round.
+export type ReviewBlocker =
+    | { kind: "rebase"; conflicts: boolean }
+    | { kind: "remote"; checks: ReviewCheck[] }
+    | { kind: "local"; checks: ReviewCheck[] }
+    | { kind: "report" }
+    | { kind: "review" };
+
+export function prBlockers(pr: ReviewPr): ReviewBlocker[] {
+    if (pr == null) {
+        return [];
+    }
+    const blockers: ReviewBlocker[] = [];
+    if (pr.merge === "behind" || pr.merge === "conflicts") {
+        blockers.push({ kind: "rebase", conflicts: pr.merge === "conflicts" });
+    }
+    const failed = checksOf(pr.ci, "failure");
+    const remote = failed.filter((c) => !isLocalCheck(c));
+    const local = failed.filter(isLocalCheck);
+    if (remote.length > 0) {
+        blockers.push({ kind: "remote", checks: remote });
+    }
+    if (local.length > 0) {
+        blockers.push({ kind: "local", checks: local });
+    }
+    if (pr.report?.state === "missing") {
+        blockers.push({ kind: "report" });
+    }
+    if ((pr.reviewdecision ?? "").toUpperCase() === "CHANGES_REQUESTED") {
+        blockers.push({ kind: "review" });
+    }
+    return blockers;
+}
+
+export function blockerText(blocker: ReviewBlocker, base: string): string {
+    switch (blocker.kind) {
+        case "rebase":
+            return blocker.conflicts
+                ? t("reviews.ci.investigate.blocker.conflicts", { base })
+                : t("reviews.ci.investigate.blocker.behind", { base });
+        case "remote":
+            return t("reviews.ci.investigate.blocker.remote", { names: checkNames(blocker.checks) });
+        case "local":
+            return t("reviews.ci.investigate.blocker.local", { names: checkNames(blocker.checks) });
+        case "report":
+            return t("reviews.ci.investigate.blocker.report");
+        case "review":
+            return t("reviews.ci.investigate.blocker.review");
+    }
+    return "";
+}
+
+// investigateBlockers: what Analyze and resolve sends wavesrv of the row's blockers; wavesrv adds what only it knows (an
+// unanswered review round, a local CI not run on the head).
+export function investigateBlockers(pr: ReviewPr): InvestigateBlockers {
+    const failed = checksOf(pr?.ci, "failure");
+    return {
+        checks: failed.map((c) => ({
+            name: c.name,
+            workflow: c.workflow,
+            url: c.url,
+            runid: c.runid,
+            jobid: c.jobid,
+            local: isLocalCheck(c) || undefined,
+        })),
+        merge: pr?.merge === "behind" || pr?.merge === "conflicts" ? pr.merge : undefined,
+        changesrequested: (pr?.reviewdecision ?? "").toUpperCase() === "CHANGES_REQUESTED" || undefined,
+        noreport: pr?.report?.state === "missing" || undefined,
+        localseen: (pr?.ci?.checks ?? []).some((c) => c.name.toLowerCase().startsWith("local-")) || undefined,
+    };
+}
+
+// blockersText: "behind develop, CI failed: Backend, local CI failed: local-e2e", in the brief's order.
+export function blockersText(pr: ReviewPr): string {
+    return prBlockers(pr)
+        .map((b) => blockerText(b, pr.base))
+        .join(", ");
 }
 
 // #797: a failed check is named on the chip (CI: Backend failed); the title lists every check with its state.

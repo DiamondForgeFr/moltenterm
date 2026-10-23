@@ -117,7 +117,7 @@ describe("taskStateText (#954 AC6)", () => {
             "stopped before finishing the rebase: conflicts with develop remain"
         );
         expect(taskStateText(t, { ...rebase, kind: "investigate" }, "stuck", false, red)).toBe(
-            "its session ended before finishing the CI fix: the CI is still red"
+            "its session ended before finishing the resolution of what blocks it: the CI is still red"
         );
         expect(taskStateText(t, rebase, "done", true, pr())).toBe("rebase done, no conflict left");
         expect(taskStateText(t, rebase, "running", true, conflicted)).toBe("");

@@ -28,8 +28,8 @@ func (f *restartFixture) investigateRequest(start bool) InvestigateRequest {
 
 func checkInvestigatePrompt(t *testing.T, line string, briefPath string) {
 	t.Helper()
-	for _, part := range []string{"CI failed on PR #9", "feature/9-fix-x", "Backend", "resolve it", "fix it on feature/9-fix-x and push",
-		"rebase on origin/develop and push --force-with-lease", "rerun a flaky job and ticket it", "Never merge", "only for a real decision", briefPath} {
+	for _, part := range []string{"PR #9 (feature/9-fix-x) is blocked", "CI failed: Backend", "resolve in this order", "Fix on feature/9-fix-x and push",
+		"push --force-with-lease, never over commits by others", "rerun a flaky job and ticket it", "Never merge", "only for a real decision", briefPath} {
 		if !strings.Contains(line, part) {
 			t.Errorf("the prompt misses %q: %s", part, line)
 		}
@@ -55,14 +55,13 @@ func TestAskInvestigateReachesTheAgentOnTheBranch(t *testing.T) {
 	}
 	brief := readText(t, res.BriefPath)
 	outcome := strings.TrimSuffix(res.BriefPath, ".md") + ".outcome"
-	for _, part := range []string{"# Investigate and fix the failed CI of PR #9", "- Backend (workflow CI): https://github.com/o/r/actions/runs/389/job/117",
+	for _, part := range []string{"# Analyze and resolve what blocks PR #9", "- Backend (workflow CI): https://github.com/o/r/actions/runs/389/job/117",
 		"gh run view --job 117 --log-failed -R " + f.k.Repo, "gh run rerun 389 --failed -R " + f.k.Repo,
-		"find the cause and resolve it, not only to diagnose it",
+		"find the cause of each blocker below and resolve it, not only to diagnose it",
 		"commit in the project's format `type(#9): description` with the ticket #9, then `git push` (never force)",
-		"`git rebase origin/develop` (never merge develop into the branch)", "`git push --force-with-lease`",
 		"look for an open ticket on that test first (`gh issue list -R " + f.k.Repo + " --state open",
 		"open one only when none exists", "Link it in a PR comment (`gh pr comment 9 -R " + f.k.Repo,
-		"`gh pr checks 9 -R " + f.k.Repo + " --required --watch`", "At most two fix attempts and two reruns",
+		"`gh pr checks 9 -R " + f.k.Repo + " --watch`", "At most two fix attempts and two reruns",
 		"Never merge or approve the PR", "never check out the branch in another folder", "only for a real decision",
 		"write one line in the developer's language to " + outcome, "`needs you:`"} {
 		if !strings.Contains(brief, part) {
@@ -104,9 +103,11 @@ type ciFake struct {
 	head       string
 	checks     string
 	noRequired bool
-	calls      []string
-	holds      []string
-	releases   []string
+	// allChecks: every check of the head, when it differs from the required ones.
+	allChecks string
+	calls     []string
+	holds     []string
+	releases  []string
 }
 
 func (c *ciFake) install(f *restartFixture) {
@@ -121,6 +122,9 @@ func (c *ciFake) install(f *restartFixture) {
 		}
 		if c.noRequired && strings.Contains(call, "--required") {
 			return nil, fmt.Errorf("gh pr checks: no required checks reported on the 'feature/9-fix-x' branch")
+		}
+		if c.allChecks != "" && !strings.Contains(call, "--required") {
+			return []byte(c.allChecks), nil
 		}
 		if strings.Contains(c.checks, "pending") {
 			return []byte(c.checks), fmt.Errorf("gh pr checks: exit status 8")
@@ -347,8 +351,13 @@ func TestAskInvestigateNeedsTheChecks(t *testing.T) {
 	req := f.investigateRequest(false)
 	req.Checks = nil
 	if _, err := f.r.AskInvestigate(context.Background(), req); err == nil {
-		t.Error("no check to investigate was accepted")
+		t.Error("a PR with no blocker was accepted")
 	}
+	req.Merge = "clean"
+	if _, err := f.r.AskInvestigate(context.Background(), req); err == nil {
+		t.Error("a merge state that is no blocker was accepted")
+	}
+	req.Merge = ""
 	req.Checks = []InvestigateCheck{{Name: " "}}
 	if _, err := f.r.AskInvestigate(context.Background(), req); err == nil {
 		t.Error("a check without a name was accepted")

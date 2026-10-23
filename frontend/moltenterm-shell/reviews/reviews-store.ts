@@ -33,9 +33,9 @@ import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showSta
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
 import { ReviewsMerges } from "./reviews-merges";
 import {
-    checkNames,
-    checksOf,
+    blockersText,
     cleanupRebaseAsks,
+    investigateBlockers,
     markReadyError,
     MoltentermReviewsView,
     ReadiedPrs,
@@ -397,7 +397,7 @@ export class ReviewsModel {
             branch: pr.branch,
             base: pr.base,
             agent: outcome.agent,
-            checks: checkNames(checksOf(pr.ci, "failure")),
+            checks: blockersText(pr),
             ...agentChoiceOf(outcome.result),
         });
         if (choice == null) {
@@ -428,13 +428,7 @@ export class ReviewsModel {
                 title: pr.tickettitle || pr.title,
                 url: pr.url,
                 ticket: pr.ticket,
-                checks: checksOf(pr.ci, "failure").map((c) => ({
-                    name: c.name,
-                    workflow: c.workflow,
-                    url: c.url,
-                    runid: c.runid,
-                    jobid: c.jobid,
-                })),
+                ...investigateBlockers(pr),
                 ...(mode != null ? agentStartOf("investigate", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);

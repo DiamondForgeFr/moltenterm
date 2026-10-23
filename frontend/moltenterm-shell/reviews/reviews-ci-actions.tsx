@@ -12,7 +12,7 @@ import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { checkNames, checksOf, ReviewPr } from "./reviews-model";
+import { blockersText, checkNames, checksOf, ReviewPr } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
 
 export type RerunPhase = "idle" | "confirm" | "sending" | "started" | "failed";
@@ -87,7 +87,8 @@ export function CiFailureButtons({
 }) {
     const t = useT();
     const failed = checksOf(pr.ci, "failure");
-    if (failed.length === 0) {
+    const blockers = blockersText(pr);
+    if (failed.length === 0 && !blockers) {
         return null;
     }
     const names = checkNames(failed);
@@ -117,27 +118,29 @@ export function CiFailureButtons({
                     {rerun.phase === "sending" ? t("reviews.ci.rerun.sending") : t("reviews.ci.rerun.button")}
                 </button>
             ) : null}
-            <button
-                type="button"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (!investigating) {
-                        onInvestigate();
-                    }
-                }}
-                onKeyDown={stop}
-                aria-busy={investigating || undefined}
-                className={SmallButton}
-                title={t("reviews.ci.investigate.buttonTitle", { names })}
-                data-testid="reviews-investigate"
-            >
-                {investigating ? (
-                    <DominoLoader />
-                ) : (
-                    <i className="fa fa-solid fa-screwdriver-wrench text-11" aria-hidden />
-                )}
-                {investigating ? t("reviews.ci.investigate.asking") : t("reviews.ci.investigate.button")}
-            </button>
+            {blockers ? (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (!investigating) {
+                            onInvestigate();
+                        }
+                    }}
+                    onKeyDown={stop}
+                    aria-busy={investigating || undefined}
+                    className={SmallButton}
+                    title={t("reviews.ci.investigate.buttonTitle", { blockers })}
+                    data-testid="reviews-investigate"
+                >
+                    {investigating ? (
+                        <DominoLoader />
+                    ) : (
+                        <i className="fa fa-solid fa-screwdriver-wrench text-11" aria-hidden />
+                    )}
+                    {investigating ? t("reviews.ci.investigate.asking") : t("reviews.ci.investigate.button")}
+                </button>
+            ) : null}
         </>
     );
 }

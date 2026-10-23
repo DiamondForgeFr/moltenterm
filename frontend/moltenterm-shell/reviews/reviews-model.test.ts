@@ -217,9 +217,9 @@ describe("reviews model", () => {
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }, null, "investigate")).toMatchObject({
             kind: "asked",
             note: true,
-            text: "Rita investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
+            text: "Rita analyzes and resolves what blocks the pull request: a notification tells you when nothing fails any more or if it needs you.",
         });
-        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("Investigate and fix could not be asked: boom");
+        expect(rebaseOutcome(null, "boom", "investigate").text).toBe("Analyze and resolve could not be asked: boom");
         expect(rebaseOutcome({ status: "sent", firstname: "Rita" }).note).toBeFalsy();
     });
 

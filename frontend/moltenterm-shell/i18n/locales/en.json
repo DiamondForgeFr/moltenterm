@@ -4418,7 +4418,7 @@
         "task": {
             "what": {
                 "rebase": "the rebase",
-                "investigate": "the CI fix",
+                "investigate": "the resolution of what blocks it",
                 "finish": "the check of the pull request"
             },
             "left": {
@@ -4431,7 +4431,7 @@
             "gone": "its session ended before finishing {what}: {left}",
             "done": {
                 "rebase": "rebase done, no conflict left",
-                "investigate": "CI fixed",
+                "investigate": "nothing blocks it any more",
                 "finish": "nothing left on this pull request"
             }
         },
@@ -4970,13 +4970,22 @@
                 "failed": "The failed jobs could not be rerun: {message}"
             },
             "investigate": {
-                "button": "Investigate and fix",
-                "buttonTitle": "A work agent finds why {names} failed and resolves it: a fix on the branch, a rebase, or a rerun with a ticket for a flaky test. It never merges.",
+                "button": "Analyze and resolve",
+                "buttonTitle": "A work agent resolves what blocks this pull request, in this order: {blockers}. It never merges.",
                 "asking": "Asking…",
-                "asked": "{name} investigates and fixes the failed CI: a notification tells you when the checks pass or if it needs you.",
-                "startedHidden": "{name} fixes the failed CI of {branch} out of sight: a notification tells you when the checks pass or if it needs you.",
-                "offer": "No agent works on {branch}. Start one to investigate and fix the failed CI?",
-                "failed": "Investigate and fix could not be asked: {message}"
+                "asked": "{name} analyzes and resolves what blocks the pull request: a notification tells you when nothing fails any more or if it needs you.",
+                "startedHidden": "{name} resolves what blocks {branch} out of sight: a notification tells you when nothing fails any more or if it needs you.",
+                "offer": "No agent works on {branch}. Start one to analyze and resolve what blocks it?",
+                "failed": "Analyze and resolve could not be asked: {message}",
+                "blocker": {
+                    "behind": "behind {base}: rebase",
+                    "conflicts": "conflicts with {base}: rebase",
+                    "remote": "CI failed: {names}",
+                    "local": "local CI failed: {names}",
+                    "report": "no test report",
+                    "review": "changes requested"
+                },
+                "headStillFails": "The statuses on the head {head} still fail: {names}."
             }
         },
         "report": {
@@ -5267,7 +5276,7 @@
             "direct": "Direct",
             "rebase": "Rebase",
             "restart": "Restart work",
-            "investigate": "Analyse and fix",
+            "investigate": "Analyze and resolve",
             "batch": "Batch merge",
             "review": "Review panel"
         },
@@ -6221,6 +6230,7 @@
         "agentHold": {
             "fixing": "fixing the CI of #{number}",
             "ci": "waiting for the CI of #{number}",
+            "localCi": "waiting for the local CI of #{number} on its pushed head",
             "green": "the CI of #{number} passes"
         },
         "review": {
@@ -6605,8 +6615,13 @@
                 "openReview": "Open the review",
                 "ciGreenTitle": "#{number}: CI green again",
                 "ciGreen": "{name}: {outcome}",
-                "ciGreenPlain": "{name} stopped and the required checks of #{number} pass.",
+                "ciGreenPlain": "{name} stopped and no check of #{number} fails on its head.",
                 "stillFailing": "Still failing on #{number}: {names}.",
+                "localStillFailing": "The local CI still fails on the pushed head of #{number}: {names}. Run molten ci run {branch} in the agent's copy to see why.",
+                "localCiMissing": "The local CI has not run on the pushed head of #{number}: run molten ci run {branch} there.",
+                "ciDeclaration": "The project's local CI declaration is wrong: {reason}",
+                "ciEnvironment": "The local CI's environment misses something: {reason}",
+                "moltenBug": "MoltenTerm misbehaved while running the local CI: {reason}",
                 "asks": "stopped for a decision: {reason}",
                 "ciSlow": "The CI of #{number} is still running after 2 hours.",
                 "uncommitted": "{name} left uncommitted files in its copy of {branch} ({count}): {names}",
@@ -6679,7 +6694,7 @@
                     }
                 },
                 "queue": {
-                    "investigate": "Investigate and fix",
+                    "investigate": "Analyze and resolve",
                     "failedTitle": "#{number} validated but CI failed: {names}",
                     "failed": "It is not merged while a check fails. It merges once its checks pass on the same commit; a new push needs a new validation.",
                     "stoppedTitle": "#{number} needs you: the merge queue stopped on it",
@@ -6916,14 +6931,14 @@
         "title": {
             "rebase": "Rebase #{number} with an agent",
             "restart": "Restart work on #{number} with an agent",
-            "investigate": "Investigate and fix the failed CI of #{number} with an agent",
+            "investigate": "Analyze and resolve what blocks #{number} with an agent",
             "finish": "Check and finish #{number} with an agent"
         },
         "subtitle": "{branch} → {base}",
         "what": {
             "rebase": "{agent} rebases {branch} on {base} in an isolated copy of the branch, resolves the conflicts, runs the project's checks and pushes with lease.",
             "restart": "{agent} applies review round {round}'s comments on {branch} in an isolated copy of the branch, commits, pushes and replies on each thread.",
-            "investigate": "{agent} reads the failed logs of {checks} in an isolated copy of {branch} and resolves the cause: a fix pushed on the branch, a rebase on the base pushed with lease, or a rerun of a flaky job with its ticket. It never merges and asks you only for a real decision.",
+            "investigate": "{agent} resolves what blocks {branch} in an isolated copy of the branch, in this order: {checks}. It finds the cause of each (a fix pushed on the branch, a rebase pushed with lease, the local CI run until green, a rerun of a flaky job with its ticket). It never merges and asks you only for a real decision.",
             "finish": "{agent} checks {branch} against its ticket in an isolated copy of the branch and finishes what is left: conflicts with {base}, red CI, requested changes. It pushes with lease and never merges."
         },
         "background": {
@@ -6933,12 +6948,12 @@
         "together": {
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
-            "investigate": "Investigate and fix with the agent",
+            "investigate": "Analyze and resolve with the agent",
             "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later.",
             "finish": "Go through it with the agent"
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
-        "checkoutInvestigate": "Your main checkout is not touched. The agent turns green only once the pull request's required checks pass; its terminal stays open with its account until you close it.",
+        "checkoutInvestigate": "Your main checkout is not touched. The agent turns green only once no check of the pull request fails on its pushed head, local CI included; its terminal stays open with its account until you close it.",
         "default": "Default",
         "how": "How the agent works",
         "yourAgent": "Your agent",
@@ -6961,7 +6976,7 @@
         "rebase": "Started by you at {time} to rebase #{number} on {base}",
         "restart": "Started by you at {time} to apply review round {round}'s comments on #{number}",
         "batch": "Started by you at {time} for the batch merge of {count} pull requests into {base}",
-        "investigate": "Started by you at {time} to investigate and fix the failed CI of #{number}",
+        "investigate": "Started by you at {time} to analyze and resolve what blocks #{number}",
         "finish": "Started by you at {time} to check #{number} and finish what is left",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"

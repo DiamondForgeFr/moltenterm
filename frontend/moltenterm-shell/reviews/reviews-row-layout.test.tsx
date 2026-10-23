@@ -12,6 +12,7 @@ const BarMarkup = `<div data-testid="row-agent-bar"></div>`;
 vi.mock("./reviews-agent-bar", () => ({
     RowAgentLine: () => <div data-testid="row-agent-bar" />,
     DraftTurnChip: () => null,
+    HeadStillFailsLine: () => null,
 }));
 
 function pr(): ReviewPr {
