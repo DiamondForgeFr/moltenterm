@@ -27,6 +27,7 @@ const PipelineGuideName = "molten-pipeline"
 const BugGuideName = "molten-bug"
 const agentRequestPlaceholder = "{{REQUEST}}"
 const localCiRulePlaceholder = "{{LOCAL_CI_RULE}}"
+const sandboxRulePlaceholder = "{{SANDBOX_RULE}}"
 const agentDescription = "Turn a plain-language request into a morph of MoltenTerm with the molten command"
 
 type AgentGuide struct {
@@ -262,15 +263,31 @@ func LocalCiRule() (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
+// SandboxRule is the text telling an agent what to do when its sandbox blocks the molten command (#989).
+func SandboxRule() (string, error) {
+	data, err := agentdocs.Files.ReadFile(agentdocs.SandboxRuleFile)
+	return strings.TrimSpace(string(data)), err
+}
+
 func expandGuideIncludes(body string) (string, error) {
-	if !strings.Contains(body, localCiRulePlaceholder) {
-		return body, nil
+	includes := []struct {
+		placeholder string
+		text        func() (string, error)
+	}{
+		{localCiRulePlaceholder, LocalCiRule},
+		{sandboxRulePlaceholder, SandboxRule},
 	}
-	rule, err := LocalCiRule()
-	if err != nil {
-		return "", err
+	for _, inc := range includes {
+		if !strings.Contains(body, inc.placeholder) {
+			continue
+		}
+		text, err := inc.text()
+		if err != nil {
+			return "", err
+		}
+		body = strings.ReplaceAll(body, inc.placeholder, text)
 	}
-	return strings.ReplaceAll(body, localCiRulePlaceholder, rule), nil
+	return body, nil
 }
 
 // Path is where morph goes; GuidePath where any guide goes.
@@ -487,7 +504,7 @@ func WriteDocs(dir string) error {
 		if err != nil {
 			return err
 		}
-		if path == agentdocs.GuideFile || path == agentdocs.PipelineGuideFile {
+		if path == agentdocs.GuideFile || path == agentdocs.PipelineGuideFile || path == agentdocs.BugGuideFile {
 			expanded, err := expandGuideIncludes(string(data))
 			if err != nil {
 				return err

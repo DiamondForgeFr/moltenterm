@@ -16,13 +16,15 @@ import "embed"
 // molten-bug.md is the guide for reporting a MoltenTerm bug (FR-MORPH-011).
 // local-ci-rule.md is the rule "run the local CI through `molten ci run`", written once: the molten-pipeline guide
 // includes it ({{LOCAL_CI_RULE}}), and the briefing a run appends for an agent (#180) takes it from here.
+// sandbox-rule.md tells an agent what to do when its sandbox blocks the molten command (#989): the morph,
+// molten-pipeline and molten-bug guides include it ({{SANDBOX_RULE}}).
 // claude-code-parts.md and examples/test-band/ document the Claude Code part of a mod (FR-MORPH-010); `all:` keeps
 // the part's `.claude-plugin/` folder, which embed would skip as hidden.
 // language-pack.md is the first preconfigured morph: translate MoltenTerm or change its texts (FR-I18N-002).
 // review.md is the guide a review session's agent gets as its system prompt (FR-REV-004, DS-REV-006).
 // pr-signature.md tells agents how to sign their commits and pull requests (#847).
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"
@@ -31,3 +33,4 @@ const GuideFile = "morph.md"
 const PipelineGuideFile = "molten-pipeline.md"
 const BugGuideFile = "molten-bug.md"
 const LocalCiRuleFile = "local-ci-rule.md"
+const SandboxRuleFile = "sandbox-rule.md"
