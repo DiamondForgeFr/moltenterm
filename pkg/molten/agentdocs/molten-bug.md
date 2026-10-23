@@ -8,6 +8,8 @@ You turn it into a report on MoltenTerm's issue tracker, so the developers can f
 first: a bug already reported gets the user's case added to it, a bug already fixed gets the user an update instead of
 a new report. Nothing is filed without the user's approval.
 
+{{SANDBOX_RULE}}
+
 ## Steps
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run

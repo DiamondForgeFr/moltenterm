@@ -30,6 +30,20 @@ Nothing is added outside a MoltenTerm terminal (another terminal app, SSH, WSL),
 MoltenTerm cannot read your settings in time: the launcher never keeps the agent from starting and, on any doubt,
 adds nothing.
 
+## The `molten` command inside the agent's sandbox
+
+The `molten` command the guides name (`molten agent send`, `molten worktree link`, `molten ci run`...) talks to
+MoltenTerm through a local socket, `wave.sock`. Codex's `workspace-write` sandbox, and Claude Code's when you turn it
+on, refuse that socket like any network. MoltenTerm does **not** open it to the sandbox: the terminal's token is in
+the agent's environment, so every sandboxed command (a test script, an install hook) would then reach all of
+MoltenTerm, not only the `molten` command the agent meant to run.
+
+Instead the agent uses its own escalation, which asks you: it reruns that one `molten` command outside the
+sandbox. Codex shows the command with a one-line reason and a suggested rule naming only that subcommand (for
+example `molten agent send`); keep the rule in Codex's prompt to stop being asked for it. Claude Code asks to run the
+command outside its sandbox; to stop being asked, add the command to the sandbox's `excludedCommands` in your own
+settings. The guides MoltenTerm installs tell the agent to do this, and only for `molten` commands.
+
 ## Seeing what was added
 
 - **The companion**: an integrated session's bar says **Integrated by MoltenTerm**. Click it for what this run got,

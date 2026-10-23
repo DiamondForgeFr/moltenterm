@@ -452,7 +452,8 @@ func TestMorphGuideClaudeCodePart(t *testing.T) {
 	}
 	written, _ := os.ReadFile(filepath.Join(dir, "morph.md"))
 	source, _ := agentdocs.Files.ReadFile(agentdocs.GuideFile)
-	want := FilterAgentBlocks(strings.ReplaceAll(string(source), agentRequestPlaceholder, "(the user's request)"), GenericAgentId)
+	expanded, _ := expandGuideIncludes(string(source))
+	want := FilterAgentBlocks(strings.ReplaceAll(expanded, agentRequestPlaceholder, "(the user's request)"), GenericAgentId)
 	if string(written) != want || strings.Contains(want, "plugin-authoring") {
 		t.Error("molten docs writes the generic morph.md, with no Claude Code block")
 	}
@@ -518,6 +519,33 @@ func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
 	format, _ := os.ReadFile(filepath.Join(dir, "pipeline-format.md"))
 	if !strings.Contains(string(format), "molten ci run") {
 		t.Error("pipeline-format.md must point to molten ci run")
+	}
+}
+
+// #989: every guide that runs molten tells the agent the escalation to ask for when its sandbox blocks the socket.
+func TestGuidesHoldTheSandboxRule(t *testing.T) {
+	rule, err := SandboxRule()
+	if err != nil || !strings.Contains(rule, "wave.sock") || !strings.Contains(rule, "escalat") {
+		t.Fatalf("the rule: %q %v", rule, err)
+	}
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range AgentGuides {
+		for _, p := range AgentProfiles {
+			content, err := p.RenderGuide(g, "1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(content, sandboxRulePlaceholder) || !strings.Contains(content, rule) {
+				t.Errorf("%s %s: the guide must hold the sandbox rule, expanded", p.Id, g.Name)
+			}
+		}
+		written, _ := os.ReadFile(filepath.Join(dir, g.File))
+		if strings.Contains(string(written), sandboxRulePlaceholder) || !strings.Contains(string(written), rule) {
+			t.Errorf("molten docs writes %s with the sandbox rule expanded", g.File)
+		}
 	}
 }
 

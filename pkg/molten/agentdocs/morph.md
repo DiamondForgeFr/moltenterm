@@ -16,6 +16,8 @@ instead of steps 3 to 9 below (steps 1 and 2 still apply):
 | --- | --- |
 | Translate MoltenTerm into a language, complete a translation, or change some of its texts (any language, English and French included) | `language-pack.md` |
 
+{{SANDBOX_RULE}}
+
 ## Steps
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run
