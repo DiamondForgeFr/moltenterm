@@ -149,7 +149,7 @@ Release candidates are `v1.0.0-N` until the first public release, `v1.0.0` (FR-R
 | prepare | `molten release promote --workflow ci.yml`         | `develop` reaches `main` (fast-forward, else a merge commit) once CI is green on its commit. Refused while `main` holds a release commit `develop` lacks: merge the previous sync-back first.                |
 | prepare | `molten release prepare <tag>`                     | In `../MoltenTerm-release` (a worktree on `origin/main`): `package.json` and `package-lock.json` bumped, `releases/<tag>.md` and `releases/<tag>.internal.md` written ("Release notes", below). Review the notes before the cut. |
 | cut     | `molten release finalize <tag>`                    | Commit `chore(release): <tag> (rc\|public)`, tag, `git push --atomic origin main <tag>` (as a repository admin: the `main` ruleset accepts pull requests only).                                              |
-| build   | `.github/workflows/release.yml`                    | On the tag: macOS arm64 and x64 (dmg, zip; ad-hoc signed, not notarized) and Linux x64 and arm64 (AppImage, deb), checked to come from `main` and carry the tag's version.                                   |
+| build   | `.github/workflows/release.yml`                    | On the tag: macOS arm64 and x64 (dmg, zip; public tags require Developer ID, notarization and final delivery verification) and Linux x64 and arm64 (AppImage, deb), checked to come from `main` and carry the tag's version. |
 | publish | release.yml, then `molten release close-milestone` | The GitHub release with every file, `SHA256SUMS.txt` and electron-builder's `latest*.yml`: a candidate is published as a prerelease, a public release waits as a draft. Its milestone closes once published. |
 | back    | `molten release sync-back <tag>`                   | The release commit cherry-picked onto `develop` in `chore/sync-back-<tag>`, with its pull request.                                                                                                           |
 
@@ -167,12 +167,14 @@ known because a pull request that changes it runs its first job (check mode, not
 The release needs nothing more on GitHub than the repository's own token (`contents: write` for the publish job only)
 and, to be signed, the two secrets of the release key (#576): `scripts/moltenterm-release-sign.sh` signs
 `SHA256SUMS.txt` into `SHA256SUMS.txt.asc` (plus a `.asc` per AppImage and deb) on a release and a rehearsal, verified
-against the committed `release-signing-key.asc` (fingerprint `A2E8049BB69F46620E99C304B003BEB5DC25CABA`). With neither the key nor the secrets the release is published
-unsigned and the log says so; with only one of them, or a wrong passphrase, the run fails (`RELEASE.md`, "The release
-key").
-Until an Apple Developer ID exists, macOS builds are ad-hoc signed and not notarized: the release text tells users to
-right-click › Open (or `xattr -dr com.apple.quarantine`). Developer ID signing and notarization are required before
-the first public release, 1.0.0, is published. Windows builds come later.
+against the committed `release-signing-key.asc` (fingerprint `A2E8049BB69F46620E99C304B003BEB5DC25CABA`). Public tags
+fail when either signing system is absent (#976); candidates and rehearsals retain optional checksum signing, and
+partial or invalid material always fails. Rehearsals remain ad hoc. Public packaging verifies extracted ZIP apps and
+read-only mounted DMG apps, then records final macOS hashes in `macos-verification.json`. Publication validates the
+exact inventory, feeds, blockmaps, evidence and signatures before any mutation. Existing published releases are
+immutable, as are existing draft assets: a rebuild with different bytes or run evidence is refused and requires explicit repair. Public releases
+still wait as drafts for human publication; clean-computer/offline/CLI/permission acceptance remains #880. Windows
+builds come later.
 
 **Telling users about a new release (#188).** There is one update source, the repository's GitHub Releases, read with
 no feed file of its own. A release build (`rc` or `public` channel) asks the Releases API once its window is idle after

@@ -21,6 +21,22 @@ version-specific internal API. Do not copy configuration from the unversioned v2
 Without `MOLTENTERM_MACOS_SIGNING=developer-id`, which only `package.mjs` sets inside its session, the builder
 configuration is exactly what it was: a local `task package` and the ad-hoc release are unchanged.
 
+### Public tags (#976)
+
+The release workflow supplies explicit `RELEASE_MODE`, `RELEASE_CHANNEL`, `RELEASE_VERSION`, `RELEASE_SHA`,
+`RELEASE_RUN_ID` and `RELEASE_RUN_ATTEMPT`. `release/public` requires Developer ID; missing inputs fail before
+compilation. `rehearsal/public` stays ad hoc, and RC tags preserve optional Developer ID signing.
+
+After finalization, public packaging verifies the delivered ZIP and mounted DMG applications, main executable and
+embedded helper architectures for both targets. `delivery.mjs` uses Electron's locked native extractor 1.0.5, checks
+contained framework links and extracts into private owned directories. DMGs are mounted read-only and detached in
+`finally`; cleanup failure blocks success and leaves possibly mounted paths intact. The successful job alone writes
+`macos-verification.json` with final hashes and run identity. The publish job checks those bytes and verified checksum
+signatures before any mutation. Genuine Apple and clean-computer acceptance remain in #880.
+
+Run fixtures without credentials: `node --test scripts/macos-signing/*.node-test.mjs scripts/release-*.node-test.mjs`
+and `scripts/moltenterm-release-sign-test.sh` (GnuPG required).
+
 ## Credential boundary
 
 `withSigningSession` accepts these inputs only for the packaging step:

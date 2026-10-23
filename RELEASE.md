@@ -38,12 +38,12 @@ onboarding, permission prompts). Never give Full Disk Access to a build whose bu
 - `release.yml` is on `develop` and reaches `main` with the first promotion. GitHub already knows it, so the
   rehearsal can be dispatched from `develop` before that.
 - macOS Developer ID signing and notarization (#507) come before the first public release: the `release` environment
-  and its seven secrets exist (below, "macOS signing"). Until then, the builds are ad-hoc signed, a public tag's run
-  warns, and the release text says how to open them.
+  and its seven secrets exist (below, "macOS signing"). A public tag fails before packaging when they are missing;
+  rehearsals remain ad hoc and candidates retain optional signing.
 - The milestone of the release is triaged: `molten release plan` lists its open issues. They are reported, never
   blocking.
-- The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Until
-  then, releases are published unsigned and the run's log says so.
+- The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Public
+  tags require these inputs; candidates and rehearsals may be unsigned only when all signing material is absent.
 
 ## The release key
 
@@ -62,7 +62,7 @@ The switch is the committed public key together with the secrets, as in Notulia:
 
 | Committed public key | Secrets | Result |
 | --- | --- | --- |
-| no | no | nothing is signed, the log says so, the release is published unsigned |
+| no | no | public tags fail; candidates and rehearsals continue unsigned with an explicit notice |
 | yes | yes, the same key | every signature is made, verified against the committed key alone (`gpgv`), then published |
 | one without the other, another key, or a wrong passphrase | | **the run fails** before anything is published |
 
@@ -129,7 +129,22 @@ The release text carries these commands, with the fingerprint once the release i
 A release's macOS builds are signed with the DiamondForge **Developer ID Application** certificate, notarized by Apple
 and stapled (#507), so a downloaded MoltenTerm opens without a Gatekeeper override and keeps its privacy grants from one
 release to the next. `release.yml` does it when the seven secrets below exist, and stays ad hoc while none does; a
-partial set fails the run. A rehearsal is always ad hoc. The mechanics are in `scripts/macos-signing/README.md`.
+partial set fails the run. Public tags require all seven inputs. A rehearsal is always ad hoc, even on the public
+channel. The mechanics are in `scripts/macos-signing/README.md`.
+
+### Public release gates (#976)
+
+Public tags require verification of both architectures' final ZIP contents and read-only mounted DMG contents,
+including the app, embedded helpers, Developer ID/team, notarization, stapling and Gatekeeper. The successful job
+writes `macos-verification.json`, binding the final payload hashes to the commit, version and workflow run. This is
+workflow evidence, not a replacement for Apple's signature or the clean-computer acceptance checks in #880.
+
+The publication job validates exact filenames, versions, architectures, feeds and all four macOS blockmaps. Signed
+checksums cover these files and the verification record. Missing or extra files, stale metadata, invalid signatures
+or mismatched evidence fail before any GitHub release mutation. Public releases still start as drafts for a human to
+publish. Rerunning any existing release, including a draft, never changes its assets: missing or different bytes
+require explicit human repair. This avoids replacing a draft's assets while a human publishes it.
+Since signatures and run evidence can differ on a rebuild, a new build may be refused even for the same commit.
 
 ### Get the credentials (once)
 
@@ -215,11 +230,12 @@ on the ticket of the release.
 
 - [ ] The run is green: `release.yml` for a candidate, the rehearsal run for a rehearsal.
 - [ ] Every file is there: 2 dmg, 2 zip, 2 AppImage, 2 deb, `latest-mac.yml`, `latest-linux.yml`,
-      `latest-linux-arm64.yml` and `SHA256SUMS.txt`. `scripts/moltenterm-release-files.sh` refuses the run otherwise.
+      `latest-linux-arm64.yml`, four macOS `.blockmap` files and `SHA256SUMS.txt`. Public output also includes
+      `macos-verification.json`. `scripts/moltenterm-release-files.sh` refuses an inconsistent inventory.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
 - [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
       `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release
-      key". Before it exists, the run's log says the release is unsigned.
+      key". Public tags always require these signatures; only candidates/rehearsals may be unsigned before the key exists.
 
 ### 1. macOS (arm64; x64 when an Intel Mac is at hand)
 
