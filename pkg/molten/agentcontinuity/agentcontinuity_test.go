@@ -110,6 +110,9 @@ func TestCapabilityMatrix(t *testing.T) {
 	if b := Find("claude").Briefing(); b.Channel != ChannelSystemAppend || b.Flag != "--append-system-prompt-file" || b.Support != SupportDocumented {
 		t.Errorf("claude briefing %+v", b)
 	}
+	if n := Find("claude").Briefing().Note; !strings.Contains(n, "AGENTS.md") || strings.Index(n, "AGENTS.md") > strings.Index(n, "CLAUDE.md") {
+		t.Errorf("claude briefing note must cite AGENTS.md before CLAUDE.md (#992): %q", n)
+	}
 	if b := Find("codex").Briefing(); b.Channel != ChannelDeveloper || b.Flag != "-c" || b.Key != "developer_instructions" || b.Support != SupportDocumented {
 		t.Errorf("codex briefing %+v", b)
 	}

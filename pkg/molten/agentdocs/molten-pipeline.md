@@ -19,9 +19,9 @@ what is missing, and only after the user agreed.
 4. Detect the project's harness and follow it for everything you change:
    - `.saasfoundry.json` (SaaSFoundryAI): its `workflow` gives the working branch, the pull request target, the
      branch naming (`feature/{N}-…`) and the commit format (`type(#N): …`, ticket required). Changes go through a
-     ticket, a branch and a pull request as that workflow says; read the project's own skills and CLAUDE.md or
-     AGENTS.md before acting.
-   - Otherwise `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`: follow what they ask.
+     ticket, a branch and a pull request as that workflow says; read the project's own skills and `AGENTS.md`
+     (`CLAUDE.md` only as Claude Code's fallback) before acting.
+   - Otherwise `AGENTS.md` (`CLAUDE.md` only as Claude Code's fallback), `CONTRIBUTING.md`: follow what they ask.
 5. Inventory what exists, before proposing anything:
    - scripts: `package.json` scripts, `Taskfile.yml`, `Makefile`, `justfile`, `scripts/`;
    - CI: `.github/workflows/*.yml` (what runs on pull requests, on tags, on a schedule);
