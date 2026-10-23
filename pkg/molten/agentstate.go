@@ -280,13 +280,16 @@ func CleanAgentMessage(message string) string {
 
 // AgentStateRequest is a state report. TurnEnd: the report comes from a source that only sees turns end (the Codex
 // notify wrapper of the launcher, `molten agent notify`), not from the user's hooks: the pane's output activity keeps
-// giving working, and the hook setup offer does not count the agent as set up.
+// giving working, and the hook setup offer does not count the agent as set up. Start: the agent's SessionStart hook
+// (`molten agent hook`, #988): the pane's states are precise from now on, and it shows State (idle) unless the agent
+// is working or waiting.
 type AgentStateRequest struct {
 	BlockId string `json:"blockid"`
 	State   string `json:"state"`
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
+	Start   bool   `json:"start,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.

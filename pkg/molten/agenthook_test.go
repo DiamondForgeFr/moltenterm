@@ -26,6 +26,12 @@ func TestAgentHookMatchesMolten(t *testing.T) {
 		"idle":               {agenthook.AgentStateIdle, AgentStateIdle},
 		"status line relay":  {"molten agent statusline", agentStatusLineRelay},
 		"state hook command": {"molten agent state", agentStateHookCommand},
+		"hook command":       {"molten agent hook", agentHookCommand},
+		"session link":       {agenthook.CompanionSessionCommand, CompanionSessionCommand},
+		"sub-agent":          {agenthook.CompanionSubagentCommand, CompanionSubagentCommand},
+		"sub-agent start":    {agenthook.SubagentEventStart, SubagentEventStart},
+		"sub-agent stop":     {agenthook.SubagentEventStop, SubagentEventStop},
+		"session start":      {agenthook.HookEventSessionStart, ClaudeSessionHookEvent},
 	}
 	for what, pair := range names {
 		if pair[0] != pair[1] {
@@ -33,12 +39,26 @@ func TestAgentHookMatchesMolten(t *testing.T) {
 		}
 	}
 
-	full := AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true}
-	hook := agenthook.AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true}
-	a, _ := json.Marshal(full)
-	b, _ := json.Marshal(hook)
-	if string(a) != string(b) {
-		t.Errorf("state request: molten %s, agenthook %s", a, b)
+	pairs := map[string][2]any{
+		"state request": {
+			AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true},
+			agenthook.AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true},
+		},
+		"session request": {
+			AgentSessionRequest{BlockId: "b", Agent: "codex", Path: "/p", SessionId: "s"},
+			agenthook.AgentSessionRequest{BlockId: "b", Agent: "codex", Path: "/p", SessionId: "s"},
+		},
+		"sub-agent request": {
+			AgentSubagentRequest{BlockId: "b", Agent: "codex", Event: "stop", SessionId: "s", AgentId: "a", AgentType: "explorer", TranscriptPath: "/t"},
+			agenthook.AgentSubagentRequest{BlockId: "b", Agent: "codex", Event: "stop", SessionId: "s", AgentId: "a", AgentType: "explorer", TranscriptPath: "/t"},
+		},
+	}
+	for what, pair := range pairs {
+		a, _ := json.Marshal(pair[0])
+		b, _ := json.Marshal(pair[1])
+		if string(a) != string(b) {
+			t.Errorf("%s: molten %s, agenthook %s", what, a, b)
+		}
 	}
 
 	for _, s := range []string{"working", "waiting", "done", "error", "idle", "", "Working", "busy"} {

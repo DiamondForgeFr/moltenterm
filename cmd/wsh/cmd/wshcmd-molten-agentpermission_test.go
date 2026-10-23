@@ -73,6 +73,28 @@ func TestAgentPermissionPrintsOnlyAnAllow(t *testing.T) {
 	}
 }
 
+// #988, FR-SHELL-064 AC5: a request the hook leaves to the developer turns the pane waiting (Codex has no
+// Notification event); an approved one, or an input that is no request, does not.
+func TestAgentPermissionReportsWaiting(t *testing.T) {
+	var waits []string
+	previous := reportPermissionWaiting
+	reportPermissionWaiting = func(blockId string, agent string) { waits = append(waits, blockId+"/"+agent) }
+	t.Cleanup(func() { reportPermissionWaiting = previous })
+	var out bytes.Buffer
+	answer := func(decision string, err error) func(keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		return func(keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+			return keepawake.PermissionAnswer{Decision: decision}, err
+		}
+	}
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "codex", answer("", nil))
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", answer(keepawake.PermissionAllow, errors.New("timeout")))
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "codex", answer(keepawake.PermissionAllow, nil))
+	runAgentPermission(strings.NewReader("nope"), &out, "block-1", "codex", answer("", nil))
+	if strings.Join(waits, ",") != "block-1/codex,block-1/claude" {
+		t.Fatalf("waiting reports %v", waits)
+	}
+}
+
 // FR-SHELL-064: Codex's PermissionRequest input (its documented fields, an apply_patch) gets the same answer, in the
 // output shape Codex documents.
 func TestAgentPermissionCodexInput(t *testing.T) {

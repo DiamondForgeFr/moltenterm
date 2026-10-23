@@ -1421,6 +1421,14 @@
             "intro": "Without hooks, MoltenTerm only sees when {name}'s output comes: working while it streams, idle once it is quiet. With them, the pane shows {brings}.",
             "addTo": "Add this to",
             "also": ", {also}:",
+            "bringsBy": {
+                "claude": "waiting when it asks for a permission, done when its turn ends, working again once you approved",
+                "codex": "working while it works, done when its turn ends, and its session linked as soon as it starts"
+            },
+            "alsoBy": {
+                "claude": "or in a project's .claude/settings.json, merged with the hooks you already have",
+                "codex": "or in a project's .codex/hooks.json, merged with the hooks you already have; Codex runs them once you trust them in /hooks"
+            },
             "restart": "Start {name} again after the change. Once its hooks report, this offer goes away.",
             "guide": "Read the agent states guide"
         }
@@ -6654,7 +6662,10 @@
                 "browser": "MoltenTerm browser",
                 "codexnotify": "Done state at each turn's end (notify)",
                 "codexnotifyaround": "Done state at each turn's end (notify, around your own notify)",
-                "codexsessionlink": "Session link (at the end of the first turn)"
+                "codexsessionlink": "Session link (at the end of the first turn)",
+                "codexstatehooksof": "Agent state hooks ({events}), once you trust MoltenTerm's hooks in Codex's /hooks",
+                "codexsessionstart": "Session link at start (once you trust MoltenTerm's hooks in Codex's /hooks)",
+                "codexnotifications": "Waiting state from Codex's notifications (approvals and questions)"
             },
             "reason": {
                 "managedhooksonly": "your organization's managed settings allow only their own hooks",
@@ -6677,7 +6688,6 @@
                 "browserconfignotwritten": "the server's configuration could not be written",
                 "managedmcp": "your organization's managed MCP configuration decides which servers run",
                 "managedprovided": "already provided by your organization's managed settings",
-                "codexhookstrust": "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust",
                 "codexmcpservers": "you passed {flag}: only your own servers run",
                 "ownnotifyflag": "you passed your own -c notify: it runs as you set it",
                 "managednotify": "your organization's {where} sets notify",
@@ -6686,7 +6696,9 @@
                 "notifynotlist": "the notify of {where} is not a list of strings",
                 "codexhooksoff": "Codex's hooks are turned off in {where}",
                 "codexhooksflag": "you passed {flag}: only your own hooks run",
-                "ownpermissionhooks": "you have your own PermissionRequest hooks, in {where}"
+                "ownpermissionhooks": "you have your own PermissionRequest hooks, in {where}",
+                "owneventhooks": "you have your own {event} hooks, in {where}",
+                "owntuinotifications": "{where} sets Codex's notifications: they work as you set them"
             },
             "stepaside": {
                 "outsidepane": "not in a MoltenTerm terminal",

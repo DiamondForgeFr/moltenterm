@@ -84,7 +84,19 @@ func readPermissionRequest(r io.Reader, blockId string, agent string) (keepawake
 	}, true
 }
 
-// runAgentPermission prints the hook's allow decision when wavesrv approves, nothing otherwise.
+// reportPermissionWaiting tells the pane its agent now waits on its own prompt (#988): Codex has no Notification
+// event, so a request the hook leaves to the developer is its waiting signal; Claude Code's Notification says the
+// same. A test replaces it.
+var reportPermissionWaiting = func(blockId string, agent string) {
+	token := os.Getenv(wshutil.WaveJwtTokenVarName)
+	if token == "" {
+		return
+	}
+	agenthook.SendAgentState(token, agenthook.AgentStateRequest{BlockId: blockId, State: molten.AgentStateWaiting, Agent: agent})
+}
+
+// runAgentPermission prints the hook's allow decision when wavesrv approves, nothing otherwise; the agent then asks
+// the developer, and the pane shows it waiting.
 func runAgentPermission(r io.Reader, w io.Writer, blockId string, agent string, send func(keepawake.PermissionRequest) (keepawake.PermissionAnswer, error)) {
 	req, ok := readPermissionRequest(r, blockId, agent)
 	if !ok {
@@ -92,6 +104,7 @@ func runAgentPermission(r io.Reader, w io.Writer, blockId string, agent string, 
 	}
 	answer, err := send(req)
 	if err != nil || answer.Decision != keepawake.PermissionAllow {
+		reportPermissionWaiting(blockId, agent)
 		return
 	}
 	out, err := json.Marshal(permissionHookOutput{HookSpecificOutput: permissionHookSpecific{

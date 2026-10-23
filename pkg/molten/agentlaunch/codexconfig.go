@@ -4,6 +4,7 @@
 package agentlaunch
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -23,8 +24,8 @@ import (
 // files of the folder and its parents up to the repository's root. Managed preferences deployed through MDM (macOS)
 // cannot be read: one that sets notify replaces the wrapper. Codex applies the project files of a trusted folder only,
 // above the user's, and ignores a profile selector there; whether it takes a notify from them is not documented, so a
-// project file that sets one is a doubt and notify is left alone. Nothing else of Codex's folder is opened: never
-// auth.json, hooks.json or any credential.
+// project file that sets one is a doubt and notify is left alone. The hooks.json next to each of these files is read
+// too (#988), for its hooks only. Nothing else of Codex's folder is opened: never auth.json or any credential.
 
 const (
 	codexConfigFile        = "config.toml"
@@ -52,6 +53,10 @@ type codexConfig struct {
 	sources []codexConfigSource
 	// unreadable: the display name of a config file that exists but could not be read or parsed.
 	unreadable string
+	// hookFiles: the hooks.json files Codex loads next to its config layers (keys: the decoded JSON);
+	// hookFileUnreadable: one that exists but could not be read, which leaves the state hooks out.
+	hookFiles          []codexConfigSource
+	hookFileUnreadable string
 }
 
 // readCodexConfig reads the system, user, profile (the -p name, "" for none) and project files, lowest level first.
@@ -104,6 +109,7 @@ func readCodexConfig(ctx LaunchContext, profile string) codexConfig {
 		}
 		rtn.sources = append(rtn.sources, codexConfigSource{display: display, keys: keys, project: project[path], managed: path == managedPath})
 	}
+	readCodexHookFiles(ctx, paths, project, &rtn)
 	return rtn
 }
 
@@ -114,6 +120,40 @@ func codexProfileFile(ctx LaunchContext, name string) string {
 		return ""
 	}
 	return filepath.Join(molten.CodexHome(ctx.Env), name+codexProfileFileSuffix)
+}
+
+// readCodexHookFiles reads the hooks.json next to each config.toml of paths (the managed file's folder is the
+// system's), with the same care: a repository's link is never opened.
+func readCodexHookFiles(ctx LaunchContext, paths []string, project map[string]bool, rtn *codexConfig) {
+	seen := map[string]bool{}
+	for _, configPath := range paths {
+		if configPath == "" {
+			continue
+		}
+		path := filepath.Join(filepath.Dir(configPath), molten.CodexHooksFile)
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		display := molten.DisplayHomePath(ctx.Env, path)
+		if info, err := os.Lstat(path); project[configPath] && err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			rtn.hookFileUnreadable = display
+			return
+		}
+		data, err := readBounded(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		var keys map[string]any
+		if err == nil {
+			err = json.Unmarshal(data, &keys)
+		}
+		if err != nil {
+			rtn.hookFileUnreadable = display
+			return
+		}
+		rtn.hookFiles = append(rtn.hookFiles, codexConfigSource{display: display, keys: keys, project: project[configPath]})
+	}
 }
 
 func codexSystemConfigPath(ctx LaunchContext) string {

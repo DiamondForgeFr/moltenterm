@@ -374,6 +374,20 @@ func (a *agentStates) seen(blockId string, version int64) bool {
 	return a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 }
 
+// turnEndRedundant tells whether a turn-end report (Codex's notify, the fallback until its hooks are trusted) comes
+// for a pane whose hooks already report this agent's states: their Stop said done, and a second done would come late,
+// after the user may have answered (#988).
+func (a *agentStates) turnEndRedundant(req molten.AgentStateRequest) bool {
+	if !req.TurnEnd {
+		return false
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[req.BlockId]
+	p := a.panes[req.BlockId]
+	return rec != nil && p != nil && p.hookedAgent == rec.agent && (req.Agent == "" || req.Agent == rec.agent)
+}
+
 // report applies a hook's report; it returns the notification to raise, if any.
 func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, string, error) {
 	if !molten.ValidAgentState(req.State) {
@@ -413,6 +427,11 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		}
 	}
 	rec.fromActivity = false
+	if req.Start && (previous == molten.AgentStateWorking || previous == molten.AgentStateWaiting) {
+		// A session started again in the middle of a turn (Codex's /clear while it works, a resume racing the first
+		// prompt): the start only makes the states precise.
+		return nil, "", nil
+	}
 	a.setStateLocked(req.BlockId, rec, req.State, message)
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
@@ -686,6 +705,9 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 		if block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
 			return fmt.Errorf("block %s is not a terminal", req.BlockId)
 		}
+	}
+	if defaultAgentStates.turnEndRedundant(req) {
+		return nil
 	}
 	signal, kind, err := defaultAgentStates.report(req)
 	if err != nil {

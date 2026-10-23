@@ -4,7 +4,6 @@
 package agenthook
 
 import (
-	"encoding/json"
 	"io"
 	"strings"
 )
@@ -25,24 +24,18 @@ const notificationHookEvent = "Notification"
 // terminal notifications (OSC 9, OSC 777) carry too.
 const claudeIdleWords = "waiting for your input"
 
-// HookInput is what `molten agent state --stdin` reads of a hook's JSON input.
+// HookInput is what `molten agent state --stdin` and `molten agent hook` read of a hook's JSON input (ReadHookInput,
+// hook.go): the fields Claude Code and Codex share, and Claude Code's Notification fields.
 type HookInput struct {
-	HookEventName    string `json:"hook_event_name"`
-	NotificationType string `json:"notification_type"`
-	Message          string `json:"message"`
-}
-
-// ReadHookInput reads a hook's JSON input; a missing or unreadable input gives empty fields.
-func ReadHookInput(r io.Reader) HookInput {
-	var input HookInput
-	data, err := io.ReadAll(io.LimitReader(r, maxStateStdin))
-	if err != nil {
-		return input
-	}
-	if json.Unmarshal(data, &input) != nil {
-		return HookInput{}
-	}
-	return input
+	HookEventName       string `json:"hook_event_name"`
+	NotificationType    string `json:"notification_type"`
+	Message             string `json:"message"`
+	SessionId           string `json:"session_id"`
+	TranscriptPath      string `json:"transcript_path"`
+	Source              string `json:"source"`
+	AgentId             string `json:"agent_id"`
+	AgentType           string `json:"agent_type"`
+	AgentTranscriptPath string `json:"agent_transcript_path"`
 }
 
 // IsIdlePromptMessage tells whether a notification's text is Claude Code's "waiting for your input" after a finished

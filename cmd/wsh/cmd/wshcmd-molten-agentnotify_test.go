@@ -97,7 +97,10 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 	os.WriteFile(filepath.Join(data, "bin", "wsh"), []byte("#!/bin/sh\n"), 0755)
 	os.Symlink("wsh", filepath.Join(data, "bin", "molten"))
 	report, args, procEnv := planMoltenAgentLaunch(agentlaunch.FindAdapter("codex"), "/real/codex", []string{"fix it"}, getenv, time.Now())
-	if report.StepAside != "" || len(args) != 9 || args[len(args)-1] != "fix it" || !slices.Equal(report.Args, args[:8]) || !strings.HasPrefix(args[7], "hooks.PermissionRequest=") {
+	n := len(args) - 1
+	if report.StepAside != "" || n != 26 || args[n] != "fix it" || !slices.Equal(report.Args, args[:n]) ||
+		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.PermissionRequest=") }) ||
+		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.SessionStart=") }) {
 		t.Fatalf("args %q report %+v", args, report)
 	}
 	moltenPath := filepath.Join(data, "bin", "molten")
@@ -114,7 +117,7 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 		t.Fatalf("the agent's processes must be marked as nested")
 	}
 	out := formatMoltenIntegrationStatus(MoltenIntegrationStatus{Agent: "codex", Running: true, Report: &report})
-	for _, want := range []string{"Codex", "Done state at each turn's end", "-c notify=", "-c mcp_servers.molten-browser.command=", "Agent state hooks: Codex runs hooks"} {
+	for _, want := range []string{"Codex", "Done state at each turn's end", "-c notify=", "-c mcp_servers.molten-browser.command=", "Agent state hooks (SessionStart, UserPromptSubmit, PostToolUse, Stop, SubagentStart, SubagentStop), once you trust", "-c tui.notification_condition=\"always\""} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status misses %q:\n%s", want, out)
 		}

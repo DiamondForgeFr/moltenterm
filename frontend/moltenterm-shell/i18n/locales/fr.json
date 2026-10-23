@@ -1421,6 +1421,14 @@
             "intro": "Sans hooks, MoltenTerm voit seulement quand la sortie de {name} arrive : au travail pendant qu'elle défile, inactif une fois silencieuse. Avec eux, le panneau affiche {brings}.",
             "addTo": "Ajoutez ceci à",
             "also": ", {also} :",
+            "bringsBy": {
+                "claude": "en attente quand il demande une autorisation, terminé à la fin de son tour, de nouveau au travail une fois votre accord donné",
+                "codex": "au travail pendant qu'il travaille, terminé à la fin de son tour, et sa session liée dès son démarrage"
+            },
+            "alsoBy": {
+                "claude": "ou dans le .claude/settings.json d'un projet, fusionné avec les hooks que vous avez déjà",
+                "codex": "ou dans le .codex/hooks.json d'un projet, fusionné avec les hooks que vous avez déjà ; Codex les exécute une fois que vous les avez approuvés dans /hooks"
+            },
             "restart": "Relancez {name} après la modification. Dès que ses hooks se manifestent, cette proposition disparaît.",
             "guide": "Lire le guide des états des agents"
         }
@@ -6654,7 +6662,10 @@
                 "browser": "Navigateur MoltenTerm",
                 "codexnotify": "État terminé à la fin de chaque tour (notify)",
                 "codexnotifyaround": "État terminé à la fin de chaque tour (notify, autour de votre propre notify)",
-                "codexsessionlink": "Lien de session (à la fin du premier tour)"
+                "codexsessionlink": "Lien de session (à la fin du premier tour)",
+                "codexstatehooksof": "Hooks d'état de l'agent ({events}), une fois les hooks de MoltenTerm approuvés dans /hooks de Codex",
+                "codexsessionstart": "Lien de session dès le démarrage (une fois les hooks de MoltenTerm approuvés dans /hooks de Codex)",
+                "codexnotifications": "État en attente par les notifications de Codex (approbations et questions)"
             },
             "reason": {
                 "managedhooksonly": "les réglages gérés de votre organisation n'autorisent que leurs propres hooks",
@@ -6677,7 +6688,6 @@
                 "browserconfignotwritten": "la configuration du serveur n'a pas pu être écrite",
                 "managedmcp": "la configuration MCP gérée de votre organisation décide des serveurs qui tournent",
                 "managedprovided": "déjà fourni par les réglages gérés de votre organisation",
-                "codexhookstrust": "Codex n'exécute les hooks ajoutés pour une exécution qu'une fois que vous les avez approuvés, et MoltenTerm ne contourne jamais cette approbation",
                 "codexmcpservers": "vous avez passé {flag} : seuls vos propres serveurs tournent",
                 "ownnotifyflag": "vous avez passé votre propre -c notify : il tourne comme vous l'avez réglé",
                 "managednotify": "{where} de votre organisation définit notify",
@@ -6686,7 +6696,9 @@
                 "notifynotlist": "le notify de {where} n'est pas une liste de chaînes",
                 "codexhooksoff": "les hooks de Codex sont désactivés dans {where}",
                 "codexhooksflag": "vous avez passé {flag} : seuls vos propres hooks tournent",
-                "ownpermissionhooks": "vous avez vos propres hooks PermissionRequest, dans {where}"
+                "ownpermissionhooks": "vous avez vos propres hooks PermissionRequest, dans {where}",
+                "owneventhooks": "vous avez vos propres hooks {event}, dans {where}",
+                "owntuinotifications": "{where} règle les notifications de Codex : elles fonctionnent comme vous les avez réglées"
             },
             "stepaside": {
                 "outsidepane": "hors d'un terminal MoltenTerm",

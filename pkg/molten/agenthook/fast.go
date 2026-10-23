@@ -13,10 +13,7 @@ import (
 // must match pkg/wshutil.WaveJwtTokenVarName
 const jwtVarName = "WAVETERM_JWT"
 
-const (
-	stateTimeout  = 5 * time.Second
-	maxStateStdin = 64 * 1024
-)
+const stateTimeout = 5 * time.Second
 
 // Env is what a hook run reads and writes.
 type Env struct {
@@ -36,14 +33,20 @@ type StateArgs struct {
 	Stdin   bool
 }
 
-// RunFast runs `molten agent state` and `molten agent statusline` (args: what follows `molten`). handled is false for
-// anything else, and for any form of these two the small program does not read exactly as wsh does (help, an unknown
-// flag, a mistake to report): wsh runs those.
+// RunFast runs `molten agent state`, `molten agent hook` and `molten agent statusline` (args: what follows `molten`).
+// handled is false for anything else, and for any form of these the small program does not read exactly as wsh does
+// (help, an unknown flag, a mistake to report): wsh runs those.
 func RunFast(args []string, env Env) (handled bool, code int) {
 	if len(args) < 2 || args[0] != "agent" {
 		return false, 0
 	}
 	switch args[1] {
+	case "hook":
+		ha, ok := ParseHookArgs(args[2:])
+		if !ok {
+			return false, 0
+		}
+		return runHook(ha, env)
 	case "state":
 		sa, ok := ParseStateArgs(args[2:])
 		if !ok {
