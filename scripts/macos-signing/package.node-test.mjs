@@ -30,7 +30,10 @@ function recorder(events) {
     return { security, verifier, run };
 }
 
-async function release(projectDir, { events = [], builder, notarize, env = fakeEnv, extraArgs = [] } = {}) {
+async function release(
+    projectDir,
+    { events = [], builder, notarize, env = fakeEnv, extraArgs = [], verifyDelivery, writeEvidence } = {}
+) {
     const { security, run } = recorder(events);
     builder ??= fakeBuilder(projectDir, { events });
     const tools = {
@@ -50,6 +53,8 @@ async function release(projectDir, { events = [], builder, notarize, env = fakeE
         run,
         tools,
         builderCli: "/dummy/electron-builder/cli.js",
+        verifyDelivery,
+        writeEvidence,
         log: () => {},
         runProcess: builder.runProcess,
         session: (sessionEnv, body) =>
@@ -83,6 +88,51 @@ test("builder arguments force -p never and accept only the update-file provider"
         "--config=x",
     ]) {
         assert.throws(() => builderArgs([bad]), /Only -c\.publish/);
+    }
+});
+
+test("public packaging records evidence only after finalization and delivered-app verification", async (t) => {
+    for (const failDelivery of [false, true]) {
+        const projectDir = await projectFixture(t);
+        const pkg = JSON.parse(await fs.readFile(path.join(projectDir, "package.json"), "utf8"));
+        // Public context and package version must agree, as on a tagged checkout.
+        pkg.version = "1.0.0";
+        await fs.writeFile(path.join(projectDir, "package.json"), JSON.stringify(pkg));
+        const events = [];
+        const env = {
+            ...fakeEnv,
+            RELEASE_MODE: "release",
+            RELEASE_CHANNEL: "public",
+            RELEASE_VERSION: pkg.version,
+            RELEASE_SHA: "a".repeat(40),
+            RELEASE_RUN_ID: "123",
+            RELEASE_RUN_ATTEMPT: "1",
+        };
+        const { promise } = await release(projectDir, {
+            env,
+            events,
+            verifyDelivery: async (manifest, verified) => {
+                assert.equal(verified.teamId, inputs.teamId);
+                assert.ok(events.some((event) => event.startsWith("notarize")));
+                for (const metadata of manifest.metadata) {
+                    const doc = jsonYaml.load(await fs.readFile(metadata, "utf8"));
+                    for (const entry of doc.files)
+                        assert.equal(entry.sha512, (await hashFile(path.join(manifest.outDir, entry.url))).sha512);
+                }
+                events.push("delivery");
+                if (failDelivery) throw new Error("rejected delivery");
+            },
+            writeEvidence: async (folder, context, verified) => {
+                assert.equal(context.version, pkg.version);
+                assert.equal(verified.teamId, inputs.teamId);
+                assert.equal(events.at(-1), "delivery");
+                events.push("evidence");
+            },
+        });
+        if (failDelivery) await assert.rejects(promise, /Signing session failed/);
+        else await promise;
+        assert.equal(events.includes("evidence"), !failDelivery);
+        assert.equal(events.at(-1), "security delete-keychain");
     }
 });
 
@@ -192,4 +242,14 @@ test("partial secrets, leftover output and unsupported arguments are refused bef
         await assert.rejects(promise, pattern);
         assert.deepEqual(events, []);
     }
+});
+
+test("stale delivery evidence is refused before signing or building", async (t) => {
+    const projectDir = await projectFixture(t);
+    await fs.mkdir(path.join(projectDir, "make"));
+    await fs.writeFile(path.join(projectDir, "make/macos-verification.json"), "stale evidence");
+    const events = [];
+    const { promise } = await release(projectDir, { events });
+    await assert.rejects(promise, /run task clean/);
+    assert.deepEqual(events, []);
 });
