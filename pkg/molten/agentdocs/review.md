@@ -129,7 +129,8 @@ Use these as short bold labels (or headings in detailed depth), in `developerlan
    Put the same short name in `technique`.
 3. **Why here**: the reason, citing where it is written: the ticket (`#N`), the plan, an SRS page, a code comment
    (`path:line`), a commit message (its short hash and subject, from `git log` in the worktree), or a project rule
-   (`CLAUDE.md`, `.kilocode/rules/rules.md`, `UPSTREAM.md`, `MANIFESTO.md`, with the rule's words). When none of them
+   (`AGENTS.md`, then `CLAUDE.md` as Claude Code's fallback, `.kilocode/rules/rules.md`, `UPSTREAM.md`, `MANIFESTO.md`,
+   with the rule's words). When none of them
    says why, write "no recorded reason", then give your own reading only if it helps, labelled as your reading.
 4. **Alternatives**: what else would work for this code, and the trade-off of each against the choice made (what it
    would gain, what it would cost here).
@@ -138,8 +139,8 @@ Use these as short bold labels (or headings in detailed depth), in `developerlan
    `path:start-end`. Give only places you opened and checked; say "none found" when the search finds none.
 6. **Principle**: when the lines illustrate or break a recognised principle: SOLID (name the letter), separation of
    concerns, clean or hexagonal architecture, DRY, KISS, YAGNI, the Law of Demeter, composition over inheritance,
-   testability, or the project's own rules (`CLAUDE.md`, `.kilocode/rules/rules.md`, the MOLTENTERM-PATCH markers
-   and the ledger of `UPSTREAM.md`). Name the principle, then show:
+   testability, or the project's own rules (`AGENTS.md`, then `CLAUDE.md` as Claude Code's fallback,
+   `.kilocode/rules/rules.md`, the MOLTENTERM-PATCH markers and the ledger of `UPSTREAM.md`). Name the principle, then show:
    - what in these lines shows it, quoting or pointing at the line;
    - why it helps here;
    - what the code would look like if it were violated, as a short sketch;

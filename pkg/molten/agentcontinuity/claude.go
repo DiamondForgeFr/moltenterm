@@ -78,7 +78,7 @@ func (claudeAdapter) Models(env ModelEnv) []ModelChoice {
 
 func (claudeAdapter) Briefing() BriefingChannel {
 	return BriefingChannel{Channel: ChannelSystemAppend, Support: SupportDocumented, Flag: claudeBriefingFlag,
-		Note: "appended to Claude Code's system prompt for the run; CLAUDE.md and the user's settings still apply"}
+		Note: "appended to Claude Code's system prompt for the run; the project's AGENTS.md (CLAUDE.md for Claude Code) and the user's settings still apply"}
 }
 
 func (claudeAdapter) FreshArgs(model string, initialPrompt string) ([]string, error) {
