@@ -29,7 +29,15 @@ export type MergedHistoryPr = ReviewMergedPr & {
     milestone?: string;
     reviewers?: string[];
     mergemethod?: "" | "merge" | "linear";
+    summary?: string;
+    labels?: string[];
+    behaviour?: BehaviourChange;
+    ticketparents?: HistoryTicketRef[];
 };
+
+// must match HistoryTicketRef and BehaviourChange in pkg/molten/mission/reviews_history_ship.go
+export type HistoryTicketRef = { number: number; title?: string; url?: string; type?: string };
+export type BehaviourChange = { from: "label" | "section" | "breaking"; label?: string; verify?: string };
 
 // must match MergedHistoryAnswer in pkg/molten/mission/reviews_history.go
 export type MergedHistoryAnswer = {

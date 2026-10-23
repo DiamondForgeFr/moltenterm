@@ -60,6 +60,12 @@ type MergedHistoryPr struct {
 	Milestone   string   `json:"milestone,omitempty"`
 	Reviewers   []string `json:"reviewers,omitempty"`
 	MergeMethod string   `json:"mergemethod,omitempty"`
+	// What would ship (#903, FR-MC-021): the PR body's one-line summary, its labels, the behaviour-change flag with
+	// what to verify, and the ticket's parents, nearest first.
+	Summary       string             `json:"summary,omitempty"`
+	Labels        []string           `json:"labels,omitempty"`
+	Behaviour     *BehaviourChange   `json:"behaviour,omitempty"`
+	TicketParents []HistoryTicketRef `json:"ticketparents,omitempty"`
 }
 
 type MergedHistoryAnswer struct {
@@ -110,6 +116,7 @@ type historyTicket struct {
 	Url       string
 	Type      string
 	Milestone string
+	Parents   []HistoryTicketRef
 }
 
 type ghHistoryIssue struct {
@@ -122,6 +129,7 @@ type ghHistoryIssue struct {
 	Milestone *struct {
 		Title string `json:"title"`
 	} `json:"milestone"`
+	Parent *ghHistoryParent `json:"parent"`
 }
 
 type ghHistoryPr struct {
@@ -134,7 +142,12 @@ type ghHistoryPr struct {
 	MergedAt          string `json:"mergedAt"`
 	UpdatedAt         string `json:"updatedAt"`
 	Body              string `json:"body"`
-	Author            *struct {
+	Labels            *struct {
+		Nodes []struct {
+			Name string `json:"name"`
+		} `json:"nodes"`
+	} `json:"labels"`
+	Author *struct {
 		Login string `json:"login"`
 	} `json:"author"`
 	MergedBy *struct {
@@ -174,8 +187,9 @@ type ghHistoryPage struct {
 }
 
 func historyIssueFields(withType bool) string {
+	// The parents (sub-issues) come with the issue types: a GitHub without one lacks the other.
 	if withType {
-		return "number title url issueType{name} milestone{title}"
+		return "number title url issueType{name} milestone{title} " + historyParentFields
 	}
 	return "number title url milestone{title}"
 }
@@ -185,7 +199,7 @@ func historyIssueFields(withType bool) string {
 func mergedHistoryQuery(withType bool) string {
 	return "query($owner:String!,$name:String!,$base:String!,$first:Int!,$after:String){repository(owner:$owner,name:$name){" +
 		"pullRequests(states:MERGED,baseRefName:$base,first:$first,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){" +
-		"totalCount pageInfo{hasNextPage endCursor} nodes{number title url headRefName baseRefName isCrossRepository mergedAt updatedAt body " +
+		"totalCount pageInfo{hasNextPage endCursor} nodes{number title url headRefName baseRefName isCrossRepository mergedAt updatedAt body labels(first:20){nodes{name}} " +
 		"author{login} mergedBy{login} mergeCommit{oid parents(first:2){totalCount}} latestReviews(first:10){nodes{author{login}}} " +
 		"closingIssuesReferences(first:1){nodes{" + historyIssueFields(withType) + "}}}}}}"
 }
@@ -219,7 +233,8 @@ func noIssueType(out []byte, err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(string(out)+err.Error(), "issueType")
+	text := string(out) + err.Error()
+	return strings.Contains(text, "issueType") || strings.Contains(text, "'parent'")
 }
 
 // readHistoryPage reads one page; noType says the issue types had to be left out.
@@ -257,6 +272,7 @@ func ticketOfIssue(issue ghHistoryIssue) historyTicket {
 	if issue.Milestone != nil {
 		rtn.Milestone = issue.Milestone.Title
 	}
+	rtn.Parents = parentRefs(issue.Parent)
 	return rtn
 }
 
@@ -269,7 +285,15 @@ func makeHistoryPr(pr ghHistoryPr, res []*regexp.Regexp) MergedHistoryPr {
 		Branch:   pr.HeadRefName,
 		Base:     pr.BaseRefName,
 		MergedAt: pr.MergedAt,
-	}, UpdatedAt: pr.UpdatedAt}
+	}, UpdatedAt: pr.UpdatedAt, Summary: prSummary(pr.Body)}
+	if pr.Labels != nil {
+		for _, label := range pr.Labels.Nodes {
+			if label.Name != "" {
+				row.Labels = append(row.Labels, label.Name)
+			}
+		}
+	}
+	row.Behaviour = behaviourChange(pr.Title, pr.Body, row.Labels)
 	if pr.Author != nil {
 		row.Author = pr.Author.Login
 	}
@@ -304,6 +328,7 @@ func makeHistoryPr(pr ghHistoryPr, res []*regexp.Regexp) MergedHistoryPr {
 			ticket := ticketOfIssue(issue)
 			row.Ticket, row.TicketFrom = issue.Number, ReviewTicketFromClosing
 			row.TicketTitle, row.TicketUrl, row.TicketType, row.Milestone = ticket.Title, ticket.Url, ticket.Type, ticket.Milestone
+			row.TicketParents = ticket.Parents
 			break
 		}
 	}
@@ -426,6 +451,7 @@ func (r *Reviews) historyAnswer(dir string, answer MergedHistoryAnswer) MergedHi
 		if pr.TicketTitle == "" && pr.Ticket > 0 {
 			if ticket, ok := state.tickets[pr.Ticket]; ok {
 				pr.TicketTitle, pr.TicketUrl, pr.TicketType, pr.Milestone = ticket.Title, ticket.Url, ticket.Type, ticket.Milestone
+				pr.TicketParents = ticket.Parents
 			}
 		}
 		answer.Prs = append(answer.Prs, pr)

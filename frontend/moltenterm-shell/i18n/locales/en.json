@@ -4065,6 +4065,59 @@
             "thenDated": "then {tag} · {date}",
             "openMilestone": "Open the milestone {milestone} on GitHub"
         },
+        "ship": {
+            "title": "What {tag} would ship",
+            "titleTrunk": "What waits on {trunk}",
+            "openTitle": "List what would ship, grouped by ticket",
+            "tickets": {
+                "one": "1 ticket",
+                "other": "{count} tickets"
+            },
+            "commits": {
+                "one": "1 commit",
+                "other": "{count} commits"
+            },
+            "gitOnly": "GitHub could not be read: the list comes from git alone (commit subjects grouped by #N).",
+            "loading": "Reading the merged pull requests on GitHub…",
+            "none": "Nothing waits on {trunk}.",
+            "noTicket": "Without a ticket",
+            "prTitle": "PR #{number}",
+            "flaggedHeading": "Changes behaviour you know",
+            "flag": {
+                "label": "Labelled \"{label}\"",
+                "section": "The pull request describes a behaviour change",
+                "breaking": "Marked as breaking (!)"
+            },
+            "verify": "To verify: {text}",
+            "underFlag": "A ticket under it changes behaviour you know",
+            "types": {
+                "feat": "feature",
+                "fix": "fix",
+                "chore": "chore",
+                "docs": "docs",
+                "refactor": "refactor",
+                "perf": "performance",
+                "test": "tests",
+                "ci": "CI",
+                "build": "build",
+                "style": "style",
+                "revert": "revert",
+                "other": "other"
+            },
+            "show": "Show the details",
+            "hide": "Hide the details",
+            "detail": {
+                "noSummary": "No summary in the pull request.",
+                "merged": "PR #{number} merged {when} by {who}",
+                "mergedNoWho": "PR #{number} merged {when}",
+                "openPr": "PR #{number}",
+                "openPrTitle": "Open pull request #{number} on GitHub",
+                "openTicket": "Ticket #{number}",
+                "openTicketTitle": "Open ticket #{number} on GitHub",
+                "commits": "Commits",
+                "noPr": "No merged pull request found for this ticket."
+            }
+        },
         "waiting": {
             "title": "Waiting on {trunk}",
             "notYetOn": {
