@@ -222,6 +222,13 @@ describe("agent copy commands", () => {
         expect(entry.label).toBe("Copy Claude Code's last answer");
         expect(entry.detail).toContain("OSC 52");
     });
+
+    // #990, TC-SHELL-017-1: codex-cli 0.163.0 has /copy too.
+    it("mentions Codex's /copy", () => {
+        const entry = agentCopyEntries().find((e) => e.id === "action:agentcopy:codex");
+        expect(entry).toMatchObject({ group: "actions", hint: "/copy", run: { kind: "focusorigin" } });
+        expect(entry.label).toBe("Copy Codex's last answer");
+    });
 });
 
 describe("helpers", () => {

@@ -56,8 +56,19 @@ export type BulkCommand = {
 };
 
 // Commands that open a picker or end the agent are left to each pane: in bulk they would leave several agents
-// waiting on a menu, and Quit is what End does.
-const NotInBulk = new Set(["model", "resume", "copy", "quit"]);
+// waiting on a menu, and Quit is what End does. An "agent:action" entry leaves out one agent's command: Codex's /clear
+// is its /new plus a cleared view, and New conversation already sends /new; its /review opens a preset picker (#990).
+const NotInBulk = new Set([
+    "model",
+    "resume",
+    "copy",
+    "quit",
+    "permissions",
+    "fork",
+    "rename",
+    "codex:clear",
+    "codex:review",
+]);
 
 export const BulkCommands: BulkCommand[] = buildBulkCommands({ claude: ClaudeCommands, codex: CodexCommands });
 
@@ -67,7 +78,7 @@ function buildBulkCommands(
     const byLabel = new Map<string, BulkCommand>();
     for (const [agent, defs] of Object.entries(tables)) {
         for (const def of defs) {
-            if (NotInBulk.has(def.action)) {
+            if (NotInBulk.has(def.action) || NotInBulk.has(`${agent}:${def.action}`)) {
                 continue;
             }
             let cmd = byLabel.get(def.label);

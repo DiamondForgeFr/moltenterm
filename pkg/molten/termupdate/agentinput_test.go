@@ -190,8 +190,8 @@ func TestAgentInputCodexTable(t *testing.T) {
 	f := claudeInputTerm()
 	f.procs[1].Name = "codex"
 	f.run.Agent = "codex"
-	out := ask(f, AgentInputRequest{Agent: "codex", Action: agentcontinuity.ActionApprovals})
-	if out.Result != InputSent || strings.Join(f.input, "|") != "\x15|/approvals|\r" || out.AgentName != "Codex" {
+	out := ask(f, AgentInputRequest{Agent: "codex", Action: agentcontinuity.ActionPermissions})
+	if out.Result != InputSent || strings.Join(f.input, "|") != "\x15|/permissions|\r" || out.AgentName != "Codex" {
 		t.Fatalf("got %+v, typed %q", out, f.input)
 	}
 	f.input = nil

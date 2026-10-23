@@ -22,7 +22,9 @@ const (
 	ActionCopy           = "copy"
 	ActionStatus         = "status"
 	ActionReview         = "review"
-	ActionApprovals      = "approvals"
+	ActionPermissions    = "permissions"
+	ActionFork           = "fork"
+	ActionRename         = "rename"
 	ActionDiff           = "diff"
 	ActionInterrupt      = "interrupt"
 	ActionQuit           = "quit"
@@ -85,13 +87,21 @@ var claudeCommands = []AgentCommand{
 	{Action: ActionQuit, Kind: CommandSlash, Text: claudeExitCommand},
 }
 
+// Codex's table, read on codex-cli 0.163.0 (testdata/codex-0.163.0-slash-commands.txt, #990): /permissions replaced
+// /approvals; /clear also clears the terminal view, /new does not.
 var codexCommands = []AgentCommand{
-	{Action: ActionApprovals, Kind: CommandSlash, Text: "/approvals"},
+	{Action: ActionPermissions, Kind: CommandSlash, Text: "/permissions"},
 	{Action: ActionNew, Kind: CommandSlash, Text: "/new"},
+	{Action: ActionClear, Kind: CommandSlash, Text: "/clear"},
 	{Action: ActionCompact, Kind: CommandSlash, Text: "/compact"},
 	{Action: ActionModel, Kind: CommandSlash, Text: "/model"},
 	{Action: ActionEffort, Kind: CommandEffort, KeyLower: keyShiftDown, KeyRaise: keyShiftUp},
+	{Action: ActionResume, Kind: CommandSlash, Text: "/resume"},
+	{Action: ActionFork, Kind: CommandSlash, Text: "/fork"},
+	{Action: ActionRename, Kind: CommandSlash, Text: "/rename"},
+	{Action: ActionCopy, Kind: CommandSlash, Text: "/copy"},
 	{Action: ActionStatus, Kind: CommandSlash, Text: "/status"},
+	{Action: ActionReview, Kind: CommandSlash, Text: "/review"},
 	{Action: ActionDiff, Kind: CommandSlash, Text: "/diff"},
 	{Action: ActionInterrupt, Kind: CommandInterrupt, Text: keyEscape},
 	{Action: ActionQuit, Kind: CommandSlash, Text: codexExitCommand},

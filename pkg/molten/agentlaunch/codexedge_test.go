@@ -13,15 +13,57 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
-// --profile wins over -c profile; quoted and spaced -c keys are the user's.
+// codexNotifyArg is the run's -c notify value, "" for none.
+func codexNotifyArg(args []string) string {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == codexConfigFlag && strings.HasPrefix(args[i+1], codexNotifyKey+"=") {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// TC-SHELL-038-11 (#990): -p <name> layers $CODEX_HOME/<name>.config.toml above config.toml (profile v2); its notify
+// is chained inside the wrapper, never dropped. Quoted and spaced -c keys are the user's.
 func TestCodexPlanProfileAndKeys(t *testing.T) {
 	tree := makeFakeTree(t)
-	tree.write(t, tree.codexConfig(), "[profiles.work]\nnotify = [\"work-notify\"]\n[profiles.home]\nmodel = \"o3\"\n")
-	if _, args := codexPlan(t, tree.codexCtx("-p", "home", "-c", "profile=work")); len(args) != 10 {
-		t.Fatalf("--profile home wins over -c profile=work: the wrapper is added: %q", args)
+	codexHome := filepath.Dir(tree.codexConfig())
+	tree.write(t, tree.codexConfig(), "notify = [\"mine\"]\n")
+	tree.write(t, filepath.Join(codexHome, "work.config.toml"), "model = \"o3\"\nnotify = [\"work-notify\", \"--loud\"]\n")
+	tree.write(t, filepath.Join(codexHome, "home.config.toml"), "model = \"o3\"\n")
+	tree.write(t, filepath.Join(filepath.Dir(codexHome), "evil.config.toml"), "notify = [\"evil\"]\n")
+	wrapped := func(user ...string) string {
+		return codexNotifyKey + "=" + tomlArray(append(append([]string{codexTestMolten}, codexNotifyWrapper...), user...))
 	}
-	if _, args := codexPlan(t, tree.codexCtx("-p", "work", "-c", "profile=home")); len(args) != 8 {
-		t.Fatalf("--profile work wins over -c profile=home: notify left alone: %q", args)
+	for _, tc := range []struct {
+		flags []string
+		want  string
+	}{
+		{nil, wrapped("mine")},
+		{[]string{"-p", "work"}, wrapped("work-notify", "--loud")},
+		{[]string{"--profile=work"}, wrapped("work-notify", "--loud")},
+		{[]string{"-pwork"}, wrapped("work-notify", "--loud")},
+		{[]string{"--profile", "work", "fix the tests"}, wrapped("work-notify", "--loud")},
+		{[]string{"-p", "home"}, wrapped("mine")},
+		{[]string{"-p", "absent"}, wrapped("mine")},
+		{[]string{"-c", "profile=work"}, wrapped("mine")},
+		{[]string{"-p", "../evil"}, wrapped("mine")},
+	} {
+		plan, args := codexPlan(t, tree.codexCtx(tc.flags...))
+		if got := codexNotifyArg(args); got != tc.want {
+			t.Fatalf("%q: notify %s, want %s", tc.flags, got, tc.want)
+		}
+		if len(itemNames(plan.Skipped, molten.IntegrationNotify)) != 0 {
+			t.Fatalf("%q: notify is not skipped: %v", tc.flags, plan.Skipped)
+		}
+	}
+	tree.write(t, filepath.Join(codexHome, "work.config.toml"), "notify = \"not-a-list\"\n")
+	if _, args := codexPlan(t, tree.codexCtx("-p", "work")); codexNotifyArg(args) != "" {
+		t.Fatalf("a profile notify that is not a list: left alone: %q", args)
+	}
+	tree.write(t, filepath.Join(codexHome, "work.config.toml"), "notify = [\n")
+	if plan, _ := codexPlan(t, tree.codexCtx("-p", "work")); plan.StepAside == "" {
+		t.Fatalf("a profile file that cannot be parsed: the launcher steps aside: %+v", plan)
 	}
 	tree.write(t, tree.codexConfig(), "")
 	for _, flag := range []string{`mcp_servers.'molten-browser'.command="x"`, `mcp_servers . "molten-browser" . args=[]`} {

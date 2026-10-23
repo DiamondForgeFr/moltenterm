@@ -44,8 +44,8 @@ const (
 	maxCodexModels    = 50
 )
 
-// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.160.1): the first
-// other word is its subcommand.
+// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.163.0, #990): the
+// first other word is its subcommand.
 var codexOptionGrammar = optionGrammar{
 	value: map[string]bool{
 		"-c": true, "--config": true, "--enable": true, "--disable": true, "--remote": true, "--remote-auth-token-env": true,

@@ -157,14 +157,16 @@ export const ClaudeCommands: AgentCommandDef[] = [
     },
 ];
 
+// Codex's table, read on codex-cli 0.163.0 (#990): /permissions replaced /approvals; /clear also clears the terminal
+// view, /new does not.
 export const CodexCommands: AgentCommandDef[] = [
     {
-        action: "approvals",
-        label: "Approvals",
-        labelKey: "cmdpanel.agent.approvals",
+        action: "permissions",
+        label: "Permissions",
+        labelKey: "cmdpanel.agent.permissions",
         icon: "shield-halved",
-        command: "/approvals",
-        keywords: ["permissions", "sandbox"],
+        command: "/permissions",
+        keywords: ["approvals", "sandbox"],
     },
     {
         action: "new",
@@ -172,7 +174,15 @@ export const CodexCommands: AgentCommandDef[] = [
         labelKey: "cmdpanel.agent.newConversation",
         icon: "plus",
         command: "/new",
-        keywords: ["clear", "reset"],
+        keywords: ["reset"],
+    },
+    {
+        action: "clear",
+        label: "Clear and start over",
+        labelKey: "cmdpanel.agent.clearAndStartOver",
+        icon: "eraser",
+        command: "/clear",
+        keywords: ["clear", "reset", "new conversation"],
     },
     {
         action: "compact",
@@ -183,7 +193,47 @@ export const CodexCommands: AgentCommandDef[] = [
         keywords: ["summarize", "context"],
     },
     { action: "model", label: "Model", labelKey: "cmdpanel.agent.model", icon: "microchip", command: "/model" },
+    {
+        action: "resume",
+        label: "Resume",
+        labelKey: "cmdpanel.agent.resume",
+        icon: "clock-rotate-left",
+        command: "/resume",
+        keywords: ["session"],
+    },
+    {
+        action: "fork",
+        label: "Fork conversation",
+        labelKey: "cmdpanel.agent.fork",
+        icon: "code-branch",
+        command: "/fork",
+        keywords: ["branch", "duplicate", "session"],
+    },
+    {
+        action: "rename",
+        label: "Rename conversation",
+        labelKey: "cmdpanel.agent.rename",
+        icon: "pen",
+        command: "/rename",
+        keywords: ["name", "title", "session"],
+    },
+    {
+        action: "copy",
+        label: "Copy last answer",
+        labelKey: "cmdpanel.agent.copy",
+        icon: "copy",
+        command: "/copy",
+        keywords: ["response"],
+    },
     { action: "status", label: "Status", labelKey: "cmdpanel.agent.status", icon: "circle-info", command: "/status" },
+    {
+        action: "review",
+        label: "Review",
+        labelKey: "cmdpanel.agent.review",
+        icon: "code-pull-request",
+        command: "/review",
+        keywords: ["changes"],
+    },
     {
         action: "diff",
         label: "Diff",
