@@ -90,6 +90,13 @@ type fakeTerm struct {
 	prompts    chan struct{}
 	now        time.Time
 	replaceErr error
+	// #1024: closed: the terminal's block is gone; attachErr: what the liveness check says (attached counts its
+	// calls); sendErr: what the terminal answers to input; ended: the runs ended for a gone terminal.
+	closed    bool
+	attachErr error
+	attached  int
+	sendErr   error
+	ended     []string
 }
 
 func (f *fakeTerm) table() (*proctree.Table, error) {
@@ -101,6 +108,9 @@ func (f *fakeTerm) table() (*proctree.Table, error) {
 func (f *fakeTerm) send(blockId string, data []byte) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
+	if f.sendErr != nil {
+		return f.sendErr
+	}
 	f.input = append(f.input, string(data))
 	if f.exitOn != "" && strings.Join(f.input, "") == f.exitOn {
 		// The agent exits; the shell takes its terminal back.
@@ -121,7 +131,21 @@ func (f *fakeTerm) send(blockId string, data []byte) error {
 func (f *fakeTerm) env() Env {
 	return Env{
 		LoadJob: func(ctx context.Context, blockId string) (*waveobj.Block, *waveobj.Job, error) {
+			if f.closed {
+				return nil, nil, nil
+			}
 			return &waveobj.Block{OID: "b1", JobId: "job1", Meta: waveobj.MetaMapType{}}, makeJob("", 0, 0), nil
+		},
+		Attach: func(ctx context.Context, blockId string) error {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.attached++
+			return f.attachErr
+		},
+		EndRun: func(blockId string) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.ended = append(f.ended, blockId)
 		},
 		ReadTable: f.table,
 		ReadArgs:  func(pid int32) (string, []string) { return "", nil },

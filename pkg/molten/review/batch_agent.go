@@ -217,6 +217,9 @@ func (b *BatchRunner) typeBatchLine(ctl *batchCtl, agent *batchAgent, i int, lin
 		if out.Sent {
 			return batchStop{}, batchMerged
 		}
+		if out.Gone {
+			return batchStop{reason: BatchReasonAgentExited}, batchStopped
+		}
 		if !out.Retry {
 			return batchStop{reason: BatchReasonAgentStart, detail: out.Message}, batchStopped
 		}

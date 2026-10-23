@@ -46,6 +46,8 @@ const (
 type Shell struct {
 	Replace   func(ctx context.Context, blockId string, cwd string, notice string) error
 	SendInput func(blockId string, data []byte) error
+	// Attach makes sure the terminal can take input (see Env.Attach).
+	Attach func(ctx context.Context, blockId string) error
 }
 
 var shellLock sync.Mutex
@@ -159,6 +161,14 @@ func makeService() *service {
 			}
 			return sendInput(blockId, data)
 		},
+		Attach: func(ctx context.Context, blockId string) error {
+			attach := getShell().Attach
+			if attach == nil {
+				return nil
+			}
+			return attach(ctx, blockId)
+		},
+		EndRun: attention.EndAgentRun,
 		Replace: func(ctx context.Context, blockId string, cwd string, notice string) error {
 			replace := getShell().Replace
 			if replace == nil {

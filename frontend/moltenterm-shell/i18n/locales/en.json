@@ -6370,6 +6370,7 @@
             "notlocal": "Only a local terminal's shell can be updated.",
             "cannotsee": "MoltenTerm cannot see what runs in this terminal on this system.",
             "shellended": "This terminal's shell has ended.",
+            "terminalgone": "This terminal was closed.",
             "input": {
                 "busy": "MoltenTerm is already typing in this terminal: try again in a moment.",
                 "cannottype": "MoltenTerm cannot type in terminals yet: nothing was typed.",
@@ -6383,6 +6384,7 @@
                 "noagentany": "The agent no longer runs in this terminal: nothing was typed.",
                 "gone": "{agent} is no longer the program in the foreground: nothing was typed.",
                 "nottaken": "The terminal did not take the input: {detail}",
+                "terminalgone": "The agent's terminal is closed or its shell ended: nothing was typed.",
                 "waiting": "{agent} is waiting for your answer: answer it first.",
                 "working": "{agent} is working: wait for its turn to end, or interrupt it.",
                 "draft": "An unsent message in {agent} will be cleared.",

@@ -809,6 +809,18 @@ func AgentStatesSnapshot() []molten.AgentStateInfo {
 }
 
 // ForgetBlock drops what is known of a closed block.
+// EndAgentRun ends the agent run recorded for a terminal found closed or with its shell ended when something was to be
+// typed into it (#1024): no list names that agent any more. The terminal's other state stays.
+func EndAgentRun(blockId string) {
+	defaultAgentStates.endRun(blockId)
+}
+
+func (a *agentStates) endRun(blockId string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.removeLocked(blockId)
+}
+
 func ForgetBlock(blockId string) {
 	defaultAttentionWatcher.forget(blockId)
 	defaultAgentStates.forget(blockId)

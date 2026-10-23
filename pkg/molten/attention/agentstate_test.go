@@ -218,6 +218,24 @@ func TestHookReportsAndNoDoubleNotification(t *testing.T) {
 	}
 }
 
+// #1024: a terminal found gone when something was to be typed ends its agent's run: the lists stop naming it.
+func TestEndRunClearsTheAgent(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	h.states.flush()
+	if run, ok := h.states.runOf("b1"); !ok || !run.Running {
+		t.Fatalf("a running agent first: %+v", run)
+	}
+	h.states.endRun("b1")
+	h.states.flush()
+	if _, ok := h.states.runOf("b1"); ok {
+		t.Fatal("the run must end")
+	}
+	if last := h.published[len(h.published)-1]; !last.Cleared {
+		t.Fatalf("the end is published: %+v", last)
+	}
+}
+
 func TestPublisherCoalescesAndLocates(t *testing.T) {
 	h := makeAgentHarness()
 	h.out("b1", cmdMark("claude")+"\x07")

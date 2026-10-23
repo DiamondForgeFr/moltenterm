@@ -43,6 +43,7 @@ export type AgentInputReason =
     | "noagent"
     | "busy"
     | "unavailable"
+    | "terminalgone"
     | "effortunknown";
 
 export type AgentInputResult = {

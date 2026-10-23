@@ -118,7 +118,10 @@ func TestAgentInputRefusals(t *testing.T) {
 		{"not in the table", func(f *inputTerm) {}, AgentInputRequest{Action: "rm -rf /"}, InputReasonUnknownAction, ""},
 		{"codex command for claude", func(f *inputTerm) {}, AgentInputRequest{Action: agentcontinuity.ActionDiff}, InputReasonUnknownAction, ""},
 		{"draft", func(f *inputTerm) { f.state.Draft = true }, AgentInputRequest{Action: agentcontinuity.ActionClear}, InputReasonDraft, ""},
-		{"unknown block", func(f *inputTerm) { f.procs = nil }, AgentInputRequest{BlockId: "nope", Action: agentcontinuity.ActionClear}, InputReasonUnavailable, ""},
+		{"shell ended", func(f *inputTerm) { f.procs = nil }, AgentInputRequest{Action: agentcontinuity.ActionClear}, InputReasonTerminalGone, ""},
+		{"terminal closed", func(f *inputTerm) { f.closed = true }, AgentInputRequest{Action: agentcontinuity.ActionClear}, InputReasonTerminalGone, ""},
+		{"tab not loaded, job gone", func(f *inputTerm) { f.attachErr = ErrTerminalGone }, AgentInputRequest{Action: agentcontinuity.ActionClear}, InputReasonTerminalGone, ""},
+		{"lost between keys", func(f *inputTerm) { f.sendErr = ErrNoController }, AgentInputRequest{Action: agentcontinuity.ActionCompact}, InputReasonTerminalGone, ""},
 	} {
 		f := claudeInputTerm()
 		tc.setup(f)

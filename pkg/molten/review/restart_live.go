@@ -84,13 +84,15 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 		TypePrompt: func(ctx context.Context, blockId string, line string) RestartTypeOutcome {
 			out := termupdate.TypeHandoffLine(ctx, blockId, line)
 			if out.Result == termupdate.InputSent {
-				return RestartTypeOutcome{Sent: true, Submitted: out.Submitted, Message: out.Message}
+				return RestartTypeOutcome{Sent: true, Submitted: out.Submitted, Message: out.Message, MessageText: out.MessageText}
 			}
 			switch out.Reason {
 			case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-				return RestartTypeOutcome{Retry: true, Message: out.Message}
+				return RestartTypeOutcome{Retry: true, Message: out.Message, MessageText: out.MessageText}
+			case termupdate.InputReasonTerminalGone:
+				return RestartTypeOutcome{Gone: true, Message: out.Message, MessageText: out.MessageText}
 			}
-			return RestartTypeOutcome{Message: out.Message}
+			return RestartTypeOutcome{Message: out.Message, MessageText: out.MessageText}
 		},
 		OpenTerminal:   reviewsession.OpenTerminal,
 		AgentInstalled: agentchoice.Installed,

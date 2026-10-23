@@ -71,6 +71,7 @@ export function sessionReasonText(reason: string, message: string, vars: Session
             }
             return t("review.session.reason.notforeground", v);
         case "noagent":
+        case "terminalgone":
             return t("review.session.reason.noagent", v);
         case "busy":
             return t("review.session.reason.busy");

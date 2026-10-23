@@ -83,6 +83,12 @@ type Env struct {
 	// FindSession resolves the session of a block's agent (companion.FindResumeSession).
 	FindSession func(blockId string, agent string, wait time.Duration) companion.ResumeSession
 	SendInput   func(blockId string, data []byte) error
+	// Attach is the liveness check before typing into an agent (#1024): nil when the terminal can take input, its
+	// controller started first when its tab is not loaded since a restart (its job still runs); ErrTerminalGone when
+	// the terminal is closed or its shell ended. nil Attach: every terminal takes input.
+	Attach func(ctx context.Context, blockId string) error
+	// EndRun ends the agent run recorded for a terminal found gone, so nothing names that agent any more.
+	EndRun func(blockId string)
 	// Replace starts a fresh shell for the block in cwd, keeping its pane and scrollback (pkg/blockcontroller).
 	Replace func(ctx context.Context, blockId string, cwd string, notice string) error
 	// WatchPrompt returns a channel told of the block's next prompt marks, and its release.
@@ -153,7 +159,13 @@ func (u *Updater) inspect(ctx context.Context, blockId string) (shellState, *Out
 	if err != nil {
 		return shellState{}, outcomeUnreadable(err)
 	}
-	isCommand := block != nil && block.Meta.GetString(waveobj.MetaKey_Cmd, "") != ""
+	if block == nil {
+		return shellState{}, outcomeTerminalGone()
+	}
+	if job != nil && job.CmdExitTs > 0 {
+		return shellState{}, outcomeShellEnded()
+	}
+	isCommand := block.Meta.GetString(waveobj.MetaKey_Cmd, "") != ""
 	if !IsLocalShellJob(job, isCommand) {
 		return shellState{}, outcomeNotLocal()
 	}

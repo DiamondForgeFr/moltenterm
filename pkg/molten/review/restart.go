@@ -125,12 +125,15 @@ type RestartResult struct {
 	Agents       []agentchoice.Agent `json:"agents,omitempty"`
 }
 
-// RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now.
+// RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now; Gone:
+// its terminal is closed or its shell ended, so no agent works there any more (#1024).
 type RestartTypeOutcome struct {
-	Sent      bool
-	Submitted bool
-	Retry     bool
-	Message   string
+	Sent        bool
+	Submitted   bool
+	Retry       bool
+	Gone        bool
+	Message     string
+	MessageText *uimsg.Text
 }
 
 // RestartEnv is what Restart work reaches outside git; the tests give fakes.
@@ -647,10 +650,18 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		run.BlockId = t.BlockId
 		idle = append(idle, run)
 	}
-	if len(idle) == 0 {
-		return false
+	for _, run := range idle {
+		if r.typeIntoIdle(ctx, run, tree, line, result) {
+			return true
+		}
 	}
-	run := idle[0]
+	// Every agent recorded there had its terminal closed or its shell ended: none works on the branch.
+	return false
+}
+
+// typeIntoIdle hands the prompt to an idle agent of the worktree; false when its terminal is gone (#1024), so the
+// next agent or the offer to start one takes over.
+func (r *Restarter) typeIntoIdle(ctx context.Context, run molten.AgentRunInfo, tree string, line string, result *RestartResult) bool {
 	name := molten.AgentDisplayName(run.Agent)
 	result.BlockId, result.Agent, result.AgentName = run.BlockId, run.Agent, name
 	result.FirstName = run.FirstName
@@ -659,6 +670,9 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		return true
 	}
 	out := r.env.TypePrompt(ctx, run.BlockId, line)
+	if out.Gone {
+		return false
+	}
 	switch {
 	case out.Sent && out.Submitted:
 		result.Status = RestartSent
@@ -673,7 +687,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 	default:
 		result.Status, result.Reason = RestartFailed, RestartReasonNotTyped
 	}
-	result.Message = out.Message
+	result.Message, result.MessageText = out.Message, out.MessageText
 	return true
 }
 
