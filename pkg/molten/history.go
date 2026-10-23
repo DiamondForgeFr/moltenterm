@@ -66,6 +66,9 @@ func HistoryDir(dataDir string) string {
 }
 
 func (h *History) Entries() ([]HistoryEntry, error) {
+	if err := historyManagedDirectory(h.Dir); err != nil {
+		return nil, err
+	}
 	dirEntries, err := os.ReadDir(h.Dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -75,20 +78,28 @@ func (h *History) Entries() ([]HistoryEntry, error) {
 	}
 	entries := []HistoryEntry{}
 	for _, dirEntry := range dirEntries {
-		if !dirEntry.IsDir() {
-			continue
-		}
-		if _, err := strconv.Atoi(dirEntry.Name()); err != nil {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(h.Dir, dirEntry.Name(), historyEntryFile))
+		seq, err := strconv.Atoi(dirEntry.Name())
 		if err != nil {
 			continue
 		}
-		var entry HistoryEntry
-		if json.Unmarshal(data, &entry) == nil {
-			entries = append(entries, entry)
+		if seq <= 0 || strconv.Itoa(seq) != dirEntry.Name() || !dirEntry.IsDir() {
+			return nil, fmt.Errorf("invalid history snapshot directory %q", dirEntry.Name())
 		}
+		data, err := historyReadFile(filepath.Join(h.Dir, dirEntry.Name(), historyEntryFile))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		var entry HistoryEntry
+		if err := json.Unmarshal(data, &entry); err != nil {
+			return nil, err
+		}
+		if entry.Seq != seq {
+			return nil, fmt.Errorf("history metadata sequence does not match snapshot directory")
+		}
+		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Seq < entries[j].Seq })
 	return entries, nil
@@ -130,8 +141,8 @@ func HistoryUndoTarget(entries []HistoryEntry) (HistoryEntry, error) {
 }
 
 func (h *History) RestoringMarkerActive() bool {
-	info, err := os.Stat(filepath.Join(h.Dir, historyRestoringMarker))
-	return err == nil && time.Since(info.ModTime()) < historyMarkerMaxAge
+	info, err := os.Lstat(filepath.Join(h.Dir, historyRestoringMarker))
+	return err == nil && info.Mode().IsRegular() && time.Since(info.ModTime()) < historyMarkerMaxAge
 }
 
 // Record keeps a snapshot of the mods as they are now. A change that leaves them as the last snapshot has them is
@@ -139,6 +150,12 @@ func (h *History) RestoringMarkerActive() bool {
 func (h *History) Record(kind string, ids []string, target int, now time.Time) (bool, error) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
+	if err := historyManagedDirectory(h.Dir); err != nil {
+		return false, err
+	}
+	if err := historyOptionalRegular(filepath.Join(h.Dir, historyRestoringMarker)); err != nil {
+		return false, err
+	}
 	if kind != HistoryKindUndo && h.RestoringMarkerActive() {
 		return false, nil
 	}
@@ -174,11 +191,18 @@ func (h *History) Record(kind string, ids []string, target int, now time.Time) (
 	if err != nil {
 		return false, err
 	}
-	if data, readErr := os.ReadFile(h.StateFile); readErr == nil {
+	if data, readErr := historyReadFile(h.StateFile); readErr == nil {
 		err = os.WriteFile(filepath.Join(tmpDir, StateFileName), data, 0644)
 		if err != nil {
 			return false, err
 		}
+	} else if !errors.Is(readErr, os.ErrNotExist) {
+		return false, readErr
+	}
+	// Source files may change while recording. The entry describes the staged bytes actually published.
+	entry.Hash, err = treeHash(filepath.Join(tmpDir, historyModsDir), filepath.Join(tmpDir, StateFileName))
+	if err != nil {
+		return false, err
 	}
 	entryData, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
@@ -213,16 +237,11 @@ func (h *History) Undo(now time.Time) (HistoryEntry, HistoryEntry, error) {
 	if err != nil {
 		return HistoryEntry{}, HistoryEntry{}, err
 	}
-	markerPath := filepath.Join(h.Dir, historyRestoringMarker)
-	err = os.WriteFile(markerPath, []byte(strconv.Itoa(target.Seq)), 0644)
-	if err != nil {
-		return HistoryEntry{}, HistoryEntry{}, err
-	}
-	defer os.Remove(markerPath)
 	changed, err := h.restore(target.Seq)
 	if err != nil {
 		return HistoryEntry{}, HistoryEntry{}, err
 	}
+	defer os.Remove(filepath.Join(h.Dir, historyRestoringMarker))
 	_, err = h.Record(HistoryKindUndo, changed, target.Seq, now)
 	if err != nil {
 		return HistoryEntry{}, HistoryEntry{}, err
@@ -237,8 +256,40 @@ func (h *History) Undo(now time.Time) (HistoryEntry, HistoryEntry, error) {
 // restore puts back the mods and mods.json of a snapshot. Each mod folder is swapped whole, through a hidden
 // temporary folder that the watcher and the host ignore, so no tab ever loads half a mod.
 func (h *History) restore(seq int) ([]string, error) {
+	if seq <= 0 {
+		return nil, fmt.Errorf("invalid history snapshot sequence")
+	}
+	if err := historyManagedDirectory(h.Dir); err != nil {
+		return nil, err
+	}
 	snapDir := filepath.Join(h.Dir, strconv.Itoa(seq))
 	snapMods := filepath.Join(snapDir, historyModsDir)
+	// A missing selected snapshot must never mean an empty state that removes all current mods.
+	for _, dir := range []string{snapDir, snapMods} {
+		if err := historyDirectory(dir, false); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := treeHash(snapMods); err != nil {
+		return nil, err
+	}
+	if _, err := treeHash(h.ModsDir); err != nil {
+		return nil, err
+	}
+	stateData, err := historyReadFile(filepath.Join(snapDir, StateFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		stateData = []byte("{\"enabled\": []}\n")
+	} else if err != nil {
+		return nil, err
+	}
+	oldState, err := historyReadFile(h.StateFile)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	markerPath := filepath.Join(h.Dir, historyRestoringMarker)
+	if err := historyOptionalRegular(markerPath); err != nil {
+		return nil, err
+	}
 	wanted, err := modFolders(snapMods)
 	if err != nil {
 		return nil, err
@@ -251,17 +302,9 @@ func (h *History) restore(seq int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	changed := []string{}
-	for id := range current {
-		if wanted[id] {
-			continue
-		}
-		err = os.RemoveAll(filepath.Join(h.ModsDir, id))
-		if err != nil {
-			return nil, err
-		}
-		changed = append(changed, id)
-	}
+	// Stage every replacement before the first deletion, including the enabled state. Random names are owned;
+	// predictable .restore-<id> and mods.json.tmp paths may belong to somebody else.
+	staged := make(map[string]string)
 	for id := range wanted {
 		same, err := treesEqual(filepath.Join(snapMods, id), filepath.Join(h.ModsDir, id))
 		if err != nil {
@@ -270,45 +313,66 @@ func (h *History) restore(seq int) ([]string, error) {
 		if same {
 			continue
 		}
-		tmp := filepath.Join(h.ModsDir, ".restore-"+id)
-		os.RemoveAll(tmp)
+		tmp, err := os.MkdirTemp(h.ModsDir, ".restore-")
+		if err != nil {
+			return nil, err
+		}
 		defer os.RemoveAll(tmp)
 		err = copyModsTree(filepath.Join(snapMods, id), tmp)
 		if err != nil {
 			return nil, err
 		}
-		dest := filepath.Join(h.ModsDir, id)
-		err = os.RemoveAll(dest)
-		if err != nil {
-			return nil, err
-		}
-		err = os.Rename(tmp, dest)
-		if err != nil {
-			return nil, err
-		}
-		changed = append(changed, id)
+		staged[id] = tmp
 	}
-	stateData, err := os.ReadFile(filepath.Join(snapDir, StateFileName))
-	if errors.Is(err, os.ErrNotExist) {
-		stateData = []byte("{\"enabled\": []}\n")
-	} else if err != nil {
-		return nil, err
-	}
-	oldState, _ := os.ReadFile(h.StateFile)
-	changed = append(changed, stateDiff(oldState, stateData)...)
 	err = os.MkdirAll(filepath.Dir(h.StateFile), 0755)
 	if err != nil {
 		return nil, err
 	}
-	tmpState := h.StateFile + ".tmp"
-	err = os.WriteFile(tmpState, stateData, 0644)
+	tmpState, err := historyStageFile(filepath.Dir(h.StateFile), ".mods-state-", stateData)
 	if err != nil {
 		return nil, err
 	}
+	defer os.Remove(tmpState)
+	tmpMarker, err := historyStageFile(h.Dir, ".restoring-", []byte(strconv.Itoa(seq)))
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmpMarker)
+	if err = os.Rename(tmpMarker, markerPath); err != nil {
+		return nil, err
+	}
+	restored := false
+	defer func() {
+		if !restored {
+			os.Remove(markerPath)
+		}
+	}()
+	changed := []string{}
+	for id := range current {
+		if wanted[id] {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(h.ModsDir, id)); err != nil {
+			return nil, err
+		}
+		changed = append(changed, id)
+	}
+	for id, tmp := range staged {
+		dest := filepath.Join(h.ModsDir, id)
+		if err := os.RemoveAll(dest); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(tmp, dest); err != nil {
+			return nil, err
+		}
+		changed = append(changed, id)
+	}
+	changed = append(changed, stateDiff(oldState, stateData)...)
 	err = os.Rename(tmpState, h.StateFile)
 	if err != nil {
 		return nil, err
 	}
+	restored = true // Undo keeps the marker until its own history record has completed.
 	return uniqueSorted(changed), nil
 }
 
@@ -343,6 +407,9 @@ func uniqueSorted(ids []string) []string {
 }
 
 func modFolders(dir string) (map[string]bool, error) {
+	if err := historyManagedDirectory(dir); err != nil {
+		return nil, err
+	}
 	folders := make(map[string]bool)
 	dirEntries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -362,6 +429,9 @@ func modFolders(dir string) (map[string]bool, error) {
 // The files of a mods tree that count, as for the watcher: hidden entries and editor droppings are skipped, except a
 // Claude Code part's `.claude-plugin/` (FR-MORPH-010), whose typings are skipped in turn.
 func walkModsTree(root string, fn func(rel string, path string) error) error {
+	if err := historyManagedDirectory(root); err != nil {
+		return err
+	}
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) && path == root {
@@ -385,6 +455,9 @@ func walkModsTree(root string, fn func(rel string, path string) error) error {
 		if entry.IsDir() {
 			return nil
 		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("history only supports regular files and directories: %s", path)
+		}
 		return fn(rel, path)
 	})
 }
@@ -404,7 +477,7 @@ func copyModsTree(src string, dest string) error {
 }
 
 func copyFile(src string, dest string) error {
-	in, err := os.Open(src)
+	in, err := historyOpenRegular(src)
 	if err != nil {
 		return err
 	}
@@ -414,7 +487,7 @@ func copyFile(src string, dest string) error {
 		return err
 	}
 	// Apply the exact ordinary permissions after copying: creation permissions alone are masked by umask.
-	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
@@ -440,8 +513,13 @@ func treeHash(root string, extraFiles ...string) (string, error) {
 		return "", err
 	}
 	for _, extra := range extraFiles {
-		if _, err := os.Stat(extra); err == nil {
+		if err := historyOptionalRegular(extra); err != nil {
+			return "", err
+		}
+		if _, err := os.Lstat(extra); err == nil {
 			files["\x00"+filepath.Base(extra)] = extra
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
 		}
 	}
 	names := make([]string, 0, len(files))
@@ -452,13 +530,13 @@ func treeHash(root string, extraFiles ...string) (string, error) {
 	for _, name := range names {
 		// mods.json is restored as state data, not as a permission-preserving mod file.
 		if !strings.HasPrefix(name, "\x00") {
-			info, err := os.Stat(files[name])
+			info, err := os.Lstat(files[name])
 			if err != nil {
 				return "", err
 			}
 			fmt.Fprintf(hasher, "%03o\x00", info.Mode().Perm())
 		}
-		data, err := os.ReadFile(files[name])
+		data, err := historyReadFile(files[name])
 		if err != nil {
 			return "", err
 		}
@@ -473,7 +551,7 @@ func (h *History) currentHash() (string, error) {
 }
 
 func treesEqual(a string, b string) (bool, error) {
-	if _, err := os.Stat(b); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Lstat(b); errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	hashA, err := treeHash(a)
@@ -485,4 +563,97 @@ func treesEqual(a string, b string) (bool, error) {
 		return false, err
 	}
 	return hashA == hashB, nil
+}
+
+// Check managed roots and their immediate parents, while allowing platform aliases above them (/var, /tmp).
+// These static checks and descriptor identity checks do not lock out concurrent ancestor-directory replacement.
+func historyDirectory(path string, optional bool) error {
+	info, err := os.Lstat(path)
+	if optional && errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("history requires a real directory: %s", path)
+	}
+	return nil
+}
+
+func historyManagedDirectory(path string) error {
+	if err := historyDirectory(filepath.Dir(path), true); err != nil {
+		return err
+	}
+	return historyDirectory(path, true)
+}
+
+func historyOptionalRegular(path string) error {
+	if err := historyManagedDirectory(filepath.Dir(path)); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("history requires a regular file: %s", path)
+	}
+	return nil
+}
+
+func historyOpenRegular(path string) (*os.File, error) {
+	if err := historyOptionalRegular(path); err != nil {
+		return nil, err
+	}
+	before, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	file, err := historyOpenNoBlock(path)
+	if err != nil {
+		return nil, err
+	}
+	after, err := file.Stat()
+	if err != nil || !after.Mode().IsRegular() || !os.SameFile(before, after) {
+		file.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("history file changed type or identity while opening: %s", path)
+	}
+	return file, nil
+}
+
+func historyReadFile(path string) ([]byte, error) {
+	file, err := historyOpenRegular(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return io.ReadAll(file)
+}
+
+func historyStageFile(dir string, prefix string, data []byte) (string, error) {
+	file, err := os.CreateTemp(dir, prefix)
+	if err != nil {
+		return "", err
+	}
+	name := file.Name()
+	_, err = file.Write(data)
+	if err == nil {
+		err = file.Chmod(0644)
+	}
+	closeErr := file.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		os.Remove(name)
+		return "", err
+	}
+	return name, nil
 }
