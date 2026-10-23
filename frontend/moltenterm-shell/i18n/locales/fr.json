@@ -4065,6 +4065,59 @@
             "thenDated": "puis {tag} · {date}",
             "openMilestone": "Ouvrir le jalon {milestone} sur GitHub"
         },
+        "ship": {
+            "title": "Ce que {tag} livrerait",
+            "titleTrunk": "Ce qui attend sur {trunk}",
+            "openTitle": "Lister ce qui serait livré, par ticket",
+            "tickets": {
+                "one": "1 ticket",
+                "other": "{count} tickets"
+            },
+            "commits": {
+                "one": "1 commit",
+                "other": "{count} commits"
+            },
+            "gitOnly": "GitHub n'a pas pu être lu : la liste vient de git seul (sujets de commit regroupés par #N).",
+            "loading": "Lecture des pull requests fusionnées sur GitHub…",
+            "none": "Rien n'attend sur {trunk}.",
+            "noTicket": "Sans ticket",
+            "prTitle": "PR #{number}",
+            "flaggedHeading": "Change un comportement connu",
+            "flag": {
+                "label": "Étiquette « {label} »",
+                "section": "La pull request décrit un changement de comportement",
+                "breaking": "Marqué comme rupture (!)"
+            },
+            "verify": "À vérifier : {text}",
+            "underFlag": "Un ticket en dessous change un comportement connu",
+            "types": {
+                "feat": "fonctionnalité",
+                "fix": "correctif",
+                "chore": "maintenance",
+                "docs": "documentation",
+                "refactor": "refactorisation",
+                "perf": "performance",
+                "test": "tests",
+                "ci": "CI",
+                "build": "build",
+                "style": "style",
+                "revert": "retour arrière",
+                "other": "autre"
+            },
+            "show": "Afficher le détail",
+            "hide": "Masquer le détail",
+            "detail": {
+                "noSummary": "Pas de résumé dans la pull request.",
+                "merged": "PR #{number} fusionnée {when} par {who}",
+                "mergedNoWho": "PR #{number} fusionnée {when}",
+                "openPr": "PR #{number}",
+                "openPrTitle": "Ouvrir la pull request #{number} sur GitHub",
+                "openTicket": "Ticket #{number}",
+                "openTicketTitle": "Ouvrir le ticket #{number} sur GitHub",
+                "commits": "Commits",
+                "noPr": "Aucune pull request fusionnée trouvée pour ce ticket."
+            }
+        },
         "waiting": {
             "title": "En attente sur {trunk}",
             "notYetOn": {

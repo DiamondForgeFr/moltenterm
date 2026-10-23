@@ -4,9 +4,10 @@
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
 // to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
+// The Waiting block opens what would ship, grouped by ticket (#903, pending-changes-dialog.tsx).
 
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
@@ -31,6 +32,7 @@ import {
     tickerItems,
     waitingCounts,
 } from "./next-station-model";
+import { PendingChangesDialog } from "./pending-changes-dialog";
 import { ProjectCardProps } from "./project-context";
 
 const LatestShown = 3;
@@ -184,6 +186,7 @@ export function NextStationHeader({
     const lastBuild = latestRun(runs, "build");
     const iconSource = workspaceIconSource(project.workspace);
     const trunk = git?.trunk || "develop";
+    const [shipOpen, setShipOpen] = useState(false);
     return (
         <div className="flex flex-col" data-testid="next-station">
             <div className="h-1 bg-[var(--mt-accent)]" aria-hidden />
@@ -214,7 +217,14 @@ export function NextStationHeader({
                     </div>
                 </div>
                 <div className="hidden w-px self-stretch bg-border @min-[42rem]:block" aria-hidden />
-                <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-waiting">
+                <button
+                    type="button"
+                    disabled={git == null}
+                    onClick={() => setShipOpen(true)}
+                    title={t("project.ship.openTitle")}
+                    className="-mx-2 -my-1 flex min-w-0 cursor-pointer flex-col gap-0.5 rounded-4 px-2 py-1 text-left hover:bg-hover disabled:cursor-default disabled:hover:bg-transparent"
+                    data-testid="next-station-waiting"
+                >
                     <Eyebrow>{counts?.title ?? t("project.waiting.title", { trunk })}</Eyebrow>
                     <div className="flex items-baseline gap-2.5">
                         <span className="text-32 leading-none font-semibold text-[var(--mt-accent)] tabular-nums">
@@ -225,7 +235,7 @@ export function NextStationHeader({
                     <span className="text-13 text-secondary" data-testid="next-station-counts">
                         {countsLine(counts)}
                     </span>
-                </div>
+                </button>
                 <div
                     className="flex w-full flex-wrap gap-2 @min-[64rem]:ml-auto @min-[64rem]:w-auto @min-[64rem]:max-w-[520px] @min-[64rem]:justify-end"
                     data-testid="project-actions"
@@ -295,6 +305,15 @@ export function NextStationHeader({
                 </div>
             </div>
             {items.length > 0 ? <LatestChanges items={items} trunk={trunk} total={counts?.total} /> : null}
+            {shipOpen && git != null ? (
+                <PendingChangesDialog
+                    dir={project.dir}
+                    git={git}
+                    tag={station?.tag}
+                    counts={counts}
+                    onClose={() => setShipOpen(false)}
+                />
+            ) : null}
         </div>
     );
 }
