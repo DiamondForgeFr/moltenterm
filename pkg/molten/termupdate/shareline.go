@@ -90,7 +90,7 @@ func (u *Updater) typeLine(ctx context.Context, blockId string, line string, sub
 	defer u.end(blockId)
 	st, out := u.inspect(ctx, blockId)
 	if out != nil {
-		return refusedUnreadable(out)
+		return u.unreadable(blockId, out)
 	}
 	if st.adapter == nil {
 		if st.busy != "" {

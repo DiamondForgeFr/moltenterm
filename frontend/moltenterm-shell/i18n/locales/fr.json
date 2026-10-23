@@ -6370,6 +6370,7 @@
             "notlocal": "Seul le shell d'un terminal local peut être mis à jour.",
             "cannotsee": "MoltenTerm ne peut pas voir ce qui tourne dans ce terminal sur ce système.",
             "shellended": "Le shell de ce terminal s'est terminé.",
+            "terminalgone": "Ce terminal a été fermé.",
             "input": {
                 "busy": "MoltenTerm tape déjà dans ce terminal : réessayez dans un instant.",
                 "cannottype": "MoltenTerm ne peut pas encore taper dans les terminaux : rien n'a été tapé.",
@@ -6383,6 +6384,7 @@
                 "noagentany": "L'agent ne tourne plus dans ce terminal : rien n'a été tapé.",
                 "gone": "{agent} n'est plus le programme au premier plan : rien n'a été tapé.",
                 "nottaken": "Le terminal n'a pas accepté la saisie : {detail}",
+                "terminalgone": "Le terminal de l'agent est fermé ou son shell s'est terminé : rien n'a été tapé.",
                 "waiting": "{agent} attend votre réponse : répondez-lui d'abord.",
                 "working": "{agent} travaille : attendez la fin de son tour, ou interrompez-le.",
                 "draft": "Un message non envoyé dans {agent} sera effacé.",

@@ -4,6 +4,7 @@
 package termupdate
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -44,8 +45,8 @@ func refusedUnreadable(out *Outcome) AgentInputResult {
 		return refused(InputReasonUnavailable, uimsg.Make("termupdate.input.notlocal"), english)
 	case "termupdate.cannotsee":
 		return refused(InputReasonUnavailable, uimsg.Make("termupdate.input.cannotsee"), english)
-	case "termupdate.shellended":
-		return refused(InputReasonUnavailable, uimsg.Make("termupdate.input.shellended"), english)
+	case "termupdate.shellended", "termupdate.terminalgone":
+		return refusedTerminalGone()
 	}
 	return refused(InputReasonUnavailable, nil, english)
 }
@@ -87,7 +88,16 @@ func refusedBlocked(blocker string, name string) AgentInputResult {
 	return r
 }
 
+// refusedTerminalGone: the terminal is closed or its shell ended, whatever the agent's run record says (#1024).
+func refusedTerminalGone() AgentInputResult {
+	return refused(InputReasonTerminalGone, uimsg.Make("termupdate.input.terminalgone"),
+		"The agent's terminal is closed or its shell ended: nothing was typed.")
+}
+
 func refusedNotTaken(err error) AgentInputResult {
+	if errors.Is(err, ErrTerminalGone) || errors.Is(err, ErrNoController) {
+		return refusedTerminalGone()
+	}
 	return refused(InputReasonUnavailable, uimsg.Make("termupdate.input.nottaken", "detail", uimsg.Detail(err)),
 		fmt.Sprintf("The terminal did not take the input: %v", err))
 }
@@ -117,6 +127,10 @@ func outcomeCannotSee() *Outcome {
 
 func outcomeShellEnded() *Outcome {
 	return &Outcome{Status: StatusUnavailable, MessageText: uimsg.Make("termupdate.shellended"), Message: "This terminal's shell has ended."}
+}
+
+func outcomeTerminalGone() *Outcome {
+	return &Outcome{Status: StatusUnavailable, MessageText: uimsg.Make("termupdate.terminalgone"), Message: "This terminal was closed."}
 }
 
 func isNotLocal(out *Outcome) bool {
