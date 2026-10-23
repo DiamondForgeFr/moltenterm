@@ -398,6 +398,24 @@ func ResolveNotificationsExcept(ctx context.Context, prefix string, keep map[str
 	return nil
 }
 
+// ResolveNotification closes the situation of one key (molten.NotificationResolveUpdate).
+func ResolveNotification(ctx context.Context, key string) error {
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	if err != nil {
+		return fmt.Errorf("reading the client: %w", err)
+	}
+	update := molten.NotificationResolveUpdate(client.Meta, key, time.Now())
+	if len(update) == 0 {
+		return nil
+	}
+	oref := waveobj.MakeORef(waveobj.OType_Client, client.OID)
+	if err := wstore.UpdateObjectMeta(ctx, oref, update, false); err != nil {
+		return err
+	}
+	publishObjectUpdate(ctx, oref)
+	return nil
+}
+
 // ProjectWorkspace is the workspace linked to a project folder, if one is.
 func ProjectWorkspace(ctx context.Context, dir string) string {
 	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)

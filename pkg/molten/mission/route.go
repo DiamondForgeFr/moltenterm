@@ -31,6 +31,7 @@ type routeLink struct {
 	treePrs   *TreePrs
 	testCtx   *TestContexts
 	launches  *Launches
+	asks      *TrustAsks
 }
 
 type ciLogRequest struct {
@@ -229,6 +230,12 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return nil, l.runs.GrantTrust(req.Dir, req.Hash)
+	case UntrustedCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.Untrusted(req.Dir)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
@@ -488,16 +495,30 @@ func (l *routeLink) route() localroute.Route {
 	return localroute.Route{
 		Id:     RouteId,
 		Policy: policy,
-		Handler: func(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
-			return l.handle(command, data)
+		Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
+			answer, err := l.handle(command, data)
+			if err != nil {
+				return answer, err
+			}
+			if command == TrustCommand {
+				l.asks.Granted(requestDir(data))
+				return answer, nil
+			}
+			// A window shows its own trust sheet; a terminal (an agent, a script) can only be answered by a notification.
+			if !caller.IsUi() {
+				if dir := refusedDir(command, data, answer); dir != "" {
+					l.asks.Refused(dir, caller.BlockId, command)
+				}
+			}
+			return answer, nil
 		},
 	}
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches) error {
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks) error {
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
-		testCtx: MakeTestContexts(panes, collector), launches: launches}
+		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }

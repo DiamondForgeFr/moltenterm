@@ -27,7 +27,7 @@ const (
 	moltenDepSyncChanged          = "changed"
 	moltenDepSyncNoChange         = "nochange"
 	moltenDepSyncPollInterval     = 500 * time.Millisecond
-	moltenDepSyncUntrustedMessage = "the sync command is not trusted yet: press Sync once on the stale dependency's notification (or on its flag in Mission Control) to review and trust the project's commands"
+	moltenDepSyncUntrustedMessage = "the commands declared in %s are not trusted yet, so nothing ran: MoltenTerm asked the developer to approve them (open the notification or the Review the commands button), then run this command again"
 )
 
 // must match RunRecord in pkg/molten/mission/runs.go
@@ -89,7 +89,7 @@ func moltenProjectSyncRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if started.Untrusted != nil {
-		return fmt.Errorf("%s", moltenDepSyncUntrustedMessage)
+		return fmt.Errorf(moltenDepSyncUntrustedMessage, dir)
 	}
 	if started.Run == nil {
 		return fmt.Errorf("the sync did not start")

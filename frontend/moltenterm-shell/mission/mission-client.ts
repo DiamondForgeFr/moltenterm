@@ -41,6 +41,8 @@ export const MissionLogCommand = "moltenmissionlog";
 export const MissionCancelCommand = "moltenmissioncancel";
 export const MissionCloseCommand = "moltenmissionclose";
 export const MissionTrustCommand = "moltenmissiontrust";
+// must match UntrustedCommand in pkg/molten/mission/trust_ask.go
+export const MissionUntrustedCommand = "moltenmissionuntrusted";
 export const MissionRunEvent = "molten:mission:run";
 export const MissionCiStateCommand = "moltenmissioncistate";
 export const MissionCiRunCommand = "moltenmissioncirun";
@@ -262,6 +264,11 @@ export function missionClose(dir: string, runid: string): Promise<void> {
 
 export function missionTrust(dir: string, hash: string): Promise<void> {
     return missionCall(MissionTrustCommand, { dir, hash });
+}
+
+// The folder's commands as a run reads them, when they are not trusted yet; null once they are (#1017).
+export function missionUntrusted(dir: string): Promise<UntrustedInfo> {
+    return missionCall(MissionUntrustedCommand, { dir });
 }
 
 // The project's runs, newest first, kept current by the collector's run events.

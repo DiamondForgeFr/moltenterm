@@ -28,6 +28,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -662,7 +663,15 @@ func Start() {
 	runs.UseWorktrees(worktrees, dataDir)
 	// Launching a PR's or a branch's version from Reviews (FR-REV-031).
 	launches := MakeLaunches(LaunchDir(dataDir), ExecRunner, publishLaunch)
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches); err != nil {
+	// A run refused from a terminal for untrusted commands asks the developer (DS-MC-005, #1017).
+	asks := MakeTrustAsks()
+	asks.notify = attention.PublishNotification
+	asks.resolve = attention.ResolveNotification
+	asks.workspaceOf = attention.ProjectWorkspace
+	asks.tell = func(ctx context.Context, blockId string, line string) bool {
+		return termupdate.TypeHandoffLine(ctx, blockId, line).Result == termupdate.InputSent
+	}
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

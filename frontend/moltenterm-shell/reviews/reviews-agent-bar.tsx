@@ -17,12 +17,14 @@ import { useEffect, useMemo, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
+import { reviewProjectCommands, useTrustAsk } from "../mission/trust-approval";
 import { MoltenWave } from "../molten-button";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { agentGlyph } from "../tab-identity";
 import { useWorkingBeat } from "../working-beat";
+import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
 import { PrTask, PrTaskState, prTaskState, taskAgentLive, taskStateText } from "./reviews-task-model";
@@ -141,6 +143,7 @@ export function AgentBar({
     const t = useT();
     const now = useMinuteNow();
     const fullConfig = useAtomValue(atoms?.fullConfigAtom ?? (NullAtom as Atom<FullConfigType>));
+    const trustDir = useTrustAsk(facts?.blockId);
     useWorkingBeat(facts?.state === "working");
     if (facts == null) {
         return task != null ? <GoneAgentBar task={task} actions={actions} /> : null;
@@ -228,6 +231,22 @@ export function AgentBar({
                 </span>
             ) : null}
             <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+                {trustDir ? (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            fireAndForget(() => reviewProjectCommands(trustDir));
+                        }}
+                        onKeyDown={stop}
+                        className="molten-btn h-5 cursor-pointer rounded-3 px-1.5 text-11"
+                        title={t("reviewsAgents.trustReviewTitle", { name, project: pathBaseName(trustDir) })}
+                        data-testid="reviews-agent-trust"
+                    >
+                        {t("reviewsAgents.trustReview")}
+                        <MoltenWave />
+                    </button>
+                ) : null}
                 {actions}
                 {!background && facts.blockId ? (
                     <button

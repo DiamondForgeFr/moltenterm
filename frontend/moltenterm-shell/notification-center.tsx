@@ -21,6 +21,7 @@ import { t as translateNow, useT, useTCount } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
+import { TrustApprovalHost } from "./mission/trust-approval";
 import { checkAnswered } from "./notification-attention";
 import {
     badgeCount,
@@ -634,6 +635,7 @@ export function NotificationCenter() {
                 ) : null}
             </button>
             <DepSyncHost />
+            <TrustApprovalHost />
             {createPortal(<ToastStack onOpenCenter={openForUser} />, document.body)}
             {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
             {panelOpen && anchor

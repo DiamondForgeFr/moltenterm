@@ -42,6 +42,7 @@ export function TrustPrompt({
     onTrust,
     onCancel,
     busy,
+    approveOnly,
 }: {
     projectName: string;
     dir: string;
@@ -50,6 +51,8 @@ export function TrustPrompt({
     onCancel: () => void;
     // The trust and the start it allows are on their way (#952): nothing in the prompt can be clicked.
     busy?: boolean;
+    // Approve only (#1017): the developer trusts the commands a refused run asked for, and nothing starts.
+    approveOnly?: boolean;
 }) {
     const t = useT();
     const cancelRef = useRef<HTMLButtonElement>(null);
@@ -62,8 +65,8 @@ export function TrustPrompt({
         <DialogFrame
             role="mc-trust"
             onEscape={busy ? undefined : onCancel}
-            title={t("mc.trust.title", { project: projectName })}
-            subtitle={t("mc.trust.body", { dir })}
+            title={t(approveOnly ? "mc.trust.approveTitle" : "mc.trust.title", { project: projectName })}
+            subtitle={t(approveOnly ? "mc.trust.approveBody" : "mc.trust.body", { dir })}
             subtitleWraps
             widthClass="w-[560px]"
             trapFocus
@@ -88,7 +91,9 @@ export function TrustPrompt({
                         data-testid="mc-trust-go"
                     >
                         {busy ? <DominoLoader className="mr-1.5" /> : null}
-                        {busy ? t("mc.common.starting") : t("mc.trust.trustAndRun")}
+                        {busy
+                            ? t(approveOnly ? "mc.trust.trusting" : "mc.common.starting")
+                            : t(approveOnly ? "mc.trust.trust" : "mc.trust.trustAndRun")}
                         <MoltenWave />
                     </button>
                 </>

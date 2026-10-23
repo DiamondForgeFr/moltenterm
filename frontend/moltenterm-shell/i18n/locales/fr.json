@@ -2799,7 +2799,14 @@
         "trust": {
             "title": "Lancer les commandes de {project} ?",
             "body": "MoltenTerm les lance dans {dir}, avec vos droits. Il redemande chaque fois qu'elles changent.",
-            "trustAndRun": "Faire confiance et lancer"
+            "trustAndRun": "Faire confiance et lancer",
+            "approveTitle": "Faire confiance aux commandes de {project} ?",
+            "approveBody": "Un lancement a été refusé tant que vous ne leur faites pas confiance. Faire confiance ne lance rien : MoltenTerm les lance dans {dir}, avec vos droits, quand un lancement les demande. Il redemande chaque fois qu'elles changent.",
+            "trust": "Faire confiance",
+            "trusting": "Enregistrement…",
+            "error": {
+                "noProject": "Cette notification ne nomme aucun dossier de projet."
+            }
         },
         "github": {
             "state": {
@@ -3775,7 +3782,8 @@
             "build": "build",
             "ci": "CI",
             "release": "release",
-            "deps": "dépendances"
+            "deps": "dépendances",
+            "trust": "approbation"
         },
         "goToTerminal": "Aller au terminal",
         "age": {
@@ -4456,7 +4464,9 @@
             "yours": "à vous de finir ou de marquer prêt",
             "yoursTitle": "Aucun agent ne travaille sur ce brouillon et sa branche n'a pas bougé récemment : il est à vous de le finir ou de le marquer prêt.",
             "status": "Sur le tableau : {status}"
-        }
+        },
+        "trustReview": "Examiner les commandes",
+        "trustReviewTitle": "Un lancement de {name} a été refusé : examinez les commandes de {project} et faites-leur confiance"
     },
     "reviews": {
         "launch": {
@@ -6680,6 +6690,11 @@
                     "merged": "La file de fusion l'a fusionnée dans {base}.",
                     "resumedTitle": "La file de fusion de {base} a repris : {count} PR validées"
                 }
+            },
+            "trust": {
+                "title": "Les commandes de {project} attendent votre approbation",
+                "message": "Un lancement a été refusé : MoltenTerm ne lance les commandes déclarées dans {dir} qu'une fois que vous leur faites confiance. Rien n'a été lancé.",
+                "review": "Examiner les commandes"
             }
         },
         "companion": {

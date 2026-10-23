@@ -2799,7 +2799,14 @@
         "trust": {
             "title": "Run {project}'s commands?",
             "body": "MoltenTerm runs them in {dir}, with your rights. It asks again whenever they change.",
-            "trustAndRun": "Trust and run"
+            "trustAndRun": "Trust and run",
+            "approveTitle": "Trust {project}'s commands?",
+            "approveBody": "A run was refused until you trust them. Trusting starts nothing: MoltenTerm runs them in {dir}, with your rights, when a run asks for them. It asks again whenever they change.",
+            "trust": "Trust",
+            "trusting": "Trusting…",
+            "error": {
+                "noProject": "This notification names no project folder."
+            }
         },
         "github": {
             "state": {
@@ -3775,7 +3782,8 @@
             "build": "build",
             "ci": "CI",
             "release": "release",
-            "deps": "dependencies"
+            "deps": "dependencies",
+            "trust": "approval"
         },
         "goToTerminal": "Go to the terminal",
         "age": {
@@ -4456,7 +4464,9 @@
             "yours": "yours to finish or mark ready",
             "yoursTitle": "No agent works on this draft and its branch has not moved lately: it is yours to finish or mark ready.",
             "status": "On the board: {status}"
-        }
+        },
+        "trustReview": "Review the commands",
+        "trustReviewTitle": "{name} was refused a run: review and trust {project}'s commands"
     },
     "reviews": {
         "launch": {
@@ -6680,6 +6690,11 @@
                     "merged": "The merge queue merged it into {base}.",
                     "resumedTitle": "The merge queue of {base} resumed: {count} validated PRs"
                 }
+            },
+            "trust": {
+                "title": "{project}'s commands need your approval",
+                "message": "A run was refused: MoltenTerm runs the commands declared in {dir} only once you trusted them. Nothing ran.",
+                "review": "Review the commands"
             }
         },
         "companion": {

@@ -25,7 +25,9 @@ export type MoltentermNotificationSource =
     | "build"
     | "ci"
     | "release"
-    | "deps";
+    | "deps"
+    // A refused run waiting for the developer's approval (#1017): tied to no subject, so never silenced.
+    | "trust";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";
 
 // "open" goes where it points (a workspace, a tab, a block, or a view opened in the active tab); "gesture" runs a
