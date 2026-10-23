@@ -57,7 +57,7 @@ describe("identity", () => {
         expect(sessionKind(direct)).toBe("direct");
         expect(sessionKindLabel(direct)).toBe("Direct");
         expect(sessionKind(ci)).toBe("started");
-        expect(sessionKindLabel(ci)).toBe("Analyse and fix");
+        expect(sessionKindLabel(ci)).toBe("Analyze and resolve");
         expect(sessionKind(session("x", { origin: { kind: "unknown" as any } }))).toBe("direct");
     });
 

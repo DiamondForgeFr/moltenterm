@@ -56,7 +56,8 @@ export function taskGoal(task: PrTask, pr: ReviewPr): "reached" | "pending" | "l
         case "rebase":
             return left.conflicts ? "left" : "reached";
         case "investigate":
-            if (left.ciRed) {
+            // Analyze and resolve (#1020) takes every blocker, not only the CI.
+            if (left.conflicts || left.ciRed || left.changesRequested) {
                 return "left";
             }
             return ciRuns ? "pending" : "reached";
@@ -113,6 +114,21 @@ export function prTaskState(task: PrTask, pr: ReviewPr, agent: AgentBarFacts, no
     }
     const movedSince = (agent.stateSince ?? 0) > task.at;
     return movedSince || waited ? "stuck" : "running";
+}
+
+// headStillFails (#1020, FR-REV-028 AC8): the checks that fail on the PR's head while its agent reads as done, or its
+// task stopped. The agent may say "CI passes" from an older head; the row says what fails now, never a silent
+// contradiction. [] when nothing contradicts.
+export function headStillFails(pr: ReviewPr, agent: AgentBarFacts, state: PrTaskState): string[] {
+    const failed = checksOf(pr?.ci, "failure");
+    if (failed.length === 0) {
+        return [];
+    }
+    const agentDone = agent?.kind === "panel" && agent.state === "done";
+    if (!agentDone && state !== "stuck") {
+        return [];
+    }
+    return failed.map((c) => c.name);
 }
 
 // leftText: what is left, in the interface language ("conflicts with develop, CI red").

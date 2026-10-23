@@ -26,8 +26,9 @@ import { agentGlyph } from "../tab-identity";
 import { useWorkingBeat } from "../working-beat";
 import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
+import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
-import { PrTask, PrTaskState, prTaskState, taskAgentLive, taskStateText } from "./reviews-task-model";
+import { headStillFails, PrTask, PrTaskState, prTaskState, taskAgentLive, taskStateText } from "./reviews-task-model";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import {
     AgentBarFacts,
@@ -322,6 +323,40 @@ function GoneAgentBar({ task, actions }: { task: BarTask; actions?: React.ReactN
                 {task.text}
             </span>
             <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">{actions}</div>
+        </div>
+    );
+}
+
+// The heads already read again because their agent said done while checks failed there: once per head and names.
+const ReadAgainHeads = new Set<string>();
+
+// No stale contradiction (#1020, FR-REV-028 AC8): the agent reads as done, or its task stopped, while checks fail on the
+// PR's head. The list reads GitHub again once (the row may show an older head), then says what still fails there.
+export function HeadStillFailsLine({ dir, pr, task }: { dir: string; pr: ReviewPr; task: RebaseAsk }) {
+    const t = useT();
+    const facts = useBranchAgent(dir, pr.branch);
+    const now = useMinuteNow();
+    const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
+    const names = headStillFails(pr, facts, prTaskState(prTask, pr, facts, now));
+    const key = names.length > 0 ? `${dir}#${pr.number}@${pr.headoid ?? ""}:${names.join(",")}` : "";
+    useEffect(() => {
+        if (!key || ReadAgainHeads.has(key)) {
+            return;
+        }
+        ReadAgainHeads.add(key);
+        fireAndForget(async () => {
+            await reviewsGet(dir, true);
+        });
+    }, [key, dir]);
+    if (names.length === 0) {
+        return null;
+    }
+    return (
+        <div className="text-12 leading-4 text-danger" role="status" data-testid="reviews-head-still-fails">
+            {t("reviews.ci.investigate.headStillFails", {
+                head: (pr.headoid ?? "").slice(0, 7),
+                names: names.join(", "),
+            })}
         </div>
     );
 }

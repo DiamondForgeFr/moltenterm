@@ -134,7 +134,7 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 
 // investigateAction: Investigate and fix (#896) on the PR whose checks failed, from the notification.
 func investigateAction(run BatchRun, it BatchItem) molten.NotificationAction {
-	return molten.NotificationAction{Id: "investigate", Label: "Investigate and fix", LabelText: uimsg.Make("notif.review.queue.investigate"),
+	return molten.NotificationAction{Id: "investigate", Label: "Analyze and resolve", LabelText: uimsg.Make("notif.review.queue.investigate"),
 		Kind: "gesture", Gesture: InvestigateGesture, Lasting: true,
 		Args: map[string]any{"dir": run.Dir, "repo": run.Repo, "number": it.Number}}
 }
