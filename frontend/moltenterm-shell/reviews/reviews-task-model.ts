@@ -116,16 +116,16 @@ export function prTaskState(task: PrTask, pr: ReviewPr, agent: AgentBarFacts, no
     return movedSince || waited ? "stuck" : "running";
 }
 
-// headStillFails (#1020, FR-REV-028 AC8): the checks that fail on the PR's head while its agent reads as done, or its
-// task stopped. The agent may say "CI passes" from an older head; the row says what fails now, never a silent
-// contradiction. [] when nothing contradicts.
+// headStillFails (#1020, FR-REV-028 AC8): the checks that fail on the PR's head while its agent stopped (done, or idle
+// after its turn was seen), or its task stopped. The agent may say "CI passes" from an older head; the row says what
+// fails now, never a silent contradiction. [] when nothing contradicts.
 export function headStillFails(pr: ReviewPr, agent: AgentBarFacts, state: PrTaskState): string[] {
     const failed = checksOf(pr?.ci, "failure");
     if (failed.length === 0) {
         return [];
     }
-    const agentDone = agent?.kind === "panel" && agent.state === "done";
-    if (!agentDone && state !== "stuck") {
+    const agentStopped = agent?.kind === "panel" && (agent.state === "done" || agent.state === "idle");
+    if (!agentStopped && state !== "stuck") {
         return [];
     }
     return failed.map((c) => c.name);

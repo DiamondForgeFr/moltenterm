@@ -109,6 +109,7 @@ describe("headStillFails", () => {
             "local-e2e",
         ]);
         expect(headStillFails(pr({}, [LocalE2e]), null, "stuck")).toEqual(["local-e2e"]);
+        expect(headStillFails(pr({}, [LocalE2e]), { ...done, state: "idle" }, null)).toEqual(["local-e2e"]);
     });
 
     it("says nothing while the agent works or when nothing fails", () => {
