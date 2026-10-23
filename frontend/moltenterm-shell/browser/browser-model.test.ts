@@ -10,7 +10,9 @@ import {
     browserTabTitle,
     closeTab,
     moveTab,
+    PanelTabs,
     readBrowserState,
+    servingTabOf,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -105,5 +107,63 @@ describe("browserTabTitle", () => {
     it("is empty for a page without a host", () => {
         expect(browserTabTitle({ id: "a", url: "about:blank" })).toBe("");
         expect(browserTabTitle(null)).toBe("");
+    });
+});
+
+describe("servingTabOf (#1005)", () => {
+    const servesApp = (url: string) => url.startsWith("http://localhost:5173");
+
+    it("finds the tab already showing the launch, wherever its path is", () => {
+        const panels: PanelTabs[] = [
+            {
+                blockId: "p1",
+                state: {
+                    tabs: [
+                        { id: "docs", url: "https://docs.dev" },
+                        { id: "app", url: "http://localhost:5173/settings" },
+                    ],
+                    activeId: "docs",
+                },
+            },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toEqual({ blockId: "p1", tabId: "app" });
+    });
+
+    it("is null when no tab shows it (the developer closed it)", () => {
+        const panels: PanelTabs[] = [
+            { blockId: "p1", state: { tabs: [{ id: "a", url: "https://a.dev" }], activeId: "a" } },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toBeNull();
+        expect(servingTabOf([], [], servesApp)).toBeNull();
+        expect(servingTabOf(null, null, servesApp)).toBeNull();
+    });
+
+    it("skips a handed-off entry, which is not a page here", () => {
+        const panels: PanelTabs[] = [
+            {
+                blockId: "p1",
+                state: { tabs: [{ id: "h", url: "http://localhost:5173", engine: "installed" }], activeId: "h" },
+            },
+        ];
+        expect(servingTabOf(panels, [], servesApp)).toBeNull();
+    });
+
+    it("prefers the shown tab, then the most recently focused panel", () => {
+        const twoTabs: BrowserState = {
+            tabs: [
+                { id: "x1", url: "http://localhost:5173/a" },
+                { id: "x2", url: "http://localhost:5173/b" },
+            ],
+            activeId: "x2",
+        };
+        const other: BrowserState = { tabs: [{ id: "y1", url: "http://localhost:5173" }], activeId: "y1" };
+        const panels: PanelTabs[] = [
+            { blockId: "p1", state: twoTabs },
+            { blockId: "p2", state: other },
+        ];
+        expect(servingTabOf(panels, ["p1"], servesApp)).toEqual({ blockId: "p1", tabId: "x2" });
+        expect(servingTabOf(panels, ["p2", "p1"], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
+        // Without a focus history, the last panel is the one links go to.
+        expect(servingTabOf(panels, [], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
     });
 });

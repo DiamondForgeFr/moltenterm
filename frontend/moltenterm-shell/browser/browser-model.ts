@@ -121,6 +121,31 @@ export function pickBrowserPanel(browserBlockIds: string[], recent: unknown): st
     return ids.length > 0 ? ids[ids.length - 1] : null;
 }
 
+export type PanelTabs = { blockId: string; state: BrowserState };
+
+export type ServingTab = { blockId: string; tabId: string };
+
+// The tab a replacing launch reloads instead of opening another (#1005): a page here (not a handed-off entry) that
+// the launch serves, in the most recently focused panel first, then the panels last to first; in a panel, the shown
+// tab first, then its tabs left to right. Null when none shows it: the launch then opens a new tab.
+export function servingTabOf(panels: PanelTabs[], recent: unknown, serves: (url: string) => boolean): ServingTab {
+    const list = panels ?? [];
+    const recentIds = readRecentBrowserPanels(recent);
+    const ordered = [
+        ...recentIds.map((id) => list.find((p) => p.blockId === id)).filter((p) => p != null),
+        ...[...list].reverse().filter((p) => !recentIds.includes(p.blockId)),
+    ];
+    for (const panel of ordered) {
+        const tabs = panel.state?.tabs ?? [];
+        const candidates = [...tabs.filter((t) => t.id === panel.state.activeId), ...tabs];
+        const tab = candidates.find((t) => !t.engine && t.url && serves(t.url));
+        if (tab != null) {
+            return { blockId: panel.blockId, tabId: tab.id };
+        }
+    }
+    return null;
+}
+
 export function readRecentBrowserPanels(recent: unknown): string[] {
     return Array.isArray(recent) ? recent.filter((id): id is string => typeof id === "string" && id !== "") : [];
 }

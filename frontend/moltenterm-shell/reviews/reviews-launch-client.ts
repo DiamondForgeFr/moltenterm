@@ -10,7 +10,8 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
-import { openInBrowserPanel } from "../browser/browser-routing";
+import { openInBrowserPanel, openLaunchInBrowserPanel } from "../browser/browser-routing";
+import { launchServesTarget, localAppTarget, targetKey } from "../browser/test-context-model";
 import { MissionRouteId } from "../mission/mission-client";
 import { LogChunk } from "../mission/mission-model";
 import {
@@ -75,7 +76,10 @@ export class LaunchModel {
         const url = launchUrlToOpen(state, this.asked, this.opened);
         if (url) {
             this.opened.add(state.id);
-            fireAndForget(() => openInBrowserPanel(url));
+            // A replacing launch, Retry or Back to the trunk reloads the tab of the previous version (#1005).
+            fireAndForget(() =>
+                openLaunchInBrowserPanel(url, (tabUrl) => launchServesTarget(state, targetKey(localAppTarget(tabUrl))))
+            );
         }
     }
 

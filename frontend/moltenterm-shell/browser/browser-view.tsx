@@ -647,6 +647,25 @@ export class BrowserViewModel implements ViewModel {
         this.focusPanel();
     }
 
+    // A launch that replaced the version this tab shows (#1005): the tab loads the new one, is shown and focused.
+    // A tab that never mounted its page loads tab.url when shown, so the state carries the URL too.
+    showUrlInTab(id: string, url: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        const webview = this.webviews.get(id);
+        if (webview != null) {
+            if (this.errors.error(id) != null) {
+                this.errors.noteRetry(id);
+            }
+            webview.loadURL(url).catch(() => {
+                // A failure arrives as did-fail-load and shows the error page.
+            });
+        }
+        this.setState(activateTab(updateTab(this.state(), id, { url, title: undefined }), id));
+        this.focusPanel();
+    }
+
     focusPanel(): void {
         this.nodeModel.focusNode();
         // The new tab's webview mounts after this render; focus it once it exists.
