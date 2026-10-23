@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // The brief on disk (DS-CONT-029, NFR-CONT-006): <data>/molten/handoffs/<time>-<from>-to-<to>-<id>/brief.md, with the
@@ -493,6 +495,18 @@ func linkKindLabel(kind string) string {
 	return ""
 }
 
+// replyLine names only the ways back that work for the receiver today (#985): Codex runs its shell commands in a
+// sandbox that refuses the local socket `molten` reaches MoltenTerm through (#989), while its MCP servers run outside it.
+func replyLine(from Party, to Party) string {
+	name := from.callName()
+	line := fmt.Sprintf("- **Reply expected:** yes. When you are done, answer %s with the `send_to_agent` tool of the "+
+		"molten-browser MCP server", name)
+	if to.Agent == molten.AgentIdCodex {
+		return line + " (`molten agent send` does not work from your sandboxed shell).\n"
+	}
+	return line + fmt.Sprintf(" (or `molten agent send %s --goal \"...\"` in a shell).\n", name)
+}
+
 func renderBrief(from Party, to Party, b Brief, files []fileFacts, now time.Time) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# Handoff from %s to %s\n\n", from.callName(), to.callName())
@@ -500,8 +514,7 @@ func renderBrief(from Party, to Party, b Brief, files []fileFacts, now time.Time
 	fmt.Fprintf(&sb, "- **To:** %s (you)\n", partyLine(to))
 	fmt.Fprintf(&sb, "- **Sent:** %s\n", now.Format("2006-01-02 15:04"))
 	if b.Reply {
-		fmt.Fprintf(&sb, "- **Reply expected:** yes. When you are done, answer %s with the `send_to_agent` tool of the "+
-			"molten-browser MCP server (or `molten agent send %s --goal \"...\"` in a shell).\n", from.callName(), from.callName())
+		sb.WriteString(replyLine(from, to))
 	} else {
 		sb.WriteString("- **Reply expected:** no.\n")
 	}

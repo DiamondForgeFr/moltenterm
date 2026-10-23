@@ -349,14 +349,25 @@ func resolve(entries []activeAgent, name string) (activeAgent, bool) {
 	return activeAgent{}, false
 }
 
-// Send hands the brief to the agent named To (FR-CONT-015).
+// Send hands the brief to the agent named To (FR-CONT-015). Every refusal is logged: an agent's reply that never
+// arrives must leave a trace when it reached wavesrv (#985).
 func (m *Manager) Send(ctx context.Context, req SendRequest) (SendResult, error) {
+	from := "a terminal without a valid token"
+	rtn, err := m.send(ctx, req, &from)
+	if err != nil {
+		m.logf("%s from=%q to=%q refused: %v\n", logPrefix, from, cleanLine(req.To), err)
+	}
+	return rtn, err
+}
+
+func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (SendResult, error) {
 	senderId, senderLoc, err := m.sender(ctx, req.Token)
 	if err != nil {
 		return SendResult{}, err
 	}
 	senderRun, senderHasRun := m.waitRun(senderId, false)
 	from := m.party(senderId, senderRun, senderHasRun, senderLoc)
+	*fromName = from.callName()
 	brief, err := cleanBrief(req.Brief, senderLoc.Folder)
 	if err != nil {
 		return SendResult{}, err
@@ -384,7 +395,6 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (SendResult, error)
 	}
 	pending, err := m.approve(ctx, from, to, brief)
 	if err != nil {
-		m.logf("%s from=%q to=%q refused: %v\n", logPrefix, from.callName(), to.callName(), err)
 		return SendResult{}, err
 	}
 	if pending {
