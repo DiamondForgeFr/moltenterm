@@ -55,7 +55,7 @@ make_folder() {
 # run <case> <public key or ""> <private key file or ""> <passphrase>: the script's exit status, its log in
 # $work/<case>.log and its outputs in $work/<case>.out.
 run() {
-    local name="$1" public="$2" private="$3" passphrase="$4"
+    local name="$1" public="$2" private="$3" passphrase="$4" mode="${5:-release}" channel="${6:-rc}"
     make_folder "$work/$name"
     : > "$work/$name.out"
     local status=0
@@ -63,6 +63,7 @@ run() {
         MOLTENTERM_RELEASE_PUBLIC_KEY="${public:-$work/no-such-key.asc}" \
         RELEASE_GPG_PRIVATE_KEY="$([ -n "$private" ] && cat "$private" || true)" \
         RELEASE_GPG_PASSPHRASE="$passphrase" \
+        RELEASE_MODE="$mode" RELEASE_CHANNEL="$channel" \
         GITHUB_OUTPUT="$work/$name.out" \
         bash "$sign" "$work/$name" > "$work/$name.log" 2>&1 || status=$?
     return "$status"
@@ -90,11 +91,26 @@ if run signed "$work/keys/public.asc" "$work/keys/private.asc" "right passphrase
     else
         fail "gpg --verify of the signed folder"
     fi
+    if node "$root/scripts/release-publish.mjs" verify-signatures "$work/signed" "$work/keys/public.asc"; then
+        pass "the downstream verifier accepts the final signatures against the committed key alone"
+    else
+        fail "the downstream verifier rejected the final signatures"
+    fi
+    if node "$root/scripts/release-publish.mjs" verify-signatures "$work/signed" "$work/other/public.asc" > /dev/null 2>&1; then
+        fail "the downstream verifier accepted another public key"
+    else
+        pass "the downstream verifier rejects another public key"
+    fi
     echo "tampered" >> "$work/signed/SHA256SUMS.txt"
     if GNUPGHOME="$work/user" gpg --batch --verify "$work/signed/SHA256SUMS.txt.asc" "$work/signed/SHA256SUMS.txt" 2> /dev/null; then
         fail "gpg --verify accepted a changed SHA256SUMS.txt"
     else
         pass "a changed SHA256SUMS.txt no longer verifies"
+    fi
+    if node "$root/scripts/release-publish.mjs" verify-signatures "$work/signed" "$work/keys/public.asc" > /dev/null 2>&1; then
+        fail "the downstream verifier accepted changed checksums"
+    else
+        pass "the downstream verifier rejects changed checksums"
     fi
 else
     fail "the right key and passphrase"
@@ -117,14 +133,31 @@ expect_failure() {
 }
 expect_failure wrong-passphrase "a wrong passphrase" "Could not sign" \
     "$work/keys/public.asc" "$work/keys/private.asc" "wrong passphrase"
-expect_failure no-passphrase "no passphrase" "RELEASE_GPG_PASSPHRASE" \
+expect_failure no-passphrase "no passphrase" "checksum signing requires" \
     "$work/keys/public.asc" "$work/keys/private.asc" ""
-expect_failure no-public-key "a secret without a committed key" "no public key is committed" \
+expect_failure no-public-key "a secret without a committed key" "checksum signing requires" \
     "" "$work/keys/private.asc" "right passphrase"
-expect_failure no-secret "a committed key without the secret" "secret is missing" \
+expect_failure no-secret "a committed key without the secret" "checksum signing requires" \
     "$work/keys/public.asc" "" ""
 expect_failure other-key "a secret that is not the committed key" "is not the committed release key" \
     "$work/keys/public.asc" "$work/other/private.asc" "other passphrase"
+expect_failure public-unsigned "a public release without signing material" "checksum signing requires" \
+    "" "" "" release public
+expect_failure lone-passphrase "a passphrase without keys" "checksum signing requires" \
+    "" "" "right passphrase"
+expect_failure unknown-mode "an unknown release mode" "Explicit release mode" \
+    "" "" "" unexpected public
+if run public-signed "$work/keys/public.asc" "$work/keys/private.asc" "right passphrase" release public &&
+    grep -qxF "signed=true" "$work/public-signed.out"; then
+    pass "a public release with complete signing material is signed"
+else
+    fail "a public release with complete signing material"
+fi
+if run rehearsal-unsigned "" "" "" rehearsal public && grep -qxF "signed=false" "$work/rehearsal-unsigned.out"; then
+    pass "a public-channel rehearsal may remain unsigned"
+else
+    fail "a public-channel rehearsal may remain unsigned"
+fi
 
 if [ "$failures" -ne 0 ]; then
     echo "$failures case(s) failed"
