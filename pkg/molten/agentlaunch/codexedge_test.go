@@ -84,7 +84,7 @@ func TestCodexPlanManagedAndProject(t *testing.T) {
 	ctx := tree.codexCtx()
 	managed := filepath.Join(filepath.Dir(ctx.CodexSystemConfig), "managed_config.toml")
 	tree.write(t, managed, "notify = [\"org-notify\"]\n")
-	if plan, args := codexPlan(t, ctx); len(args) != 4 || !strings.Contains(strings.Join(itemNames(plan.Skipped, molten.IntegrationNotify), ""), "organization") {
+	if plan, args := codexPlan(t, ctx); len(args) != 6 || !strings.Contains(strings.Join(itemNames(plan.Skipped, molten.IntegrationNotify), ""), "organization") {
 		t.Fatalf("a managed notify applies above -c: left alone: %q %v", args, plan.Skipped)
 	}
 	tree.write(t, managed, "[mcp_servers.molten-browser]\ncommand = \"x\"\n")
@@ -94,7 +94,7 @@ func TestCodexPlanManagedAndProject(t *testing.T) {
 	os.Remove(managed)
 
 	tree.write(t, tree.codexConfig(), "project_root_markers = [\".hg\"]\n")
-	if _, args := codexPlan(t, tree.codexCtx()); len(args) != 4 {
+	if _, args := codexPlan(t, tree.codexCtx()); len(args) != 6 {
 		t.Fatalf("custom project root markers: notify left alone: %q", args)
 	}
 
@@ -116,7 +116,7 @@ func TestCodexPlanSnippetAndShownArgs(t *testing.T) {
 	tree := makeFakeTree(t)
 	tree.write(t, tree.codexConfig(), `notify = ["sh", "-c", "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent codex || true"]`+"\n")
 	plan, args := codexPlan(t, tree.codexCtx())
-	notify := overridesOf(t, args, 6)["notify"].([]any)
+	notify := overridesOf(t, args, 8)["notify"].([]any)
 	if !slices.Equal(notify[:7], []any{codexTestMolten, "agent", "notify", "--agent", "codex", NotifySessionOnlyFlag, "--"}) || notify[7] != "sh" {
 		t.Fatalf("the #221 snippet: the wrapper only links the session: %q", notify)
 	}
@@ -127,7 +127,7 @@ func TestCodexPlanSnippetAndShownArgs(t *testing.T) {
 	tree.write(t, tree.codexConfig(), "notify = [\"/bin/notify\", \"https://hooks.example/T0K3N\"]\n")
 	plan, args = codexPlan(t, tree.codexCtx())
 	shown := strings.Join(plan.ShownArgs, " ")
-	if strings.Contains(shown, "T0K3N") || !strings.Contains(shown, `"/bin/notify","<1 more of your arguments>"]`) || !strings.Contains(args[5], "T0K3N") {
+	if strings.Contains(shown, "T0K3N") || !strings.Contains(shown, `"/bin/notify","<1 more of your arguments>"]`) || !strings.Contains(args[7], "T0K3N") {
 		t.Fatalf("the report never shows the user's notify arguments: %q", shown)
 	}
 	_, all := codexPlanAll(t, tree.codexCtx())

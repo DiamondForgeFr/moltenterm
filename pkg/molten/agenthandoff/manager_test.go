@@ -6,6 +6,7 @@ package agenthandoff
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -659,5 +660,54 @@ func TestSweepOldBriefs(t *testing.T) {
 	}
 	if _, err := os.Stat(fresh); err != nil {
 		t.Fatal("fresh brief removed")
+	}
+}
+
+// #985: the brief names only the ways back that work for the receiver: Codex's sandbox refuses `molten agent send`.
+func TestBriefReplyLinePerReceiver(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	answerWith(m, env, DecisionAlways)
+	toCodex, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "Review", Reply: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	toClaude, err := m.Send(context.Background(), SendRequest{Token: "tokB", To: "Camille", Brief: Brief{Goal: "Reviewed", Reply: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	codexBrief, claudeBrief := read(toCodex.BriefPath), read(toClaude.BriefPath)
+	if !strings.Contains(codexBrief, "answer Camille with the `send_to_agent` tool") || strings.Contains(codexBrief, "molten agent send Camille") {
+		t.Fatalf("brief to Codex: %s", codexBrief)
+	}
+	if !strings.Contains(claudeBrief, "answer Jérôme with the `send_to_agent` tool") || !strings.Contains(claudeBrief, "`molten agent send Jérôme --goal") ||
+		strings.Contains(claudeBrief, "sandbox") {
+		t.Fatalf("brief to Claude Code: %s", claudeBrief)
+	}
+}
+
+// #985: a send that reaches wavesrv and is refused leaves a line in the log, a bad token included.
+func TestRefusedSendIsLogged(t *testing.T) {
+	m, _, _, _ := makeFixture(t)
+	var lock sync.Mutex
+	var lines []string
+	m.logf = func(format string, args ...any) {
+		lock.Lock()
+		defer lock.Unlock()
+		lines = append(lines, fmt.Sprintf(format, args...))
+	}
+	m.Send(context.Background(), SendRequest{Token: "", To: "Camille", Brief: Brief{Goal: "x"}})
+	m.Send(context.Background(), SendRequest{Token: "tokB", To: "Zoé", Brief: Brief{Goal: "x"}})
+	lock.Lock()
+	defer lock.Unlock()
+	if len(lines) != 2 || !strings.Contains(lines[0], `to="Camille" refused: `+errNotInMoltenTerm) ||
+		!strings.Contains(lines[1], `from="Jérôme" to="Zoé" refused: No active agent`) {
+		t.Fatalf("log: %q", lines)
 	}
 }

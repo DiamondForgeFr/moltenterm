@@ -144,15 +144,19 @@ func TestCodexPassThrough(t *testing.T) {
 func TestCodexPlanStock(t *testing.T) {
 	tree := makeFakeTree(t)
 	plan, args := codexPlan(t, tree.codexCtx("--model", "o3", "fix the tests"))
-	if !slices.Equal(args[len(args)-3:], []string{"--model", "o3", "fix the tests"}) || len(args) != 9 {
+	if !slices.Equal(args[len(args)-3:], []string{"--model", "o3", "fix the tests"}) || len(args) != 11 {
 		t.Fatalf("user args must come last, unchanged: %q", args)
 	}
-	got := overridesOf(t, args, 6)
+	got := overridesOf(t, args, 8)
 	if got["mcp_servers.molten-browser.command"] != codexTestMolten {
 		t.Fatalf("browser command: %v", got)
 	}
 	if !slices.Equal(got["mcp_servers.molten-browser.args"].([]any), []any{"mcp", "browser"}) {
 		t.Fatalf("browser args: %v", got)
+	}
+	// Codex gives a stdio server only its core variables: the terminal token must be named (#985).
+	if env, _ := got["mcp_servers.molten-browser.env_vars"].([]any); !slices.Equal(env, []any{"WAVETERM_JWT", "WAVETERM_BLOCKID"}) {
+		t.Fatalf("browser env_vars: %v", got)
 	}
 	if !slices.Equal(got["notify"].([]any), wantNotify()) {
 		t.Fatalf("notify: %v", got["notify"])
@@ -185,13 +189,13 @@ func TestCodexPlanWrapsUserNotify(t *testing.T) {
 	ctx := tree.codexCtx()
 	tree.write(t, ctx.CodexSystemConfig, `notify = ["system-notify"]`+"\n")
 	_, args := codexPlan(t, ctx)
-	if got := overridesOf(t, args, 6)["notify"]; !slices.Equal(got.([]any), wantNotify("system-notify")) {
+	if got := overridesOf(t, args, 8)["notify"]; !slices.Equal(got.([]any), wantNotify("system-notify")) {
 		t.Fatalf("system notify: %v", got)
 	}
 	tricky := "a \"quoted\" \\ back\tslash\x7f é 'single'"
 	tree.write(t, tree.codexConfig(), "model = \"o3\"\n# notify = [\"commented\"]\nnotify = [\n  \"/Users/me/bin/notify.sh\", # the notifier\n  '--title', \"a \\\"quoted\\\" \\\\ back\\tslash\\u007f é 'single'\",\n]\n\n[tui]\nnotifications = true\n")
 	plan, args := codexPlan(t, ctx)
-	got := overridesOf(t, args, 6)["notify"]
+	got := overridesOf(t, args, 8)["notify"]
 	if !slices.Equal(got.([]any), wantNotify("/Users/me/bin/notify.sh", "--title", tricky)) {
 		t.Fatalf("user notify: %q", got)
 	}
@@ -205,7 +209,7 @@ func TestCodexPlanWrapsUserNotify(t *testing.T) {
 func TestCodexPlanSkips(t *testing.T) {
 	tree := makeFakeTree(t)
 	_, args := codexPlan(t, tree.codexCtx("-c", `notify=["/x/other.sh"]`, "fix"))
-	if len(args) != 7 || args[0] != "-c" || !strings.HasPrefix(args[1], "mcp_servers.molten-browser.command=") || args[4] != "-c" || args[5] != `notify=["/x/other.sh"]` {
+	if len(args) != 9 || args[0] != "-c" || !strings.HasPrefix(args[1], "mcp_servers.molten-browser.command=") || args[6] != "-c" || args[7] != `notify=["/x/other.sh"]` {
 		t.Fatalf("user -c notify: only the browser is added (AC7): %q", args)
 	}
 	for _, flag := range [][]string{{"--config", "notify = []"}, {"-cnotify=[]"}, {"--config=notify=[]"}, {"-c=notify=[]"}} {
@@ -219,7 +223,7 @@ func TestCodexPlanSkips(t *testing.T) {
 	tree.write(t, tree.codexConfig(), "profile = \"work\"\n[profiles.work]\nnotify = [\"work-notify\"]\n[profiles.home]\nmodel = \"o3\"\n")
 	for _, flags := range [][]string{nil, {"-p", "work"}, {"-c", "profile=work"}} {
 		plan, args := codexPlan(t, tree.codexCtx(flags...))
-		if len(args) != 6+len(flags) || strings.Contains(strings.Join(args, " "), "work-notify") || len(itemNames(plan.Skipped, molten.IntegrationNotify)) != 0 {
+		if len(args) != 8+len(flags) || strings.Contains(strings.Join(args, " "), "work-notify") || len(itemNames(plan.Skipped, molten.IntegrationNotify)) != 0 {
 			t.Fatalf("%q: a legacy profile table is not read: %q %v", flags, args, plan.Skipped)
 		}
 	}
@@ -227,14 +231,14 @@ func TestCodexPlanSkips(t *testing.T) {
 	tree.write(t, tree.codexConfig(), "notify = [\"mine\"]\n")
 	tree.write(t, filepath.Join(tree.project, ".codex", "config.toml"), "notify = [\"project-notify\"]\n")
 	plan, args := codexPlan(t, tree.codexCtx())
-	if len(args) != 4 || !strings.Contains(strings.Join(itemNames(plan.Skipped, molten.IntegrationNotify), ""), ".codex/config.toml") {
+	if len(args) != 6 || !strings.Contains(strings.Join(itemNames(plan.Skipped, molten.IntegrationNotify), ""), ".codex/config.toml") {
 		t.Fatalf("a project notify: notify left alone: %q %v", args, plan.Skipped)
 	}
 	os.Remove(filepath.Join(tree.project, ".codex", "config.toml"))
 
 	tree.write(t, tree.codexConfig(), "notify = \"not-a-list\"\n")
 	_, args = codexPlan(t, tree.codexCtx())
-	if len(args) != 4 {
+	if len(args) != 6 {
 		t.Fatalf("a notify that is not a list: left alone: %q", args)
 	}
 
@@ -302,7 +306,7 @@ func TestCodexPlanCodexHome(t *testing.T) {
 		return ""
 	}
 	_, args := codexPlan(t, ctx)
-	if got := overridesOf(t, args, 6)["notify"]; !slices.Equal(got.([]any), wantNotify("from-codex-home")) {
+	if got := overridesOf(t, args, 8)["notify"]; !slices.Equal(got.([]any), wantNotify("from-codex-home")) {
 		t.Fatalf("CODEX_HOME notify: %v", got)
 	}
 	// A session started in the home folder: ~/.codex/config.toml is the user's file, not a project one.
@@ -310,7 +314,7 @@ func TestCodexPlanCodexHome(t *testing.T) {
 	ctx = tree.codexCtx()
 	ctx.Cwd = tree.home
 	_, args = codexPlan(t, ctx)
-	if got := overridesOf(t, args, 6)["notify"]; !slices.Equal(got.([]any), wantNotify("home")) {
+	if got := overridesOf(t, args, 8)["notify"]; !slices.Equal(got.([]any), wantNotify("home")) {
 		t.Fatalf("home folder session: %v", got)
 	}
 }

@@ -98,14 +98,14 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 	os.Symlink("wsh", filepath.Join(data, "bin", "molten"))
 	report, args, procEnv := planMoltenAgentLaunch(agentlaunch.FindAdapter("codex"), "/real/codex", []string{"fix it"}, getenv, time.Now())
 	n := len(args) - 1
-	if report.StepAside != "" || n != 26 || args[n] != "fix it" || !slices.Equal(report.Args, args[:n]) ||
+	if report.StepAside != "" || n != 28 || args[n] != "fix it" || !slices.Equal(report.Args, args[:n]) ||
 		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.PermissionRequest=") }) ||
 		!slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "hooks.SessionStart=") }) {
 		t.Fatalf("args %q report %+v", args, report)
 	}
 	moltenPath := filepath.Join(data, "bin", "molten")
-	if args[5] != `notify=["`+moltenPath+`","agent","notify","--agent","codex","--"]` {
-		t.Fatalf("notify override %q", args[5])
+	if args[7] != `notify=["`+moltenPath+`","agent","notify","--agent","codex","--"]` {
+		t.Fatalf("notify override %q", args[7])
 	}
 	if report.Settings != "" || report.McpConfig != "" {
 		t.Fatalf("no file for codex: %+v", report)

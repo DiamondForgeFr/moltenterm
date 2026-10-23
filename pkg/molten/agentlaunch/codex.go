@@ -229,8 +229,14 @@ func planCodexBrowser(ctx LaunchContext, args codexArgs, config codexConfig, pla
 	return []string{
 		codexConfigFlag, key + ".command=" + tomlString(ctx.MoltenPath),
 		codexConfigFlag, key + ".args=" + tomlArray([]string{"mcp", "browser"}),
+		codexConfigFlag, key + ".env_vars=" + tomlArray(codexBrowserEnv),
 	}
 }
+
+// Codex starts a stdio MCP server with a few core variables only (HOME, PATH, USER, TERM...: codex-rs rmcp-client,
+// create_env_for_mcp_server), plus the names env_vars lists. Without the terminal token the server cannot reach
+// MoltenTerm and every tool answers that it does not run in a MoltenTerm terminal (#985).
+var codexBrowserEnv = []string{"WAVETERM_JWT", "WAVETERM_BLOCKID"}
 
 func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan *LaunchPlan) []string {
 	skip := func(reason phrase) []string {
