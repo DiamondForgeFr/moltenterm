@@ -191,7 +191,10 @@ function GroupRow({ group, depth }: { group: ShipGroup; depth: number }) {
                         </span>
                     ) : null}
                 </div>
-                {group.summary ? <p className="truncate pl-4.5 text-12 text-secondary">{group.summary}</p> : null}
+                {/* Open, the detail gives the summary in full. */}
+                {group.summary && !expanded ? (
+                    <p className="truncate pl-4.5 text-12 text-secondary">{group.summary}</p>
+                ) : null}
                 {group.flag ? (
                     <p className="flex items-start gap-1.5 pl-4.5 text-12 text-warning" data-testid="ship-flag">
                         <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" aria-hidden />
