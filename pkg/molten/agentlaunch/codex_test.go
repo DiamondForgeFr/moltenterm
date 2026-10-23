@@ -199,27 +199,18 @@ func TestCodexPlanSkips(t *testing.T) {
 		}
 	}
 
+	// Codex 0.134+ no longer reads the legacy selector and tables (#990): the wrapper is added, with no notify inside.
 	tree.write(t, tree.codexConfig(), "profile = \"work\"\n[profiles.work]\nnotify = [\"work-notify\"]\n[profiles.home]\nmodel = \"o3\"\n")
-	plan, args := codexPlan(t, tree.codexCtx())
-	if len(args) != 4 || len(itemNames(plan.Skipped, molten.IntegrationNotify)) != 1 {
-		t.Fatalf("a profile's notify: notify left alone: %q %v", args, plan.Skipped)
-	}
-	_, args = codexPlan(t, tree.codexCtx("-p", "home"))
-	if len(args) != 8 {
-		t.Fatalf("-p home has no notify of its own: the wrapper is added: %q", args)
-	}
-	_, args = codexPlan(t, tree.codexCtx("-c", "profile=home"))
-	if len(args) != 8 {
-		t.Fatalf("-c profile=home: the wrapper is added: %q", args)
-	}
-	_, args = codexPlan(t, tree.codexCtx("--profile=work"))
-	if len(args) != 5 {
-		t.Fatalf("--profile=work: notify left alone: %q", args)
+	for _, flags := range [][]string{nil, {"-p", "work"}, {"-c", "profile=work"}} {
+		plan, args := codexPlan(t, tree.codexCtx(flags...))
+		if len(args) != 6+len(flags) || strings.Contains(strings.Join(args, " "), "work-notify") || len(itemNames(plan.Skipped, molten.IntegrationNotify)) != 0 {
+			t.Fatalf("%q: a legacy profile table is not read: %q %v", flags, args, plan.Skipped)
+		}
 	}
 
 	tree.write(t, tree.codexConfig(), "notify = [\"mine\"]\n")
 	tree.write(t, filepath.Join(tree.project, ".codex", "config.toml"), "notify = [\"project-notify\"]\n")
-	plan, args = codexPlan(t, tree.codexCtx())
+	plan, args := codexPlan(t, tree.codexCtx())
 	if len(args) != 4 || !strings.Contains(strings.Join(itemNames(plan.Skipped, molten.IntegrationNotify), ""), ".codex/config.toml") {
 		t.Fatalf("a project notify: notify left alone: %q %v", args, plan.Skipped)
 	}
