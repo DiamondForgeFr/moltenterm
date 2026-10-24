@@ -66,11 +66,57 @@ function forecastOf(
     };
 }
 
-function permutations<T>(items: T[]): T[][] {
-    if (items.length <= 1) {
-        return [items];
+// The reference pricing of an order, on bitmasks: a PR is rebased when it conflicts with the base or an earlier merge
+// put it in conflict.
+function maskPricing(nodes: OrderNode[]): {
+    stepCost: (v: number, placed: number) => number;
+    costOf: (numbers: number[]) => number;
+} {
+    const index = new Map(nodes.map((x, i) => [x.number, i]));
+    const impactedBy = nodes.map(() => 0);
+    for (const [i, x] of nodes.entries()) {
+        for (const b of x.impacts) {
+            impactedBy[index.get(b)] |= 1 << i;
+        }
     }
-    return items.flatMap((x, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((p) => [x, ...p]));
+    const stepCost = (v: number, placed: number) =>
+        nodes[v].group === "conflictsbase" || (impactedBy[v] & placed) !== 0 ? 1 : 0;
+    const costOf = (numbers: number[]) => {
+        let placed = 0;
+        let cost = 0;
+        for (const number of numbers) {
+            const v = index.get(number);
+            cost += stepCost(v, placed);
+            placed |= 1 << v;
+        }
+        return cost;
+    };
+    return { stepCost, costOf };
+}
+
+// The fewest rebases over every merge order, walked depth first rather than listing the permutations: orders sharing a
+// prefix share its cost and no order is built, so the exhaustive check stays cheap on a loaded machine (#1069).
+function bestOrderCost(nodes: OrderNode[]): number {
+    const { stepCost } = maskPricing(nodes);
+    const full = (1 << nodes.length) - 1;
+    let best = Infinity;
+    const walk = (placed: number, cost: number) => {
+        if (cost >= best) {
+            return;
+        }
+        if (placed === full) {
+            best = cost;
+            return;
+        }
+        for (let v = 0; v < nodes.length; v++) {
+            if (placed & (1 << v)) {
+                continue;
+            }
+            walk(placed | (1 << v), cost + stepCost(v, placed));
+        }
+    };
+    walk(0, 0);
+    return best;
 }
 
 // A small deterministic generator, so a failing case can be replayed.
@@ -138,7 +184,9 @@ describe("suggested merge order (FR-REV-024)", () => {
                 edges.filter(([a, b]) => !conflictsbase.includes(a) && !conflictsbase.includes(b)),
                 conflictsbase
             );
-            const best = Math.min(...permutations(nodes.map((x) => x.number)).map((order) => orderCost(order, nodes)));
+            const listOrder = nodes.map((x) => x.number);
+            expect(maskPricing(nodes).costOf(listOrder)).toBe(orderCost(listOrder, nodes));
+            const best = bestOrderCost(nodes);
             const { numbers, exact } = mergeOrderOfNodes(nodes);
             expect(exact).toBe(true);
             expect([...numbers].sort((a, b) => a - b)).toEqual(nodes.map((x) => x.number));
