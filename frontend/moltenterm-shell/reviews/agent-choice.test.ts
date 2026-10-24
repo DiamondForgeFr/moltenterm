@@ -5,12 +5,23 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hiddenTabIds, visibleTabIds } from "../hidden-tabs";
 import { translate } from "../i18n/i18n-core";
+import { errorPhrase, wordPhrase } from "../i18n/phrase";
 import { askReviewRebase } from "../review/review-client";
 import { restartOutcome } from "../review/review-restart";
 import { AgentChoiceModel, agentChoiceOf, agentStartOf, askAgentChoice, pickedAgent } from "./agent-choice";
 import { originText, readOrigin } from "./agent-origin";
-import { rebaseOutcome, ReviewPr } from "./reviews-model";
+import { rebaseOutcome as outcomeOf, ReviewPr } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
+
+// The outcome with its text worded, as a row shows it (#1058).
+function rebaseOutcome(
+    result: Parameters<typeof outcomeOf>[0],
+    error?: string,
+    what?: Parameters<typeof outcomeOf>[2]
+) {
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+}
 
 const setActiveTab = vi.fn();
 

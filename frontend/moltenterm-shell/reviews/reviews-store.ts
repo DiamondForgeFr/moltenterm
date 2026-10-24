@@ -11,8 +11,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
-import { t } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
 import { openMoltentermView } from "../open-view";
 import { showTabFromHere } from "../opener-tab";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
@@ -180,7 +179,7 @@ export class ReviewsModel {
             showStartedAgent(mode, result);
             outcome = rebaseOutcome(result);
         } catch (e) {
-            outcome = rebaseOutcome(null, serverErrorText(e));
+            outcome = rebaseOutcome(null, errorPhrase(e));
         }
         this.noteTask(dir, pr, "rebase", outcome);
         return outcome;
@@ -264,7 +263,7 @@ export class ReviewsModel {
             showStartedAgent(mode, result);
             outcome = rebaseOutcome(result, null, "finish");
         } catch (e) {
-            outcome = rebaseOutcome(null, serverErrorText(e), "finish");
+            outcome = rebaseOutcome(null, errorPhrase(e), "finish");
         }
         this.noteTask(dir, pr, "finish", outcome);
         return outcome;
@@ -318,16 +317,16 @@ export class ReviewsModel {
 
     // Open its work (#954): the PR's diff (the Review tab's review block) beside the agent's terminal, in the agent's
     // tab, then that tab shown with the terminal focused. A diff of the PR already there is shown again, not doubled.
-    async openAgentWork(dir: string, pr: ReviewPr, repo: string, blockId: string): Promise<string> {
+    async openAgentWork(dir: string, pr: ReviewPr, repo: string, blockId: string): Promise<Phrase> {
         const repoName = repo || repoOfPrUrl(pr?.url);
         if (!dir || pr == null || !repoName || !blockId) {
-            return t("reviewsAgents.work.failed", { message: "" });
+            return phrase("reviewsAgents.work.failed", { message: "" });
         }
         try {
             const info = await RpcApi.BlockInfoCommand(TabRpcClient, blockId);
             const tabId = info?.tabid;
             if (!tabId) {
-                return t("reviewsAgents.work.gone");
+                return phrase("reviewsAgents.work.gone");
             }
             const prInfo = reviewPrInfo(dir, pr, repoName);
             if (!(await tabHasReviewOf(tabId, prInfo))) {
@@ -340,24 +339,24 @@ export class ReviewsModel {
             }
             await showPanel(blockId);
         } catch (e) {
-            return t("reviewsAgents.work.failed", { message: serverErrorText(e) });
+            return phrase("reviewsAgents.work.failed", { message: errorPhrase(e) });
         }
-        return "";
+        return null;
     }
 
     // Stop (#954, #933's Stop): the agent's session ends; what it pushed stays. Answers the error in plain words.
-    async stopAgent(blockId: string): Promise<string> {
+    async stopAgent(blockId: string): Promise<Phrase> {
         const sessions = DurableSessions.getInstance();
         const session = globalStore.get(sessions.dataAtom)?.sessions?.find((s) => s.blockid === blockId);
         if (session == null || !session.canend) {
-            return t("reviewsAgents.stop.noSession");
+            return phrase("reviewsAgents.stop.noSession");
         }
         try {
             await sessions.end(session.id);
         } catch (e) {
-            return t("reviewsAgents.stop.failed", { message: serverErrorText(e) });
+            return phrase("reviewsAgents.stop.failed", { message: errorPhrase(e) });
         }
-        return "";
+        return null;
     }
 
     // The rebases the cleanup after a merge asked (#691) mark their Reviews rows like a row's click.
@@ -436,38 +435,38 @@ export class ReviewsModel {
             this.noteTask(dir, pr, "investigate", outcome);
             return outcome;
         } catch (e) {
-            return rebaseOutcome(null, serverErrorText(e), "investigate");
+            return rebaseOutcome(null, errorPhrase(e), "investigate");
         }
     }
 
     // Rerun failed jobs (#797), after the row's confirmation: wavesrv reruns the runs of the failed checks and tells
-    // their outcome by a notification; the list reads GitHub again. Answers the error in plain words, "" on success.
-    async rerunFailed(dir: string, number: number): Promise<{ error: string; checks: string[] }> {
+    // their outcome by a notification; the list reads GitHub again. Answers the error in plain words, null on success.
+    async rerunFailed(dir: string, number: number): Promise<{ error: Phrase; checks: string[] }> {
         if (!dir || !number) {
-            return { error: t("reviews.ci.rerun.failed", { message: "" }), checks: [] };
+            return { error: phrase("reviews.ci.rerun.failed", { message: "" }), checks: [] };
         }
         try {
             const result = await reviewsRerunFailed(dir, number);
             fireAndForget(async () => {
                 await reviewsGet(dir, true);
             });
-            return { error: "", checks: result?.checks ?? [] };
+            return { error: null, checks: result?.checks ?? [] };
         } catch (e) {
-            return { error: t("reviews.ci.rerun.failed", { message: serverErrorText(e) }), checks: [] };
+            return { error: phrase("reviews.ci.rerun.failed", { message: errorPhrase(e) }), checks: [] };
         }
     }
 
     // Mark ready for review (#687), from a draft's row or its Review tab: gh pr ready, then the list moves the PR to
-    // Waiting for review and asks GitHub again. Answers the error in plain words, "" on success.
-    async markReady(dir: string, number: number, repo: string): Promise<string> {
+    // Waiting for review and asks GitHub again. Answers the error in plain words, null on success.
+    async markReady(dir: string, number: number, repo: string): Promise<Phrase> {
         if (!dir || !number || !repo) {
             return markReadyError(null);
         }
-        let error: string;
+        let error: Phrase;
         try {
             error = markReadyError(await markReviewReady({ repo, number, dir }));
         } catch (e) {
-            error = markReadyError(null, serverErrorText(e));
+            error = markReadyError(null, errorPhrase(e));
         }
         if (error) {
             return error;
@@ -477,7 +476,7 @@ export class ReviewsModel {
         fireAndForget(async () => {
             await reviewsGet(dir, true);
         });
-        return "";
+        return null;
     }
 }
 

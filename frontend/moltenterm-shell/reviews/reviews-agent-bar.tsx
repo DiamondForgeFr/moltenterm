@@ -17,6 +17,7 @@ import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
+import { Phrase, useWordPhrase } from "../i18n/phrase";
 import { serverText } from "../i18n/server-text";
 import { reviewProjectCommands, useTrustAsk } from "../mission/trust-approval";
 import { MoltenWave } from "../molten-button";
@@ -411,15 +412,16 @@ export function RowAgentLine({
     pr: ReviewPr;
     task: RebaseAsk;
     onRetry: () => void;
-    onOpenWork: (blockId: string) => Promise<string>;
-    onStop: (blockId: string) => Promise<string>;
+    onOpenWork: (blockId: string) => Promise<Phrase>;
+    onStop: (blockId: string) => Promise<Phrase>;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const facts = useBranchAgent(dir, pr.branch);
     const now = useMinuteNow();
     const [confirmStop, setConfirmStop] = useState(false);
     const [busy, setBusy] = useState<"work" | "stop">(null);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
     const state = prTaskState(prTask, pr, facts, now);
     const live = taskAgentLive(prTask, facts);
@@ -429,12 +431,12 @@ export function RowAgentLine({
         return <PrSignature agents={pr.agents} testId="reviews-signature" />;
     }
     const liveBlock = facts?.kind === "panel" && live ? facts.blockId : "";
-    const run = (what: "work" | "stop", fn: () => Promise<string>) => {
+    const run = (what: "work" | "stop", fn: () => Promise<Phrase>) => {
         if (busy != null) {
             return;
         }
         setBusy(what);
-        setError("");
+        setError(null);
         fireAndForget(async () => {
             try {
                 setError(await fn());
@@ -534,9 +536,9 @@ export function RowAgentLine({
     }
     return (
         <>
-            {error ? (
+            {error != null ? (
                 <div className="text-12 leading-4 text-danger" role="status" data-testid="reviews-agent-error">
-                    {error}
+                    {word(error)}
                 </div>
             ) : null}
             {/* A stuck task whose agent is gone is told by its own name, not by whoever is on the branch now. */}

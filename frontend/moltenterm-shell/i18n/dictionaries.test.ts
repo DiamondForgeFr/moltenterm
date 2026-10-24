@@ -31,9 +31,9 @@ function sourceFiles(dir: string): string[] {
     return out;
 }
 
-// Literal keys passed to t(), mt() or useT()'s function (named t): t("a.b"), t('a.b', …).
+// Literal keys passed to t(), mt(), phrase() or useT()'s function (named t): t("a.b"), t('a.b', …).
 export function literalKeys(source: string): string[] {
-    return [...source.matchAll(/\b(?:t|mt)\(\s*["']([A-Za-z][\w-]*(?:\.[\w:-]+)+)["']/g)].map((m) => m[1]);
+    return [...source.matchAll(/\b(?:t|mt|phrase)\(\s*["']([A-Za-z][\w-]*(?:\.[\w:-]+)+)["']/g)].map((m) => m[1]);
 }
 
 describe("shipped dictionaries", () => {
@@ -64,7 +64,7 @@ describe("shipped dictionaries", () => {
         for (const dir of ScannedDirs) {
             for (const file of sourceFiles(path.join(Root, dir))) {
                 const source = fs.readFileSync(file, "utf8");
-                if (!/\b(?:t|mt)\(/.test(source)) continue;
+                if (!/\b(?:t|mt|phrase)\(/.test(source)) continue;
                 for (const key of literalKeys(source)) {
                     if (resolveKey(en, key) == null) unknown.push(`${path.relative(Root, file)}: ${key}`);
                 }

@@ -10,6 +10,7 @@ import { getApi, openLink } from "@/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useT } from "../i18n/i18n";
+import { useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import type { RebaseOutcome } from "../reviews/reviews-model";
 import { DominoLoader } from "../suite/suite";
@@ -71,6 +72,7 @@ export type StartAgentFn = (pr: ReviewCleanupPr) => Promise<RebaseOutcome>;
 
 function StartAgentButton({ pr, onStart }: { pr: ReviewCleanupPr; onStart: StartAgentFn }) {
     const t = useT();
+    const word = useWordPhrase();
     const [starting, setStarting] = useState(false);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     const start = () => {
@@ -104,7 +106,7 @@ function StartAgentButton({ pr, onStart }: { pr: ReviewCleanupPr; onStart: Start
                     className={cn("break-words", outcome.kind === "failed" ? "text-danger" : "text-secondary")}
                     data-testid="validate-others-start-outcome"
                 >
-                    {outcome.text}
+                    {word(outcome.text)}
                 </div>
             ) : null}
         </div>

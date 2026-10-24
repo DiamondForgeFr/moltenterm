@@ -6,6 +6,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { t } from "../i18n/i18n";
+import { wordPhrase } from "../i18n/phrase";
 import { NotificationGestureResult } from "../notifications-store";
 import { ReviewsAnswers, reviewsGet } from "./reviews-client";
 import { ReviewPr } from "./reviews-model";
@@ -44,7 +45,7 @@ export async function investigateGesture(args: Record<string, any>): Promise<Not
         return { ok: false };
     }
     if (outcome.kind === "failed") {
-        return { ok: false, error: outcome.text };
+        return { ok: false, error: wordPhrase(outcome.text) };
     }
     // The notice stays until the PR merges or leaves the queue: the queue resolves it then.
     return { ok: true };

@@ -8,6 +8,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { ReviewsModel } from "./reviews-store";
@@ -23,18 +24,19 @@ export type MarkReadyState = {
 };
 
 export function useMarkReady(dir: string, number: number, repo: string): MarkReadyState {
+    const word = useWordPhrase();
     const [phase, setPhase] = useState<MarkReadyPhase>("idle");
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     const cancel = () => {
         setPhase("idle");
-        setError("");
+        setError(null);
     };
     useEscape(phase === "confirm" || phase === "failed", cancel);
     return {
         phase,
-        error,
+        error: word(error),
         ask: () => {
-            setError("");
+            setError(null);
             setPhase("confirm");
         },
         confirm: () => {
@@ -45,7 +47,7 @@ export function useMarkReady(dir: string, number: number, repo: string): MarkRea
             fireAndForget(async () => {
                 const failed = await ReviewsModel.getInstance().markReady(dir, number, repo);
                 setError(failed);
-                setPhase(failed ? "failed" : "idle");
+                setPhase(failed != null ? "failed" : "idle");
             });
         },
         cancel,
