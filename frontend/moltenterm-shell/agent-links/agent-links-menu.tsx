@@ -19,6 +19,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MenuPopover } from "../mission/menu-popover";
 import { MoltenWave } from "../molten-button";
 import { MoltentermNotifications } from "../notifications-store";
+import { TabActivity, whileShown } from "../tab-activity";
 import { termupdateMessage } from "../termupdate/termupdate-text";
 import {
     addServerHint,
@@ -503,11 +504,14 @@ function LinksMenu({ blockId, anchor, onClose }: { blockId: string; anchor: Elem
 
     useEffect(() => {
         loadPairs();
-        const timer = setInterval(() => {
-            loadPairs();
-            setNow(Date.now());
-        }, PairsPollMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(
+            whileShown(PairsPollMs),
+            () => {
+                loadPairs();
+                setNow(Date.now());
+            },
+            "agent-links-pairs"
+        );
     }, [blockId, loadPairs]);
 
     const run = (fn: () => Promise<void>) => {
