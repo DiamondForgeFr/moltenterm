@@ -32,6 +32,8 @@ const options: SetupOptions = {
     milestone: true,
     manual: [],
     environments: [],
+    reconcile: false,
+    labels: [],
 };
 
 const draft: SetupDraft = {
@@ -63,6 +65,7 @@ const draft: SetupDraft = {
         saasfoundry: false,
         ticketbranches: false,
         releaseworktree: "../P-release",
+        labels: [],
     },
     defaults: options,
     options,
@@ -73,7 +76,7 @@ const draft: SetupDraft = {
     branchmodels: [
         { id: "promote", allowed: true },
         { id: "single", allowed: true },
-        { id: "rcpr", allowed: false, reasons: [{ code: "chainNoRcPr", refuses: true }] },
+        { id: "rcpr", allowed: false, reasons: [{ code: "singleBranch", refuses: true }] },
     ],
     merges: [{ id: "merge", allowed: true }],
     deploytargets: [],
@@ -107,7 +110,7 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
             <ChoicesStep draft={draft} options={options} onChange={() => {}} channel="public" setChannel={() => {}} />
         );
         expect(html).toContain("Windows installers only accept numbers after the dash (msi target).");
-        expect(html).toContain("does not open release branches by pull request yet");
+        expect(html).toContain("The trunk is also the release branch.");
         expect(html).toContain("Update docs/changelog.md (EN)");
         expect(html).toContain("release.yml starts on the tag");
     });
@@ -180,5 +183,147 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
         expect(html).toContain("vX.Y.Z");
         expect(html).toContain('data-kind="workflow"');
         expect(html).toContain("Prepare");
+        expect(html).not.toContain("setup-diagram-pr");
+    });
+});
+
+// A protected, diverged release branch shaped like SaaSFoundryAI's (#1046).
+const prOptions: SetupOptions = {
+    ...options,
+    branchmodel: "rcpr",
+    reconcile: true,
+    labels: [{ path: "README.md", line: 7, pattern: "\\*\\*v{version}\\*\\*" }],
+};
+
+const prDraft: SetupDraft = {
+    ...draft,
+    facts: {
+        ...draft.facts,
+        rcbranchpattern: "rc-{version}",
+        currentversion: "1.0.1",
+        labels: [
+            { path: "README.md", line: 7, text: "**v1.0.1**", version: "1.0.1", pattern: "\\*\\*v{version}\\*\\*" },
+            { path: "AGENTS.md", line: 177, text: "- Current version: 1.0.0-beta", version: "1.0.0-beta", pattern: "" },
+        ],
+        protection: {
+            branch: "master",
+            read: true,
+            pullrequest: true,
+            requiredchecks: ["CI / Required gate"],
+            strict: true,
+            noforcepush: true,
+            restrictupdates: false,
+            mergemethods: ["merge", "squash", "rebase"],
+            bypass: "never",
+            sources: [{ code: "ruleset", path: "Protect release branches", detail: "24043198" }],
+        },
+        divergence: {
+            trunk: "develop",
+            release: "master",
+            read: true,
+            ahead: 96,
+            behind: 184,
+            conflicts: true,
+            conflictfiles: 42,
+            notequivalent: 0,
+            samples: [],
+        },
+    },
+    branchmodels: [
+        {
+            id: "promote",
+            allowed: false,
+            reasons: [{ code: "protectedRelease", target: "master", refuses: true }],
+        },
+        { id: "single", allowed: true },
+        { id: "rcpr", allowed: true },
+    ],
+    options: prOptions,
+    proposal: {
+        release: {
+            public: [
+                { id: "prepare", title: "Prepare", phase: "prepare", run: "molten release prepare {tag} --pr" },
+                { id: "reconcile", title: "Reconcile", phase: "prepare", run: "molten release reconcile {tag}" },
+                { id: "changelog-en", title: "Changelog", phase: "cut", manual: "Write it", run: "" },
+                { id: "open-pr", title: "Open", phase: "cut", confirm: "Pushes", run: "molten release open-pr {tag}" },
+                {
+                    id: "merge-pr",
+                    title: "Merge",
+                    phase: "cut",
+                    confirm: "Merges",
+                    run: "molten release merge-pr {tag} --method merge",
+                },
+                { id: "tag", title: "Tag", phase: "cut", confirm: "Public", run: "molten release tag {tag}" },
+                { id: "sync-back", title: "Back", phase: "back", run: "molten release sync-back {tag}" },
+            ],
+        },
+        sources: {},
+    },
+};
+
+describe("release setup of a protected release branch (#1046)", () => {
+    it("says why the flow goes by pull request, with the divergence's numbers", () => {
+        const html = renderToStaticMarkup(
+            <ReviewStep
+                draft={prDraft}
+                options={prOptions}
+                refined={null}
+                refining={false}
+                onRefine={() => {}}
+                onDropRefined={() => {}}
+            />
+        );
+        expect(html).toContain("Why this flow");
+        expect(html).toContain(
+            "master asks for a pull request, the checks CI / Required gate on a branch up to date with master (the ruleset “Protect release branches”) and nobody can bypass it: the release goes through rc-X.Y.Z"
+        );
+        expect(html).toContain("master has 96 commits develop does not, and develop has 184 that master does not.");
+        expect(html).toContain("Merging them conflicts in 42 files.");
+        expect(html).toContain("a one-time merge -s ours on the RC branch");
+    });
+
+    it("offers the reconciliation, refuses the promotion and lists the labels", () => {
+        const html = renderToStaticMarkup(
+            <ChoicesStep
+                draft={prDraft}
+                options={prOptions}
+                onChange={() => {}}
+                channel="public"
+                setChannel={() => {}}
+            />
+        );
+        expect(html).toContain("master takes changes by pull request only");
+        expect(html).toContain("Reconcile master into rc-X.Y.Z once");
+        expect(html).toContain('data-testid="setup-reconcile"');
+        expect(html).toContain("README.md:7");
+        expect(html).toContain("No pattern finds this line alone");
+    });
+
+    it("warns instead of reconciling when a commit has no equivalent on the trunk", () => {
+        const lossy: SetupDraft = {
+            ...prDraft,
+            facts: {
+                ...prDraft.facts,
+                divergence: { ...prDraft.facts.divergence, notequivalent: 1, samples: ["abc123 fix: only on master"] },
+            },
+        };
+        const html = renderToStaticMarkup(
+            <ChoicesStep draft={lossy} options={prOptions} onChange={() => {}} channel="public" setChannel={() => {}} />
+        );
+        expect(html).toContain("1 commit of master has no equivalent on develop (abc123 fix: only on master)");
+        expect(html).not.toContain('data-testid="setup-reconcile"');
+    });
+
+    it("draws the RC branch and its pull request into the release branch", () => {
+        const model = flowModel(prDraft, "public", "v");
+        expect(model.viaPr).toBe(true);
+        expect(model.promote).toBe(false);
+        expect(model.nodes.find((n) => n.key === "public/prepare").lane).toBe("rc");
+        expect(model.nodes.find((n) => n.key === "public/open-pr").lane).toBe("rc");
+        expect(model.nodes.find((n) => n.key === "public/tag").lane).toBe("release");
+        const html = renderToStaticMarkup(<FlowDiagram model={model} />);
+        expect(html).toContain("rc-X.Y.Z");
+        expect(html).toContain('data-testid="setup-diagram-pr"');
+        expect(html).toContain('data-testid="setup-diagram-branch"');
     });
 });

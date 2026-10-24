@@ -320,6 +320,9 @@ func TestSaaSFoundryProviderAdapter(t *testing.T) {
 	dir := saasFoundryFixture(t)
 	var calls []string
 	run := func(_ context.Context, _ string, name string, args ...string) ([]byte, error) {
+		if name != "sf" {
+			return nil, errors.New("not in this test")
+		}
 		calls = append(calls, name+" "+strings.Join(args, " "))
 		if args[len(args)-1] == "--help" {
 			return []byte("Usage: sf pipeline draft [--json] [--kind on-premise|saas]"), nil

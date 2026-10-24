@@ -137,14 +137,22 @@ func parseSfDraft(out []byte) (*ProviderDraft, error) {
 }
 
 // DetectionProvider is MoltenTerm's own: the repository's facts and the templates.
-type DetectionProvider struct{}
+type DetectionProvider struct {
+	// The facts the setup already read (the remote ones included); nil reads the files again.
+	Facts *Facts
+}
 
 func (DetectionProvider) Name() string { return ProviderMoltenTerm }
 
 func (DetectionProvider) Available(context.Context, string) bool { return true }
 
-func (DetectionProvider) Draft(_ context.Context, dir string, kind string) (*ProviderDraft, error) {
-	f := Detect(dir)
+func (d DetectionProvider) Draft(_ context.Context, dir string, kind string) (*ProviderDraft, error) {
+	var f Facts
+	if d.Facts != nil {
+		f = *d.Facts
+	} else {
+		f = Detect(dir)
+	}
 	o := DefaultOptions(f)
 	if kind != "" {
 		o.Kind = kind

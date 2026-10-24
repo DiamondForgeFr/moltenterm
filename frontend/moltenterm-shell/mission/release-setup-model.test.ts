@@ -32,6 +32,8 @@ const options: SetupOptions = {
     milestone: true,
     manual: [],
     environments: [],
+    reconcile: false,
+    labels: [],
 };
 
 function draft(over: Partial<SetupDraft> = {}): SetupDraft {
@@ -60,6 +62,7 @@ function draft(over: Partial<SetupDraft> = {}): SetupDraft {
             saasfoundry: true,
             ticketbranches: true,
             releaseworktree: "../P-release",
+            labels: [],
         },
         defaults: options,
         options,

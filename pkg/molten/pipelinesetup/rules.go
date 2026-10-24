@@ -35,13 +35,15 @@ const (
 	MergeRebase = "rebase"
 
 	// Why a choice is unavailable, or what it implies.
-	ReasonMsiNumeric     = "msiNumeric"
-	ReasonChainNumeric   = "chainNumeric"
-	ReasonNpmDistTag     = "npmDistTag"
-	ReasonChainNoRcPr    = "chainNoRcPr"
-	ReasonChainMerge     = "chainMerge"
-	ReasonSingleBranch   = "singleBranch"
-	ReasonNoReleaseTrunk = "noReleaseBranch"
+	ReasonMsiNumeric   = "msiNumeric"
+	ReasonChainNumeric = "chainNumeric"
+	ReasonNpmDistTag   = "npmDistTag"
+	ReasonChainMerge   = "chainMerge"
+	// The release branch takes pull requests only; a merge method its protection does not allow (#1046).
+	ReasonProtectedRelease = "protectedRelease"
+	ReasonProtectionMerge  = "protectionMerge"
+	ReasonSingleBranch     = "singleBranch"
+	ReasonNoReleaseTrunk   = "noReleaseBranch"
 )
 
 // A rule about one choice for one target: the choice is refused (Allowed false) or allowed with a note.
@@ -62,8 +64,25 @@ var RcFormatRules = []ChoiceRule{
 	{Choice: RcFormatRcDot, Target: TargetAll, Allowed: false, Reason: ReasonChainNumeric},
 }
 
-var BranchModelRules = []ChoiceRule{
-	{Choice: BranchModelRcPr, Target: TargetAll, Allowed: false, Reason: ReasonChainNoRcPr},
+var BranchModelRules = []ChoiceRule{}
+
+// applyProtection refuses what the release branch's protection refuses (#1046): a promotion pushed straight to a
+// branch that takes pull requests only, a merge method its rules do not allow.
+func applyProtection(models []Choice, merges []Choice, p *Protection) {
+	if p.RequiresPr() {
+		for i := range models {
+			if models[i].Id == BranchModelPromote {
+				models[i].Allowed = false
+				models[i].Reasons = append(models[i].Reasons, ChoiceReason{Code: ReasonProtectedRelease, Target: p.Branch, Refuses: true})
+			}
+		}
+	}
+	for i := range merges {
+		if !p.AllowsMerge(merges[i].Id) {
+			merges[i].Allowed = false
+			merges[i].Reasons = append(merges[i].Reasons, ChoiceReason{Code: ReasonProtectionMerge, Target: p.Branch, Refuses: true})
+		}
+	}
 }
 
 var MergeRules = []ChoiceRule{

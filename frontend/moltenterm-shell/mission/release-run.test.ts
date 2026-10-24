@@ -390,3 +390,37 @@ describe("a failed step an agent can look into (#945)", () => {
         expect(releaseRun(facts(), steps).phases[0].failure).toBeUndefined();
     });
 });
+
+describe("release run of the pull-request flow (#1046)", () => {
+    const prSteps: PipelineReleaseStep[] = [
+        { id: "prepare", title: "Prepare on rc-X.Y.Z", phase: "prepare", run: "molten release prepare {tag} --pr" },
+        { id: "open-pr", title: "Open the pull request", phase: "cut", confirm: "Pushes rc for {tag}.", run: "x" },
+        { id: "merge-pr", title: "Merge the pull request", phase: "cut", confirm: "Merges {tag}.", run: "x" },
+        { id: "tag", title: "Tag the merge commit", phase: "cut", confirm: "{tag} is public once pushed.", run: "x" },
+    ];
+    const pr = { number: 9, url: "https://gh/pr/9", title: "chore(release): v1.2.0-1 (rc)", headRefName: "rc-1.2.0" };
+
+    it("keeps the earlier cut steps' titles and asks before each; only the tag step reads Cut", () => {
+        const open = releaseRun(facts({ preparation: ok() }), prSteps).phases[1];
+        expect(open.action).toMatchObject({
+            step: "open-pr",
+            label: "Open the pull request",
+            confirm: "Pushes rc for v1.2.0-1.",
+        });
+        const merge = releaseRun(facts({ preparation: ok(), steps: { "open-pr": ok() }, releasepr: pr }), prSteps)
+            .phases[1];
+        expect(merge.action).toMatchObject({
+            step: "merge-pr",
+            label: "Merge the pull request",
+            confirm: "Merges v1.2.0-1.",
+        });
+        expect(merge.links).toContainEqual({ label: "The pull request", url: "https://gh/pr/9" });
+        const tag = releaseRun(facts({ preparation: ok(), steps: { "open-pr": ok(), "merge-pr": ok() } }), prSteps)
+            .phases[1];
+        expect(tag.action).toMatchObject({
+            step: "tag",
+            label: "Cut v1.2.0-1",
+            confirm: "v1.2.0-1 is public once pushed.",
+        });
+    });
+});

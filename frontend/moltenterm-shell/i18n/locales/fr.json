@@ -3142,6 +3142,7 @@
             "failedJobs": "En échec : {jobs}.",
             "endedIn": "{workflows} s'est terminé en « {conclusion} ».",
             "theRelease": "La release",
+            "thePullRequest": "La pull request",
             "waitsBuild": "Attend le build.",
             "published": "Publié.",
             "noPublishToFollow": "Rien à suivre : pas sur GitHub, et aucune étape de publication déclarée.",
@@ -3564,7 +3565,46 @@
                 "syncBack": "Ramener le commit de release sur {trunk} par pull request",
                 "milestone": "Fermer le jalon une fois publié",
                 "manual": "Étapes faites à la main",
-                "manualHint": "Ce que MoltenTerm ne peut pas lancer pour vous, comme une fusion ponctuelle : la release attend que vous la marquiez comme faite."
+                "manualHint": "Ce que MoltenTerm ne peut pas lancer pour vous, comme une fusion ponctuelle : la release attend que vous la marquiez comme faite.",
+                "reconcile": "Réconcilier {release} dans {rc} une fois (merge -s ours, avant le commit de release)",
+                "reconcileHint": "Chaque commit de la branche de release est déjà sur le tronc : rien n’est perdu. Retirez l’étape une fois une release passée.",
+                "labels": "Libellés de version",
+                "labelsHint": "Les lignes hors des fichiers de version qui affichent la version ({version}) ; celles gardées sont mises à jour avec elle.",
+                "labelManual": "Aucun motif ne trouve cette ligne seule : vous la mettez à jour à la main, dans une étape avant la coupe."
+            },
+            "why": {
+                "title": "Pourquoi ce flux"
+            },
+            "protection": {
+                "unread": "La protection de {branch} n’a pas pu être lue ({error}) : le flux suppose qu’elle accepte les pushs directs.",
+                "none": "{branch} ne demande pas de pull request : la release y est poussée directement.",
+                "pullRequest": "une pull request",
+                "checks": "les checks {checks}",
+                "checksStrict": "les checks {checks} sur une branche à jour avec {branch}",
+                "restricted": "des mises à jour restreintes",
+                "ruleset": "le ruleset « {name} »",
+                "classic": "la protection de branche",
+                "bypassable": "{branch} demande {rules} ({sources}), mais vous pouvez la contourner : la release y est poussée directement.",
+                "requires": "{branch} demande {rules} ({sources}) et personne ne peut la contourner : la release passe par {rc} et sa pull request, fusionnée par un commit de fusion une fois ses checks verts, et le tag est posé sur le commit de fusion.",
+                "requiresPrOnly": "{branch} demande {rules} ({sources}) et vous ne pouvez la contourner que par une pull request : la release passe par {rc} et sa pull request, fusionnée par un commit de fusion une fois ses checks verts, et le tag est posé sur le commit de fusion."
+            },
+            "divergence": {
+                "none": "{release} ne contient rien qui manque à {trunk}.",
+                "ahead": {
+                    "one": "{release} a {count} commit que {trunk} n’a pas, et {trunk} en a {behind} que {release} n’a pas.",
+                    "other": "{release} a {count} commits que {trunk} n’a pas, et {trunk} en a {behind} que {release} n’a pas."
+                },
+                "conflicts": {
+                    "one": "Leur fusion entre en conflit sur {count} fichier.",
+                    "other": "Leur fusion entre en conflit sur {count} fichiers."
+                },
+                "clean": "Leur fusion n’entre pas en conflit.",
+                "notEquivalent": {
+                    "one": "{count} commit de {release} n’a pas d’équivalent sur {trunk} ({samples}) : un merge -s ours le perdrait, aucune réconciliation n’est donc proposée ; reportez-le d’abord sur {trunk}.",
+                    "other": "{count} commits de {release} n’ont pas d’équivalent sur {trunk} (dont {samples}) : un merge -s ours les perdrait, aucune réconciliation n’est donc proposée ; reportez-les d’abord sur {trunk}."
+                },
+                "equivalent": "Chaque commit de {release} a déjà son équivalent sur {trunk} : un merge -s ours unique sur la branche RC, avant le commit de release, joint leurs historiques sans rien perdre.",
+                "equivalentPromote": "Chaque commit de {release} a déjà son équivalent sur {trunk}, mais la promotion refuse une fusion en conflit : le modèle par pull request propose une réconciliation unique."
             },
             "branchModel": {
                 "promote": "Promouvoir {trunk} sur {release}, puis taguer {release}",
@@ -3584,7 +3624,8 @@
                 "msiNumeric": "Les installeurs Windows n’acceptent que des chiffres après le tiret (cible {target}).",
                 "chainNumeric": "La chaîne de release de MoltenTerm numérote les candidates -1, -2… pour l’instant.",
                 "npmDistTag": "npm l’accepte, publié sous un dist-tag comme next.",
-                "chainNoRcPr": "La chaîne de release de MoltenTerm n’ouvre pas encore de branche de release par pull request.",
+                "protectedRelease": "{target} n’accepte les changements que par pull request : une promotion poussée directement y est refusée.",
+                "protectionMerge": "Les règles de {target} n’autorisent pas cette méthode de fusion.",
                 "chainMerge": "La chaîne de release de MoltenTerm fusionne ou avance ; celle-ci viendra plus tard.",
                 "singleBranch": "Le tronc est aussi la branche de release.",
                 "noReleaseBranch": "Aucune branche de release n’est déclarée."
@@ -3607,7 +3648,10 @@
                 "targetNpm": "Paquet npm {detail} ({path}).",
                 "targetWorkflow": "Publié par {path}.",
                 "kindPublish": "{path} publie sur un tag.",
-                "kindDeploy": "{path} déploie sur {detail}."
+                "kindDeploy": "{path} déploie sur {detail}.",
+                "protection": "La protection de {path} : {detail}.",
+                "reconcile": "{path} ont divergé : {detail} (commits en avance / en retard / fichiers en conflit).",
+                "labelsManual": "Libellés de version qu’aucun motif ne trouve seuls."
             },
             "manual": {
                 "titlePlaceholder": "Ce qu’il faut faire, en quelques mots",

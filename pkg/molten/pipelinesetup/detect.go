@@ -7,6 +7,7 @@
 package pipelinesetup
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -79,6 +80,12 @@ type Facts struct {
 	CurrentBranch  string `json:"currentbranch,omitempty"`
 	// Where `molten release prepare` prepares the cut, beside the main checkout.
 	ReleaseWorktree string `json:"releaseworktree"`
+	// The project's version as its first version file reads it, and the labels of it found elsewhere (#1046).
+	CurrentVersion string         `json:"currentversion,omitempty"`
+	Labels         []VersionLabel `json:"labels"`
+	// Read through gh and git by the setup (ReadRemoteFacts); nil when not read.
+	Protection *Protection `json:"protection,omitempty"`
+	Divergence *Divergence `json:"divergence,omitempty"`
 }
 
 type packageJson struct {
@@ -146,6 +153,25 @@ func Detect(dir string) Facts {
 		f.NotesFound = true
 	}
 	f.Changelogs = detectChangelogs(dir)
+	f.Labels = []VersionLabel{}
+	if current, err := versions.ReadVersion(dir, f.VersionFiles); err == nil {
+		f.CurrentVersion = current
+		skip := map[string]bool{}
+		for _, vf := range f.VersionFiles {
+			// A file declared as a text entry already is still searched: another label of it may be missing.
+			if vf.Format != versions.FileFormatText {
+				skip[vf.Path] = true
+			}
+		}
+		for _, c := range f.Changelogs {
+			skip[c.Path] = true
+		}
+		for _, l := range DetectLabels(dir, current, skip) {
+			if !declaredLabel(f.VersionFiles, l) {
+				f.Labels = append(f.Labels, l)
+			}
+		}
+	}
 	f.Workflows = ReadWorkflows(dir)
 	if f.Workflows == nil {
 		f.Workflows = []Workflow{}
@@ -154,6 +180,28 @@ func Detect(dir string) Facts {
 	f.OnGithub = onGithub(dir)
 	f.Kind, f.KindEvidence = detectKind(f)
 	return f
+}
+
+// declaredLabel: a text entry of versions.files already reads this line's label.
+func declaredLabel(files []versions.VersionFile, l VersionLabel) bool {
+	for _, vf := range files {
+		if vf.Path == l.Path && vf.Format == versions.FileFormatText && (vf.Pattern == l.Pattern || l.Pattern == "") {
+			return true
+		}
+	}
+	return false
+}
+
+// ReadRemoteFacts reads what the files cannot say: the release branch's protection on GitHub and how far the release
+// branch and the trunk diverged (#1046).
+func ReadRemoteFacts(ctx context.Context, run Runner, dir string, f *Facts) {
+	if run == nil || f.Branches.Trunk == f.Branches.Release {
+		return
+	}
+	if f.OnGithub {
+		f.Protection = ReadProtection(ctx, run, dir, f.Branches.Release)
+	}
+	f.Divergence = ReadDivergence(ctx, run, dir, f.Branches.Trunk, f.Branches.Release)
 }
 
 func readSaaSFoundryFacts(dir string, f *Facts) {
