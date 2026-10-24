@@ -176,6 +176,22 @@ func (l *moltenMcpLink) noteFailed() {
 	go l.redialLoop()
 }
 
+func (l *moltenMcpLink) failedCount() int {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	return l.failed
+}
+
+// addFailed carries the failures a previous program of this process counted (#1049); the next connection reports
+// them like its own.
+func (l *moltenMcpLink) addFailed(n int) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	if n > 0 {
+		l.failed += n
+	}
+}
+
 func (l *moltenMcpLink) setRedialing(on bool) {
 	l.lock.Lock()
 	defer l.lock.Unlock()

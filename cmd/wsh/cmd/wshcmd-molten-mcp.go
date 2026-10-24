@@ -4,10 +4,12 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -174,11 +176,35 @@ func moltenMcpReviewRun(cmd *cobra.Command, args []string) error {
 // MoltenTerm. With one, the server reaches wavesrv whenever it can: MoltenTerm may start, quit or restart while the
 // agent runs.
 func runMoltenMcpServer(spec mcpbrowser.ServerSpec, protocol moltenMcpProtocol, token string) error {
-	var backend mcpbrowser.Backend = moltenMcpOfflineBackend{err: protocol.notInErr}
-	if token != "" {
-		backend = makeMoltenMcpRpcBackend(token, protocol, moltenMcpDial)
+	if os.Getenv(moltenMcpResumeProbeVar) == "1" {
+		fmt.Fprintf(os.Stdout, "%s\n", moltenMcpResumeProbeReply)
+		return nil
 	}
-	server := mcpbrowser.MakeSpecServer(spec, backend, os.Stdin, os.Stdout, wavebase.WaveVersion)
+	resume, pending, resumed := readMoltenMcpResume(protocol.name)
+	var backend mcpbrowser.Backend = moltenMcpOfflineBackend{err: protocol.notInErr}
+	var rpcBackend *moltenMcpRpcBackend
+	if token != "" {
+		rpcBackend = makeMoltenMcpRpcBackend(token, protocol, moltenMcpDial)
+		backend = rpcBackend
+	}
+	var in io.Reader = os.Stdin
+	if resumed {
+		in = io.MultiReader(bytes.NewReader(pending), os.Stdin)
+		if rpcBackend != nil {
+			rpcBackend.link.addFailed(resume.Failed)
+		}
+	}
+	server := mcpbrowser.MakeSpecServer(spec, backend, in, os.Stdout, wavebase.WaveVersion)
+	if resumed {
+		server.Resume(resume.Server)
+		fmt.Fprintf(os.Stderr, "%s: resumed its session in version %s (pid %d)\n", protocol.name, wavebase.WaveVersion, os.Getpid())
+	}
+	server.SetReexec(makeMoltenMcpReexec(protocol.name, func() int {
+		if rpcBackend == nil {
+			return 0
+		}
+		return rpcBackend.link.failedCount()
+	}))
 	if err := server.Serve(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", protocol.name, err)
 		WshExitCode = 1

@@ -7,6 +7,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,17 +124,45 @@ func (spec ServerSpec) hasTool(name string) bool {
 	return false
 }
 
+// ResumeState is the MCP session a server hands to the program that replaces it in the same process (#1049): the
+// client sent its initialize to the old program and will not send another.
+type ResumeState struct {
+	Initialized     bool   `json:"initialized"`
+	ProtocolVersion string `json:"protocolversion,omitempty"`
+	ClientName      string `json:"clientname,omitempty"`
+	ClientVersion   string `json:"clientversion,omitempty"`
+	ToolsHash       string `json:"toolshash,omitempty"`
+	Resumes         int    `json:"resumes,omitempty"`
+}
+
+// Reexec replaces the server's program in place when a new one is on disk (#1049). Changed is asked at every idle
+// point and must be cheap; Exec returns only when the replacement did not happen, and the server then goes on.
+type Reexec interface {
+	Changed() bool
+	Exec(state ResumeState, pending []byte) error
+}
+
 type Server struct {
 	Version string
 	spec    ServerSpec
 	backend Backend
 	in      io.Reader
 	out     io.Writer
+	reexec  Reexec
 
 	writeLock sync.Mutex
 
 	lock    sync.Mutex
 	started bool
+	// initialized: an initialize was answered, here or by the program this one replaced.
+	initialized     bool
+	protocolVersion string
+	client          ClientInfo
+	resumes         int
+	// toolsChanged: resumed in an initialized session that listed other tools.
+	toolsChanged bool
+	// active: calls not yet answered, counted until their answer is written.
+	active int
 	// closing: stdin closed, so nothing more is written (the client is gone, and stdout may be too).
 	closing   bool
 	inflight  map[string]*inflightCall
@@ -152,6 +182,80 @@ func MakeSpecServer(spec ServerSpec, backend Backend, in io.Reader, out io.Write
 	return &Server{Version: version, spec: spec, backend: backend, in: in, out: out, inflight: make(map[string]*inflightCall)}
 }
 
+// SetReexec lets the server replace its program when a new one is on disk; nil (the default) never does.
+func (s *Server) SetReexec(r Reexec) {
+	s.reexec = r
+}
+
+// Resume starts the server in the session its previous program had: no initialize is awaited, the backend starts
+// at the first call with the carried client, and a changed tool list is announced when Serve starts.
+func (s *Server) Resume(state ResumeState) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.initialized = state.Initialized
+	s.protocolVersion = state.ProtocolVersion
+	s.client = ClientInfo{Name: state.ClientName, Version: state.ClientVersion}
+	s.resumes = state.Resumes + 1
+	s.toolsChanged = state.Initialized && state.ToolsHash != "" && state.ToolsHash != s.spec.toolsHash()
+}
+
+// Resumes counts the programs this process ran before the current one.
+func (s *Server) Resumes() int {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.resumes
+}
+
+func (spec ServerSpec) toolsHash() string {
+	barr, _ := json.Marshal(spec.Tools)
+	sum := sha256.Sum256(barr)
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Server) resumeState() ResumeState {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return ResumeState{Initialized: s.initialized, ProtocolVersion: s.protocolVersion, ClientName: s.client.Name,
+		ClientVersion: s.client.Version, ToolsHash: s.spec.toolsHash(), Resumes: s.resumes}
+}
+
+func (s *Server) toolsChangedOnResume() bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.toolsChanged
+}
+
+func (s *Server) isIdle() bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.active == 0 && !s.closing
+}
+
+func (s *Server) addActive(delta int) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.active += delta
+}
+
+// tryReexec hands the session and the unread input (the line just read, then what the reader buffered) to a new
+// program at an idle point. It returns only when the program stays.
+func (s *Server) tryReexec(line []byte, reader *bufio.Reader) {
+	if s.reexec == nil {
+		return
+	}
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+	if !s.isIdle() || !s.reexec.Changed() {
+		return
+	}
+	buffered, _ := reader.Peek(reader.Buffered())
+	pending := make([]byte, 0, len(line)+1+len(buffered))
+	pending = append(pending, line...)
+	pending = append(pending, '\n')
+	pending = append(pending, buffered...)
+	s.reexec.Exec(s.resumeState(), pending)
+}
+
 // Serve reads messages until stdin closes (the agent quit or dropped the server), then cancels the calls in flight,
 // waits for them and closes the backend, which ends the session in wavesrv.
 func (s *Server) Serve(ctx context.Context) error {
@@ -162,12 +266,19 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.callGroup.Wait()
 		s.backend.Close()
 	}()
+	if s.toolsChangedOnResume() {
+		s.writeNotification("notifications/tools/list_changed")
+	}
 	reader := bufio.NewReaderSize(s.in, 64*1024)
 	for {
 		line, tooLong, err := readLine(reader, MaxMessageBytes)
 		if tooLong {
 			s.writeError(nil, CodeInvalidRequest, "message too large")
 		} else if len(bytes.TrimSpace(line)) > 0 {
+			// Only a whole line read with nothing else running: no answer owed, no byte of input lost.
+			if err == nil {
+				s.tryReexec(line, reader)
+			}
 			s.handleLine(ctx, line)
 		}
 		if err == io.EOF {
@@ -300,17 +411,35 @@ func (s *Server) handleInitialize(ctx context.Context, msg inMessage) {
 		s.writeError(msg.Id, CodeInvalidParams, "invalid initialize params")
 		return
 	}
-	s.start(ctx, ClientInfo{Name: params.ClientInfo.Name, Version: params.ClientInfo.Version})
+	client := ClientInfo{Name: params.ClientInfo.Name, Version: params.ClientInfo.Version}
+	version := negotiateVersion(params.ProtocolVersion)
+	s.setInitialized(client, version)
+	s.start(ctx, client)
 	instructions := s.spec.Instructions
 	if ib, ok := s.backend.(InstructionsBackend); ok {
 		instructions = ib.Instructions(instructions)
 	}
 	s.writeResult(msg.Id, map[string]any{
-		"protocolVersion": negotiateVersion(params.ProtocolVersion),
-		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-		"serverInfo":      map[string]any{"name": s.spec.Name, "title": s.spec.Title, "version": s.Version},
-		"instructions":    instructions,
+		"protocolVersion": version,
+		// listChanged: a program that replaces this one with other tools says so (#1049).
+		"capabilities": map[string]any{"tools": map[string]any{"listChanged": true}},
+		"serverInfo":   map[string]any{"name": s.spec.Name, "title": s.spec.Title, "version": s.Version},
+		"instructions": instructions,
 	})
+}
+
+func (s *Server) setInitialized(client ClientInfo, version string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.initialized = true
+	s.client = client
+	s.protocolVersion = version
+}
+
+func (s *Server) clientInfo() ClientInfo {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.client
 }
 
 func (s *Server) start(ctx context.Context, client ClientInfo) {
@@ -358,17 +487,19 @@ func (s *Server) handleToolCall(ctx context.Context, msg inMessage) {
 		s.writeError(msg.Id, CodeInvalidRequest, "a request with this id is already running")
 		return
 	}
-	s.start(ctx, ClientInfo{})
+	s.start(ctx, s.clientInfo())
 	s.callGroup.Add(1)
+	s.addActive(1)
 	go func() {
 		defer s.callGroup.Done()
 		defer cancel()
 		result := s.backend.CallTool(callCtx, params.Name, json.RawMessage(args))
 		if s.finishCall(key) {
 			// Cancelled by the client: the spec asks for no response.
+			s.addActive(-1)
 			return
 		}
-		s.writeResult(msg.Id, toMcpResult(result))
+		s.writeLine(s.marshal(outResponse{JsonRpc: JsonRpcVersion, Id: msg.Id, Result: toMcpResult(result)}), true)
 	}()
 }
 
@@ -413,15 +544,33 @@ func (s *Server) writeError(id json.RawMessage, code int, message string) {
 	s.write(outResponse{JsonRpc: JsonRpcVersion, Id: id, Error: &rpcError{Code: code, Message: message}})
 }
 
+func (s *Server) writeNotification(method string) {
+	out, _ := json.Marshal(map[string]any{"jsonrpc": JsonRpcVersion, "method": method})
+	s.writeLine(out, false)
+}
+
 func (s *Server) write(resp outResponse) {
-	if s.isClosing() {
-		return
-	}
+	s.writeLine(s.marshal(resp), false)
+}
+
+func (s *Server) marshal(resp outResponse) []byte {
 	out, err := json.Marshal(resp)
 	if err != nil {
 		out, _ = json.Marshal(outResponse{JsonRpc: JsonRpcVersion, Id: resp.Id, Error: &rpcError{Code: CodeInternalError, Message: "internal error"}})
 	}
+	return out
+}
+
+// writeLine writes one message. callDone: the answer of a call, which stops counting as running under the write
+// lock, before the client can read it: a handover, which holds that lock, sees every call either running or answered.
+func (s *Server) writeLine(out []byte, callDone bool) {
 	s.writeLock.Lock()
 	defer s.writeLock.Unlock()
+	if callDone {
+		s.addActive(-1)
+	}
+	if s.isClosing() {
+		return
+	}
 	s.out.Write(append(out, '\n'))
 }
