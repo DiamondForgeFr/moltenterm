@@ -3899,6 +3899,14 @@
         }
     },
     "tabs": {
+        "agent": {
+            "more": "+{count}",
+            "line": "{agent} : {state}",
+            "lineFor": "{line}, depuis {duration}",
+            "underMinute": "moins d'une minute",
+            "minutes": "{minutes} min",
+            "hours": "{hours} h {minutes}"
+        },
         "views": {
             "terminal": "Terminal",
             "files": "Fichiers",

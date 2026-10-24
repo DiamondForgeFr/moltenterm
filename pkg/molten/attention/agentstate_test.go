@@ -72,6 +72,30 @@ func doneMark(code int) string {
 
 const promptMark = "\x1b]16162;A\x07"
 
+// The windows name a tab's longest-running agent (#1033): the snapshot carries the run's start, kept across states.
+func TestAgentStateInfoStarted(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("claude"))
+	start := h.clock.UnixMilli()
+	h.clock = h.clock.Add(time.Minute)
+	if err := h.report("b1", molten.AgentStateWorking, "claude"); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	for _, info := range h.states.snapshot() {
+		if info.BlockId != "b1" {
+			continue
+		}
+		if info.Started != start {
+			t.Errorf("started %d, want %d", info.Started, start)
+		}
+		if info.Since == info.Started {
+			t.Errorf("since follows the state, started the run: %+v", info)
+		}
+		return
+	}
+	t.Fatalf("no state for b1")
+}
+
 func TestParseShellMark(t *testing.T) {
 	long := strings.Repeat("x", 6000)
 	enc := base64.StdEncoding.EncodeToString([]byte("claude " + long))

@@ -312,7 +312,9 @@ type AgentStateInfo struct {
 	// words.
 	MessageText *uimsg.Text `json:"messagetext,omitempty"`
 	Since       int64       `json:"since,omitempty"`
-	Version     int64       `json:"version"`
+	// Started: when the agent's run started, in Unix milliseconds; the tab names its longest-running agent (#1033).
+	Started int64 `json:"started,omitempty"`
+	Version int64 `json:"version"`
 	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
 	Hooked bool `json:"hooked,omitempty"`
 	// Model, ModelName, Effort: the run's model and effort level as the agent last reported them (#549: Claude Code's
