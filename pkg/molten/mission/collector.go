@@ -59,6 +59,7 @@ const (
 	ReleaseFactsCommand     = "moltenmissionreleasefacts"
 	ReleaseStepCommand      = "moltenmissionreleasestep"
 	ReleaseRerunCommand     = "moltenmissionreleasererun"
+	ReleaseDispatchCommand  = "moltenmissionreleasedispatch"
 	ReleaseNotesCommand     = "moltenmissionreleasenotes"
 	ReleaseSaveCommand      = "moltenmissionreleasenotessave"
 	ReleaseMilestoneCommand = "moltenmissionreleasemilestone"

@@ -112,6 +112,8 @@ type ReleaseFacts struct {
 	Release     *ReleaseGhRelease `json:"release,omitempty"`
 	// The runs the tag started that wait for an environment approval (FR-MC-037).
 	Approvals []ReleaseApproval `json:"approvals"`
+	// The workflows the pushed tag starts, read at the tag; nil when they could not be read (#1040).
+	TagWorkflows *ReleaseTagWorkflows `json:"tagworkflows,omitempty"`
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
@@ -380,6 +382,9 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	}
 	facts.OnTrunk = r.onTrunk(ctx, dir, trunkRef, session.Tag)
 	r.readGithubRelease(ctx, dir, &facts)
+	if !facts.NoGithub {
+		r.readTagWorkflows(ctx, dir, &facts)
+	}
 	return facts, nil
 }
 

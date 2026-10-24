@@ -86,7 +86,7 @@ async function followRelease(
         }
         const phase = run.phases.find((p) => p.id === run.current);
         const action: PhaseAction = phase.action;
-        if (action == null || action.kind === "rerun") {
+        if (action == null || action.kind === "rerun" || action.kind === "dispatch") {
             throw new Error(`stuck in ${phase.id}: ${phase.status}, ${phase.expect} ${phase.cause ?? ""}`);
         }
         if (action.kind === "step" && action.step === "finalize") {

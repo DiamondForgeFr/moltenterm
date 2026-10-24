@@ -74,7 +74,15 @@ export type ReleaseFacts = {
     backpr?: { number: number; url: string; title: string; headRefName: string };
     // A running step waits for a branch's GitHub CI (the promotion, #836).
     awaits?: ReleaseCiAwait;
+    // The workflows the pushed tag starts, read at the tag; absent when they could not be read (#1040).
+    tagworkflows?: ReleaseTagWorkflows;
 };
+
+// must match ReleaseTagWorkflow in pkg/molten/mission/release_tag_workflows.go
+export type ReleaseTagWorkflow = { file: string; name?: string; url?: string; dispatch: boolean; publishes: boolean };
+
+// overdue: none of them started a run within the bound after the tag.
+export type ReleaseTagWorkflows = { workflows: ReleaseTagWorkflow[]; overdue: boolean };
 
 export type PhaseLink = { label: string; url: string };
 
@@ -82,7 +90,8 @@ export type PhaseLink = { label: string; url: string };
 export type PhaseAction =
     | { kind: "step"; step: string; label: string; confirm?: string; busy?: string }
     | { kind: "prepare"; label: string; busy?: string }
-    | { kind: "rerun"; label: string; busy?: string };
+    | { kind: "rerun"; label: string; busy?: string }
+    | { kind: "dispatch"; workflow: string; label: string; confirm: string; busy?: string };
 
 export type Phase = {
     id: ReleasePhase;
@@ -319,6 +328,43 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
     return null;
 }
 
+const workflowTitle = (wf: ReleaseTagWorkflow) => wf.name || wf.file;
+
+// No workflow of the repository starts on the tag: no run, nor a release from one, is to be waited for (#1040).
+const noTagWorkflow = (facts: ReleaseFacts) => facts.tagworkflows != null && facts.tagworkflows.workflows.length === 0;
+
+// The workflows the tag should have started did not, long after it: named, with their page and a way to start them.
+function notStarted(base: Phase, facts: ReleaseFacts, tag: string): Phase {
+    const workflows = facts.tagworkflows.workflows;
+    const names = workflows.map(workflowTitle).join(", ");
+    const links = workflows
+        .filter((wf) => wf.url)
+        .map((wf) => ({ label: t("mc.releaseRun.openWorkflow", { workflow: workflowTitle(wf) }), url: wf.url }));
+    const dispatchable = workflows.find((wf) => wf.dispatch);
+    const phase: Phase = {
+        ...base,
+        status: "waiting",
+        expect: dispatchable
+            ? t("mc.releaseRun.noRunStartedDispatch", { workflows: names, tag })
+            : t("mc.releaseRun.noRunStarted", { workflows: names, tag }),
+        links: [...base.links, ...links],
+    };
+    if (!dispatchable) {
+        return phase;
+    }
+    const workflow = workflowTitle(dispatchable);
+    return {
+        ...phase,
+        action: {
+            kind: "dispatch",
+            workflow: dispatchable.file,
+            label: t("mc.releaseRun.dispatch", { workflow }),
+            confirm: t("mc.releaseRun.dispatchConfirm", { workflow, tag }),
+            busy: t("mc.releaseRun.dispatching"),
+        },
+    };
+}
+
 function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     const base: Phase = { id: "prepare", title: PhaseTitles.prepare, status: "done", expect: "", links: [] };
     if (facts.tagexists) {
@@ -444,6 +490,12 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
         if (facts.githuberror) {
             return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
         }
+        if (noTagWorkflow(facts)) {
+            return { ...base, status: "done", expect: t("mc.releaseRun.nothingToBuild", { tag }) };
+        }
+        if (facts.tagworkflows?.overdue) {
+            return notStarted(base, facts, tag);
+        }
         return { ...base, status: "running", expect: t("mc.releaseRun.waitingRun", { tag }) };
     }
     const newest = new Map<string, ReleaseGhRun>();
@@ -518,6 +570,27 @@ function publish(facts: ReleaseFacts, channel: ReleaseChannel, steps: PipelineRe
     if (!release) {
         if (facts.githuberror) {
             return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
+        }
+        if (noTagWorkflow(facts)) {
+            return { ...base, status: "done", expect: t("mc.releaseRun.nothingToPublish", { tag: facts.tag }) };
+        }
+        const runs = facts.runs ?? [];
+        const workflows = facts.tagworkflows?.workflows ?? [];
+        if (runs.length === 0 && facts.tagworkflows?.overdue) {
+            return notStarted(base, facts, facts.tag);
+        }
+        // The tag's runs ended and none of its workflows publishes: no GitHub release will come.
+        if (
+            facts.tagworkflows != null &&
+            runs.length > 0 &&
+            runs.every((r) => r.status === "completed") &&
+            !workflows.some((wf) => wf.publishes)
+        ) {
+            return {
+                ...base,
+                status: "done",
+                expect: t("mc.releaseRun.nothingPublishes", { workflows: workflows.map(workflowTitle).join(", ") }),
+            };
         }
         return { ...base, status: "running", expect: t("mc.releaseRun.waitingRelease", { tag: facts.tag }) };
     }

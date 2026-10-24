@@ -137,6 +137,8 @@ type Runs struct {
 	// treeCwds reads the live processes' current folders (#1028): a worktree one works in stays. nil reads the real
 	// process table; tests replace it.
 	treeCwds func() []procCwd
+	// How long after the tag a run of a workflow it starts may take to appear (#1040); zero is releaseTagRunGrace.
+	tagRunGrace time.Duration
 }
 
 // UseWorktrees lets branch cleaning remove MoltenTerm's own worktrees of merged pull requests, under dataDir.

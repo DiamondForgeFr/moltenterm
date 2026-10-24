@@ -56,6 +56,7 @@ export const MissionReleaseEndCommand = "moltenmissionreleaseend";
 export const MissionReleaseFactsCommand = "moltenmissionreleasefacts";
 export const MissionReleaseStepCommand = "moltenmissionreleasestep";
 export const MissionReleaseRerunCommand = "moltenmissionreleasererun";
+export const MissionReleaseDispatchCommand = "moltenmissionreleasedispatch";
 export const MissionReleaseNotesCommand = "moltenmissionreleasenotes";
 export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
 export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
@@ -499,6 +500,11 @@ export function releaseRunStep(dir: string, tag: string, step: string): Promise<
 
 export function releaseRerunFailed(dir: string, tag: string): Promise<void> {
     return releaseCall(MissionReleaseRerunCommand, { dir, tag });
+}
+
+// Starts on the tag a workflow the tag should have started and did not (#1040).
+export function releaseDispatchWorkflow(dir: string, tag: string, workflow: string): Promise<void> {
+    return releaseCall(MissionReleaseDispatchCommand, { dir, tag, workflow });
 }
 
 export function releaseNotes(dir: string, tag: string): Promise<{ path: string; text: string }> {
