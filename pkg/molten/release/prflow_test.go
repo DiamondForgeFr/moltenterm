@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -37,6 +38,8 @@ type fakePrGitHub struct {
 	backTitle  string
 	backHead   string
 	backBranch string
+	backBody   string
+	body       string
 }
 
 func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -48,40 +51,24 @@ func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ..
 	joined := strings.Join(args, " ")
 	g.calls = append(g.calls, joined)
 	switch {
-	case strings.HasPrefix(joined, "pr list") && strings.Contains(joined, "--head "+SyncBackBranchPrefix):
+	case strings.HasPrefix(joined, "pr list") && strings.Contains(joined, "--base develop"):
 		if strings.Contains(joined, "--state open") && g.backOpen {
 			data, _ := json.Marshal([]any{map[string]any{"number": 10, "url": "https://github.example/pr/10", "title": g.backTitle, "state": "OPEN", "headRefOid": g.backHead}})
 			return data, nil
 		}
 		return []byte("[]"), nil
-	case strings.HasPrefix(joined, "pr create") && strings.Contains(joined, "--head "+SyncBackBranchPrefix):
-		for i, a := range args {
-			if a == "--title" {
-				g.backTitle = args[i+1]
-			}
-			if a == "--head" {
-				g.backBranch = args[i+1]
-			}
-		}
+	case strings.HasPrefix(joined, "pr create") && strings.Contains(joined, "--base develop"):
+		g.backTitle, g.backBranch, g.backBody = argOf(args, "--title"), argOf(args, "--head"), argOf(args, "--body")
 		g.backOpen = true
 		g.backHead = gitIn(g.t, g.f.origin, "rev-parse", g.backBranch)
 		return []byte("https://github.example/pr/10\n"), nil
 	case strings.HasPrefix(joined, "pr merge 10"):
 		g.merges = append(g.merges, args)
-		g.clones++
-		clone := filepath.Join(g.f.base, fmt.Sprintf("github-merge-%d", g.clones))
-		gitIn(g.t, g.f.base, "clone", "--quiet", "-b", "develop", g.f.origin, clone)
-		gitIn(g.t, clone, "merge", "--quiet", "--no-ff", "-m", "Merge pull request #10", "origin/"+g.backBranch)
-		gitIn(g.t, clone, "push", "--quiet", "origin", "develop")
+		g.merge(10, "develop", g.backBranch, g.backTitle)
 		g.backOpen = false
 		return nil, nil
 	case strings.HasPrefix(joined, "pr list"):
-		state := ""
-		for i, a := range args {
-			if a == "--state" {
-				state = args[i+1]
-			}
-		}
+		state := argOf(args, "--state")
 		if (state == "open" && g.open) || (state == "merged" && g.merged) {
 			pr := map[string]any{"number": 9, "url": "https://github.example/pr/9", "title": g.title, "state": strings.ToUpper(state), "headRefOid": g.head}
 			data, _ := json.Marshal([]any{pr})
@@ -89,11 +76,7 @@ func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ..
 		}
 		return []byte("[]"), nil
 	case strings.HasPrefix(joined, "pr create"):
-		for i, a := range args {
-			if a == "--title" {
-				g.title = args[i+1]
-			}
-		}
+		g.title, g.body = argOf(args, "--title"), argOf(args, "--body")
 		g.open = true
 		g.head = gitIn(g.t, g.f.origin, "rev-parse", "rc-1.0.0")
 		return []byte("https://github.example/pr/9\n"), nil
@@ -111,11 +94,7 @@ func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ..
 		return []byte(fmt.Sprintf(`{"state":"OPEN","mergeStateStatus":%q}`, g.state)), nil
 	case strings.HasPrefix(joined, "pr merge"):
 		g.merges = append(g.merges, args)
-		g.clones++
-		clone := filepath.Join(g.f.base, fmt.Sprintf("github-merge-%d", g.clones))
-		gitIn(g.t, g.f.base, "clone", "--quiet", "-b", "main", g.f.origin, clone)
-		gitIn(g.t, clone, "merge", "--quiet", "--no-ff", "-m", "Merge pull request #9 from rc-1.0.0", "origin/rc-1.0.0")
-		gitIn(g.t, clone, "push", "--quiet", "origin", "main")
+		g.merge(9, "main", "rc-1.0.0", g.title)
 		g.open, g.merged = false, true
 		return nil, nil
 	}
@@ -360,6 +339,10 @@ func TestPrFlowConventionRcOnBranchAndMergeBack(t *testing.T) {
 	if got := f.originFile(t, "v1.0.0", "README.md"); !strings.Contains(got, "**v1.0.0**") {
 		t.Fatalf("the public release sets the label to its version:\n%s", got)
 	}
+	// A trunk whose strict checks want the release branch updated: its rules forbid that, so the step says so and stops.
+	gh.state = "BEHIND"
+	mustFail(t, f, "sync-back behind a strict trunk", e.SyncBackMerge(ctx, "v1.0.0"), "cannot be brought up to date with develop")
+	gh.state = "CLEAN"
 	mustRun(t, f, "sync-back --merge", e.SyncBackMerge(ctx, "v1.0.0"))
 	if got := strings.Join(gh.merges[len(gh.merges)-1], " "); !strings.HasPrefix(got, "pr merge 10 --merge") {
 		t.Fatalf("sync-back must merge with a merge commit: %s", got)
@@ -369,10 +352,56 @@ func TestPrFlowConventionRcOnBranchAndMergeBack(t *testing.T) {
 	}
 	gitIn(t, f.origin, "merge-base", "--is-ancestor", "v1.0.0", "develop")
 	gitIn(t, f.origin, "merge-base", "--is-ancestor", "main", "develop")
+	assertReleaseGuard(t, f, gh, "v1.0.0", 1078)
 	mustRun(t, f, "sync-back --merge again", e.SyncBackMerge(ctx, "v1.0.0"))
 	if !strings.Contains(f.out.String(), "develop already holds v1.0.0") {
 		t.Fatalf("a second sync-back does nothing:\n%s", f.out.String())
 	}
+}
+
+var closingRegex = regexp.MustCompile(`(?i)(^|[^[:alnum:]_])(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]*:?[[:space:]]+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[1-9][0-9]*`)
+var closesLineRegex = regexp.MustCompile(`(?im)^\s*closes\s+#([1-9][0-9]*)\s*$`)
+
+// assertReleaseGuard replays the checks SaaSFoundry's workflow makes before a release ticket goes Done
+// (.claude/skills/sf-workflow/workflow-cli.sh): the release pull request from rc-{version} into the release branch,
+// with one "Closes #ticket" line, a ticket-aware title and GitHub's own merge message; the synchronization pull
+// request from the release branch itself into the trunk, without a closing keyword, merged by a two-parent commit
+// whose second parent is the release's merge commit, an ancestor of the trunk.
+func assertReleaseGuard(t *testing.T, f *fixture, gh *fakePrGitHub, tag string, ticket int) {
+	t.Helper()
+	closes := closesLineRegex.FindAllStringSubmatch(gh.body, -1)
+	if len(closes) != 1 || closes[0][1] != fmt.Sprint(ticket) {
+		t.Fatalf("the release pull request's body must hold exactly one \"Closes #%d\" line:\n%s", ticket, gh.body)
+	}
+	if !regexp.MustCompile(fmt.Sprintf(`^[[:alnum:]_.-]+\(#%d\)(!)?:`, ticket)).MatchString(gh.title) {
+		t.Fatalf("the release pull request's title is not ticket-aware: %q", gh.title)
+	}
+	releaseMerge := f.originRef(t, tag+"^{commit}")
+	message := gitIn(t, f.origin, "log", "-1", "--format=%B", releaseMerge)
+	if want := "Merge pull request #9 from Example/rc-1.0.0\n\n" + gh.title; message != want {
+		t.Fatalf("the release merge keeps GitHub's message:\n%q\nwant\n%q", message, want)
+	}
+	if closingRegex.MatchString(message) {
+		t.Fatalf("the release merge message closes something: %q", message)
+	}
+	if gh.backBranch != "main" {
+		t.Fatalf("the synchronization pull request's head must be the release branch itself, not %q", gh.backBranch)
+	}
+	if gh.backHead != releaseMerge {
+		t.Fatalf("the synchronization pull request's head %s is not the release merge %s", gh.backHead, releaseMerge)
+	}
+	if closingRegex.MatchString(gh.backBody) {
+		t.Fatalf("the synchronization pull request's body holds a closing keyword:\n%s", gh.backBody)
+	}
+	syncMerge := gitIn(t, f.origin, "log", "-1", "--merges", "--format=%H", "--grep", "Merge pull request #10", "develop")
+	parents := strings.Fields(gitIn(t, f.origin, "log", "-1", "--format=%P", syncMerge))
+	if len(parents) != 2 || parents[1] != releaseMerge {
+		t.Fatalf("the synchronization merge's parents %v: the second must be the release merge %s", parents, releaseMerge)
+	}
+	if syncMessage := gitIn(t, f.origin, "log", "-1", "--format=%B", syncMerge); closingRegex.MatchString(syncMessage) {
+		t.Fatalf("the synchronization merge message closes something: %q", syncMessage)
+	}
+	gitIn(t, f.origin, "merge-base", "--is-ancestor", syncMerge, "develop")
 }
 
 func TestReleaseTicketFromTheMilestone(t *testing.T) {
@@ -416,4 +445,23 @@ func TestRcBranch(t *testing.T) {
 	if _, err := p.RcBranch(v); err == nil {
 		t.Errorf("a space must be refused")
 	}
+}
+
+func argOf(args []string, name string) string {
+	for i, a := range args {
+		if a == name && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// merge merges head into base in the bare origin as GitHub's merge button does: a merge commit whose message is
+// "Merge pull request #N from owner/head", a blank line, and the pull request's title.
+func (g *fakePrGitHub) merge(number int, base string, head string, title string) {
+	g.clones++
+	clone := filepath.Join(g.f.base, fmt.Sprintf("github-merge-%d", g.clones))
+	gitIn(g.t, g.f.base, "clone", "--quiet", "-b", base, g.f.origin, clone)
+	gitIn(g.t, clone, "-c", "core.hooksPath=/dev/null", "merge", "--quiet", "--no-ff", "-m", fmt.Sprintf("Merge pull request #%d from Example/%s", number, head), "-m", title, "origin/"+head)
+	gitIn(g.t, clone, "push", "--quiet", "origin", base)
 }

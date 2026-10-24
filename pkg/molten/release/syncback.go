@@ -105,11 +105,14 @@ func (e *Env) SyncBack(ctx context.Context, tag string) error {
 	return nil
 }
 
-// SyncBackMerge brings the tagged release back to the trunk by a pull request of the tagged commit itself, and merges
-// it with a merge commit once its required checks are green (#1046). Only a merge commit makes the release branch part
-// of the trunk's history: squashed or rebased, the release commit lands on the trunk as a copy, the branches diverge
-// again, and the next release finds the release branch ahead with commits the trunk only holds as equivalents. The
-// developer confirmed the step; nothing is done when the trunk already holds the tag.
+// SyncBackMerge brings the release back to the trunk by a pull request of the release branch itself (head the release
+// branch, base the trunk), merged with a merge commit once its required checks are green (#1046): the merge's second
+// parent is then the release's own merge commit, and the release branch becomes part of the trunk's history. Squashed
+// or rebased, the release would land on the trunk as a copy and the branches would diverge again. No intermediate
+// branch: a workflow guard (SaaSFoundryAI's Done check) recognizes the synchronization by its head and that parent.
+// When the release branch moved past the tag, or the trunk's strict checks want a head the release branch's rules do
+// not let anyone update, it stops and says so. The developer confirmed the step; nothing is done when the trunk
+// already holds the tag.
 func (e *Env) SyncBackMerge(ctx context.Context, tag string) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -134,69 +137,51 @@ func (e *Env) SyncBackMerge(ctx context.Context, tag string) error {
 	if !pushed {
 		return fmt.Errorf("%s is not on origin: tag it first", tag)
 	}
-	trunkRef := "origin/" + p.Trunk
+	trunkRef, releaseRef := "origin/"+p.Trunk, "origin/"+p.Release
 	if e.revParse(ctx, p.Root, trunkRef) == "" {
 		return fmt.Errorf("origin has no %s branch", p.Trunk)
+	}
+	if e.revParse(ctx, p.Root, releaseRef) == "" {
+		return p.releaseBranchMissing()
 	}
 	tagged := e.revParse(ctx, p.Root, "refs/tags/"+tag)
 	if e.isAncestor(ctx, p.Root, tagged, trunkRef) {
 		e.printf("%s already holds %s: nothing to bring back.\n", p.Trunk, tag)
 		return nil
 	}
-	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
-	if err != nil {
-		return err
+	if head := e.revParse(ctx, p.Root, releaseRef); head != tagged {
+		return fmt.Errorf("%s moved past %s (it is at %s): its pull request into %s would carry more than the release; bring it back by hand with a merge commit", p.Release, tag, head[:min(7, len(head))], p.Trunk)
 	}
-	// The branch is the trunk with the tag merged in, not the tag alone: a trunk whose required checks are strict only
-	// takes a pull request up to date with it.
-	wt, err := e.ReleaseWorktree(ctx, p.Root)
-	if err != nil {
-		return err
-	}
-	if err := e.resetWorktree(ctx, p.Root, wt, trunkRef); err != nil {
-		return err
-	}
-	branch := SyncBackBranchPrefix + tag
-	if _, err := e.git(ctx, wt, "checkout", "--quiet", "-B", branch, trunkRef); err != nil {
-		return err
-	}
-	if err := e.installForHooks(ctx, p, wt); err != nil {
-		return err
-	}
-	msg := p.Convention.header(ticket, "bring "+tag+" back to "+p.Trunk)
-	if _, err := e.git(ctx, wt, "merge", "--quiet", "--no-ff", "--no-edit", "-m", msg, "refs/tags/"+tag); err != nil {
-		conflicts, _ := e.gitLines(ctx, wt, "diff", "--name-only", "--diff-filter=U")
-		e.git(ctx, wt, "merge", "--abort")
-		e.git(ctx, wt, "checkout", "--quiet", "--detach", trunkRef)
-		return fmt.Errorf("merging %s into %s conflicts (%s): merge it by hand with a merge commit on a branch, nothing was pushed", tag, p.Trunk, strings.Join(conflicts, ", "))
-	}
-	if _, err := e.git(ctx, wt, "push", "--quiet", "--force-with-lease=refs/heads/"+branch, "origin", branch+":refs/heads/"+branch); err != nil {
-		return fmt.Errorf("could not push %s: %w", branch, err)
-	}
-	e.git(ctx, wt, "checkout", "--quiet", "--detach")
 	if !e.OnGithub(ctx, p.Root) {
-		e.printf("%s pushed with %s merged in. origin is not on GitHub: merge it into %s there with a merge commit (never squash or rebase).\n", branch, tag, p.Trunk)
+		e.printf("origin is not on GitHub: merge %s into %s there with a merge commit (never squash or rebase).\n", p.Release, p.Trunk)
 		return nil
 	}
-	pr, err := e.findPr(ctx, p, branch, p.Trunk, tag, "open")
+	pr, err := e.findPr(ctx, p, p.Release, p.Trunk, tag, "open")
 	if err != nil {
 		return err
 	}
 	if pr == nil {
-		title := msg
-		body := fmt.Sprintf("Brings %s back to %s: the release commit and the history of %s. Merged with a merge commit by `molten release sync-back --merge`, never squashed or rebased: %s must become part of %s's history, or the branches diverge again.", tag, p.Trunk, p.Release, p.Release, p.Trunk)
-		if _, err := e.gh(ctx, p.Root, "pr", "create", "--base", p.Trunk, "--head", branch, "--title", title, "--body", body); err != nil {
-			return fmt.Errorf("%s is pushed, but the pull request could not be opened: %w", branch, err)
+		title := fmt.Sprintf("chore(release): bring %s back to %s", tag, p.Trunk)
+		if ticket, err := e.releaseTicket(ctx, p, v.Base().String()); err == nil && ticket > 0 {
+			title = p.Convention.header(ticket, "bring "+tag+" back to "+p.Trunk)
 		}
-		if pr, err = e.findPr(ctx, p, branch, p.Trunk, tag, "open"); err != nil || pr == nil {
-			return fmt.Errorf("the pull request of %s into %s was opened but cannot be read back: merge it there with a merge commit", branch, p.Trunk)
+		// No closing keyword: the merge is the release's synchronization, never what closes its ticket.
+		body := fmt.Sprintf("Brings %s back to %s: the release commit and the history of %s. Merged with a merge commit by `molten release sync-back --merge`, never squashed or rebased: %s must become part of %s's history, or the branches diverge again.", tag, p.Trunk, p.Release, p.Release, p.Trunk)
+		if _, err := e.gh(ctx, p.Root, "pr", "create", "--base", p.Trunk, "--head", p.Release, "--title", title, "--body", body); err != nil {
+			return fmt.Errorf("the pull request of %s into %s could not be opened: %w", p.Release, p.Trunk, err)
+		}
+		if pr, err = e.findPr(ctx, p, p.Release, p.Trunk, tag, "open"); err != nil || pr == nil {
+			return fmt.Errorf("the pull request of %s into %s was opened but cannot be read back: merge it there with a merge commit", p.Release, p.Trunk)
 		}
 		e.printf("Pull request opened: %s\n", pr.Url)
 	}
-	redo := fmt.Sprintf("run sync-back --merge again (it merges %s into the new %s), or merge %s by hand with a merge commit, never squash or rebase", tag, p.Trunk, branch)
+	if pr.HeadRefOid != "" && pr.HeadRefOid != tagged {
+		return fmt.Errorf("the pull request %s does not point at %s: merge it by hand with a merge commit once it does", pr.Url, tag)
+	}
+	redo := fmt.Sprintf("%s cannot be brought up to date with %s by MoltenTerm (its rules take pull requests only); merge %s by hand with a merge commit, never squash or rebase", p.Release, p.Trunk, pr.Url)
 	if err := e.waitAndMerge(ctx, p, pr, p.Trunk, MergeMethodMerge, redo); err != nil {
 		return err
 	}
-	e.printf("%s merged into %s with a merge commit: %s is now part of %s's history.\n", tag, p.Trunk, p.Release, p.Trunk)
+	e.printf("%s merged into %s with a merge commit: %s is now part of %s's history.\n", p.Release, p.Trunk, tag, p.Trunk)
 	return nil
 }

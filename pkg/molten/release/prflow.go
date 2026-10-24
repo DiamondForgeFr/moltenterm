@@ -79,7 +79,6 @@ func (e *Env) lacksOnTrunk(ctx context.Context, dir string, trunkSide string, re
 	return e.gitLines(ctx, dir, "log", "--no-merges", "--right-only", "--cherry-pick", "--format=%h %s", trunkSide+"..."+ref)
 }
 
-
 // Reconcile merges the release branch into the prepared RC branch with -s ours when they diverged: the release branch
 // carries commits the trunk only holds as equivalents (cherry-picked fixes, a release rebased onto it), so their merge
 // conflicts although nothing would be lost. It keeps the trunk's tree and makes the release branch an ancestor, so the
@@ -262,6 +261,11 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	}
 	title, _ := e.git(ctx, wt, "log", "-1", "--format=%s", "HEAD")
 	body := fmt.Sprintf("Releases %s: the version files, the release notes and the changelogs, on %s made from %s. Once merged with a merge commit, the tag goes on the merge commit (`molten release tag %s`).\n\nOpened by `molten release open-pr`.", tag, branch, p.Trunk, tag)
+	// The release ticket's link, alone on its line: a workflow guard (SaaSFoundryAI's Done check) recognizes the release
+	// pull request by it. Into a release branch that is not the default one, it closes nothing by itself.
+	if ticket, err := e.releaseTicket(ctx, p, v.Base().String()); err == nil && ticket > 0 {
+		body += fmt.Sprintf("\n\nCloses #%d", ticket)
+	}
 	created, err := e.gh(ctx, p.Root, "pr", "create", "--base", p.Release, "--head", branch, "--title", title, "--body", body)
 	if err != nil {
 		return fmt.Errorf("%s is pushed, but the pull request could not be opened: %w", branch, err)
