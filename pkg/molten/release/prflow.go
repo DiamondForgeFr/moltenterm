@@ -79,11 +79,13 @@ func (e *Env) lacksOnTrunk(ctx context.Context, dir string, trunkSide string, re
 	return e.gitLines(ctx, dir, "log", "--no-merges", "--right-only", "--cherry-pick", "--format=%h %s", trunkSide+"..."+ref)
 }
 
-// Reconcile merges the release branch into the prepared RC branch with -s ours, once: when the two branches diverged
-// (the release branch carries commits the trunk only holds as equivalents, e.g. cherry-picked fixes), their merge
+
+// Reconcile merges the release branch into the prepared RC branch with -s ours when they diverged: the release branch
+// carries commits the trunk only holds as equivalents (cherry-picked fixes, a release rebased onto it), so their merge
 // conflicts although nothing would be lost. It keeps the trunk's tree and makes the release branch an ancestor, so the
-// pull request merges. Refused when one of the release branch's commits has no equivalent on the trunk: -s ours would
-// drop it.
+// pull request merges. It does nothing when the release branch is already in the RC branch's history (the usual case
+// once a release came back by a merge commit), so the step stays in the pipeline for good. Refused when one of the
+// release branch's commits has no equivalent on the trunk: -s ours would drop it.
 func (e *Env) Reconcile(ctx context.Context, tag string) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -124,12 +126,17 @@ func (e *Env) Reconcile(ctx context.Context, tag string) error {
 		}
 		return fmt.Errorf("%s holds %d commit(s) %s has no equivalent of (%s): a merge with -s ours would drop them; carry them to %s first, nothing was merged", p.Release, len(lacking), p.Trunk, strings.Join(listed, "; "), p.Trunk)
 	}
+	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
+	if err != nil {
+		return err
+	}
 	// -s ours changes no file, so the prepared bump stays in the working tree for the release commit after it; git
 	// merges only over an index that matches HEAD, and the release commit stages its files again.
 	if _, err := e.git(ctx, wt, "reset", "--quiet"); err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("Merge branch '%s' into %s\n\nReconciliation: every commit of %s already has its equivalent on %s; their history is joined, the tree stays %s's.", p.Release, branch, p.Release, p.Trunk, p.Trunk)
+	msg := p.Convention.header(ticket, "sync release candidate with "+p.Release) + "\n\n" +
+		fmt.Sprintf("Merge %s into %s with -s ours: every commit of %s already has\nits equivalent on %s; the histories are joined, the tree stays %s's.", p.Release, branch, p.Release, p.Trunk, p.Trunk)
 	if _, err := e.git(ctx, wt, "merge", "--quiet", "-s", "ours", "--no-edit", "-m", msg, releaseRef); err != nil {
 		e.git(ctx, wt, "merge", "--abort")
 		return fmt.Errorf("could not merge %s into %s: %w", p.Release, branch, err)
@@ -150,13 +157,9 @@ type releasePr struct {
 	} `json:"mergeCommit"`
 }
 
-// PrTitle is the title of a release's pull request: the release commit's subject, which a squash merge keeps.
-func PrTitle(tag string, channel string) string {
-	return ReleaseCommitSubject(tag, channel)
-}
-
-func (e *Env) findReleasePr(ctx context.Context, p *Project, branch string, title string, state string) (*releasePr, error) {
-	out, err := e.gh(ctx, p.Root, "pr", "list", "--head", branch, "--base", p.Release, "--state", state, "--limit", "30", "--json", "number,url,title,state,headRefOid,mergeCommit")
+// findPr finds the pull request from head to base, in a state, whose title names the tag.
+func (e *Env) findPr(ctx context.Context, p *Project, head string, base string, tag string, state string) (*releasePr, error) {
+	out, err := e.gh(ctx, p.Root, "pr", "list", "--head", head, "--base", base, "--state", state, "--limit", "30", "--json", "number,url,title,state,headRefOid,mergeCommit")
 	if err != nil {
 		return nil, err
 	}
@@ -165,17 +168,42 @@ func (e *Env) findReleasePr(ctx context.Context, p *Project, branch string, titl
 		return nil, fmt.Errorf("gh pr list: unreadable answer")
 	}
 	for i := range prs {
-		if prs[i].Title == title {
+		if TitleNamesTag(prs[i].Title, tag) {
 			return &prs[i], nil
 		}
 	}
 	return nil, nil
 }
 
+// commitPrepared commits the prepared release on the RC branch, unless that commit is already its head (a step run
+// again after a refused push).
+func (e *Env) commitPrepared(ctx context.Context, p *Project, wt string, tag string, v versions.Version, channel string) (bool, error) {
+	head, _ := e.git(ctx, wt, "log", "-1", "--format=%s%x1f%b", "HEAD")
+	subject, body, _ := strings.Cut(head, "\x1f")
+	changed, err := e.changedPaths(ctx, wt)
+	if err != nil {
+		return false, err
+	}
+	if IsReleaseCommit(subject, body, tag) && len(changed) == 0 {
+		return false, nil
+	}
+	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
+	if err != nil {
+		return false, err
+	}
+	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
+	if err != nil {
+		return false, err
+	}
+	if err := e.commitRelease(ctx, p, wt, allowed, tag, channel, ticket); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // OpenPr commits the prepared release on its RC branch, pushes the branch and opens its pull request to the release
-// branch (or updates the one already open). When the release branch moved on since the RC branch was made, it is
-// merged in first, as GitHub's strict required checks want the branch up to date; a merge that conflicts or changes
-// the tree is refused: the release branch holds something the trunk does not (reconcile, or carry it to the trunk).
+// branch (or updates the one already open). GitHub's strict required checks want the branch up to date with the
+// release branch: the preparation merged it in when it could, else the reconciliation did; otherwise it is refused.
 func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -204,26 +232,12 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	if e.revParse(ctx, p.Root, releaseRef) == "" {
 		return p.releaseBranchMissing()
 	}
-	subject := ReleaseCommitSubject(tag, channel)
-	headSubject, _ := e.git(ctx, wt, "log", "-1", "--format=%s", "HEAD")
-	changed, err := e.changedPaths(ctx, wt)
+	committed, err := e.commitPrepared(ctx, p, wt, tag, v, channel)
 	if err != nil {
 		return err
 	}
-	committed := headSubject == subject && len(changed) == 0
-	if !committed {
-		allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
-		if err != nil {
-			return err
-		}
-		if err := e.commitRelease(ctx, wt, allowed, tag, channel); err != nil {
-			return err
-		}
-	}
-	// GitHub's strict required checks want the RC branch up to date with the release branch: the preparation merged it
-	// in when it could, else the reconciliation did.
 	if !e.isAncestor(ctx, wt, releaseRef, "HEAD") {
-		if !committed {
+		if committed {
 			// The prepared tree comes back as it was, so a reconciliation can be made before the release commit.
 			e.git(ctx, wt, "reset", "--quiet", "HEAD~1")
 		}
@@ -238,8 +252,7 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 		e.printf("origin is not on GitHub: merge %s into %s there with a merge commit, then tag it (molten release tag %s).\n", branch, p.Release, tag)
 		return nil
 	}
-	title := PrTitle(tag, channel)
-	open, err := e.findReleasePr(ctx, p, branch, title, "open")
+	open, err := e.findPr(ctx, p, branch, p.Release, tag, "open")
 	if err != nil {
 		return err
 	}
@@ -247,6 +260,7 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 		e.printf("The pull request is already open, updated: %s\n", open.Url)
 		return nil
 	}
+	title, _ := e.git(ctx, wt, "log", "-1", "--format=%s", "HEAD")
 	body := fmt.Sprintf("Releases %s: the version files, the release notes and the changelogs, on %s made from %s. Once merged with a merge commit, the tag goes on the merge commit (`molten release tag %s`).\n\nOpened by `molten release open-pr`.", tag, branch, p.Trunk, tag)
 	created, err := e.gh(ctx, p.Root, "pr", "create", "--base", p.Release, "--head", branch, "--title", title, "--body", body)
 	if err != nil {
@@ -256,21 +270,71 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	return nil
 }
 
+// TagRcBranch cuts a release candidate that nothing publishes (no workflow starts on its tag): the release commit on
+// the RC branch, the branch and the tag pushed together, and nothing merged into the release branch or the trunk. The
+// labels bumped to the candidate's version stay on the RC branch; the public release sets them to its own.
+func (e *Env) TagRcBranch(ctx context.Context, tag string) error {
+	p, err := e.LoadProject(ctx)
+	if err != nil {
+		return err
+	}
+	v, channel, err := p.releaseOf(tag)
+	if err != nil {
+		return err
+	}
+	unlock, err := e.lock(ctx, p.Root)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	branch, wt, err := e.preparedPr(ctx, p, tag, v)
+	if err != nil {
+		return err
+	}
+	if err := e.fetch(ctx, p.Root); err != nil {
+		return err
+	}
+	if where := e.tagTaken(ctx, p.Root, tag); where != "" {
+		return fmt.Errorf("%s already exists %s: nothing was committed", tag, where)
+	}
+	committed, err := e.commitPrepared(ctx, p, wt, tag, v, channel)
+	if err != nil {
+		return err
+	}
+	if _, err := e.git(ctx, wt, "tag", tag); err != nil {
+		return fmt.Errorf("could not tag the release: %w", err)
+	}
+	if _, err := e.git(ctx, wt, "push", "--quiet", "--atomic", "--force-with-lease=refs/heads/"+branch, "origin", "HEAD:refs/heads/"+branch, "refs/tags/"+tag); err != nil {
+		e.git(ctx, wt, "tag", "-d", tag)
+		if committed {
+			e.git(ctx, wt, "reset", "--quiet", "HEAD~1")
+		}
+		return fmt.Errorf("the push was refused, nothing reached origin (tag again): %w", err)
+	}
+	head := e.revParse(ctx, wt, "HEAD")
+	e.printf("%s committed on %s (%s), tagged and pushed with it. Nothing reaches %s or %s: the candidate lives on %s.\n", tag, branch, head[:min(7, len(head))], p.Release, p.Trunk, branch)
+	return nil
+}
+
 func upToDateHint(p *Project, tag string) string {
-	return fmt.Sprintf("when every commit of %s already has its equivalent on %s, reconcile once (molten release reconcile %s, after the preparation), else carry them to %s; then prepare %s again", p.Release, p.Trunk, tag, p.Trunk, tag)
+	return fmt.Sprintf("when every commit of %s already has its equivalent on %s, reconcile (molten release reconcile %s, after the preparation), else carry them to %s; then prepare %s again", p.Release, p.Trunk, tag, p.Trunk, tag)
 }
 
 // mergeReleaseBranch brings the release branch into the fresh RC branch, before the bump, when that merge is clean and
-// leaves the trunk's tree: after a release by pull request, the release branch holds its merge commit and the release
-// commit the trunk only has as a cherry-pick, whose identical change merges cleanly. Otherwise nothing is merged and the
-// reason is printed: the reconciliation, or the trunk, has to take it.
-func (e *Env) mergeReleaseBranch(ctx context.Context, p *Project, wt string, branch string, tag string) {
+// leaves the trunk's tree (after a release whose commit came back by cherry-pick: the same change on both sides).
+// Otherwise nothing is merged and the reason is printed: the reconciliation, or the trunk, has to take it.
+func (e *Env) mergeReleaseBranch(ctx context.Context, p *Project, wt string, branch string, tag string, v versions.Version) {
 	releaseRef := "origin/" + p.Release
 	if e.isAncestor(ctx, wt, releaseRef, "HEAD") {
 		return
 	}
+	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
+	if err != nil {
+		e.printf("%s is not merged into %s: %v.\n", p.Release, branch, err)
+		return
+	}
 	before := e.revParse(ctx, wt, "HEAD")
-	msg := fmt.Sprintf("Merge branch '%s' into %s", p.Release, branch)
+	msg := p.Convention.header(ticket, "merge "+p.Release+" into "+branch)
 	if _, err := e.git(ctx, wt, "merge", "--quiet", "--no-ff", "--no-edit", "-m", msg, releaseRef); err != nil {
 		conflicts, _ := e.gitLines(ctx, wt, "diff", "--name-only", "--diff-filter=U")
 		e.git(ctx, wt, "merge", "--abort")
@@ -316,46 +380,10 @@ func (e *Env) requiredChecks(ctx context.Context, p *Project, number int) ([]prC
 	return nil, fmt.Errorf("gh pr checks: unreadable answer")
 }
 
-// MergePr merges the release's pull request into the release branch once its required checks are green: the
-// developer confirmed the step (Mission Control asks before it runs), so it does not ask again. A failed check, a
-// branch behind the release branch or a conflict stops it; an already merged pull request is reported as merged.
-func (e *Env) MergePr(ctx context.Context, tag string, opts MergePrOptions) error {
-	p, err := e.LoadProject(ctx)
-	if err != nil {
-		return err
-	}
-	v, channel, err := p.releaseOf(tag)
-	if err != nil {
-		return err
-	}
-	method := opts.Method
-	if method == "" {
-		method = MergeMethodMerge
-	}
-	if method != MergeMethodMerge && method != MergeMethodSquash && method != MergeMethodRebase {
-		return fmt.Errorf("--method must be merge, squash or rebase (got %q)", method)
-	}
-	branch, err := p.RcBranch(v)
-	if err != nil {
-		return err
-	}
-	if !e.OnGithub(ctx, p.Root) {
-		return fmt.Errorf("origin is not on GitHub: merge %s into %s there, then tag it (molten release tag %s)", branch, p.Release, tag)
-	}
-	title := PrTitle(tag, channel)
-	if merged, err := e.findReleasePr(ctx, p, branch, title, "merged"); err != nil {
-		return err
-	} else if merged != nil {
-		e.printf("The pull request of %s is already merged: %s\n", tag, merged.Url)
-		return nil
-	}
-	pr, err := e.findReleasePr(ctx, p, branch, title, "open")
-	if err != nil {
-		return err
-	}
-	if pr == nil {
-		return fmt.Errorf("no open pull request of %s from %s to %s: open it first (molten release open-pr %s)", tag, branch, p.Release, tag)
-	}
+// waitAndMerge waits for a pull request's required checks and for GitHub to let it merge, then merges it by method,
+// only if its head is still the commit that was checked. A failed check, a branch behind its base or a conflict
+// stops it with what to do (redo).
+func (e *Env) waitAndMerge(ctx context.Context, p *Project, pr *releasePr, base string, method string, redo string) error {
 	e.printf("Pull request %s: waiting for its required checks.\n", pr.Url)
 	poll, limit := e.CiPoll, e.CiLimit
 	if poll <= 0 {
@@ -379,7 +407,7 @@ func (e *Env) MergePr(ctx context.Context, tag string, opts MergePrOptions) erro
 			}
 			switch c.Bucket {
 			case "fail", "cancel":
-				return fmt.Errorf("the required check %s failed on %s %s: fix it on %s and open-pr again, or re-run it when the code was not the cause; nothing was merged", c.Name, branch, c.Link, p.Trunk)
+				return fmt.Errorf("the required check %s failed on %s: %s, or re-run it when the code was not the cause; nothing was merged", c.Name, c.Link, redo)
 			case "pass", "skipping":
 			default:
 				pending = append(pending, c.Name)
@@ -391,9 +419,9 @@ func (e *Env) MergePr(ctx context.Context, tag string, opts MergePrOptions) erro
 		}
 		switch view.MergeStateStatus {
 		case mergeStateBehind:
-			return fmt.Errorf("%s moved on since the pull request: open-pr again to bring %s up to date; nothing was merged", p.Release, branch)
+			return fmt.Errorf("%s moved on since the pull request was opened: %s; nothing was merged", base, redo)
 		case mergeStateDirty:
-			return fmt.Errorf("the pull request conflicts with %s: prepare %s again; nothing was merged", p.Release, tag)
+			return fmt.Errorf("the pull request conflicts with %s: %s; nothing was merged", base, redo)
 		}
 		ready := view.MergeStateStatus == mergeStateClean || view.MergeStateStatus == mergeStateUnstable || view.MergeStateStatus == mergeStateHasHooks
 		if len(pending) == 0 && ready {
@@ -413,6 +441,52 @@ func (e *Env) MergePr(ctx context.Context, tag string, opts MergePrOptions) erro
 	}
 	if _, err := e.gh(ctx, p.Root, args...); err != nil {
 		return fmt.Errorf("GitHub refused the merge of %s: %w", pr.Url, err)
+	}
+	return nil
+}
+
+// MergePr merges the release's pull request into the release branch once its required checks are green: the
+// developer confirmed the step (Mission Control asks before it runs), so it does not ask again. A failed check, a
+// branch behind the release branch or a conflict stops it; an already merged pull request is reported as merged.
+func (e *Env) MergePr(ctx context.Context, tag string, opts MergePrOptions) error {
+	p, err := e.LoadProject(ctx)
+	if err != nil {
+		return err
+	}
+	v, _, err := p.releaseOf(tag)
+	if err != nil {
+		return err
+	}
+	method := opts.Method
+	if method == "" {
+		method = MergeMethodMerge
+	}
+	if method != MergeMethodMerge && method != MergeMethodSquash && method != MergeMethodRebase {
+		return fmt.Errorf("--method must be merge, squash or rebase (got %q)", method)
+	}
+	branch, err := p.RcBranch(v)
+	if err != nil {
+		return err
+	}
+	if !e.OnGithub(ctx, p.Root) {
+		return fmt.Errorf("origin is not on GitHub: merge %s into %s there, then tag it (molten release tag %s)", branch, p.Release, tag)
+	}
+	if merged, err := e.findPr(ctx, p, branch, p.Release, tag, "merged"); err != nil {
+		return err
+	} else if merged != nil {
+		e.printf("The pull request of %s is already merged: %s\n", tag, merged.Url)
+		return nil
+	}
+	pr, err := e.findPr(ctx, p, branch, p.Release, tag, "open")
+	if err != nil {
+		return err
+	}
+	if pr == nil {
+		return fmt.Errorf("no open pull request of %s from %s to %s: open it first (molten release open-pr %s)", tag, branch, p.Release, tag)
+	}
+	redo := fmt.Sprintf("fix it on %s, prepare %s again and open-pr again", p.Trunk, tag)
+	if err := e.waitAndMerge(ctx, p, pr, p.Release, method, redo); err != nil {
+		return err
 	}
 	e.printf("Pull request merged into %s (%s): tag the merge commit next (molten release tag %s).\n", p.Release, method, tag)
 	return nil
@@ -435,15 +509,13 @@ func (e *Env) prState(ctx context.Context, p *Project, number int) (prView, erro
 	return view, nil
 }
 
-// releaseCommitOn finds the release commit of a tag reachable from ref: the commit whose subject is the release's
-// (a squash merge keeps it as the start of its own subject).
+// releaseCommitOn finds the release commit of a tag reachable from ref, by its subject or its Molten-Release trailer.
 func (e *Env) releaseCommitOn(ctx context.Context, dir string, ref string, tag string) string {
-	lines, _ := e.gitLines(ctx, dir, "log", "-n", fmt.Sprint(maxReleaseSearch), "--format=%H%x1f%s", ref)
-	prefix := "chore(release): " + tag + " ("
-	for _, line := range lines {
-		sha, subject, _ := strings.Cut(line, "\x1f")
-		if strings.HasPrefix(subject, prefix) {
-			return sha
+	out, _ := e.git(ctx, dir, "log", "-n", fmt.Sprint(maxReleaseSearch), "--format=%H%x1f%s%x1f%b%x1e", ref)
+	for _, record := range strings.Split(out, "\x1e") {
+		fields := strings.SplitN(strings.TrimSpace(record), "\x1f", 3)
+		if len(fields) == 3 && IsReleaseCommit(fields[1], fields[2], tag) {
+			return fields[0]
 		}
 	}
 	return ""

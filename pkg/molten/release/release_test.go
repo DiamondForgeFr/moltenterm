@@ -415,7 +415,7 @@ func TestPrepareWaitsForTheLastReleaseToBeCarriedBack(t *testing.T) {
 	cutRelease(t, f, "v1.0.0-1")
 	e := f.env()
 	mustRun(t, f, "promote with nothing new", e.Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
-	mustFail(t, f, "prepare the next candidate", e.Prepare(ctx, "v1.0.0-2"), "v1.0.0-1 (rc)")
+	mustFail(t, f, "prepare the next candidate", e.Prepare(ctx, "v1.0.0-2"), "lacks (v1.0.0-1)")
 	mustRun(t, f, "sync-back", e.SyncBack(ctx, "v1.0.0-1"))
 	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
 	gitIn(t, f.checkout, "push", "--quiet", "origin", "origin/chore/sync-back-v1.0.0-1:refs/heads/develop")
@@ -597,10 +597,47 @@ func TestSyncBackReusesAnOpenPullRequest(t *testing.T) {
 	mustFail(t, f, "sync-back of an unpushed tag", f.env().SyncBack(ctx, "v1.0.0-2"), "not on origin")
 }
 
+// fakeClock moves on by each sleep, so a wait bounded in time ends without waiting.
+func fakeClock(e *Env) {
+	now := time.Unix(1_800_000_000, 0)
+	e.Now = func() time.Time { return now }
+	e.Sleep = func(d time.Duration) { now = now.Add(d) }
+	e.CiPoll = time.Minute
+}
+
 func TestCloseMilestoneWithoutRelease(t *testing.T) {
 	f := makeFixture(t)
 	f.gh.noRelease = true
-	mustFail(t, f, "close-milestone", f.env().CloseMilestone(context.Background(), "v1.0.0"), "no GitHub release")
+	e := f.env()
+	fakeClock(e)
+	mustFail(t, f, "close-milestone", e.CloseMilestone(context.Background(), "v1.0.0"), "still not published")
+}
+
+// close-milestone waits for the tag's runs, an environment approval included, and closes nothing when one fails
+// (#1046).
+func TestCloseMilestoneWaitsForThePublication(t *testing.T) {
+	f := makeFixture(t)
+	f.gh.noRelease = true
+	states := []string{`"waiting",""`, `"in_progress",""`, `"completed","success"`}
+	e := f.env()
+	fakeClock(e)
+	runs := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		if name == "gh" && strings.HasPrefix(strings.Join(args, " "), "run list --limit 50") {
+			state := states[0]
+			if len(states) > 1 {
+				states = states[1:]
+			}
+			return []byte(fmt.Sprintf(`[{"headBranch":"v1.0.0","status":%s,"url":"https://ci/9","workflowName":"Publish stable package"},{"headBranch":"develop","status":"completed","conclusion":"failure"}]`, strings.Replace(state, `",`, `","conclusion":`, 1))), nil
+		}
+		return f.env().Run(ctx, dir, name, args...)
+	}
+	e.Run = runs
+	mustRun(t, f, "close-milestone", e.CloseMilestone(context.Background(), "v1.0.0"))
+	if !strings.Contains(f.out.String(), "Publish stable package (waiting)") || len(f.gh.called("api", "--method", "PATCH")) != 1 {
+		t.Fatalf("the milestone must close only after the run ended green:\n%s", f.out.String())
+	}
+	states = []string{`"completed","failure"`}
+	mustFail(t, f, "a failed publication", e.CloseMilestone(context.Background(), "v1.0.0"), "Publish stable package ended in failure")
 }
 
 func TestPlanReportsTheMilestone(t *testing.T) {

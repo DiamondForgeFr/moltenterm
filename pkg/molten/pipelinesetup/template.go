@@ -90,7 +90,9 @@ func DefaultOptions(f Facts) Options {
 		o.SyncBack = false
 	} else if f.Protection.RequiresPr() {
 		o.BranchModel = BranchModelRcPr
-		o.Reconcile = f.Divergence.Reconcilable()
+		// The step does nothing while the release branch is in the RC branch's history, so it stays for good; it is left
+		// out only where it would refuse (a release-branch commit with no equivalent on the trunk).
+		o.Reconcile = f.Divergence == nil || f.Divergence.NotEquivalent == 0
 	}
 	// Kept by default: a label of the current version, or one in a top-level file (an agents file lagging behind); an
 	// other version deep in the docs is more likely an example than a label.
@@ -364,9 +366,19 @@ func prSteps(f Facts, o Options, channel string, sources map[string]Source, bran
 	steps = append(steps, molten.PipelineStep{Id: "prepare", Title: fmt.Sprintf("Bump the version and draft the notes on %s, made from %s", rc, trunk),
 		Phase: "prepare", PipelineCommand: molten.PipelineCommand{Run: "molten release prepare {tag} --pr"}})
 	sources[key+"/prepare"] = f.VersionSource
+	// A candidate nothing publishes (no workflow starts on its tag) stays on its RC branch: tagged there, merged into
+	// neither the release branch nor the trunk.
+	if channel == ChannelRc && !rcPublished(f, o) {
+		steps = handSteps(f, o, steps, key, sources)
+		steps = append(steps, molten.PipelineStep{Id: "tag", Title: fmt.Sprintf("Commit the candidate on %s and tag it there", rc), Phase: "cut",
+			Confirm:         fmt.Sprintf("Pushes %s with the release commit of {tag} and the tag on its head. Nothing starts on the tag, and nothing reaches %s or %s.", rc, release, trunk),
+			PipelineCommand: molten.PipelineCommand{Run: "molten release tag {tag} --rc-branch"}})
+		sources[key+"/tag"] = Source{Code: "rcOnBranch", Path: rc}
+		return steps
+	}
 	if o.Reconcile {
 		steps = append(steps, molten.PipelineStep{Id: "reconcile", Phase: "prepare",
-			Title:           fmt.Sprintf("Merge %s into %s with -s ours, once: every commit of %s is already on %s", release, rc, release, trunk),
+			Title:           fmt.Sprintf("Reconcile %s into %s when they diverged (merge -s ours; nothing to do otherwise)", release, rc),
 			PipelineCommand: molten.PipelineCommand{Run: "molten release reconcile {tag}"}})
 		d := f.Divergence
 		detail := ""
@@ -409,6 +421,12 @@ func prSteps(f Facts, o Options, channel string, sources map[string]Source, bran
 	}
 	sources[key+"/tag"] = tagSource
 	return afterTag(f, o, channel, steps, sources, branchSource, false)
+}
+
+// rcPublished tells whether something consumes the release candidate's tag: a workflow that starts on it.
+func rcPublished(f Facts, o Options) bool {
+	files, _ := tagWorkflows(f, ChannelRc, o.TagPrefix)
+	return len(files) > 0
 }
 
 func mergeWords(method string) string {
@@ -463,7 +481,15 @@ func afterTag(f Facts, o Options, channel string, steps []molten.PipelineStep, s
 			PipelineCommand: molten.PipelineCommand{Run: "molten release dispatch " + shellArg(wf.File) + " --ref {tag}"}})
 		sources[key+"/"+id] = Source{Code: "dispatch", Path: WorkflowsDir + "/" + wf.File, Detail: strings.Join(wf.Environments, ", ")}
 	}
-	if o.SyncBack && !single {
+	if o.SyncBack && !single && o.BranchModel == BranchModelRcPr {
+		// Only a merge commit makes the release branch part of the trunk's history; squashed or rebased, the branches
+		// diverge again (#1046).
+		steps = append(steps, molten.PipelineStep{Id: "sync-back", Title: fmt.Sprintf("Merge {tag} back into %s with a merge commit", trunk),
+			Phase:           "back",
+			Confirm:         fmt.Sprintf("Opens the pull request of {tag} into %s and merges it with a merge commit once its checks are green, never squash or rebase: %s must become part of %s's history, or the branches diverge again.", trunk, f.Branches.Release, trunk),
+			PipelineCommand: molten.PipelineCommand{Run: "molten release sync-back {tag} --merge"}})
+		sources[key+"/sync-back"] = branchSource
+	} else if o.SyncBack && !single {
 		steps = append(steps, molten.PipelineStep{Id: "sync-back", Title: fmt.Sprintf("Carry the release commit back to %s by pull request", trunk),
 			Phase: "back", PipelineCommand: molten.PipelineCommand{Run: "molten release sync-back {tag}"}})
 		sources[key+"/sync-back"] = branchSource

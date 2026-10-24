@@ -22,7 +22,6 @@ import {
     diffHunks,
     flowModel,
     lineDiff,
-    reconcilable,
     removeManual,
     SetupChannel,
     SetupChoice,
@@ -402,7 +401,7 @@ export function ChoicesStep({
                                 ...options,
                                 branchmodel: id,
                                 syncback: id === "single" ? false : options.syncback,
-                                reconcile: id === "rcpr" ? reconcilable(facts.divergence) : false,
+                                reconcile: id === "rcpr" ? !(facts.divergence?.notequivalent > 0) : false,
                             })
                         }
                         labelOf={(id) =>

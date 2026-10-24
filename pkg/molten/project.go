@@ -163,6 +163,16 @@ func RcBranchPattern(dir string) string {
 	return conv.BranchNaming["release"]
 }
 
+// CommitFormatOf is the project's commit format (.saasfoundry.json workflow.commitFormat): its pattern, and whether a
+// ticket is required (#1046).
+func CommitFormatOf(dir string) (string, bool) {
+	conv, _, ok := readSaaSFoundry(dir)
+	if !ok {
+		return "", false
+	}
+	return conv.CommitPattern, conv.RequireTicket
+}
+
 // ReadProject reads what Moltenterm needs from a linked folder. A folder that disappeared is reported, not an error:
 // the link stays until the user removes it.
 func ReadProject(dir string) ProjectInfo {

@@ -72,6 +72,8 @@ export type ReleaseFacts = {
     release?: { tagName: string; isDraft: boolean; isPrerelease: boolean; url: string };
     ontrunk: boolean;
     backpr?: { number: number; url: string; title: string; headRefName: string };
+    // A candidate tagged on its RC branch: it reaches neither the release branch nor the trunk (#1046).
+    offrelease?: boolean;
     // The pull request bringing the release to the release branch, while the tag is not pushed (#1046).
     releasepr?: { number: number; url: string; title: string; headRefName: string };
     // A running step waits for a branch's GitHub CI (the promotion, #836).
@@ -626,6 +628,9 @@ function back(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[], pu
     if (facts.tagexists && facts.ontrunk) {
         return { ...base, status: "done", expect: t("mc.releaseRun.backOn", { trunk }) };
     }
+    if (facts.tagexists && facts.offrelease && steps.length === 0) {
+        return { ...base, status: "done", expect: t("mc.releaseRun.offRelease", { tag, trunk }) };
+    }
     if (!facts.tagexists) {
         return { ...base, expect: t("mc.releaseRun.afterCut") };
     }
@@ -658,8 +663,21 @@ export function releaseRun(facts: ReleaseFacts, declared: readonly PipelineRelea
     }
     const tag = facts.tag;
     const channel = facts.channel ?? (tag.includes("-") ? "rc" : "public");
-    const byPhase = stepsByPhase(declared, facts);
-    const notesStep = (declared ?? []).find((s) => s.notes) ?? null;
+    // A title says the release's own words, as its instructions and confirmation do (#1046).
+    const steps = (declared ?? []).map((s) =>
+        s.title
+            ? {
+                  ...s,
+                  title: s.title
+                      .split("{tag}")
+                      .join(tag)
+                      .split("{version}")
+                      .join(facts.version ?? ""),
+              }
+            : s
+    );
+    const byPhase = stepsByPhase(steps, facts);
+    const notesStep = steps.find((s) => s.notes) ?? null;
     const p = prepare(facts, byPhase.prepare);
     const c = cut(facts, tag, byPhase.cut, notesStep, p.status === "done");
     const b = build(facts, tag, byPhase.build);

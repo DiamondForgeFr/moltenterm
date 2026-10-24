@@ -43,6 +43,9 @@ var moltenReleaseDispatchRef string
 var moltenReleaseDispatchFields []string
 var moltenReleasePr bool
 var moltenReleaseMergeMethod string
+var moltenReleaseRcBranch bool
+var moltenReleaseSyncMerge bool
+var moltenReleaseTicket int
 
 var moltenReleaseCmd = &cobra.Command{
 	Use:   "release",
@@ -109,6 +112,9 @@ var moltenReleaseTagCmd = &cobra.Command{
 	Short: "tag the commit the merged pull request left on the release branch and push the tag",
 	Args:  cobra.ExactArgs(1),
 	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		if moltenReleaseRcBranch {
+			return moltenReleaseEnv().TagRcBranch(context.Background(), args[0])
+		}
 		return moltenReleaseEnv().Tag(context.Background(), args[0])
 	}),
 }
@@ -134,6 +140,9 @@ var moltenReleaseSyncBackCmd = &cobra.Command{
 	Short: "carry the release commit back to the trunk by pull request",
 	Args:  cobra.ExactArgs(1),
 	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		if moltenReleaseSyncMerge {
+			return moltenReleaseEnv().SyncBackMerge(context.Background(), args[0])
+		}
 		return moltenReleaseEnv().SyncBack(context.Background(), args[0])
 	}),
 }
@@ -191,6 +200,9 @@ func init() {
 	moltenReleaseRehearseCmd.Flags().StringArrayVarP(&moltenReleaseFields, "field", "f", nil, "an input of the workflow, key=value (repeatable)")
 	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseDownload, "download", "", "download the artifacts into <folder>/<short commit>")
 	moltenReleasePrepareCmd.Flags().BoolVar(&moltenReleasePr, "pr", false, "prepare on the RC branch made from the trunk, for a release branch that takes pull requests only")
+	moltenReleaseTagCmd.Flags().BoolVar(&moltenReleaseRcBranch, "rc-branch", false, "commit the prepared candidate on its RC branch and tag its head: nothing reaches the release branch")
+	moltenReleaseSyncBackCmd.Flags().BoolVar(&moltenReleaseSyncMerge, "merge", false, "merge the tag into the trunk by pull request with a merge commit, once its checks are green")
+	moltenReleaseCmd.PersistentFlags().IntVar(&moltenReleaseTicket, "ticket", 0, "the release's ticket, for a commit format that names one (default: "+release.TicketEnv+", else the milestone's \"Release vX.Y.Z\" issue)")
 	moltenReleaseMergePrCmd.Flags().StringVar(&moltenReleaseMergeMethod, "method", release.MergeMethodMerge, "how GitHub merges the pull request: merge, squash or rebase")
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
 		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd,
@@ -206,7 +218,7 @@ func moltenReleaseEnv() *release.Env {
 	if err != nil {
 		dir = "."
 	}
-	return &release.Env{Dir: dir, Out: WrappedStdout, CodingAgent: moltenCodingAgent}
+	return &release.Env{Dir: dir, Out: WrappedStdout, CodingAgent: moltenCodingAgent, Ticket: moltenReleaseTicket}
 }
 
 // moltenCodingAgent asks MoltenTerm for the project's coding agent (#845) when the command runs in one of its

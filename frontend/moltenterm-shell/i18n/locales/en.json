@@ -3162,6 +3162,7 @@
             "publishedPublic": "Published: offered to all users.",
             "pr": "PR #{number}",
             "backOn": "The release is back on {trunk}.",
+            "offRelease": "{tag} stays on its RC branch: nothing to bring back to {trunk}.",
             "afterCut": "After the cut.",
             "mergePr": "Merge PR #{number} into {trunk}.",
             "bringBack": "Bring {tag} back to {trunk}.",
@@ -3566,14 +3567,17 @@
                 "milestone": "Close the milestone once published",
                 "manual": "Steps done by hand",
                 "manualHint": "Something MoltenTerm cannot run for you, such as a one-time merge: the release waits until you mark it done.",
-                "reconcile": "Reconcile {release} into {rc} once (merge -s ours, before the release commit)",
-                "reconcileHint": "Every commit of the release branch is already on the trunk: nothing is lost. Remove the step once a release went through.",
+                "reconcile": "Reconcile {release} into {rc} when they diverged (merge -s ours, before the release commit)",
+                "reconcileHint": "Does nothing when {release} is already in the RC branch's history; refused when {release} holds a commit the trunk lacks, so nothing is ever lost.",
                 "labels": "Version labels",
                 "labelsHint": "Lines outside the version files that show the version ({version}); the kept ones are bumped with it.",
                 "labelManual": "No pattern finds this line alone: you bump it by hand, in a step before the cut."
             },
             "why": {
-                "title": "Why this flow"
+                "title": "Why this flow",
+                "rcOnBranch": "Nothing publishes a release candidate (no workflow starts on its tag): a candidate is tagged on {rc} and reaches neither {release} nor the trunk.",
+                "mergeBack": "The release comes back to {trunk} by a pull request merged with a merge commit, never squash or rebase, so that {release} stays in {trunk}'s history and the branches do not diverge again.",
+                "ticket": "The project's commits name a ticket (chore(#N): …): the release's commits name the ticket of the version's milestone titled “Release vX.Y.Z”, or the one given with --ticket."
             },
             "protection": {
                 "unread": "The protection of {branch} could not be read ({error}): the flow assumes it takes direct pushes.",
@@ -3651,7 +3655,8 @@
                 "kindDeploy": "{path} deploys to {detail}.",
                 "protection": "The protection of {path}: {detail}.",
                 "reconcile": "{path} diverged: {detail} (commits ahead / behind / conflicting files).",
-                "labelsManual": "Version labels no pattern finds alone."
+                "labelsManual": "Version labels no pattern finds alone.",
+                "rcOnBranch": "No workflow starts on a candidate's tag: it stays on {path}."
             },
             "manual": {
                 "titlePlaceholder": "What to do, in a few words",

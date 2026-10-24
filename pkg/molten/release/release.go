@@ -74,6 +74,8 @@ type Env struct {
 	// Zero means the defaults (30 s, 90 min).
 	CiPoll  time.Duration
 	CiLimit time.Duration
+	// --ticket: the release's ticket, for a commit format that names one (#1046).
+	Ticket int
 }
 
 // Project is what the release commands read from `.molten/project.json`.
@@ -93,6 +95,11 @@ type Project struct {
 	ReleaseFrom string
 	// The RC branch naming of the pull-request flow (#1046), e.g. rc-{version}; empty for DefaultRcBranchPattern.
 	RcPattern string
+	// How the chain's commits are worded (#1046).
+	Convention Convention
+	// ci.prepare: what installs the project's dependencies, run in the release worktree before its first commit when
+	// the project has git hooks that need them (#1046).
+	Install string
 }
 
 // releaseBranchMissing says which branch was looked for, and why that one (#415).
@@ -249,6 +256,10 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	branches := molten.ResolvedBranches(root)
 	p.Trunk, p.Release, p.ReleaseFrom = branches.Trunk, branches.Release, branches.ReleaseFrom
 	p.RcPattern = molten.RcBranchPattern(root)
+	p.Convention = ReadConvention(root)
+	if ci := report.Pipeline.Ci; ci != nil && ci.Prepare != nil {
+		p.Install = strings.TrimSpace(ci.Prepare.Run)
+	}
 	return p, nil
 }
 

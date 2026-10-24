@@ -3162,6 +3162,7 @@
             "publishedPublic": "Publié : proposé à tous les utilisateurs.",
             "pr": "PR #{number}",
             "backOn": "La release est de retour sur {trunk}.",
+            "offRelease": "{tag} reste sur sa branche RC : rien à ramener sur {trunk}.",
             "afterCut": "Après la coupe.",
             "mergePr": "Fusionnez la PR #{number} dans {trunk}.",
             "bringBack": "Ramenez {tag} sur {trunk}.",
@@ -3566,14 +3567,17 @@
                 "milestone": "Fermer le jalon une fois publié",
                 "manual": "Étapes faites à la main",
                 "manualHint": "Ce que MoltenTerm ne peut pas lancer pour vous, comme une fusion ponctuelle : la release attend que vous la marquiez comme faite.",
-                "reconcile": "Réconcilier {release} dans {rc} une fois (merge -s ours, avant le commit de release)",
-                "reconcileHint": "Chaque commit de la branche de release est déjà sur le tronc : rien n’est perdu. Retirez l’étape une fois une release passée.",
+                "reconcile": "Réconcilier {release} dans {rc} quand elles ont divergé (merge -s ours, avant le commit de release)",
+                "reconcileHint": "Ne fait rien quand {release} est déjà dans l’historique de la branche RC ; refusé quand {release} porte un commit absent du tronc : rien n’est jamais perdu.",
                 "labels": "Libellés de version",
                 "labelsHint": "Les lignes hors des fichiers de version qui affichent la version ({version}) ; celles gardées sont mises à jour avec elle.",
                 "labelManual": "Aucun motif ne trouve cette ligne seule : vous la mettez à jour à la main, dans une étape avant la coupe."
             },
             "why": {
-                "title": "Pourquoi ce flux"
+                "title": "Pourquoi ce flux",
+                "rcOnBranch": "Rien ne publie une release candidate (aucun workflow ne démarre sur son tag) : une candidate est taguée sur {rc} et n’atteint ni {release} ni le tronc.",
+                "mergeBack": "La release revient sur {trunk} par une pull request fusionnée par un commit de fusion, jamais en squash ni en rebase, pour que {release} reste dans l’historique de {trunk} et que les branches ne divergent plus.",
+                "ticket": "Les commits du projet nomment un ticket (chore(#N): …) : ceux de la release nomment le ticket du jalon de la version intitulé « Release vX.Y.Z », ou celui donné par --ticket."
             },
             "protection": {
                 "unread": "La protection de {branch} n’a pas pu être lue ({error}) : le flux suppose qu’elle accepte les pushs directs.",
@@ -3651,7 +3655,8 @@
                 "kindDeploy": "{path} déploie sur {detail}.",
                 "protection": "La protection de {path} : {detail}.",
                 "reconcile": "{path} ont divergé : {detail} (commits en avance / en retard / fichiers en conflit).",
-                "labelsManual": "Libellés de version qu’aucun motif ne trouve seuls."
+                "labelsManual": "Libellés de version qu’aucun motif ne trouve seuls.",
+                "rcOnBranch": "Aucun workflow ne démarre sur le tag d’une candidate : elle reste sur {path}."
             },
             "manual": {
                 "titlePlaceholder": "Ce qu’il faut faire, en quelques mots",

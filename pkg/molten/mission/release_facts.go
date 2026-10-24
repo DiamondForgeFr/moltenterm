@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -117,6 +118,8 @@ type ReleaseFacts struct {
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
+	// A candidate tagged on its RC branch (#1046): it reaches neither the release branch nor the trunk.
+	OffRelease bool `json:"offrelease,omitempty"`
 	// The pull request that brings the release to the release branch, while the tag is not pushed (#1046).
 	ReleasePr *ReleasePr `json:"releasepr,omitempty"`
 	// A running step waits for a branch's GitHub CI (the promotion, #836).
@@ -354,7 +357,7 @@ func releasesByPr(p *molten.Pipeline) bool {
 	}
 	for _, steps := range [][]molten.PipelineStep{p.Release.Rc, p.Release.Public} {
 		for _, s := range steps {
-			if strings.HasPrefix(strings.TrimSpace(s.Run), "molten release open-pr") {
+			if run := strings.TrimSpace(s.Run); strings.HasPrefix(run, "molten release open-pr") || strings.HasPrefix(run, "molten release tag") && strings.Contains(run, "--rc-branch") {
 				return true
 			}
 		}
@@ -362,17 +365,17 @@ func releasesByPr(p *molten.Pipeline) bool {
 	return false
 }
 
-// releasePrOf finds the open pull request titled after the release's commit (release.PrTitle).
+// releasePrOf finds the open pull request to the release branch whose title names the release.
 func (r *Runs) releasePrOf(ctx context.Context, dir string, tag string) *ReleasePr {
-	release := molten.ResolvedBranches(dir).Release
-	out, err := ghJson(ctx, r.git, dir, "pr", "list", "--state", "open", "--base", release, "--limit", "30", "--json", "number,url,title,headRefName")
+	releaseBranch := molten.ResolvedBranches(dir).Release
+	out, err := ghJson(ctx, r.git, dir, "pr", "list", "--state", "open", "--base", releaseBranch, "--limit", "30", "--json", "number,url,title,headRefName")
 	if err != nil {
 		return nil
 	}
 	var prs []ReleasePr
 	json.Unmarshal(out, &prs)
 	for _, pr := range prs {
-		if strings.HasPrefix(pr.Title, "chore(release): "+tag+" (") {
+		if release.TitleNamesTag(pr.Title, tag) {
 			return &pr
 		}
 	}
@@ -385,14 +388,14 @@ func releaseCommitOfTag(ctx context.Context, git Runner, dir string, tag string)
 	if _, err := git(ctx, dir, "git", "rev-parse", "--verify", "--quiet", tag+"^2"); err != nil {
 		return tag
 	}
-	out, err := git(ctx, dir, "git", "log", "-n", "500", "--format=%H%x1f%s", tag+"^1.."+tag)
+	out, err := git(ctx, dir, "git", "log", "-n", "500", "--format=%H%x1f%s%x1f%b%x1e", tag+"^1.."+tag)
 	if err != nil {
 		return tag
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		sha, subject, _ := strings.Cut(line, "\x1f")
-		if strings.HasPrefix(subject, "chore(release): "+tag+" (") {
-			return sha
+	for _, record := range strings.Split(string(out), "\x1e") {
+		fields := strings.SplitN(strings.TrimSpace(record), "\x1f", 3)
+		if len(fields) == 3 && release.IsReleaseCommit(fields[1], fields[2], tag) {
+			return fields[0]
 		}
 	}
 	return tag
@@ -438,6 +441,12 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 		return facts, nil
 	}
 	facts.OnTrunk = r.onTrunk(ctx, dir, trunkRef, session.Tag)
+	if releasesByPr(p) && !facts.OnTrunk {
+		releaseRef := "origin/" + molten.ResolvedBranches(dir).Release
+		if _, err := r.git(ctx, dir, "git", "merge-base", "--is-ancestor", session.Tag, releaseRef); err != nil {
+			facts.OffRelease = true
+		}
+	}
 	r.readGithubRelease(ctx, dir, &facts)
 	if !facts.NoGithub {
 		r.readTagWorkflows(ctx, dir, &facts)
