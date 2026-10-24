@@ -164,14 +164,19 @@ export function AgentBar({
     const details = subagentDetails(facts);
     const taskShown = task != null && task.state !== "running" && !!task.text;
     const stuck = taskShown && task.state === "stuck";
+    const barTime = barTimeText(t, facts, now);
+    // A finished sub-agent says its state once, with its time: "finished 13 min ago".
+    const finishedLine = !taskShown && facts.held == null && subagent && facts.subState === "done" ? barTime : "";
     const stateText = taskShown
         ? task.text
         : facts.held != null
           ? serverText(facts.held.text, facts.held.english)
-          : subagent
-            ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
-            : barStateText(t, facts.state);
-    const timeText = barTimeText(t, facts, now);
+          : finishedLine
+            ? finishedLine
+            : subagent
+              ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
+              : barStateText(t, facts.state);
+    const timeText = finishedLine ? "" : barTime;
     const signed = signersSuffix(t, signers, facts.name);
     const rail = stuck ? "waiting" : facts.state;
     const goTo = (e: React.MouseEvent, blockId: string) => {

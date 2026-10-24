@@ -137,8 +137,9 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         const html = renderToStaticMarkup(<AgentBar facts={facts} />);
         expect(html).toContain("Sub-agent of Jérôme");
         expect(html).toContain("Codex · audit reliability");
-        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>finished</);
-        expect(html).toContain("finished 12 min ago");
+        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>finished 12 min ago</);
+        expect(html.replace(/aria-label="[^"]*"/, "").match(/finished/g)).toHaveLength(1);
+        expect(html).not.toContain('data-testid="reviews-agent-time"');
         expect(html).not.toContain("df-domino-loader");
     });
 });
