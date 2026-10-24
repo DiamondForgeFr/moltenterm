@@ -347,6 +347,24 @@ function Detail({
                 <span className="text-11 text-muted">{Says[phase.status]}</span>
             </div>
             <p className="mt-1 text-12 text-secondary">{phase.expect}</p>
+            {phase.manual ? (
+                <p
+                    className="mt-2 flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 px-2 py-1.5 text-12 whitespace-pre-wrap text-primary"
+                    data-testid="release-run-manual"
+                >
+                    <i className="fa fa-solid fa-hand mt-0.5 text-11 text-accent" />
+                    {phase.manual}
+                </p>
+            ) : null}
+            {phase.approval ? (
+                <p
+                    className="mt-2 flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
+                    data-testid="release-run-approval"
+                >
+                    <i className="fa fa-solid fa-user-check mt-0.5 text-11 text-warning" />
+                    {t("mc.releaseRun.approvalHint", { environment: phase.approval.environment })}
+                </p>
+            ) : null}
             {awaits != null && phase.id === run.current ? (
                 <div
                     className="mt-2 flex flex-wrap items-center gap-2 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"

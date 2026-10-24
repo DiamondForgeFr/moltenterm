@@ -39,6 +39,8 @@ var moltenReleaseRef string
 var moltenReleaseRehearseWorkflow string
 var moltenReleaseFields []string
 var moltenReleaseDownload string
+var moltenReleaseDispatchRef string
+var moltenReleaseDispatchFields []string
 
 var moltenReleaseCmd = &cobra.Command{
 	Use:   "release",
@@ -118,7 +120,22 @@ var moltenReleaseRehearseCmd = &cobra.Command{
 	}),
 }
 
+var moltenReleaseDispatchCmd = &cobra.Command{
+	Use:   "dispatch <workflow>",
+	Short: "start a GitHub workflow by workflow_dispatch and follow its run to the end, environment approvals included",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().Dispatch(context.Background(), release.DispatchOptions{
+			Workflow: args[0],
+			Ref:      moltenReleaseDispatchRef,
+			Fields:   moltenReleaseDispatchFields,
+		})
+	}),
+}
+
 func init() {
+	moltenReleaseDispatchCmd.Flags().StringVar(&moltenReleaseDispatchRef, "ref", "", "the branch or tag to run it on (default: the trunk)")
+	moltenReleaseDispatchCmd.Flags().StringArrayVarP(&moltenReleaseDispatchFields, "field", "f", nil, "an input of the workflow, key=value (repeatable)")
 	moltenReleasePlanCmd.Flags().BoolVar(&moltenReleaseRc, "rc", false, "only the release candidate")
 	moltenReleasePlanCmd.Flags().BoolVar(&moltenReleasePublic, "public", false, "only the public release")
 	moltenReleasePlanCmd.Flags().StringVar(&moltenReleaseVersion, "version", "", "the public version to release instead of the computed one (X.Y.Z)")
@@ -134,7 +151,7 @@ func init() {
 	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseDownload, "download", "", "download the artifacts into <folder>/<short commit>")
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
 		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd,
-		moltenReleaseRehearseCmd} {
+		moltenReleaseRehearseCmd, moltenReleaseDispatchCmd} {
 		moltenReleaseCmd.AddCommand(cmd)
 	}
 	moltenCmd.AddCommand(moltenReleaseCmd)

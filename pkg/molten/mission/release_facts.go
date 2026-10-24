@@ -32,6 +32,9 @@ const (
 
 var notesRegex = regexp.MustCompile(`(?m)^\s*▶ notes:\s*(.+?)\s*$`)
 
+// What `molten release dispatch` prints while a run waits for an environment approval, and once it goes on (FR-MC-037).
+var approvalRegex = regexp.MustCompile(`(?m)^\s*▶ (approval|approved):\s*(\S+)\s*(\S*)\s*$`)
+
 // The last run of a declared release step for the release followed.
 type ReleaseStepFact struct {
 	RunId   string   `json:"runid"`
@@ -40,6 +43,15 @@ type ReleaseStepFact struct {
 	Exit    *int     `json:"exit,omitempty"`
 	Tail    []string `json:"tail"`
 	Phases  []string `json:"phases"`
+	// The environment the running step's GitHub run waits on for an approval (FR-MC-037).
+	Approval *ReleaseApproval `json:"approval,omitempty"`
+}
+
+// A GitHub run waiting for a reviewer to approve its deployment to an environment.
+type ReleaseApproval struct {
+	Environment string `json:"environment"`
+	Url         string `json:"url,omitempty"`
+	Workflow    string `json:"workflow,omitempty"`
 }
 
 type ReleaseGhRun struct {
@@ -98,6 +110,8 @@ type ReleaseFacts struct {
 	Runs        []ReleaseGhRun    `json:"runs"`
 	Jobs        []ReleaseGhJob    `json:"jobs"`
 	Release     *ReleaseGhRelease `json:"release,omitempty"`
+	// The runs the tag started that wait for an environment approval (FR-MC-037).
+	Approvals []ReleaseApproval `json:"approvals"`
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
@@ -182,6 +196,9 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 			fact.Tail = append(fact.Tail, line)
 		}
 		fact.Tail = fact.Tail[max(0, len(fact.Tail)-releaseTailLines):]
+		if fact.Running {
+			fact.Approval = pendingApproval(data)
+		}
 		if rec.StepId == ReleasePreparationStepId {
 			preparation = &fact
 		} else {
@@ -262,6 +279,7 @@ func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *Release
 		}
 	}
 	if len(facts.Runs) > 0 {
+		facts.Approvals = r.waitingApprovals(ctx, dir, facts.Runs)
 		if out, err := ghJson(ctx, r.git, dir, "run", "view", strconv.FormatInt(facts.Runs[0].DatabaseId, 10), "--json", "jobs"); err == nil {
 			var view struct {
 				Jobs []ReleaseGhJob `json:"jobs"`
@@ -326,7 +344,7 @@ func (r *Runs) onTrunk(ctx context.Context, dir string, trunkRef string, tag str
 
 // ReleaseFactsOf reads every fact the release panel derives the phases from; no release followed gives empty facts.
 func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
-	facts := ReleaseFacts{Steps: map[string]ReleaseStepFact{}, Runs: []ReleaseGhRun{}, Jobs: []ReleaseGhJob{}}
+	facts := ReleaseFacts{Steps: map[string]ReleaseStepFact{}, Runs: []ReleaseGhRun{}, Jobs: []ReleaseGhJob{}, Approvals: []ReleaseApproval{}}
 	if err := checkDir(dir); err != nil {
 		return facts, err
 	}
@@ -413,6 +431,10 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	for _, step := range steps {
 		if step.Id != req.Step {
 			continue
+		}
+		if step.IsManual() {
+			rec, err = r.recordManualStep(dir, project, step, session.Tag)
+			return RunResult{Run: &rec}, err
 		}
 		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, project))
 		if err != nil {

@@ -21,7 +21,12 @@ export type ReleaseStepFact = {
     exit?: number;
     tail: string[];
     phases: string[];
+    // The environment the running step's GitHub run waits on for an approval (FR-MC-037).
+    approval?: ReleaseApproval;
 };
+
+// must match ReleaseApproval in pkg/molten/mission/release_facts.go
+export type ReleaseApproval = { environment: string; url?: string; workflow?: string };
 
 export type ReleaseGhRun = {
     databaseId: number;
@@ -62,6 +67,8 @@ export type ReleaseFacts = {
     githuberror?: string;
     runs: ReleaseGhRun[];
     jobs: ReleaseGhJob[];
+    // The runs the tag started that wait for an environment approval (FR-MC-037).
+    approvals?: ReleaseApproval[];
     release?: { tagName: string; isDraft: boolean; isPrerelease: boolean; url: string };
     ontrunk: boolean;
     backpr?: { number: number; url: string; title: string; headRefName: string };
@@ -93,6 +100,10 @@ export type Phase = {
     log?: ReleaseStepFact;
     // A failed step an agent can look into (#945): the step, its own run in MoltenTerm, and the GitHub runs that failed.
     failure?: PhaseFailure;
+    // The instructions of the manual step the phase waits on (FR-MC-037).
+    manual?: string;
+    // An environment waiting for its approval on GitHub.
+    approval?: ReleaseApproval;
 };
 
 // A GitHub run a failed step names: the trunk's CI a promotion waited on, or the release workflow's run.
@@ -230,7 +241,25 @@ function runAgain(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
     };
 }
 
+// A manual step's instructions, with the release's words in them.
+function manualOf(step: PipelineReleaseStep, facts: ReleaseFacts): string {
+    return step.manual
+        .split("{tag}")
+        .join(facts.tag ?? "")
+        .split("{version}")
+        .join(facts.version ?? "");
+}
+
 function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
+    if (step.manual) {
+        return {
+            kind: "step",
+            step: step.id,
+            label: t("mc.releaseRun.manualDone", { step: stepTitle(step) }),
+            confirm: t("mc.releaseRun.manualConfirm", { step: stepTitle(step) }),
+            busy: t("mc.releaseRun.pending.recording"),
+        };
+    }
     return {
         kind: "step",
         step: step.id,
@@ -244,7 +273,20 @@ function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
 function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFacts): Phase {
     const seq = sequence(steps, facts);
     if (seq.running) {
-        return { ...base, status: "running", expect: `${stepTitle(seq.running)}…`, log: facts.steps[seq.running.id] };
+        const fact = facts.steps[seq.running.id];
+        if (fact.approval) {
+            return {
+                ...base,
+                status: "waiting",
+                expect: t("mc.releaseRun.approval", { environment: fact.approval.environment }),
+                approval: fact.approval,
+                links: fact.approval.url
+                    ? [...base.links, { label: t("mc.releaseRun.approvalLink"), url: fact.approval.url }]
+                    : base.links,
+                log: fact,
+            };
+        }
+        return { ...base, status: "running", expect: `${stepTitle(seq.running)}…`, log: fact };
     }
     if (seq.failed) {
         const fact = facts.steps[seq.failed.id];
@@ -267,7 +309,10 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
         return {
             ...base,
             status: "waiting",
-            expect: t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
+            expect: seq.next.manual
+                ? t("mc.releaseRun.manualNext", { step: stepTitle(seq.next) })
+                : t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
+            manual: seq.next.manual ? manualOf(seq.next, facts) : undefined,
             action: runStep(seq.next, facts),
         };
     }
@@ -354,7 +399,8 @@ function cut(
             action: runAgain(last, facts),
         };
     }
-    if (phase.status !== "waiting" || phase.action?.kind !== "step") {
+    // A manual step is no cut: it is marked done, never read as the step that pushes the tag.
+    if (phase.status !== "waiting" || phase.action?.kind !== "step" || phase.manual != null) {
         return phase;
     }
     const action = phase.action;
@@ -408,6 +454,19 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
         }
     }
     const latest = [...newest.values()];
+    const approval = (facts.approvals ?? [])[0];
+    if (approval != null) {
+        return {
+            ...base,
+            links,
+            status: "waiting",
+            expect: t("mc.releaseRun.approvalOf", {
+                environment: approval.environment,
+                workflow: approval.workflow ?? "",
+            }),
+            approval,
+        };
+    }
     if (latest.some((r) => r.status !== "completed")) {
         const jobs = facts.jobs ?? [];
         const done = jobs.filter((j) => j.status === "completed").length;
