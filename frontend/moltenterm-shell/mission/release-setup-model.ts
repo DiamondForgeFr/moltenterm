@@ -50,6 +50,7 @@ export type SetupFacts = {
     ticketbranches: boolean;
     currentbranch?: string;
     releaseworktree: string;
+    committicket?: boolean;
     currentversion?: string;
     labels: SetupLabel[];
     protection?: SetupProtection;
@@ -391,9 +392,14 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
     const steps = draft.proposal.release?.[channel] ?? [];
     const phases = phasesOf(steps);
     const viaPr = steps.some((s) => (s.run ?? "").startsWith("molten release open-pr"));
+    // A candidate tagged on its RC branch never reaches the release branch (#1046).
+    const onRcBranch = steps.some((s) => /^molten release tag .*--rc-branch/.test(s.run ?? ""));
     const laneOf = (step: PipelineReleaseStep, i: number): FlowNode["lane"] => {
         if (phases[i] === "prepare" && step.id === "promote") {
             return "trunk";
+        }
+        if (onRcBranch && phases[i] !== "back") {
+            return "rc";
         }
         if (viaPr && phases[i] !== "back" && (RcLaneSteps.has(step.id) || step.manual || step.notes)) {
             return "rc";
@@ -421,7 +427,7 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
             label: channel === "rc" ? `${prefix}X.Y.Z-N` : `${prefix}X.Y.Z`,
             kind: "tag",
             phase: "cut",
-            lane: "release",
+            lane: onRcBranch ? "rc" : "release",
         });
         for (const wf of draft.tagworkflows?.[channel] ?? []) {
             nodes.push({
@@ -441,7 +447,7 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
         nodes,
         promote: steps.some((s) => s.id === "promote"),
         syncBack: steps.some((s) => s.id === "sync-back"),
-        viaPr,
-        rcBranch: viaPr ? rcBranchDisplay(facts) : undefined,
+        viaPr: viaPr || onRcBranch,
+        rcBranch: viaPr || onRcBranch ? rcBranchDisplay(facts) : undefined,
     };
 }

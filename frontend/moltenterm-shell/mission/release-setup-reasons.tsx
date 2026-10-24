@@ -112,7 +112,22 @@ export function FlowReasons({ draft, options }: { draft: SetupDraft; options: Se
     }
     const protection = protectionText(draft.facts.protection, rcBranchDisplay(draft.facts));
     const divergence = divergenceText(draft, options);
-    if (protection == null && divergence.length === 0) {
+    const others: string[] = [];
+    const rcOnBranch = (draft.proposal.release?.rc ?? []).some((s) => /--rc-branch/.test(s.run ?? ""));
+    if (options.branchmodel === "rcpr" && rcOnBranch) {
+        others.push(
+            t("mc.setup.why.rcOnBranch", { rc: rcBranchDisplay(draft.facts), release: draft.facts.branches.release })
+        );
+    }
+    if (options.branchmodel === "rcpr") {
+        others.push(
+            t("mc.setup.why.mergeBack", { release: draft.facts.branches.release, trunk: draft.facts.branches.trunk })
+        );
+    }
+    if (draft.facts.committicket) {
+        others.push(t("mc.setup.why.ticket"));
+    }
+    if (protection == null && divergence.length === 0 && others.length === 0) {
         return null;
     }
     const warn = requiresPr(draft.facts.protection) || diverged(draft.facts.divergence);
@@ -127,11 +142,15 @@ export function FlowReasons({ draft, options }: { draft: SetupDraft; options: Se
             <div className="text-12 text-primary">{t("mc.setup.why.title")}</div>
             {protection != null ? <p data-testid="setup-why-protection">{protection}</p> : null}
             {divergence.length > 0 ? <p data-testid="setup-why-divergence">{divergence.join(" ")}</p> : null}
+            {others.map((line) => (
+                <p key={line}>{line}</p>
+            ))}
         </div>
     );
 }
 
-// ReconcileCheck offers the one-time merge -s ours, only where it loses nothing and the pull-request flow runs.
+// ReconcileCheck offers the merge -s ours when the branches diverged, only where it loses nothing and the pull-request
+// flow runs.
 export function ReconcileCheck({
     draft,
     options,
@@ -142,7 +161,7 @@ export function ReconcileCheck({
     onChange: (o: SetupOptions) => void;
 }) {
     const t = useT();
-    if (options.branchmodel !== "rcpr" || !reconcilable(draft.facts.divergence)) {
+    if (options.branchmodel !== "rcpr" || draft.facts.divergence?.notequivalent > 0) {
         return null;
     }
     return (

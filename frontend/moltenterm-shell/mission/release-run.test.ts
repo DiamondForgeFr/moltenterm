@@ -423,4 +423,29 @@ describe("release run of the pull-request flow (#1046)", () => {
             confirm: "v1.2.0-1 is public once pushed.",
         });
     });
+
+    it("words a step's title with the release's version and tag", () => {
+        const manual: PipelineReleaseStep[] = [
+            { id: "prepare", title: "Prepare", phase: "prepare", run: "x" },
+            { id: "changelog-en", title: "Write the {version} section", phase: "cut", manual: "Do it", run: "" },
+        ];
+        const run = releaseRun(facts({ preparation: ok() }), manual).phases[1];
+        expect(run.expect).toContain("Write the 1.2.0 section");
+        expect(run.expect).not.toContain("{version}");
+    });
+
+    it("ends a candidate tagged on its RC branch without bringing it back", () => {
+        const rcSteps: PipelineReleaseStep[] = [
+            { id: "prepare", title: "Prepare", phase: "prepare", run: "molten release prepare {tag} --pr" },
+            { id: "tag", title: "Tag", phase: "cut", confirm: "Pushes.", run: "molten release tag {tag} --rc-branch" },
+        ];
+        const done = releaseRun(
+            facts({ preparation: ok(), tagexists: true, offrelease: true, steps: { tag: ok() }, nogithub: true }),
+            rcSteps
+        );
+        expect(done.phases[4]).toMatchObject({
+            status: "done",
+            expect: "v1.2.0-1 stays on its RC branch: nothing to bring back to develop.",
+        });
+    });
 });

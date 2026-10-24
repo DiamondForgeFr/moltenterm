@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -83,6 +84,8 @@ type Facts struct {
 	// The project's version as its first version file reads it, and the labels of it found elsewhere (#1046).
 	CurrentVersion string         `json:"currentversion,omitempty"`
 	Labels         []VersionLabel `json:"labels"`
+	// The project's commits name a ticket (chore(#N): ...): the release chain's commits will name the release's (#1046).
+	CommitTicket bool `json:"committicket"`
 	// Read through gh and git by the setup (ReadRemoteFacts); nil when not read.
 	Protection *Protection `json:"protection,omitempty"`
 	Divergence *Divergence `json:"divergence,omitempty"`
@@ -153,6 +156,7 @@ func Detect(dir string) Facts {
 		f.NotesFound = true
 	}
 	f.Changelogs = detectChangelogs(dir)
+	f.CommitTicket = release.ReadConvention(dir).TicketScope
 	f.Labels = []VersionLabel{}
 	if current, err := versions.ReadVersion(dir, f.VersionFiles); err == nil {
 		f.CurrentVersion = current

@@ -158,8 +158,12 @@ func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
 		t.Fatalf("the draft is not valid: %v\n%s", answer.Errors, answer.Proposed)
 	}
 	rc, public := answer.Proposal.Release.Rc, answer.Proposal.Release.Public
-	if got := strings.Join(stepIds(rc), ","); got != "prepare,reconcile,changelog-en,changelog-fr,open-pr,merge-pr,tag,sync-back" {
+	// Nothing starts on a candidate's tag (publish-stable takes vX.Y.Z only): the candidate stays on its RC branch.
+	if got := strings.Join(stepIds(rc), ","); got != "prepare,changelog-en,changelog-fr,tag" {
 		t.Fatalf("rc steps: %s", got)
+	}
+	if rc[3].Run != "molten release tag {tag} --rc-branch" || rc[3].Confirm == "" {
+		t.Fatalf("rc tag: %+v", rc[3])
 	}
 	if got := strings.Join(stepIds(public), ","); got != "prepare,reconcile,changelog-en,changelog-fr,open-pr,merge-pr,tag,close-milestone,dispatch-deploy-docs,sync-back" {
 		t.Fatalf("public steps: %s", got)
@@ -173,6 +177,12 @@ func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
 	}
 	if byId["merge-pr"].Run != "molten release merge-pr {tag} --method merge" || !strings.Contains(byId["merge-pr"].Confirm, "CI / Required gate") {
 		t.Fatalf("merge-pr: %+v", byId["merge-pr"])
+	}
+	if byId["sync-back"].Run != "molten release sync-back {tag} --merge" || !strings.Contains(byId["sync-back"].Confirm, "never squash or rebase") {
+		t.Fatalf("sync-back: %+v", byId["sync-back"])
+	}
+	if !answer.Facts.CommitTicket {
+		t.Fatal("the commit format requires a ticket")
 	}
 	if byId["open-pr"].Confirm == "" || byId["tag"].Confirm == "" || !strings.Contains(byId["tag"].Confirm, "npm-production") {
 		t.Fatalf("each irreversible step confirms: %+v %+v", byId["open-pr"], byId["tag"])
@@ -201,6 +211,21 @@ func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
 		if !strings.Contains(answer.Proposed, `"format": "text"`) || !strings.Contains(answer.Proposed, strings.SplitN(w, "=", 2)[0]) {
 			t.Fatalf("the labels are not in versions.files:\n%s", answer.Proposed)
 		}
+	}
+}
+
+// A candidate something publishes (a prerelease on npm) still goes to the release branch by pull request.
+func TestPublishedCandidateGoesByPullRequest(t *testing.T) {
+	dir := protectedRepository(t)
+	writeFiles(t, dir, map[string]string{".github/workflows/next.yml": "name: Publish next\non:\n  push:\n    tags: ['v*-*']\njobs:\n  p:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm publish --tag next\n"})
+	rules, _ := os.ReadFile(filepath.Join("testdata", "rules-branches-protected.json"))
+	s := MakeSetup(githubAs(t, string(rules), nil), nil)
+	answer, err := s.Draft(context.Background(), DraftRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(stepIds(answer.Proposal.Release.Rc), ","); got != "prepare,reconcile,changelog-en,changelog-fr,open-pr,merge-pr,tag,sync-back" {
+		t.Fatalf("rc steps: %s", got)
 	}
 }
 

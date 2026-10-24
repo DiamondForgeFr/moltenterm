@@ -115,9 +115,14 @@ func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 			return fmt.Errorf("could not make %s from %s: %w", rcBranch, start, err)
 		}
 		e.printf("Preparing %s (%s) in %s, on %s made from %s.\n", tag, channel, wt, rcBranch, start)
-		e.mergeReleaseBranch(ctx, p, wt, rcBranch, tag)
 	} else {
 		e.printf("Preparing %s (%s) in %s, on %s.\n", tag, channel, wt, start)
+	}
+	if err := e.installForHooks(ctx, p, wt); err != nil {
+		return err
+	}
+	if pr {
+		e.mergeReleaseBranch(ctx, p, wt, rcBranch, tag, v)
 	}
 	if err := versions.WriteVersion(wt, p.Files, v.String()); err != nil {
 		return fmt.Errorf("the version bump did not take: %w", err)
@@ -172,15 +177,18 @@ func insideDir(dir string, path string) bool {
 // trunk that never saw the previous version.
 func (e *Env) releasesNotCarriedBack(ctx context.Context, p *Project) []string {
 	trunk := "origin/" + p.Trunk
-	lines, err := e.gitLines(ctx, p.Root, "log", "--no-merges", "--format=%H %s", trunk+"..origin/"+p.Release)
+	out, err := e.git(ctx, p.Root, "log", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", trunk+"..origin/"+p.Release)
 	if err != nil {
 		return nil
 	}
 	var pending []string
-	for _, line := range lines {
-		sha, subject, _ := strings.Cut(line, " ")
-		name, ok := strings.CutPrefix(subject, "chore(release): ")
-		if !ok {
+	for _, record := range strings.Split(out, "\x1e") {
+		fields := strings.SplitN(strings.TrimSpace(record), "\x1f", 3)
+		if len(fields) < 3 {
+			continue
+		}
+		sha, name := fields[0], ReleaseTagOf(fields[1], fields[2])
+		if name == "" {
 			continue
 		}
 		// Each commit on its own, as Mission Control reads a release back on the trunk: once a promotion merged the
@@ -272,7 +280,11 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	if err != nil {
 		return err
 	}
-	if err := e.commitRelease(ctx, wt, allowed, tag, channel); err != nil {
+	ticket, err := e.releaseTicket(ctx, p, v.Base().String())
+	if err != nil {
+		return err
+	}
+	if err := e.commitRelease(ctx, p, wt, allowed, tag, channel, ticket); err != nil {
 		return err
 	}
 	if _, err := e.git(ctx, wt, "tag", tag); err != nil {
@@ -302,7 +314,7 @@ func (e *Env) printTagged(p *Project, tag string, channel string) {
 }
 
 // commitRelease commits the prepared release files as the release commit.
-func (e *Env) commitRelease(ctx context.Context, wt string, allowed map[string]bool, tag string, channel string) error {
+func (e *Env) commitRelease(ctx context.Context, p *Project, wt string, allowed map[string]bool, tag string, channel string, ticket int) error {
 	addArgs := []string{"add", "--"}
 	for path := range allowed {
 		if _, err := os.Stat(filepath.Join(wt, path)); err == nil {
@@ -312,7 +324,7 @@ func (e *Env) commitRelease(ctx context.Context, wt string, allowed map[string]b
 	if _, err := e.git(ctx, wt, addArgs...); err != nil {
 		return err
 	}
-	if _, err := e.git(ctx, wt, "commit", "--quiet", "-m", ReleaseCommitSubject(tag, channel)); err != nil {
+	if _, err := e.git(ctx, wt, "commit", "--quiet", "-m", p.Convention.ReleaseMessage(ticket, tag, channel)); err != nil {
 		return fmt.Errorf("could not commit the release: %w", err)
 	}
 	return nil

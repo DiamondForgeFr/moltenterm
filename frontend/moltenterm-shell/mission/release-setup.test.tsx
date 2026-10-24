@@ -293,7 +293,7 @@ describe("release setup of a protected release branch (#1046)", () => {
             />
         );
         expect(html).toContain("master takes changes by pull request only");
-        expect(html).toContain("Reconcile master into rc-X.Y.Z once");
+        expect(html).toContain("Reconcile master into rc-X.Y.Z when they diverged");
         expect(html).toContain('data-testid="setup-reconcile"');
         expect(html).toContain("README.md:7");
         expect(html).toContain("No pattern finds this line alone");

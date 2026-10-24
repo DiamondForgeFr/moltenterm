@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -31,6 +32,11 @@ type fakePrGitHub struct {
 	calls  []string
 	merges [][]string
 	clones int
+	// The sync-back pull request into develop.
+	backOpen   bool
+	backTitle  string
+	backHead   string
+	backBranch string
 }
 
 func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
@@ -42,6 +48,33 @@ func (g *fakePrGitHub) run(ctx context.Context, dir string, name string, args ..
 	joined := strings.Join(args, " ")
 	g.calls = append(g.calls, joined)
 	switch {
+	case strings.HasPrefix(joined, "pr list") && strings.Contains(joined, "--head "+SyncBackBranchPrefix):
+		if strings.Contains(joined, "--state open") && g.backOpen {
+			data, _ := json.Marshal([]any{map[string]any{"number": 10, "url": "https://github.example/pr/10", "title": g.backTitle, "state": "OPEN", "headRefOid": g.backHead}})
+			return data, nil
+		}
+		return []byte("[]"), nil
+	case strings.HasPrefix(joined, "pr create") && strings.Contains(joined, "--head "+SyncBackBranchPrefix):
+		for i, a := range args {
+			if a == "--title" {
+				g.backTitle = args[i+1]
+			}
+			if a == "--head" {
+				g.backBranch = args[i+1]
+			}
+		}
+		g.backOpen = true
+		g.backHead = gitIn(g.t, g.f.origin, "rev-parse", g.backBranch)
+		return []byte("https://github.example/pr/10\n"), nil
+	case strings.HasPrefix(joined, "pr merge 10"):
+		g.merges = append(g.merges, args)
+		g.clones++
+		clone := filepath.Join(g.f.base, fmt.Sprintf("github-merge-%d", g.clones))
+		gitIn(g.t, g.f.base, "clone", "--quiet", "-b", "develop", g.f.origin, clone)
+		gitIn(g.t, clone, "merge", "--quiet", "--no-ff", "-m", "Merge pull request #10", "origin/"+g.backBranch)
+		gitIn(g.t, clone, "push", "--quiet", "origin", "develop")
+		g.backOpen = false
+		return nil, nil
 	case strings.HasPrefix(joined, "pr list"):
 		state := ""
 		for i, a := range args {
@@ -238,6 +271,131 @@ func TestPrFlowRefusals(t *testing.T) {
 	mustFail(t, f, "a branch behind", e.MergePr(ctx, "v1.0.0-1", MergePrOptions{}), "open-pr again")
 	if len(gh.merges) != 0 {
 		t.Fatalf("nothing may be merged")
+	}
+}
+
+const conventionProject = `{
+    "schema": 1,
+    "name": "Fixture",
+    "branches": { "trunk": "develop", "release": "main" },
+    "versions": {
+        "tagprefix": "v",
+        "notes": "releases/{tag}.md",
+        "firstpublic": "1.0.0",
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": "README.md", "format": "text", "pattern": "\\*\\*v{version}\\*\\*" }
+        ]
+    },
+    "ci": {
+        "prepare": { "run": "mkdir -p node_modules && touch node_modules/.ok" },
+        "jobs": [{ "name": "t", "run": "true" }]
+    }
+}
+`
+
+// A commit-msg hook as husky + commitlint make it: it needs the project's dependencies and a "(#N)" scope, header
+// within 100 characters.
+const commitMsgHook = `#!/bin/sh
+[ -f node_modules/.ok ] || { echo "commit-msg: dependencies missing" >&2; exit 1; }
+header=$(head -n 1 "$1")
+echo "$header" | grep -Eq '^[a-z]+\(#[0-9]+\): .+$' || { echo "commit-msg: bad header: $header" >&2; exit 1; }
+[ ${#header} -le 100 ] || { echo "commit-msg: header too long" >&2; exit 1; }
+`
+
+// The pull-request flow of a project with a commit convention and hooks (#1046): a candidate nothing publishes stays on
+// its RC branch, the public release goes through its pull request, and comes back to the trunk by a merge commit.
+func TestPrFlowConventionRcOnBranchAndMergeBack(t *testing.T) {
+	f := makeFixture(t)
+	writeFile(t, filepath.Join(f.checkout, ".molten", "project.json"), conventionProject)
+	writeFile(t, filepath.Join(f.checkout, "README.md"), "# Fixture\n\n**v1.0.0-0**\n")
+	writeFile(t, filepath.Join(f.checkout, "commitlint.config.mjs"), "export default { rules: { 'scope-empty': [2, 'never'], 'header-max-length': [2, 'always', 100] } }\n")
+	writeFile(t, filepath.Join(f.checkout, "package.json"), "{\n    \"name\": \"fixture\",\n    \"version\": \"1.0.0-0\",\n    \"devDependencies\": { \"husky\": \"9.0.0\" }\n}\n")
+	writeFile(t, filepath.Join(f.checkout, ".githooks", "commit-msg"), commitMsgHook)
+	if err := os.Chmod(filepath.Join(f.checkout, ".githooks", "commit-msg"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(f.checkout, ".gitignore"), "node_modules/\n")
+	gitIn(t, f.checkout, "add", "-A")
+	gitIn(t, f.checkout, "commit", "--quiet", "-m", "chore(#4): the convention")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "develop")
+	divergeMain(t, f)
+	gitIn(t, f.checkout, "config", "core.hooksPath", ".githooks")
+	mainBefore, developBefore := f.originRef(t, "main"), f.originRef(t, "develop")
+	gh := &fakePrGitHub{t: t, f: f, checks: []string{"pass"}, state: "CLEAN"}
+	e := f.env()
+	e.Run = gh.run
+	e.Ticket = 1078
+	ctx := context.Background()
+
+	mustRun(t, f, "prepare --pr the candidate", e.PreparePr(ctx, "v1.0.0-1"))
+	if _, err := os.Stat(filepath.Join(f.worktree(), "node_modules", ".ok")); err != nil {
+		t.Fatalf("the hooks' dependencies were not installed in the release worktree:\n%s", f.out.String())
+	}
+	mustRun(t, f, "tag the candidate on its branch", e.TagRcBranch(ctx, "v1.0.0-1"))
+	if f.originRef(t, "v1.0.0-1^{commit}") != f.originRef(t, "rc-1.0.0") {
+		t.Fatalf("the candidate's tag is not on its RC branch's head")
+	}
+	if f.originRef(t, "main") != mainBefore || f.originRef(t, "develop") != developBefore {
+		t.Fatalf("a candidate nothing publishes must reach neither main nor develop")
+	}
+	if subject := gitIn(t, f.origin, "log", "-1", "--format=%s", "v1.0.0-1"); subject != "chore(#1078): release v1.0.0-1" {
+		t.Fatalf("release commit subject %q", subject)
+	}
+	if got := f.originFile(t, "v1.0.0-1", "README.md"); !strings.Contains(got, "**v1.0.0-1**") {
+		t.Fatalf("the label stays on the RC branch at the candidate's version:\n%s", got)
+	}
+
+	mustRun(t, f, "prepare --pr the public release", e.PreparePr(ctx, "v1.0.0"))
+	mustRun(t, f, "reconcile", e.Reconcile(ctx, "v1.0.0"))
+	if subject := gitIn(t, f.worktree(), "log", "-1", "--format=%s"); subject != "chore(#1078): sync release candidate with main" {
+		t.Fatalf("reconcile subject %q", subject)
+	}
+	mustRun(t, f, "open-pr", e.OpenPr(ctx, "v1.0.0"))
+	if gh.title != "chore(#1078): release v1.0.0" {
+		t.Fatalf("pull request title %q", gh.title)
+	}
+	mustRun(t, f, "merge-pr", e.MergePr(ctx, "v1.0.0", MergePrOptions{}))
+	mustRun(t, f, "tag", e.Tag(ctx, "v1.0.0"))
+	if got := f.originFile(t, "v1.0.0", "README.md"); !strings.Contains(got, "**v1.0.0**") {
+		t.Fatalf("the public release sets the label to its version:\n%s", got)
+	}
+	mustRun(t, f, "sync-back --merge", e.SyncBackMerge(ctx, "v1.0.0"))
+	if got := strings.Join(gh.merges[len(gh.merges)-1], " "); !strings.HasPrefix(got, "pr merge 10 --merge") {
+		t.Fatalf("sync-back must merge with a merge commit: %s", got)
+	}
+	if gh.backTitle != "chore(#1078): bring v1.0.0 back to develop" {
+		t.Fatalf("sync-back title %q", gh.backTitle)
+	}
+	gitIn(t, f.origin, "merge-base", "--is-ancestor", "v1.0.0", "develop")
+	gitIn(t, f.origin, "merge-base", "--is-ancestor", "main", "develop")
+	mustRun(t, f, "sync-back --merge again", e.SyncBackMerge(ctx, "v1.0.0"))
+	if !strings.Contains(f.out.String(), "develop already holds v1.0.0") {
+		t.Fatalf("a second sync-back does nothing:\n%s", f.out.String())
+	}
+}
+
+func TestReleaseTicketFromTheMilestone(t *testing.T) {
+	f := makeFixture(t)
+	writeFile(t, filepath.Join(f.checkout, ".saasfoundry.json"), `{"workflow":{"commitFormat":{"pattern":"<type>(#<ticket>): <description>","requireTicket":true}}}`)
+	f.gh.milestones = `[{"number":12,"title":"v1.0.0","html_url":"https://m/12","open_issues":1}]`
+	f.gh.issues = `[{"number":41,"title":"A bug"},{"number":1078,"title":"Release v1.0.0"},{"number":7,"title":"Release v1.0.0","pull_request":{"url":"x"}}]`
+	e := f.env()
+	p, err := e.LoadProject(context.Background())
+	mustRun(t, f, "load", err)
+	if !p.Convention.TicketScope {
+		t.Fatal("requireTicket makes the commits name the ticket")
+	}
+	if n, err := e.releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1078 {
+		t.Fatalf("ticket %d, %v", n, err)
+	}
+	f.gh.issues = `[]`
+	if _, err := e.releaseTicket(context.Background(), p, "1.0.0"); err == nil || !strings.Contains(err.Error(), "--ticket N") {
+		t.Fatalf("no release ticket: %v", err)
+	}
+	t.Setenv(TicketEnv, "#953")
+	if n, _ := e.releaseTicket(context.Background(), p, "1.0.0"); n != 953 {
+		t.Fatalf("MOLTEN_RELEASE_TICKET: %d", n)
 	}
 }
 
