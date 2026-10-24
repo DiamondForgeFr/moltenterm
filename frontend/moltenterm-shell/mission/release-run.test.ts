@@ -194,7 +194,7 @@ describe("release run (FR-MC-016)", () => {
         );
         expect(live.phases[3]).toMatchObject({
             status: "waiting",
-            expect: "Published as a prerelease: offered to nobody, installable by hand. Next: Verify the endpoint.",
+            expect: "Published as a prerelease: offered to users who opted in to release candidates. Next: Verify the endpoint.",
             action: { step: "verify" },
         });
         expect(live.phases[4]).toMatchObject({ status: "todo", action: { step: "sync" } });
