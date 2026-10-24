@@ -88,6 +88,8 @@ export type AgentBarFacts = {
     // When the agent's state last changed, and whether it is in error (#954: a task's agent stopped since the ask).
     stateSince?: number;
     errored?: boolean;
+    // A task's agent whose terminal is still open but no longer on the task's branch (#1057).
+    offBranch?: boolean;
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv.
@@ -132,56 +134,70 @@ function barState(info: AgentStateInfo): BarState {
 // branchAgent: the agent the bar under the branch's tile shows. A panel agent whose terminal the windows no longer
 // know is gone (closed since wavesrv answered); the most urgent panel wins over a background one.
 export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, branch: string): AgentBarFacts {
+    return branchAgents(upcoming, states, branch)[0] ?? null;
+}
+
+const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1, background: 0 };
+
+// branchAgents (#1057): every agent on the branch, the one branchAgent picks first: panels by urgency, then
+// sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
+export function branchAgents(upcoming: UpcomingAnswer, states: AgentStatesData, branch: string): AgentBarFacts[] {
     if (upcoming?.agents == null || !branch) {
-        return null;
+        return [];
     }
-    let best: AgentBarFacts = null;
+    const found: AgentBarFacts[] = [];
     for (const a of upcoming.agents) {
         if (a.branch !== branch) {
             continue;
         }
         if (a.kind === "subagent") {
-            if (best == null || best.kind === "background") {
-                best = subagentFacts(a, states);
-            }
+            found.push(subagentFacts(a, states));
             continue;
         }
         if (a.kind === "background") {
-            if (best == null) {
-                best = {
-                    kind: "background",
-                    agent: a.agent,
-                    name: "",
-                    state: "background",
-                    since: a.activeat ?? 0,
-                    parentBlockId: a.parentblockid,
-                    parentName: states?.states?.[a.parentblockid]?.firstname || a.parentfirstname,
-                };
-            }
+            found.push({
+                kind: "background",
+                agent: a.agent,
+                name: "",
+                state: "background",
+                since: a.activeat ?? 0,
+                parentBlockId: a.parentblockid,
+                parentName: states?.states?.[a.parentblockid]?.firstname || a.parentfirstname,
+            });
             continue;
         }
-        const info = states?.states?.[a.blockid];
-        if (info == null) {
-            continue;
-        }
-        const facts: AgentBarFacts = {
-            kind: "panel",
-            blockId: a.blockid,
-            agent: info.agent || a.agent,
-            name: (info.firstname || a.firstname || "").trim() || info.agentname || info.agent || a.agent || "",
-            state: barState(info),
-            since: a.started ?? 0,
-            stateSince: info.since ?? 0,
-            errored: info.state === "error",
-        };
-        if (info.messagetext != null) {
-            facts.held = { text: info.messagetext, english: info.message ?? "" };
-        }
-        if (best == null || best.kind !== "panel" || BarUrgency[facts.state] > BarUrgency[best.state]) {
-            best = facts;
+        const facts = panelFacts(a.blockid, states?.states?.[a.blockid], a);
+        if (facts != null) {
+            found.push(facts);
         }
     }
-    return best;
+    const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
+    return found
+        .map((facts, i) => ({ facts, i }))
+        .sort((x, y) => rank(y.facts) - rank(x.facts) || x.i - y.i)
+        .map((x) => x.facts);
+}
+
+// panelFacts: a panel agent as its terminal's state says it; null when the windows no longer know the terminal.
+// placed: wavesrv's placement on a branch, when it has one.
+export function panelFacts(blockId: string, info: AgentStateInfo, placed?: BranchAgent): AgentBarFacts {
+    if (info == null || !blockId) {
+        return null;
+    }
+    const facts: AgentBarFacts = {
+        kind: "panel",
+        blockId,
+        agent: info.agent || placed?.agent,
+        name: (info.firstname || placed?.firstname || "").trim() || info.agentname || info.agent || placed?.agent || "",
+        state: barState(info),
+        since: placed != null ? (placed.started ?? 0) : (info.since ?? 0),
+        stateSince: info.since ?? 0,
+        errored: info.state === "error",
+    };
+    if (info.messagetext != null) {
+        facts.held = { text: info.messagetext, english: info.message ?? "" };
+    }
+    return facts;
 }
 
 // The tools' own names, when the parent's state does not give one (codingAgentName, without its store).

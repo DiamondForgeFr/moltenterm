@@ -15,6 +15,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass, NullAtom } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
+import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
 import { Phrase, useWordPhrase } from "../i18n/phrase";
@@ -30,7 +31,16 @@ import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
-import { headStillFails, PrTask, PrTaskState, prTaskState, taskAgentLive, taskStateText } from "./reviews-task-model";
+import {
+    agentLines,
+    headStillFails,
+    PrTask,
+    PrTaskState,
+    prTaskState,
+    taskAgent,
+    taskAgentLive,
+    taskStateText,
+} from "./reviews-task-model";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import {
     AgentBarFacts,
@@ -38,6 +48,7 @@ import {
     barTimeText,
     boardStatusText,
     branchAgent,
+    branchAgents,
     DraftTurn,
     draftTurn,
     subagentDetails,
@@ -95,6 +106,24 @@ export function useBranchAgent(dir: string, branch: string): AgentBarFacts {
     return useMemo(() => branchAgent(upcoming, states, branch), [upcoming, states, branch]);
 }
 
+// Every agent on a branch of the project, live (#1057), and the windows' agent states, which name a task's terminal
+// once it left the branch.
+function useBranchAgents(dir: string, branch: string): { agents: AgentBarFacts[]; states: AgentStatesData } {
+    const upcoming = useUpcomingAnswer(dir);
+    const states = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agents = useMemo(() => branchAgents(upcoming, states, branch), [upcoming, states, branch]);
+    return { agents, states };
+}
+
+// The agent a row's task is judged against, with the branch's agents and the task's state now.
+function useTaskAgent(dir: string, pr: ReviewPr, task: RebaseAsk) {
+    const { agents, states } = useBranchAgents(dir, pr.branch);
+    const now = useMinuteNow();
+    const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
+    const owner = taskAgent(prTask, agents, states);
+    return { agents, prTask, owner, state: prTaskState(prTask, pr, owner, now) };
+}
+
 // The rail sits on the tile's 1 px border, 1 px to the left (the lists clip at their border edge for it), so the bar
 // keeps one left edge (#738). Idle and background draw none: the tile's border alone.
 const RailClasses: Record<string, string> = {
@@ -130,19 +159,27 @@ function signersSuffix(t: TFunction, signers: AgentSignature[], liveName: string
     };
 }
 
-const BarClasses =
-    "relative -mx-3 -mb-2.5 mt-1 flex min-w-0 flex-wrap items-center gap-x-2 border-t border-border/50 bg-black/20 py-1 pr-2 pl-3.5 text-11 leading-5 text-muted";
+// The bar docks at the tile's bottom edge; several bars (#1057) dock as one stack, each without its own dock margins.
+const BarDock = "-mx-3 -mb-2.5 mt-1";
+const BarBody =
+    "relative flex min-w-0 flex-wrap items-center gap-x-2 border-t border-border/50 bg-black/20 py-1 pr-2 pl-3.5 text-11 leading-5 text-muted";
+
+function barClasses(stacked: boolean): string {
+    return stacked ? BarBody : cn(BarDock, BarBody);
+}
 
 export function AgentBar({
     facts,
     signers,
     task,
     actions,
+    stacked,
 }: {
     facts: AgentBarFacts;
     signers?: AgentSignature[];
     task?: BarTask;
     actions?: React.ReactNode;
+    stacked?: boolean;
 }) {
     const t = useT();
     const now = useMinuteNow();
@@ -150,7 +187,7 @@ export function AgentBar({
     const trustDir = useTrustAsk(facts?.blockId);
     useWorkingBeat(facts?.state === "working");
     if (facts == null) {
-        return task != null ? <GoneAgentBar task={task} actions={actions} /> : null;
+        return task != null ? <GoneAgentBar task={task} actions={actions} stacked={stacked} /> : null;
     }
     const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
     const background = facts.kind === "background";
@@ -186,7 +223,7 @@ export function AgentBar({
     };
     return (
         <div
-            className={BarClasses}
+            className={barClasses(stacked)}
             data-testid="reviews-agent-bar"
             data-state={facts.state}
             data-task={taskShown ? task.state : undefined}
@@ -322,7 +359,7 @@ export const BarButton =
     "flex h-5 shrink-0 cursor-pointer items-center gap-1.5 rounded-3 border border-transparent px-1.5 text-secondary hover:border-border hover:bg-hover hover:text-primary focus-visible:border-border";
 
 // The line of a task whose agent's session is gone (#954): its name, what it left, and Retry.
-function GoneAgentBar({ task, actions }: { task: BarTask; actions?: React.ReactNode }) {
+function GoneAgentBar({ task, actions, stacked }: { task: BarTask; actions?: React.ReactNode; stacked?: boolean }) {
     const t = useT();
     const stuck = task.state === "stuck";
     if (!task.text) {
@@ -330,7 +367,7 @@ function GoneAgentBar({ task, actions }: { task: BarTask; actions?: React.ReactN
     }
     return (
         <div
-            className={BarClasses}
+            className={barClasses(stacked)}
             data-testid="reviews-agent-bar"
             data-state="gone"
             data-task={task.state}
@@ -370,10 +407,8 @@ const ReadAgainHeads = new Set<string>();
 // PR's head. The list reads GitHub again once (the row may show an older head), then says what still fails there.
 export function HeadStillFailsLine({ dir, pr, task }: { dir: string; pr: ReviewPr; task: RebaseAsk }) {
     const t = useT();
-    const facts = useBranchAgent(dir, pr.branch);
-    const now = useMinuteNow();
-    const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
-    const names = headStillFails(pr, facts, prTaskState(prTask, pr, facts, now));
+    const { agents, state } = useTaskAgent(dir, pr, task);
+    const names = headStillFails(pr, agents[0] ?? null, state);
     const key = names.length > 0 ? `${dir}#${pr.number}@${pr.headoid ?? ""}:${names.join(",")}` : "";
     useEffect(() => {
         if (!key || ReadAgainHeads.has(key)) {
@@ -417,20 +452,18 @@ export function RowAgentLine({
 }) {
     const t = useT();
     const word = useWordPhrase();
-    const facts = useBranchAgent(dir, pr.branch);
-    const now = useMinuteNow();
+    const { agents, prTask, owner: facts, state } = useTaskAgent(dir, pr, task);
     const [confirmStop, setConfirmStop] = useState(false);
     const [busy, setBusy] = useState<"work" | "stop">(null);
     const [error, setError] = useState<Phrase>(null);
-    const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
-    const state = prTaskState(prTask, pr, facts, now);
     const live = taskAgentLive(prTask, facts);
     const barTask: BarTask =
         prTask == null ? null : { state, text: taskStateText(t, prTask, state, live, pr), name: prTask.name };
-    if (facts == null && barTask?.state !== "stuck") {
+    if (agents.length === 0 && facts == null && barTask?.state !== "stuck") {
         return <PrSignature agents={pr.agents} testId="reviews-signature" />;
     }
     const liveBlock = facts?.kind === "panel" && live ? facts.blockId : "";
+    const lines = agentLines(agents, prTask, facts);
     const run = (what: "work" | "stop", fn: () => Promise<Phrase>) => {
         if (busy != null) {
             return;
@@ -541,13 +574,20 @@ export function RowAgentLine({
                     {word(error)}
                 </div>
             ) : null}
-            {/* A stuck task whose agent is gone is told by its own name, not by whoever is on the branch now. */}
-            <AgentBar
-                facts={!live && state === "stuck" ? null : facts}
-                signers={pr.agents}
-                task={barTask}
-                actions={actions}
-            />
+            {/* Every agent of the branch says its own state (#1057); the task's line is its own agent's, and a stuck
+                task whose agent is gone is told by its own name, not by whoever is on the branch now. */}
+            <div className={cn(BarDock, "flex flex-col")} data-testid="reviews-agent-lines">
+                {lines.map((line, i) => (
+                    <AgentBar
+                        key={line.facts?.blockId ?? `${line.facts?.kind ?? "gone"}-${i}`}
+                        facts={line.task && !live && state === "stuck" ? null : line.facts}
+                        signers={i === 0 ? pr.agents : undefined}
+                        task={line.task ? barTask : undefined}
+                        actions={line.task ? actions : undefined}
+                        stacked
+                    />
+                ))}
+            </div>
         </>
     );
 }

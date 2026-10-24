@@ -4,7 +4,10 @@
 import { getDefaultStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AgentBar, MinuteClock } from "./reviews-agent-bar";
+import { AgentStates } from "../agent-state-store";
+import { AgentBar, MinuteClock, RowAgentLine } from "./reviews-agent-bar";
+import type { ReviewPr } from "./reviews-model";
+import { UpcomingAnswers } from "./reviews-upcoming-client";
 import { AgentBarFacts } from "./reviews-upcoming-model";
 
 const Now = new Date(2026, 9, 16, 12, 0).getTime();
@@ -199,6 +202,12 @@ describe("The PR's one who line (#954)", () => {
         expect(html).not.toContain("data-task");
     });
 
+    it("docks a stacked bar without its own margins (#1057)", () => {
+        const html = renderToStaticMarkup(<AgentBar facts={bruno} stacked />);
+        expect(html).not.toContain("-mb-2.5");
+        expect(renderToStaticMarkup(<AgentBar facts={bruno} />)).toContain("-mb-2.5");
+    });
+
     it("shows a gone agent's stuck task by its name, without Go to", () => {
         const html = renderToStaticMarkup(
             <AgentBar
@@ -209,5 +218,100 @@ describe("The PR's one who line (#954)", () => {
         expect(html).toContain('data-state="gone"');
         expect(html).toMatch(/data-testid="reviews-agent-name"[^>]*>Bruno</);
         expect(html).not.toContain("reviews-agent-goto");
+    });
+});
+
+describe("a card whose branch has two agents (#1057)", () => {
+    const store = getDefaultStore();
+    const branch = "feature/1106-handoff";
+    const answers = UpcomingAnswers.getInstance().answersAtom;
+    const agentStates = AgentStates.getInstance().dataAtom;
+    const previous = { answers: store.get(answers), states: store.get(agentStates) };
+    const pr: ReviewPr = {
+        number: 1106,
+        title: "Agent handoff keeps the MCP session",
+        url: "https://github.com/acme/app/pull/1106",
+        branch,
+        base: "develop",
+        createdat: "",
+        updatedat: "",
+        merge: "conflicts",
+        ci: { state: "success", success: 4, failure: 0, pending: 0, checks: [] },
+        report: { state: "present" },
+        unpublished: 0,
+        headoid: "h1",
+    };
+
+    beforeEach(() => {
+        store.set(answers, {
+            "/p": {
+                dir: "/p",
+                branches: [],
+                at: Now,
+                agents: [
+                    { branch, worktree: "/w/a", kind: "panel", blockid: "jeanne", agent: "claude", started: Started },
+                    { branch, worktree: "/w/b", kind: "panel", blockid: "nathan", agent: "codex", started: Started },
+                ],
+            },
+        });
+        store.set(agentStates, {
+            states: {
+                jeanne: {
+                    blockid: "jeanne",
+                    version: 1,
+                    agent: "claude",
+                    firstname: "Jeanne",
+                    state: "idle",
+                    since: 1,
+                },
+                nathan: {
+                    blockid: "nathan",
+                    version: 1,
+                    agent: "codex",
+                    firstname: "Nathan",
+                    state: "working",
+                    since: 2,
+                },
+            },
+            versions: { jeanne: 1, nathan: 1 },
+        });
+    });
+    afterEach(() => {
+        store.set(answers, previous.answers);
+        store.set(agentStates, previous.states);
+    });
+
+    function line(task: Parameters<typeof RowAgentLine>[0]["task"]): string {
+        return renderToStaticMarkup(
+            <RowAgentLine
+                dir="/p"
+                pr={pr}
+                task={task}
+                onRetry={() => {}}
+                onOpenWork={async () => ""}
+                onStop={async () => ""}
+            />
+        );
+    }
+
+    it("shows the working agent and the idle one that took the rebase, each with its own state", () => {
+        const html = line({ name: "Jeanne", blockId: "jeanne", head: "h1", at: Now - 14 * 60_000, kind: "rebase" });
+        const bars = html.split('data-testid="reviews-agent-bar"').slice(1);
+        expect(bars).toHaveLength(2);
+        expect(bars[0]).toMatch(/data-testid="reviews-agent-name"[^>]*>Nathan</);
+        expect(bars[0]).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
+        expect(bars[0]).not.toContain("reviews-agent-retry");
+        expect(bars[1]).toMatch(/data-testid="reviews-agent-name"[^>]*>Jeanne</);
+        expect(bars[1]).toContain("stopped before finishing the rebase");
+        expect(bars[1]).toContain("reviews-agent-retry");
+        expect(html).not.toContain("session ended");
+        expect(html.match(/-mb-2\.5/g)).toHaveLength(1);
+    });
+
+    it("lists both agents without a task", () => {
+        const html = line(null);
+        expect(html.split('data-testid="reviews-agent-bar"')).toHaveLength(3);
+        expect(html).toContain(">Nathan<");
+        expect(html).toContain(">Jeanne<");
     });
 });

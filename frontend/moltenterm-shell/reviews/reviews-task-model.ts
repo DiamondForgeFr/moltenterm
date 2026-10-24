@@ -6,9 +6,10 @@
 // done one, and from a stuck one (its agent idle, errored or gone while the goal is not reached). Kept apart from the
 // components to be tested alone.
 
+import type { AgentStatesData } from "../agent-state-model";
 import type { TFunction } from "../i18n/i18n";
 import { checksOf, ReviewPr } from "./reviews-model";
-import type { AgentBarFacts } from "./reviews-upcoming-model";
+import { AgentBarFacts, panelFacts } from "./reviews-upcoming-model";
 
 export type PrTaskKind = "rebase" | "investigate" | "finish";
 
@@ -70,6 +71,37 @@ export function taskGoal(task: PrTask, pr: ReviewPr): "reached" | "pending" | "l
     return "left";
 }
 
+// taskAgent (#1057): the agent a task is judged against. A task that names its terminal is judged against that
+// terminal only, never against another agent of the branch: on the branch, or still open elsewhere (offBranch), or
+// null once the windows no longer know it. A task without a terminal falls back to the branch's first agent.
+export function taskAgent(task: PrTask, agents: AgentBarFacts[], states: AgentStatesData): AgentBarFacts {
+    if (task == null) {
+        return null;
+    }
+    if (!task.blockId) {
+        return agents?.[0] ?? null;
+    }
+    const placed = agents?.find((a) => a.kind === "panel" && a.blockId === task.blockId);
+    if (placed != null) {
+        return placed;
+    }
+    const open = panelFacts(task.blockId, states?.states?.[task.blockId]);
+    return open != null ? { ...open, offBranch: true } : null;
+}
+
+// One agent line of a card (#1057): an agent of the branch, or the task's own agent; task marks the one the task asked.
+export type AgentLine = { facts: AgentBarFacts; task: boolean };
+
+// agentLines: every agent of the branch in its order, the task's agent carrying the task; a task agent that is off the
+// branch or gone comes last, so a stuck task still says who stopped.
+export function agentLines(agents: AgentBarFacts[], task: PrTask, owner: AgentBarFacts): AgentLine[] {
+    const lines: AgentLine[] = (agents ?? []).map((facts) => ({ facts, task: task != null && facts === owner }));
+    if (task != null && !lines.some((l) => l.task)) {
+        lines.push({ facts: owner, task: true });
+    }
+    return lines;
+}
+
 // The agent that took the task, as the line sees it now: live (on the PR's branch, the same terminal when the task
 // names one), or gone.
 export function taskAgentLive(task: PrTask, agent: AgentBarFacts): boolean {
@@ -105,6 +137,10 @@ export function prTaskState(task: PrTask, pr: ReviewPr, agent: AgentBarFacts, no
     }
     if (agent.kind === "background") {
         return "running";
+    }
+    // Its terminal is open but on another branch: whatever it does now is not this task.
+    if (agent.offBranch) {
+        return waited ? "stuck" : "running";
     }
     if (agent.errored) {
         return "stuck";
