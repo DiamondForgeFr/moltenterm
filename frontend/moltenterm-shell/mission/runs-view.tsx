@@ -44,6 +44,7 @@ export function TrustPrompt({
     busy,
     approveOnly,
     bodyKey,
+    fill,
 }: {
     projectName: string;
     dir: string;
@@ -56,6 +57,8 @@ export function TrustPrompt({
     approveOnly?: boolean;
     // Says why the commands are asked for, when it is not a refused run (the release setup just wrote them, #1030).
     bodyKey?: string;
+    // Takes the whole window, like the release setup it follows (#1047).
+    fill?: boolean;
 }) {
     const t = useT();
     const cancelRef = useRef<HTMLButtonElement>(null);
@@ -72,6 +75,7 @@ export function TrustPrompt({
             subtitle={t(bodyKey ?? (approveOnly ? "mc.trust.approveBody" : "mc.trust.body"), { dir })}
             subtitleWraps
             widthClass="w-[560px]"
+            fill={fill}
             trapFocus
             onBackdrop={busy ? undefined : onCancel}
             buttons={

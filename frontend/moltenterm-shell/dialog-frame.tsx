@@ -52,6 +52,7 @@ export function DialogFrame({
     subtitleWraps,
     wide,
     widthClass,
+    fill,
     onBackdrop,
     onEscape,
     suite,
@@ -73,6 +74,9 @@ export function DialogFrame({
     wide?: boolean;
     // Replaces the width that `wide` picks.
     widthClass?: string;
+    // The whole window minus the frame's margin (#1047), for a dialog whose content is long to review: the body
+    // scrolls and the buttons stay in view whatever the window's size.
+    fill?: boolean;
     // Compatibility for existing callers; modal containment is always enabled.
     trapFocus?: boolean;
     // A press outside the dialog, for a dialog whose close loses nothing.
@@ -135,10 +139,12 @@ export function DialogFrame({
                 className={cn(
                     "relative flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col",
                     DialogFrameClass,
-                    widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
+                    fill
+                        ? "h-[calc(100vh-64px)] w-[calc(100vw-32px)]"
+                        : (widthClass ?? (wide ? "w-[600px]" : "w-[500px]"))
                 )}
             >
-                <div className="border-b border-border px-4 py-3">
+                <div className="shrink-0 border-b border-border px-4 py-3">
                     <div className="text-13 leading-5 font-semibold">{title}</div>
                     {subtitle ? (
                         <div
@@ -158,6 +164,7 @@ export function DialogFrame({
                 <div
                     className={cn(
                         "flex min-h-0 flex-col overflow-auto text-12",
+                        fill && "flex-1",
                         suite ? "px-6 pt-1 pb-6" : "gap-3 px-4 py-3"
                     )}
                 >
@@ -165,7 +172,7 @@ export function DialogFrame({
                 </div>
                 <div
                     data-dialog-buttons
-                    className="flex items-center justify-end gap-2 border-t border-border px-4 py-3"
+                    className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3"
                 >
                     {buttons}
                 </div>

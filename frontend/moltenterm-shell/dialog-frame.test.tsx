@@ -40,3 +40,21 @@ describe("DialogFrame's turning light (#890)", () => {
         expect(frame({ noGlow: true })).not.toContain("df-glow");
     });
 });
+
+describe("DialogFrame's fill (#1047)", () => {
+    it("takes the window minus the margin, grows its body and keeps the header and buttons in view", () => {
+        const html = frame({ fill: true, widthClass: "w-[560px]" });
+        expect(html).toMatch(/role="dialog"[^>]*class="[^"]*h-\[calc\(100vh-64px\)\] w-\[calc\(100vw-32px\)\]/);
+        expect(html).not.toContain("w-[560px]");
+        expect(html).toMatch(/class="[^"]*min-h-0[^"]*overflow-auto[^"]*flex-1/);
+        expect(html).toMatch(/data-dialog-buttons="true" class="[^"]*\bshrink-0\b/);
+        expect(html).toMatch(/class="shrink-0 border-b/);
+    });
+
+    it("keeps the caller's width without fill", () => {
+        const html = frame({ widthClass: "w-[560px]" });
+        expect(html).toContain("w-[560px]");
+        expect(html).not.toContain(" w-[calc(100vw-32px)]");
+        expect(html).not.toContain("flex-1");
+    });
+});

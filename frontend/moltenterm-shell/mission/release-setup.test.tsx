@@ -146,6 +146,35 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
         expect(refined).toContain("Back to the draft");
     });
 
+    it("wraps a long manual text instead of cutting it, and scrolls long diff lines inside the diff (#1047)", () => {
+        const text = "git fetch origin && git checkout rc-1.0.0 && git merge -s ours origin/master --no-edit";
+        const html = renderToStaticMarkup(
+            <ChoicesStep
+                draft={draft}
+                options={{ ...options, manual: [{ id: "reconcile", title: "Reconcile", text }] }}
+                onChange={() => {}}
+                channel="public"
+                setChannel={() => {}}
+            />
+        );
+        const row = html.slice(html.indexOf('data-testid="setup-manual-row"'));
+        expect(row).toContain(text.replace(/&/g, "&amp;"));
+        expect(row.slice(0, row.indexOf(text.slice(0, 9)))).not.toContain("truncate");
+        expect(row).toMatch(/class="[^"]*whitespace-pre-wrap[^"]*wrap-anywhere/);
+        const review = renderToStaticMarkup(
+            <ReviewStep
+                draft={draft}
+                options={options}
+                refined={null}
+                refining={false}
+                onRefine={() => {}}
+                onDropRefined={() => {}}
+            />
+        );
+        expect(review).toMatch(/class="[^"]*overflow-auto[^"]*" data-testid="setup-diff"/);
+        expect(review).toContain("flex w-max min-w-full whitespace-pre");
+    });
+
     it("draws the flow with its phases and the tag", () => {
         const html = renderToStaticMarkup(<FlowDiagram model={flowModel(draft, "public", "v")} />);
         expect(html).toContain("vX.Y.Z");
