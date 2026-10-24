@@ -9,6 +9,7 @@ import {
     BlockRows,
     DominoLoader,
     GlowRing,
+    LoadingState,
     nextToggleIndex,
     OptionList,
     OptionRow,
@@ -155,6 +156,15 @@ describe("DiamondForge suite kit (#658)", () => {
         );
         expect(renderToStaticMarkup(<DominoLoader size="large" label="Loading" className="x" />)).toBe(
             `<span class="df-dominos x" role="status" aria-label="Loading">${bars}</span>`
+        );
+    });
+
+    it("draws the loading state: the large dominoes over a caption, one busy status (#1070)", () => {
+        const html = renderToStaticMarkup(<LoadingState caption="Reading…" testId="t" />);
+        expect(html).toBe(
+            '<div class="df-loading-state" role="status" aria-live="polite" aria-busy="true" data-testid="t">' +
+                `<span class="df-dominos" aria-hidden="true">${"<span></span>".repeat(8)}</span>` +
+                '<p class="df-loading-caption">Reading…</p></div>'
         );
     });
 

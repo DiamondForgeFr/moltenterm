@@ -151,4 +151,45 @@ describe("merged history (#960)", () => {
         const html = renderWindow();
         expect(html).toContain("Reading the merged pull requests: 7 of 300…");
     });
+
+    // #1070: the suite's loading state until a read has ended, never a history half drawn.
+    it("shows the loading state, not the pages read so far, during the first read", () => {
+        const first = renderWindow();
+        expect(first).toContain('data-testid="merged-history-loading"');
+        expect(first).toContain("df-dominos");
+        expect(first).toContain("Reading the merged pull requests…");
+        expect(first).not.toContain("merged-history-status");
+
+        MergedHistoryStore.getInstance().store({ dir: "/p", prs: History, total: 300, loading: true, tags: Tags });
+        const partial = renderWindow();
+        expect(partial).toContain('data-testid="merged-history-loading"');
+        expect(partial).not.toContain('data-testid="merged-history-row"');
+    });
+
+    it("keeps the list on screen during a refresh, with a quiet line in the button row", () => {
+        MergedHistoryStore.getInstance().store({
+            dir: "/p",
+            prs: History,
+            total: 9,
+            loading: true,
+            at: Date.UTC(2026, 9, 24),
+            tags: Tags,
+            tagprefix: "v",
+        });
+        const html = renderWindow();
+        expect(html).not.toContain('data-testid="merged-history-loading"');
+        expect(html.match(/data-testid="merged-history-row"/g)).toHaveLength(History.length);
+        const status = html.indexOf('data-testid="merged-history-status"');
+        expect(status).toBeGreaterThan(html.indexOf('data-testid="merged-history-refresh"'));
+        expect(html.slice(status)).toContain("Reading the merged pull requests…");
+        expect(html.slice(status)).toContain("df-domino-loader");
+    });
+
+    it("says a failed read in place of an empty history", () => {
+        MergedHistoryStore.getInstance().store({ dir: "/p", prs: [], total: 0, error: "gh: 502", tags: [] });
+        const html = renderWindow();
+        expect(html).not.toContain('data-testid="merged-history-loading"');
+        expect(html).toContain("The merged pull requests could not all be read. Refresh to try again.");
+        expect(html).not.toContain("No pull request");
+    });
 });

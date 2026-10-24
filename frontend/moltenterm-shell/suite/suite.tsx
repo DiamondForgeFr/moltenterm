@@ -111,6 +111,23 @@ export function DominoLoader({ size = "inline", label, className }: DominoLoader
     );
 }
 
+// The suite's loading state (#1070): the large dominoes over what loads, filling the room the content will take, so
+// nothing moves when it arrives. Only for a first draw: a refresh keeps the content and shows the inline dominoes.
+export function LoadingState({ caption, className, testId }: { caption: string; className?: string; testId?: string }) {
+    return (
+        <div
+            className={joinClasses("df-loading-state", className)}
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            data-testid={testId}
+        >
+            <DominoLoader size="large" />
+            <p className="df-loading-caption">{caption}</p>
+        </div>
+    );
+}
+
 // Rows flush with the block's edges, divided by hairlines; they close the block.
 export function BlockRows({ children, className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
     return (

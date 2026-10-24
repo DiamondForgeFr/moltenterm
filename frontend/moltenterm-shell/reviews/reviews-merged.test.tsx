@@ -87,8 +87,9 @@ describe("Recently merged (#843)", () => {
         expect(html).toContain("in v1.0.0-4");
         expect(html).toContain("2 notes");
         expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(2);
-        // #960: the section ends with the way to the whole history, which opens only when asked.
+        // #960: the way to the whole history, which opens only when asked; on the heading line, before the rows (#1070).
         expect(html).toContain("All merged pull requests");
+        expect(html.indexOf("reviews-merged-all")).toBeLessThan(html.indexOf("reviews-merged-row"));
         expect(html).not.toContain("merged-history");
     });
 
@@ -103,7 +104,8 @@ describe("Recently merged (#843)", () => {
         const html = renderToStaticMarkup(<MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} />);
         expect(html).toContain('aria-expanded="false"');
         expect(html).not.toContain("reviews-merged-row");
-        expect(html).not.toContain("reviews-merged-all");
+        // The whole history stays one click away with the section collapsed (#1070).
+        expect(html).toContain("reviews-merged-all");
     });
 
     it("tells an empty window", () => {

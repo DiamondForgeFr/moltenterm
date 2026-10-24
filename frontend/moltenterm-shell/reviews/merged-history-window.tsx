@@ -13,8 +13,8 @@ import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { dateLocale, formatWhen } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
-import { DominoLoader } from "../suite/suite";
 import { useReviewNotes } from "../review/review-notes";
+import { DominoLoader, LoadingState } from "../suite/suite";
 import {
     AllKey,
     byDay,
@@ -163,17 +163,22 @@ export function MergedHistoryWindow({
     };
 
     const loading = answer == null || answer.loading;
-    const status = askError
+    const failure = askError ?? answer?.error;
+    // Until a read has ended, the pages arriving would show a history half drawn: the loading state stands in its
+    // place. Once one has ended, a refresh keeps the list on screen and says it reads in the button row.
+    const firstRead = !failure && (answer == null || (answer.loading && !answer.at));
+    const progress =
+        all.length > 0 && answer?.total > 0
+            ? t("reviews.history.loading", { count: all.length, total: answer.total })
+            : t("reviews.history.loadingFirst");
+    // A refresh reads again PRs already listed: a count against the total would read "200 of 200" from the start.
+    const status = failure
         ? t("reviews.history.error")
-        : answer?.error
-          ? t("reviews.history.error")
-          : loading
-            ? all.length > 0 && answer?.total > 0
-                ? t("reviews.history.loading", { count: all.length, total: answer.total })
-                : t("reviews.history.loadingFirst")
-            : answer?.cut
-              ? t("reviews.history.cut", { count: all.length })
-              : null;
+        : loading
+          ? t("reviews.history.loadingFirst")
+          : answer?.cut
+            ? t("reviews.history.cut", { count: all.length })
+            : null;
     return (
         <DialogFrame
             role="merged-history"
@@ -184,16 +189,30 @@ export function MergedHistoryWindow({
             widthClass="w-[1000px]"
             buttons={
                 <>
-                    <button
-                        type="button"
-                        onClick={() => setRefreshAt(Date.now())}
-                        disabled={answer?.loading}
-                        className="mr-auto cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:opacity-50"
-                        data-testid="merged-history-refresh"
-                    >
-                        <i className="fa fa-solid fa-rotate mr-1.5" aria-hidden />
-                        {t("reviews.history.refresh")}
-                    </button>
+                    <div className="mr-auto flex min-w-0 items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setRefreshAt(Date.now())}
+                            disabled={answer?.loading}
+                            className="shrink-0 cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:opacity-50"
+                            data-testid="merged-history-refresh"
+                        >
+                            <i className="fa fa-solid fa-rotate mr-1.5" aria-hidden />
+                            {t("reviews.history.refresh")}
+                        </button>
+                        {status && !firstRead ? (
+                            <span
+                                className={cn("min-w-0 truncate text-11", failure ? "text-warning" : "text-muted")}
+                                title={failure ?? undefined}
+                                role="status"
+                                aria-live="polite"
+                                data-testid="merged-history-status"
+                            >
+                                {loading && !failure ? <DominoLoader className="mr-1.5 text-accent" /> : null}
+                                {status}
+                            </span>
+                        ) : null}
+                    </div>
                     <button
                         type="button"
                         onClick={onClose}
@@ -275,122 +294,123 @@ export function MergedHistoryWindow({
                         </button>
                     ) : null}
                 </div>
-                {status ? (
-                    <div
-                        className="border-b border-border px-4 py-1.5 text-11 text-muted"
-                        title={askError ?? answer?.error ?? undefined}
-                        data-testid="merged-history-status"
-                    >
-                        {loading && !askError && !answer?.error ? (
-                            <DominoLoader className="mr-1.5 text-accent" />
-                        ) : null}
-                        {status}
-                    </div>
-                ) : null}
-                <div className="flex min-h-0 flex-1">
-                    <div
-                        ref={listRef}
-                        role="navigation"
-                        aria-label={hasTags ? t("reviews.history.versions") : t("reviews.history.months")}
-                        onKeyDown={move}
-                        className="flex w-[210px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2"
-                        data-testid="merged-history-entries"
-                    >
-                        {entries.map((entry) => {
-                            if (entry.kind === "upcoming") {
+                {firstRead ? (
+                    <LoadingState caption={progress} testId="merged-history-loading" />
+                ) : (
+                    <div className="flex min-h-0 flex-1">
+                        <div
+                            ref={listRef}
+                            role="navigation"
+                            aria-label={hasTags ? t("reviews.history.versions") : t("reviews.history.months")}
+                            onKeyDown={move}
+                            className="flex w-[210px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2"
+                            data-testid="merged-history-entries"
+                        >
+                            {entries.map((entry) => {
+                                if (entry.kind === "upcoming") {
+                                    return (
+                                        <div
+                                            key={entry.key}
+                                            className="mt-1 flex items-center gap-1.5 px-2 py-1 text-12 text-muted"
+                                        >
+                                            <span className="font-mono">{entry.base}</span>
+                                            <span className="text-11">{t("reviews.history.upcoming")}</span>
+                                        </div>
+                                    );
+                                }
+                                const active = entry.key === current?.key;
                                 return (
-                                    <div
+                                    <button
                                         key={entry.key}
-                                        className="mt-1 flex items-center gap-1.5 px-2 py-1 text-12 text-muted"
+                                        type="button"
+                                        data-key={entry.key}
+                                        tabIndex={active ? 0 : -1}
+                                        aria-current={active ? "true" : undefined}
+                                        onClick={() => setSelected(entry.key)}
+                                        title={
+                                            entry.kind === "next"
+                                                ? t("reviews.history.nextTitle")
+                                                : entry.kind === "unknown"
+                                                  ? t("reviews.history.unknownTitle")
+                                                  : undefined
+                                        }
+                                        className={cn(
+                                            "flex w-full cursor-pointer items-center justify-between gap-2 rounded-4 px-2 py-1 text-left text-12",
+                                            entry.kind === "tag" && entry.nested && "pl-5",
+                                            entry.kind === "all" && "mb-1",
+                                            active
+                                                ? "bg-hover font-medium text-primary"
+                                                : "text-secondary hover:bg-hover/60 hover:text-primary"
+                                        )}
+                                        data-testid="merged-history-entry"
                                     >
-                                        <span className="font-mono">{entry.base}</span>
-                                        <span className="text-11">{t("reviews.history.upcoming")}</span>
-                                    </div>
+                                        <span
+                                            className={cn("truncate", entry.kind === "tag" && "font-mono tabular-nums")}
+                                        >
+                                            {entryLabel(entry)}
+                                        </span>
+                                        <span className="shrink-0 text-11 text-muted tabular-nums">{entry.count}</span>
+                                    </button>
                                 );
-                            }
-                            const active = entry.key === current?.key;
-                            return (
-                                <button
-                                    key={entry.key}
-                                    type="button"
-                                    data-key={entry.key}
-                                    tabIndex={active ? 0 : -1}
-                                    aria-current={active ? "true" : undefined}
-                                    onClick={() => setSelected(entry.key)}
-                                    title={
-                                        entry.kind === "next"
-                                            ? t("reviews.history.nextTitle")
-                                            : entry.kind === "unknown"
-                                              ? t("reviews.history.unknownTitle")
-                                              : undefined
-                                    }
-                                    className={cn(
-                                        "flex w-full cursor-pointer items-center justify-between gap-2 rounded-4 px-2 py-1 text-left text-12",
-                                        entry.kind === "tag" && entry.nested && "pl-5",
-                                        entry.kind === "all" && "mb-1",
-                                        active
-                                            ? "bg-hover font-medium text-primary"
-                                            : "text-secondary hover:bg-hover/60 hover:text-primary"
-                                    )}
-                                    data-testid="merged-history-entry"
-                                >
-                                    <span className={cn("truncate", entry.kind === "tag" && "font-mono tabular-nums")}>
-                                        {entryLabel(entry)}
+                            })}
+                        </div>
+                        <div
+                            className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-3"
+                            data-testid="merged-history-pane"
+                        >
+                            {current ? (
+                                <div className="mb-2 flex items-baseline gap-2">
+                                    <h2 className="text-14 font-semibold text-primary">{entryLabel(current)}</h2>
+                                    <span className="text-12 text-muted">
+                                        {tCount("reviews.history.prs", prs.length)}
                                     </span>
-                                    <span className="shrink-0 text-11 text-muted tabular-nums">{entry.count}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-3" data-testid="merged-history-pane">
-                        {current ? (
-                            <div className="mb-2 flex items-baseline gap-2">
-                                <h2 className="text-14 font-semibold text-primary">{entryLabel(current)}</h2>
-                                <span className="text-12 text-muted">{tCount("reviews.history.prs", prs.length)}</span>
-                            </div>
-                        ) : null}
-                        {prs.length === 0 && !loading ? (
-                            <p className="text-12 text-muted" data-testid="merged-history-empty">
-                                {all.length === 0
-                                    ? t("reviews.history.none", { target })
-                                    : t("reviews.history.noMatch")}
-                            </p>
-                        ) : null}
-                        {days.map((group) => (
-                            <section key={group.day} className="mb-3">
-                                <h3 className="sticky top-[-12px] z-[1] bg-surface-3 py-1 text-11 font-semibold tracking-wide text-muted uppercase">
-                                    {formatLongDay(group.day)}
-                                </h3>
-                                <div className="overflow-clip rounded-4 border border-border" role="list">
-                                    {group.prs.map((pr) => (
-                                        <HistoryRow
-                                            key={pr.number}
-                                            pr={pr}
-                                            notes={noteCounts[pr.number] ?? 0}
-                                            onShowNotes={() => {
-                                                onShowNotes(`#${pr.number}`);
-                                                onClose();
-                                            }}
-                                        />
-                                    ))}
                                 </div>
-                            </section>
-                        ))}
-                        {prs.length > shown ? (
-                            <button
-                                type="button"
-                                onClick={() => setShown((n) => n + HistoryPageSize)}
-                                className="w-full cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-                                data-testid="merged-history-more"
-                            >
-                                {t("reviews.history.showMore", {
-                                    count: Math.min(HistoryPageSize, prs.length - shown),
-                                    left: prs.length - shown,
-                                })}
-                            </button>
-                        ) : null}
+                            ) : null}
+                            {prs.length === 0 && !loading ? (
+                                <p className="text-12 text-muted" data-testid="merged-history-empty">
+                                    {all.length === 0
+                                        ? failure
+                                            ? t("reviews.history.error")
+                                            : t("reviews.history.none", { target })
+                                        : t("reviews.history.noMatch")}
+                                </p>
+                            ) : null}
+                            {days.map((group) => (
+                                <section key={group.day} className="mb-3">
+                                    <h3 className="sticky top-[-12px] z-[1] bg-surface-3 py-1 text-11 font-semibold tracking-wide text-muted uppercase">
+                                        {formatLongDay(group.day)}
+                                    </h3>
+                                    <div className="overflow-clip rounded-4 border border-border" role="list">
+                                        {group.prs.map((pr) => (
+                                            <HistoryRow
+                                                key={pr.number}
+                                                pr={pr}
+                                                notes={noteCounts[pr.number] ?? 0}
+                                                onShowNotes={() => {
+                                                    onShowNotes(`#${pr.number}`);
+                                                    onClose();
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </section>
+                            ))}
+                            {prs.length > shown ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setShown((n) => n + HistoryPageSize)}
+                                    className="w-full cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                                    data-testid="merged-history-more"
+                                >
+                                    {t("reviews.history.showMore", {
+                                        count: Math.min(HistoryPageSize, prs.length - shown),
+                                        left: prs.length - shown,
+                                    })}
+                                </button>
+                            ) : null}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </DialogFrame>
     );

@@ -63,8 +63,13 @@ describe("block click from inside a block with a browser panel (#268)", () => {
 
     it("guards the click, the click-focus effect and the child-focus handlers of the block", () => {
         expect(blockSource.match(/focusHandoffActive\(\)/g)?.length).toBe(3);
-        const click = blockSource.match(/const setBlockClickedTrue = useCallback\(\(\) => \{([\s\S]*?)\}, \[\]\)/)?.[1];
-        expect(click).toMatch(/if \(focusHandoffActive\(\)\) \{\s*return;[^\n]*\n\s*\}\s*setBlockClicked\(true\)/);
+        // The click handler takes its event since #1070 (a click through a portal is not the block's).
+        const click = blockSource.match(
+            /const setBlockClickedTrue = useCallback\(\([^)]*\) => \{([\s\S]*?)\}, \[\]\)/
+        )?.[1];
+        expect(click).toMatch(
+            /^\s*if \(focusHandoffActive\(\)\) \{\s*return;[^\n]*\n\s*\}[\s\S]*setBlockClicked\(true\)/
+        );
         const child = blockSource.match(/const handleChildFocus = useCallback\(([\s\S]*?)\[isFocused\]/)?.[1];
         expect(child).toMatch(/focusHandoffActive\(\)[\s\S]*nodeModel\.focusNode\(\)/);
     });
