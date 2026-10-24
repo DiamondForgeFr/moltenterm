@@ -2,18 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import type { AgentStatesData } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import type { ReviewPr } from "./reviews-model";
 import {
+    agentLines,
     checkAgentsPlan,
     checkReportText,
     prLeft,
     PrTask,
     prTaskState,
     StuckGraceMs,
+    taskAgent,
+    taskAgentLive,
     taskStateText,
 } from "./reviews-task-model";
-import type { AgentBarFacts } from "./reviews-upcoming-model";
+import { AgentBarFacts, branchAgents, UpcomingAnswer } from "./reviews-upcoming-model";
 
 const Asked = 1_000_000;
 
@@ -160,5 +164,89 @@ describe("Check the agents (#954 AC8)", () => {
             failed: 0,
         });
         expect(text).toBe("3 checked, 1 needs work · 1 sent to its agent");
+    });
+});
+
+describe("a task on a branch shared by two agents (#1057)", () => {
+    const branch = "feature/1106-handoff";
+    const upcoming: UpcomingAnswer = {
+        dir: "/p",
+        branches: [],
+        at: Asked,
+        agents: [
+            { branch, worktree: "/w/a", kind: "panel", blockid: "jeanne", agent: "claude", started: Asked - 60_000 },
+            { branch, worktree: "/w/b", kind: "panel", blockid: "nathan", agent: "codex", started: Asked + 60_000 },
+        ],
+    };
+    const live: AgentStatesData = {
+        states: {
+            jeanne: { blockid: "jeanne", version: 1, agent: "claude", firstname: "Jeanne", state: "idle", since: 1 },
+            nathan: { blockid: "nathan", version: 1, agent: "codex", firstname: "Nathan", state: "working", since: 2 },
+        },
+        versions: { jeanne: 1, nathan: 1 },
+    };
+    const asked: PrTask = { kind: "rebase", name: "Jeanne", blockId: "jeanne", head: "h", at: Asked };
+    const later = Asked + 14 * 60_000;
+
+    it("judges the task against its own idle agent, not the working one, and never says its session ended", () => {
+        const agents = branchAgents(upcoming, live, branch);
+        expect(agents.map((a) => a.name)).toEqual(["Nathan", "Jeanne"]);
+        const owner = taskAgent(asked, agents, live);
+        expect(owner).toMatchObject({ blockId: "jeanne", name: "Jeanne", state: "idle" });
+        const state = prTaskState(asked, conflicted, owner, later);
+        expect(state).toBe("stuck");
+        const text = taskStateText(t, asked, state, taskAgentLive(asked, owner), conflicted);
+        expect(text).toBe("stopped before finishing the rebase: conflicts with develop remain");
+        expect(text).not.toContain("session ended");
+    });
+
+    it("lists every agent of the branch, the task on its own agent's line", () => {
+        const agents = branchAgents(upcoming, live, branch);
+        const lines = agentLines(agents, asked, taskAgent(asked, agents, live));
+        expect(lines.map((l) => [l.facts.name, l.facts.state, l.task])).toEqual([
+            ["Nathan", "working", false],
+            ["Jeanne", "idle", true],
+        ]);
+        expect(agentLines(agents, null, null).map((l) => l.task)).toEqual([false, false]);
+    });
+
+    it("keeps a task running while its own agent works, whoever else is idle", () => {
+        const swapped: AgentStatesData = {
+            ...live,
+            states: {
+                jeanne: { ...live.states.jeanne, state: "working", since: Asked + 1 },
+                nathan: { ...live.states.nathan, state: "idle" },
+            },
+        };
+        const agents = branchAgents(upcoming, swapped, branch);
+        expect(prTaskState(asked, conflicted, taskAgent(asked, agents, swapped), later)).toBe("running");
+    });
+
+    it("says inactive, not ended, for a terminal still open off the branch; ended once it is closed", () => {
+        const moved: UpcomingAnswer = { ...upcoming, agents: upcoming.agents.filter((a) => a.blockid !== "jeanne") };
+        const agents = branchAgents(moved, live, branch);
+        const owner = taskAgent(asked, agents, live);
+        expect(owner).toMatchObject({ blockId: "jeanne", offBranch: true });
+        expect(prTaskState(asked, conflicted, owner, Asked + 10_000)).toBe("running");
+        expect(prTaskState(asked, conflicted, owner, later)).toBe("stuck");
+        expect(taskAgentLive(asked, owner)).toBe(true);
+        expect(agentLines(agents, asked, owner).map((l) => [l.facts.name, l.task])).toEqual([
+            ["Nathan", false],
+            ["Jeanne", true],
+        ]);
+
+        const closed: AgentStatesData = { states: { nathan: live.states.nathan }, versions: { nathan: 1 } };
+        const gone = taskAgent(asked, branchAgents(moved, closed, branch), closed);
+        expect(gone).toBeNull();
+        expect(taskStateText(t, asked, prTaskState(asked, conflicted, gone, later), false, conflicted)).toContain(
+            "its session ended"
+        );
+        expect(agentLines(branchAgents(moved, closed, branch), asked, gone).map((l) => l.task)).toEqual([false, true]);
+    });
+
+    it("falls back to the branch's first agent for a task that named no terminal", () => {
+        const agents = branchAgents(upcoming, live, branch);
+        expect(taskAgent({ ...asked, blockId: "" }, agents, live)?.name).toBe("Nathan");
+        expect(taskAgent(null, agents, live)).toBeNull();
     });
 });
