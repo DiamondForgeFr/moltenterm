@@ -4433,6 +4433,16 @@
         "goToTitle": "Afficher le panneau de {name}",
         "parent": "Session de {name}",
         "parentTitle": "Afficher le panneau de {name} : il a probablement lancé cet agent",
+        "subagent": {
+            "of": "Sous-agent de {name}",
+            "name": "Sous-agent",
+            "state": {
+                "running": "au travail",
+                "quiet": "silencieux",
+                "done": "terminé"
+            },
+            "finishedAgo": "terminé il y a {duration}"
+        },
         "upcoming": {
             "title": "À venir",
             "none": "Aucune branche de ticket n'attend sa pull request.",

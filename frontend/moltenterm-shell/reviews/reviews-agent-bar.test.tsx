@@ -98,6 +98,49 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         expect(html).not.toContain('data-testid="reviews-agent-goto"');
         expect(html).toMatch(/data-testid="reviews-agent-parent"[\s\S]*Valentin&#x27;s session/);
     });
+
+    it("names a sub-agent by its parent, tool, model and task, Go to showing the parent (#1035)", () => {
+        const facts: AgentBarFacts = {
+            kind: "subagent",
+            agent: "claude",
+            name: "",
+            state: "working",
+            subState: "running",
+            since: Now - 2 * 60_000,
+            parentBlockId: "b9",
+            parentName: "Valentin",
+            model: "claude-opus-5-5",
+            description: "#1033 agent name in tabs",
+        };
+        const html = renderToStaticMarkup(<AgentBar facts={facts} />);
+        expect(html).toContain("Sub-agent of Valentin");
+        expect(html).toContain("Claude Code · Opus 5.5 · #1033 agent name in tabs");
+        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
+        expect(html).not.toContain("probably active");
+        expect(html).toContain('data-testid="reviews-agent-goto"');
+        expect(html).toContain("Show Valentin&#x27;s panel");
+        expect(html).not.toContain('data-testid="reviews-agent-parent"');
+    });
+
+    it("says a sub-agent finished, and since when", () => {
+        const facts: AgentBarFacts = {
+            kind: "subagent",
+            agent: "codex",
+            name: "",
+            state: "done",
+            subState: "done",
+            since: Now - 12 * 60_000,
+            parentBlockId: "b8",
+            parentName: "Jérôme",
+            description: "audit reliability",
+        };
+        const html = renderToStaticMarkup(<AgentBar facts={facts} />);
+        expect(html).toContain("Sub-agent of Jérôme");
+        expect(html).toContain("Codex · audit reliability");
+        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>finished</);
+        expect(html).toContain("finished 12 min ago");
+        expect(html).not.toContain("df-domino-loader");
+    });
 });
 
 describe("The PR's one who line (#954)", () => {

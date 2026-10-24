@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -25,13 +26,16 @@ import (
 // each running agent terminal placed in the worktree its folder belongs to, which names the branch it works on; a
 // linked worktree on a ticket branch with recent activity and no agent terminal is reported as a background agent
 // (an agent run inside another agent, a Claude Code worktree agent for instance), a heuristic the view says as
-// "probably active". The answer is cached per project: the view asks on each of its own refreshes, never on a timer.
+// "probably active". A linked worktree a running panel's sub-agent works in, by its own files (#1035), is that
+// sub-agent's instead: its parent, tool, model, task and real state. The answer is cached per project: the view asks
+// on each of its own refreshes, never on a timer.
 
 const (
 	UpcomingCommand = "moltenmissionupcoming"
 
 	UpcomingAgentPanel      = "panel"
 	UpcomingAgentBackground = "background"
+	UpcomingAgentSubagent   = "subagent"
 
 	upcomingMaxAge         = 20 * time.Second
 	upcomingForcedInterval = 5 * time.Second
@@ -92,6 +96,19 @@ type BranchAgent struct {
 	// ParentBlockId: the panel agent that probably started a background agent, when one stands out.
 	ParentBlockId   string `json:"parentblockid,omitempty"`
 	ParentFirstName string `json:"parentfirstname,omitempty"`
+	// A sub-agent's (#1035): its model, its task, and its state (companion.SubagentRunning, SubagentQuiet,
+	// SubagentDone); ActiveAt is then its last write, or its end.
+	Model       string `json:"model,omitempty"`
+	Description string `json:"description,omitempty"`
+	State       string `json:"state,omitempty"`
+}
+
+// PaneSubagent is a sub-agent of a running agent panel, as its own files describe it.
+type PaneSubagent struct {
+	ParentBlockId   string
+	ParentFirstName string
+	Agent           string
+	companion.SubagentIdentity
 }
 
 // UpcomingDraft is an open draft PR's branch (#954): its ticket's board Status and its last commit tell whose turn
@@ -144,6 +161,8 @@ type UpcomingEnv struct {
 	Agents   func(ctx context.Context) []AgentPlace
 	// FileTime: a file's modification time, in Unix milliseconds (0 when it cannot be read).
 	FileTime func(path string) int64
+	// Subagents: the sub-agents of the running agent panels, their worktrees' symlinks resolved.
+	Subagents func(places []AgentPlace) []PaneSubagent
 }
 
 type upcomingState struct {
@@ -277,6 +296,9 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		places = u.env.Agents(ctx)
 	}
 	answer.Agents = MatchBranchAgents(trees, places)
+	if u.env.Subagents != nil {
+		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, answer.Agents, u.env.Subagents(places))...)
+	}
 	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes)...)
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
@@ -485,10 +507,61 @@ func ApplyDraftTickets(drafts []UpcomingDraft, tickets map[int]upcomingTicket) [
 	return drafts
 }
 
+// agentBranches: the branches an agent works on; a finished sub-agent no longer does.
 func agentBranches(agents []BranchAgent) map[string]bool {
 	rtn := map[string]bool{}
 	for _, a := range agents {
+		if a.Kind == UpcomingAgentSubagent && a.State == companion.SubagentDone {
+			continue
+		}
 		rtn[a.Branch] = true
+	}
+	return rtn
+}
+
+var subagentStateRank = map[string]int{companion.SubagentRunning: 2, companion.SubagentQuiet: 1, companion.SubagentDone: 0}
+
+// SubagentBranchAgents places each sub-agent in the linked worktree its own files name (#1035): one per worktree
+// without an agent panel, the running one first, then the most recently written.
+func SubagentBranchAgents(trees []treeEntry, panels []BranchAgent, subs []PaneSubagent) []BranchAgent {
+	if len(trees) < 2 {
+		return nil
+	}
+	busy := map[string]bool{}
+	for _, a := range panels {
+		busy[a.Worktree] = true
+	}
+	best := map[string]PaneSubagent{}
+	for _, s := range subs {
+		if s.Worktree == "" || !filepath.IsAbs(s.Worktree) {
+			continue
+		}
+		tree, ok := treeOf(trees, filepath.Clean(s.Worktree))
+		if !ok || tree.path == trees[0].path || tree.branch == "" || busy[tree.path] {
+			continue
+		}
+		have, ok := best[tree.path]
+		if ok {
+			if subagentStateRank[have.State] > subagentStateRank[s.State] {
+				continue
+			}
+			if subagentStateRank[have.State] == subagentStateRank[s.State] && have.LastWrite >= s.LastWrite {
+				continue
+			}
+		}
+		best[tree.path] = s
+	}
+	var rtn []BranchAgent
+	for _, tree := range trees[1:] {
+		s, ok := best[tree.path]
+		if !ok {
+			continue
+		}
+		rtn = append(rtn, BranchAgent{
+			Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
+			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
+			Description: s.Description, State: s.State,
+		})
 	}
 	return rtn
 }

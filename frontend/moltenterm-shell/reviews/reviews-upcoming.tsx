@@ -143,10 +143,12 @@ function UpcomingRow({
     const t = useT();
     const agent = useBranchAgent(dir, branch.branch);
     const url = ticketUrl(branch, repoUrl);
-    const goesToAgent = agent?.kind === "panel" && !!agent.blockId;
+    // A sub-agent has no panel of its own: its row opens its parent's (#1035).
+    const agentBlock = agent?.kind === "panel" ? agent.blockId : agent?.kind === "subagent" ? agent.parentBlockId : "";
+    const goesToAgent = !!agentBlock;
     const open = () => {
         if (goesToAgent) {
-            fireAndForget(() => showPanel(agent.blockId));
+            fireAndForget(() => showPanel(agentBlock));
             return;
         }
         if (url) {

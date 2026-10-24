@@ -224,6 +224,8 @@ type Manager struct {
 	// sub-agents'.
 	tracks        map[string]*runTrack
 	subagentPaths map[string]bool
+	// identityAdapters: the adapters PaneSubagents reads with, one per agent (#1035).
+	identityAdapters map[string]Adapter
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf          func(blockId string) (molten.AgentRunInfo, bool)

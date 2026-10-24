@@ -69,7 +69,9 @@ type subagent struct {
 	// effort: the effort its own transcript records, else the one its call asked for; empty when the parent's.
 	effort string
 	// branch: the branch its own transcript last names (a worktree's).
-	branch     string
+	branch string
+	// worktree: the folder its own files say it works in (#1035).
+	worktree   string
 	background bool
 	state      string
 	started    int64
@@ -111,6 +113,7 @@ type SubagentInfo struct {
 	// Effort: empty when neither its transcript nor its call says it (the parent's then).
 	Effort     string `json:"effort,omitempty"`
 	Branch     string `json:"branch,omitempty"`
+	Worktree   string `json:"worktree,omitempty"`
 	Background bool   `json:"background,omitempty"`
 	State      string `json:"state"`
 	Started    int64  `json:"started,omitempty"`
@@ -516,6 +519,7 @@ func (s *Session) Subagents() []SubagentInfo {
 	for _, sa := range s.subagents {
 		rtn = append(rtn, SubagentInfo{
 			Id: sa.id, Description: sa.description, Kind: sa.kind, Model: sa.model, Effort: sa.effort, Branch: sa.branch,
+			Worktree:   sa.worktree,
 			Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended,
 			Ticket: sa.ticket.number, Complexity: sa.ticket.complexity,
 		})

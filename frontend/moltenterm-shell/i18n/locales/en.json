@@ -4433,6 +4433,16 @@
         "goToTitle": "Show {name}'s panel",
         "parent": "{name}'s session",
         "parentTitle": "Show {name}'s panel: it probably started this agent",
+        "subagent": {
+            "of": "Sub-agent of {name}",
+            "name": "Sub-agent",
+            "state": {
+                "running": "working",
+                "quiet": "quiet",
+                "done": "finished"
+            },
+            "finishedAgo": "finished {duration} ago"
+        },
         "upcoming": {
             "title": "Upcoming",
             "none": "No ticket branch is waiting for its pull request.",
