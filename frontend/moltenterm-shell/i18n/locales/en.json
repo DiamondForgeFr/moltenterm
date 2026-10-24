@@ -3632,7 +3632,8 @@
                 "legendManual": "Done by hand",
                 "legendTag": "The tag",
                 "legendWorkflow": "A GitHub workflow"
-            }
+            },
+            "trustBody": "The release setup just wrote these commands. Trusting starts nothing: MoltenTerm runs them in {dir}, with your rights, when you start a release. It asks again whenever they change."
         }
     },
     "workspace": {

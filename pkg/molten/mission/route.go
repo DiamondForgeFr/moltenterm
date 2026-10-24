@@ -12,7 +12,6 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/pipelinesetup"
-	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -528,7 +527,7 @@ func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, workt
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
 		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks,
-		setup: pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), pipelinesetup.AgentRunner(release.ExecAgent))}
+		setup: pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }
@@ -562,4 +561,14 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 		return l.setup.Write(req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
+}
+
+const refineAgentTimeout = 10 * time.Minute
+
+// refineAgent runs the coding agent the way the agent choice finds it: through the login shell's PATH, so the agent
+// that runs is the one the choice said was installed, with the prompt on its standard input.
+func refineAgent(ctx context.Context, dir string, argv []string, prompt string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, refineAgentTimeout)
+	defer cancel()
+	return ExecRunnerInput(ctx, dir, []byte(prompt), argv[0], argv[1:]...)
 }

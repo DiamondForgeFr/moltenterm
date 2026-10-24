@@ -3632,7 +3632,8 @@
                 "legendManual": "Faite à la main",
                 "legendTag": "Le tag",
                 "legendWorkflow": "Un workflow GitHub"
-            }
+            },
+            "trustBody": "La mise en place de la release vient d’écrire ces commandes. Faire confiance ne lance rien : MoltenTerm les lance dans {dir}, avec vos droits, quand vous démarrez une release. Il redemande chaque fois qu’elles changent."
         }
     },
     "workspace": {
