@@ -43,6 +43,7 @@ export function TrustPrompt({
     onCancel,
     busy,
     approveOnly,
+    bodyKey,
 }: {
     projectName: string;
     dir: string;
@@ -53,6 +54,8 @@ export function TrustPrompt({
     busy?: boolean;
     // Approve only (#1017): the developer trusts the commands a refused run asked for, and nothing starts.
     approveOnly?: boolean;
+    // Says why the commands are asked for, when it is not a refused run (the release setup just wrote them, #1030).
+    bodyKey?: string;
 }) {
     const t = useT();
     const cancelRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +69,7 @@ export function TrustPrompt({
             role="mc-trust"
             onEscape={busy ? undefined : onCancel}
             title={t(approveOnly ? "mc.trust.approveTitle" : "mc.trust.title", { project: projectName })}
-            subtitle={t(approveOnly ? "mc.trust.approveBody" : "mc.trust.body", { dir })}
+            subtitle={t(bodyKey ?? (approveOnly ? "mc.trust.approveBody" : "mc.trust.body"), { dir })}
             subtitleWraps
             widthClass="w-[560px]"
             trapFocus

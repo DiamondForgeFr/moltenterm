@@ -717,6 +717,8 @@ export function ReleaseSetup({
     const [draft, setDraft] = useState<SetupDraft>(null);
     const [options, setOptions] = useState<SetupOptions>(null);
     const [touched, setTouched] = useState(false);
+    // Who drafted before the developer changed a choice: their choices then replace SaaSFoundryAI's draft.
+    const [firstProvider, setFirstProvider] = useState<SetupDraft["provider"]>(null);
     const [step, setStep] = useState<StepId>("kind");
     const [channel, setChannel] = useState<SetupChannel>("rc");
     const [error, setError] = useState<string>(null);
@@ -738,6 +740,9 @@ export function ReleaseSetup({
                 }
                 setDraft(answer);
                 setOptions(answer.options);
+                if (opts == null) {
+                    setFirstProvider(answer.provider);
+                }
                 setRefined(null);
                 setError(null);
                 if (!answer.options.channels.includes(channel) && answer.options.channels.length > 0) {
@@ -822,6 +827,7 @@ export function ReleaseSetup({
                 dir={dir}
                 info={untrusted}
                 approveOnly
+                bodyKey="mc.setup.trustBody"
                 onTrust={trust}
                 onCancel={onClose}
             />
@@ -857,6 +863,7 @@ export function ReleaseSetup({
                     ) : null}
                     {step !== "review" ? (
                         <button
+                            key="next"
                             type="button"
                             className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             disabled={draft == null || nothing}
@@ -868,6 +875,7 @@ export function ReleaseSetup({
                         </button>
                     ) : (
                         <button
+                            key="write"
                             type="button"
                             className="molten-btn inline-flex cursor-pointer items-center rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             disabled={!canWrite || writing}
@@ -924,7 +932,7 @@ export function ReleaseSetup({
                     {draft.provider === "saasfoundry" && !touched ? (
                         <p className="text-11 text-muted">{t("mc.setup.fromSaaSFoundry")}</p>
                     ) : null}
-                    {touched && draft.facts.saasfoundry && draft.provider === "moltenterm" ? (
+                    {touched && firstProvider === "saasfoundry" && draft.provider === "moltenterm" ? (
                         <p className="text-11 text-muted">{t("mc.setup.choicesReplace")}</p>
                     ) : null}
                     {step === "kind" ? <KindStep draft={draft} options={options} onKind={chooseKind} /> : null}
