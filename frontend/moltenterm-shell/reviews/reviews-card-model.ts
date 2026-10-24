@@ -384,7 +384,9 @@ export function cardState(input: CardInput): CardState {
                     : onTask
                       ? phrase(`reviews.card.state.agentOn.${task.kind}`, { name, base: pr.base })
                       : phrase("reviews.card.state.agentWorking", { name });
-            if (pr.merge === "conflicts" && !(onTask && task.kind === "rebase")) {
+            if (onTask && task.kind === "rebase") {
+                said.add("conflicts");
+            } else if (pr.merge === "conflicts") {
                 why = phrase("reviews.card.why.conflicts", { base: pr.base });
                 said.add("conflicts");
             } else if (failed.length > 0) {
@@ -413,6 +415,10 @@ export function cardState(input: CardInput): CardState {
             agent = input.taskLive ? input.taskOwner : null;
             const name = input.task?.name || "";
             sentence = phrase("reviews.card.state.interrupted");
+            // The agent's own line says what the stopped rebase left.
+            if (input.task?.kind === "rebase") {
+                said.add("conflicts");
+            }
             why = phrase(input.taskLive ? "reviews.card.why.interrupted" : "reviews.card.why.interruptedGone", {
                 name,
                 what: taskWhat(input.task),

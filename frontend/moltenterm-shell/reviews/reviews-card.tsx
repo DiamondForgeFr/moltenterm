@@ -269,7 +269,19 @@ export function ReviewRow({
                 click: () => run(action),
             });
         }
-        ContextMenuModel.getInstance().showContextMenu(items, e);
+        // Under the button, whether it was clicked or pressed from the keyboard (a key's click has no pointer place).
+        const rect = e.currentTarget.getBoundingClientRect();
+        const anchored = {
+            clientX: rect.left,
+            clientY: rect.bottom,
+            target: e.currentTarget,
+            altKey: e.altKey,
+            type: e.type,
+            detail: e.detail,
+            stopPropagation: () => e.stopPropagation(),
+            preventDefault: () => e.preventDefault(),
+        } as unknown as React.MouseEvent;
+        ContextMenuModel.getInstance().showContextMenu(items, anchored);
     };
     const markReadyNotes =
         card.primary.id === "mark-ready"
