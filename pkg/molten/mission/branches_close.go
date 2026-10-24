@@ -82,7 +82,8 @@ func (r *Runs) CloseAndCleanBranch(req BranchesCloseRequest, closeTerminal Termi
 	if branch == nil {
 		return BranchesCleanResult{}, uimsg.Errorf(uimsg.Make("mission.branches.gone", "branch", req.Name), "%s is no longer a branch", req.Name)
 	}
-	if branch.Reason != BranchKeepTreeInUse {
+	// #1028: only MoltenTerm's own worktrees are closed and cleaned here; another tool's is checked in the list instead.
+	if branch.Reason != BranchKeepTreeInUse || !ownTree(r.dataDir, branch.Worktree) {
 		result := BranchesCleanResult{Deleted: []string{}, Failed: 1}
 		result.Errors = []string{fmt.Sprintf("%s: kept (%s)", branchLabel(*branch), branch.Reason)}
 		result.ErrorsText = []*uimsg.Text{uimsg.Make("mission.branches.kept", "branch", branchLabel(*branch), "reason", branch.Reason, "pr", fmt.Sprintf("%d", branch.Pr))}

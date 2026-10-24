@@ -569,7 +569,7 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
 }
 
 // must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
-export type BranchDeleteReason = "merged-pr" | "merged-pr-worktree" | "on-trunk" | "patches-on-trunk";
+export type BranchDeleteReason = "merged-pr" | "merged-pr-worktree" | "merged-worktree" | "on-trunk" | "patches-on-trunk";
 export type BranchKeepReason =
     | "protected"
     | "not-on-trunk"
@@ -581,18 +581,35 @@ export type BranchKeepReason =
     | "not-in-pr"
     | "worktree-changes"
     | "worktree-in-use"
+    | "worktree-operation"
+    | "worktree-process"
+    | "worktree-refused"
+    | "worktree-commits"
     | "pr-assets"
     | "tool-branch";
+export type TreeTool = "moltenterm" | "claude-code" | "conductor" | "codex";
+export type TreeProcess = { pid: number; name: string };
 export type BranchPlan = {
     name: string;
     remote: boolean;
     action: "delete" | "keep";
     reason?: BranchDeleteReason | BranchKeepReason;
     pr?: number;
-    // MoltenTerm's worktree holding the branch (#906): removed with it, or why it stays.
+    // The linked worktree holding the branch (#906, #1028): removed with it, or why it stays.
     worktree?: string;
     // The terminals holding that worktree open, with worktree-in-use (#932).
     terminals?: WorktreeTerminal[];
+    // #1028: the tool that made the worktree, outside the project folder, locked, the ignored files going with it, the
+    // processes working in it, the git operation in progress; confirm: it goes only when the developer checks it.
+    tool?: TreeTool;
+    outside?: boolean;
+    locked?: boolean;
+    ignoredfiles?: number;
+    processes?: TreeProcess[];
+    // Not from wavesrv's plan: the processes as a kept branch's error already lists them (cleanErrorLines).
+    processestext?: string;
+    operation?: string;
+    confirm?: boolean;
 };
 export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
 export type BranchesCleanResult = {
@@ -607,8 +624,9 @@ export function branchesPlan(dir: string): Promise<BranchesPlan> {
     return releaseCall(MissionBranchesPlanCommand, { dir });
 }
 
-export function branchesClean(dir: string, names: string[]): Promise<BranchesCleanResult> {
-    return releaseCall(MissionBranchesCleanCommand, { dir, names });
+// worktrees: the folders of the confirm worktrees the developer checked (#1028); wavesrv removes no other.
+export function branchesClean(dir: string, names: string[], worktrees?: string[]): Promise<BranchesCleanResult> {
+    return releaseCall(MissionBranchesCleanCommand, { dir, names, worktrees });
 }
 
 // Closes the terminals holding a merged PR's worktree, then cleans its branch (#932): wavesrv plans twice, hence the

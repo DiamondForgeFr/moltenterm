@@ -2705,15 +2705,57 @@
                     "other": "merged in #{pr}, but the sessions {sessions} have terminals open in its worktree"
                 },
                 "prAssets": "holds pull request assets",
-                "tool": "a tool branch"
+                "tool": "a tool branch",
+                "worktreeChangesNoPr": "its worktree has uncommitted changes",
+                "worktreeInUseNoPr": "a terminal is open in its worktree",
+                "worktreeHeldByNoPr": {
+                    "one": "the session {sessions} has a terminal open in its worktree",
+                    "other": "the sessions {sessions} have terminals open in its worktree"
+                },
+                "worktreeOperation": "{operation} is in progress in its worktree",
+                "worktreeProcess": {
+                    "one": "its worktree is in use by {processes}",
+                    "other": "its worktree is in use by {processes}"
+                },
+                "worktreeRefused": "its worktree is the home folder or holds the repository: MoltenTerm never deletes it",
+                "worktreeCommits": "its worktree's branch holds commits that are not on {trunk}"
             },
             "reason": {
                 "mergedPr": "merged in #{pr}",
                 "onTrunk": "its code is on {trunk}",
                 "patchesOnTrunk": "its commits are on {trunk} under new ids",
                 "commitsAfterPr": "commits after #{pr} was merged",
-                "mergedPrWorktree": "merged in #{pr}, its worktree is clean and goes with it"
+                "mergedPrWorktree": "merged in #{pr}, its worktree is clean and goes with it",
+                "mergedWorktree": "merged in #{pr}, its worktree is clean",
+                "onTrunkWorktree": "its commits are all on {trunk}, its worktree is clean"
             },
+            "operation": {
+                "rebase": "a rebase",
+                "merge": "a merge",
+                "cherryPick": "a cherry-pick",
+                "revert": "a revert",
+                "bisect": "a bisect",
+                "other": "a git operation"
+            },
+            "tool": {
+                "moltenterm": "MoltenTerm",
+                "claudeCode": "a Claude Code agent",
+                "conductor": "Conductor",
+                "codex": "Codex"
+            },
+            "tree": {
+                "locked": "locked",
+                "lockedBy": "locked, made by {tool}",
+                "madeBy": "made by {tool}",
+                "outside": "outside the project folder",
+                "ignored": {
+                    "one": "{count} ignored file goes with it",
+                    "other": "{count} ignored files go with it"
+                }
+            },
+            "otherTrees": "Worktrees of other tools, outside the project or locked ({count})",
+            "otherTreesHint": "Nothing here goes unless you check it. A checked branch goes with its worktree, and the folder named below is deleted.",
+            "deletesFolder": "Deletes the folder {path}",
             "result": {
                 "one": "{count} branch deleted.",
                 "other": "{count} branches deleted."
@@ -2723,7 +2765,7 @@
                 "other": "{count} branches deleted, {failed} failed."
             },
             "title": "Clean branches",
-            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. A clean worktree MoltenTerm made for a merged pull request goes with its branch. The main branches stay, and so does anything in doubt.",
+            "intro": "Branches whose pull request was merged go, and so do those whose code is already on {trunk}. A clean worktree MoltenTerm made for a merged pull request goes with its branch; those of other tools, outside the project or locked go only if you check them. The main branches stay, and so does anything in doubt.",
             "comparing": "Comparing each branch with {trunk}…",
             "wouldGo": "Would go ({count})",
             "nothing": "Nothing to clean.",
@@ -6540,7 +6582,9 @@
                 "autoDeleteFailed": "Automatic branch deletion could not be turned on: {detail}",
                 "gone": "{branch} is no longer a branch.",
                 "newTerminal": "Another terminal opened in the worktree of {branch} since: nothing was closed.",
-                "closeFailed": "A terminal could not be closed: {detail}"
+                "closeFailed": "A terminal could not be closed: {detail}",
+                "treeNotChecked": "{branch}: kept, its worktree {path} was not checked",
+                "treeProcess": "a process started working in {path} since the plan: {processes}"
             },
             "jobs": {
                 "tooLarge": "The file is too large to read.",
