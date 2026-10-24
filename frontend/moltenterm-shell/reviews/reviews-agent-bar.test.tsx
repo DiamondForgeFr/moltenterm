@@ -288,8 +288,8 @@ describe("a card whose branch has two agents (#1057)", () => {
                 pr={pr}
                 task={task}
                 onRetry={() => {}}
-                onOpenWork={async () => ""}
-                onStop={async () => ""}
+                onOpenWork={async () => null}
+                onStop={async () => null}
             />
         );
     }
