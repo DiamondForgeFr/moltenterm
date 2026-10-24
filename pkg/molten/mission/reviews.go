@@ -40,6 +40,7 @@ const (
 	ReviewMergeConflicts = "conflicts"
 	ReviewMergeBlocked   = "blocked"
 	ReviewMergeFailing   = "failing"
+	ReviewMergeRunning   = "running"
 	ReviewMergeUnknown   = "unknown"
 
 	// What GitHub's mergeability says of a conflict with the base, for the review list and the Validate plan alike.
@@ -399,6 +400,15 @@ func ReviewMergeOfPr(mergeable string, mergeState string) string {
 	return ReviewMergeOf(mergeState)
 }
 
+// reviewMergeWithChecks reads GitHub's UNSTABLE with the checks (#1059): GitHub says UNSTABLE while a check it does
+// not require is still running too, which is no failure until one fails.
+func reviewMergeWithChecks(merge string, ci ReviewCi) string {
+	if merge == ReviewMergeFailing && ci.Failure == 0 && ci.Pending > 0 {
+		return ReviewMergeRunning
+	}
+	return merge
+}
+
 var branchPatternFieldRe = regexp.MustCompile(`\\\{([A-Za-z]+)\\\}`)
 
 // branchTicketRes turns the project's branch patterns (`feature/{N}-{description}`) into expressions that read the
@@ -512,6 +522,7 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 			rtn.Ticket, rtn.TicketFrom = n, ReviewTicketFromBranch
 		}
 	}
+	rtn.Merge = reviewMergeWithChecks(rtn.Merge, rtn.Ci)
 	return rtn
 }
 

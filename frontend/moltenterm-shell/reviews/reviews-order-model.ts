@@ -13,8 +13,9 @@ import { mergeableNow, type ReviewPr } from "./reviews-model";
 // Past this many PRs linked by conflicts, the exact search (2^n states) gives way to a greedy.
 export const ExactOrderMaxPrs = 20;
 
-// simulated: the forecast merged it; conflictsbase: it already conflicts with the base (a rebase in any order);
-// missing: the forecast has no row for its head yet.
+// simulated: the forecast merged it; conflictsbase: it already conflicts with the base, by the forecast or GitHub (a
+// rebase in any order, so it is left out of the suggested order, #1059); missing: the forecast has no row for its head
+// yet.
 export type OrderGroup = "simulated" | "missing" | "conflictsbase";
 
 // 0 mergeable now, 1 waiting (checks running, merge state computing), 2 cannot merge (checks failing, blocked).
@@ -49,6 +50,9 @@ export type MergeOrder = {
     usable: boolean;
     numbers: number[];
     steps: MergeOrderStep[];
+    // The PRs already conflicting with the base, left out of the order (#1059): their rebase does not depend on it.
+    // The batch merge still takes them, after the order.
+    outside: MergeOrderStep[];
     // CI runs to redo merging in this order, and in the list's own order.
     cost: number;
     currentCost: number;
@@ -61,10 +65,23 @@ export function orderTier(pr: ReviewPr): OrderTier {
     if (mergeableNow(pr)) {
         return 0;
     }
-    if (pr.ci?.state === "failure" || pr.merge === "blocked" || pr.merge === "failing" || pr.merge === "conflicts") {
+    if (pr.ci?.state === "failure" || pr.merge === "failing" || pr.merge === "conflicts") {
+        return 2;
+    }
+    if (pr.merge === "blocked" && !blockedOnRunningChecks(pr)) {
         return 2;
     }
     return 1;
+}
+
+// blockedOnRunningChecks: GitHub blocks the merge while required checks still run (#1059); the PR waits for them, it
+// does not fail. A review asked or changes requested still block it.
+function blockedOnRunningChecks(pr: ReviewPr): boolean {
+    if (pr.ci?.state !== "pending") {
+        return false;
+    }
+    const decision = (pr.reviewdecision ?? "").toUpperCase();
+    return decision !== "REVIEW_REQUIRED" && decision !== "CHANGES_REQUESTED";
 }
 
 // orderNodes reads the forecast for the PRs to order (the list's ready ones); listed are all the PRs the forecast was
@@ -82,10 +99,10 @@ export function orderNodes(forecast: Forecast, ready: ReviewPr[], listed: Review
     const nodes = ready.map((pr, index): OrderNode => {
         const row = rowOf(forecast, pr, baseoid);
         const group: OrderGroup =
-            row == null || row.state === "missing"
-                ? "missing"
-                : row.state === "conflictsbase"
-                  ? "conflictsbase"
+            pr.merge === "conflicts" || row?.state === "conflictsbase"
+                ? "conflictsbase"
+                : row == null || row.state === "missing"
+                  ? "missing"
                   : "simulated";
         if (row != null) {
             known++;
@@ -292,19 +309,36 @@ export function suggestedMergeOrder(forecast: Forecast, ready: ReviewPr[], liste
     const uptodate = forecast?.uptodate ?? "unknown";
     const nodes = orderNodes(forecast, ready, listed);
     if (nodes == null) {
-        return { usable: false, numbers: current, steps: [], cost: 0, currentCost: 0, uptodate, exact: true };
+        return {
+            usable: false,
+            numbers: current,
+            steps: [],
+            outside: [],
+            cost: 0,
+            currentCost: 0,
+            uptodate,
+            exact: true,
+        };
     }
-    const { numbers, exact } = mergeOrderOfNodes(nodes);
-    const steps = orderSteps(numbers, nodes);
+    const ordered = nodes.filter((n) => n.group !== "conflictsbase");
+    const left = nodes.filter((n) => n.group === "conflictsbase").map((n) => n.number);
+    const { numbers, exact } = mergeOrderOfNodes(ordered);
+    const steps = orderSteps(numbers, ordered);
     return {
         usable: true,
         numbers,
         steps,
+        outside: orderSteps(left, nodes),
         cost: steps.filter((s) => s.rebase).length,
-        currentCost: orderCost(current, nodes),
+        currentCost: orderCost(current, ordered),
         uptodate,
         exact,
     };
+}
+
+// mergeOutsideReason: why a PR already conflicting with the base has no rank (#1059).
+export function mergeOutsideReason(base: string): string {
+    return t("reviews.order.reason.outside", { base: base || "base" });
 }
 
 // orderedPrs: the PRs in the order's sequence, any PR the order does not know kept after, in the list's order.
