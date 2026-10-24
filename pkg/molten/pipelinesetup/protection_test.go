@@ -162,7 +162,7 @@ func TestDraftProtectedDivergedRepositoryGoesByPullRequest(t *testing.T) {
 	if got := strings.Join(stepIds(rc), ","); got != "prepare,changelog-en,changelog-fr,tag" {
 		t.Fatalf("rc steps: %s", got)
 	}
-	if rc[3].Run != "molten release tag {tag} --rc-branch" || rc[3].Confirm == "" {
+	if rc[3].Run != "molten release tag {tag} --rc-branch" || !strings.Contains(rc[3].Confirm, "No publish workflow starts on the tag (test.yml runs on it)") {
 		t.Fatalf("rc tag: %+v", rc[3])
 	}
 	if got := strings.Join(stepIds(public), ","); got != "prepare,reconcile,changelog-en,changelog-fr,open-pr,merge-pr,tag,close-milestone,dispatch-deploy-docs,sync-back" {

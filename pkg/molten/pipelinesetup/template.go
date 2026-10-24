@@ -371,7 +371,7 @@ func prSteps(f Facts, o Options, channel string, sources map[string]Source, bran
 	if channel == ChannelRc && !rcPublished(f, o) {
 		steps = handSteps(f, o, steps, key, sources)
 		steps = append(steps, molten.PipelineStep{Id: "tag", Title: fmt.Sprintf("Commit the candidate on %s and tag it there", rc), Phase: "cut",
-			Confirm:         fmt.Sprintf("Pushes %s with the release commit of {tag} and the tag on its head. Nothing starts on the tag, and nothing reaches %s or %s.", rc, release, trunk),
+			Confirm:         fmt.Sprintf("Pushes %s with the release commit of {tag} and the tag on its head. No publish workflow starts on the tag%s, and nothing reaches %s or %s.", rc, rcRunsNote(f, o), release, trunk),
 			PipelineCommand: molten.PipelineCommand{Run: "molten release tag {tag} --rc-branch"}})
 		sources[key+"/tag"] = Source{Code: "rcOnBranch", Path: rc}
 		return steps
@@ -421,6 +421,27 @@ func prSteps(f Facts, o Options, channel string, sources map[string]Source, bran
 	}
 	sources[key+"/tag"] = tagSource
 	return afterTag(f, o, channel, steps, sources, branchSource, false)
+}
+
+// rcRunsNote names the workflows that do run on a candidate kept on its RC branch (its tests, on the tag or the
+// branch): " (test.yml runs on it)", or "".
+func rcRunsNote(f Facts, o Options) string {
+	rcTag, _ := sampleTags(o.TagPrefix)
+	branch := strings.ReplaceAll(rcBranchDisplay(f), "X.Y.Z", "1.2.3")
+	var files []string
+	for _, wf := range f.Workflows {
+		if wf.RunsOnTag(rcTag) || wf.RunsOnBranch(branch) {
+			files = append(files, wf.File)
+		}
+	}
+	if len(files) == 0 {
+		return ""
+	}
+	verb := " runs"
+	if len(files) > 1 {
+		verb = " run"
+	}
+	return " (" + strings.Join(files, ", ") + verb + " on it)"
 }
 
 // rcPublished tells whether something consumes the release candidate's tag: a workflow that starts on it.
@@ -484,9 +505,9 @@ func afterTag(f Facts, o Options, channel string, steps []molten.PipelineStep, s
 	if o.SyncBack && !single && o.BranchModel == BranchModelRcPr {
 		// Only a merge commit makes the release branch part of the trunk's history; squashed or rebased, the branches
 		// diverge again (#1046).
-		steps = append(steps, molten.PipelineStep{Id: "sync-back", Title: fmt.Sprintf("Merge {tag} back into %s with a merge commit", trunk),
+		steps = append(steps, molten.PipelineStep{Id: "sync-back", Title: fmt.Sprintf("Merge %s back into %s with a merge commit", f.Branches.Release, trunk),
 			Phase:           "back",
-			Confirm:         fmt.Sprintf("Opens the pull request of {tag} into %s and merges it with a merge commit once its checks are green, never squash or rebase: %s must become part of %s's history, or the branches diverge again.", trunk, f.Branches.Release, trunk),
+			Confirm:         fmt.Sprintf("Opens the pull request of %s (at {tag}) into %s and merges it with a merge commit once its checks are green, never squash or rebase: %s must become part of %s's history, or the branches diverge again.", f.Branches.Release, trunk, f.Branches.Release, trunk),
 			PipelineCommand: molten.PipelineCommand{Run: "molten release sync-back {tag} --merge"}})
 		sources[key+"/sync-back"] = branchSource
 	} else if o.SyncBack && !single {
