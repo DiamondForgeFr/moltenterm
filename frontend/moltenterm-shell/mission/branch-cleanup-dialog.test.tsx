@@ -40,6 +40,7 @@ describe("a merged branch held by a session (#932)", () => {
         reason: "worktree-in-use",
         pr: 891,
         worktree: "/data/work-891",
+        tool: "moltenterm",
         terminals: [
             { blockid: "b1", tab: "T1" },
             { blockid: "b2", tab: "Review" },

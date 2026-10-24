@@ -122,6 +122,7 @@ func makeOwnTreeFixture(t *testing.T) ownTreeFixture {
 	}
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	t.Cleanup(func() { waitRunsIdle(t, r) })
+	r.treeCwds = func() []procCwd { return nil }
 	r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
 			return gh(args)
@@ -155,7 +156,7 @@ func TestBranchesPlanOwnWorktreesRebasedAndToolBranches(t *testing.T) {
 		"feature/10-tree":    "delete:merged-pr-worktree:#10",
 		"feature/11-tree":    "keep:worktree-changes:#11",
 		"feature/12-tree":    "keep:worktree-in-use:#12",
-		"feature/13-tree":    "keep:checked-out",
+		"feature/13-tree":    "delete:merged-worktree:#13",
 		"feature/14-rebased": "delete:merged-pr:#14",
 		"feature/15-extra":   "keep:not-in-pr:#15",
 		"pr-assets":          "keep:pr-assets",
@@ -174,8 +175,12 @@ func TestBranchesPlanOwnWorktreesRebasedAndToolBranches(t *testing.T) {
 		if b.Name == "feature/10-tree" && !samePathForTest(b.Worktree, f.tree(10)) {
 			t.Errorf("the plan names the worktree that goes: %q", b.Worktree)
 		}
-		if b.Name == "feature/13-tree" && b.Worktree != "" {
-			t.Errorf("the developer's worktree is never offered: %q", b.Worktree)
+		if b.Name == "feature/10-tree" && b.Confirm {
+			t.Errorf("MoltenTerm's own worktree of a merged pull request goes checked: %+v", b)
+		}
+		// #1028: the developer's clean worktree of a merged branch is offered, outside the project, to be checked.
+		if b.Name == "feature/13-tree" && (!samePathForTest(b.Worktree, f.devTree) || !b.Confirm || !b.Outside) {
+			t.Errorf("the developer's worktree is offered unchecked, outside the project: %+v", b)
 		}
 	}
 }

@@ -77,6 +77,19 @@ func (t *Table) Len() int {
 	return len(t.procs)
 }
 
+// Pids lists every process of the table, in pid order.
+func (t *Table) Pids() []int32 {
+	if t == nil {
+		return nil
+	}
+	rtn := make([]int32, 0, len(t.procs))
+	for pid := range t.procs {
+		rtn = append(rtn, pid)
+	}
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i] < rtn[j] })
+	return rtn
+}
+
 // Same tells whether pid is still the process that started at startMs (a reused pid is another process). Start times
 // are compared within a second: platforms round them differently.
 func (t *Table) Same(pid int32, startMs int64) bool {
