@@ -16,6 +16,12 @@ const (
 	LinkNoticeCommand = "moltenagenthandofflinknotice"
 	// Notifications of one pane's lost link: LinkNoticeKeyPrefix + block id.
 	LinkNoticeKeyPrefix = "agentlink:"
+	// The terminal's connections menu (FR-CONT-022, #1050) reads a pane's pair decisions and pending requests, and
+	// forgets a decision; windows only.
+	PairsCommand  = "moltenagenthandoffpairs"
+	ForgetCommand = "moltenagenthandoffforget"
+	// The link notice's action opens that menu on the agent's terminal.
+	LinksGesture = "molten:agentlinks"
 
 	// The notification gesture a window runs for the developer's answer.
 	AnswerGesture = "molten:agenthandoff"
@@ -139,4 +145,41 @@ type LinkNoticeRequest struct {
 	// FirstName: the name MoltenTerm gave the agent before the outage, shown when MoltenTerm has not seen the agent
 	// again yet (it restarted).
 	FirstName string `json:"firstname,omitempty"`
+}
+
+// PairsRequest: the pane whose handoffs the connections menu shows.
+type PairsRequest struct {
+	BlockId string `json:"blockid"`
+}
+
+// PairEntry is another active agent and the pair's decision: "" asks the developer at the first send, DecisionAlways
+// or DecisionBlock until MoltenTerm restarts.
+type PairEntry struct {
+	BlockId   string `json:"blockid"`
+	FirstName string `json:"firstname"`
+	Agent     string `json:"agent,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
+	Project   string `json:"project,omitempty"`
+	Decision  string `json:"decision,omitempty"`
+}
+
+// PendingEntry is a handoff request waiting for the developer, from or to the pane.
+type PendingEntry struct {
+	RequestId   string `json:"requestid"`
+	FromBlockId string `json:"fromblockid"`
+	ToBlockId   string `json:"toblockid"`
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Goal        string `json:"goal,omitempty"`
+}
+
+type PairsResult struct {
+	Agents  []PairEntry    `json:"agents"`
+	Pending []PendingEntry `json:"pending"`
+}
+
+// ForgetRequest forgets the decision of the pair of two panes: the next send between them asks again.
+type ForgetRequest struct {
+	BlockId      string `json:"blockid"`
+	OtherBlockId string `json:"otherblockid"`
 }

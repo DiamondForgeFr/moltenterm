@@ -26,6 +26,11 @@ type (
 	SendResult        = handoffwire.SendResult
 	AnswerRequest     = handoffwire.AnswerRequest
 	LinkNoticeRequest = handoffwire.LinkNoticeRequest
+	PairsRequest      = handoffwire.PairsRequest
+	PairsResult       = handoffwire.PairsResult
+	PairEntry         = handoffwire.PairEntry
+	PendingEntry      = handoffwire.PendingEntry
+	ForgetRequest     = handoffwire.ForgetRequest
 )
 
 const (
@@ -35,6 +40,9 @@ const (
 	AnswerCommand         = handoffwire.AnswerCommand
 	LinkNoticeCommand     = handoffwire.LinkNoticeCommand
 	LinkNoticeKeyPrefix   = handoffwire.LinkNoticeKeyPrefix
+	PairsCommand          = handoffwire.PairsCommand
+	ForgetCommand         = handoffwire.ForgetCommand
+	LinksGesture          = handoffwire.LinksGesture
 	AnswerGesture         = handoffwire.AnswerGesture
 	NotificationKeyPrefix = handoffwire.NotificationKeyPrefix
 	NotificationSource    = handoffwire.NotificationSource

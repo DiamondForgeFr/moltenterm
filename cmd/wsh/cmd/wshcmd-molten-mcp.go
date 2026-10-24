@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinkwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
@@ -118,7 +119,7 @@ var moltenMcpBrowserProtocol = moltenMcpProtocol{
 	hello: mcpbrowser.HelloCommand, call: mcpbrowser.CallCommand, bye: mcpbrowser.ByeCommand,
 	notInErr:     mcpbrowser.ErrNotInMoltenTerm,
 	sessionEnded: mcpbrowser.ErrSessionEnded,
-	fixed:        []string{mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrRemotePane},
+	fixed:        []string{mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrRemotePane, agentlinkwire.ErrStopped},
 	startFail:    "MoltenTerm's browser could not start a session for this pane",
 	readOnly:     isMoltenMcpBrowserReadOnly,
 	makeHello: func(token string, client mcpbrowser.ClientInfo) any {
@@ -141,7 +142,7 @@ func moltenMcpReviewProtocol(sessionToken string) moltenMcpProtocol {
 		hello: mcpreview.HelloCommand, call: mcpreview.CallCommand, bye: mcpreview.ByeCommand,
 		notInErr:     mcpreview.ErrNotInMoltenTerm,
 		sessionEnded: mcpreview.ErrSessionEnded,
-		fixed:        []string{mcpreview.ErrNotInMoltenTerm, mcpreview.ErrRemotePane, mcpreview.ErrSessionEnded},
+		fixed:        []string{mcpreview.ErrNotInMoltenTerm, mcpreview.ErrRemotePane, mcpreview.ErrSessionEnded, agentlinkwire.ErrStopped},
 		startFail:    "MoltenTerm's review session could not be reached",
 		readOnly:     isMoltenMcpReviewReadOnly,
 		makeHello: func(token string, client mcpbrowser.ClientInfo) any {
@@ -199,12 +200,18 @@ func runMoltenMcpServer(spec mcpbrowser.ServerSpec, protocol moltenMcpProtocol, 
 		server.Resume(resume.Server)
 		fmt.Fprintf(os.Stderr, "%s: resumed its session in version %s (pid %d)\n", protocol.name, wavebase.WaveVersion, os.Getpid())
 	}
-	server.SetReexec(makeMoltenMcpReexec(protocol.name, func() int {
+	updates := makeMoltenMcpUpdates(makeMoltenMcpReexec(protocol.name, func() int {
 		if rpcBackend == nil {
 			return 0
 		}
 		return rpcBackend.link.failedCount()
 	}))
+	if updates != nil {
+		server.SetReexec(updates)
+	}
+	if rpcBackend != nil {
+		rpcBackend.updates = updates
+	}
 	if err := server.Serve(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", protocol.name, err)
 		WshExitCode = 1
@@ -239,17 +246,24 @@ type moltenMcpRpcBackend struct {
 	startErr   string
 	// firstName: the pane's agent name, for the browser server's instructions.
 	firstName string
+
+	// updates: the in-place re-execution's state, for the connections menu (#1050); nil when the server cannot know
+	// its own program.
+	updates   *moltenMcpUpdates
+	watchOnce sync.Once
 }
 
 func makeMoltenMcpRpcBackend(token string, protocol moltenMcpProtocol, dial moltenMcpDialFn) *moltenMcpRpcBackend {
 	b := &moltenMcpRpcBackend{token: token, protocol: protocol, link: makeMoltenMcpLink(token, dial)}
 	b.link.restored = b.sendLinkNotice
+	b.link.connected = b.reportOnConnect
 	return b
 }
 
 func (b *moltenMcpRpcBackend) Start(ctx context.Context, client mcpbrowser.ClientInfo) {
 	b.setClient(client)
 	b.hello()
+	b.startWatch()
 	if b.protocol.route == mcpbrowser.RouteId {
 		b.setFirstName(b.ownFirstName())
 	}
@@ -458,6 +472,7 @@ func moltenMcpIsSessionEnded(result mcpbrowser.CallResult, sentence string) bool
 
 func (b *moltenMcpRpcBackend) Close() {
 	defer b.link.close()
+	defer b.byeLink()
 	sessionId, _, _ := b.session()
 	if sessionId == "" {
 		return

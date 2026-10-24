@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -649,4 +650,18 @@ func (m *Manager) storeViewport(sessionId string, tabId int64, viewport *Viewpor
 	}
 	t.viewport = viewport
 	return t.key.PanelId
+}
+
+// legacySessions lists a terminal's sessions for the connections menu (FR-CONT-022): the registry shows those whose
+// server does not report its link.
+func (m *Manager) legacySessions(blockId string) []agentlinks.LegacySession {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	var rtn []agentlinks.LegacySession
+	for _, s := range m.sessions {
+		if s.blockId == blockId {
+			rtn = append(rtn, agentlinks.LegacySession{Source: s.source, ClientName: s.agentName, Started: s.started})
+		}
+	}
+	return rtn
 }
