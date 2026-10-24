@@ -15,6 +15,7 @@ import { AgentStates } from "./agent-state-store";
 import { TFunction, useT } from "./i18n/i18n";
 import { ProjectTabMetaKey, ProjectTabName } from "./project/project-model";
 import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
+import { tabAgentName, tabAgentsByRun, tabAgentsTitle } from "./tab-agents";
 import { agentGlyph, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
 import { useWorkingBeat } from "./working-beat";
 
@@ -36,6 +37,8 @@ export type TabIdentity = {
     icon: string;
     pinned: boolean;
     agent: AgentStateInfo;
+    // Every agent of the tab, longest-running first (#1033).
+    agents: AgentStateInfo[];
     // A Review tab whose PR is merged or closed (#686).
     reviewDone: ReviewDoneMeta;
 };
@@ -61,8 +64,15 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
         const tabAtom = getWaveObjectAtom<Tab>(makeORef("tab", tabId));
         return AgentStates.getInstance().tabAtom(atom((get) => get(tabAtom)?.blockids ?? []));
     }, [tabId]);
+    const agentsAtom = useMemo(() => {
+        const tabAtom = getWaveObjectAtom<Tab>(makeORef("tab", tabId));
+        return atom((get) =>
+            tabAgentsByRun(agentStatesOfBlocks(get(AgentStates.getInstance().dataAtom), get(tabAtom)?.blockids ?? []))
+        );
+    }, [tabId]);
     const facts = useAtomValue(identityAtom);
     const urgent = useAtomValue(urgentAtom);
+    const agents = useAtomValue(agentsAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const t = useT();
     const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
@@ -73,18 +83,43 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
         icon,
         pinned: facts.pinned,
         agent: urgent,
+        agents: facts.pinned ? [] : agents,
         reviewDone: panelReviewDone(facts.meta),
     };
 }
 
-// The tab's tooltip: the Review tab's done hint above the trees of its terminals.
-export function tabTooltip(t: TFunction, identity: TabIdentity, treesTitle: string): string {
-    return [reviewDoneTabTitle(t, identity.reviewDone), treesTitle].filter((s) => !!s).join("\n");
+// The tab's tooltip: the Review tab's done hint, the tab's agents (#1033), then the trees of its terminals. now dates
+// the agents' run times (the tab refreshes it on hover).
+export function tabTooltip(t: TFunction, identity: TabIdentity, treesTitle: string, now = Date.now()): string {
+    return [reviewDoneTabTitle(t, identity.reviewDone), tabAgentsTitle(t, identity.agents, now), treesTitle]
+        .filter((s) => !!s)
+        .join("\n");
 }
 
-export function useTabTooltip(identity: TabIdentity, treesTitle: string): string {
+export function useTabTooltip(identity: TabIdentity, treesTitle: string, now?: number): string {
     const t = useT();
-    return tabTooltip(t, identity, treesTitle);
+    return tabTooltip(t, identity, treesTitle, now);
+}
+
+// The agent the tab names after its name (#1033), quieter than the name: "· Valentin +2". Its first name ellipsizes
+// only once the tab's name has given up its room (tab-bar.css).
+export function TabAgentName({ agents }: { agents: AgentStateInfo[] }) {
+    const t = useT();
+    const named = tabAgentName(agents);
+    if (named == null) {
+        return null;
+    }
+    return (
+        <span className="molten-tab-agent" data-testid="tab-agent-name">
+            <span className="molten-tab-agent-sep" aria-hidden="true">
+                ·
+            </span>
+            <span className="molten-tab-agent-name">{named.name}</span>
+            {named.more > 0 && (
+                <span className="molten-tab-agent-more">{t("tabs.agent.more", { count: named.more })}</span>
+            )}
+        </span>
+    );
 }
 
 // The done mark of a Review tab (#686): a check in the success colour once merged, a neutral dash once closed.

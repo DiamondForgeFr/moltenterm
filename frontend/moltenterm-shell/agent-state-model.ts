@@ -33,6 +33,8 @@ export type AgentStateInfo = {
     // message's code when MoltenTerm holds the state (#896): "fixing the CI of #12", "waiting for the CI of #12".
     messagetext?: ServerText;
     since?: number;
+    // When the agent's run started (Unix ms): the tab names its longest-running agent (#1033).
+    started?: number;
     version: number;
     hooked?: boolean;
     // The run's model and effort level as the agent last reported them (#549), absent when unknown.

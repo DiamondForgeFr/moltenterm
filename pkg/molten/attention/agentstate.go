@@ -529,6 +529,7 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Message:     rec.message,
 		MessageText: rec.messageText,
 		Since:       rec.since,
+		Started:     rec.started,
 		Version:     rec.version,
 		Hooked:      a.hookedAgents[rec.agent],
 		Model:       rec.settings.Model,

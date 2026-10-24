@@ -63,6 +63,37 @@
     color: var(--mt-text-secondary);
 }
 
+/* The tab's agent (#1033): quieter than the name. The name gives up its room first (down to a few letters), then the
+   agent's first name ellipsizes; the separator and "+N" never shrink. The tiny shrink factor keeps the agent whole
+   while the name can still shrink (flex shares the shrink by factor times width). */
+.tab.molten-tab .molten-tab-body > .molten-tab-agent {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0.001 auto;
+    min-width: 0;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-regular);
+    color: var(--mt-text-muted);
+    white-space: nowrap;
+}
+
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-sep,
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-more {
+    flex-shrink: 0;
+}
+
+.tab.molten-tab .molten-tab-agent > .molten-tab-agent-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab.molten-tab .molten-tab-body:has(> .molten-tab-agent) > .name:not(.focused) {
+    min-width: 2.5em;
+}
+
 .tab.molten-tab .name.focused {
     flex: 1 1 auto;
     padding: 1px 4px;

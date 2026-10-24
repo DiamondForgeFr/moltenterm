@@ -4093,6 +4093,14 @@
         }
     },
     "tabs": {
+        "agent": {
+            "more": "+{count}",
+            "line": "{agent}: {state}",
+            "lineFor": "{line}, for {duration}",
+            "underMinute": "less than a minute",
+            "minutes": "{minutes} min",
+            "hours": "{hours} h {minutes}"
+        },
         "views": {
             "terminal": "Terminal",
             "files": "Files",
