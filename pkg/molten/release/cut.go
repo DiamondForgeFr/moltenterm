@@ -298,7 +298,7 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	commit := e.revParse(ctx, wt, "HEAD")
 	e.printf("%s committed (%s), tagged and pushed with %s.\n", tag, commit[:min(7, len(commit))], p.Release)
 	if channel == versions.ChannelRc {
-		e.printf("A release candidate: the release workflow builds it and publishes it as a prerelease, offered to nobody.\n")
+		e.printf("A release candidate: the release workflow builds it and publishes it as a prerelease, offered to users who opted in to release candidates.\n")
 	} else {
 		e.printf("A public release: the release workflow builds it and leaves a draft; publishing it makes it the latest release.\n")
 	}
