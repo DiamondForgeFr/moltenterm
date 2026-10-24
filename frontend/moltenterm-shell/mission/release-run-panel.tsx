@@ -25,6 +25,7 @@ import {
     githubRunRerun,
     missionLog,
     missionTrust,
+    releaseDispatchWorkflow,
     releaseEnd,
     releaseNotes,
     releaseNotesSave,
@@ -160,7 +161,7 @@ function ActionButton({
     const lock = useCardLock();
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
-    const confirm = action.kind === "step" ? action.confirm : null;
+    const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
     const go = () =>
@@ -631,6 +632,11 @@ export function ReleaseRunSection({
             run: async (action) => {
                 if (action.kind === "rerun") {
                     await releaseRerunFailed(dir, tag);
+                    reload();
+                    return true;
+                }
+                if (action.kind === "dispatch") {
+                    await releaseDispatchWorkflow(dir, tag, action.workflow);
                     reload();
                     return true;
                 }

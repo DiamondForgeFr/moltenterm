@@ -145,6 +145,15 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.runs.RunReleaseStep(req)
+	case ReleaseDispatchCommand:
+		var req ReleaseDispatchRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		return nil, l.runs.DispatchTagWorkflow(req)
 	case ReleaseRerunCommand, ReleaseNotesCommand, ReleaseSaveCommand:
 		var req ReleaseNotesRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -421,20 +430,21 @@ func (l *routeLink) handleWorktree(command string, data any) (any, error) {
 // removal itself, and never trusts a project's commands, publishes a release or types into another agent's prompt
 // through MoltenTerm.
 var windowCommands = map[string]string{
-	TrustCommand:          "a project's commands can only be trusted from a MoltenTerm window",
-	BranchesCleanCommand:  "branches can only be deleted from a MoltenTerm window",
-	BranchesAutoDeleteCmd: "the repository setting can only be changed from a MoltenTerm window",
-	BranchesCloseCommand:  "sessions can only be closed for a branch cleanup from a MoltenTerm window",
-	GitInitCommand:        "a repository can only be initialized here from a MoltenTerm window",
-	GithubRunRerunCommand: "a GitHub run can only be started again from a MoltenTerm window",
-	ReviewsRerunCommand:   "a pull request's failed jobs can only be rerun from a MoltenTerm window",
-	JobDescribeCommand:    "an agent can only be asked to describe a job from a MoltenTerm window",
-	WorktreeRemoveCommand: "a worktree can only be removed from a MoltenTerm window",
-	ProjectTabCommand:     "the Project tab can only be opened from a MoltenTerm window",
-	ReleaseStartCommand:   "a release is started from a MoltenTerm window",
-	ReleaseStepCommand:    "a release step is run from a MoltenTerm window",
-	ReleaseRerunCommand:   "a release's jobs are run again from a MoltenTerm window",
-	ReleaseSaveCommand:    "release notes are saved from a MoltenTerm window",
+	TrustCommand:           "a project's commands can only be trusted from a MoltenTerm window",
+	BranchesCleanCommand:   "branches can only be deleted from a MoltenTerm window",
+	BranchesAutoDeleteCmd:  "the repository setting can only be changed from a MoltenTerm window",
+	BranchesCloseCommand:   "sessions can only be closed for a branch cleanup from a MoltenTerm window",
+	GitInitCommand:         "a repository can only be initialized here from a MoltenTerm window",
+	GithubRunRerunCommand:  "a GitHub run can only be started again from a MoltenTerm window",
+	ReviewsRerunCommand:    "a pull request's failed jobs can only be rerun from a MoltenTerm window",
+	JobDescribeCommand:     "an agent can only be asked to describe a job from a MoltenTerm window",
+	WorktreeRemoveCommand:  "a worktree can only be removed from a MoltenTerm window",
+	ProjectTabCommand:      "the Project tab can only be opened from a MoltenTerm window",
+	ReleaseStartCommand:    "a release is started from a MoltenTerm window",
+	ReleaseStepCommand:     "a release step is run from a MoltenTerm window",
+	ReleaseRerunCommand:    "a release's jobs are run again from a MoltenTerm window",
+	ReleaseDispatchCommand: "a release's workflow is started by hand from a MoltenTerm window",
+	ReleaseSaveCommand:     "release notes are saved from a MoltenTerm window",
 	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
 	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
