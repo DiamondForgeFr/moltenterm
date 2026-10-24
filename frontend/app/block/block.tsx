@@ -21,6 +21,7 @@ import { isBlank, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cameThroughPortal } from "../../moltenterm-shell/block-portal-events"; // MOLTENTERM-PATCH (#1070)
 import { focusHandoffActive } from "../../moltenterm-shell/browser/focus-handoff"; // MOLTENTERM-PATCH (#268)
 import { offCarpetAtom, PanelBlockIdContext } from "../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import "./block.scss";
@@ -134,9 +135,12 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
         }
     }, [blockClicked, isFocused]);
 
-    const setBlockClickedTrue = useCallback(() => {
+    const setBlockClickedTrue = useCallback((event?: React.MouseEvent<HTMLDivElement>) => {
         if (focusHandoffActive()) {
             return; // MOLTENTERM-PATCH (#268)
+        }
+        if (event != null && cameThroughPortal(event, blockRef.current)) {
+            return; // MOLTENTERM-PATCH (#1070): a click in a dialog the view opened keeps the dialog's focus
         }
         setBlockClicked(true);
     }, []);
@@ -177,6 +181,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
             console.log("setFocusedChild", nodeModel.blockId, getElemAsStr(event.target));
             if (focusHandoffActive()) {
                 return; // MOLTENTERM-PATCH (#268)
+            }
+            if (cameThroughPortal(event, blockRef.current)) {
+                return; // MOLTENTERM-PATCH (#1070)
             }
             if (!isFocused) {
                 console.log("focusedChild focus", nodeModel.blockId);

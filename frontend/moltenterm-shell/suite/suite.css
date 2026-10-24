@@ -673,4 +673,25 @@
         animation: none !important;
         transform: rotate(var(--df-domino-still, 0deg));
     }
+
+    /* The loading state (#1070): the large chain and what loads, centred in the room the content will take. */
+    .df-loading-state {
+        display: flex;
+        flex: 1 1 auto;
+        min-height: 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .df-loading-caption {
+        max-width: 360px;
+        margin: 0;
+        font-size: var(--df-text-desc);
+        line-height: 18px;
+        color: var(--df-text-muted);
+    }
 }

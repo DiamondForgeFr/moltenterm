@@ -3,7 +3,7 @@
 
 // The Reviews view's Recently merged section (#843), last in the panel: a merged PR leaves the review list, and this
 // says it merged, when, by whom and where it ships. A row opens the PR on GitHub; its notes chip shows the review
-// notes kept on it in the Notes section. Its last line opens the whole merged history (#960, FR-REV-030).
+// notes kept on it in the Notes section. Its heading line opens the whole merged history (#960, FR-REV-030; #1070).
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -45,27 +45,41 @@ export function MergedSection({
     const [historyOpen, setHistoryOpen] = useState(false);
     return (
         <section className="flex flex-col gap-2" aria-label={t("reviews.merged.title")} data-testid="reviews-merged">
-            <button
-                type="button"
-                onClick={() => pref.set(!open)}
-                onKeyDown={(e) => e.stopPropagation()}
-                aria-expanded={open}
-                className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-13 leading-5 font-semibold hover:text-primary"
-                data-testid="reviews-merged-toggle"
-            >
-                <i
-                    className={cn(
-                        "fa fa-solid fa-chevron-right text-11 text-muted transition-transform duration-120 ease-mt",
-                        open && "rotate-90"
-                    )}
-                    aria-hidden
-                />
-                {t("reviews.merged.title")}
-                <span className="ml-0.5 text-12 font-normal text-muted">{merged.length}</span>
-                <span className="text-11 font-normal text-muted">
-                    · {t("reviews.merged.window", { days: MergedDays })}
-                </span>
-            </button>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <button
+                    type="button"
+                    onClick={() => pref.set(!open)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    aria-expanded={open}
+                    className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-13 leading-5 font-semibold hover:text-primary"
+                    data-testid="reviews-merged-toggle"
+                >
+                    <i
+                        className={cn(
+                            "fa fa-solid fa-chevron-right text-11 text-muted transition-transform duration-120 ease-mt",
+                            open && "rotate-90"
+                        )}
+                        aria-hidden
+                    />
+                    {t("reviews.merged.title")}
+                    <span className="ml-0.5 text-12 font-normal text-muted">{merged.length}</span>
+                    <span className="text-11 font-normal text-muted">
+                        · {t("reviews.merged.window", { days: MergedDays })}
+                    </span>
+                </button>
+                {/* On the heading line, collapsed or not (#1070): a link under the list went unseen. */}
+                <button
+                    type="button"
+                    onClick={() => setHistoryOpen(true)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-4 border border-border px-2 py-0.5 text-12 leading-5 text-secondary hover:bg-hover hover:text-primary"
+                    title={t("reviews.merged.allTitle", { target: answer.target })}
+                    data-testid="reviews-merged-all"
+                >
+                    <i className="fa fa-solid fa-clock-rotate-left text-11 text-accent" aria-hidden />
+                    {t("reviews.merged.all")}
+                </button>
+            </div>
             {open && answer.mergederror ? (
                 <p className="text-11 text-muted" title={answer.mergederror}>
                     {t("reviews.merged.error")}
@@ -94,19 +108,6 @@ export function MergedSection({
                     ))}
                 </div>
             )}
-            {open ? (
-                <button
-                    type="button"
-                    onClick={() => setHistoryOpen(true)}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-12 text-accent hover:underline"
-                    title={t("reviews.merged.allTitle", { target: answer.target })}
-                    data-testid="reviews-merged-all"
-                >
-                    <i className="fa fa-solid fa-clock-rotate-left text-11" aria-hidden />
-                    {t("reviews.merged.all")}
-                </button>
-            ) : null}
             {historyOpen ? (
                 <Suspense fallback={null}>
                     <MergedHistoryWindow
