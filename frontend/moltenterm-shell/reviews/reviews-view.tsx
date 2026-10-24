@@ -79,7 +79,13 @@ import {
 } from "./reviews-model";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
-import { mergeOrderHeader, mergeOrderReason, orderedPrs, suggestedMergeOrder } from "./reviews-order-model";
+import {
+    mergeOrderHeader,
+    mergeOrderReason,
+    mergeOutsideReason,
+    orderedPrs,
+    suggestedMergeOrder,
+} from "./reviews-order-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 
@@ -280,6 +286,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         for (const step of mergeOrder.steps) {
             const pr = listSplit.ready.find((p) => p.number === step.number);
             rtn[step.number] = { rank: step.rank, reason: mergeOrderReason(step, answer.target, pr) };
+        }
+        for (const step of mergeOrder.outside) {
+            rtn[step.number] = { rank: null, reason: mergeOutsideReason(answer.target) };
         }
         return rtn;
     }, [mergeOrder, suggested, listSplit, answer.target, locale]);
@@ -773,7 +782,7 @@ export function ReviewRow({
             tabIndex={0}
             data-pr={pr.number}
             aria-label={[
-                order ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
+                order?.rank != null ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
                 reviewAriaLabel(pr),
                 order?.reason,
                 forecast?.mark?.aria,

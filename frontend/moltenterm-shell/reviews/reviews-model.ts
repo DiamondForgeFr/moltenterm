@@ -15,7 +15,7 @@ import type { PrTaskKind } from "./reviews-task-model";
 export const MoltentermReviewsView = "molten-reviews";
 
 // must match the constants in pkg/molten/mission/reviews.go
-export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "unknown";
+export type ReviewMerge = "clean" | "behind" | "conflicts" | "blocked" | "failing" | "running" | "unknown";
 export type ReviewReportState = "present" | "missing" | "unknown";
 export type ReviewCheckState = CheckState | "none";
 
@@ -119,6 +119,8 @@ export function mergeLabel(merge: ReviewMerge, base: string): { label: string; t
             };
         case "failing":
             return { label: t("reviews.merge.failing"), tone: "failure", title: t("reviews.merge.failingTitle") };
+        case "running":
+            return { label: t("reviews.merge.running"), tone: "neutral", title: t("reviews.merge.runningTitle") };
     }
     return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
 }

@@ -173,6 +173,21 @@ describe("batch merge model", () => {
         expect(queueOrder({ ...forecast, state: "" }, prs, queue, [3])).toEqual([]);
     });
 
+    // #1059: the list's order leaves out a PR already conflicting with the base; the batch still rebases it, last.
+    it("keeps the PRs already conflicting with the base, after the order", () => {
+        const prs = [pr(1, { merge: "conflicts" }), pr(2), pr(3)];
+        const forecast = forecastOf(prs, [[2, 3]]);
+        const plan = batchPlan(forecast, prs, prs, "develop");
+        expect(plan.steps.map((s) => s.pr.number)).toEqual([3, 2, 1]);
+        expect(plan.steps.map((s) => s.rank)).toEqual([1, 2, 3]);
+        expect(plan.steps[2]).toMatchObject({
+            rebase: true,
+            reason: "Already conflicts with develop: rebase in any order",
+        });
+        expect(plan.cost).toBe(1);
+        expect(queueOrder(forecast, prs, null, [1, 2, 3])).toEqual([3, 2, 1]);
+    });
+
     it("finds a PR still in the queue, which can be withdrawn until its merge starts", () => {
         const queue = run({
             items: [

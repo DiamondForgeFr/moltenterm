@@ -7,6 +7,7 @@
 
 import { cn } from "@/util/util";
 import { useLayoutEffect, useMemo, useState } from "react";
+import { DominoLoader } from "../suite/suite";
 import {
     Forecast,
     forecastMark,
@@ -16,7 +17,6 @@ import {
     impactedNote,
     impactsOf,
 } from "./reviews-forecast-model";
-import { DominoLoader } from "../suite/suite";
 import "./reviews-forecast.css";
 import type { ReviewPr } from "./reviews-model";
 
@@ -194,8 +194,8 @@ export function ForecastLinks({
         >
             <circle className="mt-forecast-start" cx={geometry.x} cy={geometry.from} r={2} />
             {geometry.to.map((y, i) => (
-                <g key={i}>
-                    <path className="mt-forecast-link" d={bracketPath(geometry.x, geometry.from, y)} />
+                <g key={`${source}-${i}`}>
+                    <path className="mt-forecast-link" pathLength={1} d={bracketPath(geometry.x, geometry.from, y)} />
                     <circle className="mt-forecast-end" cx={geometry.x} cy={y} r={2.5} />
                 </g>
             ))}

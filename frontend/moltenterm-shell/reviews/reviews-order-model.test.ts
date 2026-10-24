@@ -10,9 +10,11 @@ import {
     mergeOrderHeader,
     mergeOrderOfNodes,
     mergeOrderReason,
+    mergeOutsideReason,
     orderCost,
     orderedPrs,
     OrderNode,
+    orderTier,
     suggestedMergeOrder,
 } from "./reviews-order-model";
 
@@ -176,13 +178,37 @@ describe("suggested merge order (FR-REV-024)", () => {
         expect(order.currentCost).toBe(1);
     });
 
-    it("puts the PRs already conflicting with the base and those not forecast last", () => {
-        const prs = [pr(1, { merge: "conflicts" }), pr(2), pr(3), pr(4)];
+    it("leaves the PRs already conflicting with the base out of the order, those not forecast last (#1059)", () => {
+        const prs = [pr(1, { merge: "conflicts" }), pr(2), pr(3), pr(4), pr(5, { merge: "conflicts" })];
+        // #1 conflicts by the forecast and GitHub, #5 by GitHub only.
         const order = suggestedMergeOrder(forecastOf(prs, [[2, 3]], { 1: "conflictsbase", 4: "missing" }), prs, prs);
-        expect(order.numbers).toEqual([3, 2, 4, 1]);
-        // #1 needs a rebase in any order.
-        expect(order.cost).toBe(1);
-        expect(order.currentCost).toBe(2);
+        expect(order.numbers).toEqual([3, 2, 4]);
+        expect(order.steps.map((s) => s.rank)).toEqual([1, 2, 3]);
+        expect(order.outside.map((s) => s.number)).toEqual([1, 5]);
+        expect(order.outside.every((s) => s.rebase)).toBe(true);
+        // Their rebase happens in any order: neither cost counts it.
+        expect(order.cost).toBe(0);
+        expect(order.currentCost).toBe(1);
+        expect(orderedPrs(order, prs).map((p) => p.number)).toEqual([3, 2, 4, 1, 5]);
+        expect(mergeOutsideReason("develop")).toBe("Outside the order: already conflicts with develop");
+    });
+
+    it("ranks running checks as waiting, not as failing (#1059)", () => {
+        const running = { state: "pending" as const, success: 1, failure: 0, pending: 1, checks: [] };
+        const failing = { state: "failure" as const, success: 0, failure: 1, pending: 0, checks: [] };
+        expect(orderTier(pr(1, { merge: "running", ci: running }))).toBe(1);
+        expect(orderTier(pr(1, { merge: "unknown", ci: running }))).toBe(1);
+        // GitHub blocks while required checks run: waiting too, unless a review blocks it.
+        expect(orderTier(pr(1, { merge: "blocked", ci: running }))).toBe(1);
+        expect(orderTier(pr(1, { merge: "blocked", ci: running, reviewdecision: "REVIEW_REQUIRED" }))).toBe(2);
+        expect(orderTier(pr(1, { merge: "blocked" }))).toBe(2);
+        expect(orderTier(pr(1, { merge: "failing", ci: failing }))).toBe(2);
+        expect(orderTier(pr(1, { merge: "clean", ci: failing }))).toBe(2);
+        // Same cost: the running one before the failing one.
+        const prs = [pr(1, { merge: "failing", ci: failing }), pr(2, { merge: "running", ci: running })];
+        const order = suggestedMergeOrder(forecastOf(prs, []), prs, prs);
+        expect(order.numbers).toEqual([2, 1]);
+        expect(mergeOrderReason(order.steps[0], "develop", prs[1])).toBe("No impact · CI running");
     });
 
     it("reads only the impacts on the PRs it orders, with the head the forecast saw", () => {
@@ -338,12 +364,14 @@ describe("merge order wording", () => {
                 ),
             ])
         );
-        expect(order.numbers).toEqual([5, 3, 1, 2, 4]);
+        expect(order.numbers).toEqual([5, 3, 1, 2]);
         expect(reasons[3]).toBe("No impact · CI running");
         expect(reasons[5]).toBe("No impact");
         expect(reasons[1]).toBe("Puts #2 in conflict");
         expect(reasons[2]).toBe("Rebase after #1");
-        expect(reasons[4]).toBe("Already conflicts with develop: rebase in any order");
-        expect(order.steps.map((s) => s.rank)).toEqual([1, 2, 3, 4, 5]);
+        expect(mergeOrderReason(order.outside[0], "develop", prs[3])).toBe(
+            "Already conflicts with develop: rebase in any order"
+        );
+        expect(order.steps.map((s) => s.rank)).toEqual([1, 2, 3, 4]);
     });
 });

@@ -11,7 +11,7 @@ import { useT } from "../i18n/i18n";
 import type { MergeOrderHeader } from "./reviews-order-model";
 import { MergeOrderChoice, MergeOrderPref } from "./reviews-order-store";
 
-// What a row shows of the order: its rank and why it takes it.
+// What a row shows of the order: its rank and why it takes it; no rank when it is left out of the order (#1059).
 export type RowOrder = { rank: number; reason: string };
 
 const Choices: { choice: MergeOrderChoice; label: string; title: string }[] = [
@@ -73,7 +73,7 @@ export function MergeOrderBar({ choice, header }: { choice: MergeOrderChoice; he
 
 export function MergeOrderRank({ order }: { order: RowOrder }) {
     const t = useT();
-    if (order == null) {
+    if (order?.rank == null) {
         return null;
     }
     return (

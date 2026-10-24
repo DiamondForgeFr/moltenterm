@@ -10,7 +10,7 @@ import { t, tCount } from "../i18n/i18n";
 import type { ReviewMergeMethod, ReviewMergeMethods } from "../review/review-client";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr, Tone } from "./reviews-model";
-import { MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
+import { MergeOrder, MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
 
 // must match pkg/molten/review/batch.go
 export const QueueAddCommand = "moltenreviewqueueadd";
@@ -212,8 +212,8 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
     const prs = (selected ?? []).filter(batchSelectable);
     const order = suggestedMergeOrder(forecast, prs, listed);
     const byNumber = new Map(prs.map((pr) => [pr.number, pr]));
-    const stepOf = new Map<number, MergeOrderStep>(order.steps.map((s) => [s.number, s]));
-    const steps = order.numbers
+    const stepOf = new Map<number, MergeOrderStep>([...order.steps, ...order.outside].map((s) => [s.number, s]));
+    const steps = withOutside(order)
         .filter((n) => byNumber.has(n))
         .map((n, i) => {
             const pr = byNumber.get(n);
@@ -228,7 +228,7 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
     return {
         steps,
         usable: order.usable,
-        cost: order.cost,
+        cost: order.cost + order.outside.length,
         uptodate: order.uptodate,
         method: forecast?.method ?? "",
     };
@@ -245,7 +245,13 @@ export function queueOrder(forecast: Forecast, listed: ReviewPr[], run: BatchRun
     }
     const prs = (listed ?? []).filter((pr) => numbers.has(pr.number) && batchSelectable(pr));
     const order = suggestedMergeOrder(forecast, prs, listed);
-    return order.usable ? order.numbers : [];
+    return order.usable ? withOutside(order) : [];
+}
+
+// withOutside: the order's PRs, then those it leaves out as already conflicting with the base (#1059), which the
+// queue's agent rebases after the others.
+function withOutside(order: MergeOrder): number[] {
+    return [...order.numbers, ...order.outside.map((s) => s.number)];
 }
 
 export function batchPrOf(pr: ReviewPr): BatchPr {

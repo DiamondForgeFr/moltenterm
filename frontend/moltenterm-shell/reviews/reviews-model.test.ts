@@ -68,6 +68,9 @@ describe("reviews model", () => {
         expect(mergeLabel("conflicts", "develop")).toMatchObject({ label: "conflicts with develop", tone: "pending" });
         expect(mergeLabel("blocked", "develop")).toMatchObject({ label: "blocked", tone: "failure" });
         expect(mergeLabel("unknown", "develop")).toMatchObject({ label: "checking…", tone: "neutral" });
+        // #1059: GitHub's UNSTABLE while checks still run reads as running, never as failing.
+        expect(mergeLabel("running", "develop")).toMatchObject({ label: "checks running", tone: "neutral" });
+        expect(mergeLabel("failing", "develop")).toMatchObject({ label: "checks failing", tone: "failure" });
     });
 
     it("says why a row's Validate cannot open the sheet (#683 AC1)", () => {

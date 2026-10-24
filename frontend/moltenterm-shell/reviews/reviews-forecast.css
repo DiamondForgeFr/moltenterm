@@ -2,8 +2,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The conflict forecast's links (FR-REV-023): thin warning-toned brackets in the list's left gutter, from the PR whose
-   merge would cause the conflicts to each PR it would put in conflict. The dashes flow from the cause to the impacted
-   row, slowly; under reduced motion they stand still. */
+   merge would cause the conflicts to each PR it would put in conflict. Each line draws once from the cause to the
+   impacted row, then stands still (#1059): a looping line kept repainting for as long as a row stayed selected, behind
+   dialogs too. Under reduced motion it shows drawn. The path's pathLength is 1, so the dash covers any length. */
 
 .mt-forecast-links {
     position: absolute;
@@ -20,9 +21,10 @@
     stroke: var(--color-warning);
     stroke-width: 1.5;
     stroke-linecap: round;
-    stroke-dasharray: 3 4;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
     opacity: 0.85;
-    animation: mt-forecast-flow 1.4s linear infinite;
+    animation: mt-forecast-draw 300ms var(--mt-ease, ease-out) 1 backwards;
 }
 
 .mt-forecast-end {
@@ -34,9 +36,9 @@
     opacity: 0.6;
 }
 
-@keyframes mt-forecast-flow {
-    to {
-        stroke-dashoffset: -14;
+@keyframes mt-forecast-draw {
+    from {
+        stroke-dashoffset: 1;
     }
 }
 
