@@ -31,7 +31,29 @@ import {
     BranchPlan,
 } from "./mission-client";
 
-type PrKeepReason = "commits-after-pr" | "not-in-pr" | "worktree-changes" | "worktree-in-use";
+type PrKeepReason =
+    | "commits-after-pr"
+    | "not-in-pr"
+    | "worktree-changes"
+    | "worktree-in-use"
+    | "worktree-operation"
+    | "worktree-process"
+    | "worktree-commits";
+
+const OperationKeys: Record<string, string> = {
+    rebase: "mc.branches.operation.rebase",
+    merge: "mc.branches.operation.merge",
+    "cherry-pick": "mc.branches.operation.cherryPick",
+    revert: "mc.branches.operation.revert",
+    bisect: "mc.branches.operation.bisect",
+};
+
+const TreeToolKeys: Record<string, string> = {
+    moltenterm: "mc.branches.tool.moltenterm",
+    "claude-code": "mc.branches.tool.claudeCode",
+    conductor: "mc.branches.tool.conductor",
+    codex: "mc.branches.tool.codex",
+};
 
 const KeepReasonKeys: Record<Exclude<BranchKeepReason, PrKeepReason>, string> = {
     protected: "mc.branches.keep.protected",
@@ -42,6 +64,7 @@ const KeepReasonKeys: Record<Exclude<BranchKeepReason, PrKeepReason>, string> = 
     "pr-unknown": "mc.branches.keep.prUnknown",
     "pr-assets": "mc.branches.keep.prAssets",
     "tool-branch": "mc.branches.keep.tool",
+    "worktree-refused": "mc.branches.keep.worktreeRefused",
 };
 
 const PlainButton =
@@ -70,8 +93,58 @@ export function holdersText(holders: BranchHolder[]): string {
     return [...new Set(holders.map((h) => h.name))].join(", ");
 }
 
+export function processesText(b: BranchPlan): string {
+    return (b.processes ?? []).map((p) => `${p.name} (${p.pid})`).join(", ");
+}
+
+// A worktree another tool made, outside the project or locked (#1028): which tool, locked, outside, the ignored files
+// that go with it. The folder itself is named on its own line.
+export function treeFacts(b: BranchPlan): string[] {
+    const toolKey = TreeToolKeys[b.tool ?? ""];
+    const tool = toolKey ? t(toolKey) : null;
+    const rtn: string[] = [];
+    if (b.locked) {
+        rtn.push(tool ? t("mc.branches.tree.lockedBy", { tool }) : t("mc.branches.tree.locked"));
+    } else if (tool) {
+        rtn.push(t("mc.branches.tree.madeBy", { tool }));
+    }
+    if (b.outside) {
+        rtn.push(t("mc.branches.tree.outside"));
+    }
+    if (b.ignoredfiles > 0) {
+        rtn.push(tCount("mc.branches.tree.ignored", b.ignoredfiles));
+    }
+    return rtn;
+}
+
 // Why a branch goes or stays, as the list shows it next to the branch (#571); a worktree held open names who holds it.
+// A worktree's branch merged without a pull request (#1028) says so by its trunk instead of "merged in #N".
 export function branchReason(b: BranchPlan, trunk: string, holders?: BranchHolder[]): string {
+    const noPr = !(b.pr > 0);
+    switch (b.reason) {
+        case "merged-worktree":
+            return noPr
+                ? t("mc.branches.reason.onTrunkWorktree", { trunk })
+                : t("mc.branches.reason.mergedWorktree", { pr: b.pr });
+        case "worktree-operation": {
+            const key = OperationKeys[b.operation ?? ""] ?? "mc.branches.operation.other";
+            return t("mc.branches.keep.worktreeOperation", { operation: t(key) });
+        }
+        case "worktree-process":
+            return tCount("mc.branches.keep.worktreeProcess", b.processes?.length ?? 0, {
+                processes: processesText(b),
+            });
+        case "worktree-commits":
+            return t("mc.branches.keep.worktreeCommits", { trunk });
+    }
+    if (noPr && b.reason === "worktree-changes") {
+        return t("mc.branches.keep.worktreeChangesNoPr");
+    }
+    if (noPr && b.reason === "worktree-in-use") {
+        return holders?.length > 0
+            ? tCount("mc.branches.keep.worktreeHeldByNoPr", holders.length, { sessions: holdersText(holders) })
+            : t("mc.branches.keep.worktreeInUseNoPr");
+    }
     switch (b.reason) {
         case "merged-pr":
             return t("mc.branches.reason.mergedPr", { pr: b.pr });
@@ -191,14 +264,17 @@ export function HeldBranchActions({
                         : t("mc.branches.showNamed", { session: h.name })}
                 </button>
             ))}
-            <button
-                type="button"
-                disabled={busy}
-                onClick={() => setConfirming(true)}
-                className={cn(PlainButton, "text-danger hover:text-danger")}
-            >
-                {tCount("mc.branches.closeAndClean", holders.length)}
-            </button>
+            {/* Another tool's worktree is checked in the list once its sessions are closed, never closed and cleaned here (#1028). */}
+            {branch.tool === "moltenterm" ? (
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirming(true)}
+                    className={cn(PlainButton, "text-danger hover:text-danger")}
+                >
+                    {tCount("mc.branches.closeAndClean", holders.length)}
+                </button>
+            ) : null}
         </div>
     );
 }
@@ -259,6 +335,8 @@ export function BranchCleanupDialog({
     const [confirmingClose, setConfirmingClose] = useState<string>(null);
     const [closedLines, setClosedLines] = useState<string[]>(null);
     const [planRound, setPlanRound] = useState(0);
+    // The worktrees of other tools, outside or locked the developer checked (#1028): none until they do.
+    const [checkedTrees, setCheckedTrees] = useState<Set<string>>(() => new Set());
     const sessionsData = useAtomValue(DurableSessions.getInstance().dataAtom);
     useEffect(() => {
         let cancelled = false;
@@ -267,6 +345,7 @@ export function BranchCleanupDialog({
                 const next = await branchesPlan(dir);
                 if (!cancelled) {
                     setPlan(next);
+                    setCheckedTrees(new Set());
                 }
             } catch (e) {
                 if (!cancelled) {
@@ -309,9 +388,22 @@ export function BranchCleanupDialog({
                 setConfirmingClose(null);
             }
         });
-    const going = (plan?.branches ?? []).filter((b) => b.action === "delete");
+    const goingAll = (plan?.branches ?? []).filter((b) => b.action === "delete");
+    const toCheck = goingAll.filter((b) => b.confirm);
+    const regularGoing = goingAll.filter((b) => !b.confirm);
+    const going = goingAll.filter((b) => !b.confirm || checkedTrees.has(b.worktree));
+    const toggleTree = (tree: string) =>
+        setCheckedTrees((prev) => {
+            const next = new Set(prev);
+            if (next.has(tree)) {
+                next.delete(tree);
+            } else {
+                next.add(tree);
+            }
+            return next;
+        });
     const staying = (plan?.branches ?? []).filter((b) => b.action === "keep");
-    const nothingToDelete = plan != null && going.length === 0;
+    const nothingToDelete = plan != null && goingAll.length === 0;
     const trunk = plan?.trunk || t("mc.builds.theTrunk");
     const answerOffer = (enable: boolean) =>
         fireAndForget(async () => {
@@ -338,7 +430,8 @@ export function BranchCleanupDialog({
             setBusy(true);
             setError(null);
             try {
-                setResult(await branchesClean(dir, [...new Set(going.map((b) => b.name))]));
+                const trees = going.filter((b) => b.confirm).map((b) => b.worktree);
+                setResult(await branchesClean(dir, [...new Set(going.map((b) => b.name))], trees));
                 onCleaned();
             } catch (e) {
                 setError(serverErrorText(e));
@@ -419,23 +512,36 @@ export function BranchCleanupDialog({
                         {plan.autodeleteoffer && offerAnswer !== "later" ? (
                             <AutoDeleteOffer done={offerAnswer === "on"} busy={offerBusy} onAnswer={answerOffer} />
                         ) : null}
-                        <div>
-                            <div className="mb-1.5 font-medium text-muted">
-                                {t("mc.branches.wouldGo", { count: going.length })}
-                            </div>
-                            {going.length === 0 ? <p className="text-muted">{t("mc.branches.nothing")}</p> : null}
-                            {going.map((b) => (
-                                <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                    <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
-                                    <code>{branchLabel(b)}</code>
-                                    {b.reason ? (
-                                        <span className="text-muted" title={b.worktree}>
-                                            — {branchReason(b, trunk)}
-                                        </span>
-                                    ) : null}
+                        {regularGoing.length > 0 || toCheck.length === 0 ? (
+                            <div>
+                                <div className="mb-1.5 font-medium text-muted">
+                                    {t("mc.branches.wouldGo", { count: regularGoing.length })}
                                 </div>
-                            ))}
-                        </div>
+                                {regularGoing.length === 0 ? (
+                                    <p className="text-muted">{t("mc.branches.nothing")}</p>
+                                ) : null}
+                                {regularGoing.map((b) => (
+                                    <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
+                                        <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
+                                        <code>{branchLabel(b)}</code>
+                                        {b.reason ? (
+                                            <span className="text-muted" title={b.worktree}>
+                                                — {branchReason(b, trunk)}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
+                        {toCheck.length > 0 ? (
+                            <CheckedTreesGroup
+                                branches={toCheck}
+                                trunk={trunk}
+                                checked={checkedTrees}
+                                disabled={busy}
+                                onToggle={toggleTree}
+                            />
+                        ) : null}
                         <div>
                             <div className="mb-1.5 font-medium text-muted">
                                 {t("mc.branches.stay", { count: staying.length })}
@@ -462,6 +568,62 @@ export function BranchCleanupDialog({
                 ) : null}
             </div>
         </DialogFrame>
+    );
+}
+
+// The merged branches held by a worktree another tool made, one outside the project or a locked one (#1028): each goes
+// with its folder only once checked, and the row names that folder, so nothing is deleted the developer did not see.
+export function CheckedTreesGroup({
+    branches,
+    trunk,
+    checked,
+    disabled,
+    onToggle,
+}: {
+    branches: BranchPlan[];
+    trunk: string;
+    checked: Set<string>;
+    disabled: boolean;
+    onToggle: (tree: string) => void;
+}) {
+    const t = useT();
+    return (
+        <div data-testid="checked-trees">
+            <div className="mb-0.5 font-medium text-muted">
+                {t("mc.branches.otherTrees", { count: branches.length })}
+            </div>
+            <p className="mb-1.5 text-12 text-muted">{t("mc.branches.otherTreesHint")}</p>
+            {branches.map((b) => {
+                const facts = treeFacts(b);
+                return (
+                    <label
+                        key={branchLabel(b)}
+                        className="flex cursor-pointer items-start gap-2 rounded-4 py-1 hover:bg-hover"
+                        data-testid="checked-tree"
+                    >
+                        <input
+                            type="checkbox"
+                            className="mt-0.5 cursor-pointer"
+                            checked={checked.has(b.worktree)}
+                            disabled={disabled}
+                            onChange={() => onToggle(b.worktree)}
+                        />
+                        <span className="flex min-w-0 flex-col">
+                            <span>
+                                <code>{branchLabel(b)}</code>
+                                <span className="text-muted"> — {branchReason(b, trunk)}</span>
+                            </span>
+                            <span className="break-all text-12 text-secondary">
+                                {t("mc.branches.deletesFolder", { path: b.worktree })}
+                            </span>
+                            {facts.length > 0 ? (
+                                <span className="text-12 text-muted">{facts.join(" · ")}</span>
+                            ) : null}
+                        </span>
+                    </label>
+                );
+            })}
+        </div>
     );
 }
 

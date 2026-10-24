@@ -134,6 +134,9 @@ type Runs struct {
 	// data folder tells which worktrees are MoltenTerm's.
 	worktrees *Worktrees
 	dataDir   string
+	// treeCwds reads the live processes' current folders (#1028): a worktree one works in stays. nil reads the real
+	// process table; tests replace it.
+	treeCwds func() []procCwd
 }
 
 // UseWorktrees lets branch cleaning remove MoltenTerm's own worktrees of merged pull requests, under dataDir.

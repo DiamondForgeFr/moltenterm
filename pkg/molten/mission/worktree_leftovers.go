@@ -90,8 +90,22 @@ func (t TreeRemover) Registered(ctx context.Context, main string, path string) (
 // reported in the result, not as an error. An error means git refused and still lists the worktree, or the folder
 // could not be checked.
 func (t TreeRemover) Remove(ctx context.Context, main string, path string, force bool) (TreeRemoval, error) {
-	args := []string{"worktree", "remove"}
+	forces := 0
 	if force {
+		forces = 1
+	}
+	return t.remove(ctx, main, path, forces)
+}
+
+// RemoveLocked removes a locked worktree: git asks for --force twice (#1028). Callers check first that the developer
+// confirmed removing that locked worktree.
+func (t TreeRemover) RemoveLocked(ctx context.Context, main string, path string) (TreeRemoval, error) {
+	return t.remove(ctx, main, path, 2)
+}
+
+func (t TreeRemover) remove(ctx context.Context, main string, path string, forces int) (TreeRemoval, error) {
+	args := []string{"worktree", "remove"}
+	for i := 0; i < forces; i++ {
 		args = append(args, "--force")
 	}
 	args = append(args, "--", path)

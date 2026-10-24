@@ -38,6 +38,9 @@ const (
 	BranchDeletePatchesOnTrunk = "patches-on-trunk"
 	// The branch goes with the worktree MoltenTerm made for its pull request, now merged (#906).
 	BranchDeleteMergedPrTree = "merged-pr-worktree"
+	// #1028: the branch goes with a clean worktree MoltenTerm did not make (or one it made, merged without a pull
+	// request): offered unchecked when another tool made it or it is locked.
+	BranchDeleteMergedTree = "merged-worktree"
 
 	BranchKeepProtected      = "protected"
 	BranchKeepNotOnTrunk     = "not-on-trunk"
@@ -51,6 +54,12 @@ const (
 	// #906: MoltenTerm's worktree of a merged pull request still holds uncommitted work, or a terminal is open in it.
 	BranchKeepTreeChanges = "worktree-changes"
 	BranchKeepTreeInUse   = "worktree-in-use"
+	// #1028: a merged branch's worktree with a git operation in progress, a live process working in it, a folder
+	// MoltenTerm never removes; and a worktree's branch holding commits the trunk does not have.
+	BranchKeepTreeOperation = "worktree-operation"
+	BranchKeepTreeProcess   = "worktree-process"
+	BranchKeepTreeRefused   = "worktree-refused"
+	BranchKeepTreeCommits   = "worktree-commits"
 	// #906: a branch tools keep (pull request screenshots, or one the project lists in branches.tools).
 	BranchKeepPrAssets = "pr-assets"
 	BranchKeepTool     = "tool-branch"
@@ -77,10 +86,22 @@ type BranchPlan struct {
 	Reason string `json:"reason,omitempty"`
 	// The merged pull request behind merged-pr, merged-pr-worktree, commits-after-pr and not-in-pr.
 	Pr int `json:"pr,omitempty"`
-	// Worktree: MoltenTerm's worktree holding the branch, removed with it (merged-pr-worktree) or the reason it stays.
+	// Worktree: the linked worktree holding the branch, removed with it (merged-pr-worktree, merged-worktree) or the
+	// reason it stays.
 	Worktree string `json:"worktree,omitempty"`
 	// Terminals: the terminals holding the worktree open (worktree-in-use), so the dialog names their sessions (#932).
 	Terminals []WorktreeTerminal `json:"terminals,omitempty"`
+	// #1028: the tool that made the worktree when its path tells (TreeTool*), the worktree is outside the project
+	// folder, locked, the ignored files that go with it, the processes working in it, the git operation in progress.
+	Tool         string        `json:"tool,omitempty"`
+	Outside      bool          `json:"outside,omitempty"`
+	Locked       bool          `json:"locked,omitempty"`
+	IgnoredFiles int           `json:"ignoredfiles,omitempty"`
+	Processes    []TreeProcess `json:"processes,omitempty"`
+	Operation    string        `json:"operation,omitempty"`
+	// Confirm: the worktree goes only when the developer checks it (another tool's, or locked); CleanBranches removes
+	// it only when its folder is in the request's Worktrees.
+	Confirm bool `json:"confirm,omitempty"`
 	// risk: what the worktree held when it was read, so the removal refuses a worktree that grew since.
 	risk *WorktreeRisk
 }
@@ -95,6 +116,8 @@ type BranchesPlan struct {
 type BranchesCleanRequest struct {
 	Dir   string   `json:"dir"`
 	Names []string `json:"names"`
+	// Worktrees: the folders of the Confirm worktrees the developer checked (#1028).
+	Worktrees []string `json:"worktrees,omitempty"`
 }
 
 type BranchesCleanResult struct {
@@ -130,10 +153,48 @@ type branchFacts struct {
 	afterPr    int
 	notInPr    int
 	tool       string
-	ownTree    string
-	ownTreeFit string
-	treeRisk   *WorktreeRisk
-	treeTerms  []WorktreeTerminal
+	// The linked worktree holding the branch (not the main checkout's), and what was read of it (#906, #1028):
+	// treeKeep is why its branch stays before the worktree is even read (commits not on the trunk); treeMerged means
+	// the branch brings nothing (merged pull request, or all its commits on the trunk) so the worktree was read (fit).
+	tree       string
+	treeOwn    bool
+	treeTool   string
+	treeOut    bool
+	treeKeep   string
+	treeMerged bool
+	fit        treeFit
+}
+
+func planTreeBranch(f branchFacts, keep func(string) BranchPlan, drop func(string) BranchPlan) BranchPlan {
+	if f.treeKeep != "" {
+		b := keep(f.treeKeep)
+		b.Worktree, b.Tool, b.Outside = f.tree, f.treeTool, f.treeOut
+		switch f.treeKeep {
+		case BranchKeepCommitsAfterPr:
+			b.Pr = f.afterPr
+		case BranchKeepNotInPr:
+			b.Pr = f.notInPr
+		}
+		return b
+	}
+	b := keep(f.fit.reason)
+	if f.fit.reason == "" {
+		reason := BranchDeleteMergedTree
+		if f.treeOwn && f.mergedPr > 0 {
+			reason = BranchDeleteMergedPrTree
+		}
+		b = drop(reason)
+		b.risk = f.fit.risk
+		b.Locked, b.IgnoredFiles = f.fit.locked, f.fit.ignored
+		// Only #906's case goes without a check: MoltenTerm's own worktree of a merged pull request, unlocked.
+		b.Confirm = reason != BranchDeleteMergedPrTree || f.fit.locked
+	}
+	if b.Reason == BranchKeepCheckedOut {
+		return b
+	}
+	b.Pr, b.Worktree, b.Tool, b.Outside = f.mergedPr, f.tree, f.treeTool, f.treeOut
+	b.Terminals, b.Processes, b.Operation = f.fit.terms, f.fit.procs, f.fit.operation
+	return b
 }
 
 func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
@@ -148,20 +209,10 @@ func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
 		return keep(BranchKeepProtected)
 	case f.tool != "":
 		return keep(f.tool)
-	case f.checkedOut && f.ownTree != "" && f.mergedPr > 0 && f.openPr != nil && !*f.openPr:
-		b := keep(f.ownTreeFit)
-		if f.ownTreeFit == "" {
-			b = drop(BranchDeleteMergedPrTree)
-			b.risk = f.treeRisk
-		}
-		if b.Reason == BranchKeepCheckedOut {
-			return b
-		}
-		b.Pr, b.Worktree = f.mergedPr, f.ownTree
-		if b.Reason == BranchKeepTreeInUse {
-			b.Terminals = f.treeTerms
-		}
-		return b
+	case f.checkedOut && f.tree != "" && f.openPr != nil && *f.openPr:
+		return keep(BranchKeepOpenPr)
+	case f.checkedOut && f.tree != "" && (f.treeKeep != "" || f.treeMerged):
+		return planTreeBranch(f, keep, drop)
 	case f.checkedOut:
 		return keep(BranchKeepCheckedOut)
 	case f.openPr != nil && *f.openPr:
@@ -188,6 +239,32 @@ func planBranch(f branchFacts, protected map[string]bool) BranchPlan {
 		return drop(BranchDeletePatchesOnTrunk)
 	}
 	return drop(BranchDeleteOnTrunk)
+}
+
+// treeBranchMerged tells whether a branch a linked worktree holds brings nothing the trunk lacks (#1028): its merged
+// pull request carried its head, or every commit is on the trunk (same content, or same patches under new ids, as
+// rebase-and-merge leaves them). Otherwise keep says why it stays; "" when git could not say.
+func treeBranchMerged(g *gitReader, f branchFacts, trunkTree string, trunkRef string, ref string) (bool, string) {
+	switch {
+	case f.mergedPr > 0:
+		return true, ""
+	case f.afterPr > 0:
+		return false, BranchKeepCommitsAfterPr
+	}
+	onTrunk := contentOnTrunk(g, trunkTree, trunkRef, ref)
+	if onTrunk == nil {
+		return false, ""
+	}
+	if *onTrunk {
+		return true, ""
+	}
+	if patches := patchesOnTrunk(g, trunkRef, ref); patches != nil && *patches {
+		return true, ""
+	}
+	if f.notInPr > 0 {
+		return false, BranchKeepNotInPr
+	}
+	return false, BranchKeepTreeCommits
 }
 
 // contentOnTrunk tells whether a branch's code is all on the trunk; nil when git could not say. A conflict answers no:
@@ -336,27 +413,6 @@ func ownTree(dataDir string, path string) bool {
 	return filepath.Dir(filepath.Dir(realPath(path))) == trees
 }
 
-// ownTreeFit reads MoltenTerm's worktree of a merged pull request as closing it would (Worktrees.Plan): "" when it can
-// go with its branch, else why it stays. Git-ignored files go with it, as after a merge (review/loss.go); the branch's
-// commits are checked against the pull request instead of the remote, deleted by the merge.
-func (r *Runs) ownTreeFit(path string) (string, *WorktreeRisk, []WorktreeTerminal) {
-	if r.worktrees == nil {
-		return BranchKeepCheckedOut, nil, nil
-	}
-	plan, err := r.worktrees.Plan(WorktreeRequest{Dir: path})
-	switch {
-	case err != nil || plan.Locked || plan.Refused != "":
-		return BranchKeepCheckedOut, nil, nil
-	case plan.Missing:
-		return "", nil, nil
-	case plan.ChangeCount != 0:
-		return BranchKeepTreeChanges, nil, nil
-	case len(plan.Terminals) > 0:
-		return BranchKeepTreeInUse, nil, plan.Terminals
-	}
-	return "", &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}, nil
-}
-
 // readPrs reads the open pull requests' head names and the merged ones by head name; each nil when GitHub did not
 // answer. Both are empty when no remote is on GitHub: no pull request exists.
 func readPrs(ctx context.Context, run Runner, dir string) (map[string]bool, map[string][]mergedPr, bool) {
@@ -453,6 +509,17 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 		}
 		return heads
 	}
+	// The live processes' current folders, read once per plan and only when a worktree is read.
+	var cwds []procCwd
+	cwdsRead := false
+	readCwds := func() []procCwd {
+		if !cwdsRead {
+			cwds, cwdsRead = r.readCwds(), true
+		}
+		return cwds
+	}
+	home, _ := os.UserHomeDir()
+	project := realPath(dir)
 	add := func(name string, ref string, head string, remote bool) {
 		tree, held := checkedOut[name]
 		f := branchFacts{name: name, remote: remote, checkedOut: !remote && held, tool: tools[name]}
@@ -463,9 +530,13 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 		if !protected[name] && f.tool == "" && treeIdRegex.MatchString(head) {
 			f.mergedPr, f.afterPr, f.notInPr = prSignal(g, head, merged[name], protected, earlierHeads)
 		}
-		if f.checkedOut && tree != "" && ownTree(r.dataDir, tree) && f.mergedPr > 0 && f.openPr != nil && !*f.openPr {
-			f.ownTree = tree
-			f.ownTreeFit, f.treeRisk, f.treeTerms = r.ownTreeFit(tree)
+		if f.checkedOut && tree != "" && !protected[name] && f.tool == "" && f.openPr != nil && !*f.openPr {
+			f.tree, f.treeOwn = tree, ownTree(r.dataDir, tree)
+			f.treeTool, f.treeOut = treeTool(r.dataDir, home, tree), !pathInside(realPath(tree), project)
+			f.treeMerged, f.treeKeep = treeBranchMerged(g, f, trunkTree, trunkRef, ref)
+			if f.treeMerged {
+				f.fit = r.fitTree(tree, readCwds)
+			}
 		}
 		decided := protected[name] || f.tool != "" || f.checkedOut || (f.openPr != nil && *f.openPr) ||
 			(f.mergedPr > 0 && f.openPr != nil) || f.afterPr > 0
@@ -539,6 +610,12 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 	if err != nil {
 		return BranchesCleanResult{}, err
 	}
+	checked := map[string]bool{}
+	for _, tree := range req.Worktrees {
+		if filepath.IsAbs(tree) {
+			checked[realPath(tree)] = true
+		}
+	}
 	result := BranchesCleanResult{Deleted: []string{}}
 	for _, b := range plan.Branches {
 		if !wanted[b.Name] {
@@ -550,19 +627,25 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.kept", "branch", branchLabel(b), "reason", b.Reason, "pr", strconv.Itoa(b.Pr)))
 			continue
 		}
+		if b.Confirm && !checked[realPath(b.Worktree)] {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: kept, its worktree %s was not checked", branchLabel(b), b.Worktree))
+			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.treeNotChecked", "branch", branchLabel(b), "path", b.Worktree))
+			continue
+		}
 		var err error
 		switch {
 		case b.Remote:
 			_, err = r.git(ctx, dir, "git", "push", "--quiet", "origin", "--delete", b.Name)
-		case b.Reason == BranchDeleteMergedPrTree:
-			err = r.removeOwnTree(ctx, dir, b)
+		case b.Reason == BranchDeleteMergedPrTree || b.Reason == BranchDeleteMergedTree:
+			err = r.removeTreeAndBranch(ctx, dir, b)
 		default:
 			_, err = r.git(ctx, dir, "git", "branch", "-D", b.Name)
 		}
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", branchLabel(b), err))
-			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.deleteFailed", "branch", branchLabel(b), "detail", err.Error()))
+			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.deleteFailed", "branch", branchLabel(b), "detail", err.Error()).With("detail", uimsg.TextOf(err)))
 			continue
 		}
 		result.Deleted = append(result.Deleted, branchLabel(b))
@@ -570,9 +653,19 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 	return result, nil
 }
 
-// removeOwnTree removes MoltenTerm's worktree of a merged pull request through the close-worktree removal, which reads
-// it again and refuses one that changed since the plan, then deletes its branch.
-func (r *Runs) removeOwnTree(ctx context.Context, dir string, b BranchPlan) error {
+// removeTreeAndBranch removes a merged branch's worktree through the close-worktree removal, which reads it again and
+// refuses one that changed since the plan (or got locked), then deletes its branch. The live processes are read again
+// right before (#1028): one that started working in the worktree since the plan keeps it.
+func (r *Runs) removeTreeAndBranch(ctx context.Context, dir string, b BranchPlan) error {
+	if procs := processesIn(r.readCwds(), b.Worktree); len(procs) > 0 {
+		names := make([]string, 0, len(procs))
+		for _, p := range procs {
+			names = append(names, fmt.Sprintf("%s (%d)", p.Name, p.Pid))
+		}
+		list := strings.Join(names, ", ")
+		return uimsg.Errorf(uimsg.Make("mission.branches.treeProcess", "path", b.Worktree, "processes", list),
+			"a process works in %s since the plan: %s", b.Worktree, list)
+	}
 	res, err := r.worktrees.Remove(WorktreeRemoveRequest{Dir: b.Worktree, Confirmed: b.risk})
 	if err != nil {
 		return err

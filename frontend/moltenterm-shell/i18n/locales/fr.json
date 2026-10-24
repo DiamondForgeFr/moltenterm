@@ -2705,15 +2705,57 @@
                     "other": "fusionnée dans #{pr}, mais les sessions {sessions} ont des terminaux ouverts dans son worktree"
                 },
                 "prAssets": "contient les ressources des pull requests",
-                "tool": "une branche d'outil"
+                "tool": "une branche d'outil",
+                "worktreeChangesNoPr": "son worktree a des modifications non commitées",
+                "worktreeInUseNoPr": "un terminal est ouvert dans son worktree",
+                "worktreeHeldByNoPr": {
+                    "one": "la session {sessions} a un terminal ouvert dans son worktree",
+                    "other": "les sessions {sessions} ont des terminaux ouverts dans son worktree"
+                },
+                "worktreeOperation": "{operation} est en cours dans son worktree",
+                "worktreeProcess": {
+                    "one": "son worktree est utilisé par {processes}",
+                    "other": "son worktree est utilisé par {processes}"
+                },
+                "worktreeRefused": "son worktree est le dossier personnel ou contient le dépôt : MoltenTerm ne le supprime jamais",
+                "worktreeCommits": "la branche de son worktree contient des commits absents de {trunk}"
             },
             "reason": {
                 "mergedPr": "fusionnée dans #{pr}",
                 "onTrunk": "son code est sur {trunk}",
                 "patchesOnTrunk": "ses commits sont sur {trunk} sous de nouveaux identifiants",
                 "commitsAfterPr": "des commits après la fusion de #{pr}",
-                "mergedPrWorktree": "fusionnée dans #{pr}, son worktree est propre et part avec elle"
+                "mergedPrWorktree": "fusionnée dans #{pr}, son worktree est propre et part avec elle",
+                "mergedWorktree": "fusionnée dans #{pr}, son worktree est propre",
+                "onTrunkWorktree": "tous ses commits sont sur {trunk}, son worktree est propre"
             },
+            "operation": {
+                "rebase": "un rebase",
+                "merge": "une fusion",
+                "cherryPick": "un cherry-pick",
+                "revert": "un revert",
+                "bisect": "un bisect",
+                "other": "une opération git"
+            },
+            "tool": {
+                "moltenterm": "MoltenTerm",
+                "claudeCode": "un agent Claude Code",
+                "conductor": "Conductor",
+                "codex": "Codex"
+            },
+            "tree": {
+                "locked": "verrouillé",
+                "lockedBy": "verrouillé, créé par {tool}",
+                "madeBy": "créé par {tool}",
+                "outside": "hors du dossier du projet",
+                "ignored": {
+                    "one": "{count} fichier ignoré part avec lui",
+                    "other": "{count} fichiers ignorés partent avec lui"
+                }
+            },
+            "otherTrees": "Worktrees d'autres outils, hors du projet ou verrouillés ({count})",
+            "otherTreesHint": "Rien ici ne part sans que vous le cochiez. Une branche cochée part avec son worktree, et le dossier indiqué dessous est supprimé.",
+            "deletesFolder": "Supprime le dossier {path}",
             "result": {
                 "one": "{count} branche supprimée.",
                 "other": "{count} branches supprimées."
@@ -2723,7 +2765,7 @@
                 "other": "{count} branches supprimées, {failed} en échec."
             },
             "title": "Nettoyer les branches",
-            "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Un worktree propre que MoltenTerm a créé pour une pull request fusionnée part avec sa branche. Les branches principales restent, comme tout ce qui est incertain.",
+            "intro": "Les branches dont la pull request a été fusionnée partent, comme celles dont le code est déjà sur {trunk}. Un worktree propre que MoltenTerm a créé pour une pull request fusionnée part avec sa branche ; ceux d'autres outils, hors du projet ou verrouillés ne partent que si vous les cochez. Les branches principales restent, comme tout ce qui est incertain.",
             "comparing": "Comparaison de chaque branche avec {trunk}…",
             "wouldGo": "Partiraient ({count})",
             "nothing": "Rien à nettoyer.",
@@ -6540,7 +6582,9 @@
                 "autoDeleteFailed": "La suppression automatique des branches n'a pas pu être activée : {detail}",
                 "gone": "{branch} n'est plus une branche.",
                 "newTerminal": "Un autre terminal s'est ouvert depuis dans le worktree de {branch} : rien n'a été fermé.",
-                "closeFailed": "Un terminal n'a pas pu être fermé : {detail}"
+                "closeFailed": "Un terminal n'a pas pu être fermé : {detail}",
+                "treeNotChecked": "{branch} : gardée, son worktree {path} n'a pas été coché",
+                "treeProcess": "un processus s'est mis à travailler dans {path} depuis le plan : {processes}"
             },
             "jobs": {
                 "tooLarge": "Le fichier est trop volumineux pour être lu.",
