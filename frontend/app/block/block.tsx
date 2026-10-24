@@ -139,8 +139,10 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
         if (focusHandoffActive()) {
             return; // MOLTENTERM-PATCH (#268)
         }
+        // A click in a dialog the view opened reaches here through React's portal bubbling; taking the focus back
+        // would close the dialog's open select or date picker.
         if (event != null && cameThroughPortal(event, blockRef.current)) {
-            return; // MOLTENTERM-PATCH (#1070): a click in a dialog the view opened keeps the dialog's focus
+            return; // MOLTENTERM-PATCH (#1070)
         }
         setBlockClicked(true);
     }, []);
