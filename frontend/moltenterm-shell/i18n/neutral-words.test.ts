@@ -12,7 +12,11 @@ import { availableLanguageCodes, flattenKeys, resolveKey, shippedDictionary } fr
 export const MachineWords = /\b(Mac|Macs|macOS|MacOS|OS X|Finder|Windows Explorer|File Explorer)\b/;
 
 // key → why naming the platform is right there.
-export const PlatformOnlyKeys: Record<string, string> = {};
+export const PlatformOnlyKeys: Record<string, string> = {
+    // #1030: the constraint comes from one platform's installer format (MSI), which only takes numbers after the dash;
+    // saying "installers" alone would hide why a format is unavailable for every other target.
+    "mc.setup.reason.msiNumeric": "MSI installers are a Windows format",
+};
 
 export function machineWordProblems(entries: [string, string][]): string[] {
     return entries

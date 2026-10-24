@@ -11,6 +11,8 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/pipelinesetup"
+	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -32,6 +34,7 @@ type routeLink struct {
 	testCtx   *TestContexts
 	launches  *Launches
 	asks      *TrustAsks
+	setup     *pipelinesetup.Setup
 }
 
 type ciLogRequest struct {
@@ -365,6 +368,9 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	if command == JobsCommand || command == JobDescribeCommand {
 		return handleJobs(command, data)
 	}
+	if strings.HasPrefix(command, "moltenmissionsetup") {
+		return l.handleSetup(command, data)
+	}
 	if strings.HasPrefix(command, "moltenmissionlaunch") {
 		if l.launches == nil {
 			return nil, fmt.Errorf("launching versions is not available")
@@ -430,6 +436,9 @@ var windowCommands = map[string]string{
 	ReleaseStepCommand:    "a release step is run from a MoltenTerm window",
 	ReleaseRerunCommand:   "a release's jobs are run again from a MoltenTerm window",
 	ReleaseSaveCommand:    "release notes are saved from a MoltenTerm window",
+	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
+	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
+	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
 	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
 	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
@@ -518,7 +527,39 @@ func (l *routeLink) route() localroute.Route {
 func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks) error {
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
-		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks}
+		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks,
+		setup: pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), pipelinesetup.AgentRunner(release.ExecAgent))}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
+}
+
+// The release setup's calls (FR-MC-036): the draft and the agent's proposal write nothing; the write is the
+// developer's click on the reviewed diff.
+func (l *routeLink) handleSetup(command string, data any) (any, error) {
+	if l.setup == nil {
+		return nil, fmt.Errorf("the release setup is not available")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	defer cancel()
+	switch command {
+	case SetupDraftCommand:
+		var req pipelinesetup.DraftRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Draft(ctx, req)
+	case SetupRefineCommand:
+		var req pipelinesetup.RefineRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Refine(ctx, req)
+	case SetupWriteCommand:
+		var req pipelinesetup.WriteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Write(req)
+	}
+	return nil, fmt.Errorf("unknown mission control command %q", command)
 }

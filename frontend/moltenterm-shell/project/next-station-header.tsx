@@ -15,7 +15,7 @@ import { BuildLocalMenu } from "../mission/build-local-menu";
 import { DeployMenu } from "../mission/deploy-menu";
 import { deployRevision, deployTargets, stepRunning } from "../mission/deploy-model";
 import { latestRun } from "../mission/mission-model";
-import { ReleaseMenu } from "../mission/release-menu";
+import { ReleaseMenu, ReleaseSetupEntry } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { WorkspaceIcon } from "../workspace-icon";
@@ -287,7 +287,10 @@ export function NextStationHeader({
                                 showRuns();
                             }}
                             onShowRelease={showRuns}
+                            onSetUp={refresh}
                         />
+                    ) : snapshot != null && !snapshot.pipeline?.present ? (
+                        <ReleaseSetupEntry dir={project.dir} projectName={projectName} onSetUp={refresh} />
                     ) : null}
                     <DeployMenu
                         targets={deployTargets(pipeline, runs)}

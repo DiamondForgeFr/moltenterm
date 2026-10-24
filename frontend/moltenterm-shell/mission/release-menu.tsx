@@ -26,6 +26,8 @@ import {
     releasePlan,
     ReleaseSession,
 } from "./release-model";
+import { ReleaseSetup } from "./release-setup";
+import { needsReleaseSetup } from "./release-setup-model";
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
@@ -39,6 +41,7 @@ export function ReleaseMenu({
     publicSteps,
     onStarted,
     onShowRelease,
+    onSetUp,
 }: {
     dir: string;
     projectName: string;
@@ -47,6 +50,8 @@ export function ReleaseMenu({
     publicSteps: PipelineReleaseStep[];
     onStarted: () => void;
     onShowRelease: () => void;
+    // The release setup wrote the pipeline (FR-MC-036): the header reads it again.
+    onSetUp?: () => void;
 }) {
     const t = useT();
     const [open, setOpen] = useState(false);
@@ -57,6 +62,7 @@ export function ReleaseMenu({
     const [error, setError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
+    const [settingUp, setSettingUp] = useState(false);
     const [milestone, setMilestone] = useState<{ version: string; warning: MilestoneWarning; error: string }>(null);
 
     // The numbers are computed when the menu opens, from the remote as it is now.
@@ -184,6 +190,14 @@ export function ReleaseMenu({
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
+                    {needsReleaseSetup(rcSteps, publicSteps) ? (
+                        <ReleaseSetupButton
+                            onOpen={() => {
+                                setOpen(false);
+                                setSettingUp(true);
+                            }}
+                        />
+                    ) : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-12 text-muted">
                             <DominoLoader />
@@ -267,6 +281,14 @@ export function ReleaseMenu({
                     {error ? <div className="text-12 text-danger">{error}</div> : null}
                 </MenuPopover>
             ) : null}
+            {settingUp ? (
+                <ReleaseSetup
+                    dir={dir}
+                    projectName={projectName}
+                    onClose={() => setSettingUp(false)}
+                    onWritten={() => onSetUp?.()}
+                />
+            ) : null}
             {untrusted != null ? (
                 <TrustPrompt
                     projectName={projectName}
@@ -277,6 +299,55 @@ export function ReleaseMenu({
                 />
             ) : null}
         </div>
+    );
+}
+
+// The menu's first choice when the pipeline cannot start a release candidate or a public release (FR-MC-036).
+export function ReleaseSetupButton({ onOpen }: { onOpen: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="flex w-full cursor-pointer items-start gap-2 rounded-6 border border-accent/50 bg-accent/10 px-3 py-2 text-left transition-colors duration-120 ease-mt hover:border-accent"
+            data-testid="release-setup-open"
+        >
+            <i className="fa fa-solid fa-wand-magic-sparkles mt-[3px] text-11 text-accent" />
+            <span className="flex flex-col">
+                <span className="text-13 leading-5 font-medium text-primary">{t("mc.setup.open")}</span>
+                <span className="text-11 text-muted">{t("mc.setup.openHint")}</span>
+            </span>
+        </button>
+    );
+}
+
+// The Project header's entry when the project has no pipeline yet (FR-MC-036).
+export function ReleaseSetupEntry({
+    dir,
+    projectName,
+    onSetUp,
+}: {
+    dir: string;
+    projectName: string;
+    onSetUp: () => void;
+}) {
+    const t = useT();
+    const [open, setOpen] = useState(false);
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className={ActionSecondaryClass}
+                data-testid="release-setup-entry"
+            >
+                <i className="fa fa-solid fa-rocket text-11" />
+                {t("mc.setup.open")}
+            </button>
+            {open ? (
+                <ReleaseSetup dir={dir} projectName={projectName} onClose={() => setOpen(false)} onWritten={onSetUp} />
+            ) : null}
+        </>
     );
 }
 

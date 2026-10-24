@@ -69,13 +69,17 @@ const (
 	TreePrsCommand          = "moltenmissiontreeprs"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
-	UpdateEvent             = "molten:mission:update"
-	RunEvent                = "molten:mission:run"
-	CiEvent                 = "molten:mission:ci"
-	DefaultMaxAgeSec        = 60
-	collectTimeout          = 2 * time.Minute
-	fetchEvery              = 5 * time.Minute
-	minForcedInterval       = 10 * time.Second
+	// The release setup (FR-MC-036): draft, refine with the coding agent, write on the developer's click.
+	SetupDraftCommand  = "moltenmissionsetupdraft"
+	SetupRefineCommand = "moltenmissionsetuprefine"
+	SetupWriteCommand  = "moltenmissionsetupwrite"
+	UpdateEvent        = "molten:mission:update"
+	RunEvent           = "molten:mission:run"
+	CiEvent            = "molten:mission:ci"
+	DefaultMaxAgeSec   = 60
+	collectTimeout     = 2 * time.Minute
+	fetchEvery         = 5 * time.Minute
+	minForcedInterval  = 10 * time.Second
 	// NFR-MC-003: GitHub is read at most once a minute per project, however many panels ask.
 	minGithubInterval = time.Minute
 	// FR-PERF-011: the projects known at once (a status bar asks about every folder a terminal visits); past it, the
