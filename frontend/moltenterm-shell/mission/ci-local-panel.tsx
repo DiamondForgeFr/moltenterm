@@ -20,6 +20,7 @@ import {
     CiJobRecord,
     CiPrepareJob,
     ciRunDuration,
+    ciRunLabel,
     CiRunRecord,
     CiStatus,
     defaultCiJob,
@@ -181,7 +182,8 @@ function RunDetail({
         <div className="flex min-w-0 flex-col gap-2">
             <div>
                 <div className="text-13 leading-5 font-medium">
-                    {run.branch || t("mc.ciLocal.noBranch")} @ {shortSha(run.sha)}
+                    {ciRunLabel(run, t)}
+                    {run.branch || !run.detached ? ` @ ${shortSha(run.sha)}` : null}
                 </div>
                 <div className="text-11 text-muted">
                     {formatRunDate(run.startedat)} · {formatCiDuration(ciRunDuration(run, now))} ·{" "}
@@ -242,7 +244,7 @@ function RunRow({
     const [error, setError] = useState<string>(null);
     const rerunRef = useRef<HTMLButtonElement>(null);
     const jobs = run.only?.length ? run.only.join(", ") : run.jobs.map((j) => j.name).join(", ");
-    const branch = run.branch || t("mc.ciLocal.noBranch");
+    const branch = ciRunLabel(run, t);
     const commit = github && run.sha ? `${github}/commit/${run.sha}` : null;
     const closeConfirm = () => {
         setConfirming(false);

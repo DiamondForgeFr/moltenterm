@@ -3284,6 +3284,8 @@
             "jobLog": "Job log",
             "noOutputYet": "(no output yet)",
             "noBranch": "no branch",
+            "detached": "detached at {sha}",
+            "detachedOn": "detached at {sha} ({branches})",
             "tree": "tree",
             "prepare": "Prepare",
             "runOn": "Local CI run on {branch}",
@@ -6760,6 +6762,8 @@
             "ci": {
                 "noJobs": "The pipeline declares no CI job (ci.jobs).",
                 "notACommit": "{rev} is not a commit of this project.",
+                "foreignCheckout": "{folder} is not a checkout of this project: run the command from the project or one of its worktrees.",
+                "noHead": "{folder} has no commit checked out yet.",
                 "noneOfJobs": "The pipeline declares none of the jobs {jobs}.",
                 "alreadyGreen": "The local CI is already green on this code: choose Run all again to run it anyway.",
                 "inProgress": "A local CI run is in progress ({run}).",

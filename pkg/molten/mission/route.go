@@ -44,8 +44,9 @@ type ciLogRequest struct {
 }
 
 type ciStatusRequest struct {
-	Dir string `json:"dir"`
-	Rev string `json:"rev,omitempty"`
+	Dir  string `json:"dir"`
+	Rev  string `json:"rev,omitempty"`
+	From string `json:"from,omitempty"`
 }
 
 func (l *routeLink) handleCi(command string, data any) (any, error) {
@@ -85,7 +86,7 @@ func (l *routeLink) handleCi(command string, data any) (any, error) {
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.ci.Status(req.Dir, req.Rev)
+		return l.ci.StatusFrom(req.Dir, req.Rev, req.From)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
