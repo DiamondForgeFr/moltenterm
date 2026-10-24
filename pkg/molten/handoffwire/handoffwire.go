@@ -12,6 +12,10 @@ const (
 	ListCommand   = "moltenagenthandofflist"
 	SendCommand   = "moltenagenthandoffsend"
 	AnswerCommand = "moltenagenthandoffanswer"
+	// An MCP server tells MoltenTerm its link came back after calls failed (#1029).
+	LinkNoticeCommand = "moltenagenthandofflinknotice"
+	// Notifications of one pane's lost link: LinkNoticeKeyPrefix + block id.
+	LinkNoticeKeyPrefix = "agentlink:"
 
 	// The notification gesture a window runs for the developer's answer.
 	AnswerGesture = "molten:agenthandoff"
@@ -123,4 +127,13 @@ type SendResult struct {
 type AnswerRequest struct {
 	RequestId string `json:"requestid"`
 	Decision  string `json:"decision"`
+}
+
+// LinkNoticeRequest: an MCP server whose link to MoltenTerm came back after some of its calls failed (#1029). Token is
+// the pane's WAVETERM_JWT, verified like a list's; wavesrv tells the developer on that pane.
+type LinkNoticeRequest struct {
+	Token string `json:"token"`
+	// Server: the MCP server's name as the agent knows it (molten-browser, molten-review).
+	Server string `json:"server"`
+	Failed int    `json:"failed"`
 }
