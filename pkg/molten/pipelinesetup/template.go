@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -55,6 +56,10 @@ type Options struct {
 	Manual    []ManualStep `json:"manual"`
 	// SaaS: the environments deployed to, by name.
 	Environments []string `json:"environments"`
+	// The pull-request flow's one-time merge -s ours of the release branch into the RC branch (#1046).
+	Reconcile bool `json:"reconcile"`
+	// The version labels kept (#1046): text entries of versions.files, or a manual step for those without a pattern.
+	Labels []LabelChoice `json:"labels"`
 }
 
 // The proposal: the blocks the setup writes, and the source of each drafted step ("rc/promote", "steps/deploy-prod").
@@ -75,7 +80,7 @@ func DefaultOptions(f Facts) Options {
 	o := Options{Kind: f.Kind, Channels: []string{}, BranchModel: BranchModelPromote, Merge: MergeCommit,
 		TagPrefix: f.TagPrefix, RcFormat: RcFormatNumeric, Changelogs: []string{}, CiWorkflows: []string{},
 		Dispatch: []DispatchChoice{}, Notes: f.NotesDeclared, NotesPath: f.NotesPath, SyncBack: true, Milestone: f.OnGithub,
-		Manual: []ManualStep{}, Environments: []string{}}
+		Manual: []ManualStep{}, Environments: []string{}, Labels: []LabelChoice{}}
 	o.Channels = append(o.Channels, f.Missing...)
 	if len(o.Channels) == 0 {
 		o.Channels = []string{ChannelRc, ChannelPublic}
@@ -83,6 +88,16 @@ func DefaultOptions(f Facts) Options {
 	if f.Branches.Trunk == f.Branches.Release {
 		o.BranchModel = BranchModelSingle
 		o.SyncBack = false
+	} else if f.Protection.RequiresPr() {
+		o.BranchModel = BranchModelRcPr
+		o.Reconcile = f.Divergence.Reconcilable()
+	}
+	// Kept by default: a label of the current version, or one in a top-level file (an agents file lagging behind); an
+	// other version deep in the docs is more likely an example than a label.
+	for _, l := range f.Labels {
+		if l.Version == f.CurrentVersion || !strings.Contains(l.Path, "/") {
+			o.Labels = append(o.Labels, LabelChoice{Path: l.Path, Line: l.Line, Pattern: l.Pattern})
+		}
 	}
 	for _, c := range f.Changelogs {
 		o.Changelogs = append(o.Changelogs, c.Path)
@@ -174,13 +189,53 @@ func finalizeConfirm(f Facts, channel string, prefix string) string {
 	return b.String()
 }
 
-func changelogStep(path string, id string, release string, worktree string) molten.PipelineStep {
+// where says where a manual step of the cut is done: the release worktree, on the release branch or on the RC branch.
+func where(f Facts, o Options) string {
+	if o.BranchModel == BranchModelRcPr {
+		return fmt.Sprintf("In the release worktree (%s, prepared on the RC branch %s made from %s)", f.ReleaseWorktree, rcBranchDisplay(f), f.Branches.Trunk)
+	}
+	return fmt.Sprintf("In the release worktree (%s, prepared on %s)", f.ReleaseWorktree, f.Branches.Release)
+}
+
+// rcBranchDisplay names the RC branch in the pipeline's text: the release panel puts the release's own version in
+// {version}, a candidate's (1.2.0-1) and not the branch's (1.2.0).
+func rcBranchDisplay(f Facts) string {
+	pattern := f.RcBranchPattern
+	if !strings.Contains(pattern, "{version}") {
+		pattern = release.DefaultRcBranchPattern
+	}
+	return strings.ReplaceAll(pattern, "{version}", "X.Y.Z")
+}
+
+func changelogStep(path string, id string, at string) molten.PipelineStep {
 	return molten.PipelineStep{
 		Id:     id,
 		Title:  "Write the {version} section of " + path,
 		Phase:  "cut",
-		Manual: fmt.Sprintf("In the release worktree (%s, prepared on %s), write the {version} section of %s. The cut commits it with the version.", worktree, release, path),
+		Manual: fmt.Sprintf("%s, write the {version} section of %s. The cut commits it with the version.", at, path),
 	}
+}
+
+// labelsStep: the labels no pattern could match once, bumped by hand before the cut.
+func labelsStep(f Facts, o Options) (molten.PipelineStep, bool) {
+	var lines []string
+	for _, c := range o.Labels {
+		if c.Pattern != "" {
+			continue
+		}
+		text := ""
+		for _, l := range f.Labels {
+			if l.Path == c.Path && l.Line == c.Line {
+				text = l.Text
+			}
+		}
+		lines = append(lines, fmt.Sprintf("%s:%d (%s)", c.Path, c.Line, text))
+	}
+	if len(lines) == 0 {
+		return molten.PipelineStep{}, false
+	}
+	return molten.PipelineStep{Id: "bump-labels", Title: "Bump the version labels to {version}", Phase: "cut",
+		Manual: fmt.Sprintf("%s, write {version} in: %s. The cut commits them with the version.", where(f, o), strings.Join(lines, "; "))}, true
 }
 
 // insertManual puts the developer's steps in place: before the step they name (else before the cut), in that
@@ -199,7 +254,7 @@ func insertManual(steps []molten.PipelineStep, sources map[string]Source, key st
 		}
 		if at < 0 {
 			for i, s := range steps {
-				if s.Id == "finalize" {
+				if s.Id == "finalize" || s.Id == "open-pr" {
 					at = i
 					break
 				}
@@ -228,8 +283,12 @@ func onPremiseSteps(f Facts, o Options, channel string, sources map[string]Sourc
 	key := channel
 	trunk, release := f.Branches.Trunk, f.Branches.Release
 	single := o.BranchModel == BranchModelSingle || trunk == release
+	pr := !single && o.BranchModel == BranchModelRcPr
 	var steps []molten.PipelineStep
 	branchSource := Source{Code: "branches", Path: f.Branches.TrunkFrom + " / " + f.Branches.ReleaseFrom, Detail: trunk + " → " + release}
+	if pr {
+		return insertManual(prSteps(f, o, channel, sources, branchSource), sources, key, o.Manual, channel)
+	}
 	if !single {
 		run := "molten release promote"
 		for _, wf := range o.CiWorkflows {
@@ -246,26 +305,7 @@ func onPremiseSteps(f Facts, o Options, channel string, sources map[string]Sourc
 	steps = append(steps, molten.PipelineStep{Id: "prepare", Title: "Bump the version and draft the notes beside the checkout",
 		Phase: "prepare", PipelineCommand: molten.PipelineCommand{Run: "molten release prepare {tag}"}})
 	sources[key+"/prepare"] = f.VersionSource
-	for _, path := range o.Changelogs {
-		lang := "en"
-		for _, c := range f.Changelogs {
-			if c.Path == path {
-				lang = c.Lang
-			}
-		}
-		id := "changelog-" + StepId(lang)
-		for n := 2; stepIdTaken(steps, id); n++ {
-			id = fmt.Sprintf("changelog-%s-%d", StepId(lang), n)
-		}
-		step := changelogStep(path, id, release, f.ReleaseWorktree)
-		steps = append(steps, step)
-		sources[key+"/"+step.Id] = Source{Code: "changelog", Path: path}
-	}
-	if o.Notes {
-		steps = append(steps, molten.PipelineStep{Id: "rewrite-notes", Title: "Rewrite the public notes with the coding agent",
-			Notes: true, PipelineCommand: molten.PipelineCommand{Run: "molten release notes {tag}"}})
-		sources[key+"/rewrite-notes"] = Source{Code: "notes", Path: molten.ProjectPipelineFile}
-	}
+	steps = handSteps(f, o, steps, key, sources)
 	files, envs := tagWorkflows(f, channel, o.TagPrefix)
 	title := "Commit, tag and push"
 	if len(files) > 0 {
@@ -278,6 +318,129 @@ func onPremiseSteps(f Facts, o Options, channel string, sources map[string]Sourc
 		finalizeSource = Source{Code: "finalizeWorkflows", Path: strings.Join(files, ", "), Detail: strings.Join(envs, ", ")}
 	}
 	sources[key+"/finalize"] = finalizeSource
+	steps = afterTag(f, o, channel, steps, sources, branchSource, single)
+	return insertManual(steps, sources, key, o.Manual, channel)
+}
+
+// handSteps: the changelogs and the labels written by hand before the cut, and the notes' rewrite.
+func handSteps(f Facts, o Options, steps []molten.PipelineStep, key string, sources map[string]Source) []molten.PipelineStep {
+	at := where(f, o)
+	for _, path := range o.Changelogs {
+		lang := "en"
+		for _, c := range f.Changelogs {
+			if c.Path == path {
+				lang = c.Lang
+			}
+		}
+		id := "changelog-" + StepId(lang)
+		for n := 2; stepIdTaken(steps, id); n++ {
+			id = fmt.Sprintf("changelog-%s-%d", StepId(lang), n)
+		}
+		step := changelogStep(path, id, at)
+		steps = append(steps, step)
+		sources[key+"/"+step.Id] = Source{Code: "changelog", Path: path}
+	}
+	if step, ok := labelsStep(f, o); ok {
+		steps = append(steps, step)
+		sources[key+"/"+step.Id] = Source{Code: "labelsManual"}
+	}
+	if o.Notes {
+		steps = append(steps, molten.PipelineStep{Id: "rewrite-notes", Title: "Rewrite the public notes with the coding agent",
+			Notes: true, PipelineCommand: molten.PipelineCommand{Run: "molten release notes {tag}"}})
+		sources[key+"/rewrite-notes"] = Source{Code: "notes", Path: molten.ProjectPipelineFile}
+	}
+	return steps
+}
+
+// prSteps: the release reaches a protected release branch by pull request (#1046): the RC branch from the trunk, the
+// one-time reconciliation when chosen, the hand steps, the pull request opened, merged once its checks are green and
+// the developer confirmed, the tag on its merge commit, then what follows any tag.
+func prSteps(f Facts, o Options, channel string, sources map[string]Source, branchSource Source) []molten.PipelineStep {
+	key := channel
+	trunk, release := f.Branches.Trunk, f.Branches.Release
+	rc := rcBranchDisplay(f)
+	protectionSource := Source{Code: "protection", Path: release, Detail: protectionSummary(f.Protection)}
+	var steps []molten.PipelineStep
+	steps = append(steps, molten.PipelineStep{Id: "prepare", Title: fmt.Sprintf("Bump the version and draft the notes on %s, made from %s", rc, trunk),
+		Phase: "prepare", PipelineCommand: molten.PipelineCommand{Run: "molten release prepare {tag} --pr"}})
+	sources[key+"/prepare"] = f.VersionSource
+	if o.Reconcile {
+		steps = append(steps, molten.PipelineStep{Id: "reconcile", Phase: "prepare",
+			Title:           fmt.Sprintf("Merge %s into %s with -s ours, once: every commit of %s is already on %s", release, rc, release, trunk),
+			PipelineCommand: molten.PipelineCommand{Run: "molten release reconcile {tag}"}})
+		d := f.Divergence
+		detail := ""
+		if d != nil {
+			detail = fmt.Sprintf("%d / %d / %d", d.Ahead, d.Behind, d.ConflictFiles)
+		}
+		sources[key+"/reconcile"] = Source{Code: "reconcile", Path: release + " / " + trunk, Detail: detail}
+	}
+	steps = handSteps(f, o, steps, key, sources)
+	steps = append(steps, molten.PipelineStep{Id: "open-pr", Title: fmt.Sprintf("Commit the release on %s and open its pull request to %s", rc, release), Phase: "cut",
+		Confirm:         fmt.Sprintf("Pushes %s with the release commit of {tag} and opens its pull request to %s.", rc, release),
+		PipelineCommand: molten.PipelineCommand{Run: "molten release open-pr {tag}"}})
+	sources[key+"/open-pr"] = protectionSource
+	method := o.Merge
+	if method == "" {
+		method = MergeCommit
+	}
+	checks := "GitHub lets it merge"
+	if p := f.Protection; p != nil && len(p.RequiredChecks) > 0 {
+		verb := " is"
+		if len(p.RequiredChecks) > 1 {
+			verb = " are"
+		}
+		checks = strings.Join(p.RequiredChecks, ", ") + verb + " green"
+	}
+	steps = append(steps, molten.PipelineStep{Id: "merge-pr", Title: fmt.Sprintf("Merge the pull request into %s once %s", release, checks), Phase: "cut",
+		Confirm:         fmt.Sprintf("Merges the pull request of {tag} into %s with a %s once %s.", release, mergeWords(method), checks),
+		PipelineCommand: molten.PipelineCommand{Run: "molten release merge-pr {tag} --method " + method}})
+	sources[key+"/merge-pr"] = protectionSource
+	files, envs := tagWorkflows(f, channel, o.TagPrefix)
+	title := "Tag the merge commit and push the tag"
+	if len(files) > 0 {
+		title += ": " + strings.Join(files, ", ") + startVerb(files) + " on the tag"
+	}
+	steps = append(steps, molten.PipelineStep{Id: "tag", Title: title, Phase: "cut", Confirm: finalizeConfirm(f, channel, o.TagPrefix),
+		PipelineCommand: molten.PipelineCommand{Run: "molten release tag {tag}"}})
+	tagSource := Source{Code: "finalizeNoWorkflow"}
+	if len(files) > 0 {
+		tagSource = Source{Code: "finalizeWorkflows", Path: strings.Join(files, ", "), Detail: strings.Join(envs, ", ")}
+	}
+	sources[key+"/tag"] = tagSource
+	return afterTag(f, o, channel, steps, sources, branchSource, false)
+}
+
+func mergeWords(method string) string {
+	switch method {
+	case MergeSquash:
+		return "squash merge"
+	case MergeRebase:
+		return "rebase merge"
+	}
+	return "merge commit"
+}
+
+// protectionSummary says in a few words what the release branch's protection asks, for the step's source.
+func protectionSummary(p *Protection) string {
+	if p == nil || !p.Read {
+		return ""
+	}
+	var parts []string
+	if p.PullRequest {
+		parts = append(parts, "pull request")
+	}
+	parts = append(parts, p.RequiredChecks...)
+	if p.Bypass != "" {
+		parts = append(parts, "bypass: "+p.Bypass)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// afterTag: what follows the tag, in either flow: the milestone, the dispatched workflows, the sync-back.
+func afterTag(f Facts, o Options, channel string, steps []molten.PipelineStep, sources map[string]Source, branchSource Source, single bool) []molten.PipelineStep {
+	key := channel
+	trunk := f.Branches.Trunk
 	if channel == ChannelPublic && o.Milestone && f.OnGithub {
 		steps = append(steps, molten.PipelineStep{Id: "close-milestone", Title: "Close the milestone once the release is published",
 			Phase: "publish", PipelineCommand: molten.PipelineCommand{Run: "molten release close-milestone {tag}"}})
@@ -305,7 +468,7 @@ func onPremiseSteps(f Facts, o Options, channel string, sources map[string]Sourc
 			Phase: "back", PipelineCommand: molten.PipelineCommand{Run: "molten release sync-back {tag}"}})
 		sources[key+"/sync-back"] = branchSource
 	}
-	return insertManual(steps, sources, key, o.Manual, channel)
+	return steps
 }
 
 // saasSteps: one cd step per chosen environment, deploying the release branch through its workflow (FR-MC-035's
@@ -383,6 +546,9 @@ func proposedVersions(f Facts, o Options, current *molten.Pipeline) *molten.Pipe
 	if len(v.Files) == 0 && len(f.VersionFiles) > 0 {
 		v.Files = f.VersionFiles
 	}
+	if len(v.Files) > 0 {
+		v.Files = withLabels(v.Files, o.Labels)
+	}
 	if o.TagPrefix != versions.DefaultTagPrefix || v.TagPrefix != "" {
 		v.TagPrefix = o.TagPrefix
 	}
@@ -398,6 +564,25 @@ func proposedVersions(f Facts, o Options, current *molten.Pipeline) *molten.Pipe
 		return nil
 	}
 	return &v
+}
+
+// withLabels adds the kept labels that have a pattern as text entries, after the declared files (the first file
+// holds the project's version); one already declared is not added twice.
+func withLabels(files []versions.VersionFile, labels []LabelChoice) []versions.VersionFile {
+	rtn := append([]versions.VersionFile(nil), files...)
+	for _, l := range labels {
+		if l.Pattern == "" {
+			continue
+		}
+		known := false
+		for _, f := range rtn {
+			known = known || (f.Path == l.Path && f.Pattern == l.Pattern)
+		}
+		if !known {
+			rtn = append(rtn, versions.VersionFile{Path: l.Path, Format: versions.FileFormatText, Pattern: l.Pattern})
+		}
+	}
+	return rtn
 }
 
 func stepIdTaken(steps []molten.PipelineStep, id string) bool {

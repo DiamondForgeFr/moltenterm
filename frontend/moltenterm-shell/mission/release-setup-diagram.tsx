@@ -16,7 +16,7 @@ const TopH = 22;
 const LaneH = 62;
 const LabelChars = 15;
 
-const LaneOrder: FlowNode["lane"][] = ["trunk", "release", "github"];
+const LaneOrder: FlowNode["lane"][] = ["trunk", "rc", "release", "github"];
 
 function shorten(text: string): string {
     return text.length > LabelChars ? `${text.slice(0, LabelChars - 1)}…` : text;
@@ -27,8 +27,8 @@ type Placed = FlowNode & { x: number; y: number };
 // layout gives every node its own slot, in phase order then declared order, and each phase the band of its slots.
 export function layoutFlow(model: FlowModel) {
     const lanes = LaneOrder.filter((lane) => {
-        if (lane === "github") {
-            return model.nodes.some((n) => n.lane === "github");
+        if (lane === "github" || lane === "rc") {
+            return model.nodes.some((n) => n.lane === lane);
         }
         return !(model.single && lane === "trunk");
     });
@@ -117,8 +117,18 @@ export function FlowDiagram({ model, className }: { model: FlowModel; className?
     const t = useT();
     const { lanes, laneY, placed, bands, width, height } = layoutFlow(model);
     const laneName = (lane: FlowNode["lane"]) =>
-        lane === "github" ? t("mc.setup.diagram.github") : lane === "trunk" ? model.trunk : model.release;
+        lane === "github"
+            ? t("mc.setup.diagram.github")
+            : lane === "trunk"
+              ? model.trunk
+              : lane === "rc"
+                ? (model.rcBranch ?? "")
+                : model.release;
     const promoteAt = placed.find((n) => n.key.endsWith("/promote"));
+    // The pull-request flow: the RC branch leaves the trunk at its first step and joins the release branch where its
+    // pull request is merged.
+    const branchAt = model.viaPr ? placed.find((n) => n.lane === "rc") : undefined;
+    const mergeAt = model.viaPr ? placed.find((n) => n.key.endsWith("/merge-pr")) : undefined;
     const syncAt = placed.find((n) => n.key.endsWith("/sync-back"));
     return (
         <div
@@ -176,6 +186,20 @@ export function FlowDiagram({ model, className }: { model: FlowModel; className?
                     <path
                         d={`M ${promoteAt.x} ${laneY("trunk")} C ${promoteAt.x + 30} ${laneY("trunk")}, ${promoteAt.x + 18} ${laneY("release")}, ${promoteAt.x + 48} ${laneY("release")}`}
                         style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                    />
+                ) : null}
+                {branchAt ? (
+                    <path
+                        d={`M ${branchAt.x - 48} ${laneY("trunk")} C ${branchAt.x - 18} ${laneY("trunk")}, ${branchAt.x - 30} ${laneY("rc")}, ${branchAt.x} ${laneY("rc")}`}
+                        style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                        data-testid="setup-diagram-branch"
+                    />
+                ) : null}
+                {mergeAt ? (
+                    <path
+                        d={`M ${mergeAt.x - 48} ${laneY("rc")} C ${mergeAt.x - 18} ${laneY("rc")}, ${mergeAt.x - 30} ${laneY("release")}, ${mergeAt.x} ${laneY("release")}`}
+                        style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                        data-testid="setup-diagram-pr"
                     />
                 ) : null}
                 {syncAt && !model.single ? (

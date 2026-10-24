@@ -3142,6 +3142,7 @@
             "failedJobs": "Failed: {jobs}.",
             "endedIn": "{workflows} ended in “{conclusion}”.",
             "theRelease": "The release",
+            "thePullRequest": "The pull request",
             "waitsBuild": "Waits for the build.",
             "published": "Published.",
             "noPublishToFollow": "Nothing to follow: not on GitHub, and no publish step declared.",
@@ -3564,7 +3565,46 @@
                 "syncBack": "Carry the release commit back to {trunk} by pull request",
                 "milestone": "Close the milestone once published",
                 "manual": "Steps done by hand",
-                "manualHint": "Something MoltenTerm cannot run for you, such as a one-time merge: the release waits until you mark it done."
+                "manualHint": "Something MoltenTerm cannot run for you, such as a one-time merge: the release waits until you mark it done.",
+                "reconcile": "Reconcile {release} into {rc} once (merge -s ours, before the release commit)",
+                "reconcileHint": "Every commit of the release branch is already on the trunk: nothing is lost. Remove the step once a release went through.",
+                "labels": "Version labels",
+                "labelsHint": "Lines outside the version files that show the version ({version}); the kept ones are bumped with it.",
+                "labelManual": "No pattern finds this line alone: you bump it by hand, in a step before the cut."
+            },
+            "why": {
+                "title": "Why this flow"
+            },
+            "protection": {
+                "unread": "The protection of {branch} could not be read ({error}): the flow assumes it takes direct pushes.",
+                "none": "{branch} asks for no pull request: the release is pushed to it directly.",
+                "pullRequest": "a pull request",
+                "checks": "the checks {checks}",
+                "checksStrict": "the checks {checks} on a branch up to date with {branch}",
+                "restricted": "restricted updates",
+                "ruleset": "the ruleset “{name}”",
+                "classic": "the branch protection",
+                "bypassable": "{branch} asks for {rules} ({sources}), but you may bypass it: the release is pushed to it directly.",
+                "requires": "{branch} asks for {rules} ({sources}) and nobody can bypass it: the release goes through {rc} and its pull request, merged with a merge commit once its checks are green, and the tag goes on the merge commit.",
+                "requiresPrOnly": "{branch} asks for {rules} ({sources}) and you may bypass it only through a pull request: the release goes through {rc} and its pull request, merged with a merge commit once its checks are green, and the tag goes on the merge commit."
+            },
+            "divergence": {
+                "none": "{release} holds nothing {trunk} lacks.",
+                "ahead": {
+                    "one": "{release} has {count} commit {trunk} does not, and {trunk} has {behind} that {release} does not.",
+                    "other": "{release} has {count} commits {trunk} does not, and {trunk} has {behind} that {release} does not."
+                },
+                "conflicts": {
+                    "one": "Merging them conflicts in {count} file.",
+                    "other": "Merging them conflicts in {count} files."
+                },
+                "clean": "Their merge does not conflict.",
+                "notEquivalent": {
+                    "one": "{count} commit of {release} has no equivalent on {trunk} ({samples}): a merge -s ours would drop it, so no reconciliation is proposed; carry it to {trunk} first.",
+                    "other": "{count} commits of {release} have no equivalent on {trunk} (among them {samples}): a merge -s ours would drop them, so no reconciliation is proposed; carry them to {trunk} first."
+                },
+                "equivalent": "Every commit of {release} already has its equivalent on {trunk}: a one-time merge -s ours on the RC branch, before the release commit, joins their histories and loses nothing.",
+                "equivalentPromote": "Every commit of {release} already has its equivalent on {trunk}, but the promotion refuses a merge that conflicts: the pull-request model offers a one-time reconciliation."
             },
             "branchModel": {
                 "promote": "Promote {trunk} onto {release}, then tag {release}",
@@ -3584,7 +3624,8 @@
                 "msiNumeric": "Windows installers only accept numbers after the dash ({target} target).",
                 "chainNumeric": "MoltenTerm's release chain numbers candidates -1, -2… for now.",
                 "npmDistTag": "npm accepts it, published under a dist-tag such as next.",
-                "chainNoRcPr": "MoltenTerm's release chain does not open release branches by pull request yet.",
+                "protectedRelease": "{target} takes changes by pull request only: a promotion pushed straight to it is refused.",
+                "protectionMerge": "The rules of {target} do not allow this merge method.",
                 "chainMerge": "MoltenTerm's release chain merges or fast-forwards; this one comes later.",
                 "singleBranch": "The trunk is also the release branch.",
                 "noReleaseBranch": "No release branch is declared."
@@ -3607,7 +3648,10 @@
                 "targetNpm": "npm package {detail} ({path}).",
                 "targetWorkflow": "Published by {path}.",
                 "kindPublish": "{path} publishes on a tag.",
-                "kindDeploy": "{path} deploys to {detail}."
+                "kindDeploy": "{path} deploys to {detail}.",
+                "protection": "The protection of {path}: {detail}.",
+                "reconcile": "{path} diverged: {detail} (commits ahead / behind / conflicting files).",
+                "labelsManual": "Version labels no pattern finds alone."
             },
             "manual": {
                 "titlePlaceholder": "What to do, in a few words",

@@ -72,6 +72,8 @@ export type ReleaseFacts = {
     release?: { tagName: string; isDraft: boolean; isPrerelease: boolean; url: string };
     ontrunk: boolean;
     backpr?: { number: number; url: string; title: string; headRefName: string };
+    // The pull request bringing the release to the release branch, while the tag is not pushed (#1046).
+    releasepr?: { number: number; url: string; title: string; headRefName: string };
     // A running step waits for a branch's GitHub CI (the promotion, #836).
     awaits?: ReleaseCiAwait;
     // The workflows the pushed tag starts, read at the tag; absent when they could not be read (#1040).
@@ -416,7 +418,8 @@ function cut(
     notesStep: PipelineReleaseStep,
     ready: boolean
 ): Phase {
-    const base: Phase = { id: "cut", title: PhaseTitles.cut, status: "todo", expect: "", links: [] };
+    const prLinks = facts.releasepr ? [{ label: t("mc.releaseRun.thePullRequest"), url: facts.releasepr.url }] : [];
+    const base: Phase = { id: "cut", title: PhaseTitles.cut, status: "todo", expect: "", links: prLinks };
     if (facts.tagexists) {
         return { ...base, status: "done", expect: t("mc.releaseRun.tagged", { tag }) };
     }
@@ -458,6 +461,11 @@ function cut(
         return phase;
     }
     const confirm = declared ?? t("mc.releaseRun.mayPush", { step: action.label, tag });
+    // The pull-request flow confirms several cut steps (#1046): only the last one pushes the tag.
+    const pushesTag = !declared || steps[steps.length - 1]?.id === action.step;
+    if (!pushesTag) {
+        return { ...phase, action: { ...action, confirm } };
+    }
     return {
         ...phase,
         action: {

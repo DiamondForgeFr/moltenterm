@@ -22,6 +22,7 @@ import {
     diffHunks,
     flowModel,
     lineDiff,
+    reconcilable,
     removeManual,
     SetupChannel,
     SetupChoice,
@@ -33,6 +34,7 @@ import {
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
+import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
 import { TrustPrompt } from "./runs-view";
 
 type StepId = "kind" | "what" | "choices" | "review";
@@ -358,7 +360,8 @@ export function ChoicesStep({
             </div>
         );
     }
-    const ciWorkflows = facts.workflows.filter((w) => w.role === "ci");
+    // The pull-request flow waits for the release branch's required checks instead of a promotion's CI.
+    const ciWorkflows = options.branchmodel === "rcpr" ? [] : facts.workflows.filter((w) => w.role === "ci");
     const dispatchable = facts.workflows.filter(
         (w) => w.dispatch && (w.role === "docs" || w.role === "deploy") && !(w.requiredinputs?.length > 0)
     );
@@ -386,6 +389,7 @@ export function ChoicesStep({
                 </div>
             ) : null}
             <FlowDiagram model={flowModel(draft, channel, options.tagprefix)} />
+            <FlowReasons draft={draft} options={options} />
             <div className="grid grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[80rem]:grid-cols-3">
                 <div className={SectionClass}>
                     <div className={SectionTitle}>{t("mc.setup.choices.branchModel")}</div>
@@ -398,6 +402,7 @@ export function ChoicesStep({
                                 ...options,
                                 branchmodel: id,
                                 syncback: id === "single" ? false : options.syncback,
+                                reconcile: id === "rcpr" ? reconcilable(facts.divergence) : false,
                             })
                         }
                         labelOf={(id) =>
@@ -408,6 +413,7 @@ export function ChoicesStep({
                             })
                         }
                     />
+                    <ReconcileCheck draft={draft} options={options} onChange={onChange} />
                 </div>
                 <div className={SectionClass}>
                     <div className={SectionTitle}>{t("mc.setup.choices.merge")}</div>
@@ -533,6 +539,13 @@ export function ChoicesStep({
                         label={t("mc.setup.choices.milestone")}
                     />
                 </div>
+                <LabelsSection
+                    draft={draft}
+                    options={options}
+                    onChange={onChange}
+                    sectionClass={SectionClass}
+                    titleClass={SectionTitle}
+                />
             </div>
             <div className={SectionClass}>
                 <div className={SectionTitle}>{t("mc.setup.choices.manual")}</div>
@@ -622,6 +635,7 @@ export function ReviewStep({
     const sources = Object.entries(draft.proposal.sources ?? {});
     return (
         <div className="flex flex-col gap-3">
+            {refined ? null : <FlowReasons draft={draft} options={options} />}
             {refined
                 ? null
                 : channels.map((c) => (

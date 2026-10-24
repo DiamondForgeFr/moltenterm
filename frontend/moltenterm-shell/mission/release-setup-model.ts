@@ -50,7 +50,76 @@ export type SetupFacts = {
     ticketbranches: boolean;
     currentbranch?: string;
     releaseworktree: string;
+    currentversion?: string;
+    labels: SetupLabel[];
+    protection?: SetupProtection;
+    divergence?: SetupDivergence;
 };
+
+// must match VersionLabel in pkg/molten/pipelinesetup/labels.go
+export type SetupLabel = { path: string; line: number; text: string; version: string; pattern: string };
+export type SetupLabelChoice = { path: string; line: number; pattern?: string };
+
+// must match Protection in pkg/molten/pipelinesetup/remote.go
+export type SetupProtection = {
+    branch: string;
+    read: boolean;
+    error?: string;
+    pullrequest: boolean;
+    requiredchecks: string[];
+    strict: boolean;
+    noforcepush: boolean;
+    restrictupdates: boolean;
+    mergemethods: string[];
+    bypass?: "always" | "pull_requests_only" | "never" | "";
+    sources: SetupSource[];
+};
+
+// must match Divergence in pkg/molten/pipelinesetup/remote.go
+export type SetupDivergence = {
+    trunk: string;
+    release: string;
+    read: boolean;
+    ahead: number;
+    behind: number;
+    conflicts: boolean;
+    conflictfiles: number;
+    notequivalent: number;
+    samples: string[];
+};
+
+// must match Protection.RequiresPr in pkg/molten/pipelinesetup/remote.go
+export function requiresPr(p: SetupProtection): boolean {
+    if (p == null || !p.read) {
+        return false;
+    }
+    return (p.pullrequest || (p.requiredchecks?.length ?? 0) > 0 || p.restrictupdates) && p.bypass !== "always";
+}
+
+export function diverged(d: SetupDivergence): boolean {
+    return d != null && d.read && d.ahead > 0 && d.behind > 0;
+}
+
+// must match Divergence.Reconcilable in pkg/molten/pipelinesetup/remote.go
+export function reconcilable(d: SetupDivergence): boolean {
+    return diverged(d) && d.conflicts && d.notequivalent === 0;
+}
+
+export function labelKept(options: SetupOptions, label: SetupLabel): boolean {
+    return (options.labels ?? []).some((l) => l.path === label.path && l.line === label.line);
+}
+
+export function toggledLabel(options: SetupOptions, label: SetupLabel, on: boolean): SetupOptions {
+    const rest = (options.labels ?? []).filter((l) => !(l.path === label.path && l.line === label.line));
+    const labels = on ? [...rest, { path: label.path, line: label.line, pattern: label.pattern }] : rest;
+    return { ...options, labels };
+}
+
+// The RC branch as the pipeline's text names it (pkg/molten/pipelinesetup rcBranchDisplay).
+export function rcBranchDisplay(facts: SetupFacts): string {
+    const pattern = facts.rcbranchpattern?.includes("{version}") ? facts.rcbranchpattern : "rc-{version}";
+    return pattern.split("{version}").join("X.Y.Z");
+}
 
 export type ManualStep = { id: string; title: string; text: string; channel?: SetupChannel | ""; before?: string };
 
@@ -71,6 +140,8 @@ export type SetupOptions = {
     milestone: boolean;
     manual: ManualStep[];
     environments: string[];
+    reconcile: boolean;
+    labels: SetupLabelChoice[];
 };
 
 export type SetupChoice = {
@@ -241,8 +312,9 @@ export type FlowNode = {
     label: string;
     kind: FlowNodeKind;
     phase: ReleasePhase;
-    // The lane it sits on: the trunk, the release branch, or GitHub (the workflows).
-    lane: "trunk" | "release" | "github";
+    // The lane it sits on: the trunk, the RC branch of the pull-request flow, the release branch, or GitHub (the
+    // workflows).
+    lane: "trunk" | "rc" | "release" | "github";
     approval?: string;
     source?: SetupSource;
 };
@@ -255,7 +327,13 @@ export type FlowModel = {
     // The trunk reaches the release branch (promote) and comes back (sync-back).
     promote: boolean;
     syncBack: boolean;
+    // The pull-request flow (#1046): the RC branch leaves the trunk and is merged into the release branch.
+    viaPr: boolean;
+    rcBranch?: string;
 };
+
+// The steps of the pull-request flow that run on the RC branch, before its pull request is merged.
+const RcLaneSteps = new Set(["prepare", "reconcile", "bump-labels", "open-pr"]);
 
 const DispatchRe = /^molten release dispatch\s+(\S+)/;
 
@@ -300,10 +378,28 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
                 source: draft.proposal.sources?.[`steps/${step.id}`],
             });
         }
-        return { trunk, release: facts.branches.release, single: false, nodes, promote: true, syncBack: false };
+        return {
+            trunk,
+            release: facts.branches.release,
+            single: false,
+            nodes,
+            promote: true,
+            syncBack: false,
+            viaPr: false,
+        };
     }
     const steps = draft.proposal.release?.[channel] ?? [];
     const phases = phasesOf(steps);
+    const viaPr = steps.some((s) => (s.run ?? "").startsWith("molten release open-pr"));
+    const laneOf = (step: PipelineReleaseStep, i: number): FlowNode["lane"] => {
+        if (phases[i] === "prepare" && step.id === "promote") {
+            return "trunk";
+        }
+        if (viaPr && phases[i] !== "back" && (RcLaneSteps.has(step.id) || step.manual || step.notes)) {
+            return "rc";
+        }
+        return "release";
+    };
     steps.forEach((step, i) => {
         const key = `${channel}/${step.id}`;
         const dispatch = DispatchRe.exec(step.run ?? "");
@@ -312,7 +408,7 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
             label: step.title || step.id,
             kind: step.manual ? "manual" : step.notes ? "notes" : dispatch ? "dispatch" : "command",
             phase: phases[i],
-            lane: dispatch ? "github" : phases[i] === "prepare" && step.id === "promote" ? "trunk" : "release",
+            lane: dispatch ? "github" : laneOf(step, i),
             approval: dispatch
                 ? (facts.workflows.find((w) => w.file === dispatch[1])?.environments ?? []).join(", ") || undefined
                 : undefined,
@@ -345,5 +441,7 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
         nodes,
         promote: steps.some((s) => s.id === "promote"),
         syncBack: steps.some((s) => s.id === "sync-back"),
+        viaPr,
+        rcBranch: viaPr ? rcBranchDisplay(facts) : undefined,
     };
 }

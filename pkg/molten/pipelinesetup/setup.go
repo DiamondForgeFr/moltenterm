@@ -87,7 +87,9 @@ type AgentRunner func(ctx context.Context, dir string, argv []string, prompt str
 
 type Setup struct {
 	Providers []Provider
-	Agent     AgentRunner
+	// Runs gh and git for what the files cannot say (the release branch's protection, the divergence); nil skips it.
+	Run   Runner
+	Agent AgentRunner
 	// Which coding agent refines (agentchoice.Resolve); tests replace it.
 	ChooseAgent func(dir string) agentchoice.Choice
 }
@@ -96,6 +98,7 @@ type Setup struct {
 func MakeSetup(run Runner, agent AgentRunner) *Setup {
 	return &Setup{
 		Providers:   []Provider{SaaSFoundryProvider{Run: run}, DetectionProvider{}},
+		Run:         run,
 		Agent:       agent,
 		ChooseAgent: func(dir string) agentchoice.Choice { return agentchoice.Resolve(dir, "") },
 	}
@@ -153,6 +156,7 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 		return DraftAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.invalid", "errors", strings.Join(f.PipelineErrors, "; ")),
 			"%s is not valid: %s; fix it first (molten project validate)", molten.ProjectPipelineFile, strings.Join(f.PipelineErrors, "; "))
 	}
+	ReadRemoteFacts(ctx, s.Run, dir, &f)
 	report := molten.ValidatePipeline(dir)
 	answer := DraftAnswer{Facts: f, Warnings: []string{}, Current: string(current), Base: hashOf(current),
 		DeployTargets: f.DeployTargets()}
@@ -165,7 +169,7 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 		answer.Options = *req.Options
 		answer.Proposal = Build(f, answer.Options, report.Pipeline)
 	} else {
-		draft, warnings := s.providerDraft(ctx, dir, answer.Defaults.Kind)
+		draft, warnings := s.providerDraft(ctx, dir, answer.Defaults.Kind, f)
 		answer.Provider, answer.Proposal = draft.Provider, draft.Proposal
 		answer.Warnings = append(warnings, draft.Warnings...)
 		answer.Defaults.Kind = draft.Kind
@@ -175,6 +179,15 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 	models := []string{BranchModelPromote, BranchModelSingle, BranchModelRcPr}
 	answer.BranchModels = EvaluateChoices(models, BranchModelRules, f.TargetIds())
 	answer.Merges = EvaluateChoices([]string{MergeCommit, MergeSquash, MergeRebase}, MergeRules, f.TargetIds())
+	if f.Branches.Trunk == f.Branches.Release {
+		for i := range answer.BranchModels {
+			if answer.BranchModels[i].Id == BranchModelRcPr {
+				answer.BranchModels[i].Allowed = false
+				answer.BranchModels[i].Reasons = append(answer.BranchModels[i].Reasons, ChoiceReason{Code: ReasonSingleBranch, Refuses: true})
+			}
+		}
+	}
+	applyProtection(answer.BranchModels, answer.Merges, f.Protection)
 	prefix := answer.Options.TagPrefix
 	if prefix == "" {
 		prefix = f.TagPrefix
@@ -191,11 +204,15 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 }
 
 // providerDraft asks the first available provider; a provider that fails hands over to the next, and says so.
-func (s *Setup) providerDraft(ctx context.Context, dir string, kind string) (*ProviderDraft, []string) {
+func (s *Setup) providerDraft(ctx context.Context, dir string, kind string, f Facts) (*ProviderDraft, []string) {
 	warnings := []string{}
 	for _, p := range s.Providers {
 		if !p.Available(ctx, dir) {
 			continue
+		}
+		if detection, ok := p.(DetectionProvider); ok {
+			detection.Facts = &f
+			p = detection
 		}
 		draft, err := p.Draft(ctx, dir, kind)
 		if err == nil {
@@ -203,7 +220,7 @@ func (s *Setup) providerDraft(ctx context.Context, dir string, kind string) (*Pr
 		}
 		warnings = append(warnings, fmt.Sprintf("%s: %v", p.Name(), err))
 	}
-	draft, _ := DetectionProvider{}.Draft(ctx, dir, kind)
+	draft, _ := DetectionProvider{Facts: &f}.Draft(ctx, dir, kind)
 	return draft, warnings
 }
 
