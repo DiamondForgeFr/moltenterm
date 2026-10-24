@@ -21,8 +21,9 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
-	"github.com/wavetermdev/waveterm/pkg/molten"         // MOLTENTERM-PATCH (#19)
-	"github.com/wavetermdev/waveterm/pkg/molten/mission" // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten"            // MOLTENTERM-PATCH (#19)
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"    // MOLTENTERM-PATCH (#31)
+	"github.com/wavetermdev/waveterm/pkg/molten/stdinwatch" // MOLTENTERM-PATCH (#1043)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
@@ -103,14 +104,14 @@ func stdinReadWatch() {
 	defer func() {
 		panichandler.PanicHandler("stdinReadWatch", recover())
 	}()
-	buf := make([]byte, 1024)
-	for {
-		_, err := os.Stdin.Read(buf)
-		if err != nil {
-			doShutdown(fmt.Sprintf("stdin closed/error (%v)", err))
-			break
-		}
-	}
+	// MOLTENTERM-PATCH (#1043): a read error other than EOF quits only when the parent is gone too; while it runs,
+	// wavesrv logs the error with a goroutine dump and watches the parent instead of quitting the whole app
+	stdinwatch.Watch(stdinwatch.Config{
+		Stdin:       os.Stdin,
+		ParentAlive: stdinwatch.ParentWatcher(),
+		Shutdown:    doShutdown,
+		Logf:        log.Printf,
+	})
 }
 
 func startConfigWatcher() {
