@@ -4703,7 +4703,8 @@
                 "rebase": "rebase done, no conflict left",
                 "investigate": "nothing blocks it any more",
                 "finish": "nothing left on this pull request"
-            }
+            },
+            "inactive": "inactive · {what} was asked {duration} ago"
         },
         "signedBy": "signed {who}",
         "signedMore": "{name} +{count}",
@@ -5324,6 +5325,95 @@
             "startedHidden": "{name} checks {branch} and finishes what is left, out of sight: a notification tells you when it is done or needs you.",
             "offer": "No agent works on {branch}. Start one to check it and finish what is left?",
             "askFailed": "The agent could not be asked. {message}"
+        },
+        "card": {
+            "anAgent": "an agent",
+            "name": "{name}",
+            "more": "More actions",
+            "moreTitle": "More actions on PR #{number}",
+            "draftTag": "draft",
+            "draftTagTitle": "This pull request is a draft on GitHub.",
+            "disabledTitle": "{action}: {reason}",
+            "confirm": {
+                "agentWorking": "{name} is still working on this branch.",
+                "noReport": "No test report yet.",
+                "validateAnyway": "Validate anyway"
+            },
+            "state": {
+                "agentWaiting": "{name} is waiting for you",
+                "agentWorking": "{name} is on it",
+                "agentAway": "An agent is on it",
+                "agentOn": {
+                    "rebase": "{name} is rebasing onto {base}",
+                    "investigate": "{name} is resolving what blocks it",
+                    "finish": "{name} is finishing the pull request"
+                },
+                "interrupted": "Work interrupted",
+                "conflicts": "Conflicts with {base}",
+                "failing": "CI failing: {names}",
+                "changes": "Changes requested",
+                "reviewRequired": "Review required",
+                "blockedRule": "Blocked by a rule",
+                "draftReady": "Ready for review",
+                "ciRunning": "CI running",
+                "mergeChecking": "GitHub is checking the merge",
+                "ready": "Ready to merge"
+            },
+            "why": {
+                "conflicts": "conflicts with {base}",
+                "ciFailing": "CI failing: {names}",
+                "board": "column {status}",
+                "recentCommit": "a commit landed lately",
+                "interrupted": "{name} stopped before finishing {what}",
+                "interruptedGone": "{name}'s session ended before finishing {what}",
+                "nobody": "nobody on it",
+                "onHead": "on the latest commit",
+                "approval": "GitHub awaits an approval",
+                "reasons": "{reasons}",
+                "yours": "yours",
+                "running": "{count} of {total}, {names}"
+            },
+            "action": {
+                "answer": "Answer {name}",
+                "follow": "Follow {name}",
+                "relaunch": "Relaunch {name}",
+                "startAgent": "Start an agent",
+                "rebase": "Hand the rebase over",
+                "investigate": "Analyze and resolve",
+                "assistedReview": "Assisted review",
+                "launch": "Launch this version",
+                "github": "Open on GitHub",
+                "openWork": "Open its work",
+                "stop": "Stop {name}",
+                "rerun": "Rerun failed jobs: {names}",
+                "markReady": "Mark ready for review"
+            },
+            "actionTitle": {
+                "answer": "Show {name}'s terminal: it is waiting for your answer",
+                "follow": "Show {name}'s terminal",
+                "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
+                "startAgent": "The task's session is gone: start a new agent on it",
+                "rebase": "Hand the rebase on {base} to an agent: the one on the branch, or one you start",
+                "investigate": "A work agent resolves what blocks this pull request, in this order: {blockers}. It never merges."
+            },
+            "fact": {
+                "ciFailing": "CI failing: {names}",
+                "othersGreen": "{count} other checks green",
+                "ciRunning": "CI {success}/{total}, {pending} running",
+                "ciGreen": "CI {success}/{total}",
+                "report": "report",
+                "noReport": "no test report",
+                "conflicts": "conflicts with {base}",
+                "behind": "behind {base}, GitHub will update it",
+                "changes": "changes requested",
+                "unpublished": "{count} unpublished comments",
+                "unpublishedOne": "1 unpublished comment",
+                "rank": "#{rank} in the merge order",
+                "board": "column {status}"
+            },
+            "history": {
+                "gone": "{name} stopped before finishing {what}."
+            }
         }
     },
     "sessions": {

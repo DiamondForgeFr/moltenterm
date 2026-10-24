@@ -11,8 +11,9 @@ const BarMarkup = `<div data-testid="row-agent-bar"></div>`;
 // The real bar needs wavesrv's agent facts; a stub stands for "an agent works on the PR's branch".
 vi.mock("./reviews-agent-bar", () => ({
     RowAgentLine: () => <div data-testid="row-agent-bar" />,
-    DraftTurnChip: () => null,
-    HeadStillFailsLine: () => null,
+    useCardAgents: () => ({ agents: [], prTask: null, owner: null, live: false, now: 0, state: null }),
+    useDraftTurn: () => ({ turn: null, status: "" }),
+    useHeadStillFails: () => [],
 }));
 
 function pr(): ReviewPr {

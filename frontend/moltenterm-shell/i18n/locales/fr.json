@@ -4703,7 +4703,8 @@
                 "rebase": "rebase fait, plus de conflit",
                 "investigate": "plus rien ne la bloque",
                 "finish": "plus rien à faire sur cette pull request"
-            }
+            },
+            "inactive": "inactif · {what} lui a été demandé il y a {duration}"
         },
         "signedBy": "signé {who}",
         "signedMore": "{name} +{count}",
@@ -5324,6 +5325,95 @@
             "startedHidden": "{name} vérifie {branch} et finit ce qui reste, hors de vue : une notification vous dit quand c'est fait ou s'il a besoin de vous.",
             "offer": "Aucun agent ne travaille sur {branch}. En lancer un pour la vérifier et finir ce qui reste ?",
             "askFailed": "L'agent n'a pas pu être sollicité. {message}"
+        },
+        "card": {
+            "anAgent": "un agent",
+            "name": "{name}",
+            "more": "Plus d'actions",
+            "moreTitle": "Plus d'actions sur la PR #{number}",
+            "draftTag": "brouillon",
+            "draftTagTitle": "Cette pull request est un brouillon sur GitHub.",
+            "disabledTitle": "{action} : {reason}",
+            "confirm": {
+                "agentWorking": "{name} travaille encore sur cette branche.",
+                "noReport": "Pas encore de rapport de test.",
+                "validateAnyway": "Valider quand même"
+            },
+            "state": {
+                "agentWaiting": "{name} vous attend",
+                "agentWorking": "{name} s'en occupe",
+                "agentAway": "Un agent s'en occupe",
+                "agentOn": {
+                    "rebase": "{name} rebase sur {base}",
+                    "investigate": "{name} résout ce qui la bloque",
+                    "finish": "{name} termine la pull request"
+                },
+                "interrupted": "Travail interrompu",
+                "conflicts": "Conflits avec {base}",
+                "failing": "CI en échec : {names}",
+                "changes": "Modifications demandées",
+                "reviewRequired": "Revue requise",
+                "blockedRule": "Bloquée par une règle",
+                "draftReady": "Prête à passer en revue",
+                "ciRunning": "CI en cours",
+                "mergeChecking": "GitHub vérifie la fusion",
+                "ready": "Prête à fusionner"
+            },
+            "why": {
+                "conflicts": "conflits avec {base}",
+                "ciFailing": "CI en échec : {names}",
+                "board": "colonne {status}",
+                "recentCommit": "un commit vient d'arriver",
+                "interrupted": "{name} s'est arrêté avant de finir {what}",
+                "interruptedGone": "la session de {name} s'est terminée avant de finir {what}",
+                "nobody": "personne dessus",
+                "onHead": "sur le dernier commit",
+                "approval": "GitHub attend une approbation",
+                "reasons": "{reasons}",
+                "yours": "à vous",
+                "running": "{count} sur {total}, {names}"
+            },
+            "action": {
+                "answer": "Répondre à {name}",
+                "follow": "Suivre {name}",
+                "relaunch": "Relancer {name}",
+                "startAgent": "Lancer un agent",
+                "rebase": "Confier le rebase",
+                "investigate": "Analyser et résoudre",
+                "assistedReview": "Revue assistée",
+                "launch": "Lancer cette version",
+                "github": "Ouvrir sur GitHub",
+                "openWork": "Ouvrir son travail",
+                "stop": "Arrêter {name}",
+                "rerun": "Relancer les jobs en échec : {names}",
+                "markReady": "Passer en revue"
+            },
+            "actionTitle": {
+                "answer": "Afficher le terminal de {name} : il attend votre réponse",
+                "follow": "Afficher le terminal de {name}",
+                "relaunch": "Renvoyer la même tâche à {name}, dans sa session, avec la pull request telle qu'elle est",
+                "startAgent": "La session de la tâche est terminée : lancer un nouvel agent dessus",
+                "rebase": "Confier le rebase sur {base} à un agent : celui de la branche, ou un que vous lancez",
+                "investigate": "Un agent de travail résout ce qui bloque cette pull request, dans cet ordre : {blockers}. Il ne fusionne jamais."
+            },
+            "fact": {
+                "ciFailing": "CI en échec : {names}",
+                "othersGreen": "{count} autres vérifications vertes",
+                "ciRunning": "CI {success}/{total}, {pending} en cours",
+                "ciGreen": "CI {success}/{total}",
+                "report": "rapport",
+                "noReport": "pas de rapport de test",
+                "conflicts": "conflits avec {base}",
+                "behind": "en retard sur {base}, GitHub la mettra à jour",
+                "changes": "modifications demandées",
+                "unpublished": "{count} commentaires non publiés",
+                "unpublishedOne": "1 commentaire non publié",
+                "rank": "n° {rank} dans l'ordre de fusion",
+                "board": "colonne {status}"
+            },
+            "history": {
+                "gone": "{name} s'est arrêté avant de finir {what}."
+            }
         }
     },
     "sessions": {

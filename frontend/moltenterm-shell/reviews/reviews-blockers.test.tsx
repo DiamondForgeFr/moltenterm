@@ -1,12 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Analyze and resolve (#1020, FR-REV-028 AC6 to AC8): every blocker of a PR, in the brief's order, on the row's button.
+// Analyze and resolve (#1020, FR-REV-028 AC6 to AC8): every blocker of a PR, in the brief's order. When the card offers
+// it is the card's state (#1060, reviews-card-model.test.ts).
 
-import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import { CiFailureButtons, RerunState } from "./reviews-ci-actions";
 import { blockersText, investigateBlockers, prBlockers, ReviewCheck, ReviewPr } from "./reviews-model";
 import { headStillFails } from "./reviews-task-model";
 import type { AgentBarFacts } from "./reviews-upcoming-model";
@@ -33,8 +32,6 @@ function pr(over: Partial<ReviewPr> = {}, checks: ReviewCheck[] = []): ReviewPr 
 const Backend: ReviewCheck = { name: "Backend", state: "failure", workflow: "CI", runid: 389, jobid: 117 };
 const LocalE2e: ReviewCheck = { name: "local-e2e", state: "failure", local: true };
 const Gate: ReviewCheck = { name: "AI testing / local CI", state: "failure" };
-
-const Idle: RerunState = { phase: "idle", text: "", ask: () => {}, confirm: () => {}, cancel: () => {} };
 
 describe("prBlockers", () => {
     it("lists the rebase, then the remote checks, then the local CI", () => {
@@ -66,38 +63,13 @@ describe("prBlockers", () => {
     });
 });
 
-function buttons(row: ReviewPr): string {
-    return renderToStaticMarkup(
-        <CiFailureButtons pr={row} rerun={Idle} investigating={false} onInvestigate={() => {}} />
-    );
-}
-
-describe("the row's Analyze and resolve", () => {
-    it("shows on a local CI failure alone, its title naming the blockers", () => {
-        const html = buttons(pr({}, [LocalE2e]));
-        expect(html).toContain('data-testid="reviews-investigate"');
-        expect(html).toContain("Analyze and resolve");
-        expect(html).toContain("local CI failed: local-e2e");
-        expect(html).not.toContain("reviews-rerun");
-    });
-
-    it("shows without any failed check when the branch is behind", () => {
-        expect(buttons(pr({ merge: "behind" }))).toContain("behind develop: rebase");
-    });
-
-    it("is absent with no blocker", () => {
-        expect(buttons(pr())).toBe("");
-    });
-
-    describe("in French", () => {
-        beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
-        afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
-        it("words the blockers", () => {
-            expect(blockersText(pr({ merge: "behind" }, [LocalE2e]))).toBe(
-                "en retard sur develop : rebase, CI locale en échec : local-e2e"
-            );
-            expect(buttons(pr({}, [LocalE2e]))).toContain("Analyser et résoudre");
-        });
+describe("the blockers in French", () => {
+    beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
+    afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+    it("words the blockers", () => {
+        expect(blockersText(pr({ merge: "behind" }, [LocalE2e]))).toBe(
+            "en retard sur develop : rebase, CI locale en échec : local-e2e"
+        );
     });
 });
 

@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The agent bar under a Reviews tile (#712, FR-REV-022): a slim strip docked under the tile, a shade darker, whose
-// left rail carries the agent's state in the states' fixed palette (#212): working's orange dimmed on the shared
-// working beat (still under reduced motion, #473), waiting's amber, done's green. The text stays quiet (11 px, muted),
+// left rail carries the agent's state in the states' fixed palette (#212): working's orange, waiting's amber, done's
+// green; under a Reviews card the card's rail says it instead (#1060). The text stays quiet (11 px, muted),
 // the first name reads in the main colour, and Go to takes the window to the agent's panel. A background agent (run
 // inside another agent) is "probably active", without Go to, with its parent session when one stands out. The
 // durations follow one minute clock shared by every bar, so the list itself never renders again for them. A working or
-// background agent also shows the suite's falling dominoes next to its state (#739), so the bar visibly works. A sub-agent
+// background agent also shows the suite's falling dominoes (#739), so the bar visibly works; for a working agent they
+// replace the word "working", which stays their accessible name (#1060). A sub-agent
 // a panel started (#1035) is named by its parent, tool, model and task, with its own state; Go to shows the parent.
 
 import { atoms } from "@/app/store/global";
@@ -26,12 +27,12 @@ import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { agentGlyph } from "../tab-identity";
-import { useWorkingBeat } from "../working-beat";
 import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
 import {
+    AgentLine,
     agentLines,
     headStillFails,
     PrTask,
@@ -51,6 +52,7 @@ import {
     branchAgents,
     DraftTurn,
     draftTurn,
+    durationText,
     subagentDetails,
 } from "./reviews-upcoming-model";
 
@@ -93,7 +95,7 @@ export class MinuteClock {
     }
 }
 
-function useMinuteNow(): number {
+export function useMinuteNow(): number {
     const clock = MinuteClock.getInstance();
     useEffect(() => clock.retain(), [clock]);
     return useAtomValue(clock.nowAtom);
@@ -115,19 +117,22 @@ function useBranchAgents(dir: string, branch: string): { agents: AgentBarFacts[]
     return { agents, states };
 }
 
-// The agent a row's task is judged against, with the branch's agents and the task's state now.
-function useTaskAgent(dir: string, pr: ReviewPr, task: RebaseAsk) {
+// The agent a row's task is judged against, with the branch's agents, the task's state now and whether its agent is
+// live; the card's state (#1060) reads the same.
+export function useCardAgents(dir: string, pr: ReviewPr, task: RebaseAsk) {
     const { agents, states } = useBranchAgents(dir, pr.branch);
     const now = useMinuteNow();
     const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
     const owner = taskAgent(prTask, agents, states);
-    return { agents, prTask, owner, state: prTaskState(prTask, pr, owner, now) };
+    const live = taskAgentLive(prTask, owner);
+    return { agents, prTask, owner, live, now, state: prTaskState(prTask, pr, owner, now) };
 }
 
 // The rail sits on the tile's 1 px border, 1 px to the left (the lists clip at their border edge for it), so the bar
-// keeps one left edge (#738). Idle and background draw none: the tile's border alone.
+// keeps one left edge (#738). Idle and background draw none: the tile's border alone. Working's rail stays still: the
+// dominoes are the bar's one moving thing (#1060).
 const RailClasses: Record<string, string> = {
-    working: "bg-[var(--mt-state-working)] mt-beat-blink",
+    working: "bg-[var(--mt-state-working)]",
     waiting: "bg-[var(--mt-state-waiting)]",
     done: "bg-[var(--mt-state-done)]",
 };
@@ -138,7 +143,8 @@ function stop(e: React.SyntheticEvent) {
 }
 
 // A task the line follows (#954): stuck or done, in its own words; name: the agent that took it, for a gone one.
-export type BarTask = { state: PrTaskState; text: string; name?: string };
+// quiet: an idle task agent while another agent works on the branch reads "inactive", muted, not as an alarm (#1060).
+export type BarTask = { state: PrTaskState; text: string; name?: string; quiet?: boolean };
 
 // The commit signers after the live agent (#954, FR-REV-029 AC4): the last one's first name, "+N" for the others, all
 // on hover. Nothing when the live agent is the only signer.
@@ -185,7 +191,6 @@ export function AgentBar({
     const now = useMinuteNow();
     const fullConfig = useAtomValue(atoms?.fullConfigAtom ?? (NullAtom as Atom<FullConfigType>));
     const trustDir = useTrustAsk(facts?.blockId);
-    useWorkingBeat(facts?.state === "working");
     if (facts == null) {
         return task != null ? <GoneAgentBar task={task} actions={actions} stacked={stacked} /> : null;
     }
@@ -217,6 +222,8 @@ export function AgentBar({
     const timeText = finishedLine ? "" : barTime;
     const signed = signersSuffix(t, signers, facts.name);
     const rail = stuck ? "waiting" : facts.state;
+    // A working agent shows the dominoes in place of the word, which stays its accessible name (#1060).
+    const dominoOnly = !taskShown && facts.held == null && !finishedLine && facts.state === "working";
     const goTo = (e: React.MouseEvent, blockId: string) => {
         e.stopPropagation();
         fireAndForget(() => showPanel(blockId));
@@ -231,7 +238,8 @@ export function AgentBar({
             aria-label={[name, details, stateText, timeText, signed?.text].filter((s) => !!s).join(", ")}
             role="group"
         >
-            {RailClasses[rail] ? (
+            {/* Stacked under a card, the card's own rail says the state (#1060). */}
+            {RailClasses[rail] && !stacked ? (
                 <span
                     className={cn("absolute inset-y-0 -left-px w-0.5", RailClasses[rail])}
                     data-testid="reviews-agent-rail"
@@ -256,21 +264,33 @@ export function AgentBar({
                     {details}
                 </span>
             ) : null}
-            <span
-                className={cn(
-                    facts.held != null || taskShown ? "min-w-0 truncate" : "shrink-0",
-                    facts.state === "waiting" || stuck
-                        ? "font-semibold text-[var(--mt-state-waiting)]"
-                        : taskShown
-                          ? "text-[var(--mt-state-done)]"
-                          : "text-secondary"
-                )}
-                title={facts.held != null || taskShown ? stateText : undefined}
-                data-testid="reviews-agent-state"
-            >
-                {stateText}
-            </span>
-            {!stuck && (facts.state === "working" || facts.state === "background") ? (
+            {dominoOnly ? (
+                <span
+                    role="img"
+                    aria-label={stateText}
+                    title={stateText}
+                    className="inline-flex shrink-0 items-center"
+                    data-testid="reviews-agent-working"
+                >
+                    <DominoLoader className="text-[var(--mt-state-working)]" />
+                </span>
+            ) : (
+                <span
+                    className={cn(
+                        facts.held != null || taskShown ? "min-w-0 truncate" : "shrink-0",
+                        facts.state === "waiting" || (stuck && !task.quiet)
+                            ? "font-semibold text-[var(--mt-state-waiting)]"
+                            : taskShown && !task.quiet
+                              ? "text-[var(--mt-state-done)]"
+                              : "text-secondary"
+                    )}
+                    title={facts.held != null || taskShown ? stateText : undefined}
+                    data-testid="reviews-agent-state"
+                >
+                    {stateText}
+                </span>
+            )}
+            {!dominoOnly && !stuck && (facts.state === "working" || facts.state === "background") ? (
                 <DominoLoader
                     className={facts.state === "working" ? "text-[var(--mt-state-working)]" : "text-secondary"}
                 />
@@ -374,7 +394,7 @@ function GoneAgentBar({ task, actions, stacked }: { task: BarTask; actions?: Rea
             aria-label={[task.name, task.text].filter((s) => !!s).join(", ")}
             role="group"
         >
-            {stuck ? (
+            {stuck && !stacked ? (
                 <span
                     className={cn("absolute inset-y-0 -left-px w-0.5", RailClasses.waiting)}
                     data-testid="reviews-agent-rail"
@@ -404,10 +424,9 @@ function GoneAgentBar({ task, actions, stacked }: { task: BarTask; actions?: Rea
 const ReadAgainHeads = new Set<string>();
 
 // No stale contradiction (#1020, FR-REV-028 AC8): the agent reads as done, or its task stopped, while checks fail on the
-// PR's head. The list reads GitHub again once (the row may show an older head), then says what still fails there.
-export function HeadStillFailsLine({ dir, pr, task }: { dir: string; pr: ReviewPr; task: RebaseAsk }) {
-    const t = useT();
-    const { agents, state } = useTaskAgent(dir, pr, task);
+// PR's head. The list reads GitHub again once (the row may show an older head); the card's state then says the checks
+// fail "on the latest commit" (#1060: the failure is said once, no head hash line). Answers the names.
+export function useHeadStillFails(dir: string, pr: ReviewPr, agents: AgentBarFacts[], state: PrTaskState): string[] {
     const names = headStillFails(pr, agents[0] ?? null, state);
     const key = names.length > 0 ? `${dir}#${pr.number}@${pr.headoid ?? ""}:${names.join(",")}` : "";
     useEffect(() => {
@@ -419,51 +438,61 @@ export function HeadStillFailsLine({ dir, pr, task }: { dir: string; pr: ReviewP
             await reviewsGet(dir, true);
         });
     }, [key, dir]);
-    if (names.length === 0) {
-        return null;
-    }
-    return (
-        <div className="text-12 leading-4 text-danger" role="status" data-testid="reviews-head-still-fails">
-            {t("reviews.ci.investigate.headStillFails", {
-                head: (pr.headoid ?? "").slice(0, 7),
-                names: names.join(", "),
-            })}
-        </div>
-    );
+    return names;
 }
 
-// The PR's one "who" line (#954, FR-REV-022 AC6 and AC7, FR-REV-029 AC4): the live agent first, the commit signers
-// after it; the task asked from the row, stuck or done, with Retry, Open its work and Stop. Without a live agent or a
-// task, the signers alone; with none of them, nothing.
+// The PR's "who" lines (#954, FR-REV-022 AC6, AC7 and AC10, FR-REV-029 AC4): every agent of the branch with its own
+// state, the commit signers after the first; the task asked from the card, stuck or done, on its own agent's line. A
+// live panel agent's line offers Open its work and Stop; relaunching a task is the card's action (#1060), not the
+// line's. An idle task agent while another agent works reads "inactive", muted. hideGone: the card says a gone task
+// agent's stop in its own history line. Without a live agent or a task, the signers alone; with none, nothing.
 export function RowAgentLine({
     dir,
     pr,
     task,
-    onRetry,
     onOpenWork,
     onStop,
+    hideGone,
 }: {
     dir: string;
     pr: ReviewPr;
     task: RebaseAsk;
-    onRetry: () => void;
     onOpenWork: (blockId: string) => Promise<Phrase>;
     onStop: (blockId: string) => Promise<Phrase>;
+    hideGone?: boolean;
 }) {
     const t = useT();
     const word = useWordPhrase();
-    const { agents, prTask, owner: facts, state } = useTaskAgent(dir, pr, task);
-    const [confirmStop, setConfirmStop] = useState(false);
+    const { agents, prTask, owner: facts, live, now, state } = useCardAgents(dir, pr, task);
+    const [confirmStop, setConfirmStop] = useState<string>(null);
     const [busy, setBusy] = useState<"work" | "stop">(null);
     const [error, setError] = useState<Phrase>(null);
-    const live = taskAgentLive(prTask, facts);
+    const othersWork = agents.some((a) => a !== facts && (a.state === "working" || a.kind === "background"));
+    const quiet = prTask != null && state === "stuck" && live && othersWork;
     const barTask: BarTask =
-        prTask == null ? null : { state, text: taskStateText(t, prTask, state, live, pr), name: prTask.name };
-    if (agents.length === 0 && facts == null && barTask?.state !== "stuck") {
+        prTask == null
+            ? null
+            : {
+                  state,
+                  text: quiet
+                      ? t("reviewsAgents.task.inactive", {
+                            what: t(`reviewsAgents.task.what.${prTask.kind}`),
+                            duration: durationText(t, now - prTask.at),
+                        })
+                      : taskStateText(t, prTask, state, live, pr),
+                  name: prTask.name,
+                  quiet,
+              };
+    const goneStuck = barTask?.state === "stuck" && !live;
+    if (agents.length === 0 && facts == null && (!goneStuck || hideGone)) {
         return <PrSignature agents={pr.agents} testId="reviews-signature" />;
     }
-    const liveBlock = facts?.kind === "panel" && live ? facts.blockId : "";
-    const lines = agentLines(agents, prTask, facts);
+    const lines = agentLines(agents, prTask, facts).filter(
+        (l) => !(hideGone && l.task && goneStuck && !agents.includes(l.facts))
+    );
+    if (lines.length === 0) {
+        return <PrSignature agents={pr.agents} testId="reviews-signature" />;
+    }
     const run = (what: "work" | "stop", fn: () => Promise<Phrase>) => {
         if (busy != null) {
             return;
@@ -475,7 +504,7 @@ export function RowAgentLine({
                 setError(await fn());
             } finally {
                 setBusy(null);
-                setConfirmStop(false);
+                setConfirmStop(null);
             }
         });
     };
@@ -483,90 +512,73 @@ export function RowAgentLine({
         e.stopPropagation();
         fn();
     };
-    let actions: React.ReactNode = null;
-    if (confirmStop && liveBlock) {
-        actions = (
+    const actionsOf = (line: AgentLine): React.ReactNode => {
+        const agent = line.facts;
+        const blockId = agent?.kind === "panel" && (!line.task || live) ? agent.blockId : "";
+        if (!blockId || (line.task && state === "done")) {
+            return null;
+        }
+        if (confirmStop === blockId) {
+            return (
+                <>
+                    <span className="truncate text-secondary" data-testid="reviews-agent-stop-confirm">
+                        {t("reviewsAgents.stop.confirm", { name: agent.name || prTask?.name || "" })}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={click(() => run("stop", () => onStop(blockId)))}
+                        onKeyDown={stop}
+                        className="molten-btn molten-btn-destructive h-5 cursor-pointer rounded-3 px-1.5 text-11"
+                        data-testid="reviews-agent-stop-yes"
+                    >
+                        {busy === "stop" ? <DominoLoader /> : null}
+                        {t("reviewsAgents.stop.button")}
+                        <MoltenWave />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={click(() => setConfirmStop(null))}
+                        onKeyDown={stop}
+                        className={BarButton}
+                        data-testid="reviews-agent-stop-no"
+                    >
+                        {t("reviewsAgents.stop.cancel")}
+                    </button>
+                </>
+            );
+        }
+        return (
             <>
-                <span className="truncate text-secondary" data-testid="reviews-agent-stop-confirm">
-                    {t("reviewsAgents.stop.confirm", { name: facts.name || prTask?.name || "" })}
-                </span>
                 <button
                     type="button"
-                    onClick={click(() => run("stop", () => onStop(liveBlock)))}
+                    onClick={click(() => run("work", () => onOpenWork(blockId)))}
                     onKeyDown={stop}
-                    className="molten-btn molten-btn-destructive h-5 cursor-pointer rounded-3 px-1.5 text-11"
-                    data-testid="reviews-agent-stop-yes"
+                    aria-busy={busy === "work" || undefined}
+                    className={BarButton}
+                    title={t("reviewsAgents.work.title", { number: pr.number, name: agent.name })}
+                    data-testid="reviews-agent-work"
                 >
-                    {busy === "stop" ? <DominoLoader /> : null}
-                    {t("reviewsAgents.stop.button")}
-                    <MoltenWave />
+                    {busy === "work" ? (
+                        <DominoLoader />
+                    ) : (
+                        <i className="fa fa-solid fa-table-columns text-10" aria-hidden />
+                    )}
+                    {t("reviewsAgents.work.button")}
                 </button>
                 <button
                     type="button"
-                    onClick={click(() => setConfirmStop(false))}
+                    onClick={click(() => setConfirmStop(blockId))}
                     onKeyDown={stop}
                     className={BarButton}
-                    data-testid="reviews-agent-stop-no"
+                    title={t("reviewsAgents.stop.title", { name: agent.name })}
+                    data-testid="reviews-agent-stop"
                 >
-                    {t("reviewsAgents.stop.cancel")}
+                    <i className="fa fa-solid fa-stop text-10" aria-hidden />
+                    {t("reviewsAgents.stop.button")}
                 </button>
             </>
         );
-    } else if (barTask != null && state !== "done") {
-        const what = t(`reviewsAgents.task.what.${prTask.kind}`);
-        actions = (
-            <>
-                {state === "stuck" ? (
-                    <button
-                        type="button"
-                        onClick={click(onRetry)}
-                        onKeyDown={stop}
-                        className={BarButton}
-                        title={
-                            live
-                                ? t("reviewsAgents.retryTitle", { what, name: prTask.name })
-                                : t("reviewsAgents.retryGoneTitle", { what, name: prTask.name })
-                        }
-                        data-testid="reviews-agent-retry"
-                    >
-                        <i className="fa fa-solid fa-rotate-right text-10" aria-hidden />
-                        {t("reviewsAgents.retry")}
-                    </button>
-                ) : null}
-                {liveBlock ? (
-                    <button
-                        type="button"
-                        onClick={click(() => run("work", () => onOpenWork(liveBlock)))}
-                        onKeyDown={stop}
-                        aria-busy={busy === "work" || undefined}
-                        className={BarButton}
-                        title={t("reviewsAgents.work.title", { number: pr.number, name: facts.name })}
-                        data-testid="reviews-agent-work"
-                    >
-                        {busy === "work" ? (
-                            <DominoLoader />
-                        ) : (
-                            <i className="fa fa-solid fa-table-columns text-10" aria-hidden />
-                        )}
-                        {t("reviewsAgents.work.button")}
-                    </button>
-                ) : null}
-                {liveBlock ? (
-                    <button
-                        type="button"
-                        onClick={click(() => setConfirmStop(true))}
-                        onKeyDown={stop}
-                        className={BarButton}
-                        title={t("reviewsAgents.stop.title", { name: facts.name })}
-                        data-testid="reviews-agent-stop"
-                    >
-                        <i className="fa fa-solid fa-stop text-10" aria-hidden />
-                        {t("reviewsAgents.stop.button")}
-                    </button>
-                ) : null}
-            </>
-        );
-    }
+    };
     return (
         <>
             {error != null ? (
@@ -583,7 +595,7 @@ export function RowAgentLine({
                         facts={line.task && !live && state === "stuck" ? null : line.facts}
                         signers={i === 0 ? pr.agents : undefined}
                         task={line.task ? barTask : undefined}
-                        actions={line.task ? actions : undefined}
+                        actions={actionsOf(line)}
                         stacked
                     />
                 ))}
@@ -592,52 +604,20 @@ export function RowAgentLine({
     );
 }
 
-const DraftChipClasses: Record<DraftTurn["owner"], string> = {
-    agent: "border-border bg-hover text-muted",
-    developer: "border-warning/40 bg-warning/10 text-warning",
-};
-
-const DraftChipIcons: Record<DraftTurn["kind"], string> = {
-    agent: "robot",
-    test: "vial",
-    ready: "flag-checkered",
-    yours: "user",
-};
-
-// Whose turn a draft is (AC3, #954), as a chip of the row: never the developer's while an agent works on its branch,
-// is in an agent's column of the board, or pushed a commit lately; else what the developer is expected to do.
-export function DraftTurnChip({ dir, branch }: { dir: string; branch: string }) {
+// Whose turn a draft is (FR-REV-022 AC3, #954), for the card's state (#1060): never the developer's while an agent
+// works on its branch, is in an agent's column of the board, or pushed a commit lately. Null before wavesrv read the
+// draft (its answer can predate GitHub's): nobody knows whose it is yet. status: the board column, worded.
+export function useDraftTurn(dir: string, pr: ReviewPr, agents: AgentBarFacts[]): { turn: DraftTurn; status: string } {
     const t = useT();
-    const facts = useBranchAgent(dir, branch);
     const upcoming = useUpcomingAnswer(dir);
     const now = useMinuteNow();
-    const draft = upcoming?.drafts?.find((d) => d.branch === branch);
-    // Before wavesrv read this draft (its answer can predate GitHub's), nobody knows whose it is: no chip rather than
-    // a wrong "yours". An agent seen on the branch is enough.
-    if (upcoming == null || (draft == null && facts == null)) {
-        return null;
+    if (!pr.draft || upcoming == null) {
+        return { turn: null, status: "" };
     }
-    const turn = draftTurn(facts, draft, now);
-    const status = turn.status ? boardStatusText(t, turn.status) : "";
-    const title = [
-        t(`reviewsAgents.draft.${turn.kind}Title`),
-        status ? t("reviewsAgents.draft.status", { status }) : "",
-    ]
-        .filter((s) => !!s)
-        .join("\n");
-    return (
-        <span
-            className={cn(
-                "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap",
-                DraftChipClasses[turn.owner]
-            )}
-            title={title}
-            data-testid="reviews-draft-turn"
-            data-owner={turn.owner}
-            data-kind={turn.kind}
-        >
-            <i className={cn("fa fa-solid text-10", `fa-${DraftChipIcons[turn.kind]}`)} aria-hidden />
-            {t(`reviewsAgents.draft.${turn.kind}`)}
-        </span>
-    );
+    const draft = upcoming.drafts?.find((d) => d.branch === pr.branch);
+    if (draft == null && agents.length === 0) {
+        return { turn: null, status: "" };
+    }
+    const turn = draftTurn(agents[0] ?? null, draft, now);
+    return { turn, status: turn.status ? boardStatusText(t, turn.status) : "" };
 }
