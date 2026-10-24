@@ -64,14 +64,16 @@
 }
 
 /* The tab's agent (#1033): quieter than the name. The name gives up its room first (down to a few letters), then the
-   agent's first name ellipsizes; the separator and "+N" never shrink. The tiny shrink factor keeps the agent whole
-   while the name can still shrink (flex shares the shrink by factor times width). */
+   agent's first name ellipsizes; the separator and "+N" never shrink. The agent itself never flex-shrinks (even a tiny
+   factor takes a fraction of a pixel and ellipsizes it); its cap leaves the name its few letters, the mark and the
+   gaps (20 px). */
 .tab.molten-tab .molten-tab-body > .molten-tab-agent {
     display: flex;
     align-items: center;
     gap: 3px;
-    flex: 0 0.001 auto;
+    flex: 0 0 auto;
     min-width: 0;
+    max-width: calc(100% - 1.5em - 20px);
     font-size: var(--mt-text-12);
     font-weight: var(--mt-weight-regular);
     color: var(--mt-text-muted);
@@ -91,7 +93,24 @@
 }
 
 .tab.molten-tab .molten-tab-body:has(> .molten-tab-agent) > .name:not(.focused) {
-    min-width: 2.5em;
+    min-width: 1.5em;
+}
+
+/* The narrowest tabs (96 px) cannot hold the name's letters, the separator, a first name and "+N": the separator and
+   "+N" go first (the tooltip still lists every agent), the first name last. */
+.tab.molten-tab .molten-tab-body:has(> .molten-tab-agent) {
+    container-type: inline-size;
+}
+
+.tab.molten-tab .molten-tab-agent {
+    overflow: hidden;
+}
+
+@container (max-width: 72px) {
+    .tab.molten-tab .molten-tab-agent > .molten-tab-agent-sep,
+    .tab.molten-tab .molten-tab-agent > .molten-tab-agent-more {
+        display: none;
+    }
 }
 
 .tab.molten-tab .name.focused {
