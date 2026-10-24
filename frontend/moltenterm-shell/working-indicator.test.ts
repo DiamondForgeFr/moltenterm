@@ -70,7 +70,23 @@ describe("working indicator (#739)", () => {
             }
         }
         expect(shellCss).toMatch(
-            /:root\[data-mt-motion="still"\] \.df-domino-loader > span \{\s*animation: none;\s*\}\s*@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;/
+            /:root\[data-mt-motion="still"\] \.df-domino-loader > span \{\s*animation: none;\s*transform: rotate\(var\(--df-domino-still, 0deg\)\);\s*\}\s*@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;\s*transform: rotate\(var\(--df-domino-still, 0deg\)\);/
         );
+    });
+
+    it("stands them still in a frame of the fall, never a flat dash (#1073)", () => {
+        const kitCss = readFileSync(join(ShellDir, "suite", "suite.css"), "utf8");
+        const angles = [2, 3, 4, 5, 6, 7, 8].map((n) => {
+            const m = new RegExp(
+                `\\.df-dominos > span:nth-child\\(${n}\\),\\s*\\.df-domino-loader > span:nth-child\\(${n}\\) \\{\\s*--df-domino-still: (\\d+)deg;`
+            ).exec(kitCss);
+            return m ? Number(m[1]) : null;
+        });
+        expect(angles).not.toContain(null);
+        for (let i = 1; i < angles.length; i++) {
+            expect(angles[i]).toBeGreaterThan(angles[i - 1]);
+        }
+        expect(angles[0]).toBeGreaterThan(0);
+        expect(angles[angles.length - 1]).toBe(90);
     });
 });

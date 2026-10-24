@@ -515,7 +515,7 @@
    .dominos and .domino-loader rules (src/index.css), a port of LoaderPiece.vue from the DiamondForge design system;
    keep the geometry, the 1 s cycle and the delays in step between the apps. .df-dominos is the large chain of a
    loading state, in the accent; .df-domino-loader is scaled down to sit in a button or a line of text, in the text
-   colour. Under reduced motion the bars stand upright, still. Markup: DominoLoader (suite.tsx), 8 empty <span>s. */
+   colour. Under reduced motion the bars hold a still frame of the fall. Markup: DominoLoader (suite.tsx), 8 empty <span>s. */
 @layer components {
     .df-dominos {
         position: relative;
@@ -629,15 +629,48 @@
         }
     }
 
+    /* The still pose: a frame of the fall, the bars leaning from lying to upright, left to right. Without it every bar
+       lies at its 0° rest and the 8 bars overlap into one flat line, which reads as a dash ("no state", #1073). */
+    .df-dominos > span:nth-child(2),
+    .df-domino-loader > span:nth-child(2) {
+        --df-domino-still: 13deg;
+    }
+    .df-dominos > span:nth-child(3),
+    .df-domino-loader > span:nth-child(3) {
+        --df-domino-still: 26deg;
+    }
+    .df-dominos > span:nth-child(4),
+    .df-domino-loader > span:nth-child(4) {
+        --df-domino-still: 39deg;
+    }
+    .df-dominos > span:nth-child(5),
+    .df-domino-loader > span:nth-child(5) {
+        --df-domino-still: 51deg;
+    }
+    .df-dominos > span:nth-child(6),
+    .df-domino-loader > span:nth-child(6) {
+        --df-domino-still: 64deg;
+    }
+    .df-dominos > span:nth-child(7),
+    .df-domino-loader > span:nth-child(7) {
+        --df-domino-still: 77deg;
+    }
+    .df-dominos > span:nth-child(8),
+    .df-domino-loader > span:nth-child(8) {
+        --df-domino-still: 90deg;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .df-dominos > span,
         .df-domino-loader > span {
             animation: none;
+            transform: rotate(var(--df-domino-still, 0deg));
         }
     }
 
     .df-reduced-motion .df-dominos > span,
     .df-reduced-motion .df-domino-loader > span {
         animation: none !important;
+        transform: rotate(var(--df-domino-still, 0deg));
     }
 }
