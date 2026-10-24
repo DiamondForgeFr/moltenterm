@@ -9,7 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { ReviewRoute } from "./review-client";
 import type { ReviewAnchor } from "./review-session";
 
@@ -126,10 +126,7 @@ export function filterNotes(notes: readonly ReviewNote[], filter: string): Revie
 }
 
 function fold(text: string): string {
-    return (text ?? "")
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase();
+    return (text ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 // keptNoteOf: the note kept from an answer of the PR, if any.
@@ -139,8 +136,9 @@ export function keptNoteOf(notes: readonly ReviewNote[], number: number, explana
 
 // useReviewNotes follows a project's notes: read once, then the notes event (another view, another window).
 export function useReviewNotes(repo: string): { notes: ReviewNotes; error: string; set: (notes: ReviewNotes) => void } {
+    const word = useWordPhrase();
     const [notes, setNotes] = useState<ReviewNotes>(null);
-    const [error, setError] = useState<string>(null);
+    const [error, setError] = useState<Phrase>(null);
     useEffect(() => {
         setNotes(null);
         setError(null);
@@ -161,7 +159,7 @@ export function useReviewNotes(repo: string): { notes: ReviewNotes; error: strin
                 }
             } catch (e) {
                 if (live) {
-                    setError(serverErrorText(e));
+                    setError(errorPhrase(e));
                 }
             }
         });
@@ -175,5 +173,5 @@ export function useReviewNotes(repo: string): { notes: ReviewNotes; error: strin
             setNotes(next);
         }
     }, []);
-    return { notes, error, set };
+    return { notes, error: error == null ? null : word(error), set };
 }

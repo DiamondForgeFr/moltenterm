@@ -10,7 +10,7 @@ import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { timeAgo } from "../mission/time-format";
 import { citedLine } from "../review/review-answers";
 import { FileLink, parseFileLink } from "../review/review-model";
@@ -170,7 +170,8 @@ function NoteBody({
     onNotes: (notes: ReviewNotes) => void;
 } & NotesProps) {
     const t = useT();
-    const [error, setError] = useState<string>(null);
+    const word = useWordPhrase();
+    const [error, setError] = useState<Phrase>(null);
     const [renaming, setRenaming] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const related = (note.related ?? []).filter((r) => r.trim() !== "");
@@ -182,7 +183,7 @@ function NoteBody({
                 const res = await reviewNoteFile(repo, note.id, dir, link.path);
                 await openFileInPreview({ path: res.file, line: link.line, conn: "" }, blockId);
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             }
         });
     const run = (action: () => Promise<ReviewNotes>) =>
@@ -191,7 +192,7 @@ function NoteBody({
             try {
                 onNotes(await action());
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             }
         });
     const onClickCapture = (e: React.MouseEvent) => {
@@ -264,9 +265,9 @@ function NoteBody({
                     </ul>
                 </div>
             ) : null}
-            {error ? (
+            {error != null ? (
                 <p className="text-11 text-danger" data-testid="reviews-note-error">
-                    {error}
+                    {word(error)}
                 </p>
             ) : null}
             <div className="flex items-center gap-1.5 text-11">

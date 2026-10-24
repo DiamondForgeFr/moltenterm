@@ -10,6 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
+import { phrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { blockersText, checkNames, checksOf, ReviewPr } from "./reviews-model";
@@ -31,19 +32,19 @@ export function rerunnable(pr: ReviewPr): boolean {
 }
 
 export function useRerunFailed(dir: string, number: number): RerunState {
-    const t = useT();
+    const word = useWordPhrase();
     const [phase, setPhase] = useState<RerunPhase>("idle");
-    const [text, setText] = useState("");
+    const [text, setText] = useState<Phrase>(null);
     const cancel = () => {
         setPhase("idle");
-        setText("");
+        setText(null);
     };
     useEscape(phase === "confirm" || phase === "failed" || phase === "started", cancel);
     return {
         phase,
-        text,
+        text: word(text),
         ask: () => {
-            setText("");
+            setText(null);
             setPhase("confirm");
         },
         confirm: () => {
@@ -58,7 +59,7 @@ export function useRerunFailed(dir: string, number: number): RerunState {
                     setPhase("failed");
                     return;
                 }
-                setText(t("reviews.ci.rerun.started", { names: checks.join(", ") }));
+                setText(phrase("reviews.ci.rerun.started", { names: checks.join(", ") }));
                 setPhase("started");
             });
         },

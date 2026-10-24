@@ -10,7 +10,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity } from "../tab-activity";
@@ -170,10 +170,11 @@ export function LaunchBackButton({ dir, number, trunk }: { dir: string; number: 
 // The launch bar: the project's launched version, its steps and what can be done with it.
 export function LaunchBar({ dir, mergedNumbers, trunk }: { dir: string; mergedNumbers: number[]; trunk: string }) {
     const t = useT();
+    const word = useWordPhrase();
     const state = useLaunchState(dir);
     const model = LaunchModel.getInstance();
     const [busy, setBusy] = useState<string>(null);
-    const [error, setError] = useState<string>(null);
+    const [error, setError] = useState<Phrase>(null);
     const [logStep, setLogStep] = useState<string>(null);
     if (state == null || state.state === "stopped") {
         return null;
@@ -188,7 +189,7 @@ export function LaunchBar({ dir, mergedNumbers, trunk }: { dir: string; mergedNu
             try {
                 await fn();
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             } finally {
                 setBusy(null);
             }
@@ -323,9 +324,9 @@ export function LaunchBar({ dir, mergedNumbers, trunk }: { dir: string; mergedNu
                     {t("reviews.launch.stashed", { stash: state.stash })}
                 </p>
             ) : null}
-            {error ? (
+            {error != null ? (
                 <p className="text-12 text-danger" role="alert">
-                    {error}
+                    {word(error)}
                 </p>
             ) : null}
             {logStep ? (
@@ -445,15 +446,16 @@ export function LaunchDialogs({ trunk }: { trunk: string }) {
     const ask = useAtomValue(model.askAtom);
     const [recipeAnswer, setRecipeAnswer] = useState<LaunchRecipeAnswer>(null);
     const [plan, setPlan] = useState<LaunchPlan>(null);
+    const word = useWordPhrase();
     const [phase, setPhase] = useState<"loading" | "recipe" | "confirm" | "error">(null);
-    const [error, setError] = useState<string>(null);
+    const [error, setError] = useState<Phrase>(null);
     const loadPlan = async (current: LaunchAsk) => {
         setPhase("loading");
         try {
             setPlan(await model.plan(current.dir, current.target));
             setPhase("confirm");
         } catch (e) {
-            setError(serverErrorText(e));
+            setError(errorPhrase(e));
             setPhase("error");
         }
     };
@@ -476,7 +478,7 @@ export function LaunchDialogs({ trunk }: { trunk: string }) {
                 }
                 await loadPlan(ask);
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
                 setPhase("error");
             }
         });
@@ -485,7 +487,7 @@ export function LaunchDialogs({ trunk }: { trunk: string }) {
         return null;
     }
     if (phase === "error") {
-        return <LaunchErrorDialog text={error} onClose={() => model.closeAsk()} />;
+        return <LaunchErrorDialog text={word(error)} onClose={() => model.closeAsk()} />;
     }
     if (phase === "recipe") {
         return (
@@ -551,8 +553,9 @@ function LaunchConfirmDialog({
     onCancel: () => void;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const [starting, setStarting] = useState(false);
-    const [error, setError] = useState<string>(null);
+    const [error, setError] = useState<Phrase>(null);
     const lines = useMemo(() => launchPlanLines(t, plan, ask.target, trunk), [t, plan, ask.target, trunk]);
     const dirty = plan.dirtycount > 0;
     const label = launchTargetLabel(t, ask.target, trunk);
@@ -567,7 +570,7 @@ function LaunchConfirmDialog({
                 await LaunchModel.getInstance().start(ask.dir, ask.target, dirty, plan.holders.length > 0);
                 LaunchModel.getInstance().closeAsk();
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
                 setStarting(false);
             }
         });
@@ -648,9 +651,9 @@ function LaunchConfirmDialog({
                     <p className="text-11 leading-4 text-muted">{t("reviews.launch.confirm.dirtyStash")}</p>
                 </div>
             ) : null}
-            {error ? (
+            {error != null ? (
                 <p className="text-12 text-danger" role="alert" data-testid="reviews-launch-confirm-error">
-                    {error}
+                    {word(error)}
                 </p>
             ) : null}
         </DialogFrame>
@@ -671,17 +674,20 @@ function LaunchRecipeDialog({
     onSaved: (answer: LaunchRecipeAnswer) => void;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const [recipe, setRecipe] = useState<LaunchRecipe>(() => launchRecipeDraft(answer));
     const [portTexts, setPortTexts] = useState<string[]>(() =>
         recipe.servers.map((s) => (s.port ? String(s.port) : ""))
     );
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string>(null);
+    const [error, setError] = useState<Phrase>(null);
+    const [problemShown, setProblemShown] = useState(false);
     const withPorts: LaunchRecipe = {
         ...recipe,
         servers: recipe.servers.map((s, i) => ({ ...s, port: parsePort(portTexts[i] ?? "") })),
     };
     const problem = launchRecipeProblem(t, withPorts);
+    const shownError = error != null ? word(error) : problemShown ? problem : "";
     const source = answer?.saved
         ? t("reviews.launch.recipe.fromSaved")
         : answer?.proposalfrom === "project"
@@ -698,16 +704,18 @@ function LaunchRecipeDialog({
             return;
         }
         if (problem) {
-            setError(problem);
+            setError(null);
+            setProblemShown(true);
             return;
         }
         setSaving(true);
         setError(null);
+        setProblemShown(false);
         fireAndForget(async () => {
             try {
                 onSaved(await LaunchModel.getInstance().saveRecipe(dir, withPorts));
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             } finally {
                 setSaving(false);
             }
@@ -876,9 +884,9 @@ function LaunchRecipeDialog({
                     />
                     <span className="text-11 text-muted">{t("reviews.launch.recipe.urlHint")}</span>
                 </label>
-                {error ? (
+                {shownError ? (
                     <p className="text-danger" role="alert" data-testid="reviews-launch-recipe-error">
-                        {error}
+                        {shownError}
                     </p>
                 ) : null}
             </div>

@@ -5,7 +5,8 @@
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
 
 import { t } from "../i18n/i18n";
-import { serverText, type ServerText } from "../i18n/server-text";
+import { joinPhrases, phrase, serverPhrase, type Phrase } from "../i18n/phrase";
+import { type ServerText } from "../i18n/server-text";
 import { CheckState } from "../mission/github";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import type { InvestigateBlockers } from "../review/review-client";
@@ -260,23 +261,23 @@ export type RebaseResult = {
 
 // asked: the agent has it (name), note when the developer still has a step or should know where it went; offer: no
 // agent on the branch, the developer chooses how one starts (agent: the one that would, result: wavesrv's offer with
-// the agents to switch to); info and failed: a line.
+// the agents to switch to); info and failed: a line. text is worded where it shows (wordPhrase, #1058).
 export type RebaseOutcome = {
     kind: "asked" | "offer" | "info" | "failed";
     name?: string;
     blockId?: string;
     agent?: string;
     result?: RebaseResult;
-    text: string;
+    text: Phrase;
     note?: boolean;
 };
 
 // notChosen: the agent already on the branch took the work, not the one the developer chose (#845).
-function notChosen(result: RebaseResult, name: string): string {
+function notChosen(result: RebaseResult, name: string): Phrase {
     if (!result.chosenname || !result.agent || result.chosenagent === result.agent) {
-        return "";
+        return null;
     }
-    return " " + t("reviews.rebase.notChosen", { name, chosen: result.chosenname });
+    return phrase("reviews.rebase.notChosen", { name, chosen: result.chosenname });
 }
 
 function folderOf(path: string): string {
@@ -309,7 +310,7 @@ const OutcomeKeys = {
 // rebaseOutcome: the line for what wavesrv answered; an agent that took the work carries its terminal (#954).
 export function rebaseOutcome(
     result: RebaseResult,
-    error?: string,
+    error?: Phrase,
     what: keyof typeof OutcomeKeys = "rebase"
 ): RebaseOutcome {
     const outcome = outcomeOf(result, error, what);
@@ -319,10 +320,10 @@ export function rebaseOutcome(
     return outcome;
 }
 
-function outcomeOf(result: RebaseResult, error: string, what: keyof typeof OutcomeKeys): RebaseOutcome {
+function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof OutcomeKeys): RebaseOutcome {
     const keys = OutcomeKeys[what];
     if (error) {
-        return { kind: "failed", text: t(keys.failed, { message: error }) };
+        return { kind: "failed", text: phrase(keys.failed, { message: error }) };
     }
     if (result == null) {
         return null;
@@ -333,32 +334,40 @@ function outcomeOf(result: RebaseResult, error: string, what: keyof typeof Outco
         branch: result.branch ?? "",
         folder: folderOf(result.worktree),
         brief: result.briefpath ?? "",
-        message: serverText(result.messagetext, result.message ?? ""),
+        message: serverPhrase(result.messagetext, result.message ?? ""),
     };
     switch (result.status) {
         case "started":
             if (result.hidden) {
-                return { kind: "asked", name, text: t(keys.startedHidden, vars), note: true };
+                return { kind: "asked", name, text: phrase(keys.startedHidden, vars), note: true };
             }
-            return { kind: "asked", name, text: t(keys.asked, vars), note: what === "investigate" };
+            return { kind: "asked", name, text: phrase(keys.asked, vars), note: what === "investigate" };
         case "sent": {
             const other = notChosen(result, name);
             return {
                 kind: "asked",
                 name,
-                text: t(keys.asked, vars) + other,
-                note: what === "investigate" || other !== "",
+                text: joinPhrases([phrase(keys.asked, vars), other]),
+                note: what === "investigate" || other != null,
             };
         }
         case "typed":
-            return { kind: "asked", name, text: t("reviews.rebase.typed", vars) + notChosen(result, name), note: true };
+            return {
+                kind: "asked",
+                name,
+                text: joinPhrases([phrase("reviews.rebase.typed", vars), notChosen(result, name)]),
+                note: true,
+            };
         case "offer":
-            return { kind: "offer", text: t(keys.offer, vars), agent: result.agentname ?? "", result };
+            return { kind: "offer", text: phrase(keys.offer, vars), agent: result.agentname ?? "", result };
         case "noagent":
             if (result.reason === "agentmissing") {
-                return { kind: "failed", text: t("reviews.rebase.agentmissing", { chosen: result.chosenname ?? "" }) };
+                return {
+                    kind: "failed",
+                    text: phrase("reviews.rebase.agentmissing", { chosen: result.chosenname ?? "" }),
+                };
             }
-            return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
+            return { kind: "failed", text: phrase("reviews.rebase.noagent", vars) };
         case "busy":
             switch (result.reason) {
                 case "agentbusy":
@@ -366,21 +375,21 @@ function outcomeOf(result: RebaseResult, error: string, what: keyof typeof Outco
                         kind: "info",
                         text:
                             result.agentstate === "waiting"
-                                ? t("reviews.rebase.waiting", vars)
-                                : t("reviews.rebase.working", vars),
+                                ? phrase("reviews.rebase.waiting", vars)
+                                : phrase("reviews.rebase.working", vars),
                     };
                 case "inflight":
-                    return { kind: "info", text: t("reviews.rebase.inflight") };
+                    return { kind: "info", text: phrase("reviews.rebase.inflight") };
             }
-            return { kind: "info", text: t("reviews.rebase.notready", vars) };
+            return { kind: "info", text: phrase("reviews.rebase.notready", vars) };
     }
     switch (result.reason) {
         case "maincheckout":
-            return { kind: "failed", text: t("reviews.rebase.maincheckout", vars) };
+            return { kind: "failed", text: phrase("reviews.rebase.maincheckout", vars) };
         case "terminal":
-            return { kind: "failed", text: t("reviews.rebase.terminal") };
+            return { kind: "failed", text: phrase("reviews.rebase.terminal") };
     }
-    return { kind: "failed", text: t(keys.failed, vars) };
+    return { kind: "failed", text: phrase(keys.failed, vars) };
 }
 
 const CheckStateKeys: Record<CheckState, string> = {
@@ -704,27 +713,27 @@ export type MarkReadyResult = {
     message?: string;
 };
 
-// markReadyError words a failed Mark ready for review in plain words, "" when it succeeded (#687).
-export function markReadyError(result: MarkReadyResult, error?: string): string {
+// markReadyError words a failed Mark ready for review in plain words, null when it succeeded (#687).
+export function markReadyError(result: MarkReadyResult, error?: Phrase): Phrase {
     if (error) {
-        return t("reviews.ready.failed.error", { message: error });
+        return phrase("reviews.ready.failed.error", { message: error });
     }
     if (result?.status === "ready") {
-        return "";
+        return null;
     }
     switch (result?.reason) {
         case "closed":
-            return t("reviews.ready.failed.closed");
+            return phrase("reviews.ready.failed.closed");
         case "permission":
-            return t("reviews.ready.failed.permission");
+            return phrase("reviews.ready.failed.permission");
         case "auth":
-            return t("reviews.ready.failed.auth");
+            return phrase("reviews.ready.failed.auth");
         case "notfound":
-            return t("reviews.ready.failed.notfound");
+            return phrase("reviews.ready.failed.notfound");
         case "nogh":
-            return t("reviews.ready.failed.nogh");
+            return phrase("reviews.ready.failed.nogh");
     }
-    return t("reviews.ready.failed.error", { message: result?.message ?? "" });
+    return phrase("reviews.ready.failed.error", { message: result?.message ?? "" });
 }
 
 export function nextRow(rows: readonly ReviewPr[], current: number, key: string): number {

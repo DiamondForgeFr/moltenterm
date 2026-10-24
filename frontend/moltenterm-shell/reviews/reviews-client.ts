@@ -13,7 +13,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionSnapshot } from "../mission/mission-model";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -125,7 +125,8 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
     // The view shows only what it asked since it opened on this project: the rail's earlier answer may lack the
     // reports a view's ask brings.
     const [asked, setAsked] = useState<string>(null);
-    const [error, setError] = useState<string>(null);
+    const word = useWordPhrase();
+    const [error, setError] = useState<Phrase>(null);
     const ask = useCallback(
         (force: boolean) => {
             if (!dir) {
@@ -139,7 +140,7 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
                         setError(null);
                     }
                 } catch (e) {
-                    setError(serverErrorText(e));
+                    setError(errorPhrase(e));
                 }
             });
         },
@@ -167,7 +168,7 @@ export function useReviews(dir: string, snapshot: MissionSnapshot): ReviewsState
     }, [ask, githubAt, refreshing]);
     const refresh = useCallback(() => ask(true), [ask]);
     const answer = useMemo(() => (asked === dir ? stored : null), [asked, dir, stored]);
-    return { answer, error, refresh };
+    return { answer, error: error == null ? null : word(error), refresh };
 }
 
 // The rail's Reviews counts (#688) for the window's active project: a passive ask now, every RailPollMs while the

@@ -15,7 +15,7 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
@@ -313,7 +313,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         setBatchSelected([]);
         setConfirming(false);
     };
-    const startBatch = async (method: ReviewMergeMethod): Promise<string> => {
+    const startBatch = async (method: ReviewMergeMethod): Promise<Phrase> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
             const listed = [...listSplit.ready, ...listSplit.drafts];
@@ -327,10 +327,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 batchStartRequest(dir, answer.repo, answer.target, plannedBatch, method, workspaceId, order)
             );
         } catch (e) {
-            return serverErrorText(e);
+            return errorPhrase(e);
         }
         endSelection();
-        return "";
+        return null;
     };
     useEffect(() => {
         if (focus == null || focus.dir !== dir) {
@@ -703,6 +703,7 @@ export function ReviewRow({
 }) {
     const t = useT();
     useLocale();
+    const word = useWordPhrase();
     const [asking, setAsking] = useState(false);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     const head = reviewHeadline(pr);
@@ -895,7 +896,7 @@ export function ReviewRow({
                     role="status"
                     data-testid="reviews-rebase-outcome"
                 >
-                    <span className="min-w-0">{outcome.text}</span>
+                    <span className="min-w-0">{word(outcome.text)}</span>
                 </div>
             ) : null}
             <HeadStillFailsLine dir={dir} pr={pr} task={rebaseAsk} />

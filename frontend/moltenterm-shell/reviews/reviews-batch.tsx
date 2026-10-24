@@ -10,7 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
-import { serverErrorText } from "../i18n/server-text";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { topModal } from "../modal-focus";
 import { MoltenWave } from "../molten-button";
 import { MergeMethodPicker } from "../review/merge-method-picker";
@@ -136,24 +136,25 @@ export function BatchConfirmDialog({
     dir: string;
     repo: string;
     base: string;
-    onStart: (method: ReviewMergeMethod) => Promise<string>;
+    onStart: (method: ReviewMergeMethod) => Promise<Phrase>;
     onCancel: () => void;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const tCount = useTCount();
     const startRef = useRef<HTMLButtonElement>(null);
     const [starting, setStarting] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     // The method (#957): Validate's, read fresh for the repository's base, the developer's pick over it; nothing starts
     // before it is known, so the queue never decides it at merge time.
     const [methods, setMethods] = useState<ReviewMergeMethods>(null);
-    const [methodsError, setMethodsError] = useState("");
+    const [methodsError, setMethodsError] = useState<Phrase>(null);
     const [picked, setPicked] = useState<ReviewMergeMethod>(null);
     useEffect(() => {
         let live = true;
         reviewMergeMethods(dir, repo, base).then(
             (answer) => live && setMethods(answer),
-            (e) => live && setMethodsError(serverErrorText(e))
+            (e) => live && setMethodsError(errorPhrase(e))
         );
         return () => {
             live = false;
@@ -166,7 +167,7 @@ export function BatchConfirmDialog({
             return;
         }
         setStarting(true);
-        setError("");
+        setError(null);
         fireAndForget(async () => {
             const problem = await onStart(method);
             setStarting(false);
@@ -270,9 +271,9 @@ export function BatchConfirmDialog({
                         onSelect={setPicked}
                         testId="reviews-batch-confirm-method"
                     />
-                ) : methodsError ? (
+                ) : methodsError != null ? (
                     <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-method-error">
-                        {t("reviews.batch.confirm.methodError", { detail: methodsError })}
+                        {t("reviews.batch.confirm.methodError", { detail: word(methodsError) })}
                     </p>
                 ) : (
                     <p
@@ -286,9 +287,9 @@ export function BatchConfirmDialog({
                 <p className="text-secondary">{t("reviews.batch.confirm.what", { base })}</p>
                 <p className="text-secondary">{t("reviews.batch.confirm.stops")}</p>
                 <p className="text-muted">{t("reviews.batch.confirm.checkout")}</p>
-                {error ? (
+                {error != null ? (
                     <p className="text-danger" role="alert" data-testid="reviews-batch-confirm-error">
-                        {error}
+                        {word(error)}
                     </p>
                 ) : null}
             </div>
@@ -301,8 +302,9 @@ export function BatchConfirmDialog({
 // the agent's terminal; the summary once it ended.
 export function BatchBanner({ run }: { run: BatchRun }) {
     const t = useT();
+    const word = useWordPhrase();
     const [busy, setBusy] = useState("");
-    const [error, setError] = useState("");
+    const [error, setError] = useState<Phrase>(null);
     const active = batchActive(run);
     const current = batchCurrent(run);
     const act = (what: string, fn: () => Promise<unknown>) => {
@@ -310,12 +312,12 @@ export function BatchBanner({ run }: { run: BatchRun }) {
             return;
         }
         setBusy(what);
-        setError("");
+        setError(null);
         fireAndForget(async () => {
             try {
                 await fn();
             } catch (e) {
-                setError(serverErrorText(e));
+                setError(errorPhrase(e));
             } finally {
                 setBusy("");
             }
@@ -439,9 +441,9 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                     {batchSummary(run)}
                 </div>
             ) : null}
-            {error ? (
+            {error != null ? (
                 <div className="text-11 text-danger" role="alert">
-                    {error}
+                    {word(error)}
                 </div>
             ) : null}
         </div>

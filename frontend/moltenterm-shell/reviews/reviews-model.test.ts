@@ -3,20 +3,21 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
+import { errorPhrase, wordPhrase } from "../i18n/phrase";
 import {
     blockedReasons,
     ciLabel,
     isReviewable,
-    markReadyError,
+    markReadyError as markReadyPhrase,
     mergeableNow,
     mergeLabel,
     mergeLabelOf,
     navigableRows,
     nextRow,
+    rebaseOutcome as outcomeOf,
     railCountText,
     rebaseAskKey,
     rebaseAskShown,
-    rebaseOutcome,
     reportLabel,
     reviewAriaLabel,
     reviewCounts,
@@ -29,6 +30,20 @@ import {
     splitReviews,
     validateBlocked,
 } from "./reviews-model";
+
+// The outcome with its text worded, as a row shows it (#1058).
+function rebaseOutcome(
+    result: Parameters<typeof outcomeOf>[0],
+    error?: string,
+    what?: Parameters<typeof outcomeOf>[2]
+) {
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+}
+
+function markReadyError(result: Parameters<typeof markReadyPhrase>[0], error?: string): string {
+    return wordPhrase(markReadyPhrase(result, error == null ? null : errorPhrase(error)));
+}
 
 function pr(number: number, extra: Partial<ReviewPr> = {}): ReviewPr {
     return {

@@ -6,9 +6,20 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import { rebaseOutcome } from "../reviews/reviews-model";
+import { errorPhrase, wordPhrase } from "../i18n/phrase";
+import { rebaseOutcome as outcomeOf } from "../reviews/reviews-model";
 import { validateErrorText } from "./review-merge";
 import { restartOutcome } from "./review-restart";
+
+// The outcome with its text worded, as a row shows it (#1058).
+function rebaseOutcome(
+    result: Parameters<typeof outcomeOf>[0],
+    error?: string,
+    what?: Parameters<typeof outcomeOf>[2]
+) {
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+}
 
 const Wired = 'uimsg:{"code":"review.nothingtopublish"}\nthere is nothing to publish: stage comments first';
 const WiredWorktree =
