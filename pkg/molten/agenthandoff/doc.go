@@ -16,15 +16,16 @@ package agenthandoff
 import "github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 
 type (
-	ListRequest   = handoffwire.ListRequest
-	ListResult    = handoffwire.ListResult
-	AgentEntry    = handoffwire.AgentEntry
-	FileRef       = handoffwire.FileRef
-	LinkRef       = handoffwire.LinkRef
-	Brief         = handoffwire.Brief
-	SendRequest   = handoffwire.SendRequest
-	SendResult    = handoffwire.SendResult
-	AnswerRequest = handoffwire.AnswerRequest
+	ListRequest       = handoffwire.ListRequest
+	ListResult        = handoffwire.ListResult
+	AgentEntry        = handoffwire.AgentEntry
+	FileRef           = handoffwire.FileRef
+	LinkRef           = handoffwire.LinkRef
+	Brief             = handoffwire.Brief
+	SendRequest       = handoffwire.SendRequest
+	SendResult        = handoffwire.SendResult
+	AnswerRequest     = handoffwire.AnswerRequest
+	LinkNoticeRequest = handoffwire.LinkNoticeRequest
 )
 
 const (
@@ -32,6 +33,8 @@ const (
 	ListCommand           = handoffwire.ListCommand
 	SendCommand           = handoffwire.SendCommand
 	AnswerCommand         = handoffwire.AnswerCommand
+	LinkNoticeCommand     = handoffwire.LinkNoticeCommand
+	LinkNoticeKeyPrefix   = handoffwire.LinkNoticeKeyPrefix
 	AnswerGesture         = handoffwire.AnswerGesture
 	NotificationKeyPrefix = handoffwire.NotificationKeyPrefix
 	NotificationSource    = handoffwire.NotificationSource

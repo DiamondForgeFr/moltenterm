@@ -6,11 +6,11 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
@@ -18,20 +18,23 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // `molten mcp browser` (FR-BRW-008, DS-BRW-009): the stdio MCP server an agent launches from a MoltenTerm pane, e.g.
 // `claude mcp add molten-browser -- molten mcp browser`. `molten mcp review` (FR-REV-004, DS-REV-005): the server of a
 // review session, which MoltenTerm gives the session's agent itself. Both speak MCP on stdin/stdout and nothing else:
-// stdout belongs to the protocol. Each tool call goes to wavesrv, which owns scope and permissions.
+// stdout belongs to the protocol. Each tool call goes to wavesrv, which owns scope and permissions, over a link that
+// survives MoltenTerm restarts (wshcmd-molten-mcplink.go, #1029).
 
 const (
 	moltenMcpHelloTimeoutMs = 5000
 	moltenMcpByeTimeoutMs   = 2000
 	// Longer than wavesrv's own limit on a call (a 2-minute site permission wait, then a page load).
 	moltenMcpCallTimeoutMs = 200000
+
+	moltenMcpBrowserServer = "molten-browser"
+	moltenMcpReviewServer  = "molten-review"
 )
 
 var moltenMcpCmd = &cobra.Command{
@@ -72,26 +75,50 @@ func init() {
 // moltenMcpProtocol is how one server reaches its wavesrv route.
 type moltenMcpProtocol struct {
 	name     string
+	server   string
 	route    string
 	hello    string
 	call     string
 	bye      string
 	notInErr string
+	// sessionEnded: wavesrv's answer to a session id it does not know, e.g. one opened on a previous link.
+	sessionEnded string
 	// fixed: wavesrv's refusals kept as their sentences.
 	fixed     []string
 	startFail string
+	// readOnly: a tool whose call may be sent again when the link died before its answer.
+	readOnly  func(tool string) bool
 	makeHello func(token string, client mcpbrowser.ClientInfo) any
 	helloId   func(resp any) (string, error)
 	makeCall  func(id string, tool string, args json.RawMessage) any
 	makeBye   func(id string) any
 }
 
+func isMoltenMcpBrowserReadOnly(tool string) bool {
+	switch tool {
+	case mcpbrowser.ToolTabsContext, mcpbrowser.ToolReadPage, mcpbrowser.ToolGetPageText, mcpbrowser.ToolFind,
+		mcpbrowser.ToolListAgents:
+		return true
+	}
+	return false
+}
+
+func isMoltenMcpReviewReadOnly(tool string) bool {
+	switch tool {
+	case mcpreview.ToolContext, mcpreview.ToolFiles, mcpreview.ToolDiff, mcpreview.ToolSelection:
+		return true
+	}
+	return false
+}
+
 var moltenMcpBrowserProtocol = moltenMcpProtocol{
-	name: "molten mcp browser", route: mcpbrowser.RouteId,
+	name: "molten mcp browser", server: moltenMcpBrowserServer, route: mcpbrowser.RouteId,
 	hello: mcpbrowser.HelloCommand, call: mcpbrowser.CallCommand, bye: mcpbrowser.ByeCommand,
-	notInErr:  mcpbrowser.ErrNotInMoltenTerm,
-	fixed:     []string{mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrRemotePane},
-	startFail: "MoltenTerm's browser could not start a session for this pane",
+	notInErr:     mcpbrowser.ErrNotInMoltenTerm,
+	sessionEnded: mcpbrowser.ErrSessionEnded,
+	fixed:        []string{mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrRemotePane},
+	startFail:    "MoltenTerm's browser could not start a session for this pane",
+	readOnly:     isMoltenMcpBrowserReadOnly,
 	makeHello: func(token string, client mcpbrowser.ClientInfo) any {
 		return mcpbrowser.HelloRequest{Token: token, ClientName: client.Name, ClientVersion: client.Version}
 	},
@@ -108,11 +135,13 @@ var moltenMcpBrowserProtocol = moltenMcpProtocol{
 
 func moltenMcpReviewProtocol(sessionToken string) moltenMcpProtocol {
 	return moltenMcpProtocol{
-		name: "molten mcp review", route: mcpreview.RouteId,
+		name: "molten mcp review", server: moltenMcpReviewServer, route: mcpreview.RouteId,
 		hello: mcpreview.HelloCommand, call: mcpreview.CallCommand, bye: mcpreview.ByeCommand,
-		notInErr:  mcpreview.ErrNotInMoltenTerm,
-		fixed:     []string{mcpreview.ErrNotInMoltenTerm, mcpreview.ErrRemotePane, mcpreview.ErrSessionEnded},
-		startFail: "MoltenTerm's review session could not be reached",
+		notInErr:     mcpreview.ErrNotInMoltenTerm,
+		sessionEnded: mcpreview.ErrSessionEnded,
+		fixed:        []string{mcpreview.ErrNotInMoltenTerm, mcpreview.ErrRemotePane, mcpreview.ErrSessionEnded},
+		startFail:    "MoltenTerm's review session could not be reached",
+		readOnly:     isMoltenMcpReviewReadOnly,
 		makeHello: func(token string, client mcpbrowser.ClientInfo) any {
 			return mcpreview.HelloRequest{Token: token, SessionToken: sessionToken, ClientName: client.Name, ClientVersion: client.Version}
 		},
@@ -141,16 +170,13 @@ func moltenMcpReviewRun(cmd *cobra.Command, args []string) error {
 	return runMoltenMcpServer(mcpreview.Spec(), moltenMcpReviewProtocol(sessionToken), jwt)
 }
 
-// runMoltenMcpServer serves the spec's tools; without a terminal token, or when wavesrv cannot be reached, every call
-// answers that it does not run in MoltenTerm.
+// runMoltenMcpServer serves the spec's tools; without a terminal token every call answers that it does not run in
+// MoltenTerm. With one, the server reaches wavesrv whenever it can: MoltenTerm may start, quit or restart while the
+// agent runs.
 func runMoltenMcpServer(spec mcpbrowser.ServerSpec, protocol moltenMcpProtocol, token string) error {
 	var backend mcpbrowser.Backend = moltenMcpOfflineBackend{err: protocol.notInErr}
 	if token != "" {
-		if err := setupRpcClient(nil, token); err != nil {
-			fmt.Fprintf(os.Stderr, "%s: MoltenTerm is not reachable (%v)\n", protocol.name, err)
-		} else {
-			backend = &moltenMcpRpcBackend{token: token, protocol: protocol}
-		}
+		backend = makeMoltenMcpRpcBackend(token, protocol, moltenMcpDial)
 	}
 	server := mcpbrowser.MakeSpecServer(spec, backend, os.Stdin, os.Stdout, wavebase.WaveVersion)
 	if err := server.Serve(context.Background()); err != nil {
@@ -172,24 +198,34 @@ func (b moltenMcpOfflineBackend) CallTool(ctx context.Context, tool string, args
 
 func (moltenMcpOfflineBackend) Close() {}
 
-// moltenMcpRpcBackend opens one session in wavesrv and forwards each tool call to it.
+// moltenMcpRpcBackend opens one session in wavesrv and forwards each tool call to it, opening a new one when the link
+// to wavesrv was made again.
 type moltenMcpRpcBackend struct {
 	token    string
 	protocol moltenMcpProtocol
+	link     *moltenMcpLink
 
 	lock      sync.Mutex
 	client    mcpbrowser.ClientInfo
 	sessionId string
-	startErr  string
+	// sessionGen: the link's connection the session was opened on.
+	sessionGen int
+	startErr   string
 	// firstName: the pane's agent name, for the browser server's instructions.
 	firstName string
+}
+
+func makeMoltenMcpRpcBackend(token string, protocol moltenMcpProtocol, dial moltenMcpDialFn) *moltenMcpRpcBackend {
+	b := &moltenMcpRpcBackend{token: token, protocol: protocol, link: makeMoltenMcpLink(token, dial)}
+	b.link.restored = b.sendLinkNotice
+	return b
 }
 
 func (b *moltenMcpRpcBackend) Start(ctx context.Context, client mcpbrowser.ClientInfo) {
 	b.setClient(client)
 	b.hello()
 	if b.protocol.route == mcpbrowser.RouteId {
-		b.setFirstName(moltenMcpOwnFirstName(b.token))
+		b.setFirstName(b.ownFirstName())
 	}
 }
 
@@ -209,21 +245,30 @@ func (b *moltenMcpRpcBackend) Instructions(base string) string {
 	return mcpbrowser.ServerInstructions + mcpbrowser.AgentInstructions(b.firstName)
 }
 
-// moltenMcpOwnFirstName asks the handoff route for the pane's agent name, "" when it has none yet.
-func moltenMcpOwnFirstName(token string) string {
+func (b *moltenMcpRpcBackend) handoffRequest(ctx context.Context, command string, data any, timeoutMs int, readOnly bool, out any) error {
+	resp, _, err := b.link.call(ctx, command, data, handoffwire.RouteId, int64(timeoutMs), readOnly)
+	if err != nil {
+		return err
+	}
+	return utilfn.ReUnmarshal(out, resp)
+}
+
+// ownFirstName asks the handoff route for the pane's agent name, "" when it has none yet.
+func (b *moltenMcpRpcBackend) ownFirstName() string {
 	var list handoffwire.ListResult
-	err := moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token, WaitName: true}, moltenHandoffListTimeoutMs, &list)
+	err := b.handoffRequest(context.Background(), handoffwire.ListCommand, handoffwire.ListRequest{Token: b.token, WaitName: true},
+		moltenHandoffListTimeoutMs, true, &list)
 	if err != nil || list.You == nil {
 		return ""
 	}
 	return list.You.FirstName
 }
 
-// moltenMcpAgentTool runs list_agents and send_to_agent on the handoff route (FR-CONT-015).
-func moltenMcpAgentTool(token string, tool string, args json.RawMessage) mcpbrowser.CallResult {
+// agentTool runs list_agents and send_to_agent on the handoff route (FR-CONT-015). A send is never replayed.
+func (b *moltenMcpRpcBackend) agentTool(ctx context.Context, tool string, args json.RawMessage) mcpbrowser.CallResult {
 	if tool == mcpbrowser.ToolListAgents {
 		var list handoffwire.ListResult
-		if err := moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token}, moltenHandoffListTimeoutMs, &list); err != nil {
+		if err := b.handoffRequest(ctx, handoffwire.ListCommand, handoffwire.ListRequest{Token: b.token}, moltenHandoffListTimeoutMs, true, &list); err != nil {
 			return mcpbrowser.ErrorResult(moltenHandoffError(err))
 		}
 		return mcpbrowser.TextResult(mcpbrowser.FormatAgentList(moltenMcpAgentList(list)))
@@ -239,11 +284,23 @@ func moltenMcpAgentTool(token string, tool string, args json.RawMessage) mcpbrow
 		}
 	}
 	var result handoffwire.SendResult
-	err := moltenHandoffRequest(handoffwire.SendCommand, handoffwire.SendRequest{Token: token, To: in.Name, Brief: brief}, moltenHandoffSendTimeoutMs, &result)
+	err := b.handoffRequest(ctx, handoffwire.SendCommand, handoffwire.SendRequest{Token: b.token, To: in.Name, Brief: brief},
+		moltenHandoffSendTimeoutMs, false, &result)
 	if err != nil {
 		return mcpbrowser.ErrorResult(moltenHandoffError(err))
 	}
 	return mcpbrowser.TextResult(result.Message)
+}
+
+// sendLinkNotice tells MoltenTerm the link is back after calls failed, on the new connection itself: a failure here is
+// not one the agent saw.
+func (b *moltenMcpRpcBackend) sendLinkNotice(conn *moltenMcpConn, failed int) {
+	fmt.Fprintf(os.Stderr, "%s: connected to MoltenTerm again, %d calls failed meanwhile\n", b.protocol.name, failed)
+	req := handoffwire.LinkNoticeRequest{Token: b.token, Server: b.protocol.server, Failed: failed}
+	opts := moltenMcpOpts(handoffwire.RouteId, moltenMcpNoticeTimeoutMs)
+	if _, err := conn.rpc.SendRpcRequest(handoffwire.LinkNoticeCommand, req, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: the reconnect notice was not shown: %v\n", b.protocol.name, err)
+	}
 }
 
 func moltenMcpAgentList(list handoffwire.ListResult) mcpbrowser.AgentList {
@@ -268,19 +325,19 @@ func (b *moltenMcpRpcBackend) setClient(client mcpbrowser.ClientInfo) {
 	b.client = client
 }
 
-// hello opens the session; a call made while there is none tries again (wavesrv was starting, or restarted).
+// hello opens the session; a call made while there is none, or after the link was made again, tries again.
 func (b *moltenMcpRpcBackend) hello() {
 	client := b.clientInfo()
 	sessionId := ""
-	resp, err := RpcClient.SendRpcRequest(b.protocol.hello, b.protocol.makeHello(b.token, client),
-		&wshrpc.RpcOpts{Route: b.protocol.route, Timeout: moltenMcpHelloTimeoutMs})
+	resp, gen, err := b.link.call(context.Background(), b.protocol.hello, b.protocol.makeHello(b.token, client),
+		b.protocol.route, moltenMcpHelloTimeoutMs, true)
 	if err == nil {
 		sessionId, err = b.protocol.helloId(resp)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: no session: %v\n", b.protocol.name, err)
 	}
-	b.setSession(sessionId, moltenMcpStartError(b.protocol, err))
+	b.setSession(sessionId, gen, moltenMcpStartError(b.protocol, err))
 }
 
 func (b *moltenMcpRpcBackend) clientInfo() mcpbrowser.ClientInfo {
@@ -289,18 +346,24 @@ func (b *moltenMcpRpcBackend) clientInfo() mcpbrowser.ClientInfo {
 	return b.client
 }
 
-func (b *moltenMcpRpcBackend) setSession(sessionId string, startErr string) {
+func (b *moltenMcpRpcBackend) setSession(sessionId string, gen int, startErr string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.sessionId = sessionId
+	b.sessionGen = gen
 	b.startErr = startErr
 }
 
 // moltenMcpStartError keeps wavesrv's refusals as their fixed sentences (an agent outside a local MoltenTerm pane
-// reads "Not running in a MoltenTerm terminal"); anything else says the session could not start.
+// reads "Not running in a MoltenTerm terminal") and the link's own sentences; anything else says the session could not
+// start.
 func moltenMcpStartError(protocol moltenMcpProtocol, err error) string {
 	if err == nil {
 		return ""
+	}
+	var linkErr *moltenMcpLinkError
+	if errors.As(err, &linkErr) {
+		return linkErr.Error()
 	}
 	msg := err.Error()
 	for _, fixed := range protocol.fixed {
@@ -311,62 +374,65 @@ func moltenMcpStartError(protocol moltenMcpProtocol, err error) string {
 	return fmt.Sprintf("%s: %s", protocol.startFail, msg)
 }
 
-func (b *moltenMcpRpcBackend) session() (string, string) {
+func (b *moltenMcpRpcBackend) session() (string, int, string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	return b.sessionId, b.startErr
+	return b.sessionId, b.sessionGen, b.startErr
+}
+
+// currentSession returns a session opened on the link's current connection, opening one when needed.
+func (b *moltenMcpRpcBackend) currentSession() (string, int, string) {
+	sessionId, sessionGen, _ := b.session()
+	if sessionId != "" {
+		if _, gen, err := b.link.get(); err != nil || gen == sessionGen {
+			return sessionId, sessionGen, ""
+		}
+	}
+	b.hello()
+	sessionId, sessionGen, startErr := b.session()
+	return sessionId, sessionGen, startErr
 }
 
 func (b *moltenMcpRpcBackend) CallTool(ctx context.Context, tool string, args json.RawMessage) mcpbrowser.CallResult {
 	if b.protocol.route == mcpbrowser.RouteId && mcpbrowser.IsAgentTool(tool) {
-		return moltenMcpAgentTool(b.token, tool, args)
+		return b.agentTool(ctx, tool, args)
 	}
-	sessionId, _ := b.session()
-	if sessionId == "" {
-		b.hello()
-		var startErr string
-		sessionId, startErr = b.session()
+	for attempt := 0; ; attempt++ {
+		sessionId, sessionGen, startErr := b.currentSession()
 		if sessionId == "" {
 			return mcpbrowser.ErrorResult(startErr)
 		}
-	}
-	handler, err := RpcClient.SendComplexRequest(b.protocol.call, b.protocol.makeCall(sessionId, tool, args),
-		&wshrpc.RpcOpts{Route: b.protocol.route, Timeout: moltenMcpCallTimeoutMs})
-	if err != nil {
-		return mcpbrowser.ErrorResult(fmt.Sprintf("MoltenTerm is not reachable: %v", err))
-	}
-	type response struct {
-		data any
-		err  error
-	}
-	respCh := make(chan response, 1)
-	go func() {
-		data, err := handler.NextResponse()
-		respCh <- response{data: data, err: err}
-	}()
-	select {
-	case resp := <-respCh:
-		if resp.err != nil {
-			return mcpbrowser.ErrorResult(resp.err.Error())
+		resp, gen, err := b.link.call(ctx, b.protocol.call, b.protocol.makeCall(sessionId, tool, args), b.protocol.route,
+			moltenMcpCallTimeoutMs, b.protocol.readOnly(tool))
+		if err != nil {
+			return mcpbrowser.ErrorResult(err.Error())
 		}
 		var result mcpbrowser.CallResult
-		if err := utilfn.ReUnmarshal(&result, resp.data); err != nil {
+		if err := utilfn.ReUnmarshal(&result, resp); err != nil {
 			return mcpbrowser.ErrorResult(fmt.Sprintf("unreadable answer from MoltenTerm: %v", err))
 		}
+		// The link was made again under the call: wavesrv did not know the session, so nothing was done.
+		if attempt == 0 && gen != sessionGen && moltenMcpIsSessionEnded(result, b.protocol.sessionEnded) {
+			b.setSession("", 0, "")
+			continue
+		}
 		return result
-	case <-ctx.Done():
-		cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		handler.SendCancel(cancelCtx)
-		return mcpbrowser.ErrorResult("Cancelled")
 	}
 }
 
+func moltenMcpIsSessionEnded(result mcpbrowser.CallResult, sentence string) bool {
+	return result.IsError && len(result.Content) > 0 && result.Content[0].Text == sentence
+}
+
 func (b *moltenMcpRpcBackend) Close() {
-	sessionId, _ := b.session()
+	defer b.link.close()
+	sessionId, _, _ := b.session()
 	if sessionId == "" {
 		return
 	}
-	RpcClient.SendRpcRequest(b.protocol.bye, b.protocol.makeBye(sessionId),
-		&wshrpc.RpcOpts{Route: b.protocol.route, Timeout: moltenMcpByeTimeoutMs})
+	conn := b.link.current()
+	if conn == nil {
+		return
+	}
+	conn.rpc.SendRpcRequest(b.protocol.bye, b.protocol.makeBye(sessionId), moltenMcpOpts(b.protocol.route, moltenMcpByeTimeoutMs))
 }

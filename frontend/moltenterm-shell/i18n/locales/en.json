@@ -6367,6 +6367,14 @@
                 "goto": "Go to {receiver}"
             }
         },
+        "agentlink": {
+            "restored": {
+                "title": "{name} lost its link to MoltenTerm",
+                "messageone": "1 call failed while MoltenTerm could not be reached. The link is back: ask {name} to try again.",
+                "messageother": "{count} calls failed while MoltenTerm could not be reached. The link is back: ask {name} to try again.",
+                "goto": "Go to {name}"
+            }
+        },
         "sessions": {
             "noid": "No session was given.",
             "gone": "The session {session} is no longer running.",

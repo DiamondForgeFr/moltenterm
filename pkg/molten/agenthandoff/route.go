@@ -17,7 +17,7 @@ import (
 
 // The handoffs answer on a leaf of wavesrv's router with plain command names. A list or a send comes from a local
 // terminal's own link (`molten agent send`, the browser MCP server) and is believed from the pane token it carries,
-// never from its route; an answer only from a window or Electron main (localroute).
+// never from its route, like an MCP server's link notice; an answer only from a window or Electron main (localroute).
 
 const (
 	listTimeout = 10 * time.Second
@@ -36,10 +36,11 @@ func (l *routeLink) route() localroute.Route {
 		Policy: localroute.Policy{
 			Default: localroute.AllowUi,
 			Commands: map[string]string{
-				ListCommand: localroute.AllowLocalTerminal,
-				SendCommand: localroute.AllowLocalTerminal,
+				ListCommand:       localroute.AllowLocalTerminal,
+				SendCommand:       localroute.AllowLocalTerminal,
+				LinkNoticeCommand: localroute.AllowLocalTerminal,
 			},
-			Refusals: map[string]string{ListCommand: errRemote, SendCommand: errRemote},
+			Refusals: map[string]string{ListCommand: errRemote, SendCommand: errRemote, LinkNoticeCommand: errRemote},
 		},
 		Handler:       l.handle,
 		RunUnanswered: true,
@@ -69,6 +70,12 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return nil, err
 		}
 		return l.manager.Send(ctx, req)
+	case LinkNoticeCommand:
+		var req LinkNoticeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.manager.LinkNotice(ctx, req)
 	case AnswerCommand:
 		var req AnswerRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
