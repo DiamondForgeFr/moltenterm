@@ -706,18 +706,21 @@
 
 /* The dominoes follow the other running indicators: the system preference, MoltenTerm's own reduced-motion setting (the
    app root's class) and an inactive view (FR-PERF-009-AC4) stand them upright. The kit stops them under the system
-   preference too, but in its layer, which the stepped animation above would override. */
+   preference too, but in its layer, which the stepped animation above would override. Standing still, they take the
+   kit's still pose (suite.css), a frame of the fall: their 0° rest would draw one flat dash (#1073). */
 .prefers-reduced-motion .df-dominos > span,
 .prefers-reduced-motion .df-domino-loader > span,
 :root[data-mt-motion="still"] .df-dominos > span,
 :root[data-mt-motion="still"] .df-domino-loader > span {
     animation: none;
+    transform: rotate(var(--df-domino-still, 0deg));
 }
 
 @media (prefers-reduced-motion: reduce) {
     .df-dominos > span,
     .df-domino-loader > span {
         animation: none;
+        transform: rotate(var(--df-domino-still, 0deg));
     }
 }
 
