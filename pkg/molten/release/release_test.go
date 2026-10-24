@@ -51,6 +51,8 @@ type fakeGh struct {
 	rehearsals string
 	views      []string
 	artifacts  string
+	// The answers to pending_deployments, in turn (JSON); `[]` once spent.
+	pendings []string
 }
 
 func (f *fakeGh) record(args []string) {
@@ -89,6 +91,14 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 		}
 		status, conclusion, _ := strings.Cut(state, " ")
 		return []byte(fmt.Sprintf(`{"databaseId":%s,"status":%q,"conclusion":%q,"url":"https://ci/run/%s"}`, args[2], status, conclusion, args[2])), nil
+	case strings.HasSuffix(joined, "/pending_deployments"):
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		answer := "[]"
+		if len(f.pendings) > 0 {
+			answer, f.pendings = f.pendings[0], f.pendings[1:]
+		}
+		return []byte(answer), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/runs/"):
 		if f.artifacts == "" {
 			return []byte(`{"artifacts":[]}`), nil

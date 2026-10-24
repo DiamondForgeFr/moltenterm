@@ -60,9 +60,15 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 	}
 	if p.Release != nil {
 		for _, step := range p.Release.Rc {
+			if step.IsManual() {
+				continue
+			}
 			rtn = append(rtn, TrustedCommand{Kind: "rc", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
 		}
 		for _, step := range p.Release.Public {
+			if step.IsManual() {
+				continue
+			}
 			rtn = append(rtn, TrustedCommand{Kind: "public", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
 		}
 	}

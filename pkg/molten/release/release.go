@@ -87,6 +87,8 @@ type Project struct {
 	Release string
 	// versions.notesagent: the coding agent CLI that writes the public notes, empty for none.
 	NotesAgent []string
+	// versions.changelogs: files the cut may commit beside the version files and the notes.
+	Changelogs []string
 	// Where the release branch's name was read (molten.BranchFrom…), for the messages that name it.
 	ReleaseFrom string
 }
@@ -232,6 +234,7 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	p := &Project{Root: root, Name: report.Pipeline.Name, Rules: versions.Rules{TagPrefix: versions.DefaultTagPrefix}, Notes: DefaultNotesPath}
 	if v := report.Pipeline.Versions; v != nil {
 		p.NotesAgent = v.NotesAgent
+		p.Changelogs = v.Changelogs
 		if v.TagPrefix != "" {
 			p.Rules.TagPrefix = v.TagPrefix
 		}

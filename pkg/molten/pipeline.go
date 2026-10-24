@@ -42,11 +42,14 @@ type PipelineVersions struct {
 	// The coding agent CLI that writes the public notes from the release's facts (FR-REL-003), as argv: the prompt goes
 	// to its standard input and the notes come back on its standard output. Empty: the notes are the commit subjects.
 	NotesAgent []string `json:"notesagent,omitempty"`
+	// Files a release may change beside the version files and the notes, such as changelogs edited by hand before the cut
+	// (FR-MC-037): the cut commits them with the release.
+	Changelogs []string `json:"changelogs,omitempty"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
 type PipelineCommand struct {
-	Run string            `json:"run"`
+	Run string            `json:"run,omitempty"`
 	Cwd string            `json:"cwd,omitempty"`
 	Env map[string]string `json:"env,omitempty"`
 }
@@ -117,7 +120,15 @@ type PipelineStep struct {
 	Confirm string `json:"confirm,omitempty"`
 	// The step rewrites the public notes: offered beside them, not run in order.
 	Notes bool `json:"notes,omitempty"`
+	// A manual step (FR-MC-037): what the developer does by hand, shown in place of a command; the release waits until
+	// they confirm it is done, and nothing runs. It has no `run`.
+	Manual string `json:"manual,omitempty"`
 	PipelineCommand
+}
+
+// IsManual tells whether the step is done by hand rather than run.
+func (s PipelineStep) IsManual() bool {
+	return strings.TrimSpace(s.Manual) != ""
 }
 
 type PipelineRelease struct {
@@ -345,7 +356,11 @@ func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	for i, step := range steps {
 		label := fmt.Sprintf("%s[%d]", where, i)
 		c.checkId(label, step.Id, seen)
-		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+		if step.IsManual() {
+			c.checkManual(label, step, phases[i])
+		} else {
+			c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+		}
 		confirmed = confirmed || step.Confirm != ""
 		if step.Phase != "" && releasePhaseIndex(step.Phase) < 0 {
 			c.errorf("%s (%s): phase %q is not one of %s", label, step.Id, step.Phase, strings.Join(PipelineReleasePhases, ", "))
@@ -373,6 +388,21 @@ func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	}
 	if !confirmed {
 		c.warnf("%s: no step declares confirm: the step that pushes the tag runs on a plain click, unless it waits on notes drafted for the release", where)
+	}
+}
+
+// checkManual: a manual step runs nothing, so it holds no command, and it cannot be one of the steps that run on their
+// own as soon as a release starts.
+func (c *pipelineChecker) checkManual(label string, step PipelineStep, phase string) {
+	where := label + " (" + step.Id + ")"
+	if strings.TrimSpace(step.Run) != "" || step.Cwd != "" || len(step.Env) > 0 {
+		c.errorf("%s: a manual step has no run, cwd or env: the developer does it by hand", where)
+	}
+	if step.Notes {
+		c.errorf("%s: a manual step cannot rewrite the notes (notes: true)", where)
+	}
+	if phase == PipelineReleasePhasePrepare {
+		c.errorf("%s: a manual step cannot be in the prepare phase, which runs as soon as the release starts: give it the phase cut (or a later one)", where)
 	}
 }
 
@@ -518,6 +548,11 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	}
 	if v.TagPrefix != "" && !tagPrefixRegex.MatchString(v.TagPrefix) {
 		c.errorf("versions.tagprefix must start with a letter and hold only letters, digits, '.', '_', '/' or '-' (got %q)", v.TagPrefix)
+	}
+	for i, path := range v.Changelogs {
+		if strings.TrimSpace(path) == "" || strings.Contains(path, "..") || !insideProject(c.dir, filepath.FromSlash(path)) {
+			c.errorf("versions.changelogs[%d] must name a file of the project, without .. (got %q)", i, path)
+		}
 	}
 	for i, arg := range v.NotesAgent {
 		if strings.TrimSpace(arg) == "" {
@@ -728,6 +763,17 @@ func ValidatePipeline(dir string) PipelineReport {
 		report.Errors = append(report.Errors, err.Error())
 		return report
 	}
+	return validatePipelineData(dir, data, report)
+}
+
+// ValidatePipelineData checks a proposed `.molten/project.json` as if it were the project's file (FR-MC-036): the
+// release setup validates its draft before anything is written. It never runs a declared command.
+func ValidatePipelineData(dir string, data []byte) PipelineReport {
+	report := PipelineReport{Path: filepath.Join(dir, ProjectPipelineFile), Present: true, Errors: []string{}, Warnings: []string{}}
+	return validatePipelineData(dir, data, report)
+}
+
+func validatePipelineData(dir string, data []byte, report PipelineReport) PipelineReport {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var pipeline Pipeline

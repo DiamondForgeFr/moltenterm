@@ -172,6 +172,9 @@ func (p *Project) releaseFiles(tag string) map[string]bool {
 	for _, f := range p.Files {
 		allowed[filepath.ToSlash(filepath.Clean(f.Path))] = true
 	}
+	for _, path := range p.Changelogs {
+		allowed[filepath.ToSlash(filepath.Clean(path))] = true
+	}
 	return allowed
 }
 

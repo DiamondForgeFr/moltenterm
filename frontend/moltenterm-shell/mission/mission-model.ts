@@ -111,6 +111,8 @@ export type PipelineReleaseStep = PipelineCommand & {
     phase?: ReleasePhase;
     confirm?: string;
     notes?: boolean;
+    // Done by hand (FR-MC-037): the instructions, no run.
+    manual?: string;
 };
 
 // must match PipelineDependency in pkg/molten/pipeline.go
