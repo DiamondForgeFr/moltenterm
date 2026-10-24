@@ -336,7 +336,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 		`versions.files[0] (package.json): package.json: ["nope"] is missing`,
 		`versions.files[1]: path "../outside.json" must be a file of the project`,
 		"versions.files[2] (missing.json)",
-		`versions.files[3] (package.json): package.json: format must be "json" or "regex"`,
+		`versions.files[3] (package.json): package.json: format must be "json", "regex" or "text"`,
 	} {
 		if !hasMessage(report.Errors, want) {
 			t.Errorf("missing error %q in %v", want, report.Errors)

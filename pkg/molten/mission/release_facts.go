@@ -117,6 +117,8 @@ type ReleaseFacts struct {
 	// The release commit is on the trunk, or a pull request carries it back.
 	OnTrunk bool       `json:"ontrunk"`
 	BackPr  *ReleasePr `json:"backpr,omitempty"`
+	// The pull request that brings the release to the release branch, while the tag is not pushed (#1046).
+	ReleasePr *ReleasePr `json:"releasepr,omitempty"`
 	// A running step waits for a branch's GitHub CI (the promotion, #836).
 	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
 }
@@ -337,11 +339,63 @@ func (r *Runs) onTrunk(ctx context.Context, dir string, trunkRef string, tag str
 	if trunkRef == "" {
 		return false
 	}
-	out, err := r.git(ctx, dir, "git", "cherry", trunkRef, tag, tag+"^")
+	commit := releaseCommitOfTag(ctx, r.git, dir, tag)
+	out, err := r.git(ctx, dir, "git", "cherry", trunkRef, commit, commit+"^")
 	if err != nil {
 		return false
 	}
 	return !strings.Contains(string(out), "+")
+}
+
+// releasesByPr tells whether the pipeline brings its releases to the release branch by pull request (#1046).
+func releasesByPr(p *molten.Pipeline) bool {
+	if p.Release == nil {
+		return false
+	}
+	for _, steps := range [][]molten.PipelineStep{p.Release.Rc, p.Release.Public} {
+		for _, s := range steps {
+			if strings.HasPrefix(strings.TrimSpace(s.Run), "molten release open-pr") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// releasePrOf finds the open pull request titled after the release's commit (release.PrTitle).
+func (r *Runs) releasePrOf(ctx context.Context, dir string, tag string) *ReleasePr {
+	release := molten.ResolvedBranches(dir).Release
+	out, err := ghJson(ctx, r.git, dir, "pr", "list", "--state", "open", "--base", release, "--limit", "30", "--json", "number,url,title,headRefName")
+	if err != nil {
+		return nil
+	}
+	var prs []ReleasePr
+	json.Unmarshal(out, &prs)
+	for _, pr := range prs {
+		if strings.HasPrefix(pr.Title, "chore(release): "+tag+" (") {
+			return &pr
+		}
+	}
+	return nil
+}
+
+// releaseCommitOfTag is the commit a tag's release is in: the tagged commit, or, for a tag on the merge commit of a
+// release pull request (#1046), the release commit that pull request merged (release.ReleaseCommitSubject).
+func releaseCommitOfTag(ctx context.Context, git Runner, dir string, tag string) string {
+	if _, err := git(ctx, dir, "git", "rev-parse", "--verify", "--quiet", tag+"^2"); err != nil {
+		return tag
+	}
+	out, err := git(ctx, dir, "git", "log", "-n", "500", "--format=%H%x1f%s", tag+"^1.."+tag)
+	if err != nil {
+		return tag
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		sha, subject, _ := strings.Cut(line, "\x1f")
+		if strings.HasPrefix(subject, "chore(release): "+tag+" (") {
+			return sha
+		}
+	}
+	return tag
 }
 
 // ReleaseFactsOf reads every fact the release panel derives the phases from; no release followed gives empty facts.
@@ -378,6 +432,9 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	if !facts.TagExists {
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
+		if releasesByPr(p) {
+			facts.ReleasePr = r.releasePrOf(ctx, dir, session.Tag)
+		}
 		return facts, nil
 	}
 	facts.OnTrunk = r.onTrunk(ctx, dir, trunkRef, session.Tag)

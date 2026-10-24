@@ -41,6 +41,8 @@ var moltenReleaseFields []string
 var moltenReleaseDownload string
 var moltenReleaseDispatchRef string
 var moltenReleaseDispatchFields []string
+var moltenReleasePr bool
+var moltenReleaseMergeMethod string
 
 var moltenReleaseCmd = &cobra.Command{
 	Use:   "release",
@@ -68,7 +70,46 @@ var moltenReleasePrepareCmd = &cobra.Command{
 	Short: "bump the version and draft the notes of a release in the release worktree, without committing",
 	Args:  cobra.ExactArgs(1),
 	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		if moltenReleasePr {
+			return moltenReleaseEnv().PreparePr(context.Background(), args[0])
+		}
 		return moltenReleaseEnv().Prepare(context.Background(), args[0])
+	}),
+}
+
+var moltenReleaseReconcileCmd = &cobra.Command{
+	Use:   "reconcile <tag>",
+	Short: "once, merge the release branch into the prepared RC branch with -s ours (refused if it holds a commit the trunk lacks)",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().Reconcile(context.Background(), args[0])
+	}),
+}
+
+var moltenReleaseOpenPrCmd = &cobra.Command{
+	Use:   "open-pr <tag>",
+	Short: "commit the prepared release on its RC branch, push it and open its pull request to the release branch",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().OpenPr(context.Background(), args[0])
+	}),
+}
+
+var moltenReleaseMergePrCmd = &cobra.Command{
+	Use:   "merge-pr <tag>",
+	Short: "merge the release's pull request once its required checks are green",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().MergePr(context.Background(), args[0], release.MergePrOptions{Method: moltenReleaseMergeMethod})
+	}),
+}
+
+var moltenReleaseTagCmd = &cobra.Command{
+	Use:   "tag <tag>",
+	Short: "tag the commit the merged pull request left on the release branch and push the tag",
+	Args:  cobra.ExactArgs(1),
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().Tag(context.Background(), args[0])
 	}),
 }
 
@@ -149,9 +190,12 @@ func init() {
 	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseRef, "ref", "", "the branch to build (default: the trunk)")
 	moltenReleaseRehearseCmd.Flags().StringArrayVarP(&moltenReleaseFields, "field", "f", nil, "an input of the workflow, key=value (repeatable)")
 	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseDownload, "download", "", "download the artifacts into <folder>/<short commit>")
+	moltenReleasePrepareCmd.Flags().BoolVar(&moltenReleasePr, "pr", false, "prepare on the RC branch made from the trunk, for a release branch that takes pull requests only")
+	moltenReleaseMergePrCmd.Flags().StringVar(&moltenReleaseMergeMethod, "method", release.MergeMethodMerge, "how GitHub merges the pull request: merge, squash or rebase")
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
 		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd,
-		moltenReleaseRehearseCmd, moltenReleaseDispatchCmd} {
+		moltenReleaseRehearseCmd, moltenReleaseDispatchCmd, moltenReleaseReconcileCmd, moltenReleaseOpenPrCmd,
+		moltenReleaseMergePrCmd, moltenReleaseTagCmd} {
 		moltenReleaseCmd.AddCommand(cmd)
 	}
 	moltenCmd.AddCommand(moltenReleaseCmd)

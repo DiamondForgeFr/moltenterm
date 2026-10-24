@@ -41,7 +41,9 @@ func (e *Env) SyncBack(ctx context.Context, tag string) error {
 	if e.revParse(ctx, p.Root, trunkRef) == "" {
 		return fmt.Errorf("origin has no %s branch", p.Trunk)
 	}
-	cherry, err := e.gitLines(ctx, p.Root, "cherry", trunkRef, "refs/tags/"+tag, "refs/tags/"+tag+"^")
+	// A tag on a pull request's merge commit (#1046) carries the release commit it merged, not the merge itself.
+	commit := e.releaseCommitOfTag(ctx, p.Root, tag)
+	cherry, err := e.gitLines(ctx, p.Root, "cherry", trunkRef, commit, commit+"^")
 	if err != nil {
 		return err
 	}
@@ -67,7 +69,7 @@ func (e *Env) SyncBack(ctx context.Context, tag string) error {
 	if _, err := e.git(ctx, wt, "checkout", "--quiet", "-B", branch, trunkRef); err != nil {
 		return err
 	}
-	if _, err := e.git(ctx, wt, "cherry-pick", "refs/tags/"+tag); err != nil {
+	if _, err := e.git(ctx, wt, "cherry-pick", commit); err != nil {
 		e.git(ctx, wt, "cherry-pick", "--abort")
 		e.git(ctx, wt, "checkout", "--quiet", "--detach", trunkRef)
 		return fmt.Errorf("the release commit of %s conflicts with %s: carry it back by hand (git cherry-pick %s)", tag, p.Trunk, tag)
