@@ -63,13 +63,25 @@ function StepMark({ state }: { state: string }) {
     return <i className={cn("fa fa-solid text-10", StepIcon[state])} aria-hidden />;
 }
 
-// A card's Launch, or its "running here" line with Open and Stop when it is the launched version.
-export function LaunchCardActions({ dir, target }: { dir: string; target: LaunchTarget }) {
+// A card's Launch, or its "running here" line with Open and Stop when it is the launched version. runningOnly: a PR
+// card, whose Launch is in its "…" menu (#1060, FR-REV-031 AC10), shows only the running line.
+export function LaunchCardActions({
+    dir,
+    target,
+    runningOnly,
+}: {
+    dir: string;
+    target: LaunchTarget;
+    runningOnly?: boolean;
+}) {
     const t = useT();
     const state = useLaunchState(dir);
     const model = LaunchModel.getInstance();
     const [busy, setBusy] = useState(false);
     const mine = launchIsOf(state, target) && launchActive(state);
+    if (!mine && runningOnly) {
+        return null;
+    }
     if (!mine) {
         return (
             <button

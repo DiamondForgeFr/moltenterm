@@ -85,8 +85,17 @@ export function MarkReadyButton({ state, className }: { state: MarkReadyState; c
     );
 }
 
-// The confirmation, then the error in plain words; nothing once the PR is ready (the list moves it).
-export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; className?: string }) {
+// The confirmation, then the error in plain words; nothing once the PR is ready (the list moves it). notes: what the
+// developer should know first, never a block (#1060, #943): "Nathan is still working", "no test report yet".
+export function MarkReadyConfirm({
+    state,
+    className,
+    notes,
+}: {
+    state: MarkReadyState;
+    className?: string;
+    notes?: string;
+}) {
     const t = useT();
     if (state.phase === "idle") {
         return null;
@@ -104,7 +113,9 @@ export function MarkReadyConfirm({ state, className }: { state: MarkReadyState; 
             onKeyDown={stop}
             data-testid="reviews-mark-ready-confirm"
         >
-            <span className="min-w-0 flex-1">{failed ? state.error : t("reviews.ready.confirm")}</span>
+            <span className="min-w-0 flex-1">
+                {failed ? state.error : [notes, t("reviews.ready.confirm")].filter((s) => !!s).join(" ")}
+            </span>
             {failed ? null : (
                 <button
                     type="button"

@@ -35,11 +35,13 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         const html = renderToStaticMarkup(<AgentBar facts={facts} />);
         expect(html).toContain('data-state="working"');
         expect(html).toMatch(/data-testid="reviews-agent-name"[^>]*>Valentin</);
-        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
+        expect(html).toMatch(/role="img" aria-label="working" title="working"[^>]*data-testid="reviews-agent-working"/);
         expect(html).toMatch(/for 12 min · since \d\d:\d\d/);
         expect(html).toContain('data-testid="reviews-agent-goto"');
         expect(html).toMatch(/cursor-pointer/);
-        expect(html).toMatch(/mt-beat-blink/);
+        // #1060: the dominoes replace the word "working" and the beating rail, one moving thing per bar.
+        expect(html).not.toMatch(/mt-beat-blink/);
+        expect(html).not.toContain('data-testid="reviews-agent-state"');
         expect(html).not.toMatch(/animate-/);
         expect(html).toMatch(/class="df-domino-loader text-\[var\(--mt-state-working\)\]" aria-hidden="true"/);
     });
@@ -118,7 +120,7 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         const html = renderToStaticMarkup(<AgentBar facts={facts} />);
         expect(html).toContain("Sub-agent of Valentin");
         expect(html).toContain("Claude Code · Opus 5.5 · #1033 agent name in tabs");
-        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
+        expect(html).toMatch(/role="img" aria-label="working" title="working"[^>]*data-testid="reviews-agent-working"/);
         expect(html).not.toContain("probably active");
         expect(html).toContain('data-testid="reviews-agent-goto"');
         expect(html).toContain("Show Valentin&#x27;s panel");
@@ -198,7 +200,7 @@ describe("The PR's one who line (#954)", () => {
         const html = renderToStaticMarkup(
             <AgentBar facts={{ ...bruno, state: "working" }} task={{ state: "running", text: "" }} />
         );
-        expect(html).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
+        expect(html).toMatch(/role="img" aria-label="working" title="working"[^>]*data-testid="reviews-agent-working"/);
         expect(html).not.toContain("data-task");
     });
 
@@ -283,14 +285,7 @@ describe("a card whose branch has two agents (#1057)", () => {
 
     function line(task: Parameters<typeof RowAgentLine>[0]["task"]): string {
         return renderToStaticMarkup(
-            <RowAgentLine
-                dir="/p"
-                pr={pr}
-                task={task}
-                onRetry={() => {}}
-                onOpenWork={async () => null}
-                onStop={async () => null}
-            />
+            <RowAgentLine dir="/p" pr={pr} task={task} onOpenWork={async () => null} onStop={async () => null} />
         );
     }
 
@@ -299,11 +294,16 @@ describe("a card whose branch has two agents (#1057)", () => {
         const bars = html.split('data-testid="reviews-agent-bar"').slice(1);
         expect(bars).toHaveLength(2);
         expect(bars[0]).toMatch(/data-testid="reviews-agent-name"[^>]*>Nathan</);
-        expect(bars[0]).toMatch(/data-testid="reviews-agent-state"[^>]*>working</);
-        expect(bars[0]).not.toContain("reviews-agent-retry");
+        expect(bars[0]).toMatch(
+            /role="img" aria-label="working" title="working"[^>]*data-testid="reviews-agent-working"/
+        );
+        expect(bars[0]).toContain("reviews-agent-work");
         expect(bars[1]).toMatch(/data-testid="reviews-agent-name"[^>]*>Jeanne</);
-        expect(bars[1]).toContain("stopped before finishing the rebase");
-        expect(bars[1]).toContain("reviews-agent-retry");
+        // #1060: idle while Nathan works, Jeanne reads inactive, muted; relaunching is the card's action.
+        expect(bars[1]).toContain("inactive · the rebase was asked 14 min ago");
+        expect(bars[1]).not.toContain("--mt-state-waiting");
+        expect(html).not.toContain("reviews-agent-retry");
+        expect(bars[1]).toContain("reviews-agent-stop");
         expect(html).not.toContain("session ended");
         expect(html.match(/-mb-2\.5/g)).toHaveLength(1);
     });

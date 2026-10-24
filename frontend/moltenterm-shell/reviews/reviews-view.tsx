@@ -3,9 +3,9 @@
 
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
-// collector. Drafts wait below in their own group, where they open and can be marked ready for review (#687). A row
-// opens the PR's assisted review, which its hover/focus link names (#708); the keyboard walks the rows (arrows, Home,
-// End) and Enter opens one.
+// collector. Drafts wait below in their own group, where they open and can be marked ready for review (#687). Each card
+// shows one computed state (#1060, reviews-card.tsx); a card opens the PR's assisted review; the keyboard walks the
+// rows (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atoms } from "@/app/store/global";
@@ -15,22 +15,15 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
-import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
-import { CiIcon, CiIconState } from "../mission/ci-icon";
+import { errorPhrase, Phrase } from "../i18n/phrase";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
-import { timeAgo } from "../mission/time-format";
-import { MoltenWave } from "../molten-button";
-import { openWebLink } from "../open-web-link";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
-import { DominoLoader } from "../suite/suite";
-import { DraftTurnChip, HeadStillFailsLine, RowAgentLine } from "./reviews-agent-bar";
-import { BatchBanner, BatchCheckbox, BatchConfirmDialog, BatchRowChip, BatchSelectBar } from "./reviews-batch";
+import { BatchBanner, BatchConfirmDialog, BatchSelectBar } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
     batchPlan,
-    BatchRowMark,
     batchRowMark,
     batchSelectable,
     batchShown,
@@ -38,47 +31,27 @@ import {
     queueOrder,
     toggleBatchSelection,
 } from "./reviews-batch-model";
+import { ReviewRow } from "./reviews-card";
 import { CheckAgentsBar } from "./reviews-check";
-import { CiFailureButtons, RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { useReviews } from "./reviews-client";
-import {
-    ForecastLinks,
-    ForecastMarkChip,
-    ForecastNote,
-    ForecastStatusLine,
-    linkedRowClass,
-    listForecast,
-    RowForecast,
-} from "./reviews-forecast";
+import { ForecastLinks, ForecastStatusLine, listForecast } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
-import { LaunchBar, LaunchCardActions, LaunchDialogs } from "./reviews-launch";
-import { launchTargetOfPr } from "./reviews-launch-model";
-import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
+import { LaunchBar, LaunchDialogs } from "./reviews-launch";
 import { MergedSection } from "./reviews-merged";
 import {
-    ciLabel,
-    mergeLabelOf,
     MoltentermReviewsView,
     navigableRows,
     nextRow,
-    RebaseAsk,
     rebaseAskKey,
-    rebaseAskShown,
-    RebaseOutcome,
-    reportLabel,
-    reviewAriaLabel,
-    reviewHeadline,
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
     reviewsRetryIsPrimary,
     splitReviews,
-    Tone,
-    validateBlocked,
 } from "./reviews-model";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
-import { MergeOrderBar, MergeOrderRank, MergeOrderReason, RowOrder, useMergeOrderChoice } from "./reviews-order";
+import { MergeOrderBar, RowOrder, useMergeOrderChoice } from "./reviews-order";
 import {
     mergeOrderHeader,
     mergeOrderReason,
@@ -89,27 +62,11 @@ import {
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 
-export { MoltentermReviewsView };
+export { MoltentermReviewsView, ReviewRow };
 
 // How long a PR another surface asked for stays marked.
 const FocusMarkMs = 4000;
 const RowKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
-
-const ToneClasses: Record<Tone, string> = {
-    success: "border-success/40 bg-success/10 text-success",
-    failure: "border-error/40 bg-error/10 text-danger",
-    pending: "border-warning/40 bg-warning/10 text-warning",
-    neutral: "border-border bg-hover text-muted",
-};
-
-const ToneCiStates: Record<Tone, CiIconState> = {
-    success: "success",
-    failure: "failure",
-    pending: "warning",
-    neutral: "neutral",
-};
-
-const Chip = "inline-flex items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
 
 export class ReviewsViewModel implements ViewModel {
     viewType = MoltentermReviewsView;
@@ -550,374 +507,4 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
 
 function Problem({ text }: { text: string }) {
     return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-danger">{text}</div>;
-}
-
-function ToneChip({
-    label,
-    tone,
-    title,
-    icon,
-    testId,
-}: {
-    label: string;
-    tone: Tone;
-    title: string;
-    icon?: CiIconState;
-    testId?: string;
-}) {
-    return (
-        <span className={cn(Chip, ToneClasses[tone])} title={title} data-testid={testId}>
-            <CiIcon state={icon ?? ToneCiStates[tone]} />
-            {label}
-        </span>
-    );
-}
-
-// The row's own buttons: their click and their keys stay theirs, the row's click and Enter open the review.
-function stopRow(e: React.SyntheticEvent) {
-    e.stopPropagation();
-}
-
-const SecondaryButton =
-    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
-
-// The link is always laid out and only fades in, so showing it never moves the chips (#708).
-const AssistedLinkClasses =
-    "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-0.5 text-12 leading-5 font-medium text-accent outline-none " +
-    "translate-x-1 opacity-0 transition-[opacity,translate] duration-120 ease-mt " +
-    "group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 " +
-    "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-(--mt-focus-ring) " +
-    "hover:underline motion-reduce:translate-x-0";
-
-// The row's click opens the assisted review (the PR's Review tab); this link names it on hover and keyboard focus
-// and does the same. On a narrow panel it keeps an icon and the arrow, named for assistive technologies.
-export function AssistedReviewLink({ number, onOpen }: { number: number; onOpen: () => void }) {
-    const t = useT();
-    return (
-        <button
-            type="button"
-            onClick={(e) => {
-                e.stopPropagation();
-                onOpen();
-            }}
-            onKeyDown={stopRow}
-            aria-label={t("reviews.assistedReviewAria", { number })}
-            title={t("reviews.assistedReviewAria", { number })}
-            className={AssistedLinkClasses}
-            data-testid="reviews-assisted-review"
-        >
-            <span className="@[6.25rem]/link:hidden" aria-hidden>
-                <i className="fa fa-solid fa-sparkles text-11" />
-            </span>
-            <span className="hidden whitespace-nowrap @[6.25rem]/link:inline">{t("reviews.assistedReview")}</span>
-            <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
-        </button>
-    );
-}
-
-// The row's two buttons: GitHub (secondary) opens the PR's page, Validate (primary) merges through its plan sheet, or
-// Mark ready on a draft. Neither opens the assisted review.
-export function ReviewRowActions({
-    pr,
-    blocked,
-    markReady,
-    onValidate,
-}: {
-    pr: ReviewPr;
-    blocked: string;
-    markReady: MarkReadyState;
-    onValidate: () => void;
-}) {
-    const t = useT();
-    const validate = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (blocked) {
-            return;
-        }
-        onValidate();
-    };
-    const openOnGithub = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fireAndForget(() => openWebLink(pr.url));
-    };
-    return (
-        <div className="flex shrink-0 items-center gap-1.5">
-            <button
-                type="button"
-                onClick={openOnGithub}
-                onKeyDown={stopRow}
-                className={SecondaryButton}
-                title={t("reviews.openOnGithub")}
-                data-testid="reviews-github"
-            >
-                <i className="fa fa-brands fa-github text-12" aria-hidden />
-                GitHub
-                <i className="fa fa-solid fa-arrow-up-right-from-square text-10 text-muted" aria-hidden />
-            </button>
-            {pr.draft ? (
-                <MarkReadyButton state={markReady} className="px-2.5 py-1" />
-            ) : (
-                <button
-                    type="button"
-                    onClick={validate}
-                    onKeyDown={stopRow}
-                    aria-disabled={blocked ? true : undefined}
-                    className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                    title={blocked || t("reviews.validate.title")}
-                    data-testid="reviews-validate"
-                >
-                    {t("reviews.validate.button")}
-                    <MoltenWave />
-                </button>
-            )}
-        </div>
-    );
-}
-
-export function ReviewRow({
-    pr,
-    selected,
-    marked,
-    onSelect,
-    onOpen,
-    onValidate,
-    onAskRebase,
-    onInvestigate,
-    rebaseAsk,
-    dir,
-    repo,
-    forecast,
-    forecastActive,
-    order,
-    batchCheck,
-    batchMark,
-}: {
-    pr: ReviewPr;
-    selected: boolean;
-    marked: boolean;
-    onSelect: () => void;
-    onOpen: () => void;
-    onValidate: () => void;
-    onAskRebase: () => Promise<RebaseOutcome>;
-    onInvestigate?: () => Promise<RebaseOutcome>;
-    rebaseAsk: RebaseAsk;
-    dir: string;
-    repo: string;
-    forecast?: RowForecast;
-    forecastActive?: boolean;
-    order?: RowOrder;
-    // batchCheck: the row's box while PRs are selected for a batch merge, null otherwise; batchMark: its place in the run.
-    batchCheck?: boolean;
-    batchMark?: BatchRowMark;
-}) {
-    const t = useT();
-    useLocale();
-    const word = useWordPhrase();
-    const [asking, setAsking] = useState(false);
-    const [outcome, setOutcome] = useState<RebaseOutcome>(null);
-    const head = reviewHeadline(pr);
-    const ci = ciLabel(pr.ci);
-    const report = reportLabel(pr.report);
-    const merge = mergeLabelOf(pr);
-    const blocked = validateBlocked(pr);
-    const asked = rebaseAskShown(rebaseAsk, pr);
-    const conflicts = pr.merge === "conflicts";
-    const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
-    const markReady = useMarkReady(dir, pr.number, repo);
-    const rerun = useRerunFailed(dir, pr.number);
-    const [investigating, setInvestigating] = useState(false);
-    useEffect(() => {
-        setOutcome(null);
-    }, [pr.headoid]);
-    const askRebase = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (asking) {
-            return;
-        }
-        setAsking(true);
-        setOutcome(null);
-        fireAndForget(async () => {
-            try {
-                setOutcome(await onAskRebase());
-            } finally {
-                setAsking(false);
-            }
-        });
-    };
-    const investigate = () => {
-        if (investigating || onInvestigate == null) {
-            return;
-        }
-        setInvestigating(true);
-        setOutcome(null);
-        fireAndForget(async () => {
-            try {
-                setOutcome(await onInvestigate());
-            } finally {
-                setInvestigating(false);
-            }
-        });
-    };
-    // Retry (#954): the row's task again, its outcome on the row's line like the first ask's.
-    const retry = () => {
-        if (asking || rebaseAsk == null) {
-            return;
-        }
-        setAsking(true);
-        setOutcome(null);
-        fireAndForget(async () => {
-            try {
-                setOutcome(await ReviewsModel.getInstance().retryTask(dir, pr, repo, rebaseAsk.kind ?? "rebase"));
-            } finally {
-                setAsking(false);
-            }
-        });
-    };
-    const openReport = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fireAndForget(() => openWebLink(pr.report.url));
-    };
-    return (
-        <div
-            role="listitem"
-            tabIndex={0}
-            data-pr={pr.number}
-            aria-label={[
-                order?.rank != null ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
-                reviewAriaLabel(pr),
-                order?.reason,
-                forecast?.mark?.aria,
-                forecast?.note,
-            ]
-                .filter(Boolean)
-                .join(", ")}
-            aria-current={selected || undefined}
-            onClick={() => {
-                onSelect();
-                onOpen();
-            }}
-            onFocus={onSelect}
-            className={cn(
-                "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
-                selected && "bg-hover/60",
-                marked && "ring-2 ring-accent/70 ring-inset",
-                linkedRowClass(forecast?.linked)
-            )}
-        >
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <div className="truncate text-13 leading-5 font-medium">
-                        {batchCheck != null ? <BatchCheckbox checked={batchCheck} number={pr.number} /> : null}
-                        <MergeOrderRank order={order} />
-                        {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
-                        {head.title}
-                    </div>
-                    <div className="truncate text-12 text-muted">
-                        PR #{pr.number} · <code>{pr.branch}</code>
-                        {pr.author ? ` · ${pr.author}` : ""} ·{" "}
-                        {t("reviews.opened", { when: timeAgo(pr.createdat || pr.updatedat) })} ·{" "}
-                        {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
-                    </div>
-                    <MergeOrderReason order={order} />
-                </div>
-                <ReviewRowActions pr={pr} blocked={blocked} markReady={markReady} onValidate={onValidate} />
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-                <ToneChip
-                    label={ci.label}
-                    tone={ci.tone}
-                    title={ci.title}
-                    icon={ci.tone === "pending" ? "running" : undefined}
-                    testId="reviews-ci"
-                />
-                {pr.report?.state === "present" && pr.report.url ? (
-                    <button
-                        type="button"
-                        onClick={openReport}
-                        className={cn(Chip, ToneClasses[report.tone], "cursor-pointer hover:brightness-125")}
-                        title={report.title}
-                        data-testid="reviews-report"
-                    >
-                        <CiIcon state="success" />
-                        {report.label}
-                    </button>
-                ) : (
-                    <ToneChip label={report.label} tone={report.tone} title={report.title} testId="reviews-report" />
-                )}
-                <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
-                {pr.draft ? <DraftTurnChip dir={dir} branch={pr.branch} /> : null}
-                <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
-                <BatchRowChip mark={batchMark} />
-                {pr.unpublished > 0 ? (
-                    <span className={cn(Chip, ToneClasses.pending)} title={t("reviews.unpublishedTitle")}>
-                        <i className="fa fa-solid fa-comment text-11" />
-                        {t("reviews.unpublished", { count: pr.unpublished })}
-                    </span>
-                ) : null}
-                {asked ? (
-                    <span
-                        className={cn(Chip, ToneClasses.neutral)}
-                        title={t("reviews.rebase.chipTitle")}
-                        data-testid="reviews-rebase-asked"
-                    >
-                        <i className="fa fa-solid fa-code-branch text-11" />
-                        {t("reviews.rebase.chip", { name: rebaseAsk.name })}
-                    </span>
-                ) : null}
-                {conflicts && !asked ? (
-                    <button
-                        type="button"
-                        onClick={askRebase}
-                        onKeyDown={stopRow}
-                        aria-busy={asking || undefined}
-                        className={cn(SecondaryButton, "py-0.5 text-11")}
-                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
-                        data-testid="reviews-rebase"
-                    >
-                        {asking ? <DominoLoader /> : <i className="fa fa-solid fa-code-branch text-11" />}
-                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
-                    </button>
-                ) : null}
-                {onInvestigate != null ? (
-                    <CiFailureButtons pr={pr} rerun={rerun} investigating={investigating} onInvestigate={investigate} />
-                ) : null}
-                <LaunchCardActions dir={dir} target={launchTargetOfPr(pr)} />
-                {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
-                    when it fits, so the link never wraps to a line of its own. */}
-                <div
-                    className={cn(
-                        "@container/link relative flex min-w-10 grow basis-10 justify-end",
-                        forecast?.note && "[&>button]:invisible"
-                    )}
-                >
-                    <AssistedReviewLink number={pr.number} onOpen={onOpen} />
-                    <ForecastNote text={forecast?.note} />
-                </div>
-            </div>
-            <MarkReadyConfirm state={markReady} />
-            <RerunConfirm pr={pr} state={rerun} />
-            {outcomeShown ? (
-                <div
-                    className={cn(
-                        "flex flex-wrap items-center gap-2 text-12 leading-4",
-                        outcome.kind === "failed" ? "text-danger" : "text-secondary"
-                    )}
-                    role="status"
-                    data-testid="reviews-rebase-outcome"
-                >
-                    <span className="min-w-0">{word(outcome.text)}</span>
-                </div>
-            ) : null}
-            <HeadStillFailsLine dir={dir} pr={pr} task={rebaseAsk} />
-            {/* Last: the agent bar docks at the tile's bottom edge (-mb-2.5), anything after it lands below it. */}
-            <RowAgentLine
-                dir={dir}
-                pr={pr}
-                task={rebaseAsk}
-                onRetry={retry}
-                onOpenWork={(blockId) => ReviewsModel.getInstance().openAgentWork(dir, pr, repo, blockId)}
-                onStop={(blockId) => ReviewsModel.getInstance().stopAgent(blockId)}
-            />
-        </div>
-    );
 }

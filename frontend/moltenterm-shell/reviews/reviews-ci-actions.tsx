@@ -1,10 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// A failed CI on a Reviews row (#797): Rerun failed jobs asks for a confirmation in the row, then wavesrv reruns them
-// and a notification tells the outcome; Investigate and fix (#896) hands the failed checks to a work agent
-// (ReviewsModel.investigate), which resolves them; a notification tells when the checks pass or why it needs the
-// developer. Nothing runs before the developer's click.
+// A failed CI on a Reviews row (#797): Rerun failed jobs, from the card's "…" menu (#1060), asks for a confirmation in
+// the card, then wavesrv reruns them and a notification tells the outcome. Analyze and resolve is the card's own
+// primary action (reviews-card-model.ts). Nothing runs before the developer's click.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
@@ -12,8 +11,7 @@ import { useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { phrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
-import { DominoLoader } from "../suite/suite";
-import { blockersText, checkNames, checksOf, ReviewPr } from "./reviews-model";
+import { checkNames, checksOf, ReviewPr } from "./reviews-model";
 import { ReviewsModel } from "./reviews-store";
 
 export type RerunPhase = "idle" | "confirm" | "sending" | "started" | "failed";
@@ -69,81 +67,6 @@ export function useRerunFailed(dir: string, number: number): RerunState {
 
 function stop(e: React.SyntheticEvent) {
     e.stopPropagation();
-}
-
-const SmallButton =
-    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary";
-
-// The row's actions on a failed check, beside its chips.
-export function CiFailureButtons({
-    pr,
-    rerun,
-    investigating,
-    onInvestigate,
-}: {
-    pr: ReviewPr;
-    rerun: RerunState;
-    investigating: boolean;
-    onInvestigate: () => void;
-}) {
-    const t = useT();
-    const failed = checksOf(pr.ci, "failure");
-    const blockers = blockersText(pr);
-    if (failed.length === 0 && !blockers) {
-        return null;
-    }
-    const names = checkNames(failed);
-    return (
-        <>
-            {rerunnable(pr) ? (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (rerun.phase !== "sending") {
-                            rerun.ask();
-                        }
-                    }}
-                    onKeyDown={stop}
-                    aria-busy={rerun.phase === "sending" || undefined}
-                    aria-expanded={rerun.phase === "confirm"}
-                    className={SmallButton}
-                    title={t("reviews.ci.rerun.buttonTitle", { names })}
-                    data-testid="reviews-rerun"
-                >
-                    {rerun.phase === "sending" ? (
-                        <DominoLoader />
-                    ) : (
-                        <i className="fa fa-solid fa-rotate-right text-11" aria-hidden />
-                    )}
-                    {rerun.phase === "sending" ? t("reviews.ci.rerun.sending") : t("reviews.ci.rerun.button")}
-                </button>
-            ) : null}
-            {blockers ? (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (!investigating) {
-                            onInvestigate();
-                        }
-                    }}
-                    onKeyDown={stop}
-                    aria-busy={investigating || undefined}
-                    className={SmallButton}
-                    title={t("reviews.ci.investigate.buttonTitle", { blockers })}
-                    data-testid="reviews-investigate"
-                >
-                    {investigating ? (
-                        <DominoLoader />
-                    ) : (
-                        <i className="fa fa-solid fa-screwdriver-wrench text-11" aria-hidden />
-                    )}
-                    {investigating ? t("reviews.ci.investigate.asking") : t("reviews.ci.investigate.button")}
-                </button>
-            ) : null}
-        </>
-    );
 }
 
 // The confirmation in the row, then what happened: the rerun started (the notification follows) or why it did not.
