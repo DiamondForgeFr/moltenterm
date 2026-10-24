@@ -41,6 +41,26 @@ func TestLinkNoticeTellsTheDeveloperOnTheAgentsPane(t *testing.T) {
 	}
 }
 
+func TestLinkNoticeNamesAnAgentMoltenTermHasNotSeenAgain(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	// blockShell has no agent run: MoltenTerm restarted and has not seen the agent again.
+	if err := m.LinkNotice(context.Background(), LinkNoticeRequest{Token: "tokShell", Failed: 2, FirstName: "Léa"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.LinkNotice(context.Background(), LinkNoticeRequest{Token: "tokShell", Failed: 1}); err != nil {
+		t.Fatal(err)
+	}
+	notes := env.notifications()
+	if notes[0].Title != "Léa lost its link to MoltenTerm" || notes[0].Actions[0].Label != "Go to Léa" {
+		t.Fatalf("the name the server knew: %+v", notes[0])
+	}
+	anon := notes[1]
+	if anon.TitleText.Code != "agentlink.restored.anontitle" || anon.MessageText.Code != "agentlink.restored.anonmessageone" ||
+		anon.Actions[0].LabelText.Code != "agentlink.restored.anongoto" || strings.Contains(anon.Title, "terminal") {
+		t.Fatalf("no name at all: %+v", anon)
+	}
+}
+
 func TestLinkNoticeTrustsOnlyAValidToken(t *testing.T) {
 	m, env, _, _ := makeFixture(t)
 	if err := m.LinkNotice(context.Background(), LinkNoticeRequest{Token: "forged", Failed: 2}); err == nil || err.Error() != errNotInMoltenTerm {

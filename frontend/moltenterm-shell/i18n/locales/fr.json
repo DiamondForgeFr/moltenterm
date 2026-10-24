@@ -6372,7 +6372,11 @@
                 "title": "{name} a perdu son lien avec MoltenTerm",
                 "messageone": "1 appel a échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à {name} de réessayer.",
                 "messageother": "{count} appels ont échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à {name} de réessayer.",
-                "goto": "Aller à {name}"
+                "goto": "Aller à {name}",
+                "anontitle": "Un agent a perdu son lien avec MoltenTerm",
+                "anonmessageone": "1 appel a échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à l'agent de réessayer.",
+                "anonmessageother": "{count} appels ont échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à l'agent de réessayer.",
+                "anongoto": "Aller à son terminal"
             }
         },
         "sessions": {
