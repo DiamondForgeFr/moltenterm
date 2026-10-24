@@ -9,6 +9,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -39,8 +40,33 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 			}
 			return Snapshot{}, false
 		},
-		Agents: liveAgentPlaces,
+		Agents:    liveAgentPlaces,
+		Subagents: liveSubagents,
 	}
+}
+
+// liveSubagents reads the sub-agents of each running agent panel from their own files, through the companion
+// (#1035): the same identity the Now card shows.
+func liveSubagents(places []AgentPlace) []PaneSubagent {
+	return PaneSubagentsOf(places, companion.PaneSubagents)
+}
+
+// PaneSubagentsOf gives each running Claude Code or Codex panel the sub-agents read finds for it.
+func PaneSubagentsOf(places []AgentPlace, read func(blockId string) []companion.SubagentIdentity) []PaneSubagent {
+	var rtn []PaneSubagent
+	for _, p := range places {
+		if p.Review || (p.Agent != molten.AgentIdClaude && p.Agent != molten.AgentIdCodex) {
+			continue
+		}
+		for _, id := range read(p.BlockId) {
+			if id.Worktree == "" || !filepath.IsAbs(id.Worktree) {
+				continue
+			}
+			id.Worktree = realPath(id.Worktree)
+			rtn = append(rtn, PaneSubagent{ParentBlockId: p.BlockId, ParentFirstName: p.FirstName, Agent: p.Agent, SubagentIdentity: id})
+		}
+	}
+	return rtn
 }
 
 // liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths.

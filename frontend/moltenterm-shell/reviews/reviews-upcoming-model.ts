@@ -6,6 +6,7 @@
 // first name), so a bar turns from working to waiting at once. Kept apart from the components to be tested alone.
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
 import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
@@ -31,7 +32,7 @@ export type UpcomingBranch = {
 export type BranchAgent = {
     branch: string;
     worktree: string;
-    kind: "panel" | "background";
+    kind: "panel" | "background" | "subagent";
     blockid?: string;
     agent?: string;
     firstname?: string;
@@ -39,7 +40,14 @@ export type BranchAgent = {
     activeat?: number;
     parentblockid?: string;
     parentfirstname?: string;
+    // A sub-agent's (#1035): its model, its task, its state; activeat is then its last write, or its end.
+    model?: string;
+    description?: string;
+    state?: SubagentState;
 };
+
+// must match companion.SubagentRunning, SubagentQuiet and SubagentDone in pkg/molten/companion/topics.go
+export type SubagentState = "running" | "quiet" | "done";
 
 // must match UpcomingDraft in pkg/molten/mission/upcoming.go
 export type UpcomingDraft = { branch: string; ticket?: number; status?: string; commitat?: number };
@@ -61,7 +69,7 @@ export type BarState = "working" | "waiting" | "done" | "idle" | "background";
 
 // What the bar under a tile shows of the agent on the row's branch.
 export type AgentBarFacts = {
-    kind: "panel" | "background";
+    kind: "panel" | "background" | "subagent";
     blockId?: string;
     agent?: string;
     name: string;
@@ -72,6 +80,11 @@ export type AgentBarFacts = {
     since: number;
     parentBlockId?: string;
     parentName?: string;
+    // A sub-agent's (#1035): what its own files say of it.
+    agentName?: string;
+    model?: string;
+    description?: string;
+    subState?: SubagentState;
     // When the agent's state last changed, and whether it is in error (#954: a task's agent stopped since the ask).
     stateSince?: number;
     errored?: boolean;
@@ -127,6 +140,12 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
         if (a.branch !== branch) {
             continue;
         }
+        if (a.kind === "subagent") {
+            if (best == null || best.kind === "background") {
+                best = subagentFacts(a, states);
+            }
+            continue;
+        }
         if (a.kind === "background") {
             if (best == null) {
                 best = {
@@ -158,11 +177,50 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
         if (info.messagetext != null) {
             facts.held = { text: info.messagetext, english: info.message ?? "" };
         }
-        if (best == null || best.kind === "background" || BarUrgency[facts.state] > BarUrgency[best.state]) {
+        if (best == null || best.kind !== "panel" || BarUrgency[facts.state] > BarUrgency[best.state]) {
             best = facts;
         }
     }
     return best;
+}
+
+// The tools' own names, when the parent's state does not give one (codingAgentName, without its store).
+const AgentNames: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
+
+const SubagentBarStates: Record<SubagentState, BarState> = { running: "working", quiet: "idle", done: "done" };
+
+// A sub-agent of a panel (#1035): named by its parent, its tool's and its model's names, its task; its own state.
+function subagentFacts(a: BranchAgent, states: AgentStatesData): AgentBarFacts {
+    const parent = states?.states?.[a.parentblockid];
+    const subState: SubagentState = SubagentBarStates[a.state] != null ? a.state : "running";
+    return {
+        kind: "subagent",
+        agent: a.agent || parent?.agent,
+        agentName: parent?.agentname,
+        name: "",
+        state: SubagentBarStates[subState],
+        since: a.activeat ?? 0,
+        stateSince: a.activeat ?? 0,
+        parentBlockId: a.parentblockid,
+        parentName: (parent?.firstname || a.parentfirstname || "").trim(),
+        model: a.model,
+        description: a.description,
+        subState,
+    };
+}
+
+// What the bar says after a sub-agent's name: "Claude Code · Opus 5.5 · #1033 agent name in tabs".
+export function subagentDetails(facts: AgentBarFacts): string {
+    if (facts?.kind !== "subagent") {
+        return "";
+    }
+    return [
+        facts.agentName || AgentNames[facts.agent] || facts.agent,
+        modelDisplayName(facts.model),
+        (facts.description ?? "").trim(),
+    ]
+        .filter((s) => !!s)
+        .join(" · ");
 }
 
 const BarUrgency: Record<BarState, number> = { waiting: 4, working: 3, done: 2, idle: 1, background: 0 };
@@ -242,7 +300,10 @@ export function barTimeText(t: TFunction, facts: AgentBarFacts, now: number): st
         return "";
     }
     const elapsed = durationText(t, now - facts.since);
-    if (facts.kind === "background") {
+    if (facts.kind === "subagent" && facts.subState === "done") {
+        return t("reviewsAgents.subagent.finishedAgo", { duration: elapsed });
+    }
+    if (facts.kind === "background" || facts.kind === "subagent") {
         return t("reviewsAgents.lastChange", { duration: elapsed });
     }
     return t("reviewsAgents.forSince", { duration: elapsed, since: sinceText(facts.since, now) });

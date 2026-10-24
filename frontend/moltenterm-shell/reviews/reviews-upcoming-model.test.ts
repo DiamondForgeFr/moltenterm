@@ -15,6 +15,7 @@ import {
     DraftActiveMs,
     draftTurn,
     durationText,
+    subagentDetails,
     UpcomingAnswer,
     upcomingFocusBranch,
     upcomingRows,
@@ -153,6 +154,79 @@ describe("branchAgent (#712 AC2, AC4)", () => {
         expect(branchAgent(upcoming, states({}), "feature/3-c")).toBeNull();
         expect(branchAgent(upcoming, states({}), "feature/9-z")).toBeNull();
         expect(branchAgent(null, states({}), "feature/1-a")).toBeNull();
+    });
+});
+
+describe("sub-agents on the upcoming rows (#1035)", () => {
+    const upcoming = answer({
+        agents: [
+            {
+                branch: "feature/1033-tabs",
+                worktree: "/p/.claude/worktrees/agent-a",
+                kind: "subagent",
+                agent: "claude",
+                activeat: Now - 2 * 60_000,
+                parentblockid: "b9",
+                parentfirstname: "Val",
+                model: "claude-opus-5-5",
+                description: "#1033 agent name in tabs",
+                state: "running",
+            },
+            {
+                branch: "feature/1029-notes",
+                worktree: "/p/.claude/worktrees/agent-b",
+                kind: "subagent",
+                agent: "codex",
+                activeat: Now - 12 * 60_000,
+                parentblockid: "b8",
+                model: "gpt-6-astra",
+                description: "audit reliability",
+                state: "done",
+            },
+            { branch: "feature/1029-notes", worktree: "/w/x", kind: "background", activeat: Now },
+        ],
+    });
+    const live = states({
+        b9: { agent: "claude", agentname: "Claude Code", firstname: "Valentin" },
+        b8: { agent: "codex", firstname: "Jérôme" },
+    });
+
+    it("names a running sub-agent by its parent, tool, model and task", () => {
+        const facts = branchAgent(upcoming, live, "feature/1033-tabs");
+        expect(facts).toMatchObject({
+            kind: "subagent",
+            state: "working",
+            subState: "running",
+            parentBlockId: "b9",
+            parentName: "Valentin",
+        });
+        expect(subagentDetails(facts)).toBe("Claude Code · Opus 5.5 · #1033 agent name in tabs");
+        expect(barTimeText(t, facts, Now)).toBe("last change 2 min ago");
+    });
+
+    it("says a finished sub-agent is done and since when, over a background guess", () => {
+        const facts = branchAgent(upcoming, live, "feature/1029-notes");
+        expect(facts).toMatchObject({ kind: "subagent", state: "done", subState: "done", parentName: "Jérôme" });
+        expect(subagentDetails(facts)).toBe("Codex · gpt-6-astra · audit reliability");
+        expect(barTimeText(t, facts, Now)).toBe("finished 12 min ago");
+        expect(translate("fr", "reviewsAgents.subagent.finishedAgo", { duration: "12 min" })).toBe(
+            "terminé il y a 12 min"
+        );
+    });
+
+    it("lets a panel on the branch win over a sub-agent", () => {
+        const both = answer({
+            agents: [
+                { ...upcoming.agents[0] },
+                { branch: "feature/1033-tabs", worktree: "/w", kind: "panel", blockid: "b1", started: Now },
+            ],
+        });
+        const facts = branchAgent(
+            both,
+            states({ b1: { agent: "claude", firstname: "Bruno", state: "idle" } }),
+            "feature/1033-tabs"
+        );
+        expect(facts).toMatchObject({ kind: "panel", name: "Bruno" });
     });
 });
 

@@ -7,7 +7,8 @@
 // the first name reads in the main colour, and Go to takes the window to the agent's panel. A background agent (run
 // inside another agent) is "probably active", without Go to, with its parent session when one stands out. The
 // durations follow one minute clock shared by every bar, so the list itself never renders again for them. A working or
-// background agent also shows the suite's falling dominoes next to its state (#739), so the bar visibly works.
+// background agent also shows the suite's falling dominoes next to its state (#739), so the bar visibly works. A sub-agent
+// a panel started (#1035) is named by its parent, tool, model and task, with its own state; Go to shows the parent.
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -38,6 +39,7 @@ import {
     branchAgent,
     DraftTurn,
     draftTurn,
+    subagentDetails,
 } from "./reviews-upcoming-model";
 
 const MinuteMs = 60_000;
@@ -151,14 +153,24 @@ export function AgentBar({
     }
     const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
     const background = facts.kind === "background";
-    const name = background ? t("reviewsAgents.background") : facts.name || t("reviewsAgents.agent");
+    const subagent = facts.kind === "subagent";
+    const name = background
+        ? t("reviewsAgents.background")
+        : subagent
+          ? facts.parentName
+              ? t("reviewsAgents.subagent.of", { name: facts.parentName })
+              : t("reviewsAgents.subagent.name")
+          : facts.name || t("reviewsAgents.agent");
+    const details = subagentDetails(facts);
     const taskShown = task != null && task.state !== "running" && !!task.text;
     const stuck = taskShown && task.state === "stuck";
     const stateText = taskShown
         ? task.text
         : facts.held != null
           ? serverText(facts.held.text, facts.held.english)
-          : barStateText(t, facts.state);
+          : subagent
+            ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
+            : barStateText(t, facts.state);
     const timeText = barTimeText(t, facts, now);
     const signed = signersSuffix(t, signers, facts.name);
     const rail = stuck ? "waiting" : facts.state;
@@ -173,7 +185,7 @@ export function AgentBar({
             data-state={facts.state}
             data-task={taskShown ? task.state : undefined}
             data-kind={facts.kind}
-            aria-label={[name, stateText, timeText, signed?.text].filter((s) => !!s).join(", ")}
+            aria-label={[name, details, stateText, timeText, signed?.text].filter((s) => !!s).join(", ")}
             role="group"
         >
             {RailClasses[rail] ? (
@@ -196,6 +208,11 @@ export function AgentBar({
             >
                 {name}
             </span>
+            {details ? (
+                <span className="min-w-0 truncate text-secondary" title={details} data-testid="reviews-agent-details">
+                    {details}
+                </span>
+            ) : null}
             <span
                 className={cn(
                     facts.held != null || taskShown ? "min-w-0 truncate" : "shrink-0",
@@ -256,6 +273,19 @@ export function AgentBar({
                         onKeyDown={stop}
                         className={BarButton}
                         title={t("reviewsAgents.goToTitle", { name })}
+                        data-testid="reviews-agent-goto"
+                    >
+                        {t("reviewsAgents.goTo")}
+                        <i className="fa fa-solid fa-arrow-right text-10" aria-hidden />
+                    </button>
+                ) : null}
+                {subagent && facts.parentBlockId ? (
+                    <button
+                        type="button"
+                        onClick={(e) => goTo(e, facts.parentBlockId)}
+                        onKeyDown={stop}
+                        className={BarButton}
+                        title={t("reviewsAgents.goToTitle", { name: facts.parentName || t("reviewsAgents.agent") })}
                         data-testid="reviews-agent-goto"
                     >
                         {t("reviewsAgents.goTo")}

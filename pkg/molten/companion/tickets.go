@@ -157,6 +157,7 @@ func (s *Session) SetSubagentFacts(callId string, facts SubagentFacts) {
 	set(&sa.model, facts.Model)
 	set(&sa.effort, facts.Effort)
 	set(&sa.branch, facts.Branch)
+	set(&sa.worktree, facts.Worktree)
 	// Only an agent found by its rollout takes its state from it: a recorded one's parent tells its end and its
 	// follow-ups, and a follow-up reaches the parent's records before the agent starts its next turn.
 	if sa.found && facts.Ended && sa.state == SubagentRunning {

@@ -232,6 +232,7 @@ func (a *CodexAdapter) ReadSubagent(sessionPath string, agentId string) (Subagen
 	if cwd == "" {
 		cwd = head.cwd
 	}
+	facts.Worktree = cwd
 	facts.Branch = FolderBranch(cwd)
 	facts.Ended = ended
 	return facts, true

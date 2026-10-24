@@ -124,10 +124,8 @@ func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 			break
 		}
 		read++
-		var meta struct {
-			ToolUseId string `json:"toolUseId"`
-		}
-		if readSmallJSON(filepath.Join(dir, name), claudeMaxMetaBytes, &meta) != nil || meta.ToolUseId == "" {
+		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, name))
+		if !ok || meta.ToolUseId == "" {
 			continue
 		}
 		rtn[meta.ToolUseId] = agentId
@@ -151,39 +149,35 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 	if err != nil {
 		return SubagentFacts{}, false
 	}
-	var meta struct {
-		WorktreePath string `json:"worktreePath"`
-	}
-	readSmallJSON(filepath.Join(subs, "agent-"+agentId+".meta.json"), claudeMaxMetaBytes, &meta)
+	meta, _ := readClaudeSubagentMeta(filepath.Join(subs, "agent-"+agentId+".meta.json"))
 	dir := meta.WorktreePath
-	var facts SubagentFacts
-	lines := bytes.Split(tail, []byte("\n"))
-	for i := len(lines) - 1; i >= 0; i-- {
-		if facts.Model != "" && facts.Effort != "" && dir != "" {
-			break
-		}
-		var rec struct {
-			Cwd     string `json:"cwd"`
-			Effort  string `json:"effort"`
-			Message struct {
-				Model string `json:"model"`
-			} `json:"message"`
-		}
-		if len(lines[i]) == 0 || json.Unmarshal(lines[i], &rec) != nil {
-			continue
-		}
-		if dir == "" && rec.Cwd != "" {
-			dir = rec.Cwd
-		}
-		if facts.Effort == "" && rec.Effort != "" {
-			facts.Effort = cutString(rec.Effort, 40)
-		}
-		if facts.Model == "" && rec.Message.Model != "" && !strings.HasPrefix(rec.Message.Model, "<") {
-			facts.Model = cutString(rec.Message.Model, 100)
-		}
+	tf := claudeTailFacts(tail, dir == "")
+	if dir == "" {
+		dir = tf.cwd
 	}
+	facts := SubagentFacts{Model: tf.model, Effort: tf.effort, Worktree: dir}
 	facts.Branch = FolderBranch(dir)
-	return facts, facts != SubagentFacts{}
+	return facts, facts.Model != "" || facts.Effort != "" || facts.Branch != ""
+}
+
+type claudeTailRec struct {
+	Cwd     string `json:"cwd"`
+	Effort  string `json:"effort"`
+	Message struct {
+		Model string `json:"model"`
+	} `json:"message"`
+}
+
+func claudeTailRecord(line []byte) (claudeTailRec, bool) {
+	var rec claudeTailRec
+	if len(line) == 0 || json.Unmarshal(line, &rec) != nil {
+		return claudeTailRec{}, false
+	}
+	return rec, true
+}
+
+func splitLines(tail []byte) [][]byte {
+	return bytes.Split(tail, []byte("\n"))
 }
 
 func (a *ClaudeAdapter) projectDirs(root string, cwd string) []string {

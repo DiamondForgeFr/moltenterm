@@ -105,6 +105,8 @@ type SubagentFacts struct {
 	Model  string
 	Effort string
 	Branch string
+	// Worktree: the folder it works in, its branch's (#1035).
+	Worktree string
 	// Ended: its latest turn ended (Codex); only an agent found by its transcript takes its state from it.
 	Ended bool
 }
