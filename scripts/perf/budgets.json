@@ -1,7 +1,7 @@
 {
     "$comment": "Performance budgets (FR-PERF-006, NFR-PERF-001..007). The one place budgets live: changing a budget, a tolerance or the baseline needs a reason in the pull request. gate: ci = machine-independent, gated in CI and locally; local = gated only against a baseline taken on the same machine (task perf -- --gate local); info = reported only. scenario: the scenario that produces the metric (a gated metric it did not produce fails). Values lower is better. Units: MB = 10^6 bytes for bundle and JS, MiB for memory.",
     "version": 1,
-    "baseline": "baselines/75f1354a.json",
+    "baseline": "baselines/fdc30e40.json",
     "defaults": {
         "tolerancePct": 10,
         "noisePct": 10
