@@ -6330,7 +6330,11 @@
                 "title": "{name} lost its link to MoltenTerm",
                 "messageone": "1 call failed while MoltenTerm could not be reached. The link is back: ask {name} to try again.",
                 "messageother": "{count} calls failed while MoltenTerm could not be reached. The link is back: ask {name} to try again.",
-                "goto": "Go to {name}"
+                "goto": "Go to {name}",
+                "anontitle": "An agent lost its link to MoltenTerm",
+                "anonmessageone": "1 call failed while MoltenTerm could not be reached. The link is back: ask the agent to try again.",
+                "anonmessageother": "{count} calls failed while MoltenTerm could not be reached. The link is back: ask the agent to try again.",
+                "anongoto": "Go to its terminal"
             }
         },
         "sessions": {

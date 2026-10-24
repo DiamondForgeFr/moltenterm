@@ -16,6 +16,8 @@ import (
 // MoltenTerm does not answer, so the developer learns here that the link is back. One notification per pane: a later
 // outage updates it.
 
+const maxLinkNoticeName = 40
+
 // LinkNotice tells the developer, on the pane of the verified token, that its agent's link came back.
 func (m *Manager) LinkNotice(ctx context.Context, req LinkNoticeRequest) error {
 	blockId, loc, err := m.sender(ctx, req.Token)
@@ -25,35 +27,59 @@ func (m *Manager) LinkNotice(ctx context.Context, req LinkNoticeRequest) error {
 	if req.Failed <= 0 {
 		return nil
 	}
-	run, hasRun := m.env.Run(blockId)
+	// Right after a restart MoltenTerm may not have seen the agent again yet: wait a little for its name, then take
+	// the one it had before.
+	run, hasRun := m.waitRun(blockId, true)
 	p := m.party(blockId, run, hasRun, loc)
+	if p.FirstName == "" {
+		p.FirstName = cut(cleanLine(req.FirstName), maxLinkNoticeName)
+	}
 	m.logf("molten agent link: %s's %s server reconnected, %d calls failed meanwhile\n", p.callName(), req.Server, req.Failed)
 	m.env.Notify(linkNoticeInput(p, req.Failed))
 	return nil
 }
 
 func linkNoticeInput(p Party, failed int) molten.NotificationInput {
-	name := p.callName()
-	message := fmt.Sprintf("%d calls failed while MoltenTerm could not be reached. The link is back: ask %s to try again.", failed, name)
-	messageText := uimsg.Make("agentlink.restored.messageother", "count", fmt.Sprintf("%d", failed), "name", name)
-	if failed == 1 {
-		message = fmt.Sprintf("1 call failed while MoltenTerm could not be reached. The link is back: ask %s to try again.", name)
-		messageText = uimsg.Make("agentlink.restored.messageone", "name", name)
-	}
-	return molten.NotificationInput{
+	input := molten.NotificationInput{
 		Key:         LinkNoticeKeyPrefix + p.BlockId,
 		Source:      NotificationSource,
-		Title:       capitalize(fmt.Sprintf("%s lost its link to MoltenTerm", name)),
-		TitleText:   uimsg.Make("agentlink.restored.title", "name", capitalize(name)),
-		Message:     message,
-		MessageText: messageText,
 		Kind:        "warning",
 		WorkspaceId: p.WorkspaceId,
 		TabId:       p.TabId,
 		BlockId:     p.BlockId,
-		Actions: []molten.NotificationAction{{
-			Id: "goto", Label: "Go to " + name, LabelText: uimsg.Make("agentlink.restored.goto", "name", name),
-			Kind: "open", WorkspaceId: p.WorkspaceId, TabId: p.TabId, BlockId: p.BlockId,
-		}},
 	}
+	count := fmt.Sprintf("%d", failed)
+	calls := count + " calls failed"
+	one := failed == 1
+	if one {
+		calls = "1 call failed"
+	}
+	gotoAction := func(label string, text *uimsg.Text) []molten.NotificationAction {
+		return []molten.NotificationAction{{Id: "goto", Label: label, LabelText: text, Kind: "open",
+			WorkspaceId: p.WorkspaceId, TabId: p.TabId, BlockId: p.BlockId}}
+	}
+	name := p.FirstName
+	if name == "" {
+		name = p.AgentName
+	}
+	if name == "" {
+		input.Title = "An agent lost its link to MoltenTerm"
+		input.TitleText = uimsg.Make("agentlink.restored.anontitle")
+		input.Message = calls + " while MoltenTerm could not be reached. The link is back: ask the agent to try again."
+		input.MessageText = uimsg.Make("agentlink.restored.anonmessageother", "count", count)
+		if one {
+			input.MessageText = uimsg.Make("agentlink.restored.anonmessageone")
+		}
+		input.Actions = gotoAction("Go to its terminal", uimsg.Make("agentlink.restored.anongoto"))
+		return input
+	}
+	input.Title = capitalize(name) + " lost its link to MoltenTerm"
+	input.TitleText = uimsg.Make("agentlink.restored.title", "name", capitalize(name))
+	input.Message = fmt.Sprintf("%s while MoltenTerm could not be reached. The link is back: ask %s to try again.", calls, name)
+	input.MessageText = uimsg.Make("agentlink.restored.messageother", "count", count, "name", name)
+	if one {
+		input.MessageText = uimsg.Make("agentlink.restored.messageone", "name", name)
+	}
+	input.Actions = gotoAction("Go to "+name, uimsg.Make("agentlink.restored.goto", "name", name))
+	return input
 }

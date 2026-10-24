@@ -278,7 +278,7 @@ func TestMoltenMcpLinkFailsFastThenTellsTheDeveloperOnceItIsBack(t *testing.T) {
 	case <-time.After(time.Minute):
 		t.Fatal("no notice after MoltenTerm came back")
 	}
-	if notice.Failed != 2 || notice.Server != moltenMcpBrowserServer || notice.Token != f.token() {
+	if notice.Failed != 2 || notice.Server != moltenMcpBrowserServer || notice.Token != f.token() || notice.FirstName != "Valentin" {
 		t.Fatalf("notice: %+v", notice)
 	}
 	if r := b.CallTool(ctx, mcpbrowser.ToolTabsContext, nil); r.IsError {

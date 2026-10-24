@@ -235,6 +235,12 @@ func (b *moltenMcpRpcBackend) setFirstName(name string) {
 	b.firstName = name
 }
 
+func (b *moltenMcpRpcBackend) knownFirstName() string {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.firstName
+}
+
 // Instructions tells the agent its first name (FR-CONT-014) in the browser server's instructions.
 func (b *moltenMcpRpcBackend) Instructions(base string) string {
 	if b.protocol.route != mcpbrowser.RouteId {
@@ -296,7 +302,7 @@ func (b *moltenMcpRpcBackend) agentTool(ctx context.Context, tool string, args j
 // not one the agent saw.
 func (b *moltenMcpRpcBackend) sendLinkNotice(conn *moltenMcpConn, failed int) {
 	fmt.Fprintf(os.Stderr, "%s: connected to MoltenTerm again, %d calls failed meanwhile\n", b.protocol.name, failed)
-	req := handoffwire.LinkNoticeRequest{Token: b.token, Server: b.protocol.server, Failed: failed}
+	req := handoffwire.LinkNoticeRequest{Token: b.token, Server: b.protocol.server, Failed: failed, FirstName: b.knownFirstName()}
 	opts := moltenMcpOpts(handoffwire.RouteId, moltenMcpNoticeTimeoutMs)
 	if _, err := conn.rpc.SendRpcRequest(handoffwire.LinkNoticeCommand, req, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: the reconnect notice was not shown: %v\n", b.protocol.name, err)

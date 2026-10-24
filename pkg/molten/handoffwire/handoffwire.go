@@ -136,4 +136,7 @@ type LinkNoticeRequest struct {
 	// Server: the MCP server's name as the agent knows it (molten-browser, molten-review).
 	Server string `json:"server"`
 	Failed int    `json:"failed"`
+	// FirstName: the name MoltenTerm gave the agent before the outage, shown when MoltenTerm has not seen the agent
+	// again yet (it restarted).
+	FirstName string `json:"firstname,omitempty"`
 }
