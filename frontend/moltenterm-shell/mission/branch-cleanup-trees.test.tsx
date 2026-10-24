@@ -19,7 +19,7 @@ vi.mock("../sessions/sessions-store", async () => {
 vi.mock("../review/review-panels", () => ({ showPanel: vi.fn() }));
 
 import { I18nModel } from "../i18n/i18n";
-import { branchReason, CheckedTreesGroup, HeldBranchActions, treeFacts } from "./branch-cleanup";
+import { branchReason, CheckedTreesGroup, cleanErrorLines, HeldBranchActions, treeFacts } from "./branch-cleanup";
 import type { BranchPlan } from "./mission-client";
 
 describe("worktrees of other tools, outside the project or locked (#1028)", () => {
@@ -117,6 +117,24 @@ describe("worktrees of other tools, outside the project or locked (#1028)", () =
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }
+    });
+
+    it("names the process that kept a worktree at the removal", () => {
+        const lines = cleanErrorLines(
+            {
+                deleted: [],
+                failed: 1,
+                errors: ["feature/b: kept (worktree-process)"],
+                errorstext: [
+                    {
+                        code: "mission.branches.kept",
+                        vars: { branch: "feature/b", reason: "worktree-process", pr: "0", processes: "codex (5151)" },
+                    },
+                ],
+            },
+            "develop"
+        );
+        expect(lines).toEqual(["feature/b: kept (its worktree is in use by codex (5151))"]);
     });
 
     it("never offers to close and clean another tool's worktree, only to show its session", () => {

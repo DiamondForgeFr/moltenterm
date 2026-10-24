@@ -94,6 +94,9 @@ export function holdersText(holders: BranchHolder[]): string {
 }
 
 export function processesText(b: BranchPlan): string {
+    if (b.processestext) {
+        return b.processestext;
+    }
     return (b.processes ?? []).map((p) => `${p.name} (${p.pid})`).join(", ");
 }
 
@@ -301,6 +304,8 @@ export function cleanErrorLines(result: BranchesCleanResult, trunk: string): str
             action: "keep",
             reason: vars.reason,
             pr: Number(vars.pr) || 0,
+            processestext: vars.processes,
+            operation: vars.operation,
         };
         return serverText({ ...text, vars: { ...vars, reason: branchReason(plan as BranchPlan, trunk) } }, english);
     });

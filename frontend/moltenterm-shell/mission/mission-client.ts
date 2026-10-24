@@ -606,6 +606,8 @@ export type BranchPlan = {
     locked?: boolean;
     ignoredfiles?: number;
     processes?: TreeProcess[];
+    // Not from wavesrv's plan: the processes as a kept branch's error already lists them (cleanErrorLines).
+    processestext?: string;
     operation?: string;
     confirm?: boolean;
 };
