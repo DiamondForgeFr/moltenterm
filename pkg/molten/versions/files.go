@@ -20,17 +20,50 @@ import (
 const (
 	FileFormatJson  = "json"
 	FileFormatRegex = "regex"
+	// A version label in a text file (README, docs, a nav config): a regular expression where {version} stands for
+	// the version (#1046).
+	FileFormatText = "text"
+
+	TextVersionPlaceholder = "{version}"
 )
 
-// A file that carries the project's version (versions.files): JSON values at key paths, or the one capture group of a
-// pattern (e.g. Cargo's `[package]` version). The first file holds the project's current version.
+// The version a text label holds: X.Y.Z with an optional pre-release that never ends on a dot or a dash, so the end of
+// a sentence ("is 1.2.3.") stays out of it.
+const textVersionRegex = `([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?)`
+
+// A file that carries the project's version (versions.files): JSON values at key paths, the one capture group of a
+// pattern (e.g. Cargo's `[package]` version), or a text label around {version}. The first file holds the project's
+// current version.
 type VersionFile struct {
 	Path   string `json:"path"`
 	Format string `json:"format"`
 	// json: each key path names a string value; the empty key is a key too (package-lock's packages[""]).
 	Keys [][]string `json:"keys,omitempty"`
-	// regex: exactly one capture group, matched exactly once in the file.
+	// regex: exactly one capture group, matched exactly once in the file. text: a regular expression holding {version}
+	// once and no capture group of its own, matched exactly once.
 	Pattern string `json:"pattern,omitempty"`
+}
+
+// TextPattern turns a text entry's pattern into the regular expression it stands for.
+func TextPattern(pattern string) (string, error) {
+	if strings.Count(pattern, TextVersionPlaceholder) != 1 {
+		return "", fmt.Errorf("pattern must hold %s exactly once", TextVersionPlaceholder)
+	}
+	before, after, _ := strings.Cut(pattern, TextVersionPlaceholder)
+	re, err := regexp.Compile(before + after)
+	if err != nil {
+		return "", fmt.Errorf("pattern: %v", err)
+	}
+	if re.NumSubexp() != 0 {
+		return "", fmt.Errorf("pattern must have no capture group of its own (it has %d): use (?:...)", re.NumSubexp())
+	}
+	return before + textVersionRegex + after, nil
+}
+
+// TextLabelPattern makes a text entry's pattern of a line around the version it holds: the line's own text, quoted,
+// with the version replaced by {version}.
+func TextLabelPattern(before string, after string) string {
+	return regexp.QuoteMeta(before) + TextVersionPlaceholder + regexp.QuoteMeta(after)
 }
 
 type span struct {
@@ -167,8 +200,18 @@ func (f VersionFile) spans(data []byte) ([]span, error) {
 			return nil, err
 		}
 		return []span{s}, nil
+	case FileFormatText:
+		pattern, err := TextPattern(f.Pattern)
+		if err != nil {
+			return nil, err
+		}
+		s, err := regexSpan(data, pattern)
+		if err != nil {
+			return nil, err
+		}
+		return []span{s}, nil
 	}
-	return nil, fmt.Errorf("format must be %q or %q (got %q)", FileFormatJson, FileFormatRegex, f.Format)
+	return nil, fmt.Errorf("format must be %q, %q or %q (got %q)", FileFormatJson, FileFormatRegex, FileFormatText, f.Format)
 }
 
 func (f VersionFile) full(dir string) string {
@@ -210,31 +253,52 @@ func WriteVersion(dir string, files []VersionFile, version string) error {
 	if strings.ContainsAny(version, "\"\\\n") || version == "" {
 		return fmt.Errorf("not a version: %q", version)
 	}
-	// Every file is rewritten in memory first: a file that cannot be read leaves the others untouched.
-	rewritten := make([][]byte, len(files))
-	for i, f := range files {
-		data, err := os.ReadFile(f.full(dir))
-		if err != nil {
-			return err
+	// Every file is rewritten in memory first: a file that cannot be read leaves the others untouched. Entries naming
+	// the same file (two labels of one README) find their places in the same original text and are written together.
+	var paths []string
+	spansOf := map[string][]span{}
+	original := map[string][]byte{}
+	for _, f := range files {
+		full := f.full(dir)
+		data, known := original[full]
+		if !known {
+			read, err := os.ReadFile(full)
+			if err != nil {
+				return err
+			}
+			data = read
+			original[full] = data
+			paths = append(paths, full)
 		}
 		spans, err := f.spans(data)
 		if err != nil {
 			return fmt.Errorf("%s: %w", f.Path, err)
 		}
+		spansOf[full] = append(spansOf[full], spans...)
+	}
+	rewritten := map[string][]byte{}
+	for _, full := range paths {
+		data := append([]byte(nil), original[full]...)
+		spans := spansOf[full]
 		sort.Slice(spans, func(a, b int) bool { return spans[a].start < spans[b].start })
+		for j := 1; j < len(spans); j++ {
+			if spans[j].start < spans[j-1].end {
+				return fmt.Errorf("%s: two entries point at the same text", full)
+			}
+		}
 		// From the end, so the earlier offsets stay right.
 		for j := len(spans) - 1; j >= 0; j-- {
 			s := spans[j]
 			data = append(data[:s.start:s.start], append([]byte(version), data[s.end:]...)...)
 		}
-		rewritten[i] = data
+		rewritten[full] = data
 	}
-	for i, f := range files {
-		info, err := os.Stat(f.full(dir))
+	for _, full := range paths {
+		info, err := os.Stat(full)
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(f.full(dir), rewritten[i], info.Mode().Perm()); err != nil {
+		if err := os.WriteFile(full, rewritten[full], info.Mode().Perm()); err != nil {
 			return err
 		}
 	}

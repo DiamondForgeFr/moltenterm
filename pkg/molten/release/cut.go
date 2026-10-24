@@ -50,6 +50,17 @@ func (p *Project) checkNumber(v versions.Version, tags []string) error {
 // written in every declared file (read back), the notes drafted unless the release branch already carries them. Nothing
 // is committed: Finalize does it once the notes are reviewed.
 func (e *Env) Prepare(ctx context.Context, tag string) error {
+	return e.prepare(ctx, tag, false)
+}
+
+// PreparePr sets up the cut of a tag for a release branch that takes pull requests only (#1046): the same bump and
+// notes, on the RC branch (rc-X.Y.Z) made from the trunk as origin has it, in the release worktree. OpenPr commits it
+// and opens its pull request to the release branch.
+func (e *Env) PreparePr(ctx context.Context, tag string) error {
+	return e.prepare(ctx, tag, true)
+}
+
+func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
 		return err
@@ -75,9 +86,19 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	if err := p.checkNumber(v, e.releaseTags(ctx, p.Root, p)); err != nil {
 		return err
 	}
-	start := "origin/" + p.Release
-	if e.revParse(ctx, p.Root, start) == "" {
+	if e.revParse(ctx, p.Root, "origin/"+p.Release) == "" {
 		return p.releaseBranchMissing()
+	}
+	start, onBranch := "origin/"+p.Release, p.Release
+	rcBranch := ""
+	if pr {
+		if rcBranch, err = p.RcBranch(v); err != nil {
+			return err
+		}
+		start, onBranch = "origin/"+p.Trunk, rcBranch
+		if e.revParse(ctx, p.Root, start) == "" {
+			return fmt.Errorf("origin has no %s branch", p.Trunk)
+		}
 	}
 	if pending := e.releasesNotCarriedBack(ctx, p); len(pending) > 0 {
 		return fmt.Errorf("%s holds release commits %s lacks (%s): merge their sync-back pull request first, or run molten release sync-back", p.Release, p.Trunk, strings.Join(pending, ", "))
@@ -89,7 +110,15 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	if err := e.resetWorktree(ctx, p.Root, wt, start); err != nil {
 		return err
 	}
-	e.printf("Preparing %s (%s) in %s, on %s.\n", tag, channel, wt, start)
+	if pr {
+		if _, err := e.git(ctx, wt, "checkout", "--quiet", "-B", rcBranch, start); err != nil {
+			return fmt.Errorf("could not make %s from %s: %w", rcBranch, start, err)
+		}
+		e.printf("Preparing %s (%s) in %s, on %s made from %s.\n", tag, channel, wt, rcBranch, start)
+		e.mergeReleaseBranch(ctx, p, wt, rcBranch, tag)
+	} else {
+		e.printf("Preparing %s (%s) in %s, on %s.\n", tag, channel, wt, start)
+	}
 	if err := versions.WriteVersion(wt, p.Files, v.String()); err != nil {
 		return fmt.Errorf("the version bump did not take: %w", err)
 	}
@@ -105,7 +134,7 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 		return fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
 	}
 	if existing, err := os.ReadFile(notesPath); err == nil && strings.TrimSpace(string(existing)) != "" {
-		e.printf("Notes kept: %s is already on %s.\n", notesRel, p.Release)
+		e.printf("Notes kept: %s is already on %s.\n", notesRel, onBranch)
 		facts, err := e.gatherNotesFacts(ctx, wt, p, tag, v)
 		if err != nil {
 			return err
@@ -124,7 +153,11 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	} else if _, err := e.writeNotes(ctx, wt, p, tag, v, false); err != nil {
 		return err
 	}
-	e.printf("\n%s prepared, nothing committed. Review the notes, then finalize to commit, tag and push.\n", tag)
+	if pr {
+		e.printf("\n%s prepared on %s, nothing committed. Review the notes, then open the pull request (molten release open-pr %s).\n", tag, rcBranch, tag)
+	} else {
+		e.printf("\n%s prepared, nothing committed. Review the notes, then finalize to commit, tag and push.\n", tag)
+	}
 	e.printf("%s%s\n", NotesMarker, notesPath)
 	return nil
 }
@@ -235,54 +268,12 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	if head == "" || head != e.revParse(ctx, p.Root, "origin/"+p.Release) {
 		return fmt.Errorf("%s moved since the preparation (or nothing is prepared): prepare %s again", p.Release, tag)
 	}
-	for _, f := range p.Files {
-		found, err := versions.ReadFileVersions(wt, f)
-		if err != nil {
-			return fmt.Errorf("%s: %w; prepare %s again", f.Path, err, tag)
-		}
-		for _, got := range found {
-			if got != v.String() {
-				return fmt.Errorf("the prepared tree reads %s in %s, not %s: prepare %s again", got, f.Path, v, tag)
-			}
-		}
-	}
-	allowed := p.releaseFiles(tag)
-	changed, err := e.changedPaths(ctx, wt)
+	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
 	if err != nil {
 		return err
 	}
-	unexpected := []string{}
-	for _, path := range changed {
-		if !allowed[path] {
-			unexpected = append(unexpected, path)
-		}
-	}
-	if len(unexpected) > 0 {
-		return fmt.Errorf("the prepared tree holds more than the release (%s): prepare %s again", strings.Join(unexpected, ", "), tag)
-	}
-	notesRel := p.NotesFile(tag)
-	if !insideDir(wt, filepath.Join(wt, notesRel)) {
-		return fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
-	}
-	notes, err := os.ReadFile(filepath.Join(wt, notesRel))
-	if err != nil || strings.TrimSpace(string(notes)) == "" {
-		return fmt.Errorf("%s is missing or empty: write the notes, or prepare %s again", notesRel, tag)
-	}
-	if err := checkPublicNotes(string(notes), e.originRepo(ctx, wt)); err != nil {
-		return fmt.Errorf("%s: %w; edit them, or rewrite them (molten release notes %s)", notesRel, err, tag)
-	}
-	addArgs := []string{"add", "--"}
-	for path := range allowed {
-		if _, err := os.Stat(filepath.Join(wt, path)); err == nil {
-			addArgs = append(addArgs, path)
-		}
-	}
-	if _, err := e.git(ctx, wt, addArgs...); err != nil {
+	if err := e.commitRelease(ctx, wt, allowed, tag, channel); err != nil {
 		return err
-	}
-	msg := fmt.Sprintf("chore(release): %s (%s)", tag, channel)
-	if _, err := e.git(ctx, wt, "commit", "--quiet", "-m", msg); err != nil {
-		return fmt.Errorf("could not commit the release: %w", err)
 	}
 	if _, err := e.git(ctx, wt, "tag", tag); err != nil {
 		e.git(ctx, wt, "reset", "--quiet", "--soft", "HEAD~1")
@@ -297,11 +288,79 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	}
 	commit := e.revParse(ctx, wt, "HEAD")
 	e.printf("%s committed (%s), tagged and pushed with %s.\n", tag, commit[:min(7, len(commit))], p.Release)
+	e.printTagged(p, tag, channel)
+	return nil
+}
+
+func (e *Env) printTagged(p *Project, tag string, channel string) {
 	if channel == versions.ChannelRc {
 		e.printf("A release candidate: the release workflow builds it and publishes it as a prerelease, offered to users who opted in to release candidates.\n")
 	} else {
 		e.printf("A public release: the release workflow builds it and leaves a draft; publishing it makes it the latest release.\n")
 	}
 	e.printf("Carry the release commit back to %s next (molten release sync-back %s).\n", p.Trunk, tag)
+}
+
+// commitRelease commits the prepared release files as the release commit.
+func (e *Env) commitRelease(ctx context.Context, wt string, allowed map[string]bool, tag string, channel string) error {
+	addArgs := []string{"add", "--"}
+	for path := range allowed {
+		if _, err := os.Stat(filepath.Join(wt, path)); err == nil {
+			addArgs = append(addArgs, path)
+		}
+	}
+	if _, err := e.git(ctx, wt, addArgs...); err != nil {
+		return err
+	}
+	if _, err := e.git(ctx, wt, "commit", "--quiet", "-m", ReleaseCommitSubject(tag, channel)); err != nil {
+		return fmt.Errorf("could not commit the release: %w", err)
+	}
 	return nil
+}
+
+// ReleaseCommitSubject is the subject of a release's commit, which sync-back and the release facts look for.
+func ReleaseCommitSubject(tag string, channel string) string {
+	return fmt.Sprintf("chore(release): %s (%s)", tag, channel)
+}
+
+// checkPrepared checks the prepared tree again before it is committed: the version in every file, nothing but the
+// release's files changed, the public notes there and fit to publish. It returns the paths the release may commit.
+func (e *Env) checkPrepared(ctx context.Context, p *Project, wt string, tag string, v versions.Version) (map[string]bool, error) {
+	for _, f := range p.Files {
+		found, err := versions.ReadFileVersions(wt, f)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w; prepare %s again", f.Path, err, tag)
+		}
+		for _, got := range found {
+			if got != v.String() {
+				return nil, fmt.Errorf("the prepared tree reads %s in %s, not %s: prepare %s again", got, f.Path, v, tag)
+			}
+		}
+	}
+	allowed := p.releaseFiles(tag)
+	changed, err := e.changedPaths(ctx, wt)
+	if err != nil {
+		return nil, err
+	}
+	unexpected := []string{}
+	for _, path := range changed {
+		if !allowed[path] {
+			unexpected = append(unexpected, path)
+		}
+	}
+	if len(unexpected) > 0 {
+		return nil, fmt.Errorf("the prepared tree holds more than the release (%s): prepare %s again", strings.Join(unexpected, ", "), tag)
+	}
+	notesRel := p.NotesFile(tag)
+	if !insideDir(wt, filepath.Join(wt, notesRel)) {
+		return nil, fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
+	}
+	notes, err := os.ReadFile(filepath.Join(wt, notesRel))
+	if err != nil || strings.TrimSpace(string(notes)) == "" {
+		return nil, fmt.Errorf("%s is missing or empty: write the notes, or prepare %s again", notesRel, tag)
+	}
+	if err := checkPublicNotes(string(notes), e.originRepo(ctx, wt)); err != nil {
+		return nil, fmt.Errorf("%s: %w; edit them, or rewrite them (molten release notes %s)", notesRel, err, tag)
+	}
+	return allowed, nil
 }

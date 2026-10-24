@@ -153,6 +153,16 @@ func readSaaSFoundry(dir string) (*ProjectConventions, string, bool) {
 	return conv, manifest.ProjectName, true
 }
 
+// RcBranchPattern is the project's release branch naming (.saasfoundry.json workflow.branchNaming.release, e.g.
+// rc-{version}), or "" when it declares none (#1046).
+func RcBranchPattern(dir string) string {
+	conv, _, ok := readSaaSFoundry(dir)
+	if !ok || conv.BranchNaming == nil {
+		return ""
+	}
+	return conv.BranchNaming["release"]
+}
+
 // ReadProject reads what Moltenterm needs from a linked folder. A folder that disappeared is reported, not an error:
 // the link stays until the user removes it.
 func ReadProject(dir string) ProjectInfo {

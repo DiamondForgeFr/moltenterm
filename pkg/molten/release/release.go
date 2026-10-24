@@ -91,6 +91,8 @@ type Project struct {
 	Changelogs []string
 	// Where the release branch's name was read (molten.BranchFrom…), for the messages that name it.
 	ReleaseFrom string
+	// The RC branch naming of the pull-request flow (#1046), e.g. rc-{version}; empty for DefaultRcBranchPattern.
+	RcPattern string
 }
 
 // releaseBranchMissing says which branch was looked for, and why that one (#415).
@@ -246,6 +248,7 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	}
 	branches := molten.ResolvedBranches(root)
 	p.Trunk, p.Release, p.ReleaseFrom = branches.Trunk, branches.Release, branches.ReleaseFrom
+	p.RcPattern = molten.RcBranchPattern(root)
 	return p, nil
 }
 
