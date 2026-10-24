@@ -624,7 +624,8 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 		if b.Action != BranchActionDelete {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: kept (%s)", branchLabel(b), b.Reason))
-			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.kept", "branch", branchLabel(b), "reason", b.Reason, "pr", strconv.Itoa(b.Pr)))
+			result.ErrorsText = append(result.ErrorsText, uimsg.Make("mission.branches.kept", "branch", branchLabel(b), "reason", b.Reason, "pr", strconv.Itoa(b.Pr),
+				"processes", processesList(b.Processes), "operation", b.Operation))
 			continue
 		}
 		if b.Confirm && !checked[realPath(b.Worktree)] {
@@ -658,11 +659,7 @@ func (r *Runs) CleanBranches(req BranchesCleanRequest) (BranchesCleanResult, err
 // right before (#1028): one that started working in the worktree since the plan keeps it.
 func (r *Runs) removeTreeAndBranch(ctx context.Context, dir string, b BranchPlan) error {
 	if procs := processesIn(r.readCwds(), b.Worktree); len(procs) > 0 {
-		names := make([]string, 0, len(procs))
-		for _, p := range procs {
-			names = append(names, fmt.Sprintf("%s (%d)", p.Name, p.Pid))
-		}
-		list := strings.Join(names, ", ")
+		list := processesList(procs)
 		return uimsg.Errorf(uimsg.Make("mission.branches.treeProcess", "path", b.Worktree, "processes", list),
 			"a process works in %s since the plan: %s", b.Worktree, list)
 	}

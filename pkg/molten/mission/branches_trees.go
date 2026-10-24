@@ -4,6 +4,7 @@
 package mission
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +109,15 @@ func processesIn(cwds []procCwd, path string) []TreeProcess {
 		}
 	}
 	return rtn
+}
+
+// processesList names processes as the windows show them: "claude (4242), zsh (77)".
+func processesList(procs []TreeProcess) string {
+	names := make([]string, 0, len(procs))
+	for _, p := range procs {
+		names = append(names, fmt.Sprintf("%s (%d)", p.Name, p.Pid))
+	}
+	return strings.Join(names, ", ")
 }
 
 func (r *Runs) readCwds() []procCwd {
