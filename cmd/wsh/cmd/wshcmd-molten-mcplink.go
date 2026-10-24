@@ -96,6 +96,25 @@ type moltenMcpLink struct {
 	redialing bool
 	closed    bool
 	closeCh   chan struct{}
+	// totalFailed, lastErr: what the connections menu shows of the calls that failed for want of a link (#1050).
+	totalFailed int
+	lastErr     string
+	lastErrAt   time.Time
+	// connected runs on each new connection before anything else is sent on it: the server reports itself first, so
+	// MoltenTerm knows the connection's link before its calls (#1050).
+	connected func(conn *moltenMcpConn, stats moltenMcpLinkStats)
+}
+
+type moltenMcpLinkStats struct {
+	failed    int
+	lastErr   string
+	lastErrAt time.Time
+}
+
+func (l *moltenMcpLink) stats() moltenMcpLinkStats {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	return moltenMcpLinkStats{failed: l.totalFailed, lastErr: l.lastErr, lastErrAt: l.lastErrAt}
 }
 
 func makeMoltenMcpLink(token string, dial moltenMcpDialFn) *moltenMcpLink {
@@ -132,6 +151,9 @@ func (l *moltenMcpLink) getLocked() (*moltenMcpConn, int, int, error) {
 	if err != nil {
 		return nil, 0, 0, err
 	}
+	if l.connected != nil {
+		l.connected(conn, moltenMcpLinkStats{failed: l.totalFailed, lastErr: l.lastErr, lastErrAt: l.lastErrAt})
+	}
 	l.conn = conn
 	l.gen++
 	failed := l.failed
@@ -165,10 +187,15 @@ func (l *moltenMcpLink) drop(conn *moltenMcpConn) {
 
 // noteFailed counts a call the agent saw fail for want of a link, and keeps reconnecting in the background so the
 // developer learns when the link is back.
-func (l *moltenMcpLink) noteFailed() {
+func (l *moltenMcpLink) noteFailed(err error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	l.failed++
+	l.totalFailed++
+	if err != nil {
+		l.lastErr = err.Error()
+		l.lastErrAt = time.Now()
+	}
 	if l.redialing || l.closed {
 		return
 	}
@@ -189,6 +216,7 @@ func (l *moltenMcpLink) addFailed(n int) {
 	defer l.lock.Unlock()
 	if n > 0 {
 		l.failed += n
+		l.totalFailed += n
 	}
 }
 
@@ -301,7 +329,7 @@ func (l *moltenMcpLink) call(ctx context.Context, command string, data any, rout
 		}
 		var linkErr *moltenMcpLinkError
 		if errors.As(err, &linkErr) {
-			l.noteFailed()
+			l.noteFailed(err)
 			return nil, gen, err
 		}
 		if !lost {
@@ -310,7 +338,7 @@ func (l *moltenMcpLink) call(ctx context.Context, command string, data any, rout
 		if attempt == 0 && (!sent || readOnly) {
 			continue
 		}
-		l.noteFailed()
+		l.noteFailed(err)
 		if !sent {
 			return nil, gen, &moltenMcpLinkError{detail: err.Error()}
 		}

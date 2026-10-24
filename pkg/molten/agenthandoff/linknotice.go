@@ -54,9 +54,11 @@ func linkNoticeInput(p Party, failed int) molten.NotificationInput {
 	if one {
 		calls = "1 call failed"
 	}
+	// The action opens the terminal's connections menu on the agent (FR-CONT-022, #1050), where the link's state and
+	// its Reconnect are.
 	gotoAction := func(label string, text *uimsg.Text) []molten.NotificationAction {
-		return []molten.NotificationAction{{Id: "goto", Label: label, LabelText: text, Kind: "open",
-			WorkspaceId: p.WorkspaceId, TabId: p.TabId, BlockId: p.BlockId}}
+		return []molten.NotificationAction{{Id: "goto", Label: label, LabelText: text, Kind: "gesture", Gesture: LinksGesture,
+			Args: map[string]any{"workspaceid": p.WorkspaceId, "tabid": p.TabId, "blockid": p.BlockId}}}
 	}
 	name := p.FirstName
 	if name == "" {
@@ -70,7 +72,7 @@ func linkNoticeInput(p Party, failed int) molten.NotificationInput {
 		if one {
 			input.MessageText = uimsg.Make("agentlink.restored.anonmessageone")
 		}
-		input.Actions = gotoAction("Go to its terminal", uimsg.Make("agentlink.restored.anongoto"))
+		input.Actions = gotoAction("See its connections", uimsg.Make("agentlink.restored.anonconnections"))
 		return input
 	}
 	input.Title = capitalize(name) + " lost its link to MoltenTerm"
@@ -80,6 +82,6 @@ func linkNoticeInput(p Party, failed int) molten.NotificationInput {
 	if one {
 		input.MessageText = uimsg.Make("agentlink.restored.messageone", "name", name)
 	}
-	input.Actions = gotoAction("Go to "+name, uimsg.Make("agentlink.restored.goto", "name", name))
+	input.Actions = gotoAction("See "+name+"'s connections", uimsg.Make("agentlink.restored.connections", "name", name))
 	return input
 }

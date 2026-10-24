@@ -15,6 +15,8 @@ import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
+import { AgentLinksGesture } from "./agent-links/agent-links-model";
+import { openAgentLinksGesture } from "./agent-links/agent-links-store";
 import { startAgentSeen } from "./agent-seen";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT, useTCount } from "./i18n/i18n";
@@ -86,6 +88,7 @@ function registerBuiltInGestures(): () => void {
             return { ok: true };
         }),
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
+        registerNotificationGesture(AgentLinksGesture, openAgentLinksGesture),
     ];
     return () => unregister.forEach((fn) => fn());
 }

@@ -29,7 +29,9 @@ func TestLinkNoticeTellsTheDeveloperOnTheAgentsPane(t *testing.T) {
 		n.MessageText.Vars["count"] != "3" || n.MessageText.Vars["name"] != "Camille" {
 		t.Fatalf("message: %q %+v", n.Message, n.MessageText)
 	}
-	if len(n.Actions) != 1 || n.Actions[0].Kind != "open" || n.Actions[0].BlockId != "blockA" || n.Actions[0].Label != "Go to Camille" {
+	// The action opens the terminal's connections menu on the agent (#1050).
+	if len(n.Actions) != 1 || n.Actions[0].Kind != "gesture" || n.Actions[0].Gesture != LinksGesture ||
+		n.Actions[0].Args["blockid"] != "blockA" || n.Actions[0].Label != "See Camille's connections" {
 		t.Fatalf("actions: %+v", n.Actions)
 	}
 
@@ -51,12 +53,12 @@ func TestLinkNoticeNamesAnAgentMoltenTermHasNotSeenAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	notes := env.notifications()
-	if notes[0].Title != "Léa lost its link to MoltenTerm" || notes[0].Actions[0].Label != "Go to Léa" {
+	if notes[0].Title != "Léa lost its link to MoltenTerm" || notes[0].Actions[0].Label != "See Léa's connections" {
 		t.Fatalf("the name the server knew: %+v", notes[0])
 	}
 	anon := notes[1]
 	if anon.TitleText.Code != "agentlink.restored.anontitle" || anon.MessageText.Code != "agentlink.restored.anonmessageone" ||
-		anon.Actions[0].LabelText.Code != "agentlink.restored.anongoto" || strings.Contains(anon.Title, "terminal") {
+		anon.Actions[0].LabelText.Code != "agentlink.restored.anonconnections" || strings.Contains(anon.Title, "terminal") {
 		t.Fatalf("no name at all: %+v", anon)
 	}
 }

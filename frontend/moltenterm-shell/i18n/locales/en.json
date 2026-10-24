@@ -6604,8 +6604,14 @@
                 "anontitle": "An agent lost its link to MoltenTerm",
                 "anonmessageone": "1 call failed while MoltenTerm could not be reached. The link is back: ask the agent to try again.",
                 "anonmessageother": "{count} calls failed while MoltenTerm could not be reached. The link is back: ask the agent to try again.",
-                "anongoto": "Go to its terminal"
+                "anongoto": "Go to its terminal",
+                "connections": "See {name}'s connections",
+                "anonconnections": "See its connections"
             }
+        },
+        "agentlinks": {
+            "gone": "This MCP server is no longer running",
+            "unreachable": "MoltenTerm cannot reach this MCP server now: restart it from the agent"
         },
         "sessions": {
             "noid": "No session was given.",
@@ -7276,6 +7282,81 @@
         "finish": "Started by you at {time} to check #{number} and finish what is left",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
+    },
+    "agentLinks": {
+        "title": "Connections",
+        "subtitle": "What MoltenTerm gives this terminal's agents, and what they are allowed to do.",
+        "thisAgent": "This agent",
+        "otherAgent": "another agent in this terminal",
+        "endedAgent": "An agent that ended",
+        "noAgent": "No agent runs in this terminal.",
+        "noPlace": "This notification no longer names a terminal.",
+        "typeFailed": "Nothing was typed.",
+        "icon": {
+            "ok": "Agent connections",
+            "broken": "Agent connections: a link needs repair",
+            "waiting": "Agent connections: a request waits for you"
+        },
+        "state": {
+            "connected": "Connected since {time}",
+            "reconnecting": "Link lost at {time}: it reconnects by itself",
+            "broken": "Broken since {time}: its MCP server stopped, so the agent's MoltenTerm tools fail",
+            "stopped": "Stopped by you: MoltenTerm refuses its calls",
+            "legacy": "Connected, older version: it does not report its link",
+            "notstarted": "Not started: this agent has no molten-browser server"
+        },
+        "version": {
+            "pending": "Runs MoltenTerm {version}: switches to {current} at its next call",
+            "blocked": "Runs MoltenTerm {version} and could not switch to {current}: {reason}",
+            "older": "Runs MoltenTerm {version}, older than {current}"
+        },
+        "failed": "{count} calls failed for want of a link.",
+        "hint": {
+            "claude": "In {name}'s prompt, type /mcp, pick molten-browser, then Reconnect.",
+            "codex": "Codex cannot restart an MCP server in a running session: start a new Codex session in this terminal.",
+            "generic": "Restart this MCP server from the agent (its MCP command or settings), or start a new agent session."
+        },
+        "add": {
+            "claude": "To add it:",
+            "codex": "To add it:",
+            "generic": "Add the stdio MCP server:"
+        },
+        "action": {
+            "reconnect": "Reconnect",
+            "stop": "Stop",
+            "typeMcp": "Type /mcp",
+            "revoke": "Revoke",
+            "unblock": "Unblock",
+            "forgetSite": "Revoke"
+        },
+        "confirm": {
+            "stop": "Stop {server} for {name}? Its MoltenTerm tools fail until you reconnect it.",
+            "typeMcp": "Type /mcp into {name}'s prompt? MoltenTerm types it only while the prompt is idle; then pick molten-browser and Reconnect.",
+            "revoke": "Revoke Always for {name}? The next handoff asks you again.",
+            "unblock": "Unblock {name}? The next handoff asks you again.",
+            "site": "Revoke the permission for {site}? Agents ask again on their next visit."
+        },
+        "pair": {
+            "ask": "Asks you first",
+            "always": "Always allowed",
+            "block": "Blocked"
+        },
+        "pending": {
+            "title": "{from} wants to hand work to {to}",
+            "once": "Allow once",
+            "always": "Always for this pair",
+            "block": "Block"
+        },
+        "handoffs": {
+            "title": "Handoffs between agents",
+            "none": "No other agent is running."
+        },
+        "sites": {
+            "title": "Browser sites (all agents)",
+            "none": "No site permission is stored.",
+            "allowed": "Allowed",
+            "blocked": "Blocked"
+        }
     },
     "codingAgent": {
         "section": "Coding agent",

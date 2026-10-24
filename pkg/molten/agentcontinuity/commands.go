@@ -28,6 +28,9 @@ const (
 	ActionDiff           = "diff"
 	ActionInterrupt      = "interrupt"
 	ActionQuit           = "quit"
+	// ActionMcp: the agent's MCP servers screen, where Claude Code reconnects one (the connections menu, FR-CONT-022);
+	// not in the command panel.
+	ActionMcp = "mcp"
 )
 
 // How a command is typed.
@@ -85,6 +88,7 @@ var claudeCommands = []AgentCommand{
 	{Action: ActionReview, Kind: CommandSlash, Text: "/review"},
 	{Action: ActionInterrupt, Kind: CommandInterrupt, Text: keyEscape},
 	{Action: ActionQuit, Kind: CommandSlash, Text: claudeExitCommand},
+	{Action: ActionMcp, Kind: CommandSlash, Text: "/mcp"},
 }
 
 // Codex's table, read on codex-cli 0.163.0 (testdata/codex-0.163.0-slash-commands.txt, #990): /permissions replaced

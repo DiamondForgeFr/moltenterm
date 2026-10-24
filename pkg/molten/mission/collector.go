@@ -22,6 +22,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
@@ -695,6 +696,8 @@ func Start() {
 		}
 		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserSites: sites})
 	})
+	// The MCP servers' links to MoltenTerm (FR-CONT-022), before the routes that refuse a stopped link's calls.
+	agentlinks.Start()
 	// The agent sessions of `molten mcp browser` (FR-BRW-008).
 	browseragent.Start()
 	// Handing work from one agent to another by first name (FR-CONT-015).

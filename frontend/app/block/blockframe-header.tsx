@@ -31,6 +31,7 @@ import {
     useMoltenHeader,
     withoutHeaderPills,
 } from "../../moltenterm-shell/header/panel-header";
+import { AgentLinksHeaderButton } from "../../moltenterm-shell/agent-links/agent-links-menu"; // MOLTENTERM-PATCH (#1050)
 import { HeaderCloseButton } from "../../moltenterm-shell/header/header-close-button"; // MOLTENTERM-PATCH (#705)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
@@ -152,6 +153,8 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
     }
     // MOLTENTERM-PATCH (#616): in 360 view a carpet panel can be pinned to the fixed zone, a pinned one unpinned
     endIconsElem.push(<PinHeaderButton key="mt-pin" blockId={blockId} />);
+    // MOLTENTERM-PATCH (#1050): the connections of the terminal's agents, shown only when it holds one (FR-CONT-022)
+    endIconsElem.push(<AgentLinksHeaderButton key="mt-agent-links" blockId={blockId} termHeader={!!termHeader} />);
     // MOLTENTERM-PATCH (#401): the gear becomes the command panel's trigger (FR-SHELL-047, DS-SHELL-085)
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinkwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/wavejwt"
@@ -42,6 +43,14 @@ type fakeWavesrv struct {
 	hellos int
 	calls  map[string]int
 	notice chan handoffwire.LinkNoticeRequest
+	// watches: the link reports (#1050), with the connection they came on; watchAction answers the next held one.
+	watches     chan fakeWatch
+	watchAction string
+}
+
+type fakeWatch struct {
+	connNo int
+	req    agentlinkwire.WatchRequest
 }
 
 func makeFakeWavesrv(t *testing.T) *fakeWavesrv {
@@ -52,7 +61,7 @@ func makeFakeWavesrv(t *testing.T) *fakeWavesrv {
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	f := &fakeWavesrv{t: t, path: filepath.Join(dir, "wave.sock"), calls: map[string]int{},
-		notice: make(chan handoffwire.LinkNoticeRequest, 10)}
+		notice: make(chan handoffwire.LinkNoticeRequest, 10), watches: make(chan fakeWatch, 100)}
 	t.Cleanup(f.stop)
 	return f
 }
@@ -191,8 +200,26 @@ func (f *fakeWavesrv) handle(conn net.Conn, connNo int, msg wshutil.RpcMessage) 
 		json.Unmarshal(barr, &req)
 		f.notice <- req
 		return nil, "", true
-	case mcpbrowser.ByeCommand:
+	case mcpbrowser.ByeCommand, agentlinkwire.ByeCommand:
 		return nil, "", true
+	case agentlinkwire.WatchCommand:
+		var req agentlinkwire.WatchRequest
+		barr, _ := json.Marshal(msg.Data)
+		json.Unmarshal(barr, &req)
+		select {
+		case f.watches <- fakeWatch{connNo: connNo, req: req}:
+		default:
+		}
+		if req.HoldMs == 0 {
+			return agentlinkwire.WatchResult{}, "", true
+		}
+		// A held watch without an action is never answered here: the server's own timeout bounds it.
+		if f.watchAction == "" {
+			return nil, "", false
+		}
+		action := f.watchAction
+		f.watchAction = ""
+		return agentlinkwire.WatchResult{Action: action}, "", true
 	}
 	return nil, "unknown command " + msg.Command, true
 }

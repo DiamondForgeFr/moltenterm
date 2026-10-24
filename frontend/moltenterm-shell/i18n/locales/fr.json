@@ -6604,8 +6604,14 @@
                 "anontitle": "Un agent a perdu son lien avec MoltenTerm",
                 "anonmessageone": "1 appel a échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à l'agent de réessayer.",
                 "anonmessageother": "{count} appels ont échoué pendant que MoltenTerm était injoignable. Le lien est rétabli : demandez à l'agent de réessayer.",
-                "anongoto": "Aller à son terminal"
+                "anongoto": "Aller à son terminal",
+                "connections": "Voir les connexions de {name}",
+                "anonconnections": "Voir ses connexions"
             }
+        },
+        "agentlinks": {
+            "gone": "Ce serveur MCP ne tourne plus",
+            "unreachable": "MoltenTerm ne peut pas joindre ce serveur MCP pour l'instant : redémarrez-le depuis l'agent"
         },
         "sessions": {
             "noid": "Aucune session n'a été indiquée.",
@@ -7276,6 +7282,81 @@
         "finish": "Lancé par vous à {time} pour vérifier #{number} et finir ce qui reste",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
         "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
+    },
+    "agentLinks": {
+        "title": "Connexions",
+        "subtitle": "Ce que MoltenTerm donne aux agents de ce terminal, et ce qu'ils ont le droit de faire.",
+        "thisAgent": "Cet agent",
+        "otherAgent": "un autre agent de ce terminal",
+        "endedAgent": "Un agent terminé",
+        "noAgent": "Aucun agent ne tourne dans ce terminal.",
+        "noPlace": "Cette notification ne désigne plus de terminal.",
+        "typeFailed": "Rien n'a été saisi.",
+        "icon": {
+            "ok": "Connexions des agents",
+            "broken": "Connexions des agents : un lien est à réparer",
+            "waiting": "Connexions des agents : une demande vous attend"
+        },
+        "state": {
+            "connected": "Connecté depuis {time}",
+            "reconnecting": "Lien perdu à {time} : il se reconnecte tout seul",
+            "broken": "Cassé depuis {time} : son serveur MCP s'est arrêté, les outils MoltenTerm de l'agent échouent",
+            "stopped": "Arrêté par vous : MoltenTerm refuse ses appels",
+            "legacy": "Connecté, version plus ancienne : il ne signale pas son lien",
+            "notstarted": "Non démarré : cet agent n'a pas de serveur molten-browser"
+        },
+        "version": {
+            "pending": "Tourne sous MoltenTerm {version} : passe à {current} à son prochain appel",
+            "blocked": "Tourne sous MoltenTerm {version} et n'a pas pu passer à {current} : {reason}",
+            "older": "Tourne sous MoltenTerm {version}, plus ancien que {current}"
+        },
+        "failed": "{count} appels ont échoué faute de lien.",
+        "hint": {
+            "claude": "Dans le prompt de {name}, tapez /mcp, choisissez molten-browser, puis Reconnect.",
+            "codex": "Codex ne peut pas redémarrer un serveur MCP dans une session en cours : démarrez une nouvelle session Codex dans ce terminal.",
+            "generic": "Redémarrez ce serveur MCP depuis l'agent (sa commande ou ses réglages MCP), ou démarrez une nouvelle session de l'agent."
+        },
+        "add": {
+            "claude": "Pour l'ajouter :",
+            "codex": "Pour l'ajouter :",
+            "generic": "Ajoutez le serveur MCP stdio :"
+        },
+        "action": {
+            "reconnect": "Reconnecter",
+            "stop": "Arrêter",
+            "typeMcp": "Taper /mcp",
+            "revoke": "Révoquer",
+            "unblock": "Débloquer",
+            "forgetSite": "Révoquer"
+        },
+        "confirm": {
+            "stop": "Arrêter {server} pour {name} ? Ses outils MoltenTerm échouent jusqu'à ce que vous le reconnectiez.",
+            "typeMcp": "Taper /mcp dans le prompt de {name} ? MoltenTerm ne le tape que lorsque le prompt est inactif ; choisissez ensuite molten-browser puis Reconnect.",
+            "revoke": "Révoquer « Toujours » pour {name} ? Le prochain transfert vous redemandera.",
+            "unblock": "Débloquer {name} ? Le prochain transfert vous redemandera.",
+            "site": "Révoquer la permission pour {site} ? Les agents redemanderont à leur prochaine visite."
+        },
+        "pair": {
+            "ask": "Vous demande d'abord",
+            "always": "Toujours autorisé",
+            "block": "Bloqué"
+        },
+        "pending": {
+            "title": "{from} veut transférer du travail à {to}",
+            "once": "Autoriser une fois",
+            "always": "Toujours pour cette paire",
+            "block": "Bloquer"
+        },
+        "handoffs": {
+            "title": "Transferts entre agents",
+            "none": "Aucun autre agent ne tourne."
+        },
+        "sites": {
+            "title": "Sites du navigateur (tous les agents)",
+            "none": "Aucune permission de site enregistrée.",
+            "allowed": "Autorisé",
+            "blocked": "Bloqué"
+        }
     },
     "codingAgent": {
         "section": "Agent de code",

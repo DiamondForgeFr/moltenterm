@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -78,11 +79,18 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
+		if err := agentlinks.Gate(source); err != nil {
+			return nil, err
+		}
 		return l.manager.Hello(ctx, source, req)
 	case mcpbrowser.CallCommand:
 		var req mcpbrowser.CallRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
+		}
+		// The developer stopped this server's link from the terminal's connections menu (FR-CONT-022).
+		if err := agentlinks.Gate(source); err != nil {
+			return mcpbrowser.ErrorResult(err.Error()), nil
 		}
 		return l.manager.Call(ctx, source, req), nil
 	case mcpbrowser.ByeCommand:
@@ -162,6 +170,10 @@ func Start() {
 			log.Printf("molten: browser agent route not started: %v\n", err)
 			return
 		}
+		agentlinks.OnStop(func(source string) {
+			manager.endSessions(func(s *session) bool { return s.source == source }, "stopped by the developer")
+		})
+		agentlinks.SetLegacySessions(manager.legacySessions)
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(wps.Event_RouteDown, func(event *wps.WaveEvent) { handleRouteDown(manager, event) })
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_RouteDown, AllScopes: true}, nil)
