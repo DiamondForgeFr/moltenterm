@@ -76,7 +76,7 @@ function Check({
                 className="mt-0.5 cursor-pointer"
                 data-testid={testId}
             />
-            <span className="flex flex-col">
+            <span className="flex min-w-0 flex-col wrap-anywhere">
                 <span className="text-primary">{label}</span>
                 {hint ? <span className="text-11 text-muted">{hint}</span> : null}
             </span>
@@ -114,7 +114,7 @@ function Choices({
                         onChange={() => onChange(choice.id)}
                         className="mt-0.5 cursor-pointer"
                     />
-                    <span className="flex flex-col">
+                    <span className="flex min-w-0 flex-col wrap-anywhere">
                         <span className="text-primary">{labelOf(choice.id)}</span>
                         {(choice.reasons ?? []).map((reason) => (
                             <span
@@ -386,7 +386,7 @@ export function ChoicesStep({
                 </div>
             ) : null}
             <FlowDiagram model={flowModel(draft, channel, options.tagprefix)} />
-            <div className="grid grid-cols-1 gap-3 @min-[40rem]:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[80rem]:grid-cols-3">
                 <div className={SectionClass}>
                     <div className={SectionTitle}>{t("mc.setup.choices.branchModel")}</div>
                     <Choices
@@ -542,7 +542,9 @@ export function ChoicesStep({
                         <i className="fa fa-solid fa-hand mt-0.5 text-11 text-accent" />
                         <span className="min-w-0 flex-1">
                             <span className="text-primary">{m.title}</span>
-                            <span className="block truncate font-mono text-11 text-muted">{m.text}</span>
+                            <span className="block font-mono text-11 whitespace-pre-wrap text-muted wrap-anywhere">
+                                {m.text}
+                            </span>
                         </span>
                         <button
                             type="button"
@@ -564,7 +566,7 @@ function DiffView({ before, after }: { before: string; after: string }) {
     const rows = diffHunks(lineDiff(before, after));
     return (
         <div
-            className="max-h-72 overflow-auto rounded-6 border border-border bg-black/30 font-mono text-11"
+            className="max-h-[max(18rem,calc(100vh-26rem))] overflow-auto rounded-6 border border-border bg-black/30 font-mono text-11"
             data-testid="setup-diff"
         >
             {rows.map((row, i) =>
@@ -576,7 +578,7 @@ function DiffView({ before, after }: { before: string; after: string }) {
                     <div
                         key={i}
                         className={cn(
-                            "flex whitespace-pre",
+                            "flex w-max min-w-full whitespace-pre",
                             row.kind === "add" && "bg-success/10 text-success",
                             row.kind === "del" && "bg-error/10 text-danger",
                             row.kind === "same" && "text-secondary"
@@ -684,7 +686,7 @@ export function ReviewStep({
                     <summary className="cursor-pointer text-12 text-primary">{t("mc.setup.review.sources")}</summary>
                     <ul className="mt-1 flex flex-col gap-0.5" data-testid="setup-sources">
                         {sources.map(([key, source]) => (
-                            <li key={key}>
+                            <li key={key} className="wrap-anywhere">
                                 <span className="font-mono text-muted">{key}</span> · {sourceText(source)}
                             </li>
                         ))}
@@ -828,6 +830,7 @@ export function ReleaseSetup({
                 info={untrusted}
                 approveOnly
                 bodyKey="mc.setup.trustBody"
+                fill
                 onTrust={trust}
                 onCancel={onClose}
             />
@@ -843,7 +846,7 @@ export function ReleaseSetup({
             title={t("mc.setup.title", { project: projectName })}
             subtitle={t("mc.setup.subtitle")}
             subtitleWraps
-            widthClass="w-[820px]"
+            fill
             onEscape={writing ? undefined : onClose}
             buttons={
                 <>
