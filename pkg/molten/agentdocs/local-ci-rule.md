@@ -2,5 +2,6 @@ In a project with a `.molten/project.json` that declares `ci.jobs`, run the loca
 the declared commands in your shell: `molten ci run [branch] [--only <job,job>] [--force]` starts it in Mission
 Control (the run shows in the CI/CD panel), waits for the verdict and exits 0 when green and 1 when red. Read the
 verdict of a revision with `molten ci status [rev]` (exit 0 green, 1 red, 2 not run yet; `--json` for a script).
-Do this for every test run before you push or ask for a human test. A branch checked out in another worktree works:
-name it. Fall back to the declared commands only when `molten` is not available.
+Do this for every test run before you push or ask for a human test. With no branch, both test the commit checked out
+in the worktree of your current folder (the output names its branch and commit); a branch checked out in another
+worktree works: name it. Fall back to the declared commands only when `molten` is not available.

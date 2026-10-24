@@ -3284,6 +3284,8 @@
             "jobLog": "Journal du job",
             "noOutputYet": "(aucune sortie pour l'instant)",
             "noBranch": "aucune branche",
+            "detached": "détaché sur {sha}",
+            "detachedOn": "détaché sur {sha} ({branches})",
             "tree": "arbre",
             "prepare": "Préparation",
             "runOn": "Exécution de la CI locale sur {branch}",
@@ -6850,6 +6852,8 @@
             "ci": {
                 "noJobs": "Le pipeline ne déclare aucun job de CI (ci.jobs).",
                 "notACommit": "{rev} n'est pas un commit de ce projet.",
+                "foreignCheckout": "{folder} n'est pas une copie de ce projet : lancez la commande depuis le projet ou l'un de ses worktrees.",
+                "noHead": "{folder} n'a encore aucun commit extrait.",
                 "noneOfJobs": "Le pipeline ne déclare aucun des jobs {jobs}.",
                 "alreadyGreen": "La CI locale est déjà verte sur ce code : choisissez Tout relancer pour la lancer quand même.",
                 "inProgress": "Une exécution de la CI locale est en cours ({run}).",

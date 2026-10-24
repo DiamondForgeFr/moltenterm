@@ -64,3 +64,61 @@ func TestMoltenCiResolveDirFromALinkedWorktree(t *testing.T) {
 		t.Errorf("a main checkout stays itself: got %s", got)
 	}
 }
+
+// #1072: with no branch, `molten ci run` and `molten ci status` send the checkout containing the terminal's folder,
+// from any subfolder of a linked worktree, while the project folder stays the main checkout.
+func TestMoltenCiSendsTheCallersCheckout(t *testing.T) {
+	main := t.TempDir()
+	gitForCiTest(t, main, "init", "-q", "-b", "develop")
+	gitForCiTest(t, main, "commit", "-q", "--allow-empty", "-m", "init")
+	worktree := filepath.Join(t.TempDir(), "wt")
+	gitForCiTest(t, main, "worktree", "add", "-q", "-b", "feature/1072-b", worktree)
+	sub := filepath.Join(worktree, "src", "deep")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	realMain, err := filepath.EvalSymlinks(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noLink := func() string { return "" }
+	for _, cwd := range []string{worktree, sub} {
+		dir, from, err := moltenCiCheckout(cwd, noLink)
+		if err != nil || dir != realMain || from != worktree {
+			t.Fatalf("from %s: want project %s and checkout %s, got %s %s %v", cwd, realMain, worktree, dir, from, err)
+		}
+		if req := moltenCiRunRequest(dir, from, nil); req["from"] != worktree || req["branch"] != nil {
+			t.Fatalf("run with no branch: %v", req)
+		}
+		if req := moltenCiStatusRequest(dir, from, nil); req["from"] != worktree || req["rev"] != nil {
+			t.Fatalf("status with no revision: %v", req)
+		}
+	}
+	if req := moltenCiRunRequest(realMain, worktree, []string{"develop"}); req["branch"] != "develop" || req["from"] != nil {
+		t.Fatalf("a named branch is resolved in the repository: %v", req)
+	}
+	if req := moltenCiStatusRequest(realMain, worktree, []string{"develop"}); req["rev"] != "develop" || req["from"] != nil {
+		t.Fatalf("a named revision is resolved in the repository: %v", req)
+	}
+	if dir, from, err := moltenCiCheckout(main, noLink); err != nil || dir != main || from != main {
+		t.Fatalf("a main checkout is both: %s %s %v", dir, from, err)
+	}
+	if _, _, err := moltenCiCheckout(t.TempDir(), noLink); err == nil {
+		t.Fatal("outside git: want an error")
+	}
+}
+
+func TestFormatMoltenCiTarget(t *testing.T) {
+	for _, tc := range []struct {
+		run  moltenCiRun
+		want string
+	}{
+		{moltenCiRun{Branch: "feature/1072-b"}, "feature/1072-b"},
+		{moltenCiRun{Detached: true}, "detached HEAD"},
+		{moltenCiRun{Detached: true, Heads: []string{"a", "b"}}, "detached HEAD (a, b)"},
+	} {
+		if got := formatMoltenCiTarget(tc.run); got != tc.want {
+			t.Errorf("%+v: want %q, got %q", tc.run, tc.want, got)
+		}
+	}
+}
