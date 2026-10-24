@@ -163,6 +163,7 @@ describe("cardState: the nine states (#1060)", () => {
         });
         expect(w.sentence).toBe("Nathan is rebasing onto develop");
         expect(w.why).toBe("");
+        expect(w.facts).not.toContain("conflicts with develop");
     });
 
     it("a sub-agent or a background agent is followed through its parent session", () => {
