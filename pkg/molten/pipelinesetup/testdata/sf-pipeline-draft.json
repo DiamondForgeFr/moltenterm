@@ -1,0 +1,25 @@
+{
+    "schema": 1,
+    "kind": "on-premise",
+    "fragment": {
+        "release": {
+            "rc": [
+                { "id": "promote", "title": "Promote develop onto master once CI is green", "phase": "prepare", "run": "molten release promote --workflow test.yml" },
+                { "id": "prepare", "title": "Bump the version", "phase": "prepare", "run": "molten release prepare {tag}" },
+                { "id": "finalize", "title": "Commit, tag and push", "phase": "cut", "confirm": "{tag} is public once pushed.", "run": "molten release finalize {tag}" },
+                { "id": "sync-back", "title": "Carry the release back", "phase": "back", "run": "molten release sync-back {tag}" }
+            ],
+            "public": [
+                { "id": "promote", "title": "Promote develop onto master once CI is green", "phase": "prepare", "run": "molten release promote --workflow test.yml" },
+                { "id": "prepare", "title": "Bump the version", "phase": "prepare", "run": "molten release prepare {tag}" },
+                { "id": "finalize", "title": "Commit, tag and push: publish-stable.yml publishes to npm", "phase": "cut", "confirm": "{tag} is public once pushed.", "run": "molten release finalize {tag}" },
+                { "id": "sync-back", "title": "Carry the release back", "phase": "back", "run": "molten release sync-back {tag}" }
+            ]
+        }
+    },
+    "sources": {
+        "release.rc[0]": "workflow.workingBranch and workflow.releaseBranch in .saasfoundry.json",
+        "release.public[2]": "the npm-stable profile's publish-stable.yml"
+    },
+    "warnings": []
+}

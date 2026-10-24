@@ -3051,7 +3051,8 @@
                 "rerunning": "Relance…",
                 "rewriting": "Réécriture…",
                 "saving": "Enregistrement…",
-                "abandoning": "Abandon…"
+                "abandoning": "Abandon…",
+                "recording": "Enregistrement…"
             },
             "phase": {
                 "prepare": "Préparer",
@@ -3154,7 +3155,14 @@
             "afterCut": "Après la coupe.",
             "mergePr": "Fusionnez la PR #{number} dans {trunk}.",
             "bringBack": "Ramenez {tag} sur {trunk}.",
-            "waitingReach": "En attente que {tag} atteigne {trunk}."
+            "waitingReach": "En attente que {tag} atteigne {trunk}.",
+            "manualDone": "Marquer comme fait : {step}",
+            "manualConfirm": "Confirmez que « {step} » est fait : MoltenTerm l’enregistre et n’exécute rien.",
+            "manualNext": "Ensuite, à la main : {step}. Marquez-le comme fait une fois terminé.",
+            "approval": "En attente de l’approbation de {environment} sur GitHub.",
+            "approvalLink": "Approuver sur GitHub",
+            "approvalOf": "{workflow} attend l’approbation de {environment} sur GitHub.",
+            "approvalHint": "Un relecteur de {environment} approuve le déploiement sur la page de l’exécution ; la release reprend ensuite d’elle-même."
         },
         "frame": {
             "linkProjectTitle": "Lier un projet",
@@ -3481,6 +3489,149 @@
                 "nothingSent": "Rien n'a été envoyé.",
                 "sent": "Envoyé à {agent} : la description arrivera comme un changement à relire.",
                 "typed": "Tapé dans l'invite de {agent} après votre brouillon : appuyez sur Entrée dans son terminal pour l'envoyer."
+            }
+        },
+        "setup": {
+            "open": "Mettre en place la release",
+            "openHint": "Rédigée d’après le dépôt, relue avant toute écriture.",
+            "title": "Mettre en place la release de {project}",
+            "subtitle": "MoltenTerm rédige la release manquante d’après le dépôt. Rien n’est écrit avant votre clic sur Écrire.",
+            "reading": "Lecture du dépôt…",
+            "back": "Retour",
+            "next": "Suivant",
+            "write": "Écrire .molten/project.json",
+            "fromSaaSFoundry": "Rédigée par SaaSFoundryAI, qui connaît le profil de ce projet et ses workflows générés.",
+            "choicesReplace": "Vos choix sont rédigés par les modèles de MoltenTerm, à la place de la proposition de SaaSFoundryAI.",
+            "step": {
+                "kind": "Type d’application",
+                "what": "Que mettre en place",
+                "choices": "Choix",
+                "review": "Relecture"
+            },
+            "kind": {
+                "intro": "Comment ce projet arrive-t-il à ses utilisateurs ?",
+                "on-premise": "Application distribuée",
+                "on-premiseHint": "Des versions installées ou téléchargées : une application de bureau, un CLI, un paquet. Candidates, un tag, des fichiers construits et publiés, puis la release ramenée sur le tronc.",
+                "saas": "Application SaaS",
+                "saasHint": "Des déploiements plutôt que des versions livrées : la branche de release déployée sur ses environnements, avec leurs approbations.",
+                "detected": "Détecté",
+                "evidence": "Ce que montre le dépôt",
+                "noEvidence": "Rien de packagé ni de déployé n’a été trouvé : choisissez le type qui convient."
+            },
+            "what": {
+                "intro": "Quelles releases le menu Release doit-il lancer ?",
+                "missing": "Absente du pipeline.",
+                "replaces": "Déjà déclarée : la remettre en place la remplace.",
+                "saasIntro": "Sur quels environnements l’en-tête Projet doit-il déployer ?",
+                "noEnvironment": "Aucun workflow de déploiement lançable à la main n’a été trouvé.",
+                "environmentHint": "Lance {workflow} sur {branch}.",
+                "saasLater": "La promotion entre environnements, les migrations, les vérifications et le retour arrière viendront dans une version ultérieure."
+            },
+            "flow": {
+                "rc": "Release candidate",
+                "public": "Release publique"
+            },
+            "choices": {
+                "saasIntro": "Chaque environnement devient un choix Déployer vers de l’en-tête Projet ; celui de production demande d’abord.",
+                "branchModel": "Branches",
+                "merge": "Arrivée sur la branche de release",
+                "tags": "Tags et numéros",
+                "tagPrefix": "Préfixe des tags",
+                "notes": "Notes de version",
+                "notesPath": "Fichier par version",
+                "notesHow": "Rédigées d’après les tickets et commits depuis la dernière version quand la release est préparée ; vous les lisez et les modifiez dans le panneau de release avant la coupe.",
+                "notesAgent": "Les réécrire avec l’agent de code",
+                "notesAgentHint": "Proposé à côté des notes, jamais lancé seul.",
+                "changelog": "Mettre à jour {path} ({lang})",
+                "changelogHint": "Une étape faite à la main avant la coupe ; la coupe commite le fichier avec la version.",
+                "workflows": "Workflows GitHub",
+                "ciWorkflow": "Attendre que {file} soit vert",
+                "ciWorkflowHint": "Sur le commit de {trunk} promu.",
+                "tagWorkflow": "{file} démarre sur le tag : suivi dans le panneau de release",
+                "approval": "Demande l’approbation de {environment}.",
+                "dispatch": "Lancer {file} sur le tag une fois publié",
+                "dispatchHint": "Lancé et suivi par MoltenTerm.",
+                "after": "Après la release",
+                "syncBack": "Ramener le commit de release sur {trunk} par pull request",
+                "milestone": "Fermer le jalon une fois publié",
+                "manual": "Étapes faites à la main",
+                "manualHint": "Ce que MoltenTerm ne peut pas lancer pour vous, comme une fusion ponctuelle : la release attend que vous la marquiez comme faite."
+            },
+            "branchModel": {
+                "promote": "Promouvoir {trunk} sur {release}, puis taguer {release}",
+                "single": "Taguer la branche de travail {trunk}",
+                "rcpr": "Une branche {pattern} depuis {trunk}, fusionnée dans {release} par pull request"
+            },
+            "merge": {
+                "merge": "Commit de fusion (avance rapide si possible)",
+                "squash": "Squash",
+                "rebase": "Rebase"
+            },
+            "rcFormat": {
+                "numeric": "Candidates {prefix}1.2.0-1, -2…",
+                "rcdot": "Candidates {prefix}1.2.0-rc.1, -rc.2…"
+            },
+            "reason": {
+                "msiNumeric": "Les installeurs Windows n’acceptent que des chiffres après le tiret (cible {target}).",
+                "chainNumeric": "La chaîne de release de MoltenTerm numérote les candidates -1, -2… pour l’instant.",
+                "npmDistTag": "npm l’accepte, publié sous un dist-tag comme next.",
+                "chainNoRcPr": "La chaîne de release de MoltenTerm n’ouvre pas encore de branche de release par pull request.",
+                "chainMerge": "La chaîne de release de MoltenTerm fusionne ou avance ; celle-ci viendra plus tard.",
+                "singleBranch": "Le tronc est aussi la branche de release.",
+                "noReleaseBranch": "Aucune branche de release n’est déclarée."
+            },
+            "source": {
+                "versionsDeclared": "Fichiers de version déclarés dans {path}.",
+                "versionsNone": "Aucun fichier de version trouvé : déclarez versions.files.",
+                "versionsFound": "Version {detail} lue dans {path}.",
+                "branches": "Branches {detail}, d’après {path}.",
+                "changelog": "Journal des modifications {path}.",
+                "notes": "Notes déclarées dans {path}.",
+                "finalizeWorkflows": "Le tag démarre {path} ; approbation : {detail}.",
+                "finalizeNoWorkflow": "Aucun workflow ne démarre sur ce tag.",
+                "milestone": "Le projet est sur GitHub.",
+                "dispatch": "{path} démarre sur workflow_dispatch ; approbation : {detail}.",
+                "deploy": "{path} déploie {detail}.",
+                "manualAdded": "Ajoutée par vous.",
+                "provider": "SaaSFoundryAI : {detail}",
+                "targetConfig": "Cible {detail} dans {path}.",
+                "targetNpm": "Paquet npm {detail} ({path}).",
+                "targetWorkflow": "Publié par {path}.",
+                "kindPublish": "{path} publie sur un tag.",
+                "kindDeploy": "{path} déploie sur {detail}."
+            },
+            "manual": {
+                "titlePlaceholder": "Ce qu’il faut faire, en quelques mots",
+                "textPlaceholder": "Les instructions, par ex. git merge -s ours origin/master",
+                "channel": "Dans",
+                "both": "Les deux",
+                "before": "Avant",
+                "beforeCut": "la coupe",
+                "add": "Ajouter l’étape",
+                "remove": "Retirer"
+            },
+            "review": {
+                "folded": "{count} lignes inchangées",
+                "byAgent": "Proposé par {agent} : rien n’est écrit avant votre clic sur Écrire.",
+                "bySaaSFoundry": "Rédigé par SaaSFoundryAI.",
+                "byMoltenTerm": "Rédigé par MoltenTerm d’après le dépôt.",
+                "backToDraft": "Revenir à la proposition",
+                "refine": "Affiner avec un agent",
+                "refining": "L’agent lit le dépôt…",
+                "refineTitle": "L’agent de code du projet lit le dépôt et propose des changements, sans rien écrire.",
+                "sources": "D’où vient chaque étape",
+                "ticketBranch": "Écrit dans l’arbre de travail sur {branch} : commitez-le sur une branche de ticket, comme le demande le workflow du projet.",
+                "workingTree": "Écrit dans l’arbre de travail : commitez-le comme d’habitude. Ses commandes demandent ensuite votre approbation."
+            },
+            "diagram": {
+                "github": "GitHub",
+                "label": "Le déroulé de la release",
+                "approval": "approbation de {environment}",
+                "approvalShort": "approbation {environment}",
+                "legendCommand": "Une étape lancée par MoltenTerm",
+                "legendManual": "Faite à la main",
+                "legendTag": "Le tag",
+                "legendWorkflow": "Un workflow GitHub"
             }
         }
     },
@@ -6625,6 +6776,15 @@
             },
             "work": {
                 "preparing": "préparation"
+            },
+            "setup": {
+                "notRegular": "{path} n’est pas un fichier ordinaire : il n’est pas écrit à travers un lien.",
+                "invalid": "Le pipeline contient des erreurs : {errors}. Corrigez-le d’abord (molten project validate).",
+                "changed": "{path} a changé depuis la proposition : relancez-la.",
+                "notValid": "Le pipeline proposé n’est pas valide : {errors}",
+                "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
+                "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
+                "agentNoJson": "{agent} a répondu sans pipeline."
             }
         },
         "notif": {

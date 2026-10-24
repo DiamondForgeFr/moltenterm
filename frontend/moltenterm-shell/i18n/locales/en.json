@@ -3051,7 +3051,8 @@
                 "rerunning": "Rerunning…",
                 "rewriting": "Rewriting…",
                 "saving": "Saving…",
-                "abandoning": "Abandoning…"
+                "abandoning": "Abandoning…",
+                "recording": "Recording…"
             },
             "phase": {
                 "prepare": "Prepare",
@@ -3154,7 +3155,14 @@
             "afterCut": "After the cut.",
             "mergePr": "Merge PR #{number} into {trunk}.",
             "bringBack": "Bring {tag} back to {trunk}.",
-            "waitingReach": "Waiting for {tag} to reach {trunk}."
+            "waitingReach": "Waiting for {tag} to reach {trunk}.",
+            "manualDone": "Mark as done: {step}",
+            "manualConfirm": "Confirm that “{step}” is done: MoltenTerm records it and runs nothing.",
+            "manualNext": "Next, by hand: {step}. Mark it done once it is.",
+            "approval": "Waiting for the approval of {environment} on GitHub.",
+            "approvalLink": "Approve on GitHub",
+            "approvalOf": "{workflow} waits for the approval of {environment} on GitHub.",
+            "approvalHint": "A reviewer of {environment} approves the deployment on the run's page; the release goes on by itself after."
         },
         "frame": {
             "linkProjectTitle": "Link a project",
@@ -3481,6 +3489,149 @@
                 "nothingSent": "Nothing was sent.",
                 "sent": "Sent to {agent}: the description will come as a change to review.",
                 "typed": "Typed in {agent}'s prompt after your draft there: press Enter in its terminal to send it."
+            }
+        },
+        "setup": {
+            "open": "Set up the release",
+            "openHint": "Drafted from the repository, reviewed before anything is written.",
+            "title": "Set up the release of {project}",
+            "subtitle": "MoltenTerm drafts the missing release from the repository. Nothing is written before you click Write.",
+            "reading": "Reading the repository…",
+            "back": "Back",
+            "next": "Next",
+            "write": "Write .molten/project.json",
+            "fromSaaSFoundry": "Drafted by SaaSFoundryAI, which knows this project's profile and generated workflows.",
+            "choicesReplace": "Your choices are drafted by MoltenTerm's templates, in place of SaaSFoundryAI's draft.",
+            "step": {
+                "kind": "App kind",
+                "what": "What to set up",
+                "choices": "Choices",
+                "review": "Review"
+            },
+            "kind": {
+                "intro": "How does this project reach its users?",
+                "on-premise": "Distributed app",
+                "on-premiseHint": "Versions people install or download: a desktop app, a CLI, a package. Release candidates, a tag, files built and published, then the release brought back to the trunk.",
+                "saas": "SaaS cloud app",
+                "saasHint": "Deployments rather than shipped versions: the release branch deployed to its environments, with their approvals.",
+                "detected": "Detected",
+                "evidence": "What the repository shows",
+                "noEvidence": "Nothing packaged or deployed was found: choose the kind that fits."
+            },
+            "what": {
+                "intro": "Which releases should the Release menu start?",
+                "missing": "Missing from the pipeline.",
+                "replaces": "Already declared: setting it up again replaces it.",
+                "saasIntro": "Which environments should the Project header deploy to?",
+                "noEnvironment": "No deploy workflow that can be started by hand was found.",
+                "environmentHint": "Starts {workflow} on {branch}.",
+                "saasLater": "Promotion between environments, migrations, smoke checks and rollback come in a later version."
+            },
+            "flow": {
+                "rc": "Release candidate",
+                "public": "Public release"
+            },
+            "choices": {
+                "saasIntro": "Each environment becomes a Deploy to choice of the Project header; a production one asks first.",
+                "branchModel": "Branches",
+                "merge": "Reaching the release branch",
+                "tags": "Tags and numbers",
+                "tagPrefix": "Tag prefix",
+                "notes": "Release notes",
+                "notesPath": "File per version",
+                "notesHow": "Drafted from the tickets and commits since the last version when the release is prepared; you read and edit them in the release panel before the cut.",
+                "notesAgent": "Rewrite them with the coding agent",
+                "notesAgentHint": "Offered beside the notes, never run on its own.",
+                "changelog": "Update {path} ({lang})",
+                "changelogHint": "A step done by hand before the cut; the cut commits the file with the version.",
+                "workflows": "GitHub workflows",
+                "ciWorkflow": "Wait for {file} to be green",
+                "ciWorkflowHint": "On the {trunk} commit being promoted.",
+                "tagWorkflow": "{file} starts on the tag: followed in the release panel",
+                "approval": "Asks for the approval of {environment}.",
+                "dispatch": "Run {file} at the tag once published",
+                "dispatchHint": "Started and followed by MoltenTerm.",
+                "after": "After the release",
+                "syncBack": "Carry the release commit back to {trunk} by pull request",
+                "milestone": "Close the milestone once published",
+                "manual": "Steps done by hand",
+                "manualHint": "Something MoltenTerm cannot run for you, such as a one-time merge: the release waits until you mark it done."
+            },
+            "branchModel": {
+                "promote": "Promote {trunk} onto {release}, then tag {release}",
+                "single": "Tag the working branch {trunk}",
+                "rcpr": "A {pattern} branch from {trunk}, merged into {release} by pull request"
+            },
+            "merge": {
+                "merge": "Merge commit (fast-forward when possible)",
+                "squash": "Squash",
+                "rebase": "Rebase"
+            },
+            "rcFormat": {
+                "numeric": "Candidates {prefix}1.2.0-1, -2…",
+                "rcdot": "Candidates {prefix}1.2.0-rc.1, -rc.2…"
+            },
+            "reason": {
+                "msiNumeric": "Windows installers only accept numbers after the dash ({target} target).",
+                "chainNumeric": "MoltenTerm's release chain numbers candidates -1, -2… for now.",
+                "npmDistTag": "npm accepts it, published under a dist-tag such as next.",
+                "chainNoRcPr": "MoltenTerm's release chain does not open release branches by pull request yet.",
+                "chainMerge": "MoltenTerm's release chain merges or fast-forwards; this one comes later.",
+                "singleBranch": "The trunk is also the release branch.",
+                "noReleaseBranch": "No release branch is declared."
+            },
+            "source": {
+                "versionsDeclared": "Version files declared in {path}.",
+                "versionsNone": "No version file found: declare versions.files.",
+                "versionsFound": "Version {detail} read in {path}.",
+                "branches": "Branches {detail}, from {path}.",
+                "changelog": "Changelog {path}.",
+                "notes": "Notes declared in {path}.",
+                "finalizeWorkflows": "The tag starts {path}; approval: {detail}.",
+                "finalizeNoWorkflow": "No workflow starts on this tag.",
+                "milestone": "The project is on GitHub.",
+                "dispatch": "{path} starts on workflow_dispatch; approval: {detail}.",
+                "deploy": "{path} deploys {detail}.",
+                "manualAdded": "Added by you.",
+                "provider": "SaaSFoundryAI: {detail}",
+                "targetConfig": "{detail} target in {path}.",
+                "targetNpm": "npm package {detail} ({path}).",
+                "targetWorkflow": "Published by {path}.",
+                "kindPublish": "{path} publishes on a tag.",
+                "kindDeploy": "{path} deploys to {detail}."
+            },
+            "manual": {
+                "titlePlaceholder": "What to do, in a few words",
+                "textPlaceholder": "The instructions, e.g. git merge -s ours origin/master",
+                "channel": "In",
+                "both": "Both",
+                "before": "Before",
+                "beforeCut": "the cut",
+                "add": "Add the step",
+                "remove": "Remove"
+            },
+            "review": {
+                "folded": "{count} unchanged lines",
+                "byAgent": "Proposed by {agent}: nothing is written until you click Write.",
+                "bySaaSFoundry": "Drafted by SaaSFoundryAI.",
+                "byMoltenTerm": "Drafted by MoltenTerm from the repository.",
+                "backToDraft": "Back to the draft",
+                "refine": "Refine with an agent",
+                "refining": "The agent reads the repository…",
+                "refineTitle": "The project's coding agent reads the repository and proposes changes, without writing anything.",
+                "sources": "Where each step comes from",
+                "ticketBranch": "Written in the working tree on {branch}: commit it on a ticket branch, as the project's workflow asks.",
+                "workingTree": "Written in the working tree: commit it as usual. Its commands then ask for your approval."
+            },
+            "diagram": {
+                "github": "GitHub",
+                "label": "The release flow",
+                "approval": "approval of {environment}",
+                "approvalShort": "approval {environment}",
+                "legendCommand": "A step MoltenTerm runs",
+                "legendManual": "Done by hand",
+                "legendTag": "The tag",
+                "legendWorkflow": "A GitHub workflow"
             }
         }
     },
@@ -6625,6 +6776,15 @@
             },
             "work": {
                 "preparing": "preparing"
+            },
+            "setup": {
+                "notRegular": "{path} is not a regular file: it is not written through a link.",
+                "invalid": "The pipeline has mistakes: {errors}. Fix it first (molten project validate).",
+                "changed": "{path} changed since the draft: draft it again.",
+                "notValid": "The proposed pipeline is not valid: {errors}",
+                "noAgent": "No supported coding agent (Claude Code or Codex) is installed on this computer.",
+                "agentFailed": "{agent} could not refine the draft: {detail}",
+                "agentNoJson": "{agent} answered without a pipeline."
             }
         },
         "notif": {
