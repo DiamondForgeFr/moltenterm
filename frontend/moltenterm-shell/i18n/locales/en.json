@@ -4777,6 +4777,55 @@
                 },
                 "launch": "Launch #{ticket}",
                 "background": "in the background"
+            },
+            "after": {
+                "merged": "after #{number} was merged: {count} new commits",
+                "mergedOne": "after #{number} was merged: 1 new commit",
+                "mergedUnknown": "after #{number} was merged: new commits",
+                "closed": "after #{number} was closed: {count} new commits",
+                "closedOne": "after #{number} was closed: 1 new commit",
+                "closedUnknown": "after #{number} was closed: new commits",
+                "closedNothing": "PR #{number} closed without merging"
+            }
+        },
+        "leftovers": {
+            "title": "Leftovers to clean up",
+            "hint": "merged pull requests",
+            "state": "#{number} merged · leftovers",
+            "clean": "Clean up",
+            "cleaning": "Cleaning up…",
+            "cleanAll": "Clean up all",
+            "moreTitle": "More actions for #{number}",
+            "openPr": "Open the pull request",
+            "showSession": "Show {name}'s session",
+            "failed": "Not everything could be cleaned up: {error}",
+            "part": {
+                "worktree": "worktree {folder}",
+                "local": "local branch {branch}",
+                "remote": "{branch} on origin"
+            },
+            "agent": {
+                "idle": "{name} is inactive",
+                "done": "{name} has finished",
+                "working": "{name} is still working",
+                "waiting": "{name} is waiting for you",
+                "background": "an agent is probably still on it",
+                "subagentWorking": "a sub-agent of {name} is still working",
+                "subagentResting": "a sub-agent of {name} has stopped"
+            },
+            "confirm": {
+                "title": "Clean up #{number}?",
+                "busy": "Agents are still at work on {branch}. Cleaning up closes their sessions and removes the worktree.",
+                "kept": "Removing {path} would lose what is listed below.",
+                "stopAndClean": "Close the sessions and clean up"
+            },
+            "all": {
+                "title": "Clean up every leftover?",
+                "subtitle": "The worktrees, agent sessions and branches below go. A worktree holding work you would lose still asks first.",
+                "button": {
+                    "one": "Clean up {count} pull request",
+                    "other": "Clean up {count} pull requests"
+                }
             }
         },
         "task": {

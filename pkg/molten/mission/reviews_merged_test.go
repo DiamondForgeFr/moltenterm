@@ -39,6 +39,8 @@ func TestBuildMergedKeepsTheWindow(t *testing.T) {
 		mergedPrJson(3, "main", readAt.Add(-2*time.Hour), "ccccccc"),
 		mergedPrJson(4, "develop", readAt.Add(-3*24*time.Hour), "not an oid"),
 		mergedPrJson(5, "develop", readAt.Add(-30*time.Minute), "ddddddd"),
+		// Closed without merging, in the same read since #1088: never a merged row.
+		`{"number":6,"title":"pr 6","headRefName":"fix/106-x","baseRefName":"develop","state":"CLOSED","mergedAt":null,"closedAt":"2026-10-16T17:00:00Z"}`,
 	}
 	got, err := buildMerged(json.RawMessage("["+strings.Join(rows, ",")+"]"), "develop", readAt.UnixMilli(), branchTicketRes(nil))
 	if err != nil {
@@ -67,7 +69,7 @@ func TestBuildMergedKeepsTheWindow(t *testing.T) {
 func TestMergedPrsArgsNameTheTarget(t *testing.T) {
 	dir := reviewsProject(t, reviewsSfManifest)
 	args := strings.Join(mergedPrsArgs(dir, time.Date(2026, 10, 16, 1, 0, 0, 0, time.UTC)), " ")
-	if !strings.Contains(args, "--state merged") || !strings.Contains(args, "merged:>=2026-10-08") || !strings.Contains(args, "--base develop") {
+	if !strings.Contains(args, "--state closed") || !strings.Contains(args, "closed:>=2026-10-08") || !strings.Contains(args, "--base develop") {
 		t.Fatalf("args: %s", args)
 	}
 }
@@ -111,7 +113,7 @@ func TestReviewsGetReadsShips(t *testing.T) {
 		switch {
 		case args[0] == "repo":
 			return []byte(`{"nameWithOwner":"acme/app","url":"https://github.com/acme/app"}`), nil
-		case args[0] == "pr" && strings.Contains(strings.Join(args, " "), "--state merged"):
+		case args[0] == "pr" && strings.Contains(strings.Join(args, " "), "--state closed"):
 			return []byte(merged), nil
 		}
 		return []byte(`[]`), nil

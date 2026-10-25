@@ -16,7 +16,8 @@ func sessionGithub() *GithubSnapshot {
 		Repo: "acme/app",
 		Prs: json.RawMessage(`[{"number":12,"title":"Open one","url":"https://github.com/acme/app/pull/12","headRefName":"feature/10-open","isDraft":false},
 			{"number":13,"title":"Draft one","url":"https://github.com/acme/app/pull/13","headRefName":"feature/11-draft","isDraft":true}]`),
-		Merged: json.RawMessage(`[{"number":9,"title":"Merged one","url":"https://github.com/acme/app/pull/9","headRefName":"fix/8-done"}]`),
+		Merged: json.RawMessage(`[{"number":9,"title":"Merged one","url":"https://github.com/acme/app/pull/9","headRefName":"fix/8-done","mergedAt":"2026-10-20T10:00:00Z"},
+			{"number":14,"title":"Closed one","url":"https://github.com/acme/app/pull/14","headRefName":"fix/15-dropped","state":"CLOSED"}]`),
 	}
 }
 
@@ -36,6 +37,8 @@ func TestResolveSessionContextByBranch(t *testing.T) {
 		{"feature/11-draft", 13, molten.SessionPrDraft, 11},
 		{"fix/8-done", 9, molten.SessionPrMerged, 8},
 		{"feature/77-none", 0, "", 77},
+		// A PR closed without merging is in the same read (#1088): never called merged.
+		{"fix/15-dropped", 0, "", 15},
 	}
 	for _, c := range cases {
 		ctx := ResolveSessionContext(molten.SessionContextQuery{Project: "/p", Branch: c.branch}, gh, defaultTicketOf)

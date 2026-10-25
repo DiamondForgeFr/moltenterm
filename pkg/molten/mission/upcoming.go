@@ -22,7 +22,8 @@ import (
 )
 
 // The Reviews view's upcoming work and the agents on each branch (#712, FR-REV-022, DS-REV-015). Upcoming: the ticket
-// branches (workflow.branchNaming) with commits ahead of the PR target and no open PR yet, local or on origin. Agents:
+// branches (workflow.branchNaming) with commits ahead of the PR target and no open PR yet, local or on origin; a branch
+// whose PR merged with nothing after its head is a leftover instead (#1088, upcoming_done.go). Agents:
 // each running agent terminal placed in the worktree its folder belongs to, which names the branch it works on; a
 // linked worktree on a ticket branch with recent activity and no agent terminal is reported as a background agent
 // (an agent run inside another agent, a Claude Code worktree agent for instance), a heuristic the view says as
@@ -79,6 +80,11 @@ type UpcomingBranch struct {
 	Url      string `json:"url,omitempty"`
 	// The ticket's board Status as named on the board, "" when unknown (no project scope, not on a board).
 	Status string `json:"status,omitempty"`
+	// AfterPr: the branch's PR closed in the window (#1088), merged or not (AfterState, UpcomingAfter…); AfterCount: the
+	// branch's commits after that PR's head, -1 when git cannot count them.
+	AfterPr    int    `json:"afterpr,omitempty"`
+	AfterState string `json:"afterstate,omitempty"`
+	AfterCount int    `json:"aftercount,omitempty"`
 }
 
 // BranchAgent is an agent working on a branch: a terminal's (Kind panel, BlockId set) or, probably, a background one.
@@ -122,15 +128,17 @@ type UpcomingDraft struct {
 }
 
 type UpcomingAnswer struct {
-	Dir          string           `json:"dir"`
-	Target       string           `json:"target,omitempty"`
-	Branches     []UpcomingBranch `json:"branches"`
-	Agents       []BranchAgent    `json:"agents"`
-	Drafts       []UpcomingDraft  `json:"drafts,omitempty"`
-	Error        string           `json:"error,omitempty"`
-	ErrorText    *uimsg.Text      `json:"errortext,omitempty"`
-	TicketsError string           `json:"ticketserror,omitempty"`
-	At           int64            `json:"at"`
+	Dir      string           `json:"dir"`
+	Target   string           `json:"target,omitempty"`
+	Branches []UpcomingBranch `json:"branches"`
+	Agents   []BranchAgent    `json:"agents"`
+	Drafts   []UpcomingDraft  `json:"drafts,omitempty"`
+	// Leftovers: the branches of merged PRs that hold nothing new (#1088), with what is left of them.
+	Leftovers    []UpcomingLeftover `json:"leftovers"`
+	Error        string             `json:"error,omitempty"`
+	ErrorText    *uimsg.Text        `json:"errortext,omitempty"`
+	TicketsError string             `json:"ticketserror,omitempty"`
+	At           int64              `json:"at"`
 }
 
 // AgentPlace is a running agent terminal and where it works.
@@ -296,7 +304,7 @@ func (u *Upcoming) Get(req UpcomingRequest) (UpcomingAnswer, error) {
 }
 
 func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
-	answer := UpcomingAnswer{Dir: dir, Branches: []UpcomingBranch{}, Agents: []BranchAgent{}, At: u.env.Now().UnixMilli()}
+	answer := UpcomingAnswer{Dir: dir, Branches: []UpcomingBranch{}, Agents: []BranchAgent{}, Leftovers: []UpcomingLeftover{}, At: u.env.Now().UnixMilli()}
 	var snap Snapshot
 	ok := false
 	if u.env.Snapshot != nil {
@@ -332,12 +340,20 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
 		targetRef = "refs/remotes/origin/" + answer.Target
 	}
+	closed := closedPrsByBranch(snap)
+	remotes := remoteBranches(refs)
 	branches := make([]UpcomingBranch, 0, len(candidates))
 	for _, c := range candidates {
 		ref := "refs/heads/" + c.Branch
 		if c.Remote {
 			ref = "refs/remotes/origin/" + c.Branch
 		}
+		done := classifyDone(g, closed, c, ref, targetRef)
+		if done.leftover {
+			answer.Leftovers = append(answer.Leftovers, LeftoverOf(c, done.pr, remotes))
+			continue
+		}
+		c = withAfter(c, done)
 		out, err := g.out("rev-list", "--count", targetRef+".."+ref)
 		if err != nil {
 			continue
