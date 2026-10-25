@@ -171,7 +171,7 @@ function ActionButton({
     const lock = useCardLock();
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
-    const [notice, setNotice] = useState<string>(null);
+    const [notice, setNotice] = useState<string>(null); // an i18n key, worded at render: the language may change meanwhile
     const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
@@ -183,11 +183,11 @@ function ActionButton({
                 const outcome = await runAction(lock, key, () => actions.run(action));
                 if (outcome === "refused") {
                     logReleaseAction(`${action.label}: not sent, another action of the card is under way`);
-                    setNotice(t("mc.releaseRun.actionRefused"));
+                    setNotice("mc.releaseRun.actionRefused");
                     return;
                 }
                 if (outcome === "asked") {
-                    setNotice(t("mc.releaseRun.trustFirst"));
+                    setNotice("mc.releaseRun.trustFirst");
                     return;
                 }
                 setConfirming(false);
@@ -230,7 +230,7 @@ function ActionButton({
             </div>
             {notice ? (
                 <p className="text-right text-12 text-warning" role="status" data-testid="release-run-notice">
-                    {notice}
+                    {t(notice)}
                 </p>
             ) : null}
             {error ? (
