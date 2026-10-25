@@ -5,8 +5,6 @@ package reviewsession
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
@@ -46,9 +45,7 @@ func validRef(ref string) bool {
 
 // ReviewTreesDir is the folder of a project's review worktrees.
 func ReviewTreesDir(dataDir string, projectDir string) string {
-	sum := sha256.Sum256([]byte(projectDir))
-	name := filepath.Base(projectDir) + "-" + hex.EncodeToString(sum[:4])
-	return filepath.Join(dataDir, "molten", "worktrees", name)
+	return molten.ReviewTreesDir(dataDir, projectDir)
 }
 
 // ReviewTreeDir is the detached worktree of PR number of the project.

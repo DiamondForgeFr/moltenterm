@@ -14,11 +14,16 @@ import (
 // tip is the merged PR's head, or one of its commits, holds nothing new and is a leftover to clean up (worktree, agent
 // session, branches), never Upcoming. A branch with commits after that head is follow-up work and stays, saying so; a
 // PR closed without merging leaves its branch Upcoming with its own wording. The commits are compared by sha: a squash
-// or rebase merge never puts the branch's commits on the target, so "ahead of the target" cannot tell.
+// or rebase merge never puts the branch's commits on the target, so "ahead of the target" cannot tell. A PR closed
+// without merging whose branch's content is already on the target is a leftover too (#1121, CommitsNotOn), and so are a
+// merged PR's local copies and review worktree (upcoming_leftovers.go).
 
 const (
 	UpcomingAfterMerged = "merged"
 	UpcomingAfterClosed = "closed"
+
+	LeftoverLockEnded = "ended"
+	LeftoverLockHeld  = "held"
 
 	ghPrStateMerged = "MERGED"
 )
@@ -38,6 +43,18 @@ type UpcomingLeftover struct {
 	Remote bool `json:"remote,omitempty"`
 	// The branch's last commit, in Unix milliseconds.
 	CommitAt int64 `json:"commitat,omitempty"`
+	// State: UpcomingAfterMerged, or UpcomingAfterClosed for a PR closed without merging whose branch's content is
+	// already on Base, the PR target (#1121).
+	State string `json:"state"`
+	Base  string `json:"base,omitempty"`
+	// Lock: the worktree is locked by a process that ended (LeftoverLockEnded, LockPid the pid it named) or by someone
+	// MoltenTerm cannot tell (LeftoverLockHeld): the cleanup keeps that one.
+	Lock    string `json:"lock,omitempty"`
+	LockPid int32  `json:"lockpid,omitempty"`
+	// ReviewTree: MoltenTerm's review worktree of the PR, left when it merged outside Validate.
+	ReviewTree string `json:"reviewtree,omitempty"`
+	// Copies: local copies of the PR's branch (pr<N>, or a branch whose upstream was the PR's branch) holding nothing new.
+	Copies []string `json:"copies,omitempty"`
 }
 
 type ghClosedPr struct {
@@ -133,14 +150,28 @@ func classifyDone(g *gitReader, closed map[string]ghClosedPr, c UpcomingBranch, 
 			after = 0
 		}
 	}
-	return donePr{found: true, leftover: pr.merged() && after == 0, pr: pr, after: after}
+	if pr.merged() {
+		return donePr{found: true, leftover: after == 0, pr: pr, after: after}
+	}
+	// Closed without merging (#1121): its head is no proof of anything, only the content on the target is.
+	leftover := false
+	if after == 0 || !known {
+		notOn, ok := CommitsNotOn(g.ctx, g.run, g.dir, targetRef, ref)
+		leftover = ok && len(notOn) == 0
+	}
+	return donePr{found: true, leftover: leftover, pr: pr, after: after}
 }
 
-// LeftoverOf is the leftover card of a merged PR's branch.
-func LeftoverOf(c UpcomingBranch, pr ghClosedPr, remotes map[string]bool) UpcomingLeftover {
+// LeftoverOf is the leftover card of a done PR's branch: merged, or closed with its content on base.
+func LeftoverOf(c UpcomingBranch, pr ghClosedPr, remotes map[string]bool, base string) UpcomingLeftover {
+	state := UpcomingAfterClosed
+	if pr.merged() {
+		state = UpcomingAfterMerged
+	}
 	return UpcomingLeftover{
 		Branch: c.Branch, Ticket: c.Ticket, Pr: pr.Number, Title: pr.Title, Url: pr.Url, MergedAt: pr.MergedAt,
 		Worktree: c.Worktree, Local: !c.Remote, Remote: c.Remote || remotes[c.Branch], CommitAt: c.CommitAt,
+		State: state, Base: base,
 	}
 }
 

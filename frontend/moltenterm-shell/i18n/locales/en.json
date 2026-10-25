@@ -5256,8 +5256,12 @@
         },
         "leftovers": {
             "title": "Leftovers to clean up",
-            "hint": "merged pull requests",
+            "hint": "merged or closed pull requests",
             "state": "#{number} merged · leftovers",
+            "stateClosed": "#{number} closed · its content is already in {base}",
+            "copiesKept": "Kept {branches}: they hold commits that are not in the pull request or in the base branch.",
+            "keptNotInBase": "Kept: {branch} holds commits that are not in {base}.",
+            "remoteKeptNotInBase": "Kept: origin/{branch} holds commits that are not in {base}.",
             "clean": "Clean up",
             "cleaning": "Cleaning up…",
             "cleanAll": "Clean up all",
@@ -5268,7 +5272,11 @@
             "part": {
                 "worktree": "worktree {folder}",
                 "local": "local branch {branch}",
-                "remote": "{branch} on origin"
+                "remote": "{branch} on origin",
+                "lockEnded": "worktree {folder}, locked by an agent session that ended",
+                "lockHeld": "worktree {folder}, locked: kept by the cleanup",
+                "reviewTree": "review worktree {folder}, left by a merge outside Validate",
+                "copy": "local copy {branch} of the pull request"
             },
             "agent": {
                 "idle": "{name} is inactive",
@@ -6943,6 +6951,7 @@
                         "refusedhome": "Left as it is: MoltenTerm never removes the home folder.",
                         "refusedrepo": "Left as it is: {path} holds its repository.",
                         "locked": "Left as it is: the worktree is locked.",
+                        "lockheld": "Left as it is: the session that locked the worktree is still running.",
                         "kept": "Kept, with {branch}: removing {path} would lose work.",
                         "alreadygone": "Already cleaned up.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",

@@ -171,6 +171,8 @@ type UpcomingEnv struct {
 	FileTime func(path string) int64
 	// Subagents: the sub-agents of the running agent panels, their worktrees' symlinks resolved.
 	Subagents func(places []AgentPlace) []PaneSubagent
+	// ReviewTreesDir: the folder of the project's review worktrees (molten.ReviewTreesDir), nil when unknown (#1121).
+	ReviewTreesDir func(projectDir string) string
 }
 
 type upcomingState struct {
@@ -350,7 +352,10 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		}
 		done := classifyDone(g, closed, c, ref, targetRef)
 		if done.leftover {
-			answer.Leftovers = append(answer.Leftovers, LeftoverOf(c, done.pr, remotes))
+			leftover, shown := withTreeLock(LeftoverOf(c, done.pr, remotes, answer.Target), trees)
+			if shown {
+				answer.Leftovers = append(answer.Leftovers, leftover)
+			}
 			continue
 		}
 		c = withAfter(c, done)
@@ -364,6 +369,14 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		}
 		branches = append(branches, c)
 	}
+	reviewTrees := ""
+	if u.env.ReviewTreesDir != nil {
+		reviewTrees = realPath(u.env.ReviewTreesDir(dir))
+	}
+	answer.Leftovers = ExtraLeftovers(g, closed, answer.Leftovers, ExtraLeftoverFacts{
+		Trees: trees, Locals: parseLocalBranches(g.lines("for-each-ref", "--format="+localBranchFormat, "refs/heads")),
+		Upcoming: upcomingNames(candidates), Target: answer.Target, TargetRef: targetRef, ReviewTrees: reviewTrees,
+	})
 	drafts := OpenDrafts(snap, refs, ticketRes)
 	tickets, ticketErr := u.tickets(dir, snap, branches, drafts)
 	answer.TicketsError = ticketErr
@@ -441,7 +454,11 @@ func listTrees(g *gitReader) ([]treeEntry, error) {
 type treeEntry struct {
 	path string
 	// The short branch name, "" for a detached head.
-	branch string
+	branch   string
+	detached bool
+	// locked, with git's lock reason when one was given (#1121).
+	locked     bool
+	lockReason string
 }
 
 func parseTrees(out string) []treeEntry {
@@ -451,8 +468,18 @@ func parseTrees(out string) []treeEntry {
 			rtn = append(rtn, treeEntry{path: path})
 			continue
 		}
-		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok && len(rtn) > 0 {
-			rtn[len(rtn)-1].branch = ref
+		if len(rtn) == 0 {
+			continue
+		}
+		last := &rtn[len(rtn)-1]
+		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
+			last.branch = ref
+		} else if line == "detached" {
+			last.detached = true
+		} else if line == "locked" {
+			last.locked = true
+		} else if reason, ok := strings.CutPrefix(line, "locked "); ok {
+			last.locked, last.lockReason = true, reason
 		}
 	}
 	return rtn
@@ -752,6 +779,10 @@ func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, pane
 	read := 0
 	for _, tree := range trees[1:] {
 		if busy[tree.path] || tree.branch == "" || ticketOfBranch(tree.branch, ticketRes) == 0 || read >= backgroundMaxTrees {
+			continue
+		}
+		// The session that locked it for its agent ended (#1121): no agent runs there, however recent its files.
+		if ended, _ := LockEnded(tree.lockReason); tree.locked && ended {
 			continue
 		}
 		read++

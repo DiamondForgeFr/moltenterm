@@ -5256,8 +5256,12 @@
         },
         "leftovers": {
             "title": "Restes à nettoyer",
-            "hint": "pull requests fusionnées",
+            "hint": "pull requests fusionnées ou fermées",
             "state": "#{number} fusionnée · restes",
+            "stateClosed": "#{number} fermée · son contenu est déjà dans {base}",
+            "copiesKept": "{branches} conservées : elles contiennent des commits absents de la pull request et de la branche de base.",
+            "keptNotInBase": "Conservée : {branch} contient des commits absents de {base}.",
+            "remoteKeptNotInBase": "Conservée : origin/{branch} contient des commits absents de {base}.",
             "clean": "Nettoyer",
             "cleaning": "Nettoyage…",
             "cleanAll": "Tout nettoyer",
@@ -5268,7 +5272,11 @@
             "part": {
                 "worktree": "worktree {folder}",
                 "local": "branche locale {branch}",
-                "remote": "{branch} sur origin"
+                "remote": "{branch} sur origin",
+                "lockEnded": "worktree {folder}, verrouillé par une session d'agent terminée",
+                "lockHeld": "worktree {folder}, verrouillé : le nettoyage le conserve",
+                "reviewTree": "worktree de revue {folder}, laissé par une fusion hors de Valider",
+                "copy": "copie locale {branch} de la pull request"
             },
             "agent": {
                 "idle": "{name} est inactif",
@@ -6943,6 +6951,7 @@
                         "refusedhome": "Laissé tel quel : MoltenTerm ne supprime jamais le dossier personnel.",
                         "refusedrepo": "Laissé tel quel : {path} contient son dépôt.",
                         "locked": "Laissé tel quel : le worktree est verrouillé.",
+                        "lockheld": "Laissé tel quel : la session qui a verrouillé le worktree tourne encore.",
                         "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
                         "alreadygone": "Déjà nettoyé.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",

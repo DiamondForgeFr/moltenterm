@@ -11,6 +11,8 @@ import {
     keptAgentStep,
     leftoverParts,
     leftoverRows,
+    leftoverState,
+    leftoverSteps,
     panelsClosable,
 } from "./reviews-leftovers-model";
 import type { ReviewsAnswer } from "./reviews-model";
@@ -162,5 +164,74 @@ describe("leftovers (#1088)", () => {
         ]);
         expect(cleanedUp(refused)).toBe(false);
         expect(cleanupNotes(en, refused, leftover)).toEqual(["Not everything could be cleaned up: open"]);
+    });
+});
+
+describe("what else a done PR left (#1121)", () => {
+    const closed: UpcomingLeftover = {
+        branch: "fix/126-external-org",
+        ticket: 126,
+        pr: 135,
+        state: "closed",
+        base: "develop",
+        worktree: "/p/.claude/worktrees/agent-126",
+        lock: "ended",
+        lockpid: 75896,
+        local: true,
+    };
+
+    it("says why each part is a leftover, in English and in French", () => {
+        expect(leftoverState(en, closed)).toBe("#135 closed · its content is already in develop");
+        expect(leftoverState(fr, closed)).toBe("#135 fermée · son contenu est déjà dans develop");
+        expect(leftoverState(en, leftover)).toBe("#1078 merged · leftovers");
+        expect(leftoverParts(en, closed, []).map((p) => p.text)).toEqual([
+            "worktree agent-126, locked by an agent session that ended",
+            "local branch fix/126-external-org",
+        ]);
+        expect(leftoverParts(fr, { ...closed, lock: "held" }, [])[0].text).toBe(
+            "worktree agent-126, verrouillé : le nettoyage le conserve"
+        );
+        const copies: UpcomingLeftover = {
+            branch: "feature/164-x",
+            pr: 164,
+            state: "merged",
+            reviewtree: "/data/molten/worktrees/p-1/review-164",
+            copies: ["pr164"],
+        };
+        expect(leftoverParts(en, copies, []).map((p) => [p.kind, p.text])).toEqual([
+            ["review", "review worktree review-164, left by a merge outside Validate"],
+            ["copy", "local copy pr164 of the pull request"],
+        ]);
+        expect(leftoverParts(fr, copies, []).map((p) => p.text)).toEqual([
+            "worktree de revue review-164, laissé par une fusion hors de Valider",
+            "copie locale pr164 de la pull request",
+        ]);
+    });
+
+    it("asks only the steps the card's facts need", () => {
+        expect(leftoverSteps(leftover)).toEqual(["review-worktree", "agent-worktree", "local-branch"]);
+        expect(leftoverSteps({ branch: "b", pr: 164, copies: ["pr164"] })).toEqual(["review-worktree", "copy-branches"]);
+    });
+
+    it("words the kept copies and a closed PR's kept branches", () => {
+        const res = result([
+            { id: "copy-branches", state: "skipped", code: "copieskept", names: ["pr164", "pr-164"] },
+            { id: "local-branch", state: "skipped", code: "kept", branch: closed.branch, base: "develop" },
+            { id: "remote-branch", state: "skipped", code: "kept", branch: closed.branch, base: "develop" },
+            { id: "agent-worktree", state: "skipped", code: "lockheld", path: closed.worktree },
+        ]);
+        expect(cleanupNotes(en, res, closed)).toEqual([
+            "Kept pr164, pr-164: they hold commits that are not in the pull request or in the base branch.",
+            "Kept: fix/126-external-org holds commits that are not in develop.",
+            "Kept: origin/fix/126-external-org holds commits that are not in develop.",
+            "Left as it is: the session that locked the worktree is still running.",
+        ]);
+        expect(cleanupNotes(fr, res, closed)).toEqual([
+            "pr164, pr-164 conservées : elles contiennent des commits absents de la pull request et de la branche de base.",
+            "Conservée : fix/126-external-org contient des commits absents de develop.",
+            "Conservée : origin/fix/126-external-org contient des commits absents de develop.",
+            "Laissé tel quel : la session qui a verrouillé le worktree tourne encore.",
+        ]);
+        expect(cleanedUp(res)).toBe(false);
     });
 });

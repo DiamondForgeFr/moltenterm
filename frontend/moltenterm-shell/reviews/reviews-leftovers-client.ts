@@ -22,7 +22,7 @@ import {
     cleanedUp,
     cleanupNotes,
     keptAgentStep,
-    LeftoverCleanupSteps,
+    leftoverSteps,
     leftoverKey,
     LeftoverRemoteStep,
     panelsClosable,
@@ -81,7 +81,14 @@ export class LeftoversModel {
 
     private request(target: LeftoverTarget): Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed"> {
         const { dir, repo, leftover } = target;
-        return { dir, repo, number: leftover.pr, ticket: leftover.ticket > 0 ? leftover.ticket : undefined };
+        return {
+            dir,
+            repo,
+            number: leftover.pr,
+            ticket: leftover.ticket > 0 ? leftover.ticket : undefined,
+            closed: leftover.state === "closed" ? true : undefined,
+            copies: (leftover.copies ?? []).length > 0 ? leftover.copies : undefined,
+        };
     }
 
     // cleanUp: Clean up on one card. busyConfirmed: the developer already chose to stop the agents at work.
@@ -97,7 +104,7 @@ export class LeftoversModel {
         }
         await this.run(target, async () => {
             const req = this.request(target);
-            const result = await runReviewCleanup({ ...req, steps: LeftoverCleanupSteps });
+            const result = await runReviewCleanup({ ...req, steps: leftoverSteps(target.leftover) });
             const kept = keptAgentStep(result);
             if (kept == null || !panelsClosable(kept, busyConfirmed)) {
                 return { result, kept, busyConfirmed };
