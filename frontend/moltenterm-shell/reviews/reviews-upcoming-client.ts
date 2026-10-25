@@ -74,11 +74,19 @@ export function useUpcomingAnswer(dir: string): UpcomingAnswer {
     return dir ? answers[dir] : null;
 }
 
-// The agents the windows know: one starting or closing places agents on branches anew.
+// The agent runs the windows know: one starting, restored by a restart (#1077) or closing places agents on branches
+// anew. Their states (working, waiting) are not part of it: the bars read those live, without asking wavesrv.
 export function agentsAskKey(data: AgentStatesData): string {
-    return Object.keys(data?.states ?? {})
+    return Object.values(data?.states ?? {})
+        .map((info) => `${info.blockid}@${info.started ?? 0}`)
         .sort()
         .join(",");
+}
+
+// upcomingAskForce: whether an ask skips wavesrv's cache. Seen: the agents of the last ask, null before the first one
+// (wavesrv's answer is then as fresh as the agents it saw).
+export function upcomingAskForce(seen: string, agents: string): boolean {
+    return seen != null && seen !== agents;
 }
 
 // Asks while the Reviews list of the project shows; the answer lands in the per-project store the bars read.
@@ -90,8 +98,9 @@ export function useUpcomingWatch(dir: string, reviews: ReviewsAnswer) {
         if (!dir || !key) {
             return;
         }
-        // An agent started or closed since the last ask: wavesrv's cached placement is out of date.
-        const force = lastAgents.current != null && lastAgents.current !== agents;
+        // An agent started, came back after a restart or closed since the last ask: wavesrv's placement is out of
+        // date, and wavesrv recomputes it whatever its cache's age (pkg/molten/mission/upcoming.go).
+        const force = upcomingAskForce(lastAgents.current, agents);
         lastAgents.current = agents;
         fireAndForget(async () => {
             try {
