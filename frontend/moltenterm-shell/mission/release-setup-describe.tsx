@@ -168,7 +168,7 @@ export function DescribeStep({
                         {t("mc.setup.template.forgottenKept", { name: forgotten })}
                     </p>
                 ) : null}
-                {askedTemplate && templates != null && templates.length === 0 ? (
+                {askedTemplate && !forgotten && templates != null && templates.length === 0 ? (
                     <p
                         className="rounded-4 border border-border bg-hover px-2.5 py-1.5 text-11 text-secondary"
                         data-testid="setup-templates-none"

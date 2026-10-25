@@ -29,4 +29,15 @@ func TestSetupBranchesFollowTheRepository(t *testing.T) {
 	if b := SetupBranches(t.TempDir()); b.Trunk != molten.DefaultTrunkBranch || b.Release != molten.DefaultReleaseBranch {
 		t.Fatalf("outside git: %+v", b)
 	}
+	// The draft declares the branches it read from the repository, so the Release menu does not fall back to develop.
+	f := DetectWith(only, molten.PipelineReport{})
+	for _, kind := range []string{KindOnPremise, KindSaas} {
+		p := Build(f, Options{Kind: kind, Channels: []string{ChannelPublic}, BranchModel: BranchModelSingle}, nil)
+		if p.Branches == nil || p.Branches.Trunk != "main" || p.Branches.Release != "main" {
+			t.Fatalf("%s: branches %+v", kind, p.Branches)
+		}
+	}
+	if p := Build(DetectWith(both, molten.PipelineReport{}), Options{Kind: KindSaas}, nil); p.Branches != nil {
+		t.Fatalf("MoltenTerm's defaults are not declared: %+v", p.Branches)
+	}
 }

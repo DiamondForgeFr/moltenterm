@@ -651,7 +651,8 @@ export function flowModel(draft: SetupDraft, channel: SetupChannel, prefix: stri
         return {
             trunk,
             release: facts.branches.release,
-            single: false,
+            // One branch (a web app deployed from main, #1106) draws one lane.
+            single: trunk === facts.branches.release,
             nodes,
             promote: true,
             syncBack: false,
