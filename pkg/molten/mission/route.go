@@ -569,6 +569,18 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.Refine(ctx, req)
+	case SetupApplyCommand:
+		var req pipelinesetup.ApplyRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Apply(req)
+	case SetupPromptCommand:
+		var req pipelinesetup.PromptRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Prompt(req)
 	case SetupWriteCommand:
 		var req pipelinesetup.WriteRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

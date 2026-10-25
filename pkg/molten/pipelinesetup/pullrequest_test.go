@@ -198,7 +198,8 @@ func TestWriteOpensADraftPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
 	}
 }
 
-// The agent's whole-file text can only change the keys the setup sets up (#1091, FR-MC-036 AC2).
+// An agent's whole-file answer is refused (#1099); a text sent to Write can only change the keys the setup sets up
+// (#1091, FR-MC-036 AC2).
 func TestTheAgentsTextOnlyChangesTheOwnedKeys(t *testing.T) {
 	dir := protectedRepository(t)
 	forge := &fakeForge{}
@@ -217,12 +218,8 @@ func TestTheAgentsTextOnlyChangesTheOwnedKeys(t *testing.T) {
 		return []byte(strings.Join(strings.Fields(rewritten), " ")), nil
 	}
 	s.ChooseAgent = claudeChoice
-	refined, err := s.Refine(ctx, RefineRequest{Dir: dir, Text: draft.Proposed})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(refined.Dropped, ",") != "ci,name" || refined.Proposed != draft.Proposed {
-		t.Fatalf("dropped %v\n%s", refined.Dropped, refined.Proposed)
+	if _, err := s.Refine(ctx, RefineRequest{Dir: dir, Text: draft.Proposed}); err == nil || !strings.Contains(err.Error(), "whole pipeline file") {
+		t.Fatalf("a whole file is refused: %v", err)
 	}
 	job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: rewritten, Base: draft.Base, PrRequest: PrRequest{Ticket: 7}}))
 	if job.Failure != nil {

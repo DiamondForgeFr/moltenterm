@@ -134,33 +134,29 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
             <ReviewStep
                 draft={draft}
                 options={options}
+                dir="/p"
                 refined={null}
-                refining={false}
-                onRefine={() => {}}
-                onDropRefined={() => {}}
+                onRefined={() => {}}
+                onRefining={() => {}}
             />
         );
         expect(html).toContain("Drafted by MoltenTerm from the repository.");
-        expect(html).toContain("Refine with an agent");
+        expect(html).toContain("Ask the agent for a proposal");
+        expect(html).toContain("Use another agent");
         expect(html).toContain("&quot;release&quot;: {}");
         const refined = renderToStaticMarkup(
             <ReviewStep
+                dir="/p"
                 draft={draft}
                 options={options}
-                refined={{
-                    agent: "claude",
-                    agentname: "Claude Code",
-                    proposed: '{"schema":1}\n',
-                    errors: [],
-                    validatewarnings: [],
-                }}
-                refining={false}
-                onRefine={() => {}}
-                onDropRefined={() => {}}
+                refined={{ agentname: "Claude Code", proposed: '{"schema":1}\n', errors: [], validatewarnings: [] }}
+                onRefined={() => {}}
+                onRefining={() => {}}
             />
         );
-        expect(refined).toContain("Proposed by Claude Code");
-        expect(refined).toContain("Back to the draft");
+        expect(refined).toContain("The draft with the changes you ticked from Claude Code");
+        expect(html).toContain('data-kind="workflow"');
+        expect(refined).not.toContain('data-kind="workflow"');
     });
 
     it("wraps a long manual text instead of cutting it, and scrolls long diff lines inside the diff (#1047)", () => {
@@ -182,10 +178,10 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
             <ReviewStep
                 draft={draft}
                 options={options}
+                dir="/p"
                 refined={null}
-                refining={false}
-                onRefine={() => {}}
-                onDropRefined={() => {}}
+                onRefined={() => {}}
+                onRefining={() => {}}
             />
         );
         expect(review).toMatch(/class="[^"]*overflow-auto[^"]*" data-testid="setup-diff"/);
@@ -281,10 +277,10 @@ describe("release setup of a protected release branch (#1046)", () => {
             <ReviewStep
                 draft={prDraft}
                 options={prOptions}
+                dir="/p"
                 refined={null}
-                refining={false}
-                onRefine={() => {}}
-                onDropRefined={() => {}}
+                onRefined={() => {}}
+                onRefining={() => {}}
             />
         );
         expect(html).toContain("Why this flow");
