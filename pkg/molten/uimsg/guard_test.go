@@ -81,6 +81,7 @@ var englishFields = map[string]string{
 	"pipelinesetup.ProviderDraft.Warnings": "a draft provider's own diagnostics (sf pipeline draft), shown as it said them (#1030)",
 	"pipelinesetup.sfDraftAnswer.Warnings": "sf pipeline draft's own output, read as data (#1030)",
 	"pipelinesetup.DraftAnswer.Warnings":   "a draft provider's own diagnostics, shown as it said them (#1030)",
+	"pipelinesetup.TechDocPlan.Warnings":   "a doc backend's or the validator's own words, shown under mc.setup.techdoc.fallback (#1107)",
 	"pipelinesetup.DraftAnswer.Errors":     "the project file validator's diagnostics on the proposal, as molten project validate says them (#1030)",
 	"pipelinesetup.RefineAnswer.Errors":    "the project file validator's diagnostics on the agent's proposal (#1030)",
 	"pipelinesetup.CheckAnswer.Errors":     "the project file validator's diagnostics on the update, as molten project validate says them (#1086)",
