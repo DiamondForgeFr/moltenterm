@@ -26,6 +26,24 @@ export type UpcomingBranch = {
     title?: string;
     url?: string;
     status?: string;
+    // The branch's PR closed in the window (#1088), merged or not, and its commits after that PR's head (-1: unknown).
+    afterpr?: number;
+    afterstate?: "merged" | "closed";
+    aftercount?: number;
+};
+
+// must match UpcomingLeftover in pkg/molten/mission/upcoming_done.go: a merged PR's branch holding nothing new.
+export type UpcomingLeftover = {
+    branch: string;
+    ticket?: number;
+    pr: number;
+    title?: string;
+    url?: string;
+    mergedat?: string;
+    worktree?: string;
+    local?: boolean;
+    remote?: boolean;
+    commitat?: number;
 };
 
 // must match BranchAgent in pkg/molten/mission/upcoming.go
@@ -59,6 +77,7 @@ export type UpcomingAnswer = {
     branches: UpcomingBranch[];
     agents: BranchAgent[];
     drafts?: UpcomingDraft[];
+    leftovers?: UpcomingLeftover[];
     error?: string;
     errortext?: ServerText;
     ticketserror?: string;
@@ -352,6 +371,24 @@ export function boardStatusText(t: TFunction, status: string): string {
         return status;
     }
     return t(BoardStatusKeys[name]);
+}
+
+// What an upcoming branch says of its PR closed in the window (#1088): the follow-up commits after a merged PR, or a PR
+// closed without merging. "" when the branch had none.
+export function afterPrText(t: TFunction, branch: UpcomingBranch): string {
+    const number = branch?.afterpr;
+    if (!(number > 0)) {
+        return "";
+    }
+    const count = branch.aftercount ?? 0;
+    const state = branch.afterstate === "closed" ? "closed" : "merged";
+    if (count > 0) {
+        return t(`reviewsAgents.upcoming.after.${state}${count === 1 ? "One" : ""}`, { number, count });
+    }
+    if (count < 0) {
+        return t(`reviewsAgents.upcoming.after.${state}Unknown`, { number });
+    }
+    return state === "closed" ? t("reviewsAgents.upcoming.after.closedNothing", { number }) : "";
 }
 
 export function aheadText(t: TFunction, ahead: number): string {

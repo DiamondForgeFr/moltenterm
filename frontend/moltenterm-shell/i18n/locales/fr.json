@@ -4774,6 +4774,55 @@
                 },
                 "launch": "Lancer #{ticket}",
                 "background": "arrière-plan"
+            },
+            "after": {
+                "merged": "après la fusion de #{number} : {count} nouveaux commits",
+                "mergedOne": "après la fusion de #{number} : 1 nouveau commit",
+                "mergedUnknown": "après la fusion de #{number} : nouveaux commits",
+                "closed": "après la fermeture de #{number} : {count} nouveaux commits",
+                "closedOne": "après la fermeture de #{number} : 1 nouveau commit",
+                "closedUnknown": "après la fermeture de #{number} : nouveaux commits",
+                "closedNothing": "PR #{number} fermée sans fusion"
+            }
+        },
+        "leftovers": {
+            "title": "Restes à nettoyer",
+            "hint": "pull requests fusionnées",
+            "state": "#{number} fusionnée · restes",
+            "clean": "Nettoyer",
+            "cleaning": "Nettoyage…",
+            "cleanAll": "Tout nettoyer",
+            "moreTitle": "Autres actions pour #{number}",
+            "openPr": "Ouvrir la pull request",
+            "showSession": "Afficher la session de {name}",
+            "failed": "Tout n'a pas pu être nettoyé : {error}",
+            "part": {
+                "worktree": "worktree {folder}",
+                "local": "branche locale {branch}",
+                "remote": "{branch} sur origin"
+            },
+            "agent": {
+                "idle": "{name} est inactif",
+                "done": "{name} a terminé",
+                "working": "{name} travaille encore",
+                "waiting": "{name} vous attend",
+                "background": "un agent s'en occupe probablement encore",
+                "subagentWorking": "un sous-agent de {name} travaille encore",
+                "subagentResting": "un sous-agent de {name} s'est arrêté"
+            },
+            "confirm": {
+                "title": "Nettoyer #{number} ?",
+                "busy": "Des agents travaillent encore sur {branch}. Le nettoyage ferme leurs sessions et supprime le worktree.",
+                "kept": "Supprimer {path} perdrait ce qui est listé ci-dessous.",
+                "stopAndClean": "Fermer les sessions et nettoyer"
+            },
+            "all": {
+                "title": "Nettoyer tous les restes ?",
+                "subtitle": "Les worktrees, sessions d'agent et branches ci-dessous seront supprimés. Un worktree qui contient du travail que vous perdriez demande d'abord.",
+                "button": {
+                    "one": "Nettoyer {count} pull request",
+                    "other": "Nettoyer {count} pull requests"
+                }
             }
         },
         "task": {
