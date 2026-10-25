@@ -69,6 +69,7 @@ import {
     StepperSteps,
     stepReachable,
 } from "./release-setup-stepper";
+import { TechDocChanges } from "./release-setup-techdoc";
 import { UpdateFiles, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
@@ -1284,6 +1285,11 @@ export function ReleaseSetup({
                             <UpdateFiles check={check}>
                                 <DiffView before={check.current} after={check.proposed} />
                             </UpdateFiles>
+                            {check.state === "update" &&
+                            check.errors.length === 0 &&
+                            check.proposed !== check.current ? (
+                                <TechDocChanges dir={dir} text={check.proposed} kind="update" />
+                            ) : null}
                             <PrPanel
                                 dir={dir}
                                 plan={check.pr}

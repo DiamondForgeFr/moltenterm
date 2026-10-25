@@ -328,6 +328,20 @@ function Outcome({ job, onAgain }: { job: SetupPrJob; onAgain: () => void }) {
                     {t("mc.setup.pr.openPr", { number: String(job.prnumber ?? "") })}
                     <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                 </a>
+                {job.docurl ? (
+                    <a
+                        href={job.docurl}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            fireAndForget(() => openWebLink(job.docurl));
+                        }}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-1 text-11 text-secondary hover:bg-hover hover:text-primary"
+                        data-testid="setup-pr-doc"
+                    >
+                        {t("mc.setup.techdoc.openPage")}
+                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
+                    </a>
+                ) : null}
             </div>
         );
     }

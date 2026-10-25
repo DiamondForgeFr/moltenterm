@@ -3825,6 +3825,25 @@
                 "adjustHint": "Ces choix sont lus dans le pipeline déclaré. Changez-en un pour voir ce qu’il change, puis ouvrez la pull request à l’étape suivante.",
                 "nothing": "Rien ne change : le bouton de pull request reste désactivé tant qu’aucun choix n’est ajusté ni aucune modification incluse."
             },
+            "techdoc": {
+                "title": "Documentation technique",
+                "introRepository": "La documentation technique du pipeline : comment le projet est construit et publié, générée d'après le pipeline ci-dessus et réécrite à chaque mise à jour. Elle va dans la même pull request.",
+                "introBackend": "La documentation technique du pipeline : comment le projet est construit et publié, générée d'après le pipeline ci-dessus. Elle est écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
+                "new": "nouvelle",
+                "updated": "mise à jour",
+                "lines": "+{added} −{removed} lignes",
+                "building": "génération de la documentation à partir du pipeline",
+                "error": "La documentation n'a pas pu être générée : {error}",
+                "whereRepository": "Écrite dans {path}, dans la même pull request.",
+                "whereBackend": "Écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
+                "why": "Elle décrit comment le projet est construit et publié, d'après le pipeline ci-dessus.",
+                "whyUpdate": "Elle est réécrite d'après le pipeline mis à jour ; son historique garde les changements précédents.",
+                "openPage": "Ouvrir la documentation technique",
+                "fallback": "Le service de documentation n'a pas répondu ({reason}) : le document va dans le dépôt à la place.",
+                "show": "Voir les changements du document",
+                "link": "Comment ce projet est publié",
+                "linkHint": "La documentation technique du pipeline, écrite par la mise en place de la release"
+            },
             "pr": {
                 "title": "Valider par pull request",
                 "desc": "Un fichier suivi ne change que par une pull request : vous la fusionnez quand vous êtes d'accord. Votre copie de travail n'est pas touchée.",
@@ -3862,7 +3881,8 @@
                     "commit": "un commit",
                     "push": "poussé sur origin",
                     "pr": "la pull request ouverte en brouillon vers {target}",
-                    "patch": "le patch créé"
+                    "patch": "le patch créé",
+                    "doc": "la documentation technique écrite dans sa page"
                 },
                 "failure": {
                     "moved": "{ref} a bougé depuis le brouillon : {path} y a changé (commit {commit}). Préparez à nouveau : vos réponses sont gardées.",

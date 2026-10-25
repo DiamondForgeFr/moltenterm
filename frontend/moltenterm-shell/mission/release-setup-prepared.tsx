@@ -45,6 +45,7 @@ import {
 } from "./release-setup-prepared-model";
 import { AgentProposal } from "./release-setup-proposal";
 import { FlowReasons } from "./release-setup-reasons";
+import { techDocFile, useTechDocPlan } from "./release-setup-techdoc";
 
 const BlockClass = "flex min-w-0 flex-col gap-2 rounded-6 border border-border p-3";
 const ChipClass = "self-start rounded-4 border border-accent/50 px-1.5 text-11 leading-5 text-accent";
@@ -425,7 +426,7 @@ function StatusPill({ status }: { status: PreparedFile["status"] }) {
 
 function OtherFileCard({ file }: { file: PreparedFile }) {
     const t = useT();
-    const [open, setOpen] = useState(file.kind === "whole");
+    const [open, setOpen] = useState(file.kind === "whole" && !file.collapsed);
     return (
         <div className="flex flex-col rounded-4 border border-border" data-testid={`prepared-file-${file.kind}`}>
             <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2">
@@ -445,10 +446,12 @@ function OtherFileCard({ file }: { file: PreparedFile }) {
                           targets: (file.targets ?? []).map((id) => t(`mc.setup.describe.target.${id}`)).join(", "),
                       })}
             </p>
-            {file.warningKey ? <p className="px-2.5 pb-2 text-11 text-warning">{t(file.warningKey)}</p> : null}
+            {file.warningKey ? (
+                <p className="px-2.5 pb-2 text-11 text-warning">{t(file.warningKey, file.warningVars)}</p>
+            ) : null}
             {open && file.content != null ? (
                 <div className="border-t border-border p-2">
-                    <DiffView before="" after={file.content} />
+                    <DiffView before={file.before ?? ""} after={file.content} />
                 </div>
             ) : null}
         </div>
@@ -658,7 +661,10 @@ export function PreparedStep({
     const channels: SetupChannel[] = options.kind === "saas" ? ["public"] : options.channels;
     const diff = useMemo(() => pipelineDiff(draft.current, proposed), [draft.current, proposed]);
     const drawn = useMemo(() => preparedDraft(draft, proposed), [draft, proposed]);
-    const files = preparedFiles(draft, proposed, extraFiles);
+    // The pipeline's technical documentation is one more generated file of the pull request (FR-MC-043).
+    const doc = useTechDocPlan(dir, errors.length === 0 && proposed !== draft.current ? proposed : "", "write");
+    const docFile = techDocFile(doc.plan);
+    const files = preparedFiles(draft, proposed, docFile ? [...(extraFiles ?? []), docFile] : extraFiles);
     const writing = pr?.busy || (pr?.job != null && pr.job.failure == null);
     // A tick re-drafts: it would drop the agent's cards, so the agent's proposal is dropped first.
     const locked = onOptions == null || refined != null || writing;

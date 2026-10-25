@@ -3825,6 +3825,25 @@
                 "adjustHint": "These choices are read from the declared pipeline. Change one to see what it changes, then open the pull request at the next step.",
                 "nothing": "Nothing changes: the pull request button stays disabled until a choice is adjusted or an edit is included."
             },
+            "techdoc": {
+                "title": "Technical documentation",
+                "introRepository": "The pipeline's technical documentation: how the project is built and shipped, generated from the pipeline above and rewritten by every later update. It goes into the same pull request.",
+                "introBackend": "The pipeline's technical documentation: how the project is built and shipped, generated from the pipeline above. It is written to the project's documentation page (Technical documentation, Release pipeline) once the pull request is open.",
+                "new": "new",
+                "updated": "updated",
+                "lines": "+{added} −{removed} lines",
+                "building": "building the documentation from the pipeline",
+                "error": "The documentation could not be built: {error}",
+                "whereRepository": "Written to {path} in the same pull request.",
+                "whereBackend": "Written to the project's documentation page (Technical documentation, Release pipeline) once the pull request is open.",
+                "why": "It describes how the project is built and shipped, from the pipeline above.",
+                "whyUpdate": "It is rewritten from the updated pipeline; its history keeps the earlier changes.",
+                "openPage": "Open the technical documentation",
+                "fallback": "The documentation service did not answer ({reason}): the document goes into the repository instead.",
+                "show": "Show the document's changes",
+                "link": "How this project ships",
+                "linkHint": "The pipeline's technical documentation, written by the release setup"
+            },
             "pr": {
                 "title": "Validate by pull request",
                 "desc": "A tracked file only changes through a pull request: you merge it when you agree. Your working copy is not touched.",
@@ -3862,7 +3881,8 @@
                     "commit": "one commit",
                     "push": "pushed to origin",
                     "pr": "the pull request opened as a draft into {target}",
-                    "patch": "the patch made"
+                    "patch": "the patch made",
+                    "doc": "the technical documentation written to its page"
                 },
                 "failure": {
                     "moved": "{ref} moved since the draft: {path} changed there (commit {commit}). Prepare again: your answers are kept.",
