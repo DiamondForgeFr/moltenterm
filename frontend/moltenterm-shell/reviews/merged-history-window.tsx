@@ -13,8 +13,8 @@ import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { dateLocale, formatWhen } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
-import { DominoLoader } from "../suite/suite";
 import { useReviewNotes } from "../review/review-notes";
+import { DominoLoader } from "../suite/suite";
 import {
     AllKey,
     byDay,
@@ -64,12 +64,15 @@ export function MergedHistoryWindow({
     target,
     onClose,
     onShowNotes,
+    initial,
 }: {
     dir: string;
     repo: string;
     target: string;
     onClose: () => void;
     onShowNotes: (filter: string) => void;
+    // The entry it opens on (#1061): a Recently merged version group ("next", "tag:v1.0.0-6", "unknown"); All else.
+    initial?: string;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -83,7 +86,7 @@ export function MergedHistoryWindow({
     const [askError, setAskError] = useState<string>(null);
     const [refreshAt, setRefreshAt] = useState(0);
     const [filters, setFilters] = useState<HistoryFilters>(NoFilters);
-    const [selected, setSelected] = useState(AllKey);
+    const [selected, setSelected] = useState(initial || AllKey);
     const [shown, setShown] = useState(HistoryPageSize);
     const listRef = useRef<HTMLDivElement>(null);
 

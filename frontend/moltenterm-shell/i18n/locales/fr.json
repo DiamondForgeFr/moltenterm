@@ -4683,7 +4683,35 @@
             },
             "openTicket": "Ouvrir le ticket",
             "openAgent": "Aller à l'agent qui y travaille",
-            "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus."
+            "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus.",
+            "waitingHint": {
+                "one": "{count} vous attend",
+                "other": "{count} vous attendent"
+            },
+            "goThere": "Y aller",
+            "moreTitle": "Plus d'actions pour #{ticket}",
+            "state": {
+                "nobody": "Personne dessus",
+                "done": "{name} a terminé",
+                "idle": "{name} est inactif",
+                "subagent": "Un sous-agent de {name} s'en occupe",
+                "subagentDone": "Un sous-agent de {name} a terminé",
+                "background": "Un agent s'en occupe probablement"
+            },
+            "session": {
+                "title": "Session de {name}",
+                "titleUnknown": "Une session d'agent",
+                "agents": {
+                    "one": "{count} agent",
+                    "other": "{count} agents"
+                },
+                "orchestrates": {
+                    "one": "{name} orchestre {count} ticket",
+                    "other": "{name} orchestre {count} tickets"
+                },
+                "launch": "Lancer #{ticket}",
+                "background": "arrière-plan"
+            }
         },
         "task": {
             "what": {
@@ -5019,7 +5047,30 @@
             "notes": "{count} notes",
             "notesTitle": "Afficher les notes de revue gardées sur la PR #{number}",
             "all": "Toutes les pull requests fusionnées",
-            "allTitle": "Ouvrir l'historique de toutes les pull requests fusionnées dans {target}"
+            "allTitle": "Ouvrir l'historique de toutes les pull requests fusionnées dans {target}",
+            "group": {
+                "next": "Dans la prochaine version",
+                "tag": "Dans {tag}",
+                "unknown": "Version pas encore connue",
+                "prepare": "Préparer les notes",
+                "notes": "Notes de version",
+                "historyTitle": "Ouvrir les pull requests fusionnées de cette version"
+            },
+            "more": {
+                "one": "… {count} autre",
+                "other": "… {count} autres"
+            },
+            "showAll": "Tout afficher",
+            "you": "vous",
+            "by": "par {name}",
+            "rowAria": "#{number} {title}, afficher le détail",
+            "prLink": "PR #{number} ↗",
+            "mergedAt": "fusionnée {when}",
+            "age": {
+                "minutes": "{count} min",
+                "hours": "{count} h",
+                "days": "{count} j"
+            }
         },
         "history": {
             "title": "Pull requests fusionnées",
@@ -5414,6 +5465,21 @@
             "history": {
                 "gone": "{name} s'est arrêté avant de finir {what}."
             }
+        },
+        "sort": {
+            "aria": "Trier les pull requests",
+            "state": "Par état",
+            "stateTitle": "Dans chaque section, ce qui vous attend d'abord, dans l'ordre des états des cartes.",
+            "merge": "Ordre de fusion"
+        },
+        "sections": {
+            "yours": "À vous",
+            "yoursHint": "fusionner, répondre, débloquer",
+            "agents": "Les agents s'en occupent",
+            "blocked": "Bloquées, personne dessus",
+            "waiting": "En attente",
+            "waitingHint": "CI ou relecteur",
+            "none": "Aucune pull request ouverte vers"
         }
     },
     "sessions": {
@@ -6586,7 +6652,8 @@
             "delete": "Supprimer",
             "deleteConfirm": "Supprimer cette note ?",
             "byAgent": "Expliquée par {agent}",
-            "openLine": "Ouvrir le fichier à cette ligne, tel qu'après le merge de la PR ou sur la branche de base"
+            "openLine": "Ouvrir le fichier à cette ligne, tel qu'après le merge de la PR ou sur la branche de base",
+            "emptyLine": "aucune. Gardez une explication de l'IA depuis un onglet Review : elle reste ici après le merge."
         }
     },
     "server": {

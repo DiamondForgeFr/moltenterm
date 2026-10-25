@@ -31,6 +31,7 @@ import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
+import type { CardContext } from "./reviews-sections-model";
 import {
     AgentLine,
     agentLines,
@@ -126,6 +127,18 @@ export function useCardAgents(dir: string, pr: ReviewPr, task: RebaseAsk) {
     const owner = taskAgent(prTask, agents, states);
     const live = taskAgentLive(prTask, owner);
     return { agents, prTask, owner, live, now, state: prTaskState(prTask, pr, owner, now) };
+}
+
+// What a card's state is computed from besides its PR (#1061): the list and each card read the same context.
+export function useCardContext(dir: string): CardContext {
+    const t = useT();
+    const upcoming = useUpcomingAnswer(dir);
+    const states = useAtomValue(AgentStates.getInstance().dataAtom);
+    const now = useMinuteNow();
+    return useMemo(
+        () => ({ upcoming, states, now, boardText: (status: string) => boardStatusText(t, status) }),
+        [upcoming, states, now, t]
+    );
 }
 
 // The rail sits on the tile's 1 px border, 1 px to the left (the lists clip at their border edge for it), so the bar

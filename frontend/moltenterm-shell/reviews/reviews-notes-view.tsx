@@ -8,6 +8,7 @@
 
 import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
@@ -25,20 +26,30 @@ import {
     useReviewNotes,
 } from "../review/review-notes";
 import { openFileInPreview } from "../term-copy/term-copy";
+import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { SectionHeading } from "./reviews-section-heading";
 
 type NotesProps = { dir: string; repo: string; blockId: string };
 
 // A filter another section asks for (Recently merged's notes chip, #843): at tells two asks of the same text apart.
 export type NotesAsk = { filter: string; at: number };
 
-export function NotesSection({ dir, repo, blockId, ask }: NotesProps & { ask?: NotesAsk }) {
+export function NotesSection({
+    dir,
+    repo,
+    blockId,
+    ask,
+    defaultOpen = true,
+}: NotesProps & { ask?: NotesAsk; defaultOpen?: boolean }) {
     const t = useT();
     const { notes, error, set } = useReviewNotes(repo);
+    const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const [filter, setFilter] = useState("");
     const [open, setOpen] = useState<string>(null);
     const sectionRef = useRef<HTMLElement>(null);
     const all = notes?.notes ?? [];
     const shown = useMemo(() => newestFirst(filterNotes(notes?.notes, filter)), [notes, filter]);
+    const sectionIsOpen = sectionOpen(folds, dir, "notes", defaultOpen);
     useEffect(() => {
         if (ask == null) {
             return;
@@ -46,6 +57,22 @@ export function NotesSection({ dir, repo, blockId, ask }: NotesProps & { ask?: N
         setFilter(ask.filter);
         sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     }, [ask]);
+    // Without any note, one quiet line (#1061, FR-REV-027 AC8): the section shows once it has content.
+    if (notes != null && all.length === 0 && !error) {
+        return (
+            <section
+                ref={sectionRef}
+                className="flex min-w-0 items-baseline gap-1.5 text-12 leading-5"
+                aria-label={t("review.notes.title")}
+                data-testid="reviews-notes"
+            >
+                <b className="shrink-0 text-13 font-semibold">{t("review.notes.title")}</b>
+                <span className="min-w-0 text-muted" data-testid="reviews-notes-empty">
+                    · {t("review.notes.emptyLine")}
+                </span>
+            </section>
+        );
+    }
     return (
         <section
             ref={sectionRef}
@@ -53,33 +80,33 @@ export function NotesSection({ dir, repo, blockId, ask }: NotesProps & { ask?: N
             aria-label={t("review.notes.title")}
             data-testid="reviews-notes"
         >
-            <div className="flex items-center gap-2">
-                <h2 className="text-13 leading-5 font-semibold">
-                    {t("review.notes.title")}
-                    <span className="ml-2 text-12 font-normal text-muted">{all.length}</span>
-                </h2>
-                {all.length > 0 ? (
+            <SectionHeading
+                title={t("review.notes.title")}
+                count={notes == null ? "" : all.length}
+                open={sectionIsOpen}
+                onToggle={() => ReviewsFolds.getInstance().set(dir, "notes", !sectionIsOpen)}
+                testId="reviews-notes-toggle"
+            >
+                {all.length > 0 && sectionIsOpen ? (
                     <input
                         type="search"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
                         placeholder={t("review.notes.filter")}
                         aria-label={t("review.notes.filter")}
-                        className="ml-auto h-6 w-56 min-w-0 rounded-4 border border-border bg-transparent px-2 text-12 outline-none focus:border-accent/60"
+                        className="h-6 w-56 min-w-0 rounded-4 border border-border bg-transparent px-2 text-12 outline-none focus:border-accent/60"
                         data-testid="reviews-notes-filter"
                     />
                 ) : null}
-            </div>
-            {error ? <p className="text-12 text-danger">{t("review.notes.readFailed", { error })}</p> : null}
-            {notes != null && all.length === 0 ? (
-                <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
-                    {t("review.notes.empty")}
-                </p>
+            </SectionHeading>
+            {!sectionIsOpen ? null : error ? (
+                <p className="text-12 text-danger">{t("review.notes.readFailed", { error })}</p>
             ) : null}
-            {all.length > 0 && shown.length === 0 ? (
+            {sectionIsOpen && all.length > 0 && shown.length === 0 ? (
                 <p className="text-12 text-muted">{t("review.notes.noMatch")}</p>
             ) : null}
-            {shown.length > 0 ? (
+            {sectionIsOpen && shown.length > 0 ? (
                 <div className="overflow-hidden rounded-4 border border-border" role="list">
                     {shown.map((n) => (
                         <NoteRow

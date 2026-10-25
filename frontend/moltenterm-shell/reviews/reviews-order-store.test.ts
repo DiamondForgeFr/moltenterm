@@ -3,7 +3,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MergeOrderPref, MergeOrderStorageKey } from "./reviews-order-store";
+import { ReviewsSortPref, ReviewsSortStorageKey } from "./reviews-order-store";
 
 function memoryStorage(initial: Record<string, string> = {}) {
     const data = new Map(Object.entries(initial));
@@ -14,24 +14,24 @@ function memoryStorage(initial: Record<string, string> = {}) {
     };
 }
 
-describe("merge order choice (FR-REV-024 AC-5)", () => {
+describe("Reviews sort choice (FR-REV-001 AC13, FR-REV-024 AC-5)", () => {
     afterEach(() => {
-        MergeOrderPref.resetInstance();
+        ReviewsSortPref.resetInstance();
         vi.unstubAllGlobals();
     });
 
-    it("starts on the suggested order", () => {
+    it("starts by state", () => {
         vi.stubGlobal("localStorage", memoryStorage());
-        expect(globalStore.get(MergeOrderPref.getInstance().choiceAtom)).toBe("suggested");
+        expect(globalStore.get(ReviewsSortPref.getInstance().sortAtom)).toBe("state");
     });
 
     it("remembers the developer's choice", () => {
         const storage = memoryStorage();
         vi.stubGlobal("localStorage", storage);
-        MergeOrderPref.getInstance().set("list");
-        expect(storage.data.get(MergeOrderStorageKey)).toBe("list");
-        MergeOrderPref.resetInstance();
-        expect(globalStore.get(MergeOrderPref.getInstance().choiceAtom)).toBe("list");
+        ReviewsSortPref.getInstance().set("merge");
+        expect(storage.data.get(ReviewsSortStorageKey)).toBe("merge");
+        ReviewsSortPref.resetInstance();
+        expect(globalStore.get(ReviewsSortPref.getInstance().sortAtom)).toBe("merge");
     });
 
     it("works without storage", () => {
@@ -43,9 +43,9 @@ describe("merge order choice (FR-REV-024 AC-5)", () => {
                 throw new Error("blocked");
             },
         });
-        const pref = MergeOrderPref.getInstance();
-        expect(globalStore.get(pref.choiceAtom)).toBe("suggested");
-        pref.set("list");
-        expect(globalStore.get(pref.choiceAtom)).toBe("list");
+        const pref = ReviewsSortPref.getInstance();
+        expect(globalStore.get(pref.sortAtom)).toBe("state");
+        pref.set("merge");
+        expect(globalStore.get(pref.sortAtom)).toBe("merge");
     });
 });
