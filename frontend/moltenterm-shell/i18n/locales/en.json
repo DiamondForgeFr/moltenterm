@@ -380,7 +380,7 @@
             "files": "Files",
             "browser": "Browser",
             "cicd": "CI/CD",
-            "reviews": "Reviews",
+            "reviews": "Control room",
             "sysinfo": "System info",
             "processes": "Processes"
         },
@@ -2063,8 +2063,8 @@
             "prReady": "Ready for review",
             "prUnknown": "Pull requests not read yet for this project",
             "noPr": "No pull request",
-            "otherProject": "This app belongs to {name}, not to this workspace's project: Reviews shows the workspace's project.",
-            "openInReviews": "Open in Reviews",
+            "otherProject": "This app belongs to {name}, not to this workspace's project: the Control room shows the workspace's project.",
+            "openInReviews": "Open in Control room",
             "openPr": "Open the pull request",
             "reason": {
                 "notLocal": "this page is not served from this computer.",
@@ -2348,8 +2348,8 @@
                 "plural": "CI/CD panels"
             },
             "reviews": {
-                "name": "Reviews",
-                "plural": "reviews panels"
+                "name": "Control room",
+                "plural": "control room panels"
             },
             "project": {
                 "name": "Project",
@@ -3239,8 +3239,8 @@
                 "other": "{count} pull requests waiting for review"
             },
             "noReviewWaiting": "No pull request waiting for review",
-            "toReviews": "Reviews",
-            "toReviewsTitle": "Open the Reviews panel: the pull requests, their checks and the order to review them",
+            "toReviews": "Control room",
+            "toReviewsTitle": "Open the Control room: the pull requests, their checks and the order to review them",
             "branchesTitle": "Trunk and release branches",
             "branchesHint": "the CI a release waits on · the latest run of each workflow",
             "role": {
@@ -4306,7 +4306,7 @@
                     "closed": "#{number} was closed without being merged: nothing changed. Prepare again to open another one.",
                     "unread": "GitHub could not be read just now: MoltenTerm tries again."
                 },
-                "openReviews": "Open #{number} in Reviews",
+                "openReviews": "Open #{number} in Control room",
                 "openGithub": "Open on GitHub"
             }
         }
@@ -4714,8 +4714,8 @@
         "tools": {
             "editWidgets": "Edit widgets.json",
             "label": "Tools",
-            "reviews": "Reviews · pull requests waiting for your review",
-            "reviewsCounts": "Reviews — {counts}",
+            "reviews": "Control room · pull requests waiting for your review",
+            "reviewsCounts": "Control room — {counts}",
             "reviewsCount": {
                 "toReview": {
                     "one": "1 to review",
@@ -4785,7 +4785,7 @@
             "sessions": "Sessions",
             "lineMap": "Line map",
             "cicd": "CI/CD",
-            "reviews": "Reviews",
+            "reviews": "Control room",
             "review": "Review",
             "companion": "Companion",
             "system": "System",
@@ -5717,12 +5717,12 @@
             "withdraw": "Cancel validation",
             "withdrawTitle": "Take #{number} out of the merge queue: it is not merged and goes back to review",
             "resumed": "Resumed after MoltenTerm restarted.",
-            "investigateGone": "This pull request is no longer listed in Reviews."
+            "investigateGone": "This pull request is no longer listed in the Control room."
         },
-        "viewName": "Reviews",
+        "viewName": "Control room",
         "into": "into",
         "intoTitle": "Pull requests into {target} ({from})",
-        "failedTitle": "Reviews could not answer",
+        "failedTitle": "The Control room could not answer",
         "failedHint": "MoltenTerm could not read this project's pull requests. Try again in a moment.",
         "tryAgain": "Try again",
         "prsError": "The pull requests could not be read: {error}",
@@ -6124,11 +6124,11 @@
         },
         "empty": {
             "noghTitle": "GitHub CLI (gh) is not installed",
-            "noghHint": "Reviews reads your pull requests through your own gh: install it (cli.github.com), run gh auth login, then refresh.",
+            "noghHint": "The Control room reads your pull requests through your own gh: install it (cli.github.com), run gh auth login, then refresh.",
             "loggedoutTitle": "gh is logged out",
             "loggedoutHint": "Run gh auth login in a terminal, then refresh. MoltenTerm never asks for a token.",
             "norepoTitle": "This project has no GitHub remote",
-            "norepoHint": "Reviews lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
+            "norepoHint": "The Control room lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
             "errorTitle": "GitHub could not be read",
             "errorHint": "gh could not answer. Try again in a moment."
         },
@@ -6516,7 +6516,7 @@
             "started": "An agent MoltenTerm started for you: {action}."
         },
         "from": {
-            "reviews": "Reviews list",
+            "reviews": "Control room",
             "reviewTab": "Review tab",
             "mergeQueue": "Merge queue",
             "reviewPanel": "Review panel",
@@ -6608,7 +6608,7 @@
             "noPr": "No pull request",
             "noPrHint": "Open the AI panel from a Review tab.",
             "notOpen": "The review of #{number} is not open",
-            "notOpenHint": "Open the pull request's Review tab from the Reviews view: the AI panel follows it.",
+            "notOpenHint": "Open the pull request's Review tab from the Control room: the AI panel follows it.",
             "cardsLabel": "Briefing and explanations",
             "worktreeAgent": "Worktree: the agent's",
             "worktreeReview": "Worktree: MoltenTerm's review copy",
@@ -7167,11 +7167,11 @@
                 "askedUnnamed": "Conflicts with {base} → rebase asked to the agent on its branch.",
                 "typed": "Conflicts with {base} → rebase typed in {name}'s prompt: press Enter in its terminal to send it.",
                 "typedUnnamed": "Conflicts with {base} → rebase typed in its agent's prompt: press Enter in its terminal to send it.",
-                "agentBusy": "Conflicts with {base}. {name} is busy and was not interrupted: ask for the rebase later from Reviews.",
-                "agentBusyUnnamed": "Conflicts with {base}. Its agent is busy and was not interrupted: ask for the rebase later from Reviews.",
+                "agentBusy": "Conflicts with {base}. {name} is busy and was not interrupted: ask for the rebase later from the Control room.",
+                "agentBusyUnnamed": "Conflicts with {base}. Its agent is busy and was not interrupted: ask for the rebase later from the Control room.",
                 "needsAgent": "Conflicts with {base}, and no agent works on its branch → start an agent.",
-                "notAsked": "Conflicts with {base}: the rebase could not be asked. Ask for it from Reviews.",
-                "checking": "GitHub had not finished checking whether it still merges cleanly into {base}: Reviews will show it.",
+                "notAsked": "Conflicts with {base}: the rebase could not be asked. Ask for it from the Control room.",
+                "checking": "GitHub had not finished checking whether it still merges cleanly into {base}: the Control room will show it.",
                 "start": "Start an agent",
                 "starting": "Starting…",
                 "open": "Open"
@@ -7221,7 +7221,7 @@
             "viewName": "Review",
             "viewNamePr": "Review #{number}",
             "noPr": "No pull request in this review",
-            "noPrHint": "Open a pull request's review from the Reviews view.",
+            "noPrHint": "Open a pull request's review from the Control room.",
             "prTitle": "Pull request #{number}",
             "into": "into",
             "head": "head",
@@ -7440,7 +7440,7 @@
         "notes": {
             "title": "Notes",
             "keep": "Keep",
-            "keepHint": "Keep this explanation in the project's notes, in the Reviews view. Notes stay in MoltenTerm, never in the project.",
+            "keepHint": "Keep this explanation in the project's notes, in the Control room. Notes stay in MoltenTerm, never in the project.",
             "kept": "Kept",
             "keptHint": "Kept in the project's notes as \"{title}\"",
             "keptWhen": "kept {when}",
@@ -7924,13 +7924,13 @@
                 "rerun": {
                     "passedTitle": "#{number}: the rerun jobs passed",
                     "failedTitle": "#{number}: failed again after the rerun",
-                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in Reviews."
+                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in the Control room."
                 },
                 "batch": {
-                    "openReviews": "Open the Reviews list",
+                    "openReviews": "Open the Control room",
                     "goTo": "Go to the terminal",
                     "stoppedTitle": "The batch merge stopped on #{number}",
-                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Reviews list.",
+                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Control room.",
                     "doneTitle": "Merge queue: {merged} of {total} PRs merged",
                     "cancelledTitle": "Merge queue cancelled: {merged} of {total} PRs merged",
                     "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
@@ -8239,7 +8239,7 @@
         },
         "background": {
             "button": "Let the agent handle it",
-            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in Reviews or in Sessions; a notification tells you when it is done or needs you."
+            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in the Control room or in Sessions; a notification tells you when it is done or needs you."
         },
         "together": {
             "rebase": "Go through the rebase with the agent",

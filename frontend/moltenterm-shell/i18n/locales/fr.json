@@ -380,7 +380,7 @@
             "files": "Fichiers",
             "browser": "Navigateur",
             "cicd": "CI/CD",
-            "reviews": "Revues",
+            "reviews": "Pilotage",
             "sysinfo": "Infos système",
             "processes": "Processus"
         },
@@ -2063,8 +2063,8 @@
             "prReady": "Prête pour la revue",
             "prUnknown": "Pull requests pas encore lues pour ce projet",
             "noPr": "Aucune pull request",
-            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : Reviews montre le projet du workspace.",
-            "openInReviews": "Ouvrir dans Reviews",
+            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : Pilotage montre le projet du workspace.",
+            "openInReviews": "Ouvrir dans Pilotage",
             "openPr": "Ouvrir la pull request",
             "reason": {
                 "notLocal": "cette page n'est pas servie depuis cet ordinateur.",
@@ -2348,8 +2348,8 @@
                 "plural": "panneaux CI/CD"
             },
             "reviews": {
-                "name": "Revues",
-                "plural": "panneaux de revues"
+                "name": "Pilotage",
+                "plural": "panneaux de pilotage"
             },
             "project": {
                 "name": "Projet",
@@ -3239,8 +3239,8 @@
                 "other": "{count} pull requests en attente de revue"
             },
             "noReviewWaiting": "Aucune pull request en attente de revue",
-            "toReviews": "Revues",
-            "toReviewsTitle": "Ouvrir le panneau Revues : les pull requests, leurs vérifications et l'ordre pour les relire",
+            "toReviews": "Pilotage",
+            "toReviewsTitle": "Ouvrir le panneau Pilotage : les pull requests, leurs vérifications et l'ordre pour les relire",
             "branchesTitle": "Branches de tronc et de release",
             "branchesHint": "la CI qu'attend une release · la dernière exécution de chaque workflow",
             "role": {
@@ -4306,7 +4306,7 @@
                     "closed": "#{number} a été fermée sans fusion : rien n'a changé. Préparez à nouveau pour en ouvrir une autre.",
                     "unread": "GitHub n'a pas pu être lu à l'instant : MoltenTerm réessaie."
                 },
-                "openReviews": "Ouvrir #{number} dans Revues",
+                "openReviews": "Ouvrir #{number} dans Pilotage",
                 "openGithub": "Ouvrir sur GitHub"
             }
         }
@@ -4714,8 +4714,8 @@
         "tools": {
             "editWidgets": "Modifier widgets.json",
             "label": "Outils",
-            "reviews": "Revues · pull requests qui attendent votre revue",
-            "reviewsCounts": "Revues — {counts}",
+            "reviews": "Pilotage · pull requests qui attendent votre revue",
+            "reviewsCounts": "Pilotage — {counts}",
             "reviewsCount": {
                 "toReview": {
                     "one": "1 à relire",
@@ -4785,7 +4785,7 @@
             "sessions": "Sessions",
             "lineMap": "Plan de lignes",
             "cicd": "CI/CD",
-            "reviews": "Revues",
+            "reviews": "Pilotage",
             "review": "Revue",
             "companion": "Compagnon",
             "system": "Système",
@@ -5717,12 +5717,12 @@
             "withdraw": "Annuler la validation",
             "withdrawTitle": "Retirer #{number} de la file de fusion : elle n'est pas fusionnée et revient à relire",
             "resumed": "Reprise après le redémarrage de MoltenTerm.",
-            "investigateGone": "Cette pull request n'est plus listée dans Revues."
+            "investigateGone": "Cette pull request n'est plus listée dans Pilotage."
         },
-        "viewName": "Revues",
+        "viewName": "Pilotage",
         "into": "vers",
         "intoTitle": "Pull requests vers {target} ({from})",
-        "failedTitle": "Revues n'a pas pu répondre",
+        "failedTitle": "Pilotage n'a pas pu répondre",
         "failedHint": "MoltenTerm n'a pas pu lire les pull requests de ce projet. Réessayez dans un instant.",
         "tryAgain": "Réessayer",
         "prsError": "Les pull requests n'ont pas pu être lues : {error}",
@@ -6124,11 +6124,11 @@
         },
         "empty": {
             "noghTitle": "GitHub CLI (gh) n'est pas installé",
-            "noghHint": "Revues lit vos pull requests via votre propre gh : installez-le (cli.github.com), lancez gh auth login, puis actualisez.",
+            "noghHint": "Pilotage lit vos pull requests via votre propre gh : installez-le (cli.github.com), lancez gh auth login, puis actualisez.",
             "loggedoutTitle": "gh est déconnecté",
             "loggedoutHint": "Lancez gh auth login dans un terminal, puis actualisez. MoltenTerm ne demande jamais de jeton.",
             "norepoTitle": "Ce projet n'a pas de dépôt distant GitHub",
-            "norepoHint": "Revues liste les pull requests du dépôt GitHub du projet : ajoutez son dépôt distant, ou liez l'espace de travail à un autre dossier.",
+            "norepoHint": "Pilotage liste les pull requests du dépôt GitHub du projet : ajoutez son dépôt distant, ou liez l'espace de travail à un autre dossier.",
             "errorTitle": "GitHub n'a pas pu être lu",
             "errorHint": "gh n'a pas pu répondre. Réessayez dans un instant."
         },
@@ -6516,7 +6516,7 @@
             "started": "Un agent lancé par MoltenTerm pour vous : {action}."
         },
         "from": {
-            "reviews": "Liste des revues",
+            "reviews": "Pilotage",
             "reviewTab": "Onglet de revue",
             "mergeQueue": "File de fusion",
             "reviewPanel": "Panneau de revue",
@@ -6608,7 +6608,7 @@
             "noPr": "Aucune pull request",
             "noPrHint": "Ouvrez le panneau IA depuis un onglet Revue.",
             "notOpen": "La revue de #{number} n'est pas ouverte",
-            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis la vue Revues : le panneau IA le suit.",
+            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis Pilotage : le panneau IA le suit.",
             "cardsLabel": "Briefing et explications",
             "worktreeAgent": "Worktree : celui de l'agent",
             "worktreeReview": "Worktree : la copie de revue de MoltenTerm",
@@ -7167,11 +7167,11 @@
                 "askedUnnamed": "En conflit avec {base} → rebase demandé à l'agent de sa branche.",
                 "typed": "En conflit avec {base} → rebase tapé dans l'invite de {name} : appuyez sur Entrée dans son terminal pour l'envoyer.",
                 "typedUnnamed": "En conflit avec {base} → rebase tapé dans l'invite de son agent : appuyez sur Entrée dans son terminal pour l'envoyer.",
-                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
-                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
+                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Pilotage.",
+                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Pilotage.",
                 "needsAgent": "En conflit avec {base}, et aucun agent ne travaille sur sa branche → démarrez un agent.",
-                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis Revues.",
-                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : Revues l'indiquera.",
+                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis Pilotage.",
+                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : Pilotage l'indiquera.",
                 "start": "Démarrer un agent",
                 "starting": "Démarrage…",
                 "open": "Ouvrir"
@@ -7221,7 +7221,7 @@
             "viewName": "Revue",
             "viewNamePr": "Revue #{number}",
             "noPr": "Aucune pull request dans cette revue",
-            "noPrHint": "Ouvrez la revue d'une pull request depuis la vue Revues.",
+            "noPrHint": "Ouvrez la revue d'une pull request depuis Pilotage.",
             "prTitle": "Pull request #{number}",
             "into": "dans",
             "head": "head",
@@ -7440,7 +7440,7 @@
         "notes": {
             "title": "Notes",
             "keep": "Garder",
-            "keepHint": "Garder cette explication dans les notes du projet, dans la vue Reviews. Les notes restent dans MoltenTerm, jamais dans le projet.",
+            "keepHint": "Garder cette explication dans les notes du projet, dans Pilotage. Les notes restent dans MoltenTerm, jamais dans le projet.",
             "kept": "Gardée",
             "keptHint": "Gardée dans les notes du projet sous « {title} »",
             "keptWhen": "gardée {when}",
@@ -7924,13 +7924,13 @@
                 "rerun": {
                     "passedTitle": "#{number} : les jobs relancés ont réussi",
                     "failedTitle": "#{number} : encore en échec après la relance",
-                    "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans Revues."
+                    "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans Pilotage."
                 },
                 "batch": {
-                    "openReviews": "Ouvrir la liste des revues",
+                    "openReviews": "Ouvrir Pilotage",
                     "goTo": "Aller au terminal",
                     "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
-                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans la liste des revues.",
+                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans Pilotage.",
                     "doneTitle": "File de fusion : {merged} PR sur {total} fusionnées",
                     "cancelledTitle": "File de fusion annulée : {merged} PR sur {total} fusionnées",
                     "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}{trunk}",
@@ -8239,7 +8239,7 @@
         },
         "background": {
             "button": "Laisser l'agent s'en charger",
-            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans Revues ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
+            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans Pilotage ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
         },
         "together": {
             "rebase": "Faire le rebase avec l'agent",

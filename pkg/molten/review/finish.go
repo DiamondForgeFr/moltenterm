@@ -147,7 +147,7 @@ func finishPromptLine(req FinishRequest, briefPath string) string {
 func renderFinishBrief(req FinishRequest, tree string, ticket int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Check and finish PR #%d\n\n", req.Number)
-	b.WriteString("MoltenTerm wrote this brief when the developer clicked Check the agents in the Reviews list: verify whether " +
+	b.WriteString("MoltenTerm wrote this brief when the developer clicked Check the agents in the Control room (the PR panel): verify whether " +
 		"work remains on this pull request and finish it. You work under the developer's usual permissions.\n\n")
 	fmt.Fprintf(&b, "- Pull request: #%d", req.Number)
 	if req.Title != "" {
