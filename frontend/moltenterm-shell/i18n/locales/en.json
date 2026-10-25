@@ -4096,6 +4096,85 @@
                         "no": "Leave it out"
                     }
                 }
+            },
+            "prepared": {
+                "kind": {
+                    "added": "Added",
+                    "changed": "Changed",
+                    "removed": "Removed"
+                },
+                "status": {
+                    "new": "new",
+                    "changed": "updated"
+                },
+                "before": "Now",
+                "after": "In the pull request",
+                "show": "Show",
+                "hide": "Hide",
+                "byHand": "Done by hand: the release panel shows the instructions and waits for “Mark as done”.",
+                "runs": "Runs:",
+                "check": "Checked before “Mark as done”: {path} contains “{contains}”.",
+                "checkProposed": "(proposed)",
+                "checkToggle": "Check {title} before it is marked done",
+                "checkDropped": "No check for {id}: tick to check it before it is marked done.",
+                "versions": "Versions",
+                "field": {
+                    "format": "Formatter of the release's files",
+                    "files": "A file that carries the version",
+                    "tagprefix": "Tag prefix",
+                    "notes": "Where the notes are written",
+                    "changelogs": "Changelogs committed with the release",
+                    "firstpublic": "First public version",
+                    "branches": "Branches",
+                    "steps": "Project steps"
+                },
+                "formatToggle": "Format the release's files with the project's format script",
+                "formatWhy": "The project has a format script: the release runs it on the files it writes before each commit, so a CI that checks the formatting stays green.",
+                "formatDropped": "No formatter: tick to run the project's format script on the release's files.",
+                "countAdded": {
+                    "one": "{count} added",
+                    "other": "{count} added"
+                },
+                "countChanged": {
+                    "one": "{count} changed",
+                    "other": "{count} changed"
+                },
+                "countRemoved": {
+                    "one": "{count} removed",
+                    "other": "{count} removed"
+                },
+                "untouched": "{keys} unchanged",
+                "whole": "Whole file diff",
+                "hideWhole": "Hide the whole file",
+                "unreadable": "The proposed file cannot be read change by change: check the whole file diff.",
+                "noChange": "Nothing changes in this file.",
+                "lockedHint": "The ticks are locked while an agent's proposal is shown or the pull request is open: drop the proposal to change them.",
+                "recordWhy": "What MoltenTerm wrote, so a later update tells its own steps from your edits.",
+                "noFiles": "Nothing to write: the committed pipeline already reads this way.",
+                "changesTitle": "Exact changes",
+                "changesDesc": "Change by change, as the files will have them. Everything else in the files stays byte for byte.",
+                "agentTitle": "Ask the project's agent",
+                "agentClosed": "The pull request is open: its changes are the ones above.",
+                "commandsTitle": "Commands to approve",
+                "commandsDesc": "Once merged, each new command asks for your approval the first time it runs. This setup never approves one.",
+                "commandsNone": "No new command: nothing new to approve.",
+                "diagramLegend": "This is what MoltenTerm will run, step by step, once the pull request is merged into {target}.",
+                "diagramMarks": "+ added, ~ changed.",
+                "followTitle": "Pull request #{number}",
+                "follow": {
+                    "reading": "Reading #{number} on GitHub…",
+                    "running": "Draft pull request #{number}: its checks are running ({pending} to go).",
+                    "failed": "#{number}: {failed} failed checks. Open it to see why; nothing is merged.",
+                    "green": "#{number} is ready and its checks are green: merge it into {target} when you agree.",
+                    "greenDraft": "#{number}'s checks are green. It is still a draft: mark it ready, then merge it into {target} when you agree.",
+                    "noChecks": "#{number} is open, with no checks: merge it into {target} when you agree.",
+                    "noChecksDraft": "Draft pull request #{number} is open, with no checks yet.",
+                    "merged": "#{number} is merged into {target}: the Release menu uses the pipeline once your checkout has it.",
+                    "closed": "#{number} was closed without being merged: nothing changed. Prepare again to open another one.",
+                    "unread": "GitHub could not be read just now: MoltenTerm tries again."
+                },
+                "openReviews": "Open #{number} in Reviews",
+                "openGithub": "Open on GitHub"
             }
         }
     },

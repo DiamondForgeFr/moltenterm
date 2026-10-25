@@ -150,6 +150,9 @@ export type SetupOptions = {
     release?: string;
     rc?: SetupRcAnswer;
     publish?: string[];
+    // Step 3 (#1104): the manual steps whose proposed check was dropped, and the proposed formatter dropped.
+    nocheck?: string[];
+    noformat?: boolean;
 };
 
 // must match Rc* in pkg/molten/pipelinesetup/describe.go
@@ -168,6 +171,7 @@ export type SetupAdapterStep = { id: string; title: string; section: string; env
 
 export type SetupProposal = {
     release?: { rc?: PipelineReleaseStep[]; public?: PipelineReleaseStep[] };
+    versions?: { format?: string; [key: string]: unknown };
     steps?: SetupAdapterStep[];
     sources: Record<string, SetupSource>;
 };
@@ -198,6 +202,8 @@ export type SetupDraft = {
     generated?: Record<string, string>;
     files?: SetupProposedFile[];
     branchnames?: string[];
+    // The base commit already holds .molten/release-setup.json (#1104).
+    recordexists?: boolean;
     pr: SetupPrPlan;
 };
 
@@ -544,6 +550,8 @@ export type FlowNode = {
     question?: boolean;
     conditional?: boolean;
     checks?: string;
+    // Step 3 (#1104): the step the prepared pipeline adds or changes against the committed one.
+    mark?: "added" | "changed";
 };
 
 export type FlowModel = {

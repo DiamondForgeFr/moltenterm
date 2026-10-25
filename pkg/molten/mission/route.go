@@ -451,8 +451,9 @@ var windowCommands = map[string]string{
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
 	SetupUpdateCommand: "a release setup is updated from a MoltenTerm window",
 	// The pull request the setup opens (#1098) is followed from the window that opened it.
-	SetupPrStateCommand: "a release setup's pull request is followed from a MoltenTerm window",
-	SetupTicketsCommand: "a release setup's ticket is picked from a MoltenTerm window",
+	SetupPrStateCommand:  "a release setup's pull request is followed from a MoltenTerm window",
+	SetupTicketsCommand:  "a release setup's ticket is picked from a MoltenTerm window",
+	SetupPrStatusCommand: "a release setup's pull request is followed from a MoltenTerm window",
 	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
 	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
@@ -626,6 +627,12 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.Tickets(ctx, req)
+	case SetupPrStatusCommand:
+		var req SetupPrStatusRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReadSetupPrStatus(ctx, l.setup.Run, req)
 	case SetupSurveyCommand:
 		var req pipelinesetup.SurveyRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

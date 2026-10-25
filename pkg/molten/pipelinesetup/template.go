@@ -66,6 +66,9 @@ type Options struct {
 	Release string   `json:"release,omitempty"`
 	Rc      string   `json:"rc,omitempty"`
 	Publish []string `json:"publish,omitempty"`
+	// Step 3 (#1104): the manual steps whose proposed check the developer dropped, and the proposed formatter dropped.
+	NoCheck  []string `json:"nocheck,omitempty"`
+	NoFormat bool     `json:"noformat,omitempty"`
 }
 
 // The proposal: the blocks the setup writes, and the source of each drafted step ("rc/promote", "steps/deploy-prod").

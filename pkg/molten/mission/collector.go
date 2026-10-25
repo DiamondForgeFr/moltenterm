@@ -84,6 +84,8 @@ const (
 	// Write and Update open a pull request (#1098): its progress, and the issues its commit can name.
 	SetupPrStateCommand = "moltenmissionsetupprstate"
 	SetupTicketsCommand = "moltenmissionsetuptickets"
+	// Step 3 follows the pull request the setup opened (#1104): read only.
+	SetupPrStatusCommand = "moltenmissionsetupprstatus"
 	// The stepper's step 1 and its answers kept between openings (FR-MC-038).
 	SetupSurveyCommand  = "moltenmissionsetupsurvey"
 	SetupAnswersCommand = "moltenmissionsetupanswers"

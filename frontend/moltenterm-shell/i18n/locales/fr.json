@@ -4096,6 +4096,85 @@
                         "no": "Le laisser de côté"
                     }
                 }
+            },
+            "prepared": {
+                "kind": {
+                    "added": "Ajoutée",
+                    "changed": "Modifiée",
+                    "removed": "Retirée"
+                },
+                "status": {
+                    "new": "nouveau",
+                    "changed": "mis à jour"
+                },
+                "before": "Aujourd'hui",
+                "after": "Dans la pull request",
+                "show": "Afficher",
+                "hide": "Masquer",
+                "byHand": "À faire à la main : le panneau de release affiche les instructions et attend « Marquer comme fait ».",
+                "runs": "Lance :",
+                "check": "Vérifié avant « Marquer comme fait » : {path} contient « {contains} ».",
+                "checkProposed": "(proposé)",
+                "checkToggle": "Vérifier {title} avant de la marquer comme faite",
+                "checkDropped": "Aucune vérification pour {id} : cochez pour la vérifier avant de la marquer comme faite.",
+                "versions": "Versions",
+                "field": {
+                    "format": "Formateur des fichiers de la release",
+                    "files": "Un fichier qui porte la version",
+                    "tagprefix": "Préfixe des tags",
+                    "notes": "Emplacement des notes",
+                    "changelogs": "Journaux des modifications commités avec la release",
+                    "firstpublic": "Première version publique",
+                    "branches": "Branches",
+                    "steps": "Étapes du projet"
+                },
+                "formatToggle": "Formater les fichiers de la release avec le script de formatage du projet",
+                "formatWhy": "Le projet a un script de formatage : la release le lance sur les fichiers qu'elle écrit avant chaque commit, pour qu'une CI qui vérifie la mise en forme reste verte.",
+                "formatDropped": "Aucun formateur : cochez pour lancer le script de formatage du projet sur les fichiers de la release.",
+                "countAdded": {
+                    "one": "{count} ajout",
+                    "other": "{count} ajouts"
+                },
+                "countChanged": {
+                    "one": "{count} modification",
+                    "other": "{count} modifications"
+                },
+                "countRemoved": {
+                    "one": "{count} retrait",
+                    "other": "{count} retraits"
+                },
+                "untouched": "{keys} inchangés",
+                "whole": "Diff du fichier entier",
+                "hideWhole": "Masquer le fichier entier",
+                "unreadable": "Le fichier proposé ne se lit pas changement par changement : vérifiez le diff du fichier entier.",
+                "noChange": "Rien ne change dans ce fichier.",
+                "lockedHint": "Les cases sont bloquées tant qu'une proposition d'agent est affichée ou que la pull request est ouverte : écartez la proposition pour les changer.",
+                "recordWhy": "Ce que MoltenTerm a écrit, pour qu'une mise à jour distingue ses propres étapes de vos modifications.",
+                "noFiles": "Rien à écrire : le pipeline commité est déjà ainsi.",
+                "changesTitle": "Changements exacts",
+                "changesDesc": "Changement par changement, tels que les fichiers les auront. Tout le reste des fichiers reste à l'octet près.",
+                "agentTitle": "Demander à l'agent du projet",
+                "agentClosed": "La pull request est ouverte : ses changements sont ceux ci-dessus.",
+                "commandsTitle": "Commandes à approuver",
+                "commandsDesc": "Une fois la fusion faite, chaque nouvelle commande demande votre approbation à sa première exécution. Cette configuration n'en approuve jamais aucune.",
+                "commandsNone": "Aucune nouvelle commande : rien de nouveau à approuver.",
+                "diagramLegend": "C'est ce que MoltenTerm lancera, étape par étape, une fois la pull request fusionnée dans {target}.",
+                "diagramMarks": "+ ajoutée, ~ modifiée.",
+                "followTitle": "Pull request #{number}",
+                "follow": {
+                    "reading": "Lecture de #{number} sur GitHub…",
+                    "running": "Pull request brouillon #{number} : ses vérifications tournent (encore {pending}).",
+                    "failed": "#{number} : {failed} vérifications en échec. Ouvrez-la pour voir pourquoi ; rien n'est fusionné.",
+                    "green": "#{number} est prête et ses vérifications sont vertes : fusionnez-la dans {target} quand vous êtes d'accord.",
+                    "greenDraft": "Les vérifications de #{number} sont vertes. Elle est encore en brouillon : marquez-la prête, puis fusionnez-la dans {target} quand vous êtes d'accord.",
+                    "noChecks": "#{number} est ouverte, sans vérification : fusionnez-la dans {target} quand vous êtes d'accord.",
+                    "noChecksDraft": "La pull request brouillon #{number} est ouverte, encore sans vérification.",
+                    "merged": "#{number} est fusionnée dans {target} : le menu Release utilise le pipeline dès que votre copie l'a récupéré.",
+                    "closed": "#{number} a été fermée sans fusion : rien n'a changé. Préparez à nouveau pour en ouvrir une autre.",
+                    "unread": "GitHub n'a pas pu être lu à l'instant : MoltenTerm réessaie."
+                },
+                "openReviews": "Ouvrir #{number} dans Revues",
+                "openGithub": "Ouvrir sur GitHub"
             }
         }
     },

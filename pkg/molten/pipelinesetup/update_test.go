@@ -71,6 +71,14 @@ func readPipeline(t *testing.T, dir string) *molten.Pipeline {
 	return report.Pipeline
 }
 
+func withoutProposals(r *molten.PipelineRelease) {
+	for _, steps := range [][]molten.PipelineStep{r.Rc, r.Public} {
+		for i := range steps {
+			steps[i].Check = nil
+		}
+	}
+}
+
 func changeByKey(changes []Change, key string) (Change, bool) {
 	for _, c := range changes {
 		if c.Key == key {
@@ -125,6 +133,8 @@ func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The checks and the formatter are proposed at a new setup's step 3 only (#1104), not offered as an update.
+	withoutProposals(draft.Proposal.Release)
 	s.TreesDir = t.TempDir()
 	job := updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature})
 	if job.Subject != "chore(#7): update the release setup" {
