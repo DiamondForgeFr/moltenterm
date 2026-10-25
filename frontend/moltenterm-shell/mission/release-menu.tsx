@@ -247,22 +247,24 @@ export function ReleaseMenu({
                     ) : null}
                     {setupState?.state === "uptodate" ? (
                         <div
-                            className="flex items-center gap-1.5 px-1 text-11 text-muted"
+                            className="flex items-start gap-1.5 px-1 text-11 text-muted"
                             data-testid="release-setup-uptodate"
                         >
-                            <i className="fa fa-solid fa-check text-11 text-success" />
-                            <span className="min-w-0 flex-1">{t("mc.setup.update.upToDate")}</span>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setOpen(false);
-                                    setSettingUp(true);
-                                }}
-                                className="shrink-0 cursor-pointer text-11 text-accent hover:underline"
-                                data-testid="release-setup-reopen"
-                            >
-                                {t("mc.setup.update.openSetup")}
-                            </button>
+                            <i className="fa fa-solid fa-check mt-[2px] text-11 text-success" />
+                            <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                                {t("mc.setup.update.upToDate")}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setOpen(false);
+                                        setSettingUp(true);
+                                    }}
+                                    className="cursor-pointer text-11 text-accent hover:underline"
+                                    data-testid="release-setup-reopen"
+                                >
+                                    {t("mc.setup.update.openSetup")}
+                                </button>
+                            </span>
                         </div>
                     ) : null}
                     {plan == null && error == null ? (
