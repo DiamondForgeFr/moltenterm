@@ -24,6 +24,10 @@ function shorten(text: string): string {
 
 type Placed = FlowNode & { x: number; y: number };
 
+// A pull request's badge sits beside it: its required checks are written above.
+const badgeDx = (node: FlowNode) => (node.kind === "pr" ? 23 : 13);
+const badgeDy = (node: FlowNode) => (node.kind === "pr" ? 0 : -11);
+
 // layout gives every node its own slot, in phase order then declared order, and each phase the band of its slots.
 export function layoutFlow(model: FlowModel) {
     const lanes = LaneOrder.filter((lane) => {
@@ -324,14 +328,14 @@ export function FlowDiagram({
                         {node.badge != null ? (
                             <g data-testid={`setup-diagram-badge-${node.badge}`}>
                                 <circle
-                                    cx={node.x + 13}
-                                    cy={node.y - 11}
+                                    cx={node.x + badgeDx(node)}
+                                    cy={node.y + badgeDy(node)}
                                     r={7}
                                     style={{ fill: node.question ? "var(--color-warning)" : "var(--color-accent)" }}
                                 />
                                 <text
-                                    x={node.x + 13}
-                                    y={node.y - 8}
+                                    x={node.x + badgeDx(node)}
+                                    y={node.y + badgeDy(node) + 3}
                                     textAnchor="middle"
                                     className="text-10"
                                     style={{ fill: "var(--color-background)", fontWeight: 600 }}
