@@ -3791,8 +3791,10 @@
                     "commit": "The commit could not be made in the worktree. Your checkout did not change.",
                     "push": "The push was refused. Your checkout did not change.",
                     "pr": "{branch} is pushed, but the pull request could not be opened. Open it on GitHub, or copy the patch.",
-                    "failed": "The pull request could not be prepared. Your checkout did not change."
-                }
+                    "failed": "The pull request could not be prepared. Your checkout did not change.",
+                    "includeConflict": "Your uncommitted changes conflict with {ref}. Prepare again without them, or commit them first."
+                },
+                "conflict": "They change the same lines as {ref}: commit or rebase them first to include them."
             }
         }
     },
@@ -7213,7 +7215,8 @@
                 "prUnknown": "This pull request is no longer followed: prepare it again.",
                 "ticketsUnread": "The open issues could not be read: {detail}",
                 "noGit": "This project is not a git repository with its working branch: there is nothing to open a pull request on.",
-                "ticketNeeded": "The project's commit format names a ticket: pick one or create one."
+                "ticketNeeded": "The project's commit format names a ticket: pick one or create one.",
+                "includeConflict": "Your uncommitted changes to {path} conflict with {ref}: commit or rebase them first, or leave them out."
             }
         },
         "notif": {

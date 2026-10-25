@@ -303,6 +303,22 @@ func TestUncommittedEditsAndAMovedBase(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(dir, molten.ProjectPipelineFile)); string(got) != local {
 		t.Fatal("the working copy's edits were overwritten")
 	}
+	// The checkout is behind origin: the included edits are carried onto origin's file, they do not undo its change.
+	gitIn(t, dir, "fetch", "--quiet", "origin")
+	pushed := gitOut(t, dir, "show", "origin/feature/9-release-pipeline:.molten/project.json")
+	if !strings.Contains(pushed, "max-warnings") || !strings.Contains(pushed, `"name": "SaaSFoundryAI "`) {
+		t.Fatalf("pushed:\n%s", pushed)
+	}
+
+	// An edit of the line origin changed: it cannot be included.
+	writeFiles(t, dir, map[string]string{molten.ProjectPipelineFile: strings.Replace(local, `"SaaSFoundryAI"`, `"Mine"`, 1)})
+	conflict, err := s.Draft(ctx, DraftRequest{Dir: dir})
+	if err != nil || !conflict.Pr.Conflict {
+		t.Fatalf("%v %+v", err, conflict.Pr)
+	}
+	if _, err := s.Draft(ctx, DraftRequest{Dir: dir, IncludeLocal: true}); err == nil {
+		t.Fatal("conflicting edits are not included")
+	}
 }
 
 // Outside GitHub, the same commit as a patch: nothing pushed, no ticket needed.

@@ -196,6 +196,7 @@ export type SetupPrPlan = {
     subject: string;
     tickettitle: string;
     uncommitted: boolean;
+    conflict?: boolean;
     included: boolean;
     localbase: string;
     local?: string;
