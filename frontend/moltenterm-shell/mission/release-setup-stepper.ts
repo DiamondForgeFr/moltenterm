@@ -53,8 +53,10 @@ export type SetupAnswers = {
     points?: Record<string, string>;
     // Step 2b's "Anything else?", the request the agent gets at step 3 (FR-MC-041).
     words?: string;
-    from?: "standard" | "model" | "words";
+    from?: "standard" | "model" | "words" | "template";
     model?: string;
+    // The saved template step 2b started from (FR-MC-042).
+    template?: string;
     // Step 2a for a project already set up (#1102): the choices adjusted and the changes ticked.
     update?: { options?: SetupOptions; choices?: Record<string, boolean> };
 };
@@ -68,11 +70,9 @@ export function stepIndex(step: StepperStep): number {
     return StepperSteps.indexOf(step);
 }
 
-// A done step reopens; the next one opens once the current step's inputs exist. Templates come with #1105.
+// A done step reopens; the next one opens once the current step's inputs exist. The template (FR-MC-042) opens from
+// step 3 once its draft is valid, before or after the pull request.
 export function stepReachable(step: StepperStep, current: StepperStep, ready: boolean): boolean {
-    if (step === "template") {
-        return false;
-    }
     const i = stepIndex(step);
     const at = stepIndex(current);
     return i <= at || (ready && i === at + 1);
@@ -86,14 +86,21 @@ export function nextLabelKey(step: StepperStep, path: SetupPath): string {
     if (step === "understand") {
         return "mc.setup.stepper.nextPrepare";
     }
+    if (step === "prepare") {
+        return "mc.setup.stepper.nextTemplate";
+    }
     return "";
 }
 
-// The step a saved answer resumes at: only one the stepper can show without new inputs.
+// The step a saved answer resumes at: only one the stepper can show without new inputs; the template step resumes at
+// step 3, whose draft it saves.
 export function resumeStep(answers: SetupAnswers): StepperStep {
     const step = answers?.step;
     if (step === "understand" || step === "prepare") {
         return step;
+    }
+    if (step === "template") {
+        return "prepare";
     }
     return "detect";
 }

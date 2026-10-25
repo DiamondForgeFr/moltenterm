@@ -24,10 +24,12 @@ import {
     sameOptions,
 } from "./release-setup-analyse-model";
 import {
+    setupDeleteTemplate,
     setupDraft,
     setupModels,
     setupSaveAnswers,
     setupSurvey,
+    setupTemplates,
     setupUpdate,
     setupWrite,
 } from "./release-setup-client";
@@ -70,6 +72,8 @@ import {
     stepReachable,
 } from "./release-setup-stepper";
 import { TechDocChanges } from "./release-setup-techdoc";
+import { TemplateStep, useDefaultTemplateName, useTemplateSave } from "./release-setup-template";
+import { canSaveTemplate, SetupTemplateFit } from "./release-setup-template-model";
 import { UpdateFiles, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
@@ -585,6 +589,7 @@ function StepBar({
     path,
     ready,
     locked,
+    templateSaved,
     onStep,
     update,
 }: {
@@ -594,6 +599,7 @@ function StepBar({
     path: SetupPath;
     ready: boolean;
     locked: boolean;
+    templateSaved?: boolean;
     onStep: (s: StepperStep) => void;
     // Step 2a of a project already set up (#1102): how many changes the update proposes; null otherwise.
     update?: { changes: number };
@@ -612,7 +618,7 @@ function StepBar({
                 : t("mc.setup.stepper.detectNoShips", { type });
         }
         if (s === "template") {
-            return t("mc.setup.stepper.optional");
+            return templateSaved ? t("mc.setup.template.savedSub") : t("mc.setup.stepper.optional");
         }
         if (i > at) {
             return "—";
@@ -638,7 +644,6 @@ function StepBar({
                                 type="button"
                                 disabled={!reachable || s === step}
                                 onClick={() => onStep(s)}
-                                title={s === "template" ? t("mc.setup.stepper.templateLater") : undefined}
                                 aria-current={s === step ? "step" : undefined}
                                 className={cn(
                                     "flex w-full cursor-pointer items-start gap-2 rounded-6 border px-2.5 py-1.5 text-left disabled:cursor-default",
@@ -698,10 +703,10 @@ function StepBar({
     );
 }
 
-// The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template. Step 3 is
-// the prepared pipeline with its exact changes and its pull request (#1104, release-setup-prepared.tsx). The answers
-// are kept per project between openings. A project already set up takes path 2a through the update check (#1102,
-// FR-MC-040): step 2 shows its declared pipeline and the changes, step 3 opens the update's pull request.
+// The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template (FR-MC-042).
+// Step 3 is the prepared pipeline with its exact changes and its pull request (#1104, release-setup-prepared.tsx). The
+// answers are kept per project between openings. A project already set up takes path 2a through the update check
+// (#1102, FR-MC-040): step 2 shows its declared pipeline and the changes, step 3 opens the update's pull request.
 export function ReleaseSetup({
     dir,
     projectName,
@@ -742,9 +747,13 @@ export function ReleaseSetup({
     const [model, setModel] = useState("");
     const [words, setWords] = useState("");
     const [models, setModels] = useState<SetupModel[]>(null);
-    // The proposal's cards live in the Prepare step: leaving it goes back to the draft (#1099).
+    // Step 2b's saved templates (FR-MC-042), read once per app type, and the one chosen.
+    const [templates, setTemplates] = useState<SetupTemplateFit[]>(null);
+    const [template, setTemplate] = useState("");
+    // The proposal's cards live in the Prepare step: leaving it goes back to the draft (#1099); step 4 keeps them, it
+    // comes back to step 3.
     const goTo = (next: StepperStep) => {
-        if (next !== "prepare") {
+        if (next !== "prepare" && next !== "template") {
             setRefined(null);
             setRefining(false);
         }
@@ -757,6 +766,8 @@ export function ReleaseSetup({
     const writing = pr.busy;
     const request = useRef(0);
     const upd = useSetupCheck(dir);
+    const templateName = useDefaultTemplateName(draft, options, appType);
+    const templateForm = useTemplateSave(dir, draft, options, appType, templateName);
 
     const load = (opts: SetupOptions, kind?: SetupKind, include = includeLocal) =>
         fireAndForget(async () => {
@@ -812,6 +823,7 @@ export function ReleaseSetup({
             setWords(saved?.words ?? "");
             setFrom(saved?.from ?? "standard");
             setModel(saved?.model ?? "");
+            setTemplate(saved?.template ?? "");
             if (saved?.touched && saved.options != null) {
                 setTouched(true);
                 load(saved.options);
@@ -847,6 +859,7 @@ export function ReleaseSetup({
                   words: words || undefined,
                   from: path === "describe" ? from : undefined,
                   model: path === "describe" && from === "model" ? model : undefined,
+                  template: path === "describe" && from === "template" ? template : undefined,
                   update:
                       upd.options != null || Object.keys(upd.choices).length > 0
                           ? { options: upd.options ?? undefined, choices: upd.choices }
@@ -872,6 +885,7 @@ export function ReleaseSetup({
         words,
         from,
         model,
+        template,
         upd.options,
         upd.choices,
     ]);
@@ -906,6 +920,34 @@ export function ReleaseSetup({
             cancelled = true;
         };
     }, [describing, step, models, dir]);
+    useEffect(() => {
+        if (!describing || step !== "understand" || templates != null) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            let list: SetupTemplateFit[] = [];
+            try {
+                list = (await setupTemplates(dir, appType)).templates ?? [];
+            } catch {
+                // Without the templates the other starting points still work.
+            }
+            if (!cancelled) {
+                setTemplates(list);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [describing, step, templates, dir, appType]);
+    const forgetTemplate = async (fit: SetupTemplateFit) => {
+        await setupDeleteTemplate(fit.template.id);
+        setTemplates((list) => (list ?? []).filter((f) => f.template.id !== fit.template.id));
+        if (from === "template" && template === fit.template.id) {
+            setFrom("standard");
+            setTemplate("");
+        }
+    };
     const choosePath = (next: SetupPath) => {
         setPath(next);
         // The description does not carry over to 2a: the analysis starts again from the repository's own draft.
@@ -917,9 +959,14 @@ export function ReleaseSetup({
     };
     const chooseFrom = (next: DescribeFrom, dirOf?: string) => {
         setFrom(next);
-        if (dirOf != null) {
-            setModel(dirOf);
+        if (dirOf == null) {
+            return;
         }
+        if (next === "template") {
+            setTemplate(dirOf);
+            return;
+        }
+        setModel(dirOf);
     };
 
     const change = (next: SetupOptions) => {
@@ -936,6 +983,9 @@ export function ReleaseSetup({
     };
     const chooseType = (type: SetupAppType) => {
         setAppType(type);
+        if (type !== appType) {
+            setTemplates(null);
+        }
         const kind = kindOfAppType(type);
         if (options?.kind !== kind) {
             chooseKind(kind);
@@ -1046,10 +1096,11 @@ export function ReleaseSetup({
         options != null &&
         (step === "detect"
             ? appType != null && !(survey?.pipeline === "complete" && upd.check == null && upd.error == null)
-            : step === "understand" &&
-              (updating
+            : step === "understand"
+              ? updating
                   ? check != null && !upd.loading && check.errors.length === 0
-                  : !nothing && pending.length === 0));
+                  : !nothing && pending.length === 0
+              : step === "prepare" && !loading && !refining && !nothing && canSaveTemplate(draft, options));
     const next = StepperSteps[at + 1];
     const uncommitted =
         check != null ? (
@@ -1082,12 +1133,12 @@ export function ReleaseSetup({
                             </span>
                         ) : null}
                     </span>
-                    {at > 0 && !done ? (
+                    {at > 0 && (!done || step === "template") ? (
                         <button
                             type="button"
                             className={PlainButton}
                             onClick={() => goTo(StepperSteps[at - 1])}
-                            disabled={writing}
+                            disabled={writing || templateForm.saving}
                         >
                             {t("mc.setup.back")}
                         </button>
@@ -1096,12 +1147,68 @@ export function ReleaseSetup({
                         type="button"
                         className={PlainButton}
                         onClick={onClose}
-                        disabled={writing}
+                        disabled={writing || templateForm.saving}
                         data-testid="setup-close"
                     >
-                        {done ? t("common.close") : t("mc.setup.stepper.close")}
+                        {step === "template"
+                            ? templateForm.saved
+                                ? t("common.close")
+                                : t("mc.setup.template.finishWithout")
+                            : done
+                              ? t("common.close")
+                              : t("mc.setup.stepper.close")}
                     </button>
-                    {step !== "prepare" ? (
+                    {step === "template" ? (
+                        <button
+                            key="save-template"
+                            type="button"
+                            className="molten-btn inline-flex cursor-pointer items-center rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
+                            disabled={!templateForm.canSave}
+                            onClick={templateForm.save}
+                            data-testid="setup-template-save"
+                        >
+                            {templateForm.saving ? <DominoLoader className="mr-1.5" /> : null}
+                            {templateForm.saved ? t("mc.setup.template.savedButton") : t("mc.setup.template.save")}
+                            <MoltenWave />
+                        </button>
+                    ) : step === "prepare" ? (
+                        <>
+                            <button
+                                key="next-template"
+                                type="button"
+                                className={
+                                    done
+                                        ? "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
+                                        : PlainButton
+                                }
+                                disabled={!ready || writing}
+                                onClick={() => goTo("template")}
+                                data-testid="setup-next-template"
+                            >
+                                {t(nextLabelKey(step, path))}
+                                {done ? <MoltenWave /> : null}
+                            </button>
+                            {check != null ? (
+                                <PrFooterButtons
+                                    plan={check.pr}
+                                    job={pr.job}
+                                    busy={writing}
+                                    canOpen={canUpdate("pr")}
+                                    canPatch={canUpdate("patch")}
+                                    onOpen={update}
+                                />
+                            ) : (
+                                <PrFooterButtons
+                                    plan={draft?.pr}
+                                    job={pr.job}
+                                    busy={writing}
+                                    canOpen={canWrite}
+                                    canPatch={canPatch}
+                                    onOpen={write}
+                                />
+                            )}
+                        </>
+                    ) : (
                         <button
                             key="next"
                             type="button"
@@ -1117,24 +1224,6 @@ export function ReleaseSetup({
                             )}
                             <MoltenWave />
                         </button>
-                    ) : check != null ? (
-                        <PrFooterButtons
-                            plan={check.pr}
-                            job={pr.job}
-                            busy={writing}
-                            canOpen={canUpdate("pr")}
-                            canPatch={canUpdate("patch")}
-                            onOpen={update}
-                        />
-                    ) : (
-                        <PrFooterButtons
-                            plan={draft?.pr}
-                            job={pr.job}
-                            busy={writing}
-                            canOpen={canWrite}
-                            canPatch={canPatch}
-                            onOpen={write}
-                        />
                     )}
                 </>
             }
@@ -1145,7 +1234,8 @@ export function ReleaseSetup({
                 appType={appType}
                 path={path}
                 ready={ready}
-                locked={draft == null || writing || done}
+                locked={draft == null || writing || done || templateForm.saving}
+                templateSaved={templateForm.saved != null}
                 onStep={goNext}
                 update={check != null ? { changes: check.changes.length } : undefined}
             />
@@ -1253,6 +1343,9 @@ export function ReleaseSetup({
                                 model={model}
                                 words={words}
                                 appType={appType}
+                                templates={templates}
+                                template={template}
+                                onForgetTemplate={forgetTemplate}
                                 onChange={change}
                                 onFrom={chooseFrom}
                                 onWords={setWords}
@@ -1323,6 +1416,9 @@ export function ReleaseSetup({
                                 onOpenReviews: openReviews,
                             }}
                         />
+                    ) : null}
+                    {step === "template" ? (
+                        <TemplateStep draft={draft} options={options} projectName={projectName} form={templateForm} />
                     ) : null}
                 </div>
             )}

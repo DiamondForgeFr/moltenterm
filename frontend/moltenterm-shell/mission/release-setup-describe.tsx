@@ -24,6 +24,8 @@ import { BlockClass, ChipClass, Option } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
 import { flowModel, SetupChannel, SetupDraft, SetupOptions } from "./release-setup-model";
 import type { SetupAppType } from "./release-setup-stepper";
+import { TemplateChoices } from "./release-setup-template";
+import { orderedFits, SetupTemplateFit } from "./release-setup-template-model";
 
 const SelectClass =
     "w-full max-w-80 cursor-pointer rounded-4 border border-border bg-transparent px-2 py-1 text-12 text-primary focus:border-accent/60 focus:outline-none";
@@ -81,11 +83,18 @@ export function DescribeStep({
     model,
     words,
     appType,
+    templates,
+    template,
+    onForgetTemplate,
     onChange,
     onFrom,
     onWords,
     children,
 }: {
+    // The templates saved on this computer, checked against this project (FR-MC-042); null while they are read.
+    templates?: SetupTemplateFit[];
+    template?: string;
+    onForgetTemplate?: (fit: SetupTemplateFit) => Promise<void>;
     draft: SetupDraft;
     options: SetupOptions;
     from: DescribeFrom;
@@ -95,6 +104,7 @@ export function DescribeStep({
     words: string;
     appType: SetupAppType;
     onChange: (o: SetupOptions) => void;
+    // model: the model project's folder, or the template's id.
     onFrom: (from: DescribeFrom, model?: string) => void;
     onWords: (words: string) => void;
     // The detailed choices of the template.
@@ -126,6 +136,10 @@ export function DescribeStep({
         onFrom("model", m.dir);
         onChange(m.options);
     };
+    const startTemplate = (fit: SetupTemplateFit) => {
+        onFrom("template", fit.template.id);
+        onChange(fit.options);
+    };
     const rcSub = (rc: string): string => {
         if (rc === "published") {
             return rows.some((r) => r.id === "npm" && r.on)
@@ -139,6 +153,12 @@ export function DescribeStep({
             <div className={BlockClass} role="radiogroup" aria-label={t("mc.setup.describe.fromTitle")}>
                 <span className={ChipClass}>{t("mc.setup.describe.fromTitle")}</span>
                 <p className="text-12 text-secondary">{t("mc.setup.describe.fromIntro")}</p>
+                <TemplateChoices
+                    fits={orderedFits(templates)}
+                    selected={from === "template" ? template : ""}
+                    onChoose={startTemplate}
+                    onForget={onForgetTemplate ?? (async () => {})}
+                />
                 <Option
                     selected={from === "standard"}
                     onSelect={startStandard}

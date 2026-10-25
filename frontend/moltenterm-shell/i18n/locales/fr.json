@@ -3917,7 +3917,6 @@
                 "describeSub": "Décrivez le pipeline voulu",
                 "prepareSub": "schéma, fichiers, pull request",
                 "optional": "facultatif",
-                "templateLater": "L’enregistrement d’un pipeline comme modèle arrive dans une prochaine version.",
                 "fork": {
                     "analyse": "2a analyser",
                     "describe": "2b décrire",
@@ -3926,6 +3925,7 @@
                 "nextDraw": "Suivant : dessiner le pipeline",
                 "nextDescribe": "Suivant : décrire le pipeline",
                 "nextPrepare": "Suivant : préparer le pipeline",
+                "nextTemplate": "Suivant : enregistrer comme modèle",
                 "stepOf": "Étape {n} sur {total}",
                 "close": "Fermer sans rien écrire",
                 "updateSub": {
@@ -3977,6 +3977,77 @@
                 "fileTitle": "Nouveau fichier : {path}",
                 "fileIntro": "Proposé car aucun workflow ne publie encore au tag vers : {targets}. Il part dans la même pull request : lisez-le avant de l'ouvrir.",
                 "npmSecret": "npm a besoin du secret NPM_TOKEN du dépôt (un jeton d'automatisation npm) avant la première release."
+            },
+            "template": {
+                "saveTitle": "Enregistrer comme modèle",
+                "saveIntro": "Mettez le même pipeline en place sur vos autres projets de ce type en une fois. Ce qui appartient à ce projet devient un blanc rempli sur le suivant.",
+                "name": "Nom",
+                "defaultName": "{type}, {flow}",
+                "forType": "Pour les projets de type",
+                "kept": "Gardé tel quel",
+                "keepFlow": "Le déroulé : branches, release candidates, pull request ou promotion, fusion, tag, sync-back",
+                "keepManual": "Les étapes à la main et leurs instructions",
+                "noManual": "ce pipeline n'a aucune étape à la main",
+                "keepPublish": "Où les versions sont publiées",
+                "keepPublishSub": "{targets} ; un workflow de publication manquant est proposé sur le projet suivant",
+                "noPublish": "aucun workflow ne publie sur le tag",
+                "blanks": "Rempli par projet",
+                "blank": {
+                    "trunk": "branche de travail (ici {value})",
+                    "published": "branche publiée (ici {value})",
+                    "changelogs": "journaux des modifications ({n} ici)",
+                    "versionFiles": "fichiers de version",
+                    "ci": "workflows de CI ({n} ici)",
+                    "notesPath": "dossier des notes",
+                    "publishWorkflow": "workflow de publication"
+                },
+                "where": "Où",
+                "thisComputer": "Sur cet ordinateur",
+                "thisComputerSub": "dans le dossier de données de MoltenTerm, pour tous vos projets ; jamais dans un dépôt",
+                "previewTitle": "Le modèle",
+                "previewIntro": "Tel qu'il sera proposé sur un autre projet.",
+                "flow": {
+                    "single": "branche unique",
+                    "rcpr": "PR vers {release}",
+                    "promote": "promu vers {release}"
+                },
+                "rc": {
+                    "none": "sans release candidate",
+                    "published": "release candidates publiées",
+                    "internal": "release candidates internes"
+                },
+                "publishes": "publié sur {targets}",
+                "hand": {
+                    "one": "{count} étape à la main",
+                    "other": "{count} étapes à la main"
+                },
+                "fromLine": "Depuis {project}, {date}",
+                "save": "Enregistrer le modèle",
+                "savedButton": "Enregistré",
+                "finishWithout": "Terminer sans modèle",
+                "saved": "« {name} » est enregistré sur cet ordinateur : l'étape 2 le propose quand vous configurez un autre projet de type {type}.",
+                "savedSub": "enregistré",
+                "saasLater": "Le pipeline d'une application web ou d'un SaaS déploie sur des environnements au lieu de publier des versions : il ne peut pas encore être enregistré comme modèle.",
+                "invalidDraft": "Le pipeline préparé comporte des erreurs : corrigez-les à l'étape 3 avant de l'enregistrer comme modèle.",
+                "pick": "Mon modèle « {name} »",
+                "fit": "{met}/{total}",
+                "fitTitle": "Correspond à ce projet : {met} vérifications sur {total}",
+                "savedFrom": "enregistré depuis {project} le {date} · sur cet ordinateur",
+                "need": {
+                    "typeOk": "même type",
+                    "typeMissing": "Pas pour ce type : il a été enregistré pour {value}.",
+                    "branchesOk": "une branche publiée à part",
+                    "branchesMissing": "Pas de branche publiée à part ici : {value} sera la branche publiée.",
+                    "protectedOk": "{value} est protégée",
+                    "protectedMissing": "{value} ne demande pas de pull request ici : vérifiez le modèle de branches à l'étape 2.",
+                    "targetOk": "{target} est possible",
+                    "targetMissing": "Ce projet ne peut pas être publié sur {target} : cette cible est laissée de côté.",
+                    "workflowOk": "{value} publie déjà sur {target}",
+                    "workflowMissing": "Aucun workflow ne publie encore sur {target} au tag : l'étape 3 propose molten-publish.yml."
+                },
+                "forget": "Oublier ce modèle",
+                "forgetAsk": "L'oublier sur cet ordinateur ?",
+                "forgetYes": "Oublier"
             },
             "appType": {
                 "desktop": "Application de bureau",
@@ -7735,7 +7806,10 @@
                 "ticketsUnread": "Les tickets ouverts n'ont pas pu être lus : {detail}",
                 "noGit": "Ce projet n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
                 "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un.",
-                "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d'abord, ou laissez-les de côté."
+                "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d'abord, ou laissez-les de côté.",
+                "templateName": "Un modèle a besoin d'un nom de {max} caractères au plus.",
+                "templateSaas": "Le pipeline d'une application web ou d'un SaaS ne peut pas encore être enregistré comme modèle.",
+                "templatesFull": "Il y a déjà {max} modèles sur cet ordinateur : oubliez-en un d'abord."
             }
         },
         "notif": {

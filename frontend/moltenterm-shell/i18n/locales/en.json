@@ -3917,7 +3917,6 @@
                 "describeSub": "Describe the pipeline you want",
                 "prepareSub": "diagram, files, pull request",
                 "optional": "optional",
-                "templateLater": "Saving a pipeline as a template comes in a later version.",
                 "fork": {
                     "analyse": "2a analyse",
                     "describe": "2b describe",
@@ -3926,6 +3925,7 @@
                 "nextDraw": "Next: draw the pipeline",
                 "nextDescribe": "Next: describe the pipeline",
                 "nextPrepare": "Next: prepare the pipeline",
+                "nextTemplate": "Next: save as a template",
                 "stepOf": "Step {n} of {total}",
                 "close": "Close without writing",
                 "updateSub": {
@@ -3977,6 +3977,77 @@
                 "fileTitle": "New file: {path}",
                 "fileIntro": "Proposed because no workflow publishes on the tag yet to: {targets}. It goes into the same pull request: read it before opening it.",
                 "npmSecret": "npm needs the repository secret NPM_TOKEN (an npm automation token) before the first release."
+            },
+            "template": {
+                "saveTitle": "Save as a template",
+                "saveIntro": "Set the same pipeline up on your other projects of this type in one go. What belongs to this project becomes a blank filled in on the next one.",
+                "name": "Name",
+                "defaultName": "{type}, {flow}",
+                "forType": "For projects of type",
+                "kept": "Kept as is",
+                "keepFlow": "The flow: branches, release candidates, pull request or promotion, merge, tag, sync-back",
+                "keepManual": "Steps by hand and their instructions",
+                "noManual": "this pipeline has no step by hand",
+                "keepPublish": "Where versions are published",
+                "keepPublishSub": "{targets}; a missing publish workflow is proposed on the next project",
+                "noPublish": "nothing is published by a workflow on the tag",
+                "blanks": "Filled in per project",
+                "blank": {
+                    "trunk": "everyday branch (here {value})",
+                    "published": "published branch (here {value})",
+                    "changelogs": "changelogs ({n} here)",
+                    "versionFiles": "version files",
+                    "ci": "CI workflows ({n} here)",
+                    "notesPath": "notes folder",
+                    "publishWorkflow": "publish workflow"
+                },
+                "where": "Where",
+                "thisComputer": "On this computer",
+                "thisComputerSub": "in MoltenTerm's data folder, for all your projects; never in a repository",
+                "previewTitle": "The template",
+                "previewIntro": "As it will be offered on another project.",
+                "flow": {
+                    "single": "single branch",
+                    "rcpr": "PR to {release}",
+                    "promote": "promoted to {release}"
+                },
+                "rc": {
+                    "none": "no release candidate",
+                    "published": "release candidates published",
+                    "internal": "internal release candidates"
+                },
+                "publishes": "published to {targets}",
+                "hand": {
+                    "one": "{count} step by hand",
+                    "other": "{count} steps by hand"
+                },
+                "fromLine": "From {project}, {date}",
+                "save": "Save the template",
+                "savedButton": "Saved",
+                "finishWithout": "Finish without a template",
+                "saved": "“{name}” is saved on this computer: step 2 offers it when you set up another project of type {type}.",
+                "savedSub": "saved",
+                "saasLater": "A web app or SaaS pipeline deploys to environments instead of publishing versions: it cannot be saved as a template yet.",
+                "invalidDraft": "The prepared pipeline has mistakes: fix them at step 3 before saving it as a template.",
+                "pick": "My template “{name}”",
+                "fit": "{met}/{total}",
+                "fitTitle": "Fits this project: {met} of {total} checks",
+                "savedFrom": "saved from {project} on {date} · on this computer",
+                "need": {
+                    "typeOk": "same type",
+                    "typeMissing": "Not for this type: it was saved for {value}.",
+                    "branchesOk": "a published branch of its own",
+                    "branchesMissing": "No published branch of its own here: {value} will be the published branch.",
+                    "protectedOk": "{value} is protected",
+                    "protectedMissing": "{value} asks for no pull request here: check the branch model at step 2.",
+                    "targetOk": "{target} can be published",
+                    "targetMissing": "This project cannot be published to {target}: it is left out.",
+                    "workflowOk": "{value} already publishes to {target}",
+                    "workflowMissing": "No workflow publishes to {target} on the tag yet: step 3 proposes molten-publish.yml."
+                },
+                "forget": "Forget this template",
+                "forgetAsk": "Forget it on this computer?",
+                "forgetYes": "Forget"
             },
             "appType": {
                 "desktop": "Desktop app",
@@ -7735,7 +7806,10 @@
                 "ticketsUnread": "The open issues could not be read: {detail}",
                 "noGit": "This project is not a git repository with its working branch: there is nothing to open a pull request on.",
                 "ticketNeeded": "The project's commit format names a ticket: pick one or create one.",
-                "includeConflict": "Your uncommitted changes to {path} conflict with {ref}: commit or rebase them first, or leave them out."
+                "includeConflict": "Your uncommitted changes to {path} conflict with {ref}: commit or rebase them first, or leave them out.",
+                "templateName": "A template needs a name of {max} characters at most.",
+                "templateSaas": "A web app or SaaS pipeline cannot be saved as a template yet.",
+                "templatesFull": "There are already {max} templates on this computer: forget one first."
             }
         },
         "notif": {

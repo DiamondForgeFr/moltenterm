@@ -41,9 +41,11 @@ type Answers struct {
 	Points map[string]string `json:"points,omitempty"`
 	// Step 2b's "Anything else?", the request the agent gets at step 3 (FR-MC-041).
 	Words string `json:"words,omitempty"`
-	// Where step 2b started from (standard, model, words) and the model project's folder.
+	// Where step 2b started from (standard, model, words, template) and the model project's folder.
 	From  string `json:"from,omitempty"`
 	Model string `json:"model,omitempty"`
+	// The saved template step 2b started from (FR-MC-042).
+	Template string `json:"template,omitempty"`
 	// Step 2a for a project already set up (#1102): the choices adjusted and the changes ticked.
 	Update  *UpdateAnswers `json:"update,omitempty"`
 	SavedAt int64          `json:"savedat"`
@@ -125,8 +127,11 @@ func (s *Setup) SaveAnswers(req AnswersRequest) (AnswersAnswer, error) {
 	if !validStep(a.Step) || (a.AppType != "" && !validAppType(a.AppType)) || (a.Path != "" && a.Path != PathAnalyse && a.Path != PathDescribe) {
 		return AnswersAnswer{}, fmt.Errorf("not a pipeline setup answer: step %q, type %q, path %q", a.Step, a.AppType, a.Path)
 	}
-	if a.From != "" && a.From != FromStandard && a.From != FromModel && a.From != FromWords {
+	if a.From != "" && a.From != FromStandard && a.From != FromModel && a.From != FromWords && a.From != FromTemplate {
 		return AnswersAnswer{}, fmt.Errorf("not a pipeline setup answer: start from %q", a.From)
+	}
+	if a.Template != "" && !templateIdRegex.MatchString(a.Template) {
+		return AnswersAnswer{}, fmt.Errorf("not a pipeline setup answer: template %q", a.Template)
 	}
 	a.Dir = dir
 	a.SavedAt = time.Now().UnixMilli()
