@@ -6,7 +6,7 @@
 // later phase waits for its own click in the Project tab. While a release is on its way the button says which.
 
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -26,12 +26,16 @@ import {
     releasePlan,
     ReleaseSession,
 } from "./release-model";
-import { ReleaseSetup } from "./release-setup";
 import { setupCheck } from "./release-setup-client";
-import { needsReleaseSetup, SetupCheck, SetupUpdateReason } from "./release-setup-model";
-import { ReleaseSetupUpdate, useReasonText } from "./release-setup-update";
+import { needsReleaseSetup, SetupCheck, setupReasonText, SetupUpdateReason } from "./release-setup-model";
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
+
+// The release setup's dialogs load on their first opening, out of the entry every tab view evaluates (NFR-PERF-003).
+const ReleaseSetup = lazy(() => import("./release-setup").then((m) => ({ default: m.ReleaseSetup })));
+const ReleaseSetupUpdate = lazy(() =>
+    import("./release-setup-update").then((m) => ({ default: m.ReleaseSetupUpdate }))
+);
 
 const MilestoneReadDelayMs = 300;
 
@@ -327,20 +331,24 @@ export function ReleaseMenu({
                 </MenuPopover>
             ) : null}
             {settingUp ? (
-                <ReleaseSetup
-                    dir={dir}
-                    projectName={projectName}
-                    onClose={() => setSettingUp(false)}
-                    onWritten={() => onSetUp?.()}
-                />
+                <Suspense fallback={null}>
+                    <ReleaseSetup
+                        dir={dir}
+                        projectName={projectName}
+                        onClose={() => setSettingUp(false)}
+                        onWritten={() => onSetUp?.()}
+                    />
+                </Suspense>
             ) : null}
             {updating ? (
-                <ReleaseSetupUpdate
-                    dir={dir}
-                    projectName={projectName}
-                    onClose={() => setUpdating(false)}
-                    onWritten={() => onSetUp?.()}
-                />
+                <Suspense fallback={null}>
+                    <ReleaseSetupUpdate
+                        dir={dir}
+                        projectName={projectName}
+                        onClose={() => setUpdating(false)}
+                        onWritten={() => onSetUp?.()}
+                    />
+                </Suspense>
             ) : null}
             {untrusted != null ? (
                 <TrustPrompt
@@ -377,7 +385,6 @@ export function ReleaseSetupButton({ onOpen }: { onOpen: () => void }) {
 // The menu's offer when this version of MoltenTerm writes the release setup differently (#1086), with the first reason.
 export function ReleaseSetupUpdateButton({ reason, onOpen }: { reason: SetupUpdateReason; onOpen: () => void }) {
     const t = useT();
-    const reasonText = useReasonText();
     return (
         <button
             type="button"
@@ -389,7 +396,7 @@ export function ReleaseSetupUpdateButton({ reason, onOpen }: { reason: SetupUpda
             <span className="flex flex-col">
                 <span className="text-13 leading-5 font-medium text-primary">{t("mc.setup.update.open")}</span>
                 <span className="text-11 text-muted">
-                    {reason ? reasonText(reason) : t("mc.setup.update.openHint")}
+                    {reason ? setupReasonText(t, reason) : t("mc.setup.update.openHint")}
                 </span>
             </span>
         </button>
@@ -420,7 +427,14 @@ export function ReleaseSetupEntry({
                 {t("mc.setup.open")}
             </button>
             {open ? (
-                <ReleaseSetup dir={dir} projectName={projectName} onClose={() => setOpen(false)} onWritten={onSetUp} />
+                <Suspense fallback={null}>
+                    <ReleaseSetup
+                        dir={dir}
+                        projectName={projectName}
+                        onClose={() => setOpen(false)}
+                        onWritten={onSetUp}
+                    />
+                </Suspense>
             ) : null}
         </>
     );

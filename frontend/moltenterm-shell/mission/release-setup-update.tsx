@@ -21,8 +21,8 @@ import {
     prRequestOf,
     SetupChange,
     SetupCheck,
+    setupReasonText,
     SetupTicketChoice,
-    SetupUpdateReason,
 } from "./release-setup-model";
 import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 
@@ -30,12 +30,6 @@ const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 const SectionClass = "flex flex-col gap-2 rounded-6 border border-border p-3";
 const SectionTitle = "text-12 font-medium text-primary";
-
-export function useReasonText() {
-    const t = useT();
-    return (reason: SetupUpdateReason) =>
-        t(`mc.setup.update.reason.${reason.code}`, { branch: reason.detail ?? "", count: reason.detail ?? "" });
-}
 
 function ChangeRow({
     change,
@@ -122,14 +116,13 @@ export function UpdateBody({
     onChoose: (key: string, take: boolean) => void;
 }) {
     const t = useT();
-    const reasonText = useReasonText();
     return (
         <div className="@container flex flex-col gap-3">
             <div className={SectionClass} data-testid="update-reasons">
                 <div className={SectionTitle}>{t("mc.setup.update.why")}</div>
                 <ul className="flex list-disc flex-col gap-1 pl-4 text-12 text-secondary">
                     {check.reasons.map((r) => (
-                        <li key={r.code}>{reasonText(r)}</li>
+                        <li key={r.code}>{setupReasonText(t, r)}</li>
                     ))}
                 </ul>
                 {check.recordtemplate === 0 ? (
