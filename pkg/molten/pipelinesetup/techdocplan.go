@@ -88,7 +88,7 @@ func (s *Setup) githubRepo(ctx context.Context, dir string) string {
 	if !onGithub(dir) {
 		return ""
 	}
-	out, err := s.git(ctx, dir, "remote", "get-url", "origin")
+	out, err := s.git(ctx, dir, "config", "--get", "remote.origin.url")
 	if err != nil {
 		return ""
 	}

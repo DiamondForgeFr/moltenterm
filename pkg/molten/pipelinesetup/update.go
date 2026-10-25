@@ -1018,9 +1018,7 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err != nil {
 		return CheckAnswer{}, err
 	}
-	if c.answer.State != UpdateStateMissing {
-		c.answer.Doc = s.TechDocLinkOf(ctx, dir, b)
-	}
+	c.answer.Doc = s.TechDocLinkOf(ctx, dir, b)
 	return c.answer, nil
 }
 

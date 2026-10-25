@@ -115,10 +115,12 @@ export function ReleaseMenu({
     }, [open, dir]);
 
     // A pipeline set up before: checked again each time the menu opens, the release branch's protection included (#1086).
+    // A pipeline missing a channel is checked too: its technical documentation is linked all the same (FR-MC-043), and
+    // the check answers "missing" without reading the remote.
     const missingSetup = needsReleaseSetup(rcSteps, publicSteps);
     useEffect(() => {
         setSetupState(null);
-        if (!open || missingSetup) {
+        if (!open) {
             return;
         }
         let cancelled = false;
