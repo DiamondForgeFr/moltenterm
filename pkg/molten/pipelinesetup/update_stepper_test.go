@@ -1,0 +1,200 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package pipelinesetup
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
+)
+
+// Step 2a for a project already set up (#1102): the check drawn, adjusted, and the uncommitted edits as changes.
+
+// upToDateRepository: the pre-#1046 pipeline updated once, so the check finds nothing to change.
+func upToDateRepository(t *testing.T) (string, *Setup) {
+	t.Helper()
+	dir := pre1046Repository(t, nil)
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
+	s.TreesDir = t.TempDir()
+	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature})
+	again, err := s.Check(context.Background(), CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.State != UpdateStateUpToDate {
+		t.Fatalf("not up to date: %v", ChangeKeys(again.Changes))
+	}
+	return dir, s
+}
+
+func TestCheckDrawsTheRemovedAndAddedStepsInPlace(t *testing.T) {
+	dir := pre1046Repository(t, nil)
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
+	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if check.Drawn == nil || check.Options == nil || check.Adjusted {
+		t.Fatalf("drawn %v, options %v, adjusted %v", check.Drawn, check.Options, check.Adjusted)
+	}
+	got := strings.Join(stepIds(check.Drawn.Public), ",")
+	for _, id := range []string{"promote", "finalize", "open-pr", "merge-pr", "reconcile", "sync-back"} {
+		if !strings.Contains(","+got+",", ","+id+",") {
+			t.Fatalf("%s is not drawn: %s", id, got)
+		}
+	}
+	if strings.Index(got, "promote") > strings.Index(got, "open-pr") {
+		t.Fatalf("a removed step is drawn after the steps that followed it: %s", got)
+	}
+}
+
+// An up-to-date pipeline can still be adjusted: the adjustment's changes are offered and written by pull request.
+func TestCheckAdjustsAnUpToDatePipeline(t *testing.T) {
+	dir, s := upToDateRepository(t)
+	ctx := context.Background()
+	plain, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	same := *plain.Options
+	unchanged, err := s.Check(ctx, CheckRequest{Dir: dir, Options: &same})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.State != UpdateStateUpToDate || unchanged.Adjusted {
+		t.Fatalf("the inferred choices given back are not an adjustment: %s %v", unchanged.State, ChangeKeys(unchanged.Changes))
+	}
+	adjusted := *plain.Options
+	adjusted.Milestone = false
+	adjusted.Channels = []string{ChannelPublic}
+	check, err := s.Check(ctx, CheckRequest{Dir: dir, Options: &adjusted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if check.State != UpdateStateUpdate || !check.Adjusted {
+		t.Fatalf("state %s, adjusted %v", check.State, check.Adjusted)
+	}
+	if got := strings.Join(ChangeKeys(check.Changes), ","); got != "removed:public/close-milestone" {
+		t.Fatalf("changes: %s", got)
+	}
+	if len(check.Reasons) != 1 || check.Reasons[0].Code != UpdateReasonAdjusted {
+		t.Fatalf("reasons: %+v", check.Reasons)
+	}
+	if len(check.Options.Channels) != 2 {
+		t.Fatalf("an adjustment drops no channel: %v", check.Options.Channels)
+	}
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Options: &adjusted})
+	if _, ok := stepById(readPipeline(t, dir).Release.Public, "close-milestone"); ok {
+		t.Fatal("the adjustment was not written")
+	}
+	if len(readPipeline(t, dir).Release.Rc) == 0 {
+		t.Fatal("the release candidate was dropped")
+	}
+	after, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.State != UpdateStateUpToDate {
+		t.Fatalf("after the adjustment: %v", ChangeKeys(after.Changes))
+	}
+}
+
+// Nothing to change: the update refuses to open a pull request.
+func TestUpdateRefusesAnUpToDatePipeline(t *testing.T) {
+	dir, s := upToDateRepository(t)
+	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := waitFor(t, s)(s.Update(context.Background(), UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, PrRequest: PrRequest{Ticket: 7}}))
+	if job.Failure == nil || job.Failure.Code != PrFailureUpdateChanged {
+		t.Fatalf("an update with nothing to change must be refused: %+v", job.Failure)
+	}
+}
+
+// Uncommitted edits, included, are changes of their own: one per release step, one for the rest of the file; one
+// left out keeps its committed text and is not recorded as declined.
+func TestCheckListsTheUncommittedEditsAsChanges(t *testing.T) {
+	dir, s := upToDateRepository(t)
+	ctx := context.Background()
+	path := filepath.Join(dir, molten.ProjectPipelineFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Replace(string(data), "Close the milestone once the release is published", "Close the milestone after the announcement", 1)
+	text = strings.Replace(text, `"name": "SaaSFoundryAI",`, `"name": "SaaSFoundryAI CLI",`, 1)
+	if text == string(data) {
+		t.Fatal("the fixture did not change")
+	}
+	writeFiles(t, dir, map[string]string{molten.ProjectPipelineFile: text})
+
+	ignored, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ignored.State != UpdateStateUpToDate || !ignored.Pr.Uncommitted {
+		t.Fatalf("left out, the edits change nothing: %s %v", ignored.State, ChangeKeys(ignored.Changes))
+	}
+	check, err := s.Check(ctx, CheckRequest{Dir: dir, IncludeLocal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(ChangeKeys(check.Changes), ","); got != "changed:local/file,changed:local/public/close-milestone,changed:public/close-milestone" {
+		t.Fatalf("changes: %s", got)
+	}
+	file, _ := changeByKey(check.Changes, LocalFileKey)
+	if !file.Local || !file.Take || file.Title != "name" || !strings.Contains(file.After, "SaaSFoundryAI CLI") || !strings.Contains(file.Before, "SaaSFoundryAI") {
+		t.Fatalf("the file change: %+v", file)
+	}
+	// The edited step reads as the developer's own against the template: offered, kept unless ticked.
+	if c, _ := changeByKey(check.Changes, "public/close-milestone"); !c.Customised || c.Take {
+		t.Fatalf("the template's version: %+v", c)
+	}
+	if len(check.Reasons) != 2 || check.Reasons[0].Code != UpdateReasonLocal || check.Reasons[1].Code != UpdateReasonCustomised {
+		t.Fatalf("reasons: %+v", check.Reasons)
+	}
+	if !strings.Contains(check.Proposed, "after the announcement") || !strings.Contains(check.Proposed, "SaaSFoundryAI CLI") {
+		t.Fatalf("every edit ticked, the working copy is proposed:\n%s", check.Proposed)
+	}
+	choices := map[string]bool{"local/public/close-milestone": false}
+	partial, err := s.Check(ctx, CheckRequest{Dir: dir, IncludeLocal: true, Choices: choices})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(partial.Proposed, "after the announcement") || !strings.Contains(partial.Proposed, "SaaSFoundryAI CLI") {
+		t.Fatalf("a left-out step keeps its committed text:\n%s", partial.Proposed)
+	}
+	if len(partial.Errors) > 0 {
+		t.Fatalf("errors: %v", partial.Errors)
+	}
+	job := waitFor(t, s)(s.Update(ctx, UpdateRequest{Dir: dir, Base: partial.Base, Signature: partial.Signature, Choices: choices,
+		PrRequest: PrRequest{IncludeLocal: true, LocalBase: partial.Pr.LocalBase, Ticket: 7}}))
+	if job.Failure != nil {
+		t.Fatalf("the update failed: %+v", job.Failure)
+	}
+	if got, _ := os.ReadFile(path); string(got) != text {
+		t.Fatal("the working copy's edits were touched")
+	}
+	gitIn(t, dir, "checkout", "--quiet", "--", molten.ProjectPipelineFile)
+	mergePr(t, dir, job.Branch)
+	merged := readPipeline(t, dir)
+	if m, _ := stepById(merged.Release.Public, "close-milestone"); m.Title != "Close the milestone once the release is published" {
+		t.Fatalf("close-milestone: %+v", m)
+	}
+	if merged.Name != "SaaSFoundryAI CLI" {
+		t.Fatalf("the edit outside the release steps was lost: %q", merged.Name)
+	}
+	if rec := readRecordFile(t, dir); rec == nil || len(rec.Declined) != 0 {
+		t.Fatalf("a left-out edit was recorded as declined: %+v", rec)
+	}
+}

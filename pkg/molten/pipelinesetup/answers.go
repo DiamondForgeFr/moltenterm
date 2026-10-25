@@ -42,9 +42,16 @@ type Answers struct {
 	// Step 2b's "Anything else?", the request the agent gets at step 3 (FR-MC-041).
 	Words string `json:"words,omitempty"`
 	// Where step 2b started from (standard, model, words) and the model project's folder.
-	From    string `json:"from,omitempty"`
-	Model   string `json:"model,omitempty"`
-	SavedAt int64  `json:"savedat"`
+	From  string `json:"from,omitempty"`
+	Model string `json:"model,omitempty"`
+	// Step 2a for a project already set up (#1102): the choices adjusted and the changes ticked.
+	Update  *UpdateAnswers `json:"update,omitempty"`
+	SavedAt int64          `json:"savedat"`
+}
+
+type UpdateAnswers struct {
+	Options *Options        `json:"options,omitempty"`
+	Choices map[string]bool `json:"choices,omitempty"`
 }
 
 // AnswersRequest saves the answers of the project at Dir; nil Answers clears them.
@@ -87,7 +94,7 @@ func (s *Setup) loadAnswers(dir string, base string) *Answers {
 		return nil
 	}
 	if a.Base != base {
-		a.Base, a.Step, a.Touched, a.Options, a.Points = base, "", false, nil, nil
+		a.Base, a.Step, a.Touched, a.Options, a.Points, a.Update = base, "", false, nil, nil, nil
 	}
 	return &a
 }
