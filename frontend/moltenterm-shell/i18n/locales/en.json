@@ -3170,7 +3170,7 @@
             "manualDone": "Mark as done: {step}",
             "manualConfirm": "Confirm that “{step}” is done: MoltenTerm records it and runs nothing.",
             "actionRefused": "Not sent: another action of this release is still under way. Try again once it ends.",
-            "trustFirst": "Nothing ran yet: trust the project's commands below, then this step starts.",
+            "trustFirst": "Nothing ran yet: this step starts once you trust the project's commands.",
             "actionFailed": "MoltenTerm could not do it, and gave no reason. Try again.",
             "manualNext": "Next, by hand: {step}. Mark it done once it is.",
             "approval": "Waiting for the approval of {environment} on GitHub.",
