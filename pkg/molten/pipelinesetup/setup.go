@@ -66,6 +66,8 @@ type DraftAnswer struct {
 	// and the repository's branch names for the questions.
 	Files       []ProposedFile `json:"files"`
 	BranchNames []string       `json:"branchnames"`
+	// The base commit already holds .molten/release-setup.json: step 3 lists it as updated, not new (#1104).
+	RecordExists bool `json:"recordexists"`
 	// Where the pull request starts and goes (#1098).
 	Pr PrPlan `json:"pr"`
 }
@@ -248,6 +250,11 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 		answer.Defaults.Kind = draft.Kind
 		answer.Options = answer.Defaults
 	}
+	if answer.Options.Kind != KindSaas {
+		ProposeChecks(dir, f, answer.Options, answer.Proposal.Release)
+		ProposeFormat(dir, answer.Options, report.Pipeline, &answer.Proposal)
+	}
+	answer.RecordExists = b.Record != nil
 	answer.RcFormats = EvaluateChoices([]string{RcFormatNumeric, RcFormatRcDot}, RcFormatRules, f.TargetIds())
 	models := []string{BranchModelPromote, BranchModelSingle, BranchModelRcPr}
 	answer.BranchModels = EvaluateChoices(models, BranchModelRules, f.TargetIds())

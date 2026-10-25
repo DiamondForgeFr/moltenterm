@@ -42,14 +42,13 @@ import {
     SetupKind,
     SetupOptions,
     SetupProposalResult,
-    SetupProposedFile,
-    SetupSource,
     SetupTicketChoice,
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
-import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
-import { AgentProposal } from "./release-setup-proposal";
+import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
+import { PreparedStep } from "./release-setup-prepared";
+import { proposedFiles } from "./release-setup-prepared-model";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
 import {
     kindOfAppType,
@@ -70,14 +69,6 @@ const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 const SectionClass = "flex flex-col gap-2 rounded-6 border border-border p-3";
 const SectionTitle = "text-12 font-medium text-primary";
-
-function useSourceText() {
-    const t = useT();
-    return (source: SetupSource) =>
-        source?.code
-            ? t(`mc.setup.source.${source.code}`, { path: source.path ?? "", detail: source.detail ?? "" })
-            : "";
-}
 
 function Check({
     checked,
@@ -575,125 +566,6 @@ export function DiffView({ before, after }: { before: string; after: string }) {
     );
 }
 
-// The files step 2b proposes beside the pipeline (FR-MC-041), whole: they are new, so every line is added.
-function ProposedFiles({ files }: { files: SetupProposedFile[] }) {
-    const t = useT();
-    if (!(files?.length > 0)) {
-        return null;
-    }
-    return (
-        <>
-            {files.map((file) => (
-                <div key={file.path} className="flex flex-col gap-1.5" data-testid="setup-proposed-file">
-                    <div className="text-12 font-medium text-primary">
-                        {t("mc.setup.describe.fileTitle", { path: file.path })}
-                    </div>
-                    <p className="text-11 text-secondary">
-                        {t("mc.setup.describe.fileIntro", {
-                            targets: file.targets.map((id) => t(`mc.setup.describe.target.${id}`)).join(", "),
-                        })}
-                    </p>
-                    {file.targets.includes("npm") ? (
-                        <p className="text-11 text-warning">{t("mc.setup.describe.npmSecret")}</p>
-                    ) : null}
-                    <DiffView before="" after={file.content} />
-                </div>
-            ))}
-        </>
-    );
-}
-
-export function ReviewStep({
-    dir,
-    draft,
-    options,
-    refined,
-    onRefined,
-    onRefining,
-    words,
-}: {
-    dir: string;
-    draft: SetupDraft;
-    options: SetupOptions;
-    // The draft with the agent's ticked changes (#1099); null: the draft.
-    refined: SetupProposalResult;
-    onRefined: (result: SetupProposalResult) => void;
-    onRefining: (busy: boolean) => void;
-    // Step 2b's "Anything else?" (FR-MC-041): the agent's request to start with.
-    words?: string;
-}) {
-    const t = useT();
-    const sourceText = useSourceText();
-    const proposed = refined?.proposed ?? draft.proposed;
-    const errors = refined?.errors ?? draft.errors;
-    const warnings = [...(draft.warnings ?? []), ...(refined?.validatewarnings ?? draft.validatewarnings ?? [])];
-    const channels: SetupChannel[] = options.kind === "saas" ? ["public"] : options.channels;
-    const sources = Object.entries(draft.proposal.sources ?? {});
-    return (
-        <div className="flex flex-col gap-3">
-            {refined ? null : <FlowReasons draft={draft} options={options} />}
-            {refined
-                ? null
-                : channels.map((c) => (
-                      <div key={c} className="flex flex-col gap-1">
-                          {options.kind === "saas" ? null : (
-                              <div className="text-11 text-muted">{t(`mc.setup.flow.${c}`)}</div>
-                          )}
-                          <FlowDiagram model={flowModel(draft, c, options.tagprefix)} />
-                      </div>
-                  ))}
-            <p className="text-12 text-secondary">
-                {refined
-                    ? refined.agentname
-                        ? t("mc.setup.review.byAgent", { agent: refined.agentname })
-                        : t("mc.setup.review.byPasted")
-                    : draft.provider === "saasfoundry"
-                      ? t("mc.setup.review.bySaaSFoundry")
-                      : t("mc.setup.review.byMoltenTerm")}
-            </p>
-            <AgentProposal
-                key={draft.proposed}
-                dir={dir}
-                draftText={draft.proposed}
-                onResult={onRefined}
-                onBusy={onRefining}
-                initialRequest={words}
-            />
-            <DiffView before={draft.current} after={proposed} />
-            <ProposedFiles files={draft.files} />
-            {errors.length > 0 ? (
-                <ul
-                    className="flex flex-col gap-0.5 rounded-4 border border-error/40 bg-error/10 px-3 py-1.5 text-11 text-danger"
-                    role="alert"
-                >
-                    {errors.map((e) => (
-                        <li key={e}>{e}</li>
-                    ))}
-                </ul>
-            ) : null}
-            {warnings.length > 0 ? (
-                <ul className="flex flex-col gap-0.5 rounded-4 border border-warning/40 bg-warning/10 px-3 py-1.5 text-11 text-secondary">
-                    {warnings.map((w) => (
-                        <li key={w}>{w}</li>
-                    ))}
-                </ul>
-            ) : null}
-            {refined ? null : (
-                <details className="rounded-6 border border-border px-3 py-2 text-11 text-secondary">
-                    <summary className="cursor-pointer text-12 text-primary">{t("mc.setup.review.sources")}</summary>
-                    <ul className="mt-1 flex flex-col gap-0.5" data-testid="setup-sources">
-                        {sources.map(([key, source]) => (
-                            <li key={key} className="wrap-anywhere">
-                                <span className="font-mono text-muted">{key}</span> · {sourceText(source)}
-                            </li>
-                        ))}
-                    </ul>
-                </details>
-            )}
-        </div>
-    );
-}
-
 function StepBar({
     step,
     survey,
@@ -801,9 +673,9 @@ function StepBar({
     );
 }
 
-// The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template. Until
-// #1101–#1104 give steps 2 and 3 their own content, step 2 hosts the former What and Choices steps and step 3 the
-// former Review with its pull request (FR-MC-036). The answers are kept per project between openings.
+// The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template. Step 3 is
+// the prepared pipeline with its exact changes and its pull request (#1104, release-setup-prepared.tsx). The answers
+// are kept per project between openings.
 export function ReleaseSetup({
     dir,
     projectName,
@@ -1036,6 +908,13 @@ export function ReleaseSetup({
         setIncludeLocal(on);
         load(touched ? options : null, touched ? undefined : options?.kind, on);
     };
+    // The pull request in the Reviews list, where it is validated and merged (#1104).
+    const openReviews = (prDir: string, number: number) =>
+        fireAndForget(async () => {
+            const { ReviewsModel } = await import("../reviews/reviews-store");
+            onClose();
+            await ReviewsModel.getInstance().openReviews(prDir, number);
+        });
     const again = () => {
         pr.reset();
         load(touched ? options : null, touched ? undefined : options?.kind);
@@ -1286,26 +1165,25 @@ export function ReleaseSetup({
                         </>
                     ) : null}
                     {step === "prepare" ? (
-                        <ReviewStep
+                        <PreparedStep
                             dir={dir}
                             draft={draft}
                             options={options}
                             refined={refined}
                             onRefined={setRefined}
                             onRefining={setRefining}
-                            words={describing ? words : undefined}
-                        />
-                    ) : null}
-                    {step === "prepare" ? (
-                        <PrPanel
-                            dir={dir}
-                            plan={draft.pr}
-                            choice={ticket}
-                            onChoice={setTicket}
-                            job={pr.job}
-                            busy={writing}
-                            error={pr.error}
-                            onAgain={again}
+                            onOptions={loading ? undefined : change}
+                            initialRequest={describing ? words : undefined}
+                            extraFiles={proposedFiles(draft.files)}
+                            pr={{
+                                ticket,
+                                onTicket: setTicket,
+                                job: pr.job,
+                                busy: writing,
+                                error: pr.error,
+                                onAgain: again,
+                                onOpenReviews: openReviews,
+                            }}
                         />
                     ) : null}
                 </div>

@@ -113,6 +113,8 @@ export type PipelineReleaseStep = PipelineCommand & {
     notes?: boolean;
     // Done by hand (FR-MC-037): the instructions, no run.
     manual?: string;
+    // What proves a manual step done (#1095).
+    check?: { path: string; contains: string };
 };
 
 // must match PipelineDependency in pkg/molten/pipeline.go

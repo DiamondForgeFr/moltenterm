@@ -344,6 +344,27 @@ export function FlowDiagram({
                                 </text>
                             </g>
                         ) : null}
+                        {node.badge == null && node.mark ? (
+                            <g data-testid={`setup-diagram-mark-${node.mark}`}>
+                                <circle
+                                    cx={node.x + badgeDx(node)}
+                                    cy={node.y + badgeDy(node)}
+                                    r={7}
+                                    style={{
+                                        fill: node.mark === "added" ? "var(--color-success)" : "var(--color-warning)",
+                                    }}
+                                />
+                                <text
+                                    x={node.x + badgeDx(node)}
+                                    y={node.y + badgeDy(node) + 3.5}
+                                    textAnchor="middle"
+                                    className="text-10"
+                                    style={{ fill: "var(--color-background)", fontWeight: 600 }}
+                                >
+                                    {node.mark === "added" ? "+" : "~"}
+                                </text>
+                            </g>
+                        ) : null}
                         <text
                             x={node.x}
                             y={node.y + 21}

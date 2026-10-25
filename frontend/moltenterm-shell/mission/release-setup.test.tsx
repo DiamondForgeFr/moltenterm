@@ -4,7 +4,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./release-setup-client", () => ({ setupDraft: vi.fn(), setupRefine: vi.fn(), setupWrite: vi.fn() }));
+vi.mock("./release-setup-client", () => ({
+    setupDraft: vi.fn(),
+    setupRefine: vi.fn(),
+    setupWrite: vi.fn(),
+    setupPrStatus: vi.fn(),
+    setupTickets: vi.fn(),
+}));
 vi.mock("./mission-client", () => ({
     missionTrust: vi.fn(),
     missionUntrusted: vi.fn(),
@@ -12,9 +18,10 @@ vi.mock("./mission-client", () => ({
 }));
 vi.mock("./runs-view", () => ({ TrustPrompt: () => null }));
 
-import { ChoicesStep, ReviewStep } from "./release-setup";
+import { ChoicesStep, DiffView } from "./release-setup";
 import { FlowDiagram } from "./release-setup-diagram";
 import { flowModel, SetupDraft, SetupOptions } from "./release-setup-model";
+import { PreparedStep } from "./release-setup-prepared";
 
 const options: SetupOptions = {
     kind: "on-premise",
@@ -124,7 +131,7 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
 
     it("reviews the diff and says who proposed it", () => {
         const html = renderToStaticMarkup(
-            <ReviewStep
+            <PreparedStep
                 draft={draft}
                 options={options}
                 dir="/p"
@@ -136,9 +143,10 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
         expect(html).toContain("Drafted by MoltenTerm from the repository.");
         expect(html).toContain("Ask the agent for a proposal");
         expect(html).toContain("Use another agent");
-        expect(html).toContain("&quot;release&quot;: {}");
+        expect(html).toContain('data-testid="prepared-file-pipeline"');
+        expect(html).toContain("Whole file diff");
         const refined = renderToStaticMarkup(
-            <ReviewStep
+            <PreparedStep
                 dir="/p"
                 draft={draft}
                 options={options}
@@ -149,7 +157,8 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
         );
         expect(refined).toContain("The draft with the changes you ticked from Claude Code");
         expect(html).toContain('data-kind="workflow"');
-        expect(refined).not.toContain('data-kind="workflow"');
+        // The diagram draws the result, the agent's ticked changes included (#1104).
+        expect(refined).toContain('data-kind="workflow"');
     });
 
     it("wraps a long manual text instead of cutting it, and scrolls long diff lines inside the diff (#1047)", () => {
@@ -167,16 +176,7 @@ describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
         expect(row).toContain(text.replace(/&/g, "&amp;"));
         expect(row.slice(0, row.indexOf(text.slice(0, 9)))).not.toContain("truncate");
         expect(row).toMatch(/class="[^"]*whitespace-pre-wrap[^"]*wrap-anywhere/);
-        const review = renderToStaticMarkup(
-            <ReviewStep
-                draft={draft}
-                options={options}
-                dir="/p"
-                refined={null}
-                onRefined={() => {}}
-                onRefining={() => {}}
-            />
-        );
+        const review = renderToStaticMarkup(<DiffView before={draft.current} after={draft.proposed} />);
         expect(review).toMatch(/class="[^"]*overflow-auto[^"]*" data-testid="setup-diff"/);
         expect(review).toContain("flex w-max min-w-full whitespace-pre");
     });
@@ -267,7 +267,7 @@ const prDraft: SetupDraft = {
 describe("release setup of a protected release branch (#1046)", () => {
     it("says why the flow goes by pull request, with the divergence's numbers", () => {
         const html = renderToStaticMarkup(
-            <ReviewStep
+            <PreparedStep
                 draft={prDraft}
                 options={prOptions}
                 dir="/p"

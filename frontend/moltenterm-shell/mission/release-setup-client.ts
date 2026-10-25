@@ -21,6 +21,7 @@ import type {
     SetupStepChange,
     SetupTicket,
 } from "./release-setup-model";
+import type { SetupPrStatus } from "./release-setup-prepared-model";
 import type { SetupAnswers, SetupSurvey } from "./release-setup-stepper";
 
 // must match the names in pkg/molten/mission/collector.go
@@ -36,6 +37,7 @@ export const MissionSetupTicketsCommand = "moltenmissionsetuptickets";
 export const MissionSetupSurveyCommand = "moltenmissionsetupsurvey";
 export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
 export const MissionSetupModelsCommand = "moltenmissionsetupmodels";
+export const MissionSetupPrStatusCommand = "moltenmissionsetupprstatus";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -141,6 +143,11 @@ export function setupSurvey(dir: string): Promise<SetupSurvey> {
 // Keeps the stepper's answers for the project in MoltenTerm's data; null forgets them.
 export function setupSaveAnswers(dir: string, answers: SetupAnswers): Promise<{ saved: boolean }> {
     return setupCall(MissionSetupAnswersCommand, { dir, answers: answers ?? undefined }, SetupWriteTimeoutMs);
+}
+
+// The pull request the setup opened, as GitHub has it now (#1104): read only.
+export function setupPrStatus(dir: string, number: number): Promise<SetupPrStatus> {
+    return setupCall(MissionSetupPrStatusCommand, { dir, number }, SetupDraftTimeoutMs);
 }
 
 export function setupTickets(dir: string): Promise<{ tickets: SetupTicket[] }> {
