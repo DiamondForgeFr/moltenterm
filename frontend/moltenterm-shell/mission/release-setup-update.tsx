@@ -109,7 +109,7 @@ export function useSetupCheck(dir: string) {
             const n = ++request.current;
             setLoading(true);
             try {
-                const answer = await setupCheck(dir, next, include, opts);
+                const answer = await setupCheck(dir, next, include, opts, true);
                 if (n !== request.current) {
                     return;
                 }

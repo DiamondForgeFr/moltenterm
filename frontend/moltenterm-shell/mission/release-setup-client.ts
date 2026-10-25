@@ -114,11 +114,19 @@ export function setupCheck(
     dir: string,
     choices?: Record<string, boolean>,
     includeLocal?: boolean,
-    options?: SetupOptions
+    options?: SetupOptions,
+    // Step 2a also proposes the checks and the formatter (#1104); the Release menu does not.
+    proposals?: boolean
 ): Promise<SetupCheck> {
     return setupCall(
         MissionSetupCheckCommand,
-        { dir, choices, includelocal: includeLocal || undefined, options: options ?? undefined },
+        {
+            dir,
+            choices,
+            includelocal: includeLocal || undefined,
+            options: options ?? undefined,
+            proposals: proposals || undefined,
+        },
         SetupDraftTimeoutMs
     );
 }
@@ -129,11 +137,12 @@ export function setupUpdate(
     signature: string,
     choices: Record<string, boolean>,
     pr: SetupPrRequest,
-    options?: SetupOptions
+    options?: SetupOptions,
+    proposals?: boolean
 ): Promise<SetupPrJob> {
     return setupCall(
         MissionSetupUpdateCommand,
-        { dir, base, signature, choices, options: options ?? undefined, ...pr },
+        { dir, base, signature, choices, options: options ?? undefined, proposals: proposals || undefined, ...pr },
         SetupWriteTimeoutMs
     );
 }

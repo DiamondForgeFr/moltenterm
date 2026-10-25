@@ -16,6 +16,51 @@ import (
 
 // Step 2a for a project already set up (#1102): the check drawn, adjusted, and the uncommitted edits as changes.
 
+// Step 2a proposes what a new setup's step 3 does (#1104): a check on each changelog step and the project's formatter,
+// as changes to tick; the Release menu's check does not, and a check taken is never offered back for removal.
+func TestStep2aProposesTheChecksAndTheFormatter(t *testing.T) {
+	dir, s := upToDateRepository(t)
+	writeFiles(t, dir, map[string]string{"package.json": `{ "name": "saasfoundryai", "version": "1.0.4", "scripts": { "format": "prettier --write" } }`})
+	gitIn(t, dir, "commit", "--quiet", "-am", "chore(#4): format script")
+	gitIn(t, dir, "push", "--quiet", "origin", "develop")
+	ctx := context.Background()
+	menu, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if menu.State != UpdateStateUpToDate {
+		t.Fatalf("the menu's check offers the proposals: %v", ChangeKeys(menu.Changes))
+	}
+	check, err := s.Check(ctx, CheckRequest{Dir: dir, Proposals: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"public/changelog-en", "public/changelog-fr", "rc/changelog-en"} {
+		c, ok := changeByKey(check.Changes, key)
+		if !ok || c.Kind != ChangeChanged || !c.Take || c.Customised || !strings.Contains(c.After, `"check"`) {
+			t.Fatalf("%s: %+v (all: %v)", key, c, ChangeKeys(check.Changes))
+		}
+	}
+	versions, ok := changeByKey(check.Changes, VersionsKey)
+	if !ok || !strings.Contains(versions.After, "npm run format --") {
+		t.Fatalf("the formatter: %+v", versions)
+	}
+	if len(check.Reasons) != 1 || check.Reasons[0].Code != UpdateReasonProposed {
+		t.Fatalf("reasons: %+v", check.Reasons)
+	}
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Proposals: true})
+	if c, _ := stepById(readPipeline(t, dir).Release.Public, "changelog-en"); c.Check == nil {
+		t.Fatalf("the check was not written: %+v", c)
+	}
+	after, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.State != UpdateStateUpToDate {
+		t.Fatalf("the checks taken are offered back: %v", ChangeKeys(after.Changes))
+	}
+}
+
 // SaaSFoundryAI's committed pipeline writes short steps on one line: a change keeps every other step's text.
 func TestKeptReleaseKeepsTheStepsAsWritten(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))

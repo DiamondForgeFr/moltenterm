@@ -320,7 +320,7 @@ export type SetupChange = {
     local?: boolean;
 };
 export type SetupUpdateReason = {
-    code: "protected" | "labels" | "template" | "customised" | "adjusted" | "local";
+    code: "protected" | "labels" | "template" | "customised" | "adjusted" | "local" | "proposed";
     detail?: string;
 };
 export type SetupCheck = {
