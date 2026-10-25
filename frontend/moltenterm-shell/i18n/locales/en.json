@@ -6218,8 +6218,10 @@
                 "batch": {
                     "checking": "Read on GitHub before its merge",
                     "rebasing": "{name} rebases it on {base}",
+                    "rebasingAnon": "Your agent rebases it on {base}",
                     "waitingChecks": "Waits for its checks before its merge",
                     "waitingRebased": "Rebased by {name}, waits for its checks",
+                    "waitingRebasedAnon": "Rebased by your agent, waits for its checks",
                     "merging": "Merging"
                 }
             },

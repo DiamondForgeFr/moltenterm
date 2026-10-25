@@ -215,7 +215,7 @@ export function AgentBar({
           ? facts.parentName
               ? t("reviewsAgents.subagent.of", { name: facts.parentName })
               : t("reviewsAgents.subagent.name")
-          : facts.name || t("reviewsAgents.agent");
+          : facts.name || t(facts.batch ? "reviews.batch.yourAgent" : "reviewsAgents.agent");
     const details = subagentDetails(facts);
     const taskShown = task != null && task.state !== "running" && !!task.text;
     const stuck = taskShown && task.state === "stuck";
