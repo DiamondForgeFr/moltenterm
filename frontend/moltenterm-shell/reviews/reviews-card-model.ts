@@ -435,11 +435,13 @@ export function cardState(input: CardInput): CardState {
                 working == null
                     ? phrase("reviews.card.state.agentAway")
                     : onBatch
-                      ? batchStatePhrase(input.batch.run, input.batch.item, name)
+                      ? batchStatePhrase(input.batch.run, input.batch.item, working.name)
                       : onTask
                         ? phrase(`reviews.card.state.agentOn.${task.kind}`, { name, base: pr.base })
                         : phrase("reviews.card.state.agentWorking", { name });
-            if ((onTask && task.kind === "rebase") || (onBatch && input.batch.item.state === "rebasing")) {
+            // The queue rebases a conflicting PR itself: the list may still show the conflict its agent already
+            // resolved, until GitHub is read again.
+            if ((onTask && task.kind === "rebase") || onBatch) {
                 said.add("conflicts");
             } else if (pr.merge === "conflicts") {
                 why = phrase("reviews.card.why.conflicts", { base: pr.base });

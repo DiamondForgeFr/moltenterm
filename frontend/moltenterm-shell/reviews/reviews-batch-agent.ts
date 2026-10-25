@@ -83,18 +83,20 @@ export function withBatchAgent(
     return [...(agents ?? []), batchAgentFacts(run, item, states)];
 }
 
-// The card's state sentence while the queue works on its PR (the agent asking is the card's "waits for you").
-export function batchStatePhrase(run: BatchRun, item: BatchItem, name: Phrase): Phrase {
+// The card's state sentence while the queue works on its PR (the agent asking is the card's "waits for you"). name:
+// the agent's first name, empty before the queue knows its terminal ("Your agent rebases it").
+export function batchStatePhrase(run: BatchRun, item: BatchItem, name: string): Phrase {
     const vars = { name, base: run.base };
+    const anon = name ? "" : "Anon";
     switch (item.state) {
         case "checking":
             return phrase("reviews.card.state.batch.checking", vars);
         case "rebasing":
-            return phrase("reviews.card.state.batch.rebasing", vars);
+            return phrase(`reviews.card.state.batch.rebasing${anon}`, vars);
         case "waitingchecks":
             return phrase(
                 (item.rebases ?? 0) > 0
-                    ? "reviews.card.state.batch.waitingRebased"
+                    ? `reviews.card.state.batch.waitingRebased${anon}`
                     : "reviews.card.state.batch.waitingChecks",
                 vars
             );

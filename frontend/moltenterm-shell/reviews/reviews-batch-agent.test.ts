@@ -93,10 +93,12 @@ describe("the card of a PR in a running group merge", () => {
         }
     });
 
-    it("says nothing of the conflict the agent is rebasing away", () => {
-        const card = cardOf(pr(1118), run(item(1118, 1102, "rebasing")));
-        expect(card.why).toBeUndefined();
-        expect(card.facts.map((f) => f.id)).not.toContain("conflicts");
+    it("says nothing of the conflict the agent is rebasing away, or rebased before the list read GitHub again", () => {
+        for (const it of [item(1118, 1102, "rebasing"), item(1118, 1102, "waitingchecks", { rebases: 1 })]) {
+            const card = cardOf(pr(1118), run(it));
+            expect(card.why).toBeUndefined();
+            expect(card.facts.map((f) => f.id)).not.toContain("conflicts");
+        }
     });
 
     it("keeps its own section while it waits its turn", () => {
@@ -125,6 +127,7 @@ describe("the card of a PR in a running group merge", () => {
         const r = run(item(1118, 1102, "rebasing"), { blockid: "", agentname: "" });
         const card = cardOf(pr(1118), r, { states: {} } as unknown as AgentStatesData);
         expect(card.turn).toBe("agents");
+        expect(wordPhrase(card.sentence)).toBe("Your agent rebases it on develop");
         expect(card.primary).toBeNull();
     });
 
