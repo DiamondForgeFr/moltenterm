@@ -178,7 +178,7 @@ func TestWriteOpensADraftPullRequestAndLeavesTheCheckoutAlone(t *testing.T) {
 		t.Fatalf("the commit: %s", log)
 	}
 	files := gitOut(t, dir, "diff", "--name-only", "origin/develop", "origin/feature/7-release-pipeline")
-	if files != ".molten/project.json\n.molten/release-setup.json\n" {
+	if files != ".molten/project.json\n.molten/release-setup.json\n"+TechDocPath+"\n" {
 		t.Fatalf("files: %q", files)
 	}
 	if pushed := gitOut(t, dir, "show", "origin/feature/7-release-pipeline:.molten/project.json"); pushed != draft.Proposed {

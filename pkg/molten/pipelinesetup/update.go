@@ -129,6 +129,8 @@ type CheckAnswer struct {
 	Adjusted bool     `json:"adjusted,omitempty"`
 	// What step 2a draws (#1102): the declared steps with the ones the template adds in place, the removed ones kept.
 	Drawn *molten.PipelineRelease `json:"drawn,omitempty"`
+	// Where "How this project ships" opens the technical documentation (FR-MC-043); nil when there is none.
+	Doc *TechDocLink `json:"doc,omitempty"`
 }
 
 type UpdateRequest struct {
@@ -1016,6 +1018,9 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err != nil {
 		return CheckAnswer{}, err
 	}
+	if c.answer.State != UpdateStateMissing {
+		c.answer.Doc = s.TechDocLinkOf(ctx, dir, b)
+	}
 	return c.answer, nil
 }
 
@@ -1032,7 +1037,8 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 	}
 	trunk := molten.ResolvedBranches(dir).Trunk
 	job := &PrJob{Dir: dir, Kind: PrKindUpdate, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
-	return s.startJob(job, jobSteps(dir, req.PrRequest), func(ctx context.Context, job *PrJob) error {
+	backend := s.docBackend(ctx, dir, req.Mode)
+	return s.startJob(job, techDocSteps(jobSteps(dir, req.PrRequest), backend), func(ctx context.Context, job *PrJob) error {
 		b, err := s.prepareBase(ctx, dir, req.Base, req.PrRequest, job)
 		if err != nil {
 			return err
@@ -1051,6 +1057,7 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		if err != nil {
 			return err
 		}
+		s.withTechDoc(dir, b, nil, &files, PrKindUpdate, req.Mode, backend)
 		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
 		return s.runPr(ctx, dir, b, files, req.PrRequest, job)
 	})

@@ -651,6 +651,12 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.Models(ctx, req)
+	case SetupTechDocCommand:
+		var req pipelinesetup.TechDocRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.TechDoc(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
