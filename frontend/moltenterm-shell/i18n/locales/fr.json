@@ -3984,7 +3984,7 @@
                     "branchesTwo": "On travaille sur {trunk} ; les releases sont livrées depuis {release}.",
                     "branchesDeploy": "La release déploie {release}.",
                     "protectionUnread": "La protection de {release} n'a pas pu être lue : nous supposons qu'elle n'accepte que des pull requests (le choix sûr).",
-                    "protectionUnreadWhy": "GitHub a répondu : {error}",
+                    "protectionUnreadWhy": "(GitHub a répondu : {error})",
                     "protectionPr": "{release} n'accepte que des pull requests.",
                     "protectionChecks": {
                         "one": "Le check {checks} doit être vert.",

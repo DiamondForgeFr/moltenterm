@@ -3984,7 +3984,7 @@
                     "branchesTwo": "Work happens on {trunk}; releases ship from {release}.",
                     "branchesDeploy": "The release deploys {release}.",
                     "protectionUnread": "The protection of {release} could not be read: we assume it only takes pull requests (the safe choice).",
-                    "protectionUnreadWhy": "GitHub said: {error}",
+                    "protectionUnreadWhy": "(GitHub said: {error})",
                     "protectionPr": "{release} only takes pull requests.",
                     "protectionChecks": {
                         "one": "The check {checks} must be green.",

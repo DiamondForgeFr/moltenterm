@@ -155,7 +155,9 @@ function pointsOnPremise(survey: SetupSurvey, draft: SetupDraft): AnalysisPoint[
 
     const p = facts.protection;
     if (!single && p != null) {
-        const models = (draft.branchmodels ?? []).filter((c) => c.id === "rcpr" || c.id === "promote");
+        const models = ["rcpr", "promote"]
+            .map((id) => (draft.branchmodels ?? []).find((c) => c.id === id))
+            .filter(Boolean);
         const prWorkflows = facts.workflows.filter((w) => w.pullrequest).map((w) => w.file);
         const extras: PointText[] = [];
         const sources: PointSource[] = (p.sources ?? []).map((s) =>
