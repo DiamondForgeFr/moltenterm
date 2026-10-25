@@ -3508,11 +3508,10 @@
             "open": "Mettre en place la release",
             "openHint": "Rédigée d’après le dépôt, relue avant toute écriture.",
             "title": "Mettre en place la release de {project}",
-            "subtitle": "MoltenTerm rédige la release manquante d’après le dépôt. Rien n’est écrit avant votre clic sur Écrire.",
+            "subtitle": "MoltenTerm prépare la release manquante à partir du pipeline commité. Rien n'est écrit avant votre pull request.",
             "reading": "Lecture du dépôt…",
             "back": "Retour",
             "next": "Suivant",
-            "write": "Écrire .molten/project.json",
             "fromSaaSFoundry": "Rédigée par SaaSFoundryAI, qui connaît le profil de ce projet et ses workflows générés.",
             "choicesReplace": "Vos choix sont rédigés par les modèles de MoltenTerm, à la place de la proposition de SaaSFoundryAI.",
             "step": {
@@ -3672,7 +3671,7 @@
             },
             "review": {
                 "folded": "{count} lignes inchangées",
-                "byAgent": "Proposé par {agent} : rien n’est écrit avant votre clic sur Écrire.",
+                "byAgent": "Proposé par {agent} : rien n'est écrit avant que vous ouvriez la pull request.",
                 "bySaaSFoundry": "Rédigé par SaaSFoundryAI.",
                 "byMoltenTerm": "Rédigé par MoltenTerm d’après le dépôt.",
                 "backToDraft": "Revenir à la proposition",
@@ -3680,8 +3679,7 @@
                 "refining": "L’agent lit le dépôt…",
                 "refineTitle": "L’agent de code du projet lit le dépôt et propose des changements, sans rien écrire.",
                 "sources": "D’où vient chaque étape",
-                "ticketBranch": "Écrit dans l’arbre de travail sur {branch} : commitez-le sur une branche de ticket, comme le demande le workflow du projet.",
-                "workingTree": "Écrit dans l’arbre de travail : commitez-le comme d’habitude. Ses commandes demandent ensuite votre approbation."
+                "dropped": "L'agent a aussi modifié {keys} : ignoré. Seuls les blocs release, versions, branches et steps sont configurés ; le reste du fichier reste tel quel."
             },
             "diagram": {
                 "github": "GitHub",
@@ -3693,13 +3691,12 @@
                 "legendTag": "Le tag",
                 "legendWorkflow": "Un workflow GitHub"
             },
-            "trustBody": "La mise en place de la release vient d’écrire ces commandes. Faire confiance ne lance rien : MoltenTerm les lance dans {dir}, avec vos droits, quand vous démarrez une release. Il redemande chaque fois qu’elles changent.",
             "update": {
                 "open": "Mettre à jour la mise en place de la release",
                 "openHint": "Cette version de MoltenTerm écrit la release autrement.",
                 "upToDate": "Mise en place de la release à jour avec cette version de MoltenTerm",
                 "title": "Mettre à jour la release de {project}",
-                "subtitle": "MoltenTerm a comparé la release avec ce que cette version écrit. Rien n’est écrit avant votre clic sur Mettre à jour.",
+                "subtitle": "MoltenTerm a comparé la release commitée avec ce que cette version écrit. Rien n'est écrit avant votre pull request.",
                 "why": "Pourquoi",
                 "reason": {
                     "protected": "{branch} est protégée : les releases passent par une pull request.",
@@ -3739,9 +3736,63 @@
                 "after": "Après la mise à jour",
                 "files": "Le fichier",
                 "filesHint": "Seuls les blocs release et versions changent ; MoltenTerm note aussi dans .molten/release-setup.json les étapes qu’il a écrites.",
-                "keepAll": "Vous gardez tout tel quel : le fichier ne change pas, et Mettre à jour note vos choix dans .molten/release-setup.json pour ne plus les proposer.",
-                "invalid": "Le pipeline mis à jour ne serait pas valide : {errors}",
-                "write": "Mettre à jour"
+                "keepAll": "Vous gardez chaque changement tel quel : le pipeline ne change pas, et la pull request note vos choix dans .molten/release-setup.json pour qu'ils ne soient plus proposés.",
+                "invalid": "Le pipeline mis à jour ne serait pas valide : {errors}"
+            },
+            "pr": {
+                "title": "Valider par pull request",
+                "desc": "Un fichier suivi ne change que par une pull request : vous la fusionnez quand vous êtes d'accord. Votre copie de travail n'est pas touchée.",
+                "descPatch": "origin n'est pas sur GitHub : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n'est pas touchée.",
+                "noGit": "Ce dossier n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
+                "ticket": "Ticket",
+                "branch": "Branche",
+                "commit": "Commit",
+                "into": "Vers",
+                "from": "depuis {ref} à {commit}",
+                "createTicket": "Créer un ticket",
+                "ticketTitle": "Le titre du nouveau ticket",
+                "ticketNumber": "Numéro du ticket",
+                "ticketsLoading": "Lecture des tickets ouverts…",
+                "after": "Le menu Release utilise le pipeline une fois la pull request fusionnée dans {target}.",
+                "open": "Ouvrir la pull request",
+                "copyPatch": "Copier le patch",
+                "copyAgain": "Le copier à nouveau",
+                "patchReady": "Le patch est copié : appliquez-le avec git am là où votre projet reçoit les changements.",
+                "copied": "Copié à nouveau.",
+                "done": "Pull request #{number} ouverte en brouillon. Le menu Release utilise le pipeline une fois qu'elle est fusionnée dans {target}.",
+                "openPr": "Ouvrir #{number}",
+                "pushedOnly": "{branch} est poussée. origin n'est pas sur GitHub : ouvrez-y la pull request vers {target}.",
+                "prepareAgain": "Préparer à nouveau",
+                "uncommitted": "{path} a des modifications non commitées dans votre copie. La configuration lit la version commitée ({ref}) ; vos modifications ne sont jamais écrasées.",
+                "include": "Les inclure comme changements à vérifier",
+                "included": "Vos modifications non commitées sont incluses : elles apparaissent dans le diff comme changements à vérifier, et vont dans la pull request. Votre copie les garde telles quelles.",
+                "leaveOut": "Les laisser de côté",
+                "seeChanges": "Voir les modifications",
+                "hideChanges": "Masquer les modifications",
+                "step": {
+                    "ticket": "le ticket créé",
+                    "worktree": "un worktree séparé depuis {ref} (votre copie reste telle quelle)",
+                    "write": "les fichiers écrits là et validés",
+                    "commit": "un commit",
+                    "push": "poussé sur origin",
+                    "pr": "la pull request ouverte en brouillon vers {target}",
+                    "patch": "le patch créé"
+                },
+                "failure": {
+                    "moved": "{ref} a bougé depuis le brouillon : {path} y a changé (commit {commit}). Préparez à nouveau : vos réponses sont gardées.",
+                    "localChanged": "Vos modifications non commitées de {path} ont changé depuis le brouillon. Préparez à nouveau pour inclure les nouvelles.",
+                    "updateChanged": "La mise à jour a changé depuis son affichage. Préparez à nouveau.",
+                    "branchExists": "La branche {branch} existe déjà sur origin. Rien n'a été poussé et votre copie n'a pas changé.",
+                    "invalid": "Le pipeline ne serait pas valide. Rien n'a été poussé.",
+                    "nothing": "Le pipeline commité se lit déjà ainsi : il n'y a rien à commiter.",
+                    "fetch": "origin n'a pas pu être lu. Rien n'a été poussé.",
+                    "ticket": "Le ticket n'a pas pu être créé. Rien n'a été poussé.",
+                    "worktree": "Le worktree n'a pas pu être créé. Votre copie n'a pas changé.",
+                    "commit": "Le commit n'a pas pu être fait dans le worktree. Votre copie n'a pas changé.",
+                    "push": "Le push a été refusé. Votre copie n'a pas changé.",
+                    "pr": "{branch} est poussée, mais la pull request n'a pas pu être ouverte. Ouvrez-la sur GitHub, ou copiez le patch.",
+                    "failed": "La pull request n'a pas pu être préparée. Votre copie n'a pas changé."
+                }
             }
         }
     },
@@ -7157,7 +7208,12 @@
                 "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
                 "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
                 "agentNoJson": "{agent} a répondu sans pipeline.",
-                "updateChanged": "La mise à jour a changé depuis son affichage : vérifiez-la à nouveau."
+                "updateChanged": "La mise à jour a changé depuis son affichage : vérifiez-la à nouveau.",
+                "prBusy": "Une pull request de la configuration de release est déjà en préparation pour ce projet.",
+                "prUnknown": "Cette pull request n'est plus suivie : préparez-la à nouveau.",
+                "ticketsUnread": "Les tickets ouverts n'ont pas pu être lus : {detail}",
+                "noGit": "Ce projet n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
+                "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un."
             }
         },
         "notif": {

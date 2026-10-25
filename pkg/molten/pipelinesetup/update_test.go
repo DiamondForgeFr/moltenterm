@@ -37,8 +37,29 @@ func pre1046Repository(t *testing.T, edit func(string) string) string {
 	if edit != nil {
 		text = edit(text)
 	}
-	writeFiles(t, dir, map[string]string{".molten/project.json": text})
+	commitPipeline(t, dir, text)
 	return dir
+}
+
+// updateAndMerge opens the update's pull request and merges it.
+func updateAndMerge(t *testing.T, s *Setup, req UpdateRequest) PrJob {
+	t.Helper()
+	req.Ticket = 7
+	job := waitFor(t, s)(s.Update(context.Background(), req))
+	if job.Failure != nil {
+		t.Fatalf("the update failed: %+v", job.Failure)
+	}
+	mergePr(t, req.Dir, job.Branch)
+	return job
+}
+
+func readRecordFile(t *testing.T, dir string) *Record {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(RecordFile)))
+	if err != nil {
+		return nil
+	}
+	return recordFrom(data)
 }
 
 func readPipeline(t *testing.T, dir string) *molten.Pipeline {
@@ -70,7 +91,7 @@ func jsonOf(t *testing.T, v any) string {
 
 func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) {
 	dir := pre1046Repository(t, nil)
-	s := MakeSetup(githubAs(t, protectedRules(t), nil), nil)
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	ctx := context.Background()
 	check, err := s.Check(ctx, CheckRequest{Dir: dir})
 	if err != nil {
@@ -104,8 +125,10 @@ func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature}); err != nil {
-		t.Fatal(err)
+	s.TreesDir = t.TempDir()
+	job := updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature})
+	if job.Subject != "chore(#7): update the release setup" {
+		t.Fatalf("subject: %s", job.Subject)
 	}
 	updated := readPipeline(t, dir)
 	if got, want := jsonOf(t, updated.Release), jsonOf(t, draft.Proposal.Release); got != want {
@@ -114,7 +137,7 @@ func TestCheckOffersTheUpdateToAPre1046PipelineOnAProtectedBranch(t *testing.T) 
 	if got, want := jsonOf(t, updated.Versions), jsonOf(t, draft.Proposal.Versions); got != want {
 		t.Fatalf("versions after the update:\n%s\nfresh setup:\n%s", got, want)
 	}
-	rec := readRecord(dir)
+	rec := readRecordFile(t, dir)
 	if rec == nil || rec.Template != TemplateVersion || len(rec.Steps) != len(updated.Release.Rc)+len(updated.Release.Public) {
 		t.Fatalf("record: %+v", rec)
 	}
@@ -147,7 +170,11 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
     }`, 1)
 	})
 	writeFiles(t, dir, map[string]string{"scripts/notify.sh": "#!/bin/sh\n", "scripts/sync-back.sh": "#!/bin/sh\n"})
-	s := MakeSetup(githubAs(t, protectedRules(t), nil), nil)
+	gitIn(t, dir, "add", "scripts")
+	gitIn(t, dir, "commit", "--quiet", "-m", "chore(#4): scripts")
+	gitIn(t, dir, "push", "--quiet", "origin", "develop")
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
+	s.TreesDir = t.TempDir()
 	ctx := context.Background()
 	check, err := s.Check(ctx, CheckRequest{Dir: dir})
 	if err != nil {
@@ -161,9 +188,7 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
 	if syncBack.Kind != ChangeChanged || !syncBack.Customised || syncBack.Take || !strings.Contains(syncBack.Before, "./scripts/sync-back.sh") {
 		t.Fatalf("sync-back: %+v", syncBack)
 	}
-	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature}); err != nil {
-		t.Fatal(err)
-	}
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature})
 	public := readPipeline(t, dir).Release.Public
 	if got := strings.Join(stepIds(public), ","); got != "prepare,reconcile,changelog-en,changelog-fr,open-pr,merge-pr,tag,close-milestone,notify,dispatch-deploy-docs,sync-back" {
 		t.Fatalf("public steps: %s", got)
@@ -183,7 +208,7 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
 	// Edited after the update: a customisation, kept by default; chosen, the template's version comes back.
 	text, _ := os.ReadFile(filepath.Join(dir, molten.ProjectPipelineFile))
 	edited := strings.Replace(string(text), "Close the milestone once the release is published", "Close the milestone after the announcement", 1)
-	writeFiles(t, dir, map[string]string{".molten/project.json": edited})
+	commitPipeline(t, dir, edited)
 	check, err = s.Check(ctx, CheckRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -200,9 +225,7 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
 	if strings.Contains(preview.Proposed, "after the announcement") || !strings.Contains(check.Proposed, "after the announcement") {
 		t.Fatal("the proposed text does not follow the choices")
 	}
-	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Choices: choices}); err != nil {
-		t.Fatal(err)
-	}
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Choices: choices})
 	if m, _ := stepById(readPipeline(t, dir).Release.Public, "close-milestone"); m.Title != "Close the milestone once the release is published" {
 		t.Fatalf("close-milestone: %+v", m)
 	}
@@ -210,21 +233,30 @@ func TestUpdateKeepsTheDevelopersSteps(t *testing.T) {
 
 func TestUpdateRefusesAChangedFileOrList(t *testing.T) {
 	dir := pre1046Repository(t, nil)
-	s := MakeSetup(githubAs(t, protectedRules(t), nil), nil)
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	ctx := context.Background()
 	check, err := s.Check(ctx, CheckRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: "stale", Signature: check.Signature}); err == nil {
-		t.Fatal("a file changed since the check must be refused")
+	s.TreesDir = t.TempDir()
+	stale := waitFor(t, s)(s.Update(ctx, UpdateRequest{Dir: dir, Base: "stale", Signature: check.Signature, PrRequest: PrRequest{Ticket: 7}}))
+	if stale.Failure == nil || stale.Failure.Code != PrFailureMoved {
+		t.Fatalf("a file changed since the check must be refused: %+v", stale.Failure)
 	}
-	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: "other"}); err == nil {
-		t.Fatal("a list changed since the check must be refused")
+	other := waitFor(t, s)(s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: "other", PrRequest: PrRequest{Ticket: 7}}))
+	if other.Failure == nil || other.Failure.Code != PrFailureUpdateChanged {
+		t.Fatalf("a list changed since the check must be refused: %+v", other.Failure)
 	}
 	before, _ := os.ReadFile(filepath.Join(dir, molten.ProjectPipelineFile))
-	if !strings.Contains(string(before), `"id": "promote"`) || readRecord(dir) != nil {
+	if !strings.Contains(string(before), `"id": "promote"`) || readRecordFile(t, dir) != nil {
 		t.Fatal("a refused update wrote something")
+	}
+	if heads := gitOut(t, dir, "ls-remote", "--heads", "origin"); strings.Contains(heads, "release-pipeline") {
+		t.Fatalf("a refused update pushed: %s", heads)
+	}
+	if _, err := s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature}); err == nil {
+		t.Fatal("the commit format needs a ticket")
 	}
 }
 
@@ -246,7 +278,7 @@ func TestCheckUnprotectedPre1046PipelineOffersTheLabelsOnly(t *testing.T) {
 
 func TestCheckWithoutReleaseIsMissing(t *testing.T) {
 	dir := protectedRepository(t)
-	check, err := MakeSetup(githubAs(t, protectedRules(t), nil), nil).Check(context.Background(), CheckRequest{Dir: dir})
+	check, err := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil).Check(context.Background(), CheckRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,16 +290,19 @@ func TestCheckWithoutReleaseIsMissing(t *testing.T) {
 // A fresh setup records the steps written as the template drafted them; one the developer changed in between is not.
 func TestWriteRecordsTheGeneratedSteps(t *testing.T) {
 	dir := protectedRepository(t)
-	s := MakeSetup(githubAs(t, protectedRules(t), nil), nil)
+	s := MakeSetup((&fakeForge{}).runner(t, protectedRules(t)), nil)
 	draft, err := s.Draft(context.Background(), DraftRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := strings.Replace(draft.Proposed, "Close the milestone once the release is published", "Close the milestone", 1)
-	if _, err := s.Write(WriteRequest{Dir: dir, Text: text, Base: draft.Base, Generated: draft.Generated}); err != nil {
-		t.Fatal(err)
+	s.TreesDir = t.TempDir()
+	job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: text, Base: draft.Base, Generated: draft.Generated, PrRequest: PrRequest{Ticket: 7}}))
+	if job.Failure != nil {
+		t.Fatalf("failure: %+v", job.Failure)
 	}
-	rec := readRecord(dir)
+	mergePr(t, dir, job.Branch)
+	rec := readRecordFile(t, dir)
 	if rec == nil || rec.Steps["public/open-pr"] == "" || rec.Steps["public/close-milestone"] != "" {
 		t.Fatalf("record: %+v", rec)
 	}

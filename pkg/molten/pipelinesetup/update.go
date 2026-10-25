@@ -9,8 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -86,6 +84,8 @@ type CheckRequest struct {
 	Dir string `json:"dir"`
 	// The developer's choices by change key; a change not named takes its default.
 	Choices map[string]bool `json:"choices,omitempty"`
+	// Check the working copy's uncommitted pipeline instead of the committed one (#1098).
+	IncludeLocal bool `json:"includelocal,omitempty"`
 }
 
 type CheckAnswer struct {
@@ -104,6 +104,8 @@ type CheckAnswer struct {
 	Signature        string   `json:"signature"`
 	Errors           []string `json:"errors"`
 	ValidateWarnings []string `json:"validatewarnings"`
+	// Where the pull request starts and goes (#1098).
+	Pr PrPlan `json:"pr"`
 }
 
 type UpdateRequest struct {
@@ -111,11 +113,7 @@ type UpdateRequest struct {
 	Base      string          `json:"base"`
 	Signature string          `json:"signature"`
 	Choices   map[string]bool `json:"choices,omitempty"`
-}
-
-type UpdateAnswer struct {
-	Path     string   `json:"path"`
-	Warnings []string `json:"warnings"`
+	PrRequest
 }
 
 func stepHash(s molten.PipelineStep) string {
@@ -167,32 +165,12 @@ func declined(rec *Record, c Change) bool {
 	return rec != nil && rec.Declined[c.Key] != "" && rec.Declined[c.Key] == changeHash(c)
 }
 
-func readRecord(dir string) *Record {
-	path := filepath.Join(dir, filepath.FromSlash(RecordFile))
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > maxRecordBytes {
-		return nil
-	}
-	var rec Record
-	if !readJson(path, &rec) || rec.Template <= 0 {
-		return nil
-	}
-	if rec.Steps == nil {
-		rec.Steps = map[string]string{}
-	}
-	return &rec
-}
-
-func writeRecord(dir string, rec *Record) error {
-	if rec == nil {
-		return nil
-	}
+func recordText(rec *Record) ([]byte, error) {
 	data, err := json.MarshalIndent(rec, "", "    ")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = writeProjectFile(dir, RecordFile, append(data, '\n'))
-	return err
+	return append(data, '\n'), nil
 }
 
 // templateIds are the ids the template writes; a step with another id is the developer's.
@@ -446,14 +424,12 @@ type checked struct {
 	text     []byte
 }
 
-func (s *Setup) check(ctx context.Context, dir string, choices map[string]bool) (*checked, error) {
-	current, err := readCurrent(dir)
-	if err != nil {
-		return nil, err
-	}
-	answer := CheckAnswer{Reasons: []UpdateReason{}, Changes: []Change{}, Template: TemplateVersion, Current: string(current),
-		Base: hashOf(current), Errors: []string{}, ValidateWarnings: []string{}}
-	f := Detect(dir)
+func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, choices map[string]bool, includeLocal bool) (*checked, error) {
+	current, recordData := b.buildOn(includeLocal)
+	answer := CheckAnswer{Reasons: []UpdateReason{}, Changes: []Change{}, Template: TemplateVersion, Current: string(b.Pipeline),
+		Base: hashOf(b.Pipeline), Errors: []string{}, ValidateWarnings: []string{}, Pr: s.planOf(dir, b, PrKindUpdate, includeLocal)}
+	report := pipelineReport(dir, current)
+	f := DetectWith(dir, report)
 	if f.HasPipeline && !f.PipelineValid {
 		return nil, uimsg.Errorf(uimsg.Make("mission.setup.invalid", "errors", strings.Join(f.PipelineErrors, "; ")),
 			"%s is not valid: %s; fix it first (molten project validate)", molten.ProjectPipelineFile, strings.Join(f.PipelineErrors, "; "))
@@ -463,9 +439,9 @@ func (s *Setup) check(ctx context.Context, dir string, choices map[string]bool) 
 		answer.State = UpdateStateMissing
 		return &checked{answer: answer}, nil
 	}
-	pipeline := molten.ValidatePipeline(dir).Pipeline
+	pipeline := report.Pipeline
 	ReadRemoteFacts(ctx, s.Run, dir, &f)
-	rec := readRecord(dir)
+	rec := recordFrom(recordData)
 	if rec != nil {
 		answer.RecordTemplate = rec.Template
 	}
@@ -509,8 +485,8 @@ func (s *Setup) check(ctx context.Context, dir string, choices map[string]bool) 
 		return nil, err
 	}
 	answer.Proposed = string(text)
-	report := molten.ValidatePipelineData(dir, text)
-	answer.Errors, answer.ValidateWarnings = report.Errors, report.Warnings
+	validated := molten.ValidatePipelineData(dir, text)
+	answer.Errors, answer.ValidateWarnings = validated.Errors, validated.Warnings
 	return &checked{answer: answer, pipeline: pipeline, proposal: proposal, merged: merged, versions: versions, record: rec, text: text}, nil
 }
 
@@ -553,40 +529,58 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err != nil {
 		return CheckAnswer{}, err
 	}
-	c, err := s.check(ctx, dir, req.Choices)
+	b, err := s.readBase(ctx, dir)
+	if err != nil {
+		return CheckAnswer{}, err
+	}
+	c, err := s.check(ctx, dir, b, req.Choices, req.IncludeLocal)
 	if err != nil {
 		return CheckAnswer{}, err
 	}
 	return c.answer, nil
 }
 
-// Update writes the checked update with the developer's choices: only when the file and the list of changes are still
-// the ones they approved, and only a valid pipeline.
-func (s *Setup) Update(ctx context.Context, req UpdateRequest) (UpdateAnswer, error) {
+// Update opens the pull request of the checked update with the developer's choices (#1098): only when the committed
+// file and the list of changes are still the ones they approved, and only a valid pipeline. It answers at once with
+// the job; PrState follows it.
+func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 	dir, err := checkProjectDir(req.Dir)
 	if err != nil {
-		return UpdateAnswer{}, err
+		return PrJob{}, err
 	}
-	c, err := s.check(ctx, dir, req.Choices)
-	if err != nil {
-		return UpdateAnswer{}, err
+	if err := s.checkPrRequest(dir, PrKindUpdate, &req.PrRequest); err != nil {
+		return PrJob{}, err
 	}
-	if c.answer.Base != req.Base {
-		return UpdateAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.changed", "path", molten.ProjectPipelineFile),
-			"%s changed since the draft: draft it again", molten.ProjectPipelineFile)
-	}
-	if c.answer.State != UpdateStateUpdate || c.answer.Signature != req.Signature {
-		return UpdateAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.updateChanged"), "the update changed since it was shown: check it again")
-	}
-	if len(c.answer.Errors) > 0 {
-		return UpdateAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.notValid", "errors", strings.Join(c.answer.Errors, "; ")),
-			"the proposed %s is not valid: %s", molten.ProjectPipelineFile, strings.Join(c.answer.Errors, "; "))
-	}
-	path, err := writeProjectFile(dir, molten.ProjectPipelineFile, c.text)
-	if err != nil {
-		return UpdateAnswer{}, err
-	}
-	answer := UpdateAnswer{Path: path, Warnings: c.answer.ValidateWarnings}
+	trunk := molten.ResolvedBranches(dir).Trunk
+	job := &PrJob{Dir: dir, Kind: PrKindUpdate, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
+	return s.startJob(job, jobSteps(dir, req.PrRequest), func(ctx context.Context, job *PrJob) error {
+		b, err := s.prepareBase(ctx, dir, req.Base, req.PrRequest, job)
+		if err != nil {
+			return err
+		}
+		c, err := s.check(ctx, dir, b, req.Choices, req.IncludeLocal)
+		if err != nil {
+			return fail(PrFailureFailed, err.Error())
+		}
+		if c.answer.State != UpdateStateUpdate || c.answer.Signature != req.Signature {
+			return fail(PrFailureUpdateChanged, "")
+		}
+		if len(c.answer.Errors) > 0 {
+			return fail(PrFailureInvalid, strings.Join(c.answer.Errors, "; "))
+		}
+		files, err := updateFilesOf(c, req.Choices)
+		if err != nil {
+			return err
+		}
+		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
+		return s.runPr(ctx, dir, b, files, req.PrRequest, job)
+	})
+}
+
+// updateFilesOf: the updated pipeline, and the record of the steps MoltenTerm wrote and the changes declined.
+func updateFilesOf(c *checked, choices map[string]bool) (prFiles, error) {
+	var files prFiles
+	files.add(molten.ProjectPipelineFile, c.text)
 	rec := recordOf(&molten.Pipeline{Release: c.merged}, releaseHashes(c.proposal.Release), c.record)
 	rec.Declined = map[string]string{}
 	if c.record != nil {
@@ -595,16 +589,18 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (UpdateAnswer, er
 		}
 	}
 	for _, change := range c.answer.Changes {
-		if chosen(change, req.Choices) {
+		if chosen(change, choices) {
 			delete(rec.Declined, change.Key)
 		} else {
 			rec.Declined[change.Key] = changeHash(change)
 		}
 	}
-	if err := writeRecord(dir, rec); err != nil {
-		answer.Warnings = append(answer.Warnings, fmt.Sprintf("%s: %v", RecordFile, err))
+	data, err := recordText(rec)
+	if err != nil {
+		return prFiles{}, err
 	}
-	return answer, nil
+	files.add(RecordFile, data)
+	return files, nil
 }
 
 // ChangeKeys lists the keys of the changes, sorted, for tests and logs.

@@ -3,21 +3,28 @@
 
 // "Update the release setup" (FR-MC-036, #1086): what this version of MoltenTerm writes differently from the pipeline a
 // former setup wrote, change by change with the reason, then the file's diff. A step the developer edited or added is
-// kept unless they tick the new version; nothing is written before the click on Update.
+// kept unless they tick the new version. The click opens a draft pull request from a worktree of MoltenTerm's; the
+// folder opened is never written (#1098).
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
-import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { missionTrust, missionUntrusted } from "./mission-client";
-import { UntrustedInfo } from "./mission-model";
-import { DiffView } from "./release-setup";
+import { DiffView, NewTicketChoice } from "./release-setup";
 import { setupCheck, setupUpdate } from "./release-setup-client";
-import { changeGroups, changeTaken, SetupChange, SetupCheck, SetupUpdateReason } from "./release-setup-model";
-import { TrustPrompt } from "./runs-view";
+import {
+    canOpenPr,
+    changeGroups,
+    changeTaken,
+    prRequestOf,
+    SetupChange,
+    SetupCheck,
+    SetupTicketChoice,
+    SetupUpdateReason,
+} from "./release-setup-model";
+import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 
 const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
@@ -178,17 +185,20 @@ export function ReleaseSetupUpdate({
     const [check, setCheck] = useState<SetupCheck>(null);
     const [choices, setChoices] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(true);
-    const [writing, setWriting] = useState(false);
     const [error, setError] = useState<string>(null);
-    const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
+    const [includeLocal, setIncludeLocal] = useState(false);
+    const [ticket, setTicket] = useState<SetupTicketChoice>(NewTicketChoice);
+    const pr = useSetupPr();
+    useCopyPatch(pr.job);
+    const writing = pr.busy;
     const request = useRef(0);
 
-    const load = (next: Record<string, boolean>) =>
+    const load = (next: Record<string, boolean>, include = includeLocal) =>
         fireAndForget(async () => {
             const n = ++request.current;
             setLoading(true);
             try {
-                const answer = await setupCheck(dir, next);
+                const answer = await setupCheck(dir, next, include);
                 if (n !== request.current) {
                     return;
                 }
@@ -214,53 +224,32 @@ export function ReleaseSetupUpdate({
         setChoices(next);
         load(next);
     };
-    const update = () =>
-        fireAndForget(async () => {
-            setWriting(true);
-            setError(null);
-            try {
-                await setupUpdate(dir, check.base, check.signature, choices);
-                onWritten();
-                const info = await missionUntrusted(dir);
-                if (info?.commands?.length) {
-                    setUntrusted(info);
-                    return;
-                }
-                onClose();
-            } catch (e) {
-                setError(serverErrorText(e));
-            } finally {
-                setWriting(false);
-            }
+    const update = (mode: "pr" | "patch") =>
+        pr.start(async () => {
+            const job = await setupUpdate(
+                dir,
+                check.base,
+                check.signature,
+                choices,
+                prRequestOf(check.pr, ticket, mode)
+            );
+            onWritten();
+            return job;
         });
-    const trust = () =>
-        fireAndForget(async () => {
-            const info = untrusted;
-            try {
-                await missionTrust(dir, info.hash);
-                setUntrusted(null);
-                onClose();
-            } catch (e) {
-                setError(serverErrorText(e));
-            }
-        });
+    const include = (on: boolean) => {
+        setIncludeLocal(on);
+        load(choices, on);
+    };
+    const again = () => {
+        pr.reset();
+        load(choices);
+    };
 
-    if (untrusted != null) {
-        return (
-            <TrustPrompt
-                projectName={projectName}
-                dir={dir}
-                info={untrusted}
-                approveOnly
-                bodyKey="mc.setup.trustBody"
-                fill
-                onTrust={trust}
-                onCancel={onClose}
-            />
-        );
-    }
+    const done = pr.job?.finished && pr.job.failure == null;
     // Keeping every change still writes: the choices are recorded so they are not offered again.
-    const canUpdate = check != null && check.state === "update" && !loading && check.errors.length === 0;
+    const ready = check != null && check.state === "update" && !loading && check.errors.length === 0 && !done;
+    const canUpdate = ready && canOpenPr(check.pr, ticket, "pr");
+    const canPatch = ready && canOpenPr(check.pr, ticket, "patch");
     return (
         <DialogFrame
             role="mc-release-setup-update"
@@ -273,19 +262,18 @@ export function ReleaseSetupUpdate({
                 <>
                     {loading ? <DominoLoader className="mr-auto" /> : null}
                     <button type="button" className={PlainButton} onClick={onClose} disabled={writing}>
-                        {t("common.cancel")}
+                        {done ? t("common.close") : t("common.cancel")}
                     </button>
-                    <button
-                        type="button"
-                        className="molten-btn inline-flex cursor-pointer items-center rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
-                        disabled={!canUpdate || writing}
-                        onClick={update}
-                        data-testid="update-write"
-                    >
-                        {writing ? <DominoLoader className="mr-1.5" /> : null}
-                        {t("mc.setup.update.write")}
-                        <MoltenWave />
-                    </button>
+                    {check?.state === "update" ? (
+                        <PrFooterButtons
+                            plan={check.pr}
+                            job={pr.job}
+                            busy={writing}
+                            canOpen={canUpdate}
+                            canPatch={canPatch}
+                            onOpen={update}
+                        />
+                    ) : null}
                 </>
             }
         >
@@ -305,7 +293,22 @@ export function ReleaseSetupUpdate({
                     </div>
                 )
             ) : check.state === "update" ? (
-                <UpdateBody check={check} choices={choices} onChoose={choose} />
+                <>
+                    {writing || done ? null : (
+                        <UncommittedNotice plan={check.pr} current={check.current} onInclude={include} />
+                    )}
+                    <UpdateBody check={check} choices={choices} onChoose={writing || done ? () => {} : choose} />
+                    <PrPanel
+                        dir={dir}
+                        plan={check.pr}
+                        choice={ticket}
+                        onChoice={setTicket}
+                        job={pr.job}
+                        busy={writing}
+                        error={pr.error}
+                        onAgain={again}
+                    />
+                </>
             ) : (
                 <p className="py-4 text-12 text-secondary">{t("mc.setup.update.upToDate")}</p>
             )}

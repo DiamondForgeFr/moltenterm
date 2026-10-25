@@ -78,13 +78,16 @@ const (
 	// Updating an existing setup (#1086): the check writes nothing, the update is the developer's click.
 	SetupCheckCommand  = "moltenmissionsetupcheck"
 	SetupUpdateCommand = "moltenmissionsetupupdate"
-	UpdateEvent        = "molten:mission:update"
-	RunEvent           = "molten:mission:run"
-	CiEvent            = "molten:mission:ci"
-	DefaultMaxAgeSec   = 60
-	collectTimeout     = 2 * time.Minute
-	fetchEvery         = 5 * time.Minute
-	minForcedInterval  = 10 * time.Second
+	// Write and Update open a pull request (#1098): its progress, and the issues its commit can name.
+	SetupPrStateCommand = "moltenmissionsetupprstate"
+	SetupTicketsCommand = "moltenmissionsetuptickets"
+	UpdateEvent         = "molten:mission:update"
+	RunEvent            = "molten:mission:run"
+	CiEvent             = "molten:mission:ci"
+	DefaultMaxAgeSec    = 60
+	collectTimeout      = 2 * time.Minute
+	fetchEvery          = 5 * time.Minute
+	minForcedInterval   = 10 * time.Second
 	// NFR-MC-003: GitHub is read at most once a minute per project, however many panels ask.
 	minGithubInterval = time.Minute
 	// FR-PERF-011: the projects known at once (a status bar asks about every folder a terminal visits); past it, the
@@ -680,7 +683,7 @@ func Start() {
 	asks.tell = func(ctx context.Context, blockId string, line string) bool {
 		return termupdate.TypeHandoffLine(ctx, blockId, line).Result == termupdate.InputSent
 	}
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks); err != nil {
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir)); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

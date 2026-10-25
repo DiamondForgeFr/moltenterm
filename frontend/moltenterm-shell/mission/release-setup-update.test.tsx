@@ -71,6 +71,20 @@ const check: SetupCheck = {
     signature: "s",
     errors: [],
     validatewarnings: [],
+    pr: {
+        git: true,
+        ref: "origin/develop",
+        commit: "abc1234",
+        target: "develop",
+        ongithub: true,
+        ticketrequired: false,
+        branch: "chore/release-pipeline",
+        subject: "chore(release): update the release setup",
+        tickettitle: "Update the release setup",
+        uncommitted: false,
+        included: false,
+        localbase: "l",
+    },
 };
 
 describe("release setup update (#1086)", () => {

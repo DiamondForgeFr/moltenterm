@@ -4,17 +4,16 @@
 package pipelinesetup
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
@@ -23,7 +22,8 @@ import (
 )
 
 // The release setup's three calls (FR-MC-036): Draft proposes and writes nothing, Refine asks the coding agent for a
-// better proposal and writes nothing, Write writes the reviewed text on the developer's click.
+// better proposal and writes nothing, Write opens a pull request with the reviewed text on the developer's click
+// (#1098): the folder opened is never written.
 
 const maxPipelineBytes = 1 << 20
 
@@ -33,6 +33,8 @@ type DraftRequest struct {
 	Options *Options `json:"options,omitempty"`
 	// The kind the developer confirmed, for the provider's draft.
 	Kind string `json:"kind,omitempty"`
+	// Build on the working copy's uncommitted pipeline instead of the committed one (#1098).
+	IncludeLocal bool `json:"includelocal,omitempty"`
 }
 
 type DraftAnswer struct {
@@ -49,7 +51,7 @@ type DraftAnswer struct {
 	// The workflows each channel's tag starts, with their environments, for the diagram.
 	TagWorkflows map[string][]TagWorkflow `json:"tagworkflows"`
 	Proposal     Proposal                 `json:"proposal"`
-	// The file as it is ("" when there is none), its hash, and the proposed text.
+	// The committed file ("" when there is none), its hash, and the proposed text.
 	Current  string `json:"current"`
 	Base     string `json:"base"`
 	Proposed string `json:"proposed"`
@@ -58,6 +60,8 @@ type DraftAnswer struct {
 	ValidateWarnings []string `json:"validatewarnings"`
 	// The hash of each release step the template drafted ("rc/prepare"), handed back to Write (#1086).
 	Generated map[string]string `json:"generated"`
+	// Where the pull request starts and goes (#1098).
+	Pr PrPlan `json:"pr"`
 }
 
 type WriteRequest struct {
@@ -66,16 +70,13 @@ type WriteRequest struct {
 	Base string `json:"base"`
 	// The draft's Generated: the steps written as the template drafted them are recorded as MoltenTerm's (#1086).
 	Generated map[string]string `json:"generated,omitempty"`
-}
-
-type WriteAnswer struct {
-	Path     string   `json:"path"`
-	Warnings []string `json:"warnings"`
+	PrRequest
 }
 
 type RefineRequest struct {
-	Dir  string `json:"dir"`
-	Text string `json:"text"`
+	Dir          string `json:"dir"`
+	Text         string `json:"text"`
+	IncludeLocal bool   `json:"includelocal,omitempty"`
 }
 
 type RefineAnswer struct {
@@ -84,6 +85,8 @@ type RefineAnswer struct {
 	Proposed         string   `json:"proposed"`
 	Errors           []string `json:"errors"`
 	ValidateWarnings []string `json:"validatewarnings"`
+	// The top-level keys the agent changed outside the ones the setup sets up: dropped, the file keeps them (#1098).
+	Dropped []string `json:"dropped"`
 }
 
 // AgentRunner runs a coding agent CLI with the prompt on its standard input and returns its standard output.
@@ -96,6 +99,11 @@ type Setup struct {
 	Agent AgentRunner
 	// Which coding agent refines (agentchoice.Resolve); tests replace it.
 	ChooseAgent func(dir string) agentchoice.Choice
+	// Where the pull requests' worktrees go: MoltenTerm's data, never beside the project (#1098).
+	TreesDir string
+
+	jobLock sync.Mutex
+	jobs    map[string]*PrJob
 }
 
 // MakeSetup: SaaSFoundryAI's CLI first, MoltenTerm's detection as the fallback.
@@ -151,19 +159,20 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 	if err != nil {
 		return DraftAnswer{}, err
 	}
-	current, err := readCurrent(dir)
+	b, err := s.readBase(ctx, dir)
 	if err != nil {
 		return DraftAnswer{}, err
 	}
-	f := Detect(dir)
+	current, _ := b.buildOn(req.IncludeLocal)
+	report := pipelineReport(dir, current)
+	f := DetectWith(dir, report)
 	if f.HasPipeline && !f.PipelineValid {
 		return DraftAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.invalid", "errors", strings.Join(f.PipelineErrors, "; ")),
 			"%s is not valid: %s; fix it first (molten project validate)", molten.ProjectPipelineFile, strings.Join(f.PipelineErrors, "; "))
 	}
 	ReadRemoteFacts(ctx, s.Run, dir, &f)
-	report := molten.ValidatePipeline(dir)
-	answer := DraftAnswer{Facts: f, Warnings: []string{}, Current: string(current), Base: hashOf(current),
-		DeployTargets: f.DeployTargets()}
+	answer := DraftAnswer{Facts: f, Warnings: []string{}, Current: string(b.Pipeline), Base: hashOf(b.Pipeline),
+		DeployTargets: f.DeployTargets(), Pr: s.planOf(dir, b, PrKindWrite, req.IncludeLocal)}
 	answer.Defaults = DefaultOptions(f)
 	if req.Kind != "" {
 		answer.Defaults.Kind = req.Kind
@@ -247,40 +256,63 @@ func proposedText(current []byte, f Facts, p Proposal) ([]byte, error) {
 	return MergeTopLevel(current, base, values)
 }
 
-// Write writes the reviewed text: only when the file is still the one the draft read, and only a valid pipeline.
-func (s *Setup) Write(req WriteRequest) (WriteAnswer, error) {
+// nameOf: the name a new file starts with, as the draft gives it (Detect's name without a pipeline); an existing
+// file keeps its own.
+func nameOf(dir string, current []byte) string {
+	return filepath.Base(dir)
+}
+
+// writeFilesOf: the reviewed text merged onto the base (only the keys the setup sets up change, whoever wrote the text),
+// validated, with the record of the steps the template wrote.
+func writeFilesOf(dir string, current []byte, text string, generated map[string]string) (prFiles, error) {
+	if len(text) > maxPipelineBytes {
+		return prFiles{}, fmt.Errorf("the proposed %s is too large", molten.ProjectPipelineFile)
+	}
+	merged, _, err := MergeOwned(current, []byte(text), nameOf(dir, current))
+	if err != nil {
+		return prFiles{}, fail(PrFailureInvalid, err.Error())
+	}
+	report := molten.ValidatePipelineData(dir, merged)
+	if !report.Valid {
+		return prFiles{}, fail(PrFailureInvalid, strings.Join(report.Errors, "; "))
+	}
+	var files prFiles
+	files.add(molten.ProjectPipelineFile, merged)
+	if rec := recordOf(report.Pipeline, generated, nil); rec != nil {
+		data, err := recordText(rec)
+		if err != nil {
+			return prFiles{}, err
+		}
+		files.add(RecordFile, data)
+	}
+	return files, nil
+}
+
+// Write opens the pull request of the reviewed text (#1098): only when the committed file is still the one the draft
+// read, and only a valid pipeline. It answers at once with the job; PrState follows it.
+func (s *Setup) Write(req WriteRequest) (PrJob, error) {
 	dir, err := checkProjectDir(req.Dir)
 	if err != nil {
-		return WriteAnswer{}, err
+		return PrJob{}, err
 	}
-	current, err := readCurrent(dir)
-	if err != nil {
-		return WriteAnswer{}, err
+	if err := s.checkPrRequest(dir, PrKindWrite, &req.PrRequest); err != nil {
+		return PrJob{}, err
 	}
-	if hashOf(current) != req.Base {
-		return WriteAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.changed", "path", molten.ProjectPipelineFile),
-			"%s changed since the draft: draft it again", molten.ProjectPipelineFile)
-	}
-	data := []byte(req.Text)
-	if len(data) > maxPipelineBytes {
-		return WriteAnswer{}, fmt.Errorf("the proposed %s is too large", molten.ProjectPipelineFile)
-	}
-	report := molten.ValidatePipelineData(dir, data)
-	if !report.Valid {
-		return WriteAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.notValid", "errors", strings.Join(report.Errors, "; ")),
-			"the proposed %s is not valid: %s", molten.ProjectPipelineFile, strings.Join(report.Errors, "; "))
-	}
-	path, err := writeProjectFile(dir, molten.ProjectPipelineFile, data)
-	if err != nil {
-		return WriteAnswer{}, err
-	}
-	answer := WriteAnswer{Path: path, Warnings: report.Warnings}
-	// The record only lets a later update tell the template's text from the developer's (#1086): a failure to write it
-	// leaves the pipeline written.
-	if err := writeRecord(dir, recordOf(report.Pipeline, req.Generated, nil)); err != nil {
-		answer.Warnings = append(answer.Warnings, fmt.Sprintf("%s: %v", RecordFile, err))
-	}
-	return answer, nil
+	trunk := molten.ResolvedBranches(dir).Trunk
+	job := &PrJob{Dir: dir, Kind: PrKindWrite, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
+	return s.startJob(job, jobSteps(dir, req.PrRequest), func(ctx context.Context, job *PrJob) error {
+		b, err := s.prepareBase(ctx, dir, req.Base, req.PrRequest, job)
+		if err != nil {
+			return err
+		}
+		current, _ := b.buildOn(req.IncludeLocal)
+		files, err := writeFilesOf(dir, current, req.Text, req.Generated)
+		if err != nil {
+			return err
+		}
+		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
+		return s.runPr(ctx, dir, b, files, req.PrRequest, job)
+	})
 }
 
 // writeProjectFile replaces a file of the project atomically, never through a link.
@@ -337,7 +369,8 @@ convention, an environment approval. Change only what the repository justifies. 
 is a manual step ("manual": the instructions, no "run"), never in the prepare phase.
 
 Do not write or change any file: answer with the complete proposed .molten/project.json, as one JSON object, and
-nothing else (no explanation, no code fence).
+nothing else (no explanation, no code fence). Only its release, versions, branches and steps keys are taken; every
+other key stays as the file has it.
 
 The pipeline format:
 
@@ -383,17 +416,22 @@ func (s *Setup) Refine(ctx context.Context, req RefineRequest) (RefineAnswer, er
 	if err != nil {
 		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentFailed", "agent", choice.AgentName, "detail", err.Error()), "%s could not refine the draft: %v", choice.AgentName, err)
 	}
-	proposed := extractJson(out)
-	if proposed == nil {
+	answered := extractJson(out)
+	if answered == nil {
 		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentNoJson", "agent", choice.AgentName), "%s answered without a pipeline", choice.AgentName)
 	}
-	var indented bytes.Buffer
-	if json.Indent(&indented, proposed, "", "    ") == nil && !bytes.Contains(proposed, []byte("\n")) {
-		proposed = indented.Bytes()
+	b, err := s.readBase(ctx, dir)
+	if err != nil {
+		return RefineAnswer{}, err
 	}
-	if !bytes.HasSuffix(proposed, []byte("\n")) {
-		proposed = append(proposed, '\n')
+	// The agent's text goes through the template's merge (#1098): it can only change the keys the setup sets up, in
+	// the file's own layout.
+	current, _ := b.buildOn(req.IncludeLocal)
+	proposed, dropped, err := MergeOwned(current, answered, nameOf(dir, current))
+	if err != nil {
+		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentNoJson", "agent", choice.AgentName), "%s answered without a pipeline: %v", choice.AgentName, err)
 	}
 	report := molten.ValidatePipelineData(dir, proposed)
-	return RefineAnswer{Agent: choice.Agent, AgentName: choice.AgentName, Proposed: string(proposed), Errors: report.Errors, ValidateWarnings: report.Warnings}, nil
+	return RefineAnswer{Agent: choice.Agent, AgentName: choice.AgentName, Proposed: string(proposed), Errors: report.Errors,
+		ValidateWarnings: report.Warnings, Dropped: dropped}, nil
 }

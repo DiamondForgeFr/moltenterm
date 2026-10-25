@@ -95,6 +95,20 @@ const draft: SetupDraft = {
     proposed: '{\n    "schema": 1,\n    "name": "P",\n    "release": {}\n}\n',
     errors: [],
     validatewarnings: [],
+    pr: {
+        git: true,
+        ref: "origin/develop",
+        commit: "abc1234",
+        target: "develop",
+        ongithub: true,
+        ticketrequired: false,
+        branch: "chore/release-pipeline",
+        subject: "chore(release): set up the release pipeline",
+        tickettitle: "Declare the release pipeline",
+        uncommitted: false,
+        included: false,
+        localbase: "l",
+    },
 };
 
 describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
