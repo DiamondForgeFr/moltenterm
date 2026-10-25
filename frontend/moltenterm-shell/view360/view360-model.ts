@@ -66,6 +66,7 @@ import {
 import { countBeside, partPinnedColumns, TabPins, withoutPin, withPin, withPinWidth } from "./pin-model";
 import { PinText } from "./pin-text";
 import { ScreenModel } from "./screen-store";
+import type { ScreenInfo } from "./screen-threshold";
 import {
     anyColumnTooTight,
     autoWants,
@@ -148,6 +149,8 @@ export class View360Model {
     cannotFitAtom: PrimitiveAtom<boolean> = atom(false);
     // "360 view beyond N columns" on the screen the window is on (#1083).
     thresholdAtom: Atom<number>;
+    // The screen the window is on (ScreenModel's): a test instance sets it to emulate another screen.
+    screenAtom: PrimitiveAtom<ScreenInfo>;
     columnCountAtom: PrimitiveAtom<number> = atom(0);
     // Bumped on each automatic switch, for its short glow.
     signalAtom: PrimitiveAtom<number> = atom(0);
@@ -215,6 +218,7 @@ export class View360Model {
         this.settingAtom = getSettingsKeyAtom(View360SettingKey as keyof SettingsType) as Atom<string>;
         this.manualAtom = atom((get) => tabManualView360(get(tabAtom)));
         this.thresholdAtom = ScreenModel.getInstance().thresholdAtom;
+        this.screenAtom = ScreenModel.getInstance().screenAtom;
         this.decisionAtom = atom((get) =>
             decideView360({
                 setting: normalizeView360Setting(get(this.settingAtom)),
