@@ -82,13 +82,15 @@ export function mergeQueue(forecast: Forecast, ready: readonly ReviewPr[], liste
             uptodate: order.uptodate,
         };
     }
+    const rankOf = new Map(order.steps.map((s) => [s.number, s.rank]));
+    const byRank = (numbers: number[]) => [...numbers].sort((a, b) => rankOf.get(a) - rankOf.get(b));
     const steps = order.steps.map((s) => ({
         number: s.number,
         rank: s.rank,
         rebase: s.rebase,
         wait: ciWaits(byNumber.get(s.number)),
-        rebaseAfter: s.rebaseAfter,
-        before: s.impactsLater,
+        rebaseAfter: byRank(s.rebaseAfter),
+        before: byRank(s.impactsLater),
     }));
     return {
         usable: true,
