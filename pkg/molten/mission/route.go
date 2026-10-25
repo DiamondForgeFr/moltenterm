@@ -539,10 +539,11 @@ func (l *routeLink) route() localroute.Route {
 	}
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks, setupTrees string, setupAnswers string) error {
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks, setupTrees string, setupAnswers string, setupTemplates string) error {
 	setup := pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)
 	setup.TreesDir = setupTrees
 	setup.AnswersDir = setupAnswers
+	setup.TemplatesDir = setupTemplates
 	setup.ProjectDirs = linkedProjectDirs
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
@@ -657,6 +658,24 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.TechDoc(ctx, req)
+	case SetupTemplatesCommand:
+		var req pipelinesetup.TemplatesRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Templates(ctx, req)
+	case SetupTemplateSaveCommand:
+		var req pipelinesetup.TemplateSaveRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.SaveTemplate(ctx, req)
+	case SetupTemplateDeleteCommand:
+		var req pipelinesetup.TemplateDeleteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.DeleteTemplate(req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }

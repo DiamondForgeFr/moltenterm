@@ -6,7 +6,8 @@
 
 import type { SetupDraft, SetupOptions, SetupRcAnswer } from "./release-setup-model";
 
-export type DescribeFrom = "standard" | "model" | "words";
+// "template": one saved at step 4 of another setup (FR-MC-042).
+export type DescribeFrom = "standard" | "model" | "words" | "template";
 
 // must match ModelProject in pkg/molten/pipelinesetup/describe.go
 export type SetupModel = { dir: string; name: string; ref: string; options: SetupOptions };

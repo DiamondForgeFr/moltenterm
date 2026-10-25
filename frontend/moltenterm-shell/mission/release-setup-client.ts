@@ -23,7 +23,8 @@ import type {
     SetupTicket,
 } from "./release-setup-model";
 import type { SetupPrStatus } from "./release-setup-prepared-model";
-import type { SetupAnswers, SetupSurvey } from "./release-setup-stepper";
+import type { SetupAnswers, SetupAppType, SetupSurvey } from "./release-setup-stepper";
+import type { SetupTemplate, SetupTemplateFit } from "./release-setup-template-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionSetupDraftCommand = "moltenmissionsetupdraft";
@@ -40,6 +41,9 @@ export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
 export const MissionSetupModelsCommand = "moltenmissionsetupmodels";
 export const MissionSetupPrStatusCommand = "moltenmissionsetupprstatus";
 export const MissionSetupTechDocCommand = "moltenmissionsetuptechdoc";
+export const MissionSetupTemplatesCommand = "moltenmissionsetuptemplates";
+export const MissionSetupTemplateSaveCommand = "moltenmissionsetuptemplatesave";
+export const MissionSetupTemplateDeleteCommand = "moltenmissionsetuptemplatedelete";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -108,6 +112,32 @@ export function setupWrite(
 // Step 2b's "another project as a model" (FR-MC-041): the linked projects' committed pipelines, adapted to this one.
 export function setupModels(dir: string): Promise<{ models: SetupModel[] }> {
     return setupCall(MissionSetupModelsCommand, { dir }, SetupDraftTimeoutMs);
+}
+
+// Step 4's templates on this computer (FR-MC-042): those saved, each checked against the project at dir and adapted
+// to it for step 2b.
+export function setupTemplates(dir: string, appType: SetupAppType): Promise<{ templates: SetupTemplateFit[] }> {
+    return setupCall(MissionSetupTemplatesCommand, { dir, apptype: appType ?? "" }, SetupDraftTimeoutMs);
+}
+
+// Saves the pipeline's flow as a template in MoltenTerm's data; nothing of the project is written or copied.
+export function setupSaveTemplate(
+    dir: string,
+    name: string,
+    appType: SetupAppType,
+    options: SetupOptions,
+    keepManual: boolean,
+    keepPublish: boolean
+): Promise<{ template: SetupTemplate }> {
+    return setupCall(
+        MissionSetupTemplateSaveCommand,
+        { dir, name, apptype: appType, options, keepmanual: keepManual, keeppublish: keepPublish },
+        SetupDraftTimeoutMs
+    );
+}
+
+export function setupDeleteTemplate(id: string): Promise<{ deleted: boolean }> {
+    return setupCall(MissionSetupTemplateDeleteCommand, { id }, SetupWriteTimeoutMs);
 }
 
 // Compares the release setup with what this version of MoltenTerm writes (#1086); the remote facts are read again.

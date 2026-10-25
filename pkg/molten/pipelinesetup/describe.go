@@ -29,6 +29,8 @@ const (
 	FromStandard = "standard"
 	FromModel    = "model"
 	FromWords    = "words"
+	// A template saved at step 4 of another setup (FR-MC-042).
+	FromTemplate = "template"
 
 	PublishWorkflowFile = "molten-publish.yml"
 

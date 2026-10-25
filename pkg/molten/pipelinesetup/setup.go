@@ -148,6 +148,8 @@ type Setup struct {
 	ProjectDirs func(ctx context.Context) ([]string, error)
 	// Where the technical documentation goes (FR-MC-043); nil: SaaSFoundryAI's backend, else the repository file.
 	DocBackends []TechDocBackend
+	// Where the pipeline templates are kept on this computer (FR-MC-042); "" keeps none.
+	TemplatesDir string
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob

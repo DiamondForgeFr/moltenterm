@@ -115,6 +115,10 @@ const (
 	SetupModelsCommand = "moltenmissionsetupmodels"
 	// The pipeline's technical documentation as the pull request would leave it (FR-MC-043), only read.
 	SetupTechDocCommand = "moltenmissionsetuptechdoc"
+	// Step 4's pipeline templates on this computer (FR-MC-042): listed for a project, saved, forgotten.
+	SetupTemplatesCommand      = "moltenmissionsetuptemplates"
+	SetupTemplateSaveCommand   = "moltenmissionsetuptemplatesave"
+	SetupTemplateDeleteCommand = "moltenmissionsetuptemplatedelete"
 	// The rail's Reviews counts (#688): a passive ask that reads GitHub this often, so a merge or a new PR shows
 	// without opening the view.
 	railGithubInterval = 2 * time.Minute
@@ -211,6 +215,12 @@ func (c *Collector) Size() int {
 // SetupAnswersDir: the pipeline setup stepper's answers, one file per project (FR-MC-038).
 func SetupAnswersDir(dataDir string) string {
 	return filepath.Join(CacheDir(dataDir), "setup-answers")
+}
+
+// SetupTemplatesDir: the pipeline templates saved on this computer (FR-MC-042), outside the cache: they are the
+// developer's own.
+func SetupTemplatesDir(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "pipeline-templates")
 }
 
 func CacheDir(dataDir string) string {
@@ -701,7 +711,7 @@ func Start() {
 	asks.tell = func(ctx context.Context, blockId string, line string) bool {
 		return termupdate.TypeHandoffLine(ctx, blockId, line).Result == termupdate.InputSent
 	}
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir), SetupAnswersDir(dataDir)); err != nil {
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir), SetupAnswersDir(dataDir), SetupTemplatesDir(dataDir)); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

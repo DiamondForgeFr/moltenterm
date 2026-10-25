@@ -48,19 +48,23 @@ const empty: SetupSurvey = {
 };
 
 describe("pipeline setup stepper frame (FR-MC-038)", () => {
-    it("opens a done step, the next one once its inputs exist, never the templates yet", () => {
+    it("opens a done step, the next one once its inputs exist, the template from a valid step 3", () => {
         expect(stepReachable("detect", "understand", false)).toBe(true);
         expect(stepReachable("prepare", "understand", true)).toBe(true);
         expect(stepReachable("prepare", "understand", false)).toBe(false);
         expect(stepReachable("prepare", "detect", true)).toBe(false);
-        expect(stepReachable("template", "prepare", true)).toBe(false);
+        expect(stepReachable("template", "prepare", true)).toBe(true);
+        expect(stepReachable("template", "prepare", false)).toBe(false);
+        expect(stepReachable("template", "understand", true)).toBe(false);
+        expect(stepReachable("prepare", "template", false)).toBe(true);
     });
 
     it("names the next step in the footer", () => {
         expect(nextLabelKey("detect", "analyse")).toBe("mc.setup.stepper.nextDraw");
         expect(nextLabelKey("detect", "describe")).toBe("mc.setup.stepper.nextDescribe");
         expect(nextLabelKey("understand", "analyse")).toBe("mc.setup.stepper.nextPrepare");
-        expect(nextLabelKey("prepare", "analyse")).toBe("");
+        expect(nextLabelKey("prepare", "analyse")).toBe("mc.setup.stepper.nextTemplate");
+        expect(nextLabelKey("template", "analyse")).toBe("");
     });
 
     it("maps the app type onto the release templates", () => {
@@ -73,7 +77,7 @@ describe("pipeline setup stepper frame (FR-MC-038)", () => {
     it("resumes at a saved step it can show, else at step 1", () => {
         expect(resumeStep(null)).toBe("detect");
         expect(resumeStep({ base: "h", step: "understand" })).toBe("understand");
-        expect(resumeStep({ base: "h", step: "template" })).toBe("detect");
+        expect(resumeStep({ base: "h", step: "template" })).toBe("prepare");
     });
 
     it("lists what the repository shows of a pipeline, with keys in both languages", () => {
