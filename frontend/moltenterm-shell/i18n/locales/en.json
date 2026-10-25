@@ -3746,26 +3746,32 @@
                 "legendPr": "A pull request",
                 "legendTarget": "Published to",
                 "legendApproval": "An approval on GitHub",
-                "legendConditional": "Only when needed"
+                "legendConditional": "Only when needed",
+                "legendChange": {
+                    "changed": "changed",
+                    "added": "added",
+                    "removed": "removed"
+                }
             },
             "update": {
                 "open": "Update the release setup",
                 "openHint": "This version of MoltenTerm writes the release differently.",
                 "upToDate": "Release setup up to date with this version of MoltenTerm",
-                "title": "Update the release setup of {project}",
-                "subtitle": "MoltenTerm compared the committed release with what this version writes. Nothing is written before your pull request.",
                 "why": "Why",
                 "reason": {
                     "protected": "{branch} is protected: releases go through a pull request.",
                     "labels": "Version labels found outside the version files: {count}. The release can bump them.",
                     "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
-                    "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again."
+                    "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again.",
+                    "adjusted": "Your adjusted choices write these steps differently.",
+                    "local": "Your uncommitted edits are included: each one is a change to check."
                 },
                 "noRecord": "This release was set up before MoltenTerm kept track of what it wrote: the steps it recognises as its own are updated, the others are kept.",
                 "group": {
                     "rc": "Release candidate",
                     "public": "Public release",
-                    "versions": "Version files"
+                    "versions": "Version files",
+                    "local": "Your uncommitted edits"
                 },
                 "kind": {
                     "added": "New",
@@ -3795,7 +3801,28 @@
                 "filesHint": "Only the release and version blocks change; MoltenTerm also notes in .molten/release-setup.json which steps it wrote.",
                 "keepAll": "You keep every change as it is: the pipeline stays the same, and the pull request records your choices in .molten/release-setup.json so they are not offered again.",
                 "invalid": "The updated pipeline would not be valid: {errors}",
-                "openSetup": "Open the pipeline setup"
+                "openSetup": "Open the pipeline setup",
+                "localFile": "Your edits outside the release steps: {keys}",
+                "local": {
+                    "added": "A step you added in your checkout.",
+                    "changed": "You changed this in your checkout, without committing it.",
+                    "removed": "You removed this step in your checkout.",
+                    "versions": "You changed this in your checkout, without committing it."
+                },
+                "takeLocal": "Include this edit",
+                "committed": "Committed",
+                "yourEdit": "Your edit",
+                "yoursKept": "yours, kept",
+                "yoursReplaced": "yours, replaced",
+                "changes": "Changes",
+                "changesHint": "ticked = taken · numbered as on the diagram · your own steps are kept unless you tick them",
+                "setUpBy": "Set up by MoltenTerm with template {record}; this version writes template {template}.",
+                "upToDateTitle": "Pipeline up to date",
+                "upToDateHint": "The pipeline matches what template {template} writes, and the release branch's protection matches it too. You can still review it, and adjust a choice under \"All the choices\": what it changes shows here.",
+                "declared": "The declared pipeline",
+                "adjusted": "You adjusted these choices: the changes they make are listed above, with the reason.",
+                "adjustHint": "These choices are read from the declared pipeline. Change one to see what it changes, then open the pull request at the next step.",
+                "nothing": "Nothing changes: the pull request button stays disabled until a choice is adjusted or an edit is included."
             },
             "pr": {
                 "title": "Validate by pull request",
@@ -3852,7 +3879,8 @@
                     "failed": "The pull request could not be prepared. Your checkout did not change.",
                     "includeConflict": "Your uncommitted changes conflict with {ref}. Prepare again without them, or commit them first."
                 },
-                "conflict": "They change the same lines as {ref}: commit or rebase them first to include them."
+                "conflict": "They change the same lines as {ref}: commit or rebase them first to include them.",
+                "includedAsChanges": "Your uncommitted edits are included as changes to check: each one is listed below, ticked, and you may leave any out. Your checkout keeps them as they are."
             },
             "stepper": {
                 "step": {
@@ -3871,13 +3899,20 @@
                 "templateLater": "Saving a pipeline as a template comes in a later version.",
                 "fork": {
                     "analyse": "2a analyse",
-                    "describe": "2b describe"
+                    "describe": "2b describe",
+                    "update": "2a update"
                 },
                 "nextDraw": "Next: draw the pipeline",
                 "nextDescribe": "Next: describe the pipeline",
                 "nextPrepare": "Next: prepare the pipeline",
                 "stepOf": "Step {n} of {total}",
-                "close": "Close without writing"
+                "close": "Close without writing",
+                "updateSub": {
+                    "one": "{count} change proposed",
+                    "other": "{count} changes proposed"
+                },
+                "upToDateSub": "up to date, to review",
+                "nextUpdate": "Next: prepare the update"
             },
             "describe": {
                 "fromTitle": "Start from",

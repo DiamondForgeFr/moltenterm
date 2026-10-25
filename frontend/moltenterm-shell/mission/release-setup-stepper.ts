@@ -55,6 +55,8 @@ export type SetupAnswers = {
     words?: string;
     from?: "standard" | "model" | "words";
     model?: string;
+    // Step 2a for a project already set up (#1102): the choices adjusted and the changes ticked.
+    update?: { options?: SetupOptions; choices?: Record<string, boolean> };
 };
 
 // A web app or a SaaS is deployed (the saas template); every other type ships versions (pipelinesetup.KindOfAppType).

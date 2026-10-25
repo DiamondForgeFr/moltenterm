@@ -109,14 +109,16 @@ export function setupModels(dir: string): Promise<{ models: SetupModel[] }> {
 }
 
 // Compares the release setup with what this version of MoltenTerm writes (#1086); the remote facts are read again.
+// options: the choices the developer adjusted in step 2a (#1102), else the ones the pipeline stands for.
 export function setupCheck(
     dir: string,
     choices?: Record<string, boolean>,
-    includeLocal?: boolean
+    includeLocal?: boolean,
+    options?: SetupOptions
 ): Promise<SetupCheck> {
     return setupCall(
         MissionSetupCheckCommand,
-        { dir, choices, includelocal: includeLocal || undefined },
+        { dir, choices, includelocal: includeLocal || undefined, options: options ?? undefined },
         SetupDraftTimeoutMs
     );
 }
@@ -126,9 +128,14 @@ export function setupUpdate(
     base: string,
     signature: string,
     choices: Record<string, boolean>,
-    pr: SetupPrRequest
+    pr: SetupPrRequest,
+    options?: SetupOptions
 ): Promise<SetupPrJob> {
-    return setupCall(MissionSetupUpdateCommand, { dir, base, signature, choices, ...pr }, SetupWriteTimeoutMs);
+    return setupCall(
+        MissionSetupUpdateCommand,
+        { dir, base, signature, choices, options: options ?? undefined, ...pr },
+        SetupWriteTimeoutMs
+    );
 }
 
 export function setupPrState(id: string): Promise<SetupPrJob> {

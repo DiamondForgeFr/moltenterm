@@ -316,8 +316,13 @@ export type SetupChange = {
     after?: string;
     customised: boolean;
     take: boolean;
+    // An uncommitted edit of the working copy, included as a change to check (#1102).
+    local?: boolean;
 };
-export type SetupUpdateReason = { code: "protected" | "labels" | "template" | "customised"; detail?: string };
+export type SetupUpdateReason = {
+    code: "protected" | "labels" | "template" | "customised" | "adjusted" | "local";
+    detail?: string;
+};
 export type SetupCheck = {
     state: "missing" | "update" | "uptodate";
     reasons: SetupUpdateReason[];
@@ -332,6 +337,11 @@ export type SetupCheck = {
     errors: string[];
     validatewarnings: string[];
     pr: SetupPrPlan;
+    // The choices the check was made with, whether the developer adjusted them, and the release block step 2a draws:
+    // the declared steps with the added ones in place and the removed ones kept (#1102).
+    options?: SetupOptions;
+    adjusted?: boolean;
+    drawn?: { rc?: PipelineReleaseStep[]; public?: PipelineReleaseStep[] };
 };
 
 // A change is applied when the developer ticked it, else by its default (a customised step is kept).
@@ -340,14 +350,17 @@ export function changeTaken(change: SetupChange, choices: Record<string, boolean
     return choice == null ? change.take : choice;
 }
 
-// The changes by where they go: the release candidate's steps, the public release's, then the version files.
+// The changes by where they go: the developer's uncommitted edits first (#1102), the release candidate's steps, the
+// public release's, then the version files.
 export function changeGroups(
     changes: readonly SetupChange[]
-): { group: SetupChannel | "versions"; changes: SetupChange[] }[] {
-    const groups: { group: SetupChannel | "versions"; changes: SetupChange[] }[] = [];
-    for (const group of ["rc", "public", "versions"] as const) {
+): { group: SetupChannel | "versions" | "local"; changes: SetupChange[] }[] {
+    const groups: { group: SetupChannel | "versions" | "local"; changes: SetupChange[] }[] = [];
+    for (const group of ["local", "rc", "public", "versions"] as const) {
         const list = (changes ?? []).filter((c) =>
-            group === "versions" ? c.kind === "versions" : c.channel === group
+            group === "local"
+                ? c.local
+                : !c.local && (group === "versions" ? c.kind === "versions" : c.channel === group)
         );
         if (list.length > 0) {
             groups.push({ group, changes: list });
@@ -552,6 +565,9 @@ export type FlowNode = {
     checks?: string;
     // Step 3 (#1104): the step the prepared pipeline adds or changes against the committed one.
     mark?: "added" | "changed";
+    // Step 2a for a project already set up (#1102): the badge's change, coloured by its kind, dimmed when not taken.
+    change?: SetupChangeKind;
+    untaken?: boolean;
 };
 
 export type FlowModel = {
