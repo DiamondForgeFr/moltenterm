@@ -181,7 +181,104 @@ export type SetupDraft = {
     errors: string[];
     validatewarnings: string[];
     generated?: Record<string, string>;
+    pr: SetupPrPlan;
 };
+
+// must match PrPlan, PrStep, PrFailure, PrJob and Ticket in pkg/molten/pipelinesetup/pullrequest.go (#1098)
+export type SetupPrPlan = {
+    git: boolean;
+    ref: string;
+    commit: string;
+    target: string;
+    ongithub: boolean;
+    ticketrequired: boolean;
+    branch: string;
+    subject: string;
+    tickettitle: string;
+    uncommitted: boolean;
+    included: boolean;
+    localbase: string;
+    local?: string;
+};
+export type SetupPrStepId = "ticket" | "worktree" | "write" | "commit" | "push" | "pr" | "patch";
+export type SetupPrStep = {
+    id: SetupPrStepId;
+    state: "pending" | "running" | "done" | "failed" | "skipped";
+    info?: string;
+};
+export type SetupPrFailure = { code: string; output?: string; commit?: string };
+export type SetupPrJob = {
+    id: string;
+    dir: string;
+    kind: "write" | "update";
+    mode: "pr" | "patch";
+    steps: SetupPrStep[];
+    finished: boolean;
+    failure?: SetupPrFailure;
+    ref: string;
+    target: string;
+    ongithub: boolean;
+    branch?: string;
+    subject?: string;
+    ticket?: number;
+    commit?: string;
+    prurl?: string;
+    prnumber?: number;
+    patch?: string;
+    files: string[];
+};
+export type SetupTicket = { number: number; title: string };
+
+// The developer's ticket for the setup's commit: an open issue, or one MoltenTerm creates.
+export type SetupTicketChoice = { ticket: number; create: boolean; title: string };
+
+// The fields of Write's and Update's requests that open the pull request.
+export type SetupPrRequest = {
+    includelocal?: boolean;
+    localbase?: string;
+    ticket?: number;
+    createticket?: boolean;
+    newticket?: string;
+    mode: "pr" | "patch";
+};
+
+export function prRequestOf(plan: SetupPrPlan, choice: SetupTicketChoice, mode: "pr" | "patch"): SetupPrRequest {
+    const req: SetupPrRequest = { mode };
+    if (plan.included) {
+        req.includelocal = true;
+        req.localbase = plan.localbase;
+    }
+    if (!plan.ticketrequired) {
+        return req;
+    }
+    if (choice.ticket > 0) {
+        req.ticket = choice.ticket;
+    } else if (choice.create && mode === "pr") {
+        req.createticket = true;
+        req.newticket = choice.title.trim() || plan.tickettitle;
+    }
+    return req;
+}
+
+// The plan's names with the chosen ticket ({N} stays while MoltenTerm will create it).
+export function prNamesOf(plan: SetupPrPlan, ticket: number): { branch: string; subject: string } {
+    if (!(ticket > 0)) {
+        return { branch: plan.branch, subject: plan.subject };
+    }
+    const n = String(ticket);
+    return { branch: plan.branch.split("{N}").join(n), subject: plan.subject.split("{N}").join(n) };
+}
+
+// The pull request can be asked for: a git repository, and a ticket when the commit format names one.
+export function canOpenPr(plan: SetupPrPlan, choice: SetupTicketChoice, mode: "pr" | "patch"): boolean {
+    if (plan == null || !plan.git) {
+        return false;
+    }
+    if (!plan.ticketrequired || mode === "patch") {
+        return true;
+    }
+    return choice.ticket > 0 || choice.create;
+}
 
 // must match Change, UpdateReason and CheckAnswer in pkg/molten/pipelinesetup/update.go (#1086)
 export type SetupChangeKind = "added" | "removed" | "changed" | "versions";
@@ -210,6 +307,7 @@ export type SetupCheck = {
     signature: string;
     errors: string[];
     validatewarnings: string[];
+    pr: SetupPrPlan;
 };
 
 // A change is applied when the developer ticked it, else by its default (a customised step is kept).
@@ -240,6 +338,8 @@ export type SetupRefined = {
     proposed: string;
     errors: string[];
     validatewarnings: string[];
+    // The keys the agent changed outside the setup's: dropped, the file keeps them (#1098).
+    dropped?: string[];
 };
 
 // The setup is offered when the pipeline cannot start one of the two releases.

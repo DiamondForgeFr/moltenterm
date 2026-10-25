@@ -103,6 +103,7 @@ function draft(over: Partial<SetupDraft> = {}): SetupDraft {
         proposed: "",
         errors: [],
         validatewarnings: [],
+        pr: null,
         ...over,
     };
 }

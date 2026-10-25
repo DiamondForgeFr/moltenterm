@@ -3511,11 +3511,10 @@
             "open": "Set up the release",
             "openHint": "Drafted from the repository, reviewed before anything is written.",
             "title": "Set up the release of {project}",
-            "subtitle": "MoltenTerm drafts the missing release from the repository. Nothing is written before you click Write.",
+            "subtitle": "MoltenTerm drafts the missing release from the committed pipeline. Nothing is written before your pull request.",
             "reading": "Reading the repository…",
             "back": "Back",
             "next": "Next",
-            "write": "Write .molten/project.json",
             "fromSaaSFoundry": "Drafted by SaaSFoundryAI, which knows this project's profile and generated workflows.",
             "choicesReplace": "Your choices are drafted by MoltenTerm's templates, in place of SaaSFoundryAI's draft.",
             "step": {
@@ -3675,7 +3674,7 @@
             },
             "review": {
                 "folded": "{count} unchanged lines",
-                "byAgent": "Proposed by {agent}: nothing is written until you click Write.",
+                "byAgent": "Proposed by {agent}: nothing is written until you open the pull request.",
                 "bySaaSFoundry": "Drafted by SaaSFoundryAI.",
                 "byMoltenTerm": "Drafted by MoltenTerm from the repository.",
                 "backToDraft": "Back to the draft",
@@ -3683,8 +3682,7 @@
                 "refining": "The agent reads the repository…",
                 "refineTitle": "The project's coding agent reads the repository and proposes changes, without writing anything.",
                 "sources": "Where each step comes from",
-                "ticketBranch": "Written in the working tree on {branch}: commit it on a ticket branch, as the project's workflow asks.",
-                "workingTree": "Written in the working tree: commit it as usual. Its commands then ask for your approval."
+                "dropped": "The agent also changed {keys}: dropped. Only the release, versions, branches and steps blocks are set up; the rest of the file stays as it is."
             },
             "diagram": {
                 "github": "GitHub",
@@ -3696,13 +3694,12 @@
                 "legendTag": "The tag",
                 "legendWorkflow": "A GitHub workflow"
             },
-            "trustBody": "The release setup just wrote these commands. Trusting starts nothing: MoltenTerm runs them in {dir}, with your rights, when you start a release. It asks again whenever they change.",
             "update": {
                 "open": "Update the release setup",
                 "openHint": "This version of MoltenTerm writes the release differently.",
                 "upToDate": "Release setup up to date with this version of MoltenTerm",
                 "title": "Update the release setup of {project}",
-                "subtitle": "MoltenTerm compared the release with what this version writes. Nothing is written before you click Update.",
+                "subtitle": "MoltenTerm compared the committed release with what this version writes. Nothing is written before your pull request.",
                 "why": "Why",
                 "reason": {
                     "protected": "{branch} is protected: releases go through a pull request.",
@@ -3742,9 +3739,63 @@
                 "after": "After the update",
                 "files": "The file",
                 "filesHint": "Only the release and version blocks change; MoltenTerm also notes in .molten/release-setup.json which steps it wrote.",
-                "keepAll": "You keep every change as it is: the file stays the same, and Update records your choices in .molten/release-setup.json so they are not offered again.",
-                "invalid": "The updated pipeline would not be valid: {errors}",
-                "write": "Update"
+                "keepAll": "You keep every change as it is: the pipeline stays the same, and the pull request records your choices in .molten/release-setup.json so they are not offered again.",
+                "invalid": "The updated pipeline would not be valid: {errors}"
+            },
+            "pr": {
+                "title": "Validate by pull request",
+                "desc": "A tracked file only changes through a pull request: you merge it when you agree. Your working copy is not touched.",
+                "descPatch": "origin is not on GitHub: MoltenTerm makes the commit in a worktree of its own and copies it as a patch, to apply where your project takes changes. Your working copy is not touched.",
+                "noGit": "This folder is not a git repository with its working branch: there is nothing to open a pull request on.",
+                "ticket": "Ticket",
+                "branch": "Branch",
+                "commit": "Commit",
+                "into": "Into",
+                "from": "from {ref} at {commit}",
+                "createTicket": "Create a ticket",
+                "ticketTitle": "The new ticket's title",
+                "ticketNumber": "Ticket number",
+                "ticketsLoading": "Reading the open issues…",
+                "after": "The Release menu uses the pipeline once the pull request is merged into {target}.",
+                "open": "Open the pull request",
+                "copyPatch": "Copy the patch",
+                "copyAgain": "Copy it again",
+                "patchReady": "The patch is copied: apply it with git am where your project takes changes.",
+                "copied": "Copied again.",
+                "done": "Pull request #{number} opened as a draft. The Release menu uses the pipeline once it is merged into {target}.",
+                "openPr": "Open #{number}",
+                "pushedOnly": "{branch} is pushed. origin is not on GitHub: open the pull request into {target} there.",
+                "prepareAgain": "Prepare again",
+                "uncommitted": "{path} has uncommitted changes in your checkout. The setup reads the committed version ({ref}); your changes are never overwritten.",
+                "include": "Include them as changes to check",
+                "included": "Your uncommitted changes are included: they show in the diff as changes to check, and go into the pull request. Your checkout keeps them as they are.",
+                "leaveOut": "Leave them out",
+                "seeChanges": "See the changes",
+                "hideChanges": "Hide the changes",
+                "step": {
+                    "ticket": "the ticket created",
+                    "worktree": "a separate worktree from {ref} (your checkout stays as it is)",
+                    "write": "the files written there and validated",
+                    "commit": "one commit",
+                    "push": "pushed to origin",
+                    "pr": "the pull request opened as a draft into {target}",
+                    "patch": "the patch made"
+                },
+                "failure": {
+                    "moved": "{ref} moved since the draft: {path} changed there (commit {commit}). Prepare again: your answers are kept.",
+                    "localChanged": "Your uncommitted changes to {path} changed since the draft. Prepare again to include the new ones.",
+                    "updateChanged": "The update changed since it was shown. Prepare again.",
+                    "branchExists": "The branch {branch} already exists on origin. Nothing was pushed and your checkout did not change.",
+                    "invalid": "The pipeline would not be valid. Nothing was pushed.",
+                    "nothing": "The committed pipeline already reads this way: there is nothing to commit.",
+                    "fetch": "origin could not be read. Nothing was pushed.",
+                    "ticket": "The ticket could not be created. Nothing was pushed.",
+                    "worktree": "The worktree could not be created. Your checkout did not change.",
+                    "commit": "The commit could not be made in the worktree. Your checkout did not change.",
+                    "push": "The push was refused. Your checkout did not change.",
+                    "pr": "{branch} is pushed, but the pull request could not be opened. Open it on GitHub, or copy the patch.",
+                    "failed": "The pull request could not be prepared. Your checkout did not change."
+                }
             }
         }
     },
@@ -7223,7 +7274,12 @@
                 "noAgent": "No supported coding agent (Claude Code or Codex) is installed on this computer.",
                 "agentFailed": "{agent} could not refine the draft: {detail}",
                 "agentNoJson": "{agent} answered without a pipeline.",
-                "updateChanged": "The update changed since it was shown: check it again."
+                "updateChanged": "The update changed since it was shown: check it again.",
+                "prBusy": "A pull request of the release setup is already being prepared for this project.",
+                "prUnknown": "This pull request is no longer followed: prepare it again.",
+                "ticketsUnread": "The open issues could not be read: {detail}",
+                "noGit": "This project is not a git repository with its working branch: there is nothing to open a pull request on.",
+                "ticketNeeded": "The project's commit format names a ticket: pick one or create one."
             }
         },
         "notif": {

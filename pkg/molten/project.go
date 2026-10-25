@@ -163,6 +163,16 @@ func RcBranchPattern(dir string) string {
 	return conv.BranchNaming["release"]
 }
 
+// FeatureBranchPattern is the project's feature branch naming (.saasfoundry.json workflow.branchNaming.feature, e.g.
+// feature/{N}-{description}), or "" when it declares none (#1098).
+func FeatureBranchPattern(dir string) string {
+	conv, _, ok := readSaaSFoundry(dir)
+	if !ok || conv.BranchNaming == nil {
+		return ""
+	}
+	return conv.BranchNaming["feature"]
+}
+
 // CommitFormatOf is the project's commit format (.saasfoundry.json workflow.commitFormat): its pattern, and whether a
 // ticket is required (#1046).
 func CommitFormatOf(dir string) (string, bool) {

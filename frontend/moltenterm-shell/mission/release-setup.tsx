@@ -4,7 +4,8 @@
 // "Set up the release" (FR-MC-036, DS-MC-030): a stepper over the window, like Validate's (#672). It drafts the missing
 // release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's detection), lets the
 // developer confirm the app kind, what to set up and each choice with a live diagram, then shows the whole flow and the
-// diff of .molten/project.json. Only the Write click writes the file; the new commands then go through the trust sheet.
+// diff of .molten/project.json. The setup reads the committed pipeline and never writes the folder opened: the click
+// opens a draft pull request from a worktree of its own (#1098); the new commands ask for trust once it is merged.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
@@ -13,15 +14,15 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { missionTrust, missionUntrusted } from "./mission-client";
-import { UntrustedInfo } from "./mission-model";
 import { setupDraft, setupRefine, setupWrite } from "./release-setup-client";
 import { FlowDiagram } from "./release-setup-diagram";
 import {
     addManual,
+    canOpenPr,
     diffHunks,
     flowModel,
     lineDiff,
+    prRequestOf,
     removeManual,
     SetupChannel,
     SetupChoice,
@@ -30,11 +31,14 @@ import {
     SetupOptions,
     SetupRefined,
     SetupSource,
+    SetupTicketChoice,
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
+import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
-import { TrustPrompt } from "./runs-view";
+
+export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
 
 type StepId = "kind" | "what" | "choices" | "review";
 const Steps: StepId[] = ["kind", "what", "choices", "review"];
@@ -676,6 +680,11 @@ export function ReviewStep({
                     </button>
                 </span>
             </div>
+            {refined?.dropped?.length > 0 ? (
+                <p className="text-11 text-warning" data-testid="setup-dropped">
+                    {t("mc.setup.review.dropped", { keys: refined.dropped.join(", ") })}
+                </p>
+            ) : null}
             <DiffView before={draft.current} after={proposed} />
             {errors.length > 0 ? (
                 <ul
@@ -706,13 +715,6 @@ export function ReviewStep({
                     </ul>
                 </details>
             )}
-            <p className="text-11 text-muted">
-                {draft.facts.ticketbranches
-                    ? t("mc.setup.review.ticketBranch", {
-                          branch: draft.facts.currentbranch || draft.facts.branches.trunk,
-                      })
-                    : t("mc.setup.review.workingTree")}
-            </p>
         </div>
     );
 }
@@ -740,16 +742,19 @@ export function ReleaseSetup({
     const [loading, setLoading] = useState(true);
     const [refined, setRefined] = useState<SetupRefined>(null);
     const [refining, setRefining] = useState(false);
-    const [writing, setWriting] = useState(false);
-    const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
+    const [includeLocal, setIncludeLocal] = useState(false);
+    const [ticket, setTicket] = useState<SetupTicketChoice>(NewTicketChoice);
+    const pr = useSetupPr();
+    useCopyPatch(pr.job);
+    const writing = pr.busy;
     const request = useRef(0);
 
-    const load = (opts: SetupOptions, kind?: SetupKind) =>
+    const load = (opts: SetupOptions, kind?: SetupKind, include = includeLocal) =>
         fireAndForget(async () => {
             const n = ++request.current;
             setLoading(true);
             try {
-                const answer = await setupDraft(dir, opts, kind);
+                const answer = await setupDraft(dir, opts, kind, include);
                 if (n !== request.current) {
                     return;
                 }
@@ -795,7 +800,7 @@ export function ReleaseSetup({
             setRefining(true);
             setError(null);
             try {
-                setRefined(await setupRefine(dir, draft.proposed));
+                setRefined(await setupRefine(dir, draft.proposed, includeLocal));
             } catch (e) {
                 setError(serverErrorText(e));
             } finally {
@@ -804,55 +809,42 @@ export function ReleaseSetup({
         });
     const text = refined?.proposed ?? draft?.proposed ?? "";
     const errors = refined?.errors ?? draft?.errors ?? [];
-    const write = () =>
-        fireAndForget(async () => {
-            setWriting(true);
-            setError(null);
-            try {
-                await setupWrite(dir, text, draft.base, draft.generated);
-                onWritten();
-                const info = await missionUntrusted(dir);
-                if (info?.commands?.length) {
-                    setUntrusted(info);
-                    return;
-                }
-                onClose();
-            } catch (e) {
-                setError(serverErrorText(e));
-            } finally {
-                setWriting(false);
-            }
+    const write = (mode: "pr" | "patch") =>
+        pr.start(async () => {
+            const job = await setupWrite(dir, text, draft.base, draft.generated, prRequestOf(draft.pr, ticket, mode));
+            onWritten();
+            return job;
         });
-    const trust = () =>
-        fireAndForget(async () => {
-            const info = untrusted;
-            try {
-                await missionTrust(dir, info.hash);
-                setUntrusted(null);
-                onClose();
-            } catch (e) {
-                setError(serverErrorText(e));
-            }
-        });
+    const include = (on: boolean) => {
+        setIncludeLocal(on);
+        load(touched ? options : null, touched ? undefined : options?.kind, on);
+    };
+    const again = () => {
+        pr.reset();
+        load(touched ? options : null, touched ? undefined : options?.kind);
+    };
 
-    if (untrusted != null) {
-        return (
-            <TrustPrompt
-                projectName={projectName}
-                dir={dir}
-                info={untrusted}
-                approveOnly
-                bodyKey="mc.setup.trustBody"
-                fill
-                onTrust={trust}
-                onCancel={onClose}
-            />
-        );
-    }
     const at = Steps.indexOf(step);
     const nothing = options != null && options.kind !== "saas" && options.channels.length === 0;
+    const done = pr.job?.finished && pr.job.failure == null;
     const canWrite =
-        draft != null && !loading && !refining && errors.length === 0 && text !== draft.current && !nothing;
+        draft != null &&
+        !loading &&
+        !refining &&
+        errors.length === 0 &&
+        text !== draft.current &&
+        !nothing &&
+        !done &&
+        canOpenPr(draft.pr, ticket, "pr");
+    const canPatch =
+        draft != null &&
+        !loading &&
+        !refining &&
+        errors.length === 0 &&
+        text !== draft.current &&
+        !nothing &&
+        !done &&
+        canOpenPr(draft.pr, ticket, "patch");
     return (
         <DialogFrame
             role="mc-release-setup"
@@ -865,9 +857,9 @@ export function ReleaseSetup({
                 <>
                     {loading ? <DominoLoader className="mr-auto" /> : null}
                     <button type="button" className={PlainButton} onClick={onClose} disabled={writing}>
-                        {t("common.cancel")}
+                        {done ? t("common.close") : t("common.cancel")}
                     </button>
-                    {at > 0 ? (
+                    {at > 0 && !done ? (
                         <button
                             type="button"
                             className={PlainButton}
@@ -890,18 +882,14 @@ export function ReleaseSetup({
                             <MoltenWave />
                         </button>
                     ) : (
-                        <button
-                            key="write"
-                            type="button"
-                            className="molten-btn inline-flex cursor-pointer items-center rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
-                            disabled={!canWrite || writing}
-                            onClick={write}
-                            data-testid="setup-write"
-                        >
-                            {writing ? <DominoLoader className="mr-1.5" /> : null}
-                            {t("mc.setup.write")}
-                            <MoltenWave />
-                        </button>
+                        <PrFooterButtons
+                            plan={draft?.pr}
+                            job={pr.job}
+                            busy={writing}
+                            canOpen={canWrite}
+                            canPatch={canPatch}
+                            onOpen={write}
+                        />
                     )}
                 </>
             }
@@ -911,7 +899,7 @@ export function ReleaseSetup({
                     <li key={s}>
                         <button
                             type="button"
-                            disabled={draft == null || i > at + 1}
+                            disabled={draft == null || i > at + 1 || writing || done}
                             onClick={() => setStep(s)}
                             className={cn(
                                 "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-11 disabled:cursor-default",
@@ -951,6 +939,9 @@ export function ReleaseSetup({
                     {touched && firstProvider === "saasfoundry" && draft.provider === "moltenterm" ? (
                         <p className="text-11 text-muted">{t("mc.setup.choicesReplace")}</p>
                     ) : null}
+                    {writing || done ? null : (
+                        <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
+                    )}
                     {step === "kind" ? <KindStep draft={draft} options={options} onKind={chooseKind} /> : null}
                     {step === "what" ? <WhatStep draft={draft} options={options} onChange={change} /> : null}
                     {step === "choices" ? (
@@ -970,6 +961,18 @@ export function ReleaseSetup({
                             refining={refining}
                             onRefine={refine}
                             onDropRefined={() => setRefined(null)}
+                        />
+                    ) : null}
+                    {step === "review" ? (
+                        <PrPanel
+                            dir={dir}
+                            plan={draft.pr}
+                            choice={ticket}
+                            onChoice={setTicket}
+                            job={pr.job}
+                            busy={writing}
+                            error={pr.error}
+                            onAgain={again}
                         />
                     ) : null}
                 </div>

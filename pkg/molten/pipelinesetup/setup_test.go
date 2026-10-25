@@ -208,28 +208,58 @@ func TestDraftSaaSFoundryShapedRepository(t *testing.T) {
 }
 
 func TestWriteOnlyTheReviewedTextWhenTheFileIsUnchanged(t *testing.T) {
-	dir := saasFoundryFixture(t)
-	s := MakeSetup(noSf, nil)
+	dir := protectedRepository(t)
+	s := prSetup(t, &fakeForge{}, protectedRules(t))
 	answer, err := s.Draft(context.Background(), DraftRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: "stale"}); err == nil {
-		t.Fatal("a stale base is refused")
+	ticket := PrRequest{Ticket: 7}
+	if job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: "stale", PrRequest: ticket})); job.Failure == nil || job.Failure.Code != PrFailureMoved {
+		t.Fatalf("a stale base is refused: %+v", job.Failure)
 	}
-	if _, err := s.Write(WriteRequest{Dir: dir, Text: `{"schema": 1}`, Base: answer.Base}); err == nil {
-		t.Fatal("an invalid pipeline is refused")
+	invalid := `{"release": {"rc": [{"id": "x", "title": "X", "phase": "nowhere", "run": "true"}]}}`
+	if job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: invalid, Base: answer.Base, PrRequest: ticket})); job.Failure == nil || job.Failure.Code != PrFailureInvalid {
+		t.Fatalf("an invalid pipeline is refused: %+v", job.Failure)
 	}
-	if _, err := s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: answer.Base}); err != nil {
-		t.Fatal(err)
+	if job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: answer.Current, Base: answer.Base, PrRequest: ticket})); job.Failure == nil || job.Failure.Code != PrFailureNothing {
+		t.Fatalf("nothing to change: %+v", job.Failure)
 	}
+	if _, err := s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: answer.Base}); err == nil {
+		t.Fatal("the commit format needs a ticket")
+	}
+	job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: answer.Base, PrRequest: ticket}))
+	if job.Failure != nil {
+		t.Fatalf("failure: %+v", job.Failure)
+	}
+	if again := Detect(dir); len(again.Missing) == 0 {
+		t.Fatal("the checkout was written")
+	}
+	mergePr(t, dir, job.Branch)
 	report := molten.ValidatePipeline(dir)
 	if !report.Valid || len(report.Pipeline.Release.Rc) == 0 || len(report.Pipeline.Release.Public) == 0 {
-		t.Fatalf("written: %+v", report)
+		t.Fatalf("merged: %+v", report)
 	}
-	again := Detect(dir)
-	if len(again.Missing) != 0 {
-		t.Fatalf("still missing: %v", again.Missing)
+}
+
+// Outside a git repository there is nothing to open a pull request on.
+func TestWriteOutsideGitIsRefused(t *testing.T) {
+	dir := saasFoundryFixture(t)
+	s := MakeSetup(noSf, nil)
+	s.TreesDir = t.TempDir()
+	answer, err := s.Draft(context.Background(), DraftRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Pr.Git {
+		t.Fatal("not a git repository")
+	}
+	job := waitFor(t, s)(s.Write(WriteRequest{Dir: dir, Text: answer.Proposed, Base: answer.Base, PrRequest: PrRequest{Ticket: 7}}))
+	if job.Failure == nil {
+		t.Fatal("refused")
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json")); string(got) != sfPipeline {
+		t.Fatal("the folder was written")
 	}
 }
 
@@ -365,7 +395,9 @@ func TestRefineOnlyProposes(t *testing.T) {
 	var gotPrompt string
 	agent := func(_ context.Context, _ string, argv []string, prompt string) ([]byte, error) {
 		gotArgv, gotPrompt = argv, prompt
-		return []byte("Here it is:\n```json\n" + strings.Replace(sfPipeline, `"name": "SaaSFoundryAI"`, `"name": "Refined"`, 1) + "```\n"), nil
+		refined := strings.Replace(sfPipeline, `"name": "SaaSFoundryAI"`, `"name": "Refined"`, 1)
+		refined = strings.Replace(refined, `"firstpublic": "1.0.0"`, `"firstpublic": "1.1.0"`, 1)
+		return []byte("Here it is:\n```json\n" + refined + "```\n"), nil
 	}
 	s := MakeSetup(noSf, agent)
 	s.ChooseAgent = func(string) agentchoice.Choice {
@@ -375,8 +407,9 @@ func TestRefineOnlyProposes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(answer.Proposed, `"Refined"`) || len(answer.Errors) > 0 {
-		t.Fatalf("%+v", answer)
+	if strings.Contains(answer.Proposed, `"Refined"`) || !strings.Contains(answer.Proposed, `"firstpublic": "1.1.0"`) || len(answer.Errors) > 0 ||
+		strings.Join(answer.Dropped, ",") != "name" {
+		t.Fatalf("only the owned keys change: %+v", answer)
 	}
 	if !strings.Contains(strings.Join(gotArgv, " "), "--disallowed-tools Bash Edit Write") {
 		t.Fatalf("argv %v", gotArgv)

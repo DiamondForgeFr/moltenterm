@@ -111,11 +111,15 @@ func fileExists(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// Detect reads the repository at dir.
+// Detect reads the repository at dir, its pipeline as the working copy has it.
 func Detect(dir string) Facts {
+	return DetectWith(dir, molten.ValidatePipeline(dir))
+}
+
+// DetectWith reads the repository at dir with the pipeline the setup builds on: the committed one (#1098).
+func DetectWith(dir string, report molten.PipelineReport) Facts {
 	f := Facts{Name: filepath.Base(dir), TagPrefix: versions.DefaultTagPrefix, Missing: []string{}, Changelogs: []Changelog{},
 		Workflows: []Workflow{}, Targets: []Target{}, KindEvidence: []Source{}, VersionFiles: []versions.VersionFile{}}
-	report := molten.ValidatePipeline(dir)
 	f.HasPipeline = report.Present
 	f.PipelineValid = report.Valid
 	f.PipelineErrors = report.Errors

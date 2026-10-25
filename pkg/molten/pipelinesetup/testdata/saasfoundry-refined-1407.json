@@ -1,0 +1,223 @@
+{
+    "schema": 1,
+    "name": "SaaSFoundryAI",
+    "icon": "docs/public/icon.svg",
+    "versions": {
+        "tagprefix": "v",
+        "firstpublic": "1.0.0",
+        "files": [
+            {
+                "path": "package.json",
+                "format": "json",
+                "keys": [
+                    [
+                        "version"
+                    ]
+                ]
+            },
+            {
+                "path": "package-lock.json",
+                "format": "json",
+                "keys": [
+                    [
+                        "version"
+                    ],
+                    [
+                        "packages",
+                        "",
+                        "version"
+                    ]
+                ]
+            },
+            {
+                "path": ".saasfoundry.json",
+                "format": "json",
+                "keys": [
+                    [
+                        "version"
+                    ]
+                ]
+            },
+            {
+                "path": "README.md",
+                "format": "text",
+                "pattern": "\\*\\*v{version}\\*\\*"
+            },
+            {
+                "path": "docs/.vitepress/config/navigation.ts",
+                "format": "text",
+                "pattern": "text: 'v{version}',"
+            },
+            {
+                "path": "docs/guide/project-structure.md",
+                "format": "text",
+                "pattern": "\"version\": \"{version}\","
+            },
+            {
+                "path": "docs/fr/guide/project-structure.md",
+                "format": "text",
+                "pattern": "\"version\": \"{version}\","
+            }
+        ],
+        "changelogs": [
+            "docs/changelog.md",
+            "docs/fr/changelog.md",
+            "AGENTS.md"
+        ]
+    },
+    "ci": {
+        "prepare": {
+            "run": "npm ci"
+        },
+        "statuses": "github",
+        "jobs": [
+            {
+                "name": "format",
+                "title": "Format check",
+                "lane": "guards",
+                "run": "npm run format:check"
+            },
+            {
+                "name": "impact-contract",
+                "title": "Impact contract",
+                "lane": "guards",
+                "run": "npm run test:impact-contract"
+            },
+            {
+                "name": "lint",
+                "title": "Lint",
+                "lane": "static",
+                "run": "npm run lint"
+            },
+            {
+                "name": "build",
+                "title": "Build",
+                "lane": "dist",
+                "run": "npm run build",
+                "description": "Cleans and recompiles dist/; every job that reads or rewrites dist/ shares this lane so none races it."
+            },
+            {
+                "name": "package",
+                "title": "Package boundary",
+                "lane": "dist",
+                "run": "npm run package:check"
+            },
+            {
+                "name": "unit",
+                "title": "Unit tests",
+                "lane": "unit",
+                "run": "npm run test:unit"
+            },
+            {
+                "name": "integration",
+                "title": "Integration tests",
+                "lane": "dist",
+                "run": "npm run test:integration"
+            },
+            {
+                "name": "e2e",
+                "title": "E2E tests",
+                "lane": "dist",
+                "run": "npm run test:e2e"
+            },
+            {
+                "name": "docs-build",
+                "title": "Docs build",
+                "lane": "docs",
+                "run": "npm run docs:build"
+            },
+            {
+                "name": "docs-integrity",
+                "title": "Docs integrity",
+                "lane": "docs",
+                "run": "npm run test:docs-integrity"
+            },
+            {
+                "name": "docker-normal",
+                "title": "Docker lifecycle (normal lane)",
+                "lane": "docker",
+                "run": "npm run test:pre-push"
+            }
+        ]
+    },
+    "release": {
+        "public": [
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes on rc-{version}, made from develop",
+                "phase": "prepare",
+                "run": "molten release prepare {tag} --pr"
+            },
+            {
+                "id": "reconcile",
+                "title": "Reconcile master into rc-{version} when they diverged (merge -s ours; nothing to do otherwise)",
+                "phase": "prepare",
+                "run": "molten release reconcile {tag}"
+            },
+            {
+                "id": "changelog-en",
+                "title": "Write the [{version}] section of docs/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, on rc-{version}), in docs/changelog.md, move the entries of '## [Unreleased]' under a new '## [{version}] - YYYY-MM-DD' heading (today's date) placed right below '## [Unreleased]', which stays empty. Keep the heading exactly in that form: publish-stable.yml runs scripts/release-notes.mjs {version}, which refuses a missing or empty section and builds the GitHub Release notes from it."
+            },
+            {
+                "id": "changelog-fr",
+                "title": "Write the [{version}] section of docs/fr/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, on rc-{version}), in docs/fr/changelog.md, move the entries of '## [Non publié]' under a new '## [{version}] - YYYY-MM-DD' heading placed right below '## [Non publié]', which stays empty: the French translation of the English section, same date."
+            },
+            {
+                "id": "agents-version",
+                "title": "Set the current version line of AGENTS.md to {version}",
+                "phase": "cut",
+                "manual": "In the release worktree (../SaaSFoundry-release, on rc-{version}), in AGENTS.md (Important Context), set the line to '- Current version: {version} (npm package `saasfoundryai-cli`)'. It still reads 1.0.0-beta, so it is not a version file the bump can read back; the cut commits it with the changelogs."
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
+                "id": "open-pr",
+                "title": "Commit the release on rc-{version} and open its pull request to master",
+                "phase": "cut",
+                "confirm": "Pushes rc-{version} with the release commit of {tag} and opens its pull request to master.",
+                "run": "molten release open-pr {tag}"
+            },
+            {
+                "id": "merge-pr",
+                "title": "Merge the pull request into master with a merge commit once CI / Required gate is green",
+                "phase": "cut",
+                "confirm": "Merges the pull request of {tag} into master with a merge commit (never squash or rebase: v1.0.1's rebase merge made master and develop diverge) once CI / Required gate is green.",
+                "run": "molten release merge-pr {tag} --method merge"
+            },
+            {
+                "id": "tag",
+                "title": "Tag the merge commit and push the tag: publish-stable.yml starts on the tag",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed: publish-stable.yml waits for the tag's Tests run, then the environment npm-production asks for an approval on GitHub before npm publish and the GitHub Release.",
+                "run": "molten release tag {tag}"
+            },
+            {
+                "id": "close-milestone",
+                "title": "Close the milestone once the release is published",
+                "phase": "publish",
+                "run": "molten release close-milestone {tag}"
+            },
+            {
+                "id": "dispatch-deploy-docs",
+                "title": "Run Deploy Documentation at {tag}",
+                "phase": "publish",
+                "run": "molten release dispatch deploy-docs.yml --ref {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Merge master back into develop with a merge commit",
+                "phase": "back",
+                "confirm": "Opens the pull request of master (at {tag}) into develop and merges it with a merge commit once its checks are green, never squash or rebase: master must become part of develop's history, or the branches diverge again.",
+                "run": "molten release sync-back {tag} --merge"
+            }
+        ]
+    }
+}

@@ -450,6 +450,9 @@ var windowCommands = map[string]string{
 	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
 	SetupUpdateCommand: "a release setup is updated from a MoltenTerm window",
+	// The pull request the setup opens (#1098) is followed from the window that opened it.
+	SetupPrStateCommand: "a release setup's pull request is followed from a MoltenTerm window",
+	SetupTicketsCommand: "a release setup's ticket is picked from a MoltenTerm window",
 	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
 	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
@@ -535,11 +538,12 @@ func (l *routeLink) route() localroute.Route {
 	}
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks) error {
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews, launches *Launches, asks *TrustAsks, setupTrees string) error {
+	setup := pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)
+	setup.TreesDir = setupTrees
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
-		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks,
-		setup: pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)}
+		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }
@@ -583,6 +587,18 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.Update(ctx, req)
+	case SetupPrStateCommand:
+		var req pipelinesetup.PrStateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.PrState(req)
+	case SetupTicketsCommand:
+		var req pipelinesetup.TicketsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Tickets(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
