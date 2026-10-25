@@ -14,7 +14,7 @@ vi.mock("./release-setup-client", () => ({
 vi.mock("@/app/store/global", () => ({ createBlock: vi.fn(), openLink: vi.fn(), getApi: vi.fn() }));
 
 import { createBlock } from "@/app/store/global";
-import { TechDocChanges, techDocCounts } from "./release-setup-techdoc";
+import { TechDocChanges, techDocCounts, techDocFile } from "./release-setup-techdoc";
 import { openTechDoc, TechDocLinkButton } from "./release-techdoc-link";
 
 describe("pipeline technical documentation (FR-MC-043)", () => {
@@ -30,6 +30,34 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
         };
         expect(techDocCounts(plan)).toEqual({ added: 2, removed: 1 });
         expect(techDocCounts(null)).toEqual({ added: 0, removed: 0 });
+    });
+
+    it("is one more generated file of step 3's list, closed, with its diff from the current one", () => {
+        const plan = {
+            backend: "repository",
+            topic: "release-pipeline",
+            title: "Release pipeline",
+            path: "docs/engineering/release-pipeline.md",
+            current: "# Old\n",
+            proposed: "# New\n",
+            warnings: ["fake: unreachable"],
+        };
+        expect(techDocFile(plan)).toEqual({
+            path: "docs/engineering/release-pipeline.md",
+            status: "changed",
+            kind: "whole",
+            content: "# New\n",
+            before: "# Old\n",
+            collapsed: true,
+            introKey: "mc.setup.techdoc.introRepository",
+            warningKey: "mc.setup.techdoc.fallback",
+            warningVars: { reason: "fake: unreachable" },
+        });
+        const page = techDocFile({ ...plan, backend: "saasfoundry", path: "", current: "", warnings: [] });
+        expect(page.path).toBe("Release pipeline");
+        expect(page.status).toBe("new");
+        expect(page.introKey).toBe("mc.setup.techdoc.introBackend");
+        expect(techDocFile({ ...plan, proposed: "" })).toBeNull();
     });
 
     it("shows the block while the document is built, and nothing without a pipeline", () => {
