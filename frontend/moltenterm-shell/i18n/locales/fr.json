@@ -5465,6 +5465,7 @@
             "name": "{name}",
             "more": "Plus d'actions",
             "moreTitle": "Plus d'actions sur la PR #{number}",
+            "moreTakeOver": "Un agent s'en occupe, rien à faire pour l'instant. Pour la reprendre : Passer en revue, Revue assistée…",
             "draftTag": "brouillon",
             "draftTagTitle": "Cette pull request est un brouillon sur GitHub.",
             "disabledTitle": "{action} : {reason}",
@@ -5520,7 +5521,8 @@
                 "openWork": "Ouvrir son travail",
                 "stop": "Arrêter {name}",
                 "rerun": "Relancer les jobs en échec : {names}",
-                "markReady": "Passer en revue"
+                "markReady": "Passer en revue",
+                "markReadyMenu": "Passer en revue : la PR quitte le brouillon"
             },
             "actionTitle": {
                 "answer": "Afficher le terminal de {name} : il attend votre réponse",

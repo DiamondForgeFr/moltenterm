@@ -72,7 +72,7 @@ function words(input: Partial<CardInput> & { pr: ReviewPr }) {
         kind: s.kind,
         sentence: wordPhrase(s.sentence),
         why: wordPhrase(s.why),
-        primary: wordPhrase(s.primary.label),
+        primary: wordPhrase(s.primary?.label),
         molten: s.molten,
         menu: s.menu.map((a) => (a.disabled ? `${wordPhrase(a.label)} (off)` : wordPhrase(a.label))),
         facts: s.facts.map((f) => wordPhrase(f.text)),
@@ -143,10 +143,10 @@ describe("cardState: the nine states (#1060)", () => {
         const ready = s.menu.find((a) => a.id === "mark-ready");
         expect(wordPhrase(ready.confirm)).toBe("Nathan is still working on this branch.");
         expect(w.menu).toEqual([
+            "Mark ready for review: the PR leaves draft",
             "Open its work",
             "Stop Nathan",
             "Assisted review",
-            "Mark ready for review",
             "Launch this version",
             "Open on GitHub",
         ]);
@@ -189,8 +189,32 @@ describe("cardState: the nine states (#1060)", () => {
         expect(w.kind).toBe("agent-working");
         expect(w.sentence).toBe("An agent is on it");
         expect(w.why).toBe("column AI Testing");
-        expect(w.primary).toBe("Assisted review");
         expect(w.molten).toBe(false);
+    });
+
+    it("an agent works without a terminal here: the card asks nothing, Mark ready first in the menu (#1085)", () => {
+        const input = {
+            pr: pr({ draft: true }),
+            boardTurn: { owner: "agent" as const, kind: "agent" as const, status: "In Progress" },
+            boardStatus: "In Progress",
+        };
+        expect(state(input).primary).toBeNull();
+        expect(words(input).menu).toEqual([
+            "Mark ready for review: the PR leaves draft",
+            "Assisted review",
+            "Launch this version",
+            "Open on GitHub",
+        ]);
+        const commit = state({ pr: pr({ draft: true }), boardTurn: { owner: "agent", kind: "agent" } });
+        expect(commit.primary).toBeNull();
+        expect(commit.menu[0].id).toBe("mark-ready");
+        const ready = state({ pr: pr(), boardTurn: { owner: "agent", kind: "agent" } });
+        expect(ready.kind).toBe("ready");
+    });
+
+    it("an agent with a terminal to follow keeps Follow, not a task (#1085)", () => {
+        expect(state({ pr: pr({ draft: true }), agents: [Nathan] }).primary.id).toBe("follow");
+        expect(state({ pr: pr({ draft: true }), agents: [Nathan] }).menu[0].id).toBe("mark-ready");
     });
 
     it("work interrupted, session open: Relaunch {name}, molten", () => {

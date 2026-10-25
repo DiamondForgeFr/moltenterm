@@ -151,7 +151,7 @@ describe("Reviews card (#1060)", () => {
                 },
             })
         );
-        expect(running).toContain('data-motion="state"');
+        expect(running).toContain('data-works="state"');
         expect(running).toContain('data-testid="reviews-card-working"');
         expect(running).toContain("df-domino-loader");
         expect(running).not.toContain('data-testid="reviews-card-dot"');

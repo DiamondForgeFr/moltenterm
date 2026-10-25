@@ -5465,6 +5465,7 @@
             "name": "{name}",
             "more": "More actions",
             "moreTitle": "More actions on PR #{number}",
+            "moreTakeOver": "An agent is on it, nothing to do for now. To take it over: Mark ready for review, Assisted review…",
             "draftTag": "draft",
             "draftTagTitle": "This pull request is a draft on GitHub.",
             "disabledTitle": "{action}: {reason}",
@@ -5520,7 +5521,8 @@
                 "openWork": "Open its work",
                 "stop": "Stop {name}",
                 "rerun": "Rerun failed jobs: {names}",
-                "markReady": "Mark ready for review"
+                "markReady": "Mark ready for review",
+                "markReadyMenu": "Mark ready for review: the PR leaves draft"
             },
             "actionTitle": {
                 "answer": "Show {name}'s terminal: it is waiting for your answer",
