@@ -43,7 +43,7 @@ import {
     SetupPrStatus,
     toggledCheck,
 } from "./release-setup-prepared-model";
-import { AgentProposal } from "./release-setup-proposal";
+import { AgentAvailability, AgentProposal } from "./release-setup-proposal";
 import { FlowReasons } from "./release-setup-reasons";
 import { techDocFile, useTechDocPlan } from "./release-setup-techdoc";
 
@@ -295,6 +295,7 @@ function PipelineFileCard({
     proposed,
     diff,
     locked,
+    fixed,
     onOptions,
 }: {
     file: PreparedFile;
@@ -303,14 +304,16 @@ function PipelineFileCard({
     proposed: string;
     diff: PreparedPipelineDiff;
     locked: boolean;
+    // The update's changes were ticked at step 2 (#1106): no tick here.
+    fixed?: boolean;
     onOptions: (o: SetupOptions) => void;
 }) {
     const t = useT();
     const tCount = useTCount();
     const [whole, setWhole] = useState(diff == null);
     const counts = diffCounts(diff);
-    const checks = proposedChecks(draft, options);
-    const format = proposesFormat(draft, options);
+    const checks = fixed ? [] : proposedChecks(draft, options);
+    const format = fixed ? false : proposesFormat(draft, options);
     const dropped = (options.nocheck ?? []).filter((id) => checks.includes(id));
     return (
         <div className="flex flex-col rounded-4 border border-border" data-testid="prepared-file-pipeline">
@@ -640,6 +643,8 @@ export function PreparedStep({
     extraFiles,
     initialRequest,
     pr,
+    update,
+    agent,
 }: {
     dir: string;
     draft: SetupDraft;
@@ -653,16 +658,25 @@ export function PreparedStep({
     extraFiles?: PreparedFile[];
     initialRequest?: string;
     pr?: PreparedPrProps;
+    // A project already set up (#1106): the draft is the update's (updateDraftOf), its changes ticked at step 2.
+    update?: { template: number };
+    // The coding agent step 1 found (#1106).
+    agent?: AgentAvailability;
 }) {
     const t = useT();
     const proposed = refined?.proposed ?? draft.proposed;
     const errors = refined?.errors ?? draft.errors;
     const warnings = [...(draft.warnings ?? []), ...(refined?.validatewarnings ?? draft.validatewarnings ?? [])];
-    const channels: SetupChannel[] = options.kind === "saas" ? ["public"] : options.channels;
+    const channels: SetupChannel[] =
+        options.kind === "saas" ? ["public"] : update != null ? ["rc", "public"] : options.channels;
     const diff = useMemo(() => pipelineDiff(draft.current, proposed), [draft.current, proposed]);
     const drawn = useMemo(() => preparedDraft(draft, proposed), [draft, proposed]);
     // The pipeline's technical documentation is one more generated file of the pull request (FR-MC-043).
-    const doc = useTechDocPlan(dir, errors.length === 0 && proposed !== draft.current ? proposed : "", "write");
+    const doc = useTechDocPlan(
+        dir,
+        errors.length === 0 && proposed !== draft.current ? proposed : "",
+        update != null ? "update" : "write"
+    );
     const docFile = techDocFile(doc.plan);
     const files = preparedFiles(draft, proposed, docFile ? [...(extraFiles ?? []), docFile] : extraFiles);
     const writing = pr?.busy || (pr?.job != null && pr.job.failure == null);
@@ -679,9 +693,11 @@ export function PreparedStep({
         ? refined.agentname
             ? t("mc.setup.review.byAgent", { agent: refined.agentname })
             : t("mc.setup.review.byPasted")
-        : draft.provider === "saasfoundry"
-          ? t("mc.setup.review.bySaaSFoundry")
-          : t("mc.setup.review.byMoltenTerm");
+        : update != null
+          ? t("mc.setup.review.byUpdate", { template: String(update.template) })
+          : draft.provider === "saasfoundry"
+            ? t("mc.setup.review.bySaaSFoundry")
+            : t("mc.setup.review.byMoltenTerm");
     const block = (title: string, desc: string, children: ReactNode, testId?: string) => (
         <div className={BlockClass} data-testid={testId}>
             <span className={ChipClass}>{title}</span>
@@ -691,7 +707,7 @@ export function PreparedStep({
     );
     return (
         <div className="@container flex flex-col gap-3" data-testid="setup-prepared">
-            {refined ? null : <FlowReasons draft={draft} options={options} />}
+            {refined || update != null ? null : <FlowReasons draft={draft} options={options} />}
             <div className="flex flex-col gap-2">
                 {models.map(({ channel, model }) => (
                     <div key={channel} className="flex flex-col gap-1">
@@ -724,6 +740,7 @@ export function PreparedStep({
                                             proposed={proposed}
                                             diff={diff}
                                             locked={locked}
+                                            fixed={update != null}
                                             onOptions={onOptions ?? (() => {})}
                                         />
                                     ) : (
@@ -765,6 +782,7 @@ export function PreparedStep({
                                         onResult={onRefined}
                                         onBusy={onRefining}
                                         initialRequest={initialRequest}
+                                        agent={agent}
                                     />
                                 )}
                             </div>

@@ -3623,8 +3623,8 @@
                 "rebase": "Rebase"
             },
             "rcFormat": {
-                "numeric": "Candidates {prefix}1.2.0-1, -2…",
-                "rcdot": "Candidates {prefix}1.2.0-rc.1, -rc.2…"
+                "numeric": "Versions candidates {prefix}1.2.0-1, -2…",
+                "rcdot": "Versions candidates {prefix}1.2.0-rc.1, -rc.2…"
             },
             "reason": {
                 "msiNumeric": "Les installeurs Windows n’acceptent que des chiffres après le tiret (cible {target}).",
@@ -3683,7 +3683,8 @@
                 "byMoltenTerm": "Rédigé par MoltenTerm d’après le dépôt.",
                 "refining": "L’agent lit le dépôt…",
                 "refineTitle": "L’agent de code du projet lit le dépôt et propose des changements d’étapes, sans rien écrire.",
-                "sources": "D’où vient chaque étape"
+                "sources": "D’où vient chaque étape",
+                "byUpdate": "Mis à jour par MoltenTerm avec son modèle {template}, avec les changements cochés à l’étape 2."
             },
             "proposal": {
                 "wordsLabel": "Dites-le avec vos mots : l’agent du projet propose des changements d’étapes, vous les cochez avant que rien ne bouge",
@@ -3735,7 +3736,8 @@
                     "command": "{detail} désigne un programme que la release lancerait : modifiez-le vous-même.",
                     "invalid": "Le pipeline ne serait pas valide : {detail}",
                     "toomany": "Changements au-delà des 40 premiers ({detail}) : trop pour une seule réponse."
-                }
+                },
+                "askAgent": "Demander une proposition à {agent}"
             },
             "diagram": {
                 "github": "GitHub",
@@ -3804,9 +3806,8 @@
                 "hide": "Masquer",
                 "before": "Maintenant",
                 "after": "Après la mise à jour",
-                "files": "Le fichier",
                 "filesHint": "Seuls les blocs release et versions changent ; MoltenTerm note aussi dans .molten/release-setup.json les étapes qu’il a écrites.",
-                "keepAll": "Vous gardez chaque changement tel quel : le pipeline ne change pas, et la pull request note vos choix dans .molten/release-setup.json pour qu'ils ne soient plus proposés.",
+                "keepAll": "Vous gardez chaque changement tel quel : le pipeline ne change pas, et la pull request note vos choix dans .molten/release-setup.json pour qu’ils ne soient plus proposés.",
                 "invalid": "Le pipeline mis à jour ne serait pas valide : {errors}",
                 "openSetup": "Ouvrir la configuration du pipeline",
                 "localFile": "Vos modifications hors des étapes de release : {keys}",
@@ -3829,32 +3830,32 @@
                 "declared": "Le pipeline déclaré",
                 "adjusted": "Vous avez ajusté ces choix : les changements qu’ils entraînent sont listés plus haut, avec leur raison.",
                 "adjustHint": "Ces choix sont lus dans le pipeline déclaré. Changez-en un pour voir ce qu’il change, puis ouvrez la pull request à l’étape suivante.",
-                "nothing": "Rien ne change : le bouton de pull request reste désactivé tant qu’aucun choix n’est ajusté ni aucune modification incluse."
+                "nothing": "Rien ne change par rapport au modèle : ajustez un choix à l’étape 2, ou demandez une proposition à l’agent ci-dessous ; la pull request s’ouvre dès que quelque chose change."
             },
             "techdoc": {
                 "title": "Documentation technique",
-                "introRepository": "La documentation technique du pipeline : comment le projet est construit et publié, générée d'après le pipeline ci-dessus et réécrite à chaque mise à jour. Elle va dans la même pull request.",
-                "introBackend": "La documentation technique du pipeline : comment le projet est construit et publié, générée d'après le pipeline ci-dessus. Elle est écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
+                "introRepository": "La documentation technique du pipeline : comment le projet est construit et publié, générée d’après le pipeline ci-dessus et réécrite à chaque mise à jour. Elle va dans la même pull request.",
+                "introBackend": "La documentation technique du pipeline : comment le projet est construit et publié, générée d’après le pipeline ci-dessus. Elle est écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
                 "new": "nouvelle",
                 "updated": "mise à jour",
                 "lines": "+{added} −{removed} lignes",
                 "building": "génération de la documentation à partir du pipeline",
-                "error": "La documentation n'a pas pu être générée : {error}",
+                "error": "La documentation n’a pas pu être générée : {error}",
                 "whereRepository": "Écrite dans {path}, dans la même pull request.",
                 "whereBackend": "Écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
-                "why": "Elle décrit comment le projet est construit et publié, d'après le pipeline ci-dessus.",
-                "whyUpdate": "Elle est réécrite d'après le pipeline mis à jour ; son historique garde les changements précédents.",
+                "why": "Elle décrit comment le projet est construit et publié, d’après le pipeline ci-dessus.",
+                "whyUpdate": "Elle est réécrite d’après le pipeline mis à jour ; son historique garde les changements précédents.",
                 "openPage": "Ouvrir la documentation technique",
-                "fallback": "Le service de documentation n'a pas répondu ({reason}) : le document va dans le dépôt à la place.",
+                "fallback": "Le service de documentation n’a pas répondu ({reason}) : le document va dans le dépôt à la place.",
                 "show": "Voir les changements du document",
                 "link": "Comment ce projet est publié",
                 "linkHint": "La documentation technique du pipeline, écrite par la mise en place de la release"
             },
             "pr": {
                 "title": "Valider par pull request",
-                "desc": "Un fichier suivi ne change que par une pull request : vous la fusionnez quand vous êtes d'accord. Votre copie de travail n'est pas touchée.",
-                "descPatch": "origin n'est pas sur GitHub : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n'est pas touchée.",
-                "noGit": "Ce dossier n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
+                "desc": "Un fichier suivi ne change que par une pull request : vous la fusionnez quand vous êtes d’accord. Votre copie de travail n’est pas touchée.",
+                "descPatch": "origin n’est pas sur GitHub : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n’est pas touchée.",
+                "noGit": "Ce dossier n’est pas un dépôt git avec sa branche de travail : il n’y a rien sur quoi ouvrir une pull request.",
                 "ticket": "Ticket",
                 "branch": "Branche",
                 "commit": "Commit",
@@ -3870,9 +3871,9 @@
                 "copyAgain": "Le copier à nouveau",
                 "patchReady": "Le patch est copié : appliquez-le avec git am là où votre projet reçoit les changements.",
                 "copied": "Copié à nouveau.",
-                "done": "Pull request #{number} ouverte en brouillon. Le menu Release utilise le pipeline une fois qu'elle est fusionnée dans {target}.",
+                "done": "Pull request #{number} ouverte en brouillon. Le menu Release utilise le pipeline une fois qu’elle est fusionnée dans {target}.",
                 "openPr": "Ouvrir #{number}",
-                "pushedOnly": "{branch} est poussée. origin n'est pas sur GitHub : ouvrez-y la pull request vers {target}.",
+                "pushedOnly": "{branch} est poussée. origin n’est pas sur GitHub : ouvrez-y la pull request vers {target}.",
                 "prepareAgain": "Préparer à nouveau",
                 "uncommitted": "{path} a des modifications non commitées dans votre copie. La configuration lit la version commitée ({ref}) ; vos modifications ne sont jamais écrasées.",
                 "include": "Les inclure comme changements à vérifier",
@@ -3894,20 +3895,21 @@
                     "moved": "{ref} a bougé depuis le brouillon : {path} y a changé (commit {commit}). Préparez à nouveau : vos réponses sont gardées.",
                     "localChanged": "Vos modifications non commitées de {path} ont changé depuis le brouillon. Préparez à nouveau pour inclure les nouvelles.",
                     "updateChanged": "La mise à jour a changé depuis son affichage. Préparez à nouveau.",
-                    "branchExists": "La branche {branch} existe déjà sur origin. Rien n'a été poussé et votre copie n'a pas changé.",
-                    "invalid": "Le pipeline ne serait pas valide. Rien n'a été poussé.",
-                    "nothing": "Le pipeline commité se lit déjà ainsi : il n'y a rien à commiter.",
-                    "fetch": "origin n'a pas pu être lu. Rien n'a été poussé.",
-                    "ticket": "Le ticket n'a pas pu être créé. Rien n'a été poussé.",
-                    "worktree": "Le worktree n'a pas pu être créé. Votre copie n'a pas changé.",
-                    "commit": "Le commit n'a pas pu être fait dans le worktree. Votre copie n'a pas changé.",
-                    "push": "Le push a été refusé. Votre copie n'a pas changé.",
-                    "pr": "{branch} est poussée, mais la pull request n'a pas pu être ouverte. Ouvrez-la sur GitHub, ou copiez le patch.",
-                    "failed": "La pull request n'a pas pu être préparée. Votre copie n'a pas changé.",
-                    "includeConflict": "Vos modifications non commitées sont en conflit avec {ref}. Préparez à nouveau sans elles, ou commitez-les d'abord."
+                    "branchExists": "La branche {branch} existe déjà sur origin. Rien n’a été poussé et votre copie n’a pas changé.",
+                    "invalid": "Le pipeline ne serait pas valide. Rien n’a été poussé.",
+                    "nothing": "Le pipeline commité se lit déjà ainsi : il n’y a rien à commiter.",
+                    "fetch": "origin n’a pas pu être lu. Rien n’a été poussé.",
+                    "ticket": "Le ticket n’a pas pu être créé. Rien n’a été poussé.",
+                    "worktree": "Le worktree n’a pas pu être créé. Votre copie n’a pas changé.",
+                    "commit": "Le commit n’a pas pu être fait dans le worktree. Votre copie n’a pas changé.",
+                    "push": "Le push a été refusé. Votre copie n’a pas changé.",
+                    "pr": "{branch} est poussée, mais la pull request n’a pas pu être ouverte. Ouvrez-la sur GitHub, ou copiez le patch.",
+                    "failed": "La pull request n’a pas pu être préparée. Votre copie n’a pas changé.",
+                    "includeConflict": "Vos modifications non commitées sont en conflit avec {ref}. Préparez à nouveau sans elles, ou commitez-les d’abord."
                 },
-                "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d'abord pour les inclure.",
-                "includedAsChanges": "Vos modifications non commitées sont incluses comme changements à vérifier : chacune est listée ci-dessous, cochée, et vous pouvez en laisser de côté. Votre copie les garde telles quelles."
+                "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d’abord pour les inclure.",
+                "includedAsChanges": "Vos modifications non commitées sont incluses comme changements à vérifier : chacune est listée ci-dessous, cochée, et vous pouvez en laisser de côté. Votre copie les garde telles quelles.",
+                "descNoRemote": "Ce dépôt n’a pas de remote origin : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n’est pas touchée."
             },
             "stepper": {
                 "step": {
@@ -3949,40 +3951,40 @@
                 "model": "Prendre un autre projet comme modèle",
                 "modelSub": "le pipeline enregistré dans son dépôt est lu, puis adapté ici (branches, fichiers, workflows)",
                 "modelsReading": "Lecture des autres projets…",
-                "noModels": "Aucun autre projet lié n'a encore de pipeline enregistré dans son dépôt.",
+                "noModels": "Aucun autre projet lié n’a encore de pipeline enregistré dans son dépôt.",
                 "modelOption": "{name} · {ref}",
                 "words": "Le décrire avec mes mots",
-                "wordsSub": "écrivez-le dans « Autre chose ? » : l'agent du projet en fait des changements que vous vérifiez à l'étape 3",
+                "wordsSub": "écrivez-le dans « Autre chose ? » : l’agent du projet en fait des changements que vous vérifiez à l’étape 3",
                 "yourTitle": "Votre pipeline",
                 "yourIntro": "Quelques questions ; les réponses remplissent les schémas.",
                 "trunk": "Où arrive le travail de tous les jours ?",
                 "release": "Quelle branche porte ce qui est publié ?",
                 "sameBranch": "la même branche ({trunk}) : les versions y sont taguées",
                 "where": "Où est-ce publié ?",
-                "noTarget": "Rien que MoltenTerm sache publier n'a été trouvé (un paquet npm public, un dépôt sur GitHub) : chaque version n'est qu'un tag.",
+                "noTarget": "Rien que MoltenTerm sache publier n’a été trouvé (un paquet npm public, un dépôt sur GitHub) : chaque version n’est qu’un tag.",
                 "target": {
                     "npm": "npm",
                     "githubrelease": "Release GitHub avec les notes"
                 },
                 "publishedBy": "déjà publié par {file} sur le tag",
-                "workflowProposed": "un workflow de publication sur le tag sera proposé (aucun n'existe)",
+                "workflowProposed": "un workflow de publication sur le tag sera proposé (aucun n’existe)",
                 "rcTitle": "Release candidate",
-                "rcIntro": "Voulez-vous aussi un pipeline de release candidate, pour essayer une version avant qu'elle soit publique ?",
+                "rcIntro": "Voulez-vous aussi un pipeline de release candidate, pour essayer une version avant qu’elle soit publique ?",
                 "rc": {
                     "none": "Non, seulement des releases publiques",
-                    "noneSub": "chaque version est publiée dès qu'elle est taguée",
+                    "noneSub": "chaque version est publiée dès qu’elle est taguée",
                     "published": "Oui, publiées sous un tag de pré-version",
                     "publishedSub": "tag {tag}, une pré-version sur GitHub",
                     "publishedNpm": "le tag next de npm · tag {tag}",
                     "internal": "Oui, internes seulement",
                     "internalSub": "un tag et les tests, rien de publié"
                 },
-                "anything": "Autre chose ? (facultatif, lu par l'agent du projet)",
+                "anything": "Autre chose ? (facultatif, lu par l’agent du projet)",
                 "anythingPlaceholder": "Par exemple : le changelog est en anglais seulement ; je vérifie la release candidate à la main avant la publique.",
                 "allChoices": "Tous les choix",
                 "fileTitle": "Nouveau fichier : {path}",
-                "fileIntro": "Proposé car aucun workflow ne publie encore au tag vers : {targets}. Il part dans la même pull request : lisez-le avant de l'ouvrir.",
-                "npmSecret": "npm a besoin du secret NPM_TOKEN du dépôt (un jeton d'automatisation npm) avant la première release."
+                "fileIntro": "Proposé car aucun workflow ne publie encore au tag vers : {targets}. Il part dans la même pull request : lisez-le avant de l’ouvrir.",
+                "npmSecret": "npm a besoin du secret NPM_TOKEN du dépôt (un jeton d’automatisation npm) avant la première release."
             },
             "template": {
                 "saveTitle": "Enregistrer comme modèle",
@@ -3993,7 +3995,7 @@
                 "kept": "Gardé tel quel",
                 "keepFlow": "Le déroulé : branches, release candidates, pull request ou promotion, fusion, tag, sync-back",
                 "keepManual": "Les étapes à la main et leurs instructions",
-                "noManual": "ce pipeline n'a aucune étape à la main",
+                "noManual": "ce pipeline n’a aucune étape à la main",
                 "keepPublish": "Où les versions sont publiées",
                 "keepPublishSub": "{targets} ; un workflow de publication manquant est proposé sur le projet suivant",
                 "noPublish": "aucun workflow ne publie sur le tag",
@@ -4011,7 +4013,7 @@
                 "thisComputer": "Sur cet ordinateur",
                 "thisComputerSub": "dans le dossier de données de MoltenTerm, pour tous vos projets ; jamais dans un dépôt",
                 "previewTitle": "Le modèle",
-                "previewIntro": "Tel qu'il sera proposé sur un autre projet.",
+                "previewIntro": "Tel qu’il sera proposé sur un autre projet.",
                 "flow": {
                     "single": "branche unique",
                     "rcpr": "PR vers {release}",
@@ -4031,10 +4033,10 @@
                 "save": "Enregistrer le modèle",
                 "savedButton": "Enregistré",
                 "finishWithout": "Terminer sans modèle",
-                "saved": "« {name} » est enregistré sur cet ordinateur : l'étape 2 le propose quand vous configurez un autre projet de type {type}.",
+                "saved": "« {name} » est enregistré sur cet ordinateur : l’étape 2 le propose quand vous configurez un autre projet de type {type}.",
                 "savedSub": "enregistré",
-                "saasLater": "Le pipeline d'une application web ou d'un SaaS déploie sur des environnements au lieu de publier des versions : il ne peut pas encore être enregistré comme modèle.",
-                "invalidDraft": "Le pipeline préparé comporte des erreurs : corrigez-les à l'étape 3 avant de l'enregistrer comme modèle.",
+                "saasLater": "Le pipeline d’une application web ou d’un SaaS déploie sur des environnements au lieu de publier des versions : il ne peut pas encore être enregistré comme modèle.",
+                "invalidDraft": "Le pipeline préparé comporte des erreurs : corrigez-les à l’étape 3 avant de l’enregistrer comme modèle.",
                 "pick": "Mon modèle « {name} »",
                 "fit": "{met}/{total}",
                 "fitTitle": "Correspond à ce projet : {met} vérifications sur {total}",
@@ -4045,15 +4047,17 @@
                     "branchesOk": "une branche publiée à part",
                     "branchesMissing": "Pas de branche publiée à part ici : {value} sera la branche publiée.",
                     "protectedOk": "{value} est protégée",
-                    "protectedMissing": "{value} ne demande pas de pull request ici : vérifiez le modèle de branches à l'étape 2.",
+                    "protectedMissing": "{value} ne demande pas de pull request ici : vérifiez le modèle de branches à l’étape 2.",
                     "targetOk": "{target} est possible",
                     "targetMissing": "Ce projet ne peut pas être publié sur {target} : cette cible est laissée de côté.",
                     "workflowOk": "{value} publie déjà sur {target}",
-                    "workflowMissing": "Aucun workflow ne publie encore sur {target} au tag : l'étape 3 propose molten-publish.yml."
+                    "workflowMissing": "Aucun workflow ne publie encore sur {target} au tag : l’étape 3 propose molten-publish.yml."
                 },
                 "forget": "Oublier ce modèle",
-                "forgetAsk": "L'oublier sur cet ordinateur ?",
-                "forgetYes": "Oublier"
+                "forgetAsk": "L’oublier sur cet ordinateur ?",
+                "forgetYes": "Oublier",
+                "forgottenKept": "« {name} » est oublié sur cet ordinateur ; les choix qu’il avait remplis sont gardés ci-dessous, et chacun reste modifiable.",
+                "noneSaved": "Aucun modèle n’est encore enregistré sur cet ordinateur : décrivez ce pipeline ci-dessous, puis enregistrez-le à l’étape 4 pour le réutiliser."
             },
             "appType": {
                 "desktop": "Application de bureau",
@@ -4119,7 +4123,7 @@
             },
             "analyse": {
                 "understood": "Ce que nous avons compris",
-                "understoodIntro": "Chaque point dit d'où il vient. Confirmez-le ou ajustez-le : le schéma suit.",
+                "understoodIntro": "Chaque point dit d’où il vient. Confirmez-le ou ajustez-le : le schéma suit.",
                 "toConfirm": "À confirmer",
                 "confirmed": "Confirmé",
                 "correct": "Exact",
@@ -4129,12 +4133,12 @@
                 "asRead": "Comme lu",
                 "adjustTitle": "Ajuster le point {n}",
                 "adjustNone": "Ajuster",
-                "adjustHint": "Sélectionnez un point, ou un nœud du schéma, pour voir ce qu'il peut être d'autre.",
+                "adjustHint": "Sélectionnez un point, ou un nœud du schéma, pour voir ce qu’il peut être d’autre.",
                 "adjustFact": "Ce point est lu tel quel : changez-le dans le dépôt ou ses réglages, puis relisez-le.",
-                "adjustIntro": "Changez-le ici ; MoltenTerm redessine. Rien n'est écrit avant votre pull request.",
+                "adjustIntro": "Changez-le ici ; MoltenTerm redessine. Rien n’est écrit avant votre pull request.",
                 "adjustGithub": "Changez-le ici ; MoltenTerm redessine. Ce que GitHub impose reste tel que GitHub le dit : un changement des règles elles-mêmes se fait sur GitHub.",
-                "agentLater": "Pour le dire avec vos mots, demandez à l'agent du projet à l'étape 3 : il propose des changements d'étapes que vous cochez.",
-                "rcNone": "Release candidate (aucune gardée)",
+                "agentLater": "Pour le dire avec vos mots, demandez à l’agent du projet à l’étape 3 : il propose des changements d’étapes que vous cochez.",
+                "rcNone": "Release candidate (non gardée)",
                 "allChoices": "Tous les choix",
                 "pending": {
                     "one": "{count} point à confirmer ({numbers})",
@@ -4155,13 +4159,13 @@
                     "syncBack": "retour sur {trunk}"
                 },
                 "point": {
-                    "branchesSingle": "Tout se passe sur {trunk} : c'est à la fois la branche de travail et celle où les releases sont taguées.",
+                    "branchesSingle": "Tout se passe sur {trunk} : c’est à la fois la branche de travail et celle où les releases sont taguées.",
                     "branchesRc": "On travaille sur {trunk} ; une release démarre sur une branche {rc} faite depuis {trunk}, et est livrée depuis {release}.",
                     "branchesTwo": "On travaille sur {trunk} ; les releases sont livrées depuis {release}.",
                     "branchesDeploy": "La release déploie {release}.",
-                    "protectionUnread": "La protection de {release} n'a pas pu être lue : nous supposons qu'elle n'accepte que des pull requests (le choix sûr).",
+                    "protectionUnread": "La protection de {release} n’a pas pu être lue : nous supposons qu’elle n’accepte que des pull requests (le choix sûr).",
                     "protectionUnreadWhy": "(GitHub a répondu : {error})",
-                    "protectionPr": "{release} n'accepte que des pull requests.",
+                    "protectionPr": "{release} n’accepte que des pull requests.",
                     "protectionChecks": {
                         "one": "Le check {checks} doit être vert.",
                         "other": "Les checks {checks} doivent être verts."
@@ -4176,13 +4180,13 @@
                         "squash": "La pull request est fusionnée en squash.",
                         "rebase": "La pull request est fusionnée en rebase."
                     },
-                    "mergeOnly": "C'est la seule méthode que les règles autorisent.",
+                    "mergeOnly": "C’est la seule méthode que les règles autorisent.",
                     "mergeHistory": "{tag} est posé sur un merge commit.",
                     "publishTag": "Le tag {tag} publie : {workflows} démarre dessus et publie vers {targets}.",
                     "publishTagRuns": "Le tag {tag} lance {workflows}.",
                     "publishNone": "Aucun workflow ne publie sur le tag {tag} : le tag ne fait que marquer la version.",
                     "publishTests": "Le tag lance aussi {tests}.",
-                    "publishApproval": "L'environnement {environments} demande d'abord une approbation sur GitHub.",
+                    "publishApproval": "L’environnement {environments} demande d’abord une approbation sur GitHub.",
                     "hand": {
                         "one": "Une étape se fait à la main avant la coupe : {files}.",
                         "other": "{count} étapes se font à la main avant la coupe : {files}."
@@ -4192,8 +4196,8 @@
                     "dispatchDeploy": "{file} déploie à la main (déclenchement manuel seulement). La release doit-elle le lancer après la publication ?",
                     "dispatchApproval": "Son environnement {environments} demande une approbation.",
                     "rcPublished": "Les release candidates sont publiées : {workflows} démarre sur {tag}.",
-                    "rcNone": "Aucune release candidate n'est publiée : aucun workflow ne publie sur le tag d'une candidate.",
-                    "rcTests": "Le tag d'une candidate ne lance que {tests}.",
+                    "rcNone": "Aucune release candidate n’est publiée : aucun workflow ne publie sur le tag d’une candidate.",
+                    "rcTests": "Le tag d’une candidate ne lance que {tests}.",
                     "rcPreTags": {
                         "one": "Un tag de pré-version a été trouvé.",
                         "other": "{count} tags de pré-version ont été trouvés."
@@ -4228,7 +4232,8 @@
                         "yes": "Le déployer dans la release",
                         "no": "Le laisser de côté"
                     }
-                }
+                },
+                "rcNoneFound": "Release candidate (aucune trouvée)"
             },
             "prepared": {
                 "kind": {
@@ -4240,7 +4245,7 @@
                     "new": "nouveau",
                     "changed": "mis à jour"
                 },
-                "before": "Aujourd'hui",
+                "before": "Aujourd’hui",
                 "after": "Dans la pull request",
                 "show": "Afficher",
                 "hide": "Masquer",
@@ -4262,7 +4267,7 @@
                     "steps": "Étapes du projet"
                 },
                 "formatToggle": "Formater les fichiers de la release avec le script de formatage du projet",
-                "formatWhy": "Le projet a un script de formatage : la release le lance sur les fichiers qu'elle écrit avant chaque commit, pour qu'une CI qui vérifie la mise en forme reste verte.",
+                "formatWhy": "Le projet a un script de formatage : la release le lance sur les fichiers qu’elle écrit avant chaque commit, pour qu’une CI qui vérifie la mise en forme reste verte.",
                 "formatDropped": "Aucun formateur : cochez pour lancer le script de formatage du projet sur les fichiers de la release.",
                 "countAdded": {
                     "one": "{count} ajout",
@@ -4281,33 +4286,69 @@
                 "hideWhole": "Masquer le fichier entier",
                 "unreadable": "Le fichier proposé ne se lit pas changement par changement : vérifiez le diff du fichier entier.",
                 "noChange": "Rien ne change dans ce fichier.",
-                "lockedHint": "Les cases sont bloquées tant qu'une proposition d'agent est affichée ou que la pull request est ouverte : écartez la proposition pour les changer.",
-                "recordWhy": "Ce que MoltenTerm a écrit, pour qu'une mise à jour distingue ses propres étapes de vos modifications.",
+                "lockedHint": "Les cases sont bloquées tant qu’une proposition d’agent est affichée ou que la pull request est ouverte : écartez la proposition pour les changer.",
+                "recordWhy": "Ce que MoltenTerm a écrit, pour qu’une mise à jour distingue ses propres étapes de vos modifications.",
                 "noFiles": "Rien à écrire : le pipeline commité est déjà ainsi.",
                 "changesTitle": "Changements exacts",
-                "changesDesc": "Changement par changement, tels que les fichiers les auront. Tout le reste des fichiers reste à l'octet près.",
-                "agentTitle": "Demander à l'agent du projet",
+                "changesDesc": "Changement par changement, tels que les fichiers les auront. Tout le reste des fichiers reste à l’octet près.",
+                "agentTitle": "Demander à l’agent du projet",
                 "agentClosed": "La pull request est ouverte : ses changements sont ceux ci-dessus.",
                 "commandsTitle": "Commandes à approuver",
-                "commandsDesc": "Une fois la fusion faite, chaque nouvelle commande demande votre approbation à sa première exécution. Cette configuration n'en approuve jamais aucune.",
+                "commandsDesc": "Une fois la fusion faite, chaque nouvelle commande demande votre approbation à sa première exécution. Cette configuration n’en approuve jamais aucune.",
                 "commandsNone": "Aucune nouvelle commande : rien de nouveau à approuver.",
-                "diagramLegend": "C'est ce que MoltenTerm lancera, étape par étape, une fois la pull request fusionnée dans {target}.",
+                "diagramLegend": "C’est ce que MoltenTerm lancera, étape par étape, une fois la pull request fusionnée dans {target}.",
                 "diagramMarks": "+ ajoutée, ~ modifiée.",
                 "followTitle": "Pull request #{number}",
                 "follow": {
                     "reading": "Lecture de #{number} sur GitHub…",
                     "running": "Pull request brouillon #{number} : ses vérifications tournent (encore {pending}).",
-                    "failed": "#{number} : {failed} vérifications en échec. Ouvrez-la pour voir pourquoi ; rien n'est fusionné.",
-                    "green": "#{number} est prête et ses vérifications sont vertes : fusionnez-la dans {target} quand vous êtes d'accord.",
-                    "greenDraft": "Les vérifications de #{number} sont vertes. Elle est encore en brouillon : marquez-la prête, puis fusionnez-la dans {target} quand vous êtes d'accord.",
-                    "noChecks": "#{number} est ouverte, sans vérification : fusionnez-la dans {target} quand vous êtes d'accord.",
+                    "failed": "#{number} : {failed} vérifications en échec. Ouvrez-la pour voir pourquoi ; rien n’est fusionné.",
+                    "green": "#{number} est prête et ses vérifications sont vertes : fusionnez-la dans {target} quand vous êtes d’accord.",
+                    "greenDraft": "Les vérifications de #{number} sont vertes. Elle est encore en brouillon : marquez-la prête, puis fusionnez-la dans {target} quand vous êtes d’accord.",
+                    "noChecks": "#{number} est ouverte, sans vérification : fusionnez-la dans {target} quand vous êtes d’accord.",
                     "noChecksDraft": "La pull request brouillon #{number} est ouverte, encore sans vérification.",
-                    "merged": "#{number} est fusionnée dans {target} : le menu Release utilise le pipeline dès que votre copie l'a récupéré.",
-                    "closed": "#{number} a été fermée sans fusion : rien n'a changé. Préparez à nouveau pour en ouvrir une autre.",
-                    "unread": "GitHub n'a pas pu être lu à l'instant : MoltenTerm réessaie."
+                    "merged": "#{number} est fusionnée dans {target} : le menu Release utilise le pipeline dès que votre copie l’a récupéré.",
+                    "closed": "#{number} a été fermée sans fusion : rien n’a changé. Préparez à nouveau pour en ouvrir une autre.",
+                    "unread": "GitHub n’a pas pu être lu à l’instant : MoltenTerm réessaie."
                 },
                 "openReviews": "Ouvrir #{number} dans Pilotage",
                 "openGithub": "Ouvrir sur GitHub"
+            },
+            "state": {
+                "noAgent": {
+                    "title": "Pas d’agent de code pour ce projet",
+                    "sub": "Les propositions à partir de vos mots en demandent un. Tout le reste marche : répondez aux questions et ajustez les points vous-même, ou faites répondre un autre agent ci-dessous.",
+                    "missing": "{agent}, l’agent de code choisi pour ce projet, n’est pas installé sur cet ordinateur. Tout le reste marche, et n’importe quel autre agent peut répondre ci-dessous."
+                },
+                "readAgain": "Relire",
+                "invalid": {
+                    "title": "{path} n’est pas valide",
+                    "sub": "Corrigez-le d’abord : la configuration lit le fichier commité et ne saurait pas ce que vous vouliez dire.",
+                    "open": "Ouvrir le fichier"
+                },
+                "empty": {
+                    "title": "Rien à lire pour l’instant",
+                    "sub": "Aucun fichier de build, aucun workflow, aucun tag. Dites-nous ce que sera ce projet, et comment vous voulez le livrer.",
+                    "describe": "Décrire mon pipeline",
+                    "template": "Utiliser un modèle"
+                },
+                "noGit": {
+                    "title": "Pas encore de dépôt git",
+                    "sub": "Le pipeline se prépare quand même, mais rien ne peut le valider par pull request : lancez git init et faites un premier commit, puis relisez."
+                },
+                "noRemote": {
+                    "title": "Pas de remote origin",
+                    "sub": "Une pull request a besoin d’origin. « Copier le patch » donne le commit à la place, à appliquer là où le projet reçoit ses changements."
+                },
+                "github": {
+                    "title": "GitHub n’a pas pu être joint",
+                    "assumed": "La protection de {branch} est inconnue : le schéma suppose une pull request (le choix sûr) et marque le point « à confirmer ».",
+                    "assumedNoBranch": "Les releases GitHub et la protection de la branche publiée sont inconnues : le schéma suppose une pull request (le choix sûr).",
+                    "missing": "gh n’est pas installé sur cet ordinateur : installez-le (cli.github.com), puis relisez.",
+                    "signedout": "gh n’est pas connecté : lancez gh auth login dans un terminal, puis relisez. MoltenTerm ne demande jamais de jeton.",
+                    "failed": "gh indique : {error}",
+                    "goOn": "Continuer"
+                }
             }
         }
     },
@@ -7861,14 +7902,14 @@
                 "pastedWholeFile": "La réponse collée est un fichier de pipeline entier, pas des changements d’étapes : rien n’en est repris.",
                 "updateChanged": "La mise à jour a changé depuis son affichage : vérifiez-la à nouveau.",
                 "prBusy": "Une pull request de la configuration de release est déjà en préparation pour ce projet.",
-                "prUnknown": "Cette pull request n'est plus suivie : préparez-la à nouveau.",
-                "ticketsUnread": "Les tickets ouverts n'ont pas pu être lus : {detail}",
-                "noGit": "Ce projet n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
+                "prUnknown": "Cette pull request n’est plus suivie : préparez-la à nouveau.",
+                "ticketsUnread": "Les tickets ouverts n’ont pas pu être lus : {detail}",
+                "noGit": "Ce projet n’est pas un dépôt git avec sa branche de travail : il n’y a rien sur quoi ouvrir une pull request.",
                 "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un.",
-                "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d'abord, ou laissez-les de côté.",
-                "templateName": "Un modèle a besoin d'un nom de {max} caractères au plus.",
-                "templateSaas": "Le pipeline d'une application web ou d'un SaaS ne peut pas encore être enregistré comme modèle.",
-                "templatesFull": "Il y a déjà {max} modèles sur cet ordinateur : oubliez-en un d'abord."
+                "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d’abord, ou laissez-les de côté.",
+                "templateName": "Un modèle a besoin d’un nom de {max} caractères au plus.",
+                "templateSaas": "Le pipeline d’une application web ou d’un SaaS ne peut pas encore être enregistré comme modèle.",
+                "templatesFull": "Il y a déjà {max} modèles sur cet ordinateur : oubliez-en un d’abord."
             }
         },
         "notif": {

@@ -170,11 +170,22 @@ export function setupUpdate(
     choices: Record<string, boolean>,
     pr: SetupPrRequest,
     options?: SetupOptions,
-    proposals?: boolean
+    proposals?: boolean,
+    // The update's file with the agent's ticked changes (#1106); omitted: the update as checked.
+    refined?: string
 ): Promise<SetupPrJob> {
     return setupCall(
         MissionSetupUpdateCommand,
-        { dir, base, signature, choices, options: options ?? undefined, proposals: proposals || undefined, ...pr },
+        {
+            dir,
+            base,
+            signature,
+            choices,
+            options: options ?? undefined,
+            proposals: proposals || undefined,
+            refined: refined || undefined,
+            ...pr,
+        },
         SetupWriteTimeoutMs
     );
 }

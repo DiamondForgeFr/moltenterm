@@ -57,7 +57,9 @@ describe("the agent's step changes (#1099, FR-MC-039)", () => {
         expect(html).toContain("After changelog-fr");
         expect(html).toContain("the docs must build before the cut");
         expect(html).toContain("Files that carry the version");
-        expect(html).toMatch(/data-testid="proposal-take-1"[^>]*checked=""|checked=""[^>]*data-testid="proposal-take-1"/);
+        expect(html).toMatch(
+            /data-testid="proposal-take-1"[^>]*checked=""|checked=""[^>]*data-testid="proposal-take-1"/
+        );
         expect(html).not.toMatch(/checked=""[^>]*data-testid="proposal-take-2"/);
         expect(html).toContain("2 proposed changes are not offered");
         expect(html).toContain("Outside what the setup proposes (ci)");

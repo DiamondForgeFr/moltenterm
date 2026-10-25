@@ -128,9 +128,7 @@ export function ProposalCards({
                     {t("mc.setup.proposal.pill")}
                 </span>
                 <span className="text-secondary">
-                    {count === 0
-                        ? t(`${prefix}.none`, { agent: by })
-                        : tCount(`${prefix}.count`, count, { agent: by })}
+                    {count === 0 ? t(`${prefix}.none`, { agent: by }) : tCount(`${prefix}.count`, count, { agent: by })}
                 </span>
                 {count > 0 ? (
                     <span className="text-11 text-muted" data-testid="setup-proposal-chosen">
@@ -174,12 +172,16 @@ export function ProposalCards({
     );
 }
 
+// The coding agent step 1 found (#1106): name "" when none can start, missing names the chosen one not installed.
+export type AgentAvailability = { name: string; missing?: string };
+
 export function AgentProposal({
     dir,
     draftText,
     onResult,
     onBusy,
     initialRequest,
+    agent,
 }: {
     dir: string;
     draftText: string;
@@ -188,11 +190,14 @@ export function AgentProposal({
     onBusy: (busy: boolean) => void;
     // The developer's words given before this step (step 2b's "Anything else?", FR-MC-041).
     initialRequest?: string;
+    // Unknown when omitted: the ask is offered and its error says why it failed.
+    agent?: AgentAvailability;
 }) {
     const t = useT();
+    const noAgent = agent != null && !agent.name;
     const [request, setRequest] = useState(initialRequest ?? "");
     const [pasted, setPasted] = useState("");
-    const [other, setOther] = useState(false);
+    const [other, setOther] = useState(noAgent);
     const [refined, setRefined] = useState<SetupRefined>(null);
     const [chosen, setChosen] = useState<string[]>([]);
     const [asking, setAsking] = useState(false);
@@ -272,13 +277,7 @@ export function AgentProposal({
     if (refined != null) {
         return (
             <div className="flex flex-col gap-2">
-                <ProposalCards
-                    refined={refined}
-                    chosen={chosen}
-                    applying={applying}
-                    onChoose={choose}
-                    onDrop={drop}
-                />
+                <ProposalCards refined={refined} chosen={chosen} applying={applying} onChoose={choose} onDrop={drop} />
                 {error ? (
                     <p className="text-11 text-danger" role="alert">
                         {error}
@@ -289,6 +288,19 @@ export function AgentProposal({
     }
     return (
         <div className="flex flex-col gap-2 rounded-6 border border-border p-3" data-testid="setup-ask">
+            {noAgent ? (
+                <div
+                    className="flex flex-col gap-0.5 rounded-4 border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-12"
+                    data-testid="setup-no-agent"
+                >
+                    <span className="font-medium text-primary">{t("mc.setup.state.noAgent.title")}</span>
+                    <span className="text-11 text-secondary">
+                        {agent.missing
+                            ? t("mc.setup.state.noAgent.missing", { agent: agent.missing })
+                            : t("mc.setup.state.noAgent.sub")}
+                    </span>
+                </div>
+            ) : null}
             <label className="flex flex-col gap-1 text-12 text-secondary">
                 {t("mc.setup.proposal.wordsLabel")}
                 <textarea
@@ -300,32 +312,38 @@ export function AgentProposal({
                     data-testid="setup-request"
                 />
             </label>
-            <div className="flex flex-wrap items-center gap-2">
-                <button
-                    type="button"
-                    disabled={asking}
-                    className={cn(PlainButton, "inline-flex items-center py-1 text-11")}
-                    onClick={() => ask()}
-                    data-testid="setup-refine"
-                    title={t("mc.setup.review.refineTitle")}
-                >
-                    {asking && !other ? (
-                        <DominoLoader className="mr-1.5" />
-                    ) : (
-                        <i className="fa fa-solid fa-wand-magic-sparkles mr-1.5 text-11" />
-                    )}
-                    {asking && !other ? t("mc.setup.review.refining") : t("mc.setup.proposal.ask")}
-                </button>
-                <span className="text-11 text-muted">{t("mc.setup.proposal.askNote")}</span>
-                <button
-                    type="button"
-                    className="ml-auto cursor-pointer text-11 text-muted hover:text-primary"
-                    onClick={() => setOther(!other)}
-                    data-testid="setup-other-agent"
-                >
-                    {other ? t("mc.setup.proposal.otherHide") : t("mc.setup.proposal.otherShow")}
-                </button>
-            </div>
+            {noAgent ? null : (
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        disabled={asking}
+                        className={cn(PlainButton, "inline-flex items-center py-1 text-11")}
+                        onClick={() => ask()}
+                        data-testid="setup-refine"
+                        title={t("mc.setup.review.refineTitle")}
+                    >
+                        {asking && !other ? (
+                            <DominoLoader className="mr-1.5" />
+                        ) : (
+                            <i className="fa fa-solid fa-wand-magic-sparkles mr-1.5 text-11" />
+                        )}
+                        {asking && !other
+                            ? t("mc.setup.review.refining")
+                            : agent?.name
+                              ? t("mc.setup.proposal.askAgent", { agent: agent.name })
+                              : t("mc.setup.proposal.ask")}
+                    </button>
+                    <span className="text-11 text-muted">{t("mc.setup.proposal.askNote")}</span>
+                    <button
+                        type="button"
+                        className="ml-auto cursor-pointer text-11 text-muted hover:text-primary"
+                        onClick={() => setOther(!other)}
+                        data-testid="setup-other-agent"
+                    >
+                        {other ? t("mc.setup.proposal.otherHide") : t("mc.setup.proposal.otherShow")}
+                    </button>
+                </div>
+            )}
             {error ? (
                 <p className="text-11 text-danger" role="alert">
                     {error}

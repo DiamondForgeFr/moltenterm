@@ -6,7 +6,14 @@
 // untouched, the commands that will ask for trust, the files the pull request writes, and the diagram's marks. Pure
 // functions over the two texts, so the list follows the agent's ticked changes like the diff does.
 
-import type { FlowModel, SetupChannel, SetupDraft, SetupOptions, SetupProposedFile } from "./release-setup-model";
+import type {
+    FlowModel,
+    SetupChannel,
+    SetupCheck,
+    SetupDraft,
+    SetupOptions,
+    SetupProposedFile,
+} from "./release-setup-model";
 
 export const PipelinePath = ".molten/project.json";
 export const RecordPath = ".molten/release-setup.json";
@@ -328,6 +335,26 @@ export function preparedDraft(draft: SetupDraft, proposed: string): SetupDraft {
         return draft;
     }
     return { ...draft, proposal: { ...draft.proposal, release } };
+}
+
+// updateDraftOf: the draft step 3 shows for a project already set up (#1106): the committed file, the update's
+// proposed one and its plan, drawn with the choices the check was made with, so the update's step 3 is the new
+// setup's.
+export function updateDraftOf(draft: SetupDraft, check: SetupCheck): SetupDraft {
+    const release = parsePipeline(check.proposed)?.release ?? {};
+    return {
+        ...draft,
+        options: { ...draft.options, ...(check.options ?? {}), kind: "on-premise" },
+        proposal: { release, sources: {} },
+        current: check.current,
+        base: check.base,
+        proposed: check.proposed,
+        errors: check.errors ?? [],
+        validatewarnings: check.validatewarnings ?? [],
+        warnings: [],
+        files: [],
+        pr: check.pr,
+    };
 }
 
 export function markFlow(model: FlowModel, diff: PreparedPipelineDiff): FlowModel {

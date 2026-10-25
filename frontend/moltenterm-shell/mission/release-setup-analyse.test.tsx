@@ -303,7 +303,7 @@ describe("step 2a: the existing pipeline (FR-MC-040)", () => {
         expect(html).toContain("To confirm");
         expect(html).toContain("Yes, after publishing");
         expect(html).toContain("Confirmed");
-        expect(html).toContain("Release candidate (none kept)");
+        expect(html).toContain("Release candidate (none found)");
         const used = new Set<string>();
         for (const p of points) {
             for (const text of [p.text, ...p.extras]) {

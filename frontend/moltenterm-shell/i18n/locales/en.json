@@ -3683,7 +3683,8 @@
                 "byMoltenTerm": "Drafted by MoltenTerm from the repository.",
                 "refining": "The agent reads the repository…",
                 "refineTitle": "The project's coding agent reads the repository and proposes step changes, without writing anything.",
-                "sources": "Where each step comes from"
+                "sources": "Where each step comes from",
+                "byUpdate": "Updated by MoltenTerm with its template {template}, with the changes you ticked at step 2."
             },
             "proposal": {
                 "wordsLabel": "Say it in your words: the project's agent proposes step changes, you tick them before anything moves",
@@ -3735,7 +3736,8 @@
                     "command": "{detail} names a program the release would run: change it yourself.",
                     "invalid": "The pipeline would not be valid: {detail}",
                     "toomany": "Changes past the first 40 ({detail} of them): too many in one answer."
-                }
+                },
+                "askAgent": "Ask {agent} for a proposal"
             },
             "diagram": {
                 "github": "GitHub",
@@ -3804,7 +3806,6 @@
                 "hide": "Hide",
                 "before": "Now",
                 "after": "After the update",
-                "files": "The file",
                 "filesHint": "Only the release and version blocks change; MoltenTerm also notes in .molten/release-setup.json which steps it wrote.",
                 "keepAll": "You keep every change as it is: the pipeline stays the same, and the pull request records your choices in .molten/release-setup.json so they are not offered again.",
                 "invalid": "The updated pipeline would not be valid: {errors}",
@@ -3829,7 +3830,7 @@
                 "declared": "The declared pipeline",
                 "adjusted": "You adjusted these choices: the changes they make are listed above, with the reason.",
                 "adjustHint": "These choices are read from the declared pipeline. Change one to see what it changes, then open the pull request at the next step.",
-                "nothing": "Nothing changes: the pull request button stays disabled until a choice is adjusted or an edit is included."
+                "nothing": "Nothing changes against the template: adjust a choice at step 2, or ask the agent for a proposal below; the pull request opens once something changes."
             },
             "techdoc": {
                 "title": "Technical documentation",
@@ -3907,7 +3908,8 @@
                     "includeConflict": "Your uncommitted changes conflict with {ref}. Prepare again without them, or commit them first."
                 },
                 "conflict": "They change the same lines as {ref}: commit or rebase them first to include them.",
-                "includedAsChanges": "Your uncommitted edits are included as changes to check: each one is listed below, ticked, and you may leave any out. Your checkout keeps them as they are."
+                "includedAsChanges": "Your uncommitted edits are included as changes to check: each one is listed below, ticked, and you may leave any out. Your checkout keeps them as they are.",
+                "descNoRemote": "This repository has no origin remote: MoltenTerm makes the commit in a worktree of its own and copies it as a patch, to apply where your project takes its changes. Your working copy is not touched."
             },
             "stepper": {
                 "step": {
@@ -4053,7 +4055,9 @@
                 },
                 "forget": "Forget this template",
                 "forgetAsk": "Forget it on this computer?",
-                "forgetYes": "Forget"
+                "forgetYes": "Forget",
+                "forgottenKept": "“{name}” is forgotten on this computer; the choices it filled in are kept below, and each one can still be changed.",
+                "noneSaved": "No template is saved on this computer yet: describe this pipeline below, then save it at step 4 to reuse it."
             },
             "appType": {
                 "desktop": "Desktop app",
@@ -4134,7 +4138,7 @@
                 "adjustIntro": "Change it here; MoltenTerm redraws. Nothing is written before your pull request.",
                 "adjustGithub": "Change it here; MoltenTerm redraws. What GitHub enforces stays as GitHub says: a change of the rules themselves is done on GitHub.",
                 "agentLater": "To say it in your words, ask the project's agent at step 3: it proposes step changes you tick.",
-                "rcNone": "Release candidate (none kept)",
+                "rcNone": "Release candidate (not kept)",
                 "allChoices": "All the choices",
                 "pending": {
                     "one": "{count} point to confirm ({numbers})",
@@ -4228,7 +4232,8 @@
                         "yes": "Deploy it in the release",
                         "no": "Leave it out"
                     }
-                }
+                },
+                "rcNoneFound": "Release candidate (none found)"
             },
             "prepared": {
                 "kind": {
@@ -4308,6 +4313,42 @@
                 },
                 "openReviews": "Open #{number} in Control room",
                 "openGithub": "Open on GitHub"
+            },
+            "state": {
+                "noAgent": {
+                    "title": "No coding agent for this project",
+                    "sub": "Proposals in your words need one. Everything else works: answer the questions and adjust the points yourself, or let another agent answer below.",
+                    "missing": "{agent}, the coding agent chosen for this project, is not installed on this computer. Everything else works, and any other agent can answer below."
+                },
+                "readAgain": "Read again",
+                "invalid": {
+                    "title": "{path} is not valid",
+                    "sub": "Fix it first: the setup reads the committed file and would not know what you meant.",
+                    "open": "Open the file"
+                },
+                "empty": {
+                    "title": "Nothing to read yet",
+                    "sub": "No build file, no workflow, no tag. Tell us what this project will be, and how you want to ship it.",
+                    "describe": "Describe my pipeline",
+                    "template": "Use a template"
+                },
+                "noGit": {
+                    "title": "Not a git repository yet",
+                    "sub": "The pipeline can still be prepared, but nothing can validate it by pull request: run git init and make a first commit, then read again."
+                },
+                "noRemote": {
+                    "title": "No origin remote",
+                    "sub": "A pull request needs origin. “Copy the patch” gives the commit instead, to apply where the project takes its changes."
+                },
+                "github": {
+                    "title": "GitHub could not be reached",
+                    "assumed": "The protection of {branch} is unknown: the diagram assumes a pull request (the safe choice) and marks the point “to confirm”.",
+                    "assumedNoBranch": "The GitHub releases and the published branch's protection are unknown: the diagram assumes a pull request (the safe choice).",
+                    "missing": "gh is not installed on this computer: install it (cli.github.com), then read again.",
+                    "signedout": "gh is not signed in: run gh auth login in a terminal, then read again. MoltenTerm never asks for a token.",
+                    "failed": "gh says: {error}",
+                    "goOn": "Go on"
+                }
             }
         }
     },

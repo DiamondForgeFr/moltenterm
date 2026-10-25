@@ -29,7 +29,7 @@ import type { ReleasePhase } from "./mission-model";
 import { ReleaseSetupUpdateButton } from "./release-menu";
 import { FlowDiagram } from "./release-setup-diagram";
 import { changeGroups, changeTaken, SetupCheck, SetupDraft, SetupFacts, SetupOptions } from "./release-setup-model";
-import { changeNumbers, UpdateFiles, updateFlowModel, updateReady, UpdateStep } from "./release-setup-update";
+import { changeNumbers, UpdateFilesNote, updateFlowModel, updateReady, UpdateStep } from "./release-setup-update";
 
 const options: SetupOptions = {
     kind: "on-premise",
@@ -245,7 +245,7 @@ describe("step 2a for a project already set up (#1102)", () => {
         expect(html).not.toContain('data-testid="update-changes"');
         expect(html).toContain('data-testid="setup-diagram"');
         expect(updateReady(upToDate)).toBe(false);
-        const files = renderToStaticMarkup(<UpdateFiles check={upToDate} />);
+        const files = renderToStaticMarkup(<UpdateFilesNote check={upToDate} />);
         expect(files).toContain("Nothing changes");
     });
 

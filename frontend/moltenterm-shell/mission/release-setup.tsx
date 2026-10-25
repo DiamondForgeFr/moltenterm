@@ -55,10 +55,12 @@ import {
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
-import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
+import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { PreparedStep } from "./release-setup-prepared";
-import { proposedFiles } from "./release-setup-prepared-model";
+import { proposedFiles, updateDraftOf } from "./release-setup-prepared-model";
+import { AgentAvailability } from "./release-setup-proposal";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
+import { SurveyStates } from "./release-setup-states";
 import {
     kindOfAppType,
     nextLabelKey,
@@ -71,10 +73,9 @@ import {
     StepperSteps,
     stepReachable,
 } from "./release-setup-stepper";
-import { TechDocChanges } from "./release-setup-techdoc";
 import { TemplateStep, useDefaultTemplateName, useTemplateSave } from "./release-setup-template";
 import { canSaveTemplate, SetupTemplateFit } from "./release-setup-template-model";
-import { UpdateFiles, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
+import { UpdateFilesNote, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
 
@@ -750,6 +751,12 @@ export function ReleaseSetup({
     // Step 2b's saved templates (FR-MC-042), read once per app type, and the one chosen.
     const [templates, setTemplates] = useState<SetupTemplateFit[]>(null);
     const [template, setTemplate] = useState("");
+    // The empty and error states (#1106): a new reading of the repository, GitHub's problem set aside, step 1's "Use
+    // a template", and the name of the chosen template just forgotten (its choices kept).
+    const [readNonce, setReadNonce] = useState(0);
+    const [ghDismissed, setGhDismissed] = useState(false);
+    const [askedTemplate, setAskedTemplate] = useState(false);
+    const [forgotten, setForgotten] = useState("");
     // The proposal's cards live in the Prepare step: leaving it goes back to the draft (#1099); step 4 keeps them, it
     // comes back to step 3.
     const goTo = (next: StepperStep) => {
@@ -802,6 +809,11 @@ export function ReleaseSetup({
     // Step 1's survey first: the app type it detects (or the one saved) picks the template the draft starts from.
     useEffect(() => {
         let cancelled = false;
+        if (readNonce > 0) {
+            setSurvey(null);
+            setSurveyError(null);
+            setError(null);
+        }
         fireAndForget(async () => {
             let answer: SetupSurvey = null;
             try {
@@ -833,13 +845,15 @@ export function ReleaseSetup({
             if (answer?.pipeline === "complete") {
                 upd.start(saved?.update);
             }
-            setStep(openAt && type ? openAt : resumeStep(saved));
+            if (readNonce === 0) {
+                setStep(openAt && type ? openAt : resumeStep(saved));
+            }
             setResumed(true);
         });
         return () => {
             cancelled = true;
         };
-    }, [dir]);
+    }, [dir, readNonce]);
 
     const done = pr.job?.finished && pr.job.failure == null;
     useEffect(() => {
@@ -946,8 +960,27 @@ export function ReleaseSetup({
         if (from === "template" && template === fit.template.id) {
             setFrom("standard");
             setTemplate("");
+            setForgotten(fit.template.name);
         }
     };
+    // Step 1's empty state (#1106): straight to step 2b, on the saved templates when asked.
+    const describeFromEmpty = (withTemplate: boolean) => {
+        choosePath("describe");
+        setAskedTemplate(withTemplate);
+        if (withTemplate) {
+            setFrom("template");
+            setTemplate("");
+        }
+        if (draft != null && options != null && appType != null) {
+            goTo("understand");
+        }
+    };
+    const openPipelineFile = () =>
+        fireAndForget(async () => {
+            const { createBlock } = await import("@/app/store/global");
+            onClose();
+            await createBlock({ meta: { view: "preview", file: `${dir}/.molten/project.json` } });
+        });
     const choosePath = (next: SetupPath) => {
         setPath(next);
         // The description does not carry over to 2a: the analysis starts again from the repository's own draft.
@@ -959,6 +992,7 @@ export function ReleaseSetup({
     };
     const chooseFrom = (next: DescribeFrom, dirOf?: string) => {
         setFrom(next);
+        setForgotten("");
         if (dirOf == null) {
             return;
         }
@@ -1034,17 +1068,33 @@ export function ReleaseSetup({
                 upd.choices,
                 prRequestOf(check.pr, ticket, mode),
                 upd.options ?? undefined,
-                true
+                true,
+                refined?.proposed
             );
             onWritten();
             return job;
         });
     const againUpdate = () => {
         pr.reset();
+        setRefined(null);
         upd.reload();
     };
+    // The agent's ticked changes (#1106) make an update of their own, even on an up-to-date pipeline.
+    const refinedUpdate = refined != null && refined.errors.length === 0 && refined.proposed !== check?.current;
     const canUpdate = (mode: "pr" | "patch") =>
-        updateReady(check) && !upd.loading && !done && canOpenPr(check.pr, ticket, mode);
+        check != null &&
+        (updateReady(check) || refinedUpdate) &&
+        (refined == null || refined.errors.length === 0) &&
+        !upd.loading &&
+        !refining &&
+        !done &&
+        canOpenPr(check.pr, ticket, mode);
+    const updateDraft = useMemo(
+        () => (check != null && draft != null ? updateDraftOf(draft, check) : null),
+        [check, draft]
+    );
+    const agent: AgentAvailability =
+        survey?.agent == null ? undefined : { name: survey.agentname ?? "", missing: survey.agentmissing };
     const analysing = step === "understand" && path === "analyse" && !updating;
     const points = useMemo(() => analysePipeline(survey, draft), [survey, draft]);
     const pending = analysing ? pendingPoints(points, pointAnswers) : [];
@@ -1239,7 +1289,7 @@ export function ReleaseSetup({
                 onStep={goNext}
                 update={check != null ? { changes: check.changes.length } : undefined}
             />
-            {error || (updating && upd.error) ? (
+            {(error && !(step === "detect" && survey?.pipeline === "invalid")) || (updating && upd.error) ? (
                 <p
                     className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
                     role="alert"
@@ -1256,6 +1306,19 @@ export function ReleaseSetup({
                 ) : (
                     <div className="@container flex flex-col gap-3">
                         {draft == null || writing || done ? null : uncommitted}
+                        <SurveyStates
+                            survey={survey}
+                            draft={draft}
+                            ghDismissed={ghDismissed}
+                            onDescribe={() => describeFromEmpty(false)}
+                            onTemplate={() => describeFromEmpty(true)}
+                            onReadAgain={() => {
+                                setGhDismissed(false);
+                                setReadNonce((n) => n + 1);
+                            }}
+                            onGoOn={() => setGhDismissed(true)}
+                            onOpenFile={openPipelineFile}
+                        />
                         <DetectStep
                             survey={survey}
                             error={surveyError}
@@ -1345,6 +1408,8 @@ export function ReleaseSetup({
                                 appType={appType}
                                 templates={templates}
                                 template={template}
+                                askedTemplate={askedTemplate}
+                                forgotten={forgotten}
                                 onForgetTemplate={forgetTemplate}
                                 onChange={change}
                                 onFrom={chooseFrom}
@@ -1373,25 +1438,27 @@ export function ReleaseSetup({
                             )}
                         </>
                     ) : null}
-                    {step === "prepare" && check != null ? (
+                    {step === "prepare" && check != null && updateDraft != null ? (
                         <>
-                            <UpdateFiles check={check}>
-                                <DiffView before={check.current} after={check.proposed} />
-                            </UpdateFiles>
-                            {check.state === "update" &&
-                            check.errors.length === 0 &&
-                            check.proposed !== check.current ? (
-                                <TechDocChanges dir={dir} text={check.proposed} kind="update" />
-                            ) : null}
-                            <PrPanel
+                            {refined == null ? <UpdateFilesNote check={check} /> : null}
+                            <PreparedStep
                                 dir={dir}
-                                plan={check.pr}
-                                choice={ticket}
-                                onChoice={setTicket}
-                                job={pr.job}
-                                busy={writing}
-                                error={pr.error}
-                                onAgain={againUpdate}
+                                draft={updateDraft}
+                                options={updateDraft.options}
+                                refined={refined}
+                                onRefined={setRefined}
+                                onRefining={setRefining}
+                                update={{ template: check.template }}
+                                agent={agent}
+                                pr={{
+                                    ticket,
+                                    onTicket: setTicket,
+                                    job: pr.job,
+                                    busy: writing,
+                                    error: pr.error,
+                                    onAgain: againUpdate,
+                                    onOpenReviews: openReviews,
+                                }}
                             />
                         </>
                     ) : null}
@@ -1406,6 +1473,7 @@ export function ReleaseSetup({
                             onOptions={loading ? undefined : change}
                             initialRequest={describing ? words : undefined}
                             extraFiles={proposedFiles(draft.files)}
+                            agent={agent}
                             pr={{
                                 ticket,
                                 onTicket: setTicket,

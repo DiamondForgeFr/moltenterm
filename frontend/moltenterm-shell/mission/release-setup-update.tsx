@@ -431,28 +431,16 @@ export function UpdateStep({
     );
 }
 
-// Step 3 of the update: the file as the pull request writes it (children: the diff), and what it records.
-export function UpdateFiles({ check, children }: { check: SetupCheck; children?: ReactNode }) {
+// Step 3 of the update, above the prepared pipeline (#1106): what the pull request writes, in one line.
+export function UpdateFilesNote({ check }: { check: SetupCheck }) {
     const t = useT();
     return (
-        <div className={SectionClass} data-testid="update-files">
-            <div className={SectionTitle}>{t("mc.setup.update.files")}</div>
-            <p className="text-11 text-muted">
-                {check.state !== "update"
-                    ? t("mc.setup.update.nothing")
-                    : check.proposed === check.current
-                      ? t("mc.setup.update.keepAll")
-                      : t("mc.setup.update.filesHint")}
-            </p>
-            {children}
-            {check.errors.length > 0 ? (
-                <p
-                    className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
-                    role="alert"
-                >
-                    {t("mc.setup.update.invalid", { errors: check.errors.join("; ") })}
-                </p>
-            ) : null}
-        </div>
+        <p className="text-11 text-muted" data-testid="update-files">
+            {check.state !== "update"
+                ? t("mc.setup.update.nothing")
+                : check.proposed === check.current
+                  ? t("mc.setup.update.keepAll")
+                  : t("mc.setup.update.filesHint")}
+        </p>
     );
 }

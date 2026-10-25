@@ -68,6 +68,7 @@ export type SetupProtection = {
     branch: string;
     read: boolean;
     error?: string;
+    problem?: "missing" | "signedout" | "failed";
     pullrequest: boolean;
     requiredchecks: string[];
     strict: boolean;
@@ -210,6 +211,8 @@ export type SetupDraft = {
 // must match PrPlan, PrStep, PrFailure, PrJob and Ticket in pkg/molten/pipelinesetup/pullrequest.go (#1098)
 export type SetupPrPlan = {
     git: boolean;
+    // origin is configured (#1106): without it only the patch is offered.
+    remote?: boolean;
     ref: string;
     commit: string;
     target: string;

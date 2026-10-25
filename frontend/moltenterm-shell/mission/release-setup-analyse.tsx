@@ -246,6 +246,9 @@ export function AnalyseStep({
     const rcPoint = points.find((p) => p.kind === "rc");
     const rcShown =
         !saas && (rcPoint == null ? !draft.facts.missing.includes("rc") : answerOf(rcPoint, answers) === "keep");
+    // The repository publishes release candidates (a workflow on a candidate's tag) the developer may drop (#1106);
+    // without one the tab says none was found, not that none was kept.
+    const rcFound = rcPoint == null || rcPoint.selected === "keep";
     const shown: SetupChannel = rcShown ? channel : "public";
     const model = saas
         ? existingSaasModel(draft, points, answers)
@@ -270,7 +273,9 @@ export function AnalyseStep({
                             )}
                             data-testid={`setup-analyse-channel-${c}`}
                         >
-                            {c === "rc" && !rcShown ? t("mc.setup.analyse.rcNone") : t(`mc.setup.flow.${c}`)}
+                            {c === "rc" && !rcShown
+                                ? t(rcFound ? "mc.setup.analyse.rcNone" : "mc.setup.analyse.rcNoneFound")
+                                : t(`mc.setup.flow.${c}`)}
                         </button>
                     ))}
                 </div>

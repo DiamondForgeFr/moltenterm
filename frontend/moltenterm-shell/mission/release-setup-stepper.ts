@@ -30,7 +30,14 @@ export type SetupSurvey = {
         lastpublic?: string;
         lastmerge?: boolean;
     };
-    releases: { ongithub: boolean; read: boolean; error?: string; count: number; last?: string };
+    releases: {
+        ongithub: boolean;
+        read: boolean;
+        error?: string;
+        problem?: GhProblem;
+        count: number;
+        last?: string;
+    };
     publish: { file: string; tags: string[]; ships: string[] }[];
     changelogs: { path: string; sections: number; last?: string }[];
     pipeline: "none" | "invalid" | "norelease" | "partial" | "complete";
@@ -39,7 +46,18 @@ export type SetupSurvey = {
     recommended: SetupPath;
     base: string;
     answers?: SetupAnswers;
+    // What the empty and error states need (#1106).
+    git?: boolean;
+    remote?: boolean;
+    empty?: boolean;
+    agent?: string;
+    agentname?: string;
+    agentmissing?: string;
+    pipelineerrors?: string[];
 };
+
+// must match Gh* in pkg/molten/pipelinesetup/survey.go
+export type GhProblem = "missing" | "signedout" | "failed";
 
 // must match Answers in pkg/molten/pipelinesetup/answers.go
 export type SetupAnswers = {

@@ -1048,7 +1048,8 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		if err != nil {
 			return fail(PrFailureFailed, err.Error())
 		}
-		if c.answer.State != UpdateStateUpdate || c.answer.Signature != req.Signature {
+		// An up-to-date pipeline still takes the agent's changes; the pull request then carries only those.
+		if c.answer.State == UpdateStateMissing || (c.answer.State != UpdateStateUpdate && req.Refined == "") || c.answer.Signature != req.Signature {
 			return fail(PrFailureUpdateChanged, "")
 		}
 		if len(c.answer.Errors) > 0 {
