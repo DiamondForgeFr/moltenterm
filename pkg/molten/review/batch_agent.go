@@ -247,6 +247,8 @@ func (b *BatchRunner) rebase(ctl *batchCtl, i int, pr ghMergePr) (batchStop, int
 	item := run.Items[i]
 	k := PrKey{Repo: run.Repo, Number: item.Number}
 	if agent.tree == "" {
+		// The earlier queues' worktrees go first, so this one takes batch-merge again instead of batch-merge-N.
+		b.sweepEarlier(ctl, "")
 		tree, err := b.makeTree(run)
 		if err != nil {
 			return batchStop{reason: BatchReasonAgentStart, detail: err.Error()}, batchStopped
@@ -312,25 +314,47 @@ func (b *BatchRunner) waitAgent(ctl *batchCtl, agent *batchAgent, i int, result 
 	}
 }
 
-// cleanAgent is the clean end (#758): with nothing uncommitted, no rebase stopped halfway and nothing unpushed, the
-// agent's terminal closes (its hidden tab with it) and its worktree goes; otherwise both stay and the run says why.
+// cleanAgent is the clean end (#758, #1122): with nothing uncommitted, no rebase stopped halfway and no commit that
+// would be lost (batch_trees.go), the agent's terminal closes (its hidden tab with it) and its worktree goes; otherwise
+// both stay and the run says why. The earlier queues' worktrees go after it under the same rule.
 func (b *BatchRunner) cleanAgent(ctl *batchCtl, agent *batchAgent) {
-	if agent.tree == "" {
+	if b.env.Agents == nil {
 		return
 	}
+	if agent.tree == "" {
+		b.sweepEarlier(ctl, "")
+		return
+	}
+	kept := b.removeAgent(ctl, agent)
+	if kept == "" {
+		b.sweepEarlier(ctl, "")
+		return
+	}
+	b.change(ctl, func(run *BatchRun) { run.Kept = kept })
+	b.sweepEarlier(ctl, agent.tree)
+}
+
+// sweepEarlier removes the project's earlier merge queue worktrees that hold nothing to lose and records those kept.
+func (b *BatchRunner) sweepEarlier(ctl *batchCtl, keep string) {
+	ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
+	defer cancel()
+	stale := b.sweepTrees(ctx, b.read(ctl), keep)
+	b.change(ctl, func(run *BatchRun) { run.Stale = stale })
+}
+
+// removeAgent closes the agent's terminal and removes its worktree; it returns why they stay, "" once gone.
+func (b *BatchRunner) removeAgent(ctl *batchCtl, agent *batchAgent) string {
 	r := b.env.Agents
 	ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
 	defer cancel()
-	kept := b.treeKept(ctx, agent)
+	kept := b.treeKept(ctx, b.read(ctl), agent)
 	if kept != "" {
-		b.change(ctl, func(run *BatchRun) { run.Kept = kept })
-		return
+		return kept
 	}
 	if agent.blockId != "" && r.env.CloseTerminal != nil {
 		if err := r.env.CloseTerminal(ctx, agent.blockId); err != nil {
 			log.Printf("%s batch: the agent's terminal could not be closed: %v\n", logPrefix, err)
-			b.change(ctl, func(run *BatchRun) { run.Kept = BatchKeptWorking })
-			return
+			return BatchKeptWorking
 		}
 	}
 	run := b.read(ctl)
@@ -340,41 +364,16 @@ func (b *BatchRunner) cleanAgent(ctl *batchCtl, agent *batchAgent) {
 	os.RemoveAll(agent.tree)
 	r.git(ctx, run.Dir, "worktree", "prune")
 	b.change(ctl, func(run *BatchRun) { run.Cleaned = true })
+	return ""
 }
 
 // treeKept: why the agent's worktree must stay, "" when nothing would be lost.
-func (b *BatchRunner) treeKept(ctx context.Context, agent *batchAgent) string {
+func (b *BatchRunner) treeKept(ctx context.Context, run BatchRun, agent *batchAgent) string {
 	r := b.env.Agents
 	if agent.blockId != "" {
 		if info, ok := r.agentRunOf(agent.blockId); ok && info.Running && info.State == molten.AgentStateWorking {
 			return BatchKeptWorking
 		}
 	}
-	status, err := r.git(ctx, agent.tree, "status", "--porcelain", "--untracked-files=normal")
-	if err != nil {
-		return BatchKeptUnread
-	}
-	for _, name := range []string{"rebase-merge", "rebase-apply"} {
-		path, err := r.git(ctx, agent.tree, "rev-parse", "--git-path", name)
-		if err != nil || path == "" {
-			continue
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(agent.tree, path)
-		}
-		if pathExists(path) {
-			return BatchKeptRebasing
-		}
-	}
-	if strings.TrimSpace(status) != "" {
-		return BatchKeptChanges
-	}
-	count, err := r.git(ctx, agent.tree, "rev-list", "--count", "HEAD", "--not", "--remotes")
-	if err != nil {
-		return BatchKeptUnread
-	}
-	if n, _ := strconv.Atoi(count); n > 0 {
-		return BatchKeptUnpushed
-	}
-	return ""
+	return b.treeWorkKept(ctx, agent.tree, runHeads(run), []string{run.Base})
 }

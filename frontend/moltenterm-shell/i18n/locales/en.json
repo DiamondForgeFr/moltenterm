@@ -5552,6 +5552,14 @@
                 "working": "The agent is still working: its terminal is kept.",
                 "unread": "The agent's copy could not be read: it is kept."
             },
+            "stale": {
+                "changes": "The copy {name} of an earlier merge queue has uncommitted files: it is kept.",
+                "unpushed": "The copy {name} of an earlier merge queue has commits not pushed: it is kept.",
+                "rebasing": "The copy {name} of an earlier merge queue stopped in the middle of a rebase: it is kept.",
+                "inuse": "The copy {name} of an earlier merge queue is in use by a terminal or a program: it is kept.",
+                "locked": "The copy {name} of an earlier merge queue is locked: it is kept.",
+                "unread": "The copy {name} of an earlier merge queue could not be read: it is kept."
+            },
             "summary": {
                 "merged": "Merged: {list}.",
                 "mergedNone": "Nothing merged.",

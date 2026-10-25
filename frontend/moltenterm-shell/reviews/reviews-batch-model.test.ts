@@ -259,6 +259,9 @@ describe("batch merge model", () => {
             "Merged: #1, #2. Not merged: #3 (Validation cancelled), #4 (Pushed after your validation: back to review). 1 CI run redone."
         );
         expect(batchSummary({ ...r, kept: "unpushed" })).toContain("commits not pushed");
+        expect(batchSummary({ ...r, stale: [{ path: "/data/worktrees/p-1/batch-merge-2", kept: "inuse" }] })).toContain(
+            "The copy batch-merge-2 of an earlier merge queue is in use by a terminal or a program: it is kept."
+        );
         expect(batchTitle({ ...r, state: "cancelled" })).toBe("Merge queue cancelled: 2 of 4 PRs merged");
     });
 

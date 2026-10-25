@@ -17,6 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -222,6 +223,7 @@ func Start() {
 			Publish: func(run BatchRun) {
 				wps.Broker.Publish(wps.WaveEvent{Event: BatchEvent, Scopes: []string{run.Dir}, Data: run})
 			},
+			TreeInUse: func(path string) bool { return len(mission.ProcessesInTree(path)) > 0 },
 		})
 		service.merger.greenOnly = func() bool {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewValidateGreenOnly
@@ -242,6 +244,12 @@ func Start() {
 		}
 		// The PRs the developer validated are merged even across a restart (FR-REV-026 AC2).
 		service.batch.Resume()
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("molten:review:queue-trees", recover())
+			}()
+			service.batch.SweepTrees()
+		}()
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(mcpreview.Event, func(event *wps.WaveEvent) {
 			var update mcpreview.Update

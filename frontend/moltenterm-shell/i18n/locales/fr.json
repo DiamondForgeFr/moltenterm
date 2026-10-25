@@ -5552,6 +5552,14 @@
                 "working": "L'agent travaille encore : son terminal est gardé.",
                 "unread": "La copie de l'agent n'a pas pu être lue : elle est gardée."
             },
+            "stale": {
+                "changes": "La copie {name} d'une file de fusion précédente a des fichiers non commités : elle est gardée.",
+                "unpushed": "La copie {name} d'une file de fusion précédente a des commits non poussés : elle est gardée.",
+                "rebasing": "La copie {name} d'une file de fusion précédente s'est arrêtée au milieu d'un rebase : elle est gardée.",
+                "inuse": "La copie {name} d'une file de fusion précédente est utilisée par un terminal ou un programme : elle est gardée.",
+                "locked": "La copie {name} d'une file de fusion précédente est verrouillée : elle est gardée.",
+                "unread": "La copie {name} d'une file de fusion précédente n'a pas pu être lue : elle est gardée."
+            },
             "summary": {
                 "merged": "Fusionnées : {list}.",
                 "mergedNone": "Rien n'a été fusionné.",
