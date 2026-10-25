@@ -186,6 +186,62 @@ action and as `molten project sync [source]`; it never starts on its own, and Mo
   source's `paths` makes it stale again). Non-zero: the flag stays stale and shows the log and the exit code.
 - Without `sync`, the flag says that no sync command is declared, and offers no button.
 
+## Setting the release up: the pipeline setup
+
+The user can also set the `release` and `versions` blocks up from MoltenTerm itself: the Release menu's "Set up the
+release" (or "Update the release setup", or "Open the pipeline setup" once it is up to date) opens the pipeline
+setup, a stepper of four steps. It never writes the folder opened: everything it changes reaches the repository
+through a draft pull request it opens from a worktree of its own (or a patch to copy when `origin` is not on GitHub),
+and the Release menu uses the pipeline once that pull request is merged.
+
+1. **Detect.** The app type (desktop app, command-line tool / npm package, web app / SaaS, library, something else)
+   from the build files, and whether the project already ships: version tags, GitHub releases, workflows publishing on
+   a tag, changelogs with dated sections, this file. It recommends 2a when the project ships, 2b otherwise.
+2. **Understand.**
+   - 2a, analyse: the existing pipeline drawn, with numbered points ("what we understood"), each with its source,
+     confirmed or adjusted; the points marked "to confirm" must be answered before step 3. For a project already set
+     up, 2a is the update: the declared pipeline drawn with a badge on each change this version of MoltenTerm proposes,
+     each change taken or kept.
+   - 2b, describe: start from a saved template, another linked project as a model, MoltenTerm's standard pipeline or
+     the user's own words; then the questions (the trunk, the published branch, where versions are published, a release
+     candidate: none, published under a pre-release tag, or internal). A missing publish workflow is proposed as a file
+     of the same pull request.
+3. **Prepare and validate.** The result drawn (steps added marked `+`, changed `~`), the exact changes file by file
+   (one row per release step added, changed or removed, each `versions` field; every other key of this file stays byte
+   for byte), `.molten/release-setup.json` (the steps MoltenTerm wrote, so a later update tells them from the user's),
+   the technical documentation, the commands that will ask for trust once merged, and the pull request followed until
+   it is merged. The coding agent may be asked for a proposal here (below).
+4. **Template** (optional): save the pipeline on this computer, to set it up on the user's other projects of the same
+   type.
+
+**Agent proposals.** "Ask the agent for a proposal" (step 3, for a new setup and for an update) sends the project's
+coding agent, read-only, a request for step changes: answer with a JSON object `{"changes": [...]}`, each change
+`{"op": "add" | "change" | "remove" | "versions", "channel": "rc" | "public", "id": "<step id>", "after" | "before":
+"<step id>", "step": {...}, "versions": {...}, "why": "..."}`, never a whole file. Only `release` steps and the
+`versions` block can change; a change outside them, or one that would make the file invalid, is dropped and listed.
+Each kept change is a card the user ticks. Any other agent can answer the same request: the user copies it and pastes
+the answer back. With no coding agent installed, the setup says so at step 3 and the copy and paste stays offered.
+
+**The technical documentation** (`docs/engineering/release-pipeline.md`, or the page of the project's documentation
+backend) is generated from the pipeline with each setup or update, never by hand. It is written in the project's
+documentation language, `.saasfoundry.json` → `language.srs` (English and French; any other language, or none
+declared, writes English).
+
+**When something is missing,** the setup says what happened, what still works and what to do next, and only blocks
+what the system refuses:
+
+- nothing to read (no build file, workflow or tag): describe the pipeline, or start from a saved template;
+- GitHub not reachable (`gh` not installed, signed out, or failing): the published branch's protection is assumed to
+  require a pull request and marked to confirm; `gh auth login` in a terminal, then "Read again", or go on;
+- not a git repository, or no `origin`: the pipeline is still prepared; the pull request needs both, the patch only a
+  commit;
+- this file not valid: its validation errors, to fix first (`molten project validate`); the setup reads the committed
+  file and builds nothing on an invalid one;
+- uncommitted edits of this file: the setup reads the committed file, never overwrites the edits, and can include
+  them as changes to check;
+- the base moved since the draft (`origin` changed this file), or a branch of the same name already exists on `origin`:
+  nothing is pushed; prepare again, or use another ticket.
+
 ## The release contract
 
 A release is started from the Project tab's Release menu (a release candidate `X.Y.Z-N`, or a public release `X.Y.Z`)

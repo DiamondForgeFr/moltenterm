@@ -15,7 +15,10 @@ what is missing, and only after the user agreed.
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run
    this request from a MoltenTerm terminal, and stop.
-2. Read the format: run `molten docs`, then read `pipeline-format.md` in the folder it prints.
+2. Read the format: run `molten docs`, then read `pipeline-format.md` in the folder it prints. The `release` and
+   `versions` blocks can also be set up by the user in MoltenTerm's pipeline setup ("Setting the release up" there):
+   when `.molten/release-setup.json` exists, those blocks were written by it; tell the user that "Update the release
+   setup" in the Release menu changes them, and leave them as they are unless the user asks you to change them.
 3. Link the workspace if it is not: `molten project show --json`; when it says the workspace is not linked, run
    `molten project link` from the project's folder.
 4. Detect the project's harness and follow it for everything you change:
