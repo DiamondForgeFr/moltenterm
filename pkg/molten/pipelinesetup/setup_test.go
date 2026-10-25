@@ -395,27 +395,25 @@ func TestRefineOnlyProposes(t *testing.T) {
 	var gotPrompt string
 	agent := func(_ context.Context, _ string, argv []string, prompt string) ([]byte, error) {
 		gotArgv, gotPrompt = argv, prompt
-		refined := strings.Replace(sfPipeline, `"name": "SaaSFoundryAI"`, `"name": "Refined"`, 1)
-		refined = strings.Replace(refined, `"firstpublic": "1.0.0"`, `"firstpublic": "1.1.0"`, 1)
-		return []byte("Here it is:\n```json\n" + refined + "```\n"), nil
+		return []byte("Here it is:\n```json\n" + `{"changes": [{"op": "versions", "versions": {"firstpublic": "1.1.0"}, "why": "1.0.0 shipped"}]}` + "\n```\n"), nil
 	}
 	s := MakeSetup(noSf, agent)
 	s.ChooseAgent = func(string) agentchoice.Choice {
 		return agentchoice.Choice{Agent: molten.AgentIdClaude, AgentName: "Claude Code"}
 	}
-	answer, err := s.Refine(context.Background(), RefineRequest{Dir: dir, Text: sfPipeline})
+	answer, err := s.Refine(context.Background(), RefineRequest{Dir: dir, Text: sfPipeline, Request: "the first public is 1.1.0"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(answer.Proposed, `"Refined"`) || !strings.Contains(answer.Proposed, `"firstpublic": "1.1.0"`) || len(answer.Errors) > 0 ||
-		strings.Join(answer.Dropped, ",") != "name" {
-		t.Fatalf("only the owned keys change: %+v", answer)
+	if len(answer.Changes) != 1 || !strings.Contains(answer.Proposed, `"firstpublic": "1.1.0"`) || len(answer.Errors) > 0 || answer.AgentName != "Claude Code" {
+		t.Fatalf("the change is offered and applied: %+v", answer)
 	}
 	if !strings.Contains(strings.Join(gotArgv, " "), "--disallowed-tools Bash Edit Write") {
 		t.Fatalf("argv %v", gotArgv)
 	}
-	if !strings.Contains(gotPrompt, "Do not write or change any file") || !strings.Contains(gotPrompt, `"name": "SaaSFoundryAI"`) {
-		t.Fatal("the prompt carries the draft and the rule")
+	if !strings.Contains(gotPrompt, "Do not write or change any file") || !strings.Contains(gotPrompt, `"name": "SaaSFoundryAI"`) ||
+		!strings.Contains(gotPrompt, "the first public is 1.1.0") || !strings.Contains(gotPrompt, `{"changes": [`) {
+		t.Fatal("the prompt carries the draft, the request, the contract and the rule")
 	}
 	after, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
 	if string(after) != string(before) {

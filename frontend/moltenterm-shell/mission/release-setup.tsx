@@ -14,7 +14,7 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { setupDraft, setupRefine, setupWrite } from "./release-setup-client";
+import { setupDraft, setupWrite } from "./release-setup-client";
 import { FlowDiagram } from "./release-setup-diagram";
 import {
     addManual,
@@ -29,13 +29,14 @@ import {
     SetupDraft,
     SetupKind,
     SetupOptions,
-    SetupRefined,
+    SetupProposalResult,
     SetupSource,
     SetupTicketChoice,
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
 import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
+import { AgentProposal } from "./release-setup-proposal";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
@@ -615,19 +616,20 @@ export function DiffView({ before, after }: { before: string; after: string }) {
 }
 
 export function ReviewStep({
+    dir,
     draft,
     options,
     refined,
-    refining,
-    onRefine,
-    onDropRefined,
+    onRefined,
+    onRefining,
 }: {
+    dir: string;
     draft: SetupDraft;
     options: SetupOptions;
-    refined: SetupRefined;
-    refining: boolean;
-    onRefine: () => void;
-    onDropRefined: () => void;
+    // The draft with the agent's ticked changes (#1099); null: the draft.
+    refined: SetupProposalResult;
+    onRefined: (result: SetupProposalResult) => void;
+    onRefining: (busy: boolean) => void;
 }) {
     const t = useT();
     const sourceText = useSourceText();
@@ -649,42 +651,20 @@ export function ReviewStep({
                           <FlowDiagram model={flowModel(draft, c, options.tagprefix)} />
                       </div>
                   ))}
-            <div className="flex flex-wrap items-center gap-2 text-12">
-                <span className="text-secondary">
-                    {refined
-                        ? t("mc.setup.review.byAgent", { agent: refined.agentname || refined.agent })
-                        : draft.provider === "saasfoundry"
-                          ? t("mc.setup.review.bySaaSFoundry")
-                          : t("mc.setup.review.byMoltenTerm")}
-                </span>
-                <span className="ml-auto flex gap-2">
-                    {refined ? (
-                        <button type="button" className={cn(PlainButton, "py-1 text-11")} onClick={onDropRefined}>
-                            {t("mc.setup.review.backToDraft")}
-                        </button>
-                    ) : null}
-                    <button
-                        type="button"
-                        disabled={refining}
-                        className={cn(PlainButton, "inline-flex items-center py-1 text-11")}
-                        onClick={onRefine}
-                        data-testid="setup-refine"
-                        title={t("mc.setup.review.refineTitle")}
-                    >
-                        {refining ? (
-                            <DominoLoader className="mr-1.5" />
-                        ) : (
-                            <i className="fa fa-solid fa-wand-magic-sparkles mr-1.5 text-11" />
-                        )}
-                        {refining ? t("mc.setup.review.refining") : t("mc.setup.review.refine")}
-                    </button>
-                </span>
-            </div>
-            {refined?.dropped?.length > 0 ? (
-                <p className="text-11 text-warning" data-testid="setup-dropped">
-                    {t("mc.setup.review.dropped", { keys: refined.dropped.join(", ") })}
-                </p>
-            ) : null}
+            <p className="text-12 text-secondary">
+                {refined
+                    ? t("mc.setup.review.byAgent", { agent: refined.agentname })
+                    : draft.provider === "saasfoundry"
+                      ? t("mc.setup.review.bySaaSFoundry")
+                      : t("mc.setup.review.byMoltenTerm")}
+            </p>
+            <AgentProposal
+                key={draft.proposed}
+                dir={dir}
+                draftText={draft.proposed}
+                onResult={onRefined}
+                onBusy={onRefining}
+            />
             <DiffView before={draft.current} after={proposed} />
             {errors.length > 0 ? (
                 <ul
@@ -740,8 +720,16 @@ export function ReleaseSetup({
     const [channel, setChannel] = useState<SetupChannel>("rc");
     const [error, setError] = useState<string>(null);
     const [loading, setLoading] = useState(true);
-    const [refined, setRefined] = useState<SetupRefined>(null);
+    const [refined, setRefined] = useState<SetupProposalResult>(null);
     const [refining, setRefining] = useState(false);
+    // The proposal's cards live in the Review step: leaving it goes back to the draft (#1099).
+    const goTo = (next: StepId) => {
+        if (next !== "review") {
+            setRefined(null);
+            setRefining(false);
+        }
+        setStep(next);
+    };
     const [includeLocal, setIncludeLocal] = useState(false);
     const [ticket, setTicket] = useState<SetupTicketChoice>(NewTicketChoice);
     const pr = useSetupPr();
@@ -795,18 +783,6 @@ export function ReleaseSetup({
         }
         change({ ...options, kind });
     };
-    const refine = () =>
-        fireAndForget(async () => {
-            setRefining(true);
-            setError(null);
-            try {
-                setRefined(await setupRefine(dir, draft.proposed, includeLocal));
-            } catch (e) {
-                setError(serverErrorText(e));
-            } finally {
-                setRefining(false);
-            }
-        });
     const text = refined?.proposed ?? draft?.proposed ?? "";
     const errors = refined?.errors ?? draft?.errors ?? [];
     const write = (mode: "pr" | "patch") =>
@@ -863,7 +839,7 @@ export function ReleaseSetup({
                         <button
                             type="button"
                             className={PlainButton}
-                            onClick={() => setStep(Steps[at - 1])}
+                            onClick={() => goTo(Steps[at - 1])}
                             disabled={writing}
                         >
                             {t("mc.setup.back")}
@@ -875,7 +851,7 @@ export function ReleaseSetup({
                             type="button"
                             className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             disabled={draft == null || nothing}
-                            onClick={() => setStep(Steps[at + 1])}
+                            onClick={() => goTo(Steps[at + 1])}
                             data-testid="setup-next"
                         >
                             {t("mc.setup.next")}
@@ -900,7 +876,7 @@ export function ReleaseSetup({
                         <button
                             type="button"
                             disabled={draft == null || i > at + 1 || writing || done}
-                            onClick={() => setStep(s)}
+                            onClick={() => goTo(s)}
                             className={cn(
                                 "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-11 disabled:cursor-default",
                                 s === step
@@ -955,12 +931,12 @@ export function ReleaseSetup({
                     ) : null}
                     {step === "review" ? (
                         <ReviewStep
+                            dir={dir}
                             draft={draft}
                             options={options}
                             refined={refined}
-                            refining={refining}
-                            onRefine={refine}
-                            onDropRefined={() => setRefined(null)}
+                            onRefined={setRefined}
+                            onRefining={setRefining}
                         />
                     ) : null}
                     {step === "review" ? (

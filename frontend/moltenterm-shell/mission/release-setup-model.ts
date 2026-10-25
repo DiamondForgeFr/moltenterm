@@ -334,14 +334,49 @@ export function changeGroups(
     return groups;
 }
 
-export type SetupRefined = {
-    agent: string;
-    agentname: string;
+// must match pkg/molten/pipelinesetup/proposal.go
+export type SetupStepChangeOp = "add" | "change" | "remove" | "versions";
+
+// One change the agent proposes (#1099), as MoltenTerm checked it; sent back as is to setupApply, which checks it again.
+export type SetupStepChange = {
+    key: string;
+    op: SetupStepChangeOp;
+    channel?: SetupChannel;
+    id?: string;
+    after?: string;
+    before?: string;
+    step?: Record<string, unknown>;
+    versions?: Record<string, unknown>;
+    why?: string;
+    title?: string;
+    oldtext?: string;
+    newtext?: string;
+};
+
+// A proposed change MoltenTerm does not offer, with its reason (mc.setup.proposal.rejected.<code>).
+export type SetupRejectedChange = {
+    text: string;
+    code: string;
+    detail?: string;
+};
+
+export type SetupApplied = {
     proposed: string;
     errors: string[];
     validatewarnings: string[];
-    // The keys the agent changed outside the setup's: dropped, the file keeps them (#1098).
-    dropped?: string[];
+};
+
+export type SetupRefined = SetupApplied & {
+    // Empty for an answer pasted from another agent.
+    agent: string;
+    agentname: string;
+    changes: SetupStepChange[];
+    rejected: SetupRejectedChange[];
+};
+
+// What the review shows once a proposal is in: the draft with the ticked changes, and who proposed them.
+export type SetupProposalResult = SetupApplied & {
+    agentname: string;
 };
 
 // The setup is offered when the pipeline cannot start one of the two releases.

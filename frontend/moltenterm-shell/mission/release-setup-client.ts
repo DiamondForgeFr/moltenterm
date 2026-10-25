@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The release setup's calls to wavesrv (FR-MC-036): the draft and the agent's proposal write nothing; the write is the
-// developer's click on the reviewed diff, and opens a pull request (#1098).
+// developer's click on the reviewed diff, and opens a pull request (#1098). The agent proposes step changes, never a
+// file (#1099, FR-MC-039).
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MissionRouteId } from "./mission-client";
@@ -13,13 +14,17 @@ import type {
     SetupOptions,
     SetupPrJob,
     SetupPrRequest,
+    SetupApplied,
     SetupRefined,
+    SetupStepChange,
     SetupTicket,
 } from "./release-setup-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionSetupDraftCommand = "moltenmissionsetupdraft";
 export const MissionSetupRefineCommand = "moltenmissionsetuprefine";
+export const MissionSetupApplyCommand = "moltenmissionsetupapply";
+export const MissionSetupPromptCommand = "moltenmissionsetupprompt";
 export const MissionSetupWriteCommand = "moltenmissionsetupwrite";
 export const MissionSetupCheckCommand = "moltenmissionsetupcheck";
 export const MissionSetupUpdateCommand = "moltenmissionsetupupdate";
@@ -50,12 +55,28 @@ export function setupDraft(
     );
 }
 
-export function setupRefine(dir: string, text: string, includeLocal?: boolean): Promise<SetupRefined> {
+// The agent's step changes on the draft (#1099): request is the developer's words; answer, one pasted from another
+// agent (then nothing runs).
+export function setupRefine(dir: string, text: string, request?: string, answer?: string): Promise<SetupRefined> {
     return setupCall(
         MissionSetupRefineCommand,
-        { dir, text, includelocal: includeLocal || undefined },
+        { dir, text, request: request || undefined, answer: answer || undefined },
         SetupRefineTimeoutMs
     );
+}
+
+export function setupApply(
+    dir: string,
+    text: string,
+    changes: SetupStepChange[],
+    chosen: string[]
+): Promise<SetupApplied> {
+    return setupCall(MissionSetupApplyCommand, { dir, text, changes, chosen }, SetupDraftTimeoutMs);
+}
+
+// The request any agentic CLI can answer, for the developer to run in the agent of their choice.
+export function setupPrompt(dir: string, text: string, request?: string): Promise<{ prompt: string }> {
+    return setupCall(MissionSetupPromptCommand, { dir, text, request: request || undefined }, SetupWriteTimeoutMs);
 }
 
 // Starts the pull request of the reviewed text (#1098); setupPrState follows it.

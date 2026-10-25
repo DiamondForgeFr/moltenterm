@@ -74,6 +74,9 @@ const (
 	// The release setup (FR-MC-036): draft, refine with the coding agent, write on the developer's click.
 	SetupDraftCommand  = "moltenmissionsetupdraft"
 	SetupRefineCommand = "moltenmissionsetuprefine"
+	// The agent's step changes (#1099): the ticked ones applied to the draft, and the request any agent can answer.
+	SetupApplyCommand  = "moltenmissionsetupapply"
+	SetupPromptCommand = "moltenmissionsetupprompt"
 	SetupWriteCommand  = "moltenmissionsetupwrite"
 	// Updating an existing setup (#1086): the check writes nothing, the update is the developer's click.
 	SetupCheckCommand  = "moltenmissionsetupcheck"

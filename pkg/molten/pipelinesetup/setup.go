@@ -74,19 +74,50 @@ type WriteRequest struct {
 }
 
 type RefineRequest struct {
-	Dir          string `json:"dir"`
-	Text         string `json:"text"`
-	IncludeLocal bool   `json:"includelocal,omitempty"`
+	Dir string `json:"dir"`
+	// The draft the changes are proposed on.
+	Text string `json:"text"`
+	// What the developer asks for, in their words; empty: the agent checks the draft against the repository.
+	Request string `json:"request,omitempty"`
+	// An answer the developer pasted from another agent (#1099): read like the project's agent's, nothing runs.
+	Answer string `json:"answer,omitempty"`
 }
 
 type RefineAnswer struct {
-	Agent            string   `json:"agent"`
-	AgentName        string   `json:"agentname"`
+	// Empty when the answer was pasted.
+	Agent     string `json:"agent"`
+	AgentName string `json:"agentname"`
+	// The changes offered, each ticked by default, and the ones MoltenTerm does not offer with their reason (#1099).
+	Changes  []StepChange     `json:"changes"`
+	Rejected []RejectedChange `json:"rejected"`
+	// The draft with every offered change applied, and its validation.
 	Proposed         string   `json:"proposed"`
 	Errors           []string `json:"errors"`
 	ValidateWarnings []string `json:"validatewarnings"`
-	// The top-level keys the agent changed outside the ones the setup sets up: dropped, the file keeps them (#1098).
-	Dropped []string `json:"dropped"`
+}
+
+type ApplyRequest struct {
+	Dir     string       `json:"dir"`
+	Text    string       `json:"text"`
+	Changes []StepChange `json:"changes"`
+	// The keys of the changes the developer ticked.
+	Chosen []string `json:"chosen"`
+}
+
+type ApplyAnswer struct {
+	Proposed         string   `json:"proposed"`
+	Errors           []string `json:"errors"`
+	ValidateWarnings []string `json:"validatewarnings"`
+}
+
+type PromptRequest struct {
+	Dir     string `json:"dir"`
+	Text    string `json:"text"`
+	Request string `json:"request,omitempty"`
+}
+
+type PromptAnswer struct {
+	Prompt string `json:"prompt"`
 }
 
 // AgentRunner runs a coding agent CLI with the prompt on its standard input and returns its standard output.
@@ -353,8 +384,10 @@ func writeProjectFile(dir string, rel string, data []byte) (string, error) {
 	return path, nil
 }
 
-// refineArgv is the agent's non-interactive form without a shell, a file writer or the web: it reads the repository and
-// answers on its standard output.
+// refineArgv is the thin adapter of each agent MoltenTerm knows a read-only, non-interactive form of: no shell, no file
+// writer, no web; the prompt on its standard input, the answer on its standard output. Any other agentic CLI takes the
+// same prompt through the generic path (Prompt, then the pasted answer): MoltenTerm never starts an agent it cannot
+// hold to reading.
 func refineArgv(agent string) []string {
 	switch agent {
 	case molten.AgentIdClaude:
@@ -365,15 +398,31 @@ func refineArgv(agent string) []string {
 	return nil
 }
 
-const refinePrompt = `You refine a release pipeline MoltenTerm drafted from this repository (the current folder).
+// must match the contract in StepChange and decodeChange (#1099)
+const refinePrompt = `You help set up the release pipeline MoltenTerm drafted for this repository (the current folder).
 Read the repository (scripts, workflows, RELEASE or CONTRIBUTING notes, the harness files) for what the draft cannot
 know: a one-time step (for example a merge -s ours before the first promotion), project-specific scripts, a changelog
-convention, an environment approval. Change only what the repository justifies. A step the developer must do by hand
-is a manual step ("manual": the instructions, no "run"), never in the prepare phase.
+convention, an environment approval. Propose only what the repository or the developer's request justifies. A step
+the developer must do by hand is a manual step ("manual": the instructions, no "run"), never in the prepare phase.
 
-Do not write or change any file: answer with the complete proposed .molten/project.json, as one JSON object, and
-nothing else (no explanation, no code fence). Only its release, versions, branches and steps keys are taken; every
-other key stays as the file has it.
+Do not write or change any file, and never answer with a whole .molten/project.json: answer with a list of changes to
+the draft's release steps and versions block, which the developer approves one by one. Answer one JSON object and
+nothing else (no explanation around it, no code fence):
+
+{"changes": [
+  {"op": "add", "channel": "rc" or "public", "after": "<id of the step it follows>", "step": {<the new step>}, "why": "<one sentence>"},
+  {"op": "change", "channel": "rc" or "public", "id": "<step id>", "step": {<the step's complete new text>}, "why": "..."},
+  {"op": "remove", "channel": "rc" or "public", "id": "<step id>", "why": "..."},
+  {"op": "versions", "versions": {<only the fields to set: tagprefix, notes, firstpublic, files, changelogs>}, "why": "..."}
+]}
+
+An added step may give "before" instead of "after"; with neither it goes after the last step of its phase. A step
+present in both channels is one change per channel. Nothing else of the file can change: ci, builds, steps, launch,
+branches, name or notesagent are refused. No change needed: {"changes": []}.
+
+The developer's request:
+
+%s
 
 The pipeline format:
 
@@ -386,58 +435,126 @@ The draft:
 
 var fenceJsonRegex = regexp.MustCompile("(?s)```(?:json)?\\s*\\n(.*?)\\n?```")
 
-// extractJson takes the JSON object out of the agent's answer: inside a code fence if there is one, else from the first
-// brace to the last.
-func extractJson(out []byte) []byte {
-	text := string(out)
-	if m := fenceJsonRegex.FindStringSubmatch(text); m != nil {
-		text = m[1]
+func refinePromptOf(text string, request string) (string, error) {
+	guide, err := agentdocs.Files.ReadFile("pipeline-format.md")
+	if err != nil {
+		return "", err
 	}
-	start, end := strings.Index(text, "{"), strings.LastIndex(text, "}")
-	if start < 0 || end < start {
-		return nil
+	request = strings.TrimSpace(request)
+	if request == "" {
+		request = "(none: check the draft against the repository)"
 	}
-	return []byte(text[start : end+1])
+	return fmt.Sprintf(refinePrompt, request, guide, text), nil
 }
 
-// Refine hands the draft to the project's coding agent; its answer is a proposal, never written.
+func checkDraftText(text string) error {
+	if len(text) > maxPipelineBytes {
+		return fmt.Errorf("the draft is too large")
+	}
+	if strings.TrimSpace(text) == "" {
+		return fmt.Errorf("there is no draft")
+	}
+	return nil
+}
+
+// Prompt is the request any agentic CLI answers (#1099): the developer runs it in the agent of their choice and pastes
+// the answer back into Refine.
+func (s *Setup) Prompt(req PromptRequest) (PromptAnswer, error) {
+	if _, err := checkProjectDir(req.Dir); err != nil {
+		return PromptAnswer{}, err
+	}
+	if err := checkDraftText(req.Text); err != nil {
+		return PromptAnswer{}, err
+	}
+	prompt, err := refinePromptOf(req.Text, req.Request)
+	return PromptAnswer{Prompt: prompt}, err
+}
+
+// Refine asks the project's coding agent (or reads the answer pasted from another one) for changes to the draft; the
+// changes are proposals, never written, and no whole file is ever taken (#1099).
 func (s *Setup) Refine(ctx context.Context, req RefineRequest) (RefineAnswer, error) {
 	dir, err := checkProjectDir(req.Dir)
 	if err != nil {
 		return RefineAnswer{}, err
 	}
-	choice := s.ChooseAgent(dir)
-	argv := refineArgv(choice.Agent)
-	if argv == nil {
-		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.noAgent"), "%s", agentchoice.NoneText())
+	if err := checkDraftText(req.Text); err != nil {
+		return RefineAnswer{}, err
 	}
-	guide, err := agentdocs.Files.ReadFile("pipeline-format.md")
+	answer := RefineAnswer{}
+	out := []byte(req.Answer)
+	name := ""
+	if strings.TrimSpace(req.Answer) == "" {
+		choice := s.ChooseAgent(dir)
+		argv := refineArgv(choice.Agent)
+		if argv == nil {
+			return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.noAgent"), "%s", agentchoice.NoneText())
+		}
+		prompt, err := refinePromptOf(req.Text, req.Request)
+		if err != nil {
+			return RefineAnswer{}, err
+		}
+		answer.Agent, answer.AgentName, name = choice.Agent, choice.AgentName, choice.AgentName
+		if out, err = s.Agent(ctx, dir, argv, prompt); err != nil {
+			return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentFailed", "agent", name, "detail", err.Error()), "%s could not refine the draft: %v", name, err)
+		}
+	}
+	raws, err := ParseChanges(out)
+	if err != nil {
+		return RefineAnswer{}, answerError(err, name)
+	}
+	answer.Changes, answer.Rejected, err = CheckChanges(dir, []byte(req.Text), raws)
 	if err != nil {
 		return RefineAnswer{}, err
 	}
-	out, err := s.Agent(ctx, dir, argv, fmt.Sprintf(refinePrompt, guide, req.Text))
-	if err != nil {
-		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentFailed", "agent", choice.AgentName, "detail", err.Error()), "%s could not refine the draft: %v", choice.AgentName, err)
-	}
-	answered := extractJson(out)
-	if answered == nil {
-		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentNoJson", "agent", choice.AgentName), "%s answered without a pipeline", choice.AgentName)
-	}
-	b, err := s.readBase(ctx, dir)
+	applied, err := s.Apply(ApplyRequest{Dir: dir, Text: req.Text, Changes: answer.Changes, Chosen: ChangeKeysOf(answer.Changes)})
 	if err != nil {
 		return RefineAnswer{}, err
 	}
-	if err := b.includable(req.IncludeLocal); err != nil {
-		return RefineAnswer{}, err
+	answer.Proposed, answer.Errors, answer.ValidateWarnings = applied.Proposed, applied.Errors, applied.ValidateWarnings
+	return answer, nil
+}
+
+// answerError: an answer that is a whole file is refused as such, nothing of it taken (the #1091 rewrite); name is ""
+// for a pasted answer.
+func answerError(err error, name string) error {
+	whole := errors.Is(err, errWholeFile)
+	switch {
+	case name == "" && whole:
+		return uimsg.Errorf(uimsg.Make("mission.setup.pastedWholeFile"), "the pasted answer is a whole pipeline file, not step changes: nothing of it is taken")
+	case name == "":
+		return uimsg.Errorf(uimsg.Make("mission.setup.pastedNoChanges"), "the pasted answer holds no list of changes")
+	case whole:
+		return uimsg.Errorf(uimsg.Make("mission.setup.agentWholeFile", "agent", name), "%s answered with a whole pipeline file instead of step changes: nothing of it is taken", name)
 	}
-	// The agent's text goes through the template's merge (#1098): it can only change the keys the setup sets up, in
-	// the file's own layout.
-	current, _ := b.buildOn(req.IncludeLocal)
-	proposed, dropped, err := MergeOwned(current, answered, nameOf(dir, current))
+	return uimsg.Errorf(uimsg.Make("mission.setup.agentNoChanges", "agent", name), "%s answered without a list of changes", name)
+}
+
+// ChangeKeysOf lists the changes' keys, in order.
+func ChangeKeysOf(changes []StepChange) []string {
+	rtn := []string{}
+	for _, c := range changes {
+		rtn = append(rtn, c.Key)
+	}
+	return rtn
+}
+
+// Apply writes the ticked changes into the draft's text, checked again; nothing is written to the project.
+func (s *Setup) Apply(req ApplyRequest) (ApplyAnswer, error) {
+	dir, err := checkProjectDir(req.Dir)
 	if err != nil {
-		return RefineAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.agentNoJson", "agent", choice.AgentName), "%s answered without a pipeline: %v", choice.AgentName, err)
+		return ApplyAnswer{}, err
+	}
+	if err := checkDraftText(req.Text); err != nil {
+		return ApplyAnswer{}, err
+	}
+	changes, err := chosenChanges(dir, []byte(req.Text), req.Changes, req.Chosen)
+	if err != nil {
+		return ApplyAnswer{}, err
+	}
+	proposed, err := applyChanges([]byte(req.Text), changes)
+	if err != nil {
+		return ApplyAnswer{}, err
 	}
 	report := molten.ValidatePipelineData(dir, proposed)
-	return RefineAnswer{Agent: choice.Agent, AgentName: choice.AgentName, Proposed: string(proposed), Errors: report.Errors,
-		ValidateWarnings: report.Warnings, Dropped: dropped}, nil
+	return ApplyAnswer{Proposed: string(proposed), Errors: report.Errors, ValidateWarnings: report.Warnings}, nil
 }

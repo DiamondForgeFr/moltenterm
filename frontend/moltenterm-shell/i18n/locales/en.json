@@ -3674,15 +3674,58 @@
             },
             "review": {
                 "folded": "{count} unchanged lines",
-                "byAgent": "Proposed by {agent}: nothing is written until you open the pull request.",
+                "byAgent": "The draft with the changes you ticked from {agent}: nothing is written until you open the pull request.",
                 "bySaaSFoundry": "Drafted by SaaSFoundryAI.",
                 "byMoltenTerm": "Drafted by MoltenTerm from the repository.",
-                "backToDraft": "Back to the draft",
-                "refine": "Refine with an agent",
                 "refining": "The agent reads the repository…",
-                "refineTitle": "The project's coding agent reads the repository and proposes changes, without writing anything.",
-                "sources": "Where each step comes from",
-                "dropped": "The agent also changed {keys}: dropped. Only the release, versions, branches and steps blocks are set up; the rest of the file stays as it is."
+                "refineTitle": "The project's coding agent reads the repository and proposes step changes, without writing anything.",
+                "sources": "Where each step comes from"
+            },
+            "proposal": {
+                "wordsLabel": "Say it in your words: the project's agent proposes step changes, you tick them before anything moves",
+                "wordsPlaceholder": "For example: before the cut, the release also runs npm run docs:build.",
+                "ask": "Ask the agent for a proposal",
+                "askNote": "Read-only: it answers with step changes, never a whole file.",
+                "otherShow": "Use another agent",
+                "otherHide": "Hide",
+                "otherText": "Any coding agent can answer: copy the request, run it in your agent, then paste its answer here. It goes through the same checks.",
+                "copy": "Copy the request",
+                "copied": "Copied",
+                "pastePlaceholder": "Paste the agent's answer ({\"changes\": [...]})",
+                "read": "Read the answer",
+                "otherAgent": "another agent",
+                "pill": "Agent proposal",
+                "count": {
+                    "one": "{agent} proposes 1 change.",
+                    "other": "{agent} proposes {count} changes."
+                },
+                "chosen": "Ticked: {chosen} of {count}.",
+                "none": "{agent} proposes no change to the draft.",
+                "drop": "Drop the proposal",
+                "take": "Take: {title}",
+                "after": "After {id}",
+                "before": "Before {id}",
+                "op": {
+                    "add": "Added",
+                    "change": "Changed",
+                    "remove": "Removed",
+                    "versions": "Changed"
+                },
+                "rejectedTitle": {
+                    "one": "1 proposed change is not offered",
+                    "other": "{count} proposed changes are not offered"
+                },
+                "rejected": {
+                    "outside": "Outside what the setup proposes ({detail}): only release steps and the versions block change.",
+                    "malformed": "Not a step change MoltenTerm can read: {detail}",
+                    "missing": "No step {detail} in the draft.",
+                    "exists": "The draft already has a step {detail}.",
+                    "conflict": "A second change of {detail}: the first one is kept.",
+                    "unchanged": "Changes nothing in {detail}.",
+                    "command": "{detail} names a program the release would run: change it yourself.",
+                    "invalid": "The pipeline would not be valid: {detail}",
+                    "toomany": "Changes past the first 40 ({detail} of them): too many in one answer."
+                }
             },
             "diagram": {
                 "github": "GitHub",
@@ -7275,7 +7318,10 @@
                 "notValid": "The proposed pipeline is not valid: {errors}",
                 "noAgent": "No supported coding agent (Claude Code or Codex) is installed on this computer.",
                 "agentFailed": "{agent} could not refine the draft: {detail}",
-                "agentNoJson": "{agent} answered without a pipeline.",
+                "agentNoChanges": "{agent} answered without a list of changes.",
+                "agentWholeFile": "{agent} answered with a whole pipeline file instead of step changes: nothing of it is taken. Ask again.",
+                "pastedNoChanges": "The pasted answer holds no list of changes.",
+                "pastedWholeFile": "The pasted answer is a whole pipeline file, not step changes: nothing of it is taken.",
                 "updateChanged": "The update changed since it was shown: check it again.",
                 "prBusy": "A pull request of the release setup is already being prepared for this project.",
                 "prUnknown": "This pull request is no longer followed: prepare it again.",

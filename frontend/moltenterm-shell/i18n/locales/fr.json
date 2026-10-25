@@ -3674,15 +3674,58 @@
             },
             "review": {
                 "folded": "{count} lignes inchangées",
-                "byAgent": "Proposé par {agent} : rien n'est écrit avant que vous ouvriez la pull request.",
+                "byAgent": "La proposition avec les changements de {agent} que vous avez cochés : rien n’est écrit avant que vous ouvriez la pull request.",
                 "bySaaSFoundry": "Rédigé par SaaSFoundryAI.",
                 "byMoltenTerm": "Rédigé par MoltenTerm d’après le dépôt.",
-                "backToDraft": "Revenir à la proposition",
-                "refine": "Affiner avec un agent",
                 "refining": "L’agent lit le dépôt…",
-                "refineTitle": "L’agent de code du projet lit le dépôt et propose des changements, sans rien écrire.",
-                "sources": "D’où vient chaque étape",
-                "dropped": "L'agent a aussi modifié {keys} : ignoré. Seuls les blocs release, versions, branches et steps sont configurés ; le reste du fichier reste tel quel."
+                "refineTitle": "L’agent de code du projet lit le dépôt et propose des changements d’étapes, sans rien écrire.",
+                "sources": "D’où vient chaque étape"
+            },
+            "proposal": {
+                "wordsLabel": "Dites-le avec vos mots : l’agent du projet propose des changements d’étapes, vous les cochez avant que rien ne bouge",
+                "wordsPlaceholder": "Par exemple : avant la coupe, la release lance aussi npm run docs:build.",
+                "ask": "Demander une proposition à l’agent",
+                "askNote": "Lecture seule : il répond par des changements d’étapes, jamais par un fichier entier.",
+                "otherShow": "Utiliser un autre agent",
+                "otherHide": "Masquer",
+                "otherText": "N’importe quel agent de code peut répondre : copiez la demande, lancez-la dans votre agent, puis collez sa réponse ici. Elle passe par les mêmes vérifications.",
+                "copy": "Copier la demande",
+                "copied": "Copiée",
+                "pastePlaceholder": "Collez la réponse de l’agent ({\"changes\": [...]})",
+                "read": "Lire la réponse",
+                "otherAgent": "un autre agent",
+                "pill": "Proposition de l’agent",
+                "count": {
+                    "one": "{agent} propose 1 changement.",
+                    "other": "{agent} propose {count} changements."
+                },
+                "chosen": "Cochés : {chosen} sur {count}.",
+                "none": "{agent} ne propose aucun changement à la proposition.",
+                "drop": "Écarter la proposition",
+                "take": "Reprendre : {title}",
+                "after": "Après {id}",
+                "before": "Avant {id}",
+                "op": {
+                    "add": "Ajoutée",
+                    "change": "Modifiée",
+                    "remove": "Retirée",
+                    "versions": "Modifié"
+                },
+                "rejectedTitle": {
+                    "one": "1 changement proposé n’est pas retenu",
+                    "other": "{count} changements proposés ne sont pas retenus"
+                },
+                "rejected": {
+                    "outside": "Hors de ce que la configuration propose ({detail}) : seuls les étapes de release et le bloc versions changent.",
+                    "malformed": "Pas un changement d’étape lisible par MoltenTerm : {detail}",
+                    "missing": "Aucune étape {detail} dans la proposition.",
+                    "exists": "La proposition a déjà une étape {detail}.",
+                    "conflict": "Un second changement de {detail} : le premier est gardé.",
+                    "unchanged": "Ne change rien à {detail}.",
+                    "command": "{detail} désigne un programme que la release lancerait : modifiez-le vous-même.",
+                    "invalid": "Le pipeline ne serait pas valide : {detail}",
+                    "toomany": "Changements au-delà des 40 premiers ({detail}) : trop pour une seule réponse."
+                }
             },
             "diagram": {
                 "github": "GitHub",
@@ -7275,7 +7318,10 @@
                 "notValid": "Le pipeline proposé n’est pas valide : {errors}",
                 "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
                 "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
-                "agentNoJson": "{agent} a répondu sans pipeline.",
+                "agentNoChanges": "{agent} a répondu sans liste de changements.",
+                "agentWholeFile": "{agent} a répondu par un fichier de pipeline entier au lieu de changements d’étapes : rien n’en est repris. Redemandez.",
+                "pastedNoChanges": "La réponse collée ne contient pas de liste de changements.",
+                "pastedWholeFile": "La réponse collée est un fichier de pipeline entier, pas des changements d’étapes : rien n’en est repris.",
                 "updateChanged": "La mise à jour a changé depuis son affichage : vérifiez-la à nouveau.",
                 "prBusy": "Une pull request de la configuration de release est déjà en préparation pour ce projet.",
                 "prUnknown": "Cette pull request n'est plus suivie : préparez-la à nouveau.",
