@@ -132,6 +132,8 @@ type Setup struct {
 	ChooseAgent func(dir string) agentchoice.Choice
 	// Where the pull requests' worktrees go: MoltenTerm's data, never beside the project (#1098).
 	TreesDir string
+	// Where the stepper's answers are kept per project (FR-MC-038); "" keeps none.
+	AnswersDir string
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob
