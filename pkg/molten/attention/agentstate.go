@@ -147,6 +147,8 @@ type agentRecord struct {
 	settings molten.AgentSettings
 	// firstName: the pane's agent name (FR-CONT-014), held from the names allocator while the record lives.
 	firstName string
+	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092).
+	subagents map[string]bool
 }
 
 type noticeMark struct {
@@ -396,6 +398,9 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	if req.Agent != "" && !molten.ValidAgentId(req.Agent) {
 		return nil, "", fmt.Errorf("invalid agent name %q", req.Agent)
 	}
+	if len(req.Subagent) > maxSubagentIdLength {
+		return nil, "", fmt.Errorf("invalid sub-agent id")
+	}
 	message := molten.CleanAgentMessage(req.Message)
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -416,11 +421,12 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.source = sourceHook
 		rec.pid, rec.pidStart = 0, 0
 		rec.settings = molten.AgentSettings{}
+		rec.subagents = nil
 		a.markDirtyLocked(req.BlockId)
 	}
 	if !req.TurnEnd {
 		a.hookedLocked(req.BlockId, rec.agent)
-		if req.State == molten.AgentStateDone {
+		if req.State == molten.AgentStateDone && req.Subagent == "" {
 			a.paneLocked(req.BlockId).hookedDone = true
 		}
 		// Hooks MoltenTerm's launcher added for this run are not the user's: remembering them would hide the hook
@@ -429,7 +435,14 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 			a.agentHookedLocked(rec.agent)
 		}
 	}
+	if req.Subagent != "" {
+		a.subagentLocked(req.BlockId, rec, req.Subagent, req.State)
+		return nil, "", nil
+	}
 	rec.fromActivity = false
+	if req.Start {
+		a.forgetSubagentsLocked(req.BlockId, rec)
+	}
 	if req.Start && (previous == molten.AgentStateWorking || previous == molten.AgentStateWaiting) {
 		// A session started again in the middle of a turn (Codex's /clear while it works, a resume racing the first
 		// prompt): the start only makes the states precise.
@@ -537,6 +550,7 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Effort:      rec.settings.Effort,
 	}
 	a.heldInfoLocked(blockId, rec, &info)
+	subagentsInfo(rec, &info)
 	return info
 }
 
@@ -782,7 +796,7 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName}, true
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)}, true
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -790,7 +804,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)})
 	}
 	return rtn
 }

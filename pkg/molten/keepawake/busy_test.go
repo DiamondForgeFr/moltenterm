@@ -265,6 +265,7 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 		"background": {WorkspaceId: "ws-b"},
 		"prompt":     {WorkspaceId: "ws-c"},
 		"remote":     {WorkspaceId: "ws-d", Remote: true},
+		"subagents":  {WorkspaceId: "ws-e", Remote: true},
 	}
 	var asked []TreeRoot
 	src := WorkSources{
@@ -275,6 +276,8 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 				{BlockId: "prompt", Agent: molten.AgentIdCodex, Running: true, State: molten.AgentStateWaiting, Pid: 30, PidStartMs: 3},
 				// A remote agent's process is not known: it counts through its state only.
 				{BlockId: "remote", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone},
+				// Its hooks report running sub-agents after its turn ended (#1092): background work, process or not.
+				{BlockId: "subagents", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Subagents: 2},
 			}
 		},
 		Commands: func() map[string]string { return map[string]string{"background": "claude", "prompt": "codex"} },
@@ -288,7 +291,7 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 		},
 	}
 	work := ComputeWork(context.Background(), src)
-	want := map[string]bool{"ws-a": true, "ws-b": true}
+	want := map[string]bool{"ws-a": true, "ws-b": true, "ws-e": true}
 	if !reflect.DeepEqual(work.Workspaces, want) || !work.Local {
 		t.Fatalf("work %+v, want %v", work, want)
 	}
@@ -302,6 +305,9 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 	}
 	if got := work.Reasons["ws-b"]; !reflect.DeepEqual(got, []string{"Claude Code: background work"}) {
 		t.Errorf("reasons of ws-b: %v", got)
+	}
+	if got := work.Reasons["ws-e"]; !reflect.DeepEqual(got, []string{"Claude Code: background work"}) {
+		t.Errorf("reasons of ws-e: %v", got)
 	}
 	if got := work.LocalReasons; !reflect.DeepEqual(got, []string{"Claude Code: working", "Claude Code: background work"}) {
 		t.Errorf("local reasons: %v", got)

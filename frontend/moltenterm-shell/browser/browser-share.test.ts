@@ -115,6 +115,15 @@ describe("share with agent (FR-BRW-011)", () => {
         expect(tellReason({ ...base, state: "idle" })).toBe("");
     });
 
+    it("offers Share and tell to an agent whose sub-agents work while its prompt is idle (#1092)", () => {
+        const background = shareAgents(
+            [{ ...state("term-a", "claude", "Claude Code", "working"), background: true, subagents: 2 }],
+            [{ sessionid: "s-a", blockid: "term-a", agentname: "Claude Code" }],
+            paneTitle
+        );
+        expect(tellReason(background[0])).toBe("");
+    });
+
     it("puts Stop sharing first on a shared tab and names the agent holding it (AC4, AC5)", () => {
         const { calls, actions } = recorder();
         const holder: AgentTab = { browsertabid: "t1", agentname: "Claude Code", origin: "shared", state: "active" };

@@ -143,27 +143,59 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 	state := func(s string, message string) error {
 		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: s, Agent: agent, Message: message})
 	}
+	// A hook fired inside a sub-agent carries its agent_id (#1092): its work is the sub-agent's, the main session's
+	// prompt may be idle. An input without agent_id is the main session's, whatever the agent.
+	subagent := func(s string) error {
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: s, Agent: agent, Subagent: input.AgentId})
+	}
 	switch input.HookEventName {
 	case HookEventSessionStart:
 		return sessionStart(input, agent, blockId, call)
 	case HookEventUserPromptSubmit, HookEventPostToolUse:
+		if input.AgentId != "" {
+			return subagent(AgentStateWorking)
+		}
 		return state(AgentStateWorking, "")
 	case HookEventNotification:
+		// A sub-agent's question too: it shows in the main session's terminal, which waits for the developer.
 		if !ClaudeNotificationWaits(input) {
 			return nil
 		}
 		return state(AgentStateWaiting, input.Message)
 	case HookEventStop:
+		if input.AgentId != "" {
+			return subagent(AgentStateDone)
+		}
 		return state(AgentStateDone, "")
 	case HookEventSubagentStart, HookEventSubagentStop:
-		event, path := SubagentEventStart, ""
-		if input.HookEventName == HookEventSubagentStop {
-			event, path = SubagentEventStop, input.AgentTranscriptPath
+		return subagentEvent(input, agent, blockId, call)
+	}
+	return nil
+}
+
+// subagentEvent tells the companion which sub-agent started or stopped, and the pane's states that it runs or not
+// (#1092). The companion goes first, as before; a failed state report does not cost it the event.
+func subagentEvent(input HookInput, agent string, blockId string, call HookCaller) error {
+	event, path, s := SubagentEventStart, "", AgentStateWorking
+	if input.HookEventName == HookEventSubagentStop {
+		event, path, s = SubagentEventStop, input.AgentTranscriptPath, AgentStateDone
+	}
+	var errs []string
+	err := call(CompanionSubagentCommand, CompanionRoute, AgentSubagentRequest{
+		BlockId: blockId, Agent: agent, Event: event, SessionId: input.SessionId, AgentId: input.AgentId,
+		AgentType: input.AgentType, TranscriptPath: absPath(path),
+	})
+	if err != nil {
+		errs = append(errs, err.Error())
+	}
+	if input.AgentId != "" {
+		req := AgentStateRequest{BlockId: blockId, State: s, Agent: agent, Subagent: input.AgentId}
+		if err := call(AgentStateSetCommand, AgentStatesRoute, req); err != nil {
+			errs = append(errs, err.Error())
 		}
-		return call(CompanionSubagentCommand, CompanionRoute, AgentSubagentRequest{
-			BlockId: blockId, Agent: agent, Event: event, SessionId: input.SessionId, AgentId: input.AgentId,
-			AgentType: input.AgentType, TranscriptPath: absPath(path),
-		})
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return nil
 }

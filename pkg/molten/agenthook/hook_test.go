@@ -53,9 +53,24 @@ func TestRunHookEvent(t *testing.T) {
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"waiting","agent":"codex","message":"Claude needs your permission"}`}}},
 		{"idle reminder", `{"hook_event_name":"Notification","notification_type":"idle_prompt","message":"Claude is waiting for your input"}`, nil},
 		{"sub-agent start", `{"session_id":"019a","hook_event_name":"SubagentStart","agent_id":"a-1","agent_type":"explorer","turn_id":"t"}`,
-			[]hookCall{{CompanionSubagentCommand, CompanionRoute, `{"blockid":"b","agent":"codex","event":"start","sessionid":"019a","agentid":"a-1","agenttype":"explorer"}`}}},
+			[]hookCall{
+				{CompanionSubagentCommand, CompanionRoute, `{"blockid":"b","agent":"codex","event":"start","sessionid":"019a","agentid":"a-1","agenttype":"explorer"}`},
+				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex","subagent":"a-1"}`},
+			}},
 		{"sub-agent stop", `{"session_id":"019a","hook_event_name":"SubagentStop","agent_id":"a-1","agent_type":"explorer","agent_transcript_path":"/h/sub.jsonl","last_assistant_message":null,"stop_hook_active":false}`,
-			[]hookCall{{CompanionSubagentCommand, CompanionRoute, `{"blockid":"b","agent":"codex","event":"stop","sessionid":"019a","agentid":"a-1","agenttype":"explorer","transcriptpath":"/h/sub.jsonl"}`}}},
+			[]hookCall{
+				{CompanionSubagentCommand, CompanionRoute, `{"blockid":"b","agent":"codex","event":"stop","sessionid":"019a","agentid":"a-1","agenttype":"explorer","transcriptpath":"/h/sub.jsonl"}`},
+				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"done","agent":"codex","subagent":"a-1"}`},
+			}},
+		{"sub-agent start without id: the companion only", `{"hook_event_name":"SubagentStart"}`,
+			[]hookCall{{CompanionSubagentCommand, CompanionRoute, `{"blockid":"b","agent":"codex","event":"start"}`}}},
+		// #1092: hooks fired inside a sub-agent carry its agent_id and are its own, never the main session's state.
+		{"sub-agent tool", `{"session_id":"019a","hook_event_name":"PostToolUse","agent_id":"a-1","agent_type":"explorer","tool_name":"Read"}`,
+			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex","subagent":"a-1"}`}}},
+		{"sub-agent stop as Stop", `{"hook_event_name":"Stop","agent_id":"a-1"}`,
+			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"done","agent":"codex","subagent":"a-1"}`}}},
+		{"sub-agent question: the pane waits", `{"hook_event_name":"Notification","agent_id":"a-1","notification_type":"permission_prompt","message":"Claude needs your permission"}`,
+			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"waiting","agent":"codex","message":"Claude needs your permission"}`}}},
 		{"another event", `{"hook_event_name":"PreCompact","trigger":"auto"}`, nil},
 		{"no input", ``, nil},
 	}

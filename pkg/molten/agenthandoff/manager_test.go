@@ -478,6 +478,28 @@ func TestBusyReceiverIsQueued(t *testing.T) {
 	}
 }
 
+// #1092: the receiver's sub-agents do not make its prompt busy; its main session working does, sub-agents or not.
+func TestSubagentsDoNotMakeTheReceiverBusy(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	answerWith(m, env, DecisionOnce)
+	env.lock.Lock()
+	r := env.runs["blockB"]
+	r.State, r.Subagents = molten.AgentStateDone, 2
+	env.runs["blockB"] = r
+	env.lock.Unlock()
+	res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "now"}})
+	if err != nil || res.Status != StatusDelivered || len(env.typedLines()) != 1 {
+		t.Fatalf("idle prompt, sub-agents running: %+v %v %+v", res, err, env.typedLines())
+	}
+	env.setState("blockB", molten.AgentStateWorking)
+	res, err = m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "later"}})
+	if err != nil || res.Status != StatusQueued {
+		t.Fatalf("main session working: %+v %v", res, err)
+	}
+	env.setState("blockB", molten.AgentStateIdle)
+	waitFor(t, "the queued handoff", func() bool { return len(env.typedLines()) == 2 })
+}
+
 func TestQueueDropsAnEndedReceiver(t *testing.T) {
 	m, env, _, _ := makeFixture(t)
 	answerWith(m, env, DecisionOnce)

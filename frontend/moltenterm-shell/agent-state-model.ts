@@ -41,8 +41,21 @@ export type AgentStateInfo = {
     model?: string;
     modelname?: string;
     effort?: string;
+    // How many sub-agents of the session run (#1092). background: state is working only because of them; the main
+    // session's prompt is idle and takes a message.
+    subagents?: number;
+    background?: boolean;
     cleared?: boolean;
 };
+
+// The main session's prompt (#1092): what typing into it depends on. A pane working only through its sub-agents
+// shows working, but its prompt is idle.
+export function agentPromptState(info: AgentStateInfo): string {
+    if (info?.background) {
+        return "idle";
+    }
+    return info?.state;
+}
 
 export type AgentStatesData = {
     states: Record<string, AgentStateInfo>;

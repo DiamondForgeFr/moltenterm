@@ -244,7 +244,7 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 	}
 	candidates := map[string]bool{}
 	for id, run := range agents {
-		if run.State == molten.AgentStateWorking || busy[id] {
+		if run.State == molten.AgentStateWorking || busy[id] || run.Subagents > 0 {
 			candidates[id] = true
 		}
 	}
@@ -303,8 +303,9 @@ func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRun
 		if run.State == molten.AgentStateWorking {
 			return agentReason(run.Agent, reasonAgentWorking), true
 		}
-		// Only a local agent's process is known (procwatch): a remote one counts through its state alone.
-		if busy[blockId] {
+		// Only a local agent's process is known (procwatch): a remote one counts through its state alone. Sub-agents
+		// its hooks report running are background work too (#1092), even while they wait for their model.
+		if busy[blockId] || run.Subagents > 0 {
 			return agentReason(run.Agent, reasonAgentBackground), true
 		}
 		return reason{}, false

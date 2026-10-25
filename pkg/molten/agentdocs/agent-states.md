@@ -84,9 +84,13 @@ the event (`hook_event_name`) and reports what it means, printing nothing:
 | `UserPromptSubmit`, `PostToolUse` | working |
 | `Notification` (Claude Code) | waiting, for the notifications that wait for you (see below) |
 | `Stop` | done |
-| `SubagentStart`, `SubagentStop` | the sub-agent (its id, type and, at its end, its transcript), for the companion |
+| `SubagentStart`, `SubagentStop` | the sub-agent (its id, type and, at its end, its transcript), for the companion, and that it runs or stopped |
 
-Any other event reports nothing.
+Any other event reports nothing. An event fired inside a sub-agent carries its `agent_id`: its `UserPromptSubmit`,
+`PostToolUse` or `Stop` is the sub-agent's work, never the session's state. While the session is idle or done and
+its sub-agents run, the pane shows working with "N sub-agents running", and its prompt still takes a handoff
+(`send_to_agent`). A sub-agent's `Notification` that waits is the pane's waiting: its question shows in the
+session's terminal.
 
 ```
 molten agent state <working|waiting|done|error|idle> [--agent <name>] [--message <text>] [--stdin]

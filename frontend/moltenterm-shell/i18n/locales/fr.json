@@ -6802,6 +6802,10 @@
             "localCi": "attend la CI locale de #{number} sur sa tête poussée",
             "green": "la CI de #{number} passe"
         },
+        "agentState": {
+            "subagent": "1 sous-agent en cours",
+            "subagents": "{count} sous-agents en cours"
+        },
         "review": {
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
             "batchmethod": "Cette méthode de fusion n'est plus autorisée sur ce dépôt : choisissez-en une autre.",
