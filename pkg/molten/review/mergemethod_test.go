@@ -48,7 +48,7 @@ func TestMergeUsesTheOnlyAllowedMethod(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.wait(testKey)
-			want := "pr merge 7 --" + method + " --delete-branch --match-head-commit " + oidA + " --repo " + testRepo
+			want := "pr merge 7 --" + method + " --match-head-commit " + oidA + " --repo " + testRepo
 			if got := mergeCall(t, gh); got != want {
 				t.Errorf("merge call:\n got %s\nwant %s", got, want)
 			}
@@ -135,7 +135,7 @@ func TestMergeUpdateFollowsTheMethod(t *testing.T) {
 			if len(writes) != 2 || strings.Join(writes[0], " ") != want {
 				t.Fatalf("update call: %v", writes)
 			}
-			if !strings.Contains(strings.Join(writes[1], " "), "--"+method+" --delete-branch --match-head-commit "+oidB) {
+			if !strings.Contains(strings.Join(writes[1], " "), "--"+method+" --match-head-commit "+oidB) {
 				t.Errorf("merge call: %v", writes[1])
 			}
 		})

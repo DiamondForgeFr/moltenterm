@@ -7168,12 +7168,13 @@
                 "remote-branch": {
                     "label": "Remote branch",
                     "plan": {
-                        "none": "origin/{branch} will be deleted with the merge."
+                        "none": "origin/{branch} will be deleted last, once the worktree and the local branch are gone."
                     },
                     "did": {
-                        "deletedbymerge": "origin/{branch} deleted by the merge.",
+                        "deletedbymerge": "origin/{branch} was already deleted.",
                         "deleted": "origin/{branch} deleted.",
                         "pushedafter": "Kept: origin/{branch} has commits pushed after the merge.",
+                        "localfirst": "Kept until the worktree and the local branch are gone: origin/{branch} is deleted last.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
                         "none": "origin/{branch} could not be deleted."
                     }

@@ -95,6 +95,8 @@ const (
 	CleanupCodeDeleted          = "deleted"
 	CleanupCodeDeletedByMerge   = "deletedbymerge"
 	CleanupCodePushedAfter      = "pushedafter"
+	// localfirst: origin's branch waits for the worktrees and the local branch to go (#1132).
+	CleanupCodeLocalFirst = "localfirst"
 	CleanupCodeNoOtherPr        = "noother"
 	CleanupCodeOtherPrs         = "otherprs"
 	// #1121: a PR closed without merging, cleaned up from the Leftovers group (closedpr: the step is not one of its
@@ -865,13 +867,17 @@ func (r *cleanupRun) deleteLocalBranch(agentStep *CleanupStepResult) CleanupStep
 	return withBranch(done(CleanupStepLocalBranch, CleanupCodeDeleted), branch, base)
 }
 
-// deleteRemoteBranch: the merge deletes it (gh pr merge --delete-branch, or the repository's automatic deletion); one
-// still there is deleted only when it is still the head GitHub merged.
+// deleteRemoteBranch: Validate's merge leaves it (#1132; a repository's automatic deletion may not). It goes last, once
+// no worktree holds the branch and the local branch is gone: deleted first, a worktree kept or whose removal failed
+// loses its upstream, and the risk confirmed for it no longer matches. It goes only while it is the head GitHub merged.
 func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 	branch := r.pr.HeadRefName
 	tip, err := r.git(r.dir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch)
 	if err != nil || tip == "" {
 		return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeletedByMerge), branch, "")
+	}
+	if r.localSideLeft() {
+		return withBranch(skipped(CleanupStepRemoteBranch, CleanupCodeLocalFirst), branch, "")
 	}
 	if !reviewsession.IsOid(r.pr.HeadRefOid) || tip != r.pr.HeadRefOid {
 		return withBranch(skipped(CleanupStepRemoteBranch, CleanupCodePushedAfter), branch, "")
@@ -887,6 +893,22 @@ func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 		return failed(CleanupStepRemoteBranch, err)
 	}
 	return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeleted), branch, "")
+}
+
+// localSideLeft: a worktree still holds the PR's branch, or the local branch is still there, read again from git
+// whatever steps ran; a read that fails counts as left.
+func (r *cleanupRun) localSideLeft() bool {
+	entries, err := r.worktreeEntries()
+	if err != nil {
+		return true
+	}
+	for _, e := range entries {
+		if e[1] == "refs/heads/"+r.pr.HeadRefName {
+			return true
+		}
+	}
+	_, err = r.git(r.dir, "show-ref", "--verify", "--quiet", "refs/heads/"+r.pr.HeadRefName)
+	return err == nil
 }
 
 // Cleanup runs the cleanup of a merged PR and records its outcome in the review store, which the Review tab and the

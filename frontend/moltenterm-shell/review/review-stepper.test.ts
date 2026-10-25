@@ -145,7 +145,7 @@ describe("Validate's stepper", () => {
             ["review-worktree", "skipped", "Nothing to do: this review used the agent's worktree."],
             ["agent-worktree", "todo", "/w/app-672 will be removed."],
             ["local-branch", "todo", "feature/672-x will be deleted."],
-            ["remote-branch", "todo", "origin/feature/672-x will be deleted with the merge."],
+            ["remote-branch", "todo", "origin/feature/672-x will be deleted last, once the worktree and the local branch are gone."],
         ]);
         expect(step(steps, "others").lines[0]).toMatch(/are left as they are; those this merge puts in conflict/);
     });
@@ -531,7 +531,7 @@ describe("Validate's stepper", () => {
                 "kept",
                 "prunconfirmed",
             ],
-            "remote-branch": ["deleted", "deletedbymerge", "pushedafter", "prunconfirmed"],
+            "remote-branch": ["deleted", "deletedbymerge", "pushedafter", "localfirst", "prunconfirmed"],
             "local-trunk": [
                 "updated",
                 "uptodate",
