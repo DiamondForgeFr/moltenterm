@@ -108,6 +108,9 @@ const (
 	// request): GitHub at most this often, git only after a change, never a fetch.
 	passiveGithubInterval = 10 * time.Minute
 	passiveGitMaxAge      = fetchEvery
+
+	// Step 2b's "another project as a model" (FR-MC-041): the linked projects' committed pipelines, only read.
+	SetupModelsCommand = "moltenmissionsetupmodels"
 	// The rail's Reviews counts (#688): a passive ask that reads GitHub this often, so a merge or a new PR shows
 	// without opening the view.
 	railGithubInterval = 2 * time.Minute

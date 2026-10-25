@@ -7,14 +7,16 @@
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MissionRouteId } from "./mission-client";
+import type { SetupModel } from "./release-setup-describe-model";
 import type {
+    SetupApplied,
     SetupCheck,
     SetupDraft,
     SetupKind,
     SetupOptions,
     SetupPrJob,
     SetupPrRequest,
-    SetupApplied,
+    SetupProposedFile,
     SetupRefined,
     SetupStepChange,
     SetupTicket,
@@ -33,6 +35,7 @@ export const MissionSetupPrStateCommand = "moltenmissionsetupprstate";
 export const MissionSetupTicketsCommand = "moltenmissionsetuptickets";
 export const MissionSetupSurveyCommand = "moltenmissionsetupsurvey";
 export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
+export const MissionSetupModelsCommand = "moltenmissionsetupmodels";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -88,9 +91,19 @@ export function setupWrite(
     text: string,
     base: string,
     generated: Record<string, string>,
-    pr: SetupPrRequest
+    pr: SetupPrRequest,
+    files?: SetupProposedFile[]
 ): Promise<SetupPrJob> {
-    return setupCall(MissionSetupWriteCommand, { dir, text, base, generated, ...pr }, SetupWriteTimeoutMs);
+    return setupCall(
+        MissionSetupWriteCommand,
+        { dir, text, base, generated, files: files?.length ? files : undefined, ...pr },
+        SetupWriteTimeoutMs
+    );
+}
+
+// Step 2b's "another project as a model" (FR-MC-041): the linked projects' committed pipelines, adapted to this one.
+export function setupModels(dir: string): Promise<{ models: SetupModel[] }> {
+    return setupCall(MissionSetupModelsCommand, { dir }, SetupDraftTimeoutMs);
 }
 
 // Compares the release setup with what this version of MoltenTerm writes (#1086); the remote facts are read again.

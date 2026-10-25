@@ -60,6 +60,12 @@ type Options struct {
 	Reconcile bool `json:"reconcile"`
 	// The version labels kept (#1046): text entries of versions.files, or a manual step for those without a pattern.
 	Labels []LabelChoice `json:"labels"`
+	// Step 2b's description (FR-MC-041), empty on the other paths: the trunk and the published branch (the same one:
+	// tags on the trunk), the release candidates (none, published, internal) and where the versions are published.
+	Trunk   string   `json:"trunk,omitempty"`
+	Release string   `json:"release,omitempty"`
+	Rc      string   `json:"rc,omitempty"`
+	Publish []string `json:"publish,omitempty"`
 }
 
 // The proposal: the blocks the setup writes, and the source of each drafted step ("rc/promote", "steps/deploy-prod").

@@ -542,11 +542,25 @@ func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, workt
 	setup := pipelinesetup.MakeSetup(pipelinesetup.Runner(ExecRunner), refineAgent)
 	setup.TreesDir = setupTrees
 	setup.AnswersDir = setupAnswers
+	setup.ProjectDirs = linkedProjectDirs
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
 		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
+}
+
+// linkedProjectDirs: the folders of the projects linked to a workspace, in the rail's order.
+func linkedProjectDirs(ctx context.Context) ([]string, error) {
+	links, err := WorkspaceLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dirs := []string{}
+	for _, link := range links {
+		dirs = append(dirs, link.Dir)
+	}
+	return dirs, nil
 }
 
 // The release setup's calls (FR-MC-036): the draft and the agent's proposal write nothing; the write is the
@@ -624,6 +638,12 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.SaveAnswers(req)
+	case SetupModelsCommand:
+		var req pipelinesetup.ModelsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Models(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }

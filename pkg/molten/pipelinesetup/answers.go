@@ -38,8 +38,13 @@ type Answers struct {
 	Touched bool     `json:"touched,omitempty"`
 	Options *Options `json:"options,omitempty"`
 	// Step 2a's answers to the points of the existing pipeline, by point key (#1101).
-	Points  map[string]string `json:"points,omitempty"`
-	SavedAt int64             `json:"savedat"`
+	Points map[string]string `json:"points,omitempty"`
+	// Step 2b's "Anything else?", the request the agent gets at step 3 (FR-MC-041).
+	Words string `json:"words,omitempty"`
+	// Where step 2b started from (standard, model, words) and the model project's folder.
+	From    string `json:"from,omitempty"`
+	Model   string `json:"model,omitempty"`
+	SavedAt int64  `json:"savedat"`
 }
 
 // AnswersRequest saves the answers of the project at Dir; nil Answers clears them.
@@ -112,6 +117,9 @@ func (s *Setup) SaveAnswers(req AnswersRequest) (AnswersAnswer, error) {
 	a := *req.Answers
 	if !validStep(a.Step) || (a.AppType != "" && !validAppType(a.AppType)) || (a.Path != "" && a.Path != PathAnalyse && a.Path != PathDescribe) {
 		return AnswersAnswer{}, fmt.Errorf("not a pipeline setup answer: step %q, type %q, path %q", a.Step, a.AppType, a.Path)
+	}
+	if a.From != "" && a.From != FromStandard && a.From != FromModel && a.From != FromWords {
+		return AnswersAnswer{}, fmt.Errorf("not a pipeline setup answer: start from %q", a.From)
 	}
 	a.Dir = dir
 	a.SavedAt = time.Now().UnixMilli()
