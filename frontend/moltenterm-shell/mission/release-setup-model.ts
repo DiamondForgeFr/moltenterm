@@ -145,7 +145,18 @@ export type SetupOptions = {
     environments: string[];
     reconcile: boolean;
     labels: SetupLabelChoice[];
+    // Step 2b's description (FR-MC-041), unset on the other paths.
+    trunk?: string;
+    release?: string;
+    rc?: SetupRcAnswer;
+    publish?: string[];
 };
+
+// must match Rc* in pkg/molten/pipelinesetup/describe.go
+export type SetupRcAnswer = "none" | "published" | "internal";
+
+// must match ProposedFile in pkg/molten/pipelinesetup/describe.go: a new workflow beside the pipeline (FR-MC-041).
+export type SetupProposedFile = { path: string; content: string; targets: string[] };
 
 export type SetupChoice = {
     id: string;
@@ -185,6 +196,8 @@ export type SetupDraft = {
     errors: string[];
     validatewarnings: string[];
     generated?: Record<string, string>;
+    files?: SetupProposedFile[];
+    branchnames?: string[];
     pr: SetupPrPlan;
 };
 

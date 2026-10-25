@@ -9,8 +9,9 @@ import { useT, useTCount } from "../i18n/i18n";
 import type { SetupSource } from "./release-setup-model";
 import { AppTypes, SetupAppType, SetupPath, SetupSurvey, SurveyRow, surveyRows } from "./release-setup-stepper";
 
-const BlockClass = "flex min-w-0 flex-col gap-2 rounded-6 border border-border p-3";
-const ChipClass = "self-start rounded-4 border border-border px-1.5 py-0.5 text-10 tracking-wide text-muted uppercase";
+export const BlockClass = "flex min-w-0 flex-col gap-2 rounded-6 border border-border p-3";
+export const ChipClass =
+    "self-start rounded-4 border border-border px-1.5 py-0.5 text-10 tracking-wide text-muted uppercase";
 
 const RowMark: Record<SurveyRow["state"], { glyph: string; className: string }> = {
     ok: { glyph: "✓", className: "border-success/50 text-success" },
@@ -19,7 +20,7 @@ const RowMark: Record<SurveyRow["state"], { glyph: string; className: string }> 
     none: { glyph: "–", className: "border-border text-muted" },
 };
 
-function Option({
+export function Option({
     selected,
     onSelect,
     label,

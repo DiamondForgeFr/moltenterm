@@ -23,7 +23,9 @@ import {
     pointNumbers,
     sameOptions,
 } from "./release-setup-analyse-model";
-import { setupDraft, setupSaveAnswers, setupSurvey, setupWrite } from "./release-setup-client";
+import { setupDraft, setupModels, setupSaveAnswers, setupSurvey, setupWrite } from "./release-setup-client";
+import { DescribeStep } from "./release-setup-describe";
+import { describeDefaults, DescribeFrom, describes, SetupModel, undescribed } from "./release-setup-describe-model";
 import { DetectStep } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
 import {
@@ -40,6 +42,7 @@ import {
     SetupKind,
     SetupOptions,
     SetupProposalResult,
+    SetupProposedFile,
     SetupSource,
     SetupTicketChoice,
     toggled,
@@ -572,6 +575,34 @@ export function DiffView({ before, after }: { before: string; after: string }) {
     );
 }
 
+// The files step 2b proposes beside the pipeline (FR-MC-041), whole: they are new, so every line is added.
+function ProposedFiles({ files }: { files: SetupProposedFile[] }) {
+    const t = useT();
+    if (!(files?.length > 0)) {
+        return null;
+    }
+    return (
+        <>
+            {files.map((file) => (
+                <div key={file.path} className="flex flex-col gap-1.5" data-testid="setup-proposed-file">
+                    <div className="text-12 font-medium text-primary">
+                        {t("mc.setup.describe.fileTitle", { path: file.path })}
+                    </div>
+                    <p className="text-11 text-secondary">
+                        {t("mc.setup.describe.fileIntro", {
+                            targets: file.targets.map((id) => t(`mc.setup.describe.target.${id}`)).join(", "),
+                        })}
+                    </p>
+                    {file.targets.includes("npm") ? (
+                        <p className="text-11 text-warning">{t("mc.setup.describe.npmSecret")}</p>
+                    ) : null}
+                    <DiffView before="" after={file.content} />
+                </div>
+            ))}
+        </>
+    );
+}
+
 export function ReviewStep({
     dir,
     draft,
@@ -579,6 +610,7 @@ export function ReviewStep({
     refined,
     onRefined,
     onRefining,
+    words,
 }: {
     dir: string;
     draft: SetupDraft;
@@ -587,6 +619,8 @@ export function ReviewStep({
     refined: SetupProposalResult;
     onRefined: (result: SetupProposalResult) => void;
     onRefining: (busy: boolean) => void;
+    // Step 2b's "Anything else?" (FR-MC-041): the agent's request to start with.
+    words?: string;
 }) {
     const t = useT();
     const sourceText = useSourceText();
@@ -623,8 +657,10 @@ export function ReviewStep({
                 draftText={draft.proposed}
                 onResult={onRefined}
                 onBusy={onRefining}
+                initialRequest={words}
             />
             <DiffView before={draft.current} after={proposed} />
+            <ProposedFiles files={draft.files} />
             {errors.length > 0 ? (
                 <ul
                     className="flex flex-col gap-0.5 rounded-4 border border-error/40 bg-error/10 px-3 py-1.5 text-11 text-danger"
@@ -800,6 +836,11 @@ export function ReleaseSetup({
     const [loading, setLoading] = useState(true);
     const [refined, setRefined] = useState<SetupProposalResult>(null);
     const [refining, setRefining] = useState(false);
+    // Step 2b (FR-MC-041): where it started from, the model project, the words for the agent, the models read.
+    const [from, setFrom] = useState<DescribeFrom>("standard");
+    const [model, setModel] = useState("");
+    const [words, setWords] = useState("");
+    const [models, setModels] = useState<SetupModel[]>(null);
     // The proposal's cards live in the Prepare step: leaving it goes back to the draft (#1099).
     const goTo = (next: StepperStep) => {
         if (next !== "prepare") {
@@ -866,6 +907,9 @@ export function ReleaseSetup({
             setAppType(type);
             setPath(saved?.path ?? answer?.recommended ?? "analyse");
             setPointAnswers(saved?.points ?? {});
+            setWords(saved?.words ?? "");
+            setFrom(saved?.from ?? "standard");
+            setModel(saved?.model ?? "");
             if (saved?.touched && saved.options != null) {
                 setTouched(true);
                 load(saved.options);
@@ -895,6 +939,9 @@ export function ReleaseSetup({
                   touched,
                   options: touched ? options : undefined,
                   points: Object.keys(pointAnswers).length > 0 ? pointAnswers : undefined,
+                  words: words || undefined,
+                  from: path === "describe" ? from : undefined,
+                  model: path === "describe" && from === "model" ? model : undefined,
               };
         fireAndForget(async () => {
             try {
@@ -903,7 +950,50 @@ export function ReleaseSetup({
                 // Resuming is a convenience: the stepper works without it.
             }
         });
-    }, [resumed, draft?.base, step, appType, path, touched, options, done, pointAnswers]);
+    }, [resumed, draft?.base, step, appType, path, touched, options, done, pointAnswers, words, from, model]);
+
+    const describing = describes(path, appType);
+    // Step 2b opens on the questions' defaults, and reads the other projects once for "another project as a model".
+    useEffect(() => {
+        if (!describing || step !== "understand" || draft == null || options == null || loading) {
+            return;
+        }
+        if (options.rc == null) {
+            change(describeDefaults(draft, options));
+        }
+    }, [describing, step, draft, options, loading]);
+    useEffect(() => {
+        if (!describing || step !== "understand" || models != null) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            let list: SetupModel[] = [];
+            try {
+                list = (await setupModels(dir)).models ?? [];
+            } catch {
+                // Without the list the other starting points still work.
+            }
+            if (!cancelled) {
+                setModels(list);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [describing, step, models, dir]);
+    const choosePath = (next: SetupPath) => {
+        setPath(next);
+        if (next === "analyse" && options?.rc != null) {
+            change(undescribed(options));
+        }
+    };
+    const chooseFrom = (next: DescribeFrom, dirOf?: string) => {
+        setFrom(next);
+        if (dirOf != null) {
+            setModel(dirOf);
+        }
+    };
 
     const change = (next: SetupOptions) => {
         setOptions(next);
@@ -928,7 +1018,14 @@ export function ReleaseSetup({
     const errors = refined?.errors ?? draft?.errors ?? [];
     const write = (mode: "pr" | "patch") =>
         pr.start(async () => {
-            const job = await setupWrite(dir, text, draft.base, draft.generated, prRequestOf(draft.pr, ticket, mode));
+            const job = await setupWrite(
+                dir,
+                text,
+                draft.base,
+                draft.generated,
+                prRequestOf(draft.pr, ticket, mode),
+                draft.files
+            );
             onWritten();
             return job;
         });
@@ -1096,7 +1193,7 @@ export function ReleaseSetup({
                             appType={appType}
                             path={path}
                             onType={chooseType}
-                            onPath={setPath}
+                            onPath={choosePath}
                         />
                     </div>
                 )
@@ -1148,6 +1245,29 @@ export function ReleaseSetup({
                                 </div>
                             </details>
                         </>
+                    ) : step === "understand" && describing ? (
+                        options.rc == null ? null : (
+                            <DescribeStep
+                                draft={draft}
+                                options={options}
+                                from={from}
+                                models={models}
+                                model={model}
+                                words={words}
+                                appType={appType}
+                                onChange={change}
+                                onFrom={chooseFrom}
+                                onWords={setWords}
+                            >
+                                <ChoicesStep
+                                    draft={draft}
+                                    options={options}
+                                    onChange={change}
+                                    channel={channel}
+                                    setChannel={setChannel}
+                                />
+                            </DescribeStep>
+                        )
                     ) : step === "understand" ? (
                         <>
                             <WhatStep draft={draft} options={options} onChange={change} />
@@ -1170,6 +1290,7 @@ export function ReleaseSetup({
                             refined={refined}
                             onRefined={setRefined}
                             onRefining={setRefining}
+                            words={describing ? words : undefined}
                         />
                     ) : null}
                     {step === "prepare" ? (

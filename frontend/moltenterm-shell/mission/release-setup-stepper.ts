@@ -51,6 +51,10 @@ export type SetupAnswers = {
     options?: SetupOptions;
     // Step 2a's answers to the points of the existing pipeline (#1101).
     points?: Record<string, string>;
+    // Step 2b's "Anything else?", the request the agent gets at step 3 (FR-MC-041).
+    words?: string;
+    from?: "standard" | "model" | "words";
+    model?: string;
 };
 
 // A web app or a SaaS is deployed (the saas template); every other type ships versions (pipelinesetup.KindOfAppType).

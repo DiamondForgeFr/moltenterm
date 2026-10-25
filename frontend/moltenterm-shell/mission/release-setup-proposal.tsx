@@ -179,15 +179,18 @@ export function AgentProposal({
     draftText,
     onResult,
     onBusy,
+    initialRequest,
 }: {
     dir: string;
     draftText: string;
     // The draft with the ticked changes; null: back to the draft.
     onResult: (result: SetupProposalResult) => void;
     onBusy: (busy: boolean) => void;
+    // The developer's words given before this step (step 2b's "Anything else?", FR-MC-041).
+    initialRequest?: string;
 }) {
     const t = useT();
-    const [request, setRequest] = useState("");
+    const [request, setRequest] = useState(initialRequest ?? "");
     const [pasted, setPasted] = useState("");
     const [other, setOther] = useState(false);
     const [refined, setRefined] = useState<SetupRefined>(null);

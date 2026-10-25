@@ -62,6 +62,10 @@ type DraftAnswer struct {
 	ValidateWarnings []string `json:"validatewarnings"`
 	// The hash of each release step the template drafted ("rc/prepare"), handed back to Write (#1086).
 	Generated map[string]string `json:"generated"`
+	// Step 2b (FR-MC-041): the files proposed beside the pipeline (the missing publish workflow), handed back to Write,
+	// and the repository's branch names for the questions.
+	Files       []ProposedFile `json:"files"`
+	BranchNames []string       `json:"branchnames"`
 	// Where the pull request starts and goes (#1098).
 	Pr PrPlan `json:"pr"`
 }
@@ -72,6 +76,8 @@ type WriteRequest struct {
 	Base string `json:"base"`
 	// The draft's Generated: the steps written as the template drafted them are recorded as MoltenTerm's (#1086).
 	Generated map[string]string `json:"generated,omitempty"`
+	// The draft's Files: new workflows only, checked again (FR-MC-041).
+	Files []ProposedFile `json:"files,omitempty"`
 	PrRequest
 }
 
@@ -136,6 +142,8 @@ type Setup struct {
 	TreesDir string
 	// Where the stepper's answers are kept per project (FR-MC-038); "" keeps none.
 	AnswersDir string
+	// The folders of the projects linked to a workspace, for "another project as a model" (FR-MC-041); nil lists none.
+	ProjectDirs func(ctx context.Context) ([]string, error)
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob
@@ -209,16 +217,30 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 			"%s is not valid: %s; fix it first (molten project validate)", molten.ProjectPipelineFile, strings.Join(f.PipelineErrors, "; "))
 	}
 	ReadRemoteFacts(ctx, s.Run, dir, &f)
+	var described *Options
+	files := []ProposedFile{}
+	branchesChanged := false
+	if req.Options != nil {
+		o := *req.Options
+		var proposed []ProposedFile
+		proposed, branchesChanged = applyDescription(dir, &f, &o)
+		files = append(files, proposed...)
+		described = &o
+	}
 	answer := DraftAnswer{Facts: f, Warnings: []string{}, Current: string(b.Pipeline), Base: hashOf(b.Pipeline),
-		DeployTargets: f.DeployTargets(), Pr: s.planOf(dir, b, PrKindWrite, req.IncludeLocal)}
+		DeployTargets: f.DeployTargets(), Pr: s.planOf(dir, b, PrKindWrite, req.IncludeLocal), Files: files,
+		BranchNames: s.branchNames(ctx, dir, f)}
 	answer.Defaults = DefaultOptions(f)
 	if req.Kind != "" {
 		answer.Defaults.Kind = req.Kind
 	}
-	if req.Options != nil {
+	if described != nil {
 		answer.Provider = ProviderMoltenTerm
-		answer.Options = *req.Options
+		answer.Options = *described
 		answer.Proposal = Build(f, answer.Options, report.Pipeline)
+		if branchesChanged {
+			answer.Proposal.Branches = &molten.PipelineBranches{Trunk: f.Branches.Trunk, Release: f.Branches.Release}
+		}
 	} else {
 		draft, warnings := s.providerDraft(ctx, dir, answer.Defaults.Kind, f)
 		answer.Provider, answer.Proposal = draft.Provider, draft.Proposal
@@ -303,9 +325,12 @@ func nameOf(dir string, current []byte) string {
 
 // writeFilesOf: the reviewed text merged onto the base (only the keys the setup sets up change, whoever wrote the text),
 // validated, with the record of the steps the template wrote.
-func writeFilesOf(dir string, current []byte, text string, generated map[string]string) (prFiles, error) {
+func writeFilesOf(dir string, current []byte, text string, generated map[string]string, proposed []ProposedFile) (prFiles, error) {
 	if len(text) > maxPipelineBytes {
 		return prFiles{}, fmt.Errorf("the proposed %s is too large", molten.ProjectPipelineFile)
+	}
+	if err := checkProposedFiles(proposed); err != nil {
+		return prFiles{}, err
 	}
 	merged, _, err := MergeOwned(current, []byte(text), nameOf(dir, current))
 	if err != nil {
@@ -323,6 +348,9 @@ func writeFilesOf(dir string, current []byte, text string, generated map[string]
 			return prFiles{}, err
 		}
 		files.add(RecordFile, data)
+	}
+	for _, file := range proposed {
+		files.add(file.Path, []byte(file.Content))
 	}
 	return files, nil
 }
@@ -345,8 +373,11 @@ func (s *Setup) Write(req WriteRequest) (PrJob, error) {
 			return err
 		}
 		current, _ := b.buildOn(req.IncludeLocal)
-		files, err := writeFilesOf(dir, current, req.Text, req.Generated)
+		files, err := writeFilesOf(dir, current, req.Text, req.Generated, req.Files)
 		if err != nil {
+			return err
+		}
+		if err := s.checkNewFiles(ctx, dir, b.Commit, req.Files); err != nil {
 			return err
 		}
 		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
