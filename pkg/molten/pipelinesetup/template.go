@@ -563,6 +563,7 @@ func Build(f Facts, o Options, current *molten.Pipeline) Proposal {
 			}
 			p.Steps = append(kept, steps...)
 		}
+		withRepositoryBranches(f, &p)
 		return p
 	}
 	release := &molten.PipelineRelease{}
@@ -580,7 +581,17 @@ func Build(f Facts, o Options, current *molten.Pipeline) Proposal {
 	if o.BranchModel == BranchModelSingle && f.Branches.Trunk != f.Branches.Release {
 		p.Branches = &molten.PipelineBranches{Trunk: f.Branches.Trunk, Release: f.Branches.Trunk}
 	}
+	withRepositoryBranches(f, &p)
 	return p
+}
+
+// withRepositoryBranches declares the branches read from the repository (SetupBranches, #1106): without them, the
+// Release menu and the Project tab would fall back to MoltenTerm's defaults, which this repository does not have.
+func withRepositoryBranches(f Facts, p *Proposal) {
+	if p.Branches != nil || (f.Branches.TrunkFrom != BranchFromRepository && f.Branches.ReleaseFrom != BranchFromRepository) {
+		return
+	}
+	p.Branches = &molten.PipelineBranches{Trunk: f.Branches.Trunk, Release: f.Branches.Release}
 }
 
 func stepsHaveEnv(steps []molten.PipelineAdapterStep, env string) bool {

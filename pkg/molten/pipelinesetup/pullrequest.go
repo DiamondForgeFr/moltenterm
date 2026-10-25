@@ -690,7 +690,7 @@ func prBody(job *PrJob, b *baseFiles, files prFiles, ticket int, required bool) 
 	if job.Kind == PrKindUpdate {
 		out.WriteString("Updates the release setup to what this version of MoltenTerm writes, with the changes chosen in its pipeline setup.\n\n")
 	} else {
-		out.WriteString("Declares the release pipeline drafted by MoltenTerm's release setup and reviewed in its dialog.\n\n")
+		out.WriteString("Declares the release pipeline drafted and reviewed in MoltenTerm's pipeline setup.\n\n")
 	}
 	out.WriteString("Files:\n")
 	for _, rel := range files.order {
