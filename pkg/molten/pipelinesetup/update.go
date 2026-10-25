@@ -431,19 +431,27 @@ func indexOf(steps []molten.PipelineStep, id string) int {
 
 // keptRelease lays the merged release block out with each step the file already has, unchanged, in its own text (a
 // step written on one line stays on one line), so the diff shows the steps that change and nothing else (#1102).
-// ok is false when the file's release block is not one it can read step by step.
-func keptRelease(current []byte, merged *molten.PipelineRelease) (verbatim, bool) {
-	values, err := topLevelValues(current)
-	if err != nil {
-		return nil, false
-	}
-	var channels map[string][]json.RawMessage
-	if json.Unmarshal(values["release"], &channels) != nil {
-		return nil, false
-	}
-	for key := range channels {
-		if key != ChannelRc && key != ChannelPublic {
+// ok is false when the file's release block is not one it can read step by step. A step only another text has (the
+// working copy's, for an included edit) keeps that text.
+func keptRelease(current []byte, merged *molten.PipelineRelease, others ...[]byte) (verbatim, bool) {
+	channels := map[string][]json.RawMessage{}
+	for i, text := range append([][]byte{current}, others...) {
+		values, err := topLevelValues(text)
+		if err != nil {
 			return nil, false
+		}
+		var read map[string][]json.RawMessage
+		if json.Unmarshal(values["release"], &read) != nil {
+			if i == 0 {
+				return nil, false
+			}
+			continue
+		}
+		for key, raws := range read {
+			if key != ChannelRc && key != ChannelPublic {
+				return nil, false
+			}
+			channels[key] = append(channels[key], raws...)
 		}
 	}
 	unit := indentUnit(current)
@@ -460,8 +468,11 @@ func keptRelease(current []byte, merged *molten.PipelineRelease) (verbatim, bool
 		raws := map[string]json.RawMessage{}
 		for _, raw := range channels[c.channel] {
 			var s molten.PipelineStep
-			if json.Unmarshal(raw, &s) == nil {
-				raws[s.Id+"/"+stepHash(s)] = raw
+			if json.Unmarshal(raw, &s) != nil {
+				continue
+			}
+			if key := s.Id + "/" + stepHash(s); raws[key] == nil {
+				raws[key] = raw
 			}
 		}
 		if written > 0 {
@@ -644,7 +655,11 @@ func withLocalEdits(dir string, b *baseFiles, choices map[string]bool) ([]byte, 
 		Rc:     mergeChannel(LocalPrefix, ChannelRc, committed.Rc, local.Rc, changes, choices),
 		Public: mergeChannel(LocalPrefix, ChannelPublic, committed.Public, local.Public, changes, choices),
 	}
-	text, err := MergeTopLevel(base, nil, []keyValue{{Key: "release", Value: release}})
+	var value any = release
+	if kept, ok := keptRelease(base, release, b.Pipeline, included); ok {
+		value = kept
+	}
+	text, err := MergeTopLevel(base, nil, []keyValue{{Key: "release", Value: value}})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -230,6 +230,15 @@ func TestCheckListsTheUncommittedEditsAsChanges(t *testing.T) {
 	if strings.Contains(partial.Proposed, "after the announcement") || !strings.Contains(partial.Proposed, "SaaSFoundryAI CLI") {
 		t.Fatalf("a left-out step keeps its committed text:\n%s", partial.Proposed)
 	}
+	known := map[string]bool{}
+	for _, line := range strings.Split(partial.Current+text, "\n") {
+		known[line] = true
+	}
+	for _, line := range strings.Split(partial.Proposed, "\n") {
+		if !known[line] {
+			t.Fatalf("a step was rewritten: %q", line)
+		}
+	}
 	if len(partial.Errors) > 0 {
 		t.Fatalf("errors: %v", partial.Errors)
 	}
