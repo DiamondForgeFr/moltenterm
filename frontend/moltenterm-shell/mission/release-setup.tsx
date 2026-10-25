@@ -982,7 +982,8 @@ export function ReleaseSetup({
                 check.signature,
                 upd.choices,
                 prRequestOf(check.pr, ticket, mode),
-                upd.options ?? undefined
+                upd.options ?? undefined,
+                true
             );
             onWritten();
             return job;

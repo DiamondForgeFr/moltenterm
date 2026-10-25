@@ -3764,7 +3764,8 @@
                     "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
                     "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again.",
                     "adjusted": "Your adjusted choices write these steps differently.",
-                    "local": "Your uncommitted edits are included: each one is a change to check."
+                    "local": "Your uncommitted edits are included: each one is a change to check.",
+                    "proposed": "MoltenTerm proposes what a new setup gets: a check that proves each step done by hand is done, and your project's formatter on the files the release changes."
                 },
                 "noRecord": "This release was set up before MoltenTerm kept track of what it wrote: the steps it recognises as its own are updated, the others are kept.",
                 "group": {

@@ -3764,7 +3764,8 @@
                     "template": "Des étapes écrites par une version antérieure de MoltenTerm diffèrent de ce qu’il écrit maintenant.",
                     "customised": "Vous avez modifié des étapes écrites par MoltenTerm : gardez les vôtres ou prenez sa version. Un choix écrit n’est plus proposé.",
                     "adjusted": "Les choix que vous avez ajustés écrivent ces étapes autrement.",
-                    "local": "Vos modifications non commitées sont incluses : chacune est un changement à vérifier."
+                    "local": "Vos modifications non commitées sont incluses : chacune est un changement à vérifier.",
+                    "proposed": "MoltenTerm propose ce qu’obtient une nouvelle configuration : une vérification qui prouve que chaque étape faite à la main est faite, et le formateur de votre projet sur les fichiers que la release modifie."
                 },
                 "noRecord": "Cette release a été mise en place avant que MoltenTerm ne note ce qu’il écrit : les étapes qu’il reconnaît comme les siennes sont mises à jour, les autres sont gardées.",
                 "group": {

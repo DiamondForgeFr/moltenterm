@@ -51,6 +51,8 @@ const (
 	UpdateReasonAdjusted = "adjusted"
 	// The developer's uncommitted edits are included as changes to check (#1102).
 	UpdateReasonLocal = "local"
+	// What a new setup proposes too (#1104): checks on manual steps, the formatter; offered in step 2a only.
+	UpdateReasonProposed = "proposed"
 
 	// The working copy's uncommitted edits, listed as changes of their own (#1102): one per release step
 	// ("local/rc/prepare"), and one for every edit outside the release steps.
@@ -100,6 +102,8 @@ type CheckRequest struct {
 	IncludeLocal bool `json:"includelocal,omitempty"`
 	// The choices the developer adjusted in step 2a (#1102); nil: the ones the pipeline stands for.
 	Options *Options `json:"options,omitempty"`
+	// Propose the checks on manual steps and the formatter (#1104), as step 2a does; the Release menu does not.
+	Proposals bool `json:"proposals,omitempty"`
 }
 
 type CheckAnswer struct {
@@ -133,6 +137,7 @@ type UpdateRequest struct {
 	Signature string          `json:"signature"`
 	Choices   map[string]bool `json:"choices,omitempty"`
 	Options   *Options        `json:"options,omitempty"`
+	Proposals bool            `json:"proposals,omitempty"`
 	PrRequest
 }
 
@@ -530,6 +535,28 @@ type checkInput struct {
 	choices      map[string]bool
 	includeLocal bool
 	options      *Options
+	// Step 2a (#1102): also propose what #1104 proposes a new setup (checks on manual steps, the formatter); the
+	// Release menu's check does not, so it never offers an update for them.
+	proposals bool
+}
+
+// carryChecks copies the check of each declared manual step onto the template's version of it.
+func carryChecks(current, proposed *molten.PipelineRelease) {
+	if current == nil || proposed == nil {
+		return
+	}
+	for _, c := range []struct{ cur, prop []molten.PipelineStep }{{current.Rc, proposed.Rc}, {current.Public, proposed.Public}} {
+		for i := range c.prop {
+			p := &c.prop[i]
+			if p.Check != nil || !p.IsManual() {
+				continue
+			}
+			if s, ok := stepById(c.cur, p.Id); ok && s.IsManual() && s.Check != nil {
+				check := *s.Check
+				p.Check = &check
+			}
+		}
+	}
 }
 
 func sameOptions(a, b Options) bool {
@@ -705,6 +732,12 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInp
 	answer.Options = &o
 	proposal := Build(f, o, pipeline)
 	cur := pipeline.Release
+	// A check the file already has stays: the template writes none, and an update never takes one away.
+	carryChecks(cur, proposal.Release)
+	if in.proposals {
+		ProposeChecks(dir, f, o, proposal.Release)
+		ProposeFormat(dir, o, pipeline, &proposal)
+	}
 	var all []Change
 	all = append(all, channelChanges(ChannelRc, cur.Rc, proposal.Release.Rc, rec)...)
 	all = append(all, channelChanges(ChannelPublic, cur.Public, proposal.Release.Public, rec)...)
@@ -790,8 +823,12 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 			rtn = append(rtn, UpdateReason{Code: UpdateReasonLabels, Detail: fmt.Sprintf("%d", added)})
 		}
 	}
-	template, customised := false, false
+	template, customised, proposed := false, false, false
 	for _, c := range changes {
+		if proposedOnly(c) {
+			proposed = true
+			continue
+		}
 		template = template || (c.Kind != ChangeVersions && !c.Customised)
 		customised = customised || c.Customised
 	}
@@ -801,10 +838,40 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 	case template:
 		rtn = append(rtn, UpdateReason{Code: UpdateReasonTemplate})
 	}
+	if proposed {
+		rtn = append(rtn, UpdateReason{Code: UpdateReasonProposed})
+	}
 	if customised {
 		rtn = append(rtn, UpdateReason{Code: UpdateReasonCustomised})
 	}
 	return rtn
+}
+
+// proposedOnly: a change that only adds what step 2a proposes (#1104): a check on a manual step, or the formatter.
+func proposedOnly(c Change) bool {
+	switch c.Kind {
+	case ChangeChanged:
+		var before, after molten.PipelineStep
+		if json.Unmarshal([]byte(c.Before), &before) != nil || json.Unmarshal([]byte(c.After), &after) != nil {
+			return false
+		}
+		if before.Check != nil || after.Check == nil {
+			return false
+		}
+		after.Check = nil
+		return stepHash(before) == stepHash(after)
+	case ChangeVersions:
+		var before, after molten.PipelineVersions
+		if c.Before != "" && json.Unmarshal([]byte(c.Before), &before) != nil {
+			return false
+		}
+		if json.Unmarshal([]byte(c.After), &after) != nil || before.Format != "" || after.Format == "" {
+			return false
+		}
+		after.Format = ""
+		return versionsText(&before) == versionsText(&after)
+	}
+	return false
 }
 
 // Check compares the release setup with what this version of MoltenTerm writes; nothing is written.
@@ -820,7 +887,7 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err := b.includable(req.IncludeLocal); err != nil {
 		return CheckAnswer{}, err
 	}
-	c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options})
+	c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options, proposals: req.Proposals})
 	if err != nil {
 		return CheckAnswer{}, err
 	}
@@ -845,7 +912,7 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		if err != nil {
 			return err
 		}
-		c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options})
+		c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options, proposals: req.Proposals})
 		if err != nil {
 			return fail(PrFailureFailed, err.Error())
 		}
