@@ -8,7 +8,7 @@ import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { parsePins, type TabPins } from "./pin-model";
-import { manualChoice } from "./view360-decision";
+import { manualChoice, readFractions } from "./view360-decision";
 
 export const View360MetaKey = "molten:view360";
 export const View360FixedPxMetaKey = "molten:view360fixedpx";
@@ -50,5 +50,20 @@ export function setTabFixedPx(tabId: string, px: number): Promise<void> {
     return RpcApi.SetMetaCommand(TabRpcClient, {
         oref: WOS.makeORef("tab", tabId),
         meta: { [View360FixedPxMetaKey]: Math.round(px) } as MetaType,
+    });
+}
+
+// The proportions of the tab's columns as the developer last set them in the normal layout (#1083): the carpet keeps
+// them in 360 view and leaving the view gives them back, also after a restart.
+export const View360FractionsMetaKey = "molten:view360fractions";
+
+export function storedFractions(tab: Tab): number[] {
+    return readFractions((tab?.meta as Record<string, unknown>)?.[View360FractionsMetaKey]);
+}
+
+export function setTabFractions(tabId: string, fractions: number[]): Promise<void> {
+    return RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: WOS.makeORef("tab", tabId),
+        meta: { [View360FractionsMetaKey]: fractions.map((f) => Math.round(f * 10000) / 10000) } as MetaType,
     });
 }

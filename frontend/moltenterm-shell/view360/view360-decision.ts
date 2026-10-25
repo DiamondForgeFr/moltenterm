@@ -6,7 +6,9 @@
 // window dragged around the threshold does not flap. Pure rules, kept apart from the layout so they are tested alone.
 // The first column counts its floor (#731, #848) on top of its readable minimum, whatever it holds. The automatic
 // decision cannot be turned off (#733): the tab's button only adds an on-demand 360 view, and leaving is guarded
-// (exitView360).
+// (exitView360). The developer thinks in space (#1083): beyond the screen's column threshold the tab goes to 360 view,
+// the readable minimums staying a safety net, and the proportions the developer set are never readjusted, only kept
+// (rememberedFractions) and given back.
 
 import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { FixedMinPx, ReadableCarpetColumnPx } from "./carpet-model";
@@ -126,38 +128,65 @@ export function fitsAtReadableMinimums(columnCount: number, widthPx: number, gap
     return widthPx > 0 && minimumsPx(columnCount, gapPx) + Math.max(0, marginPx) <= widthPx;
 }
 
+// Whether the tab has more top-level columns than the screen's threshold (#1083): "360 view beyond N columns".
+export function overThreshold(columnCount: number, threshold: number): boolean {
+    return threshold > 0 && columnCount > threshold;
+}
+
 export type View360Inputs = {
     setting: View360Setting;
     manual: boolean;
+    // The readable-minimum rule (autoWants), the safety net since #1083.
     autoOn: boolean;
+    // More columns than this screen's threshold (#1083).
+    columnsOver?: boolean;
+    // The columns do not fit even at their readable minimums: nothing keeps the normal layout then.
+    cannotFit?: boolean;
     columnCount: number;
 };
 
-export type View360Decision = { active: boolean; wanted: boolean; source: View360Source };
+// What holds an automatic view on: the screen's column threshold, or the readable minimums.
+export type View360Reason = "columns" | "fit";
+
+export type View360Decision = { active: boolean; wanted: boolean; source: View360Source; reason?: View360Reason };
 
 // wanted: what the tab asks for whatever its columns (a panel opened then goes to the carpet); active: what is drawn,
 // never 360 view for a single column (nothing to lay on the carpet). source: what holds the view on (on demand first,
-// then the automatic decision, then the always setting), or while off what keeps it off (the tab's own choice under
-// the always setting, the automatic decision otherwise).
+// then the automatic decision, then the always setting), or while off what keeps it off (the tab's own choice, the
+// automatic decision otherwise). Turned off by hand (#1083), the tab stays off beyond the threshold and below the
+// first column's floor, only columns that cannot fit at all turn it back on.
 export function decideView360(inputs: View360Inputs): View360Decision {
     let wanted = false;
     let source: View360Source = "auto";
+    let reason: View360Reason;
     if (inputs.manual === true) {
         wanted = true;
         source = "manual";
+    } else if (inputs.manual === false) {
+        wanted = !!inputs.cannotFit;
+        source = wanted ? "auto" : "manual";
+        reason = wanted ? "fit" : undefined;
+    } else if (inputs.columnsOver) {
+        wanted = true;
+        reason = "columns";
     } else if (inputs.autoOn) {
         wanted = true;
+        reason = "fit";
     } else if (inputs.setting === "always") {
-        wanted = inputs.manual !== false;
-        source = wanted ? "setting" : "manual";
+        wanted = true;
+        source = "setting";
     }
-    return { active: wanted && inputs.columnCount >= 2, wanted, source };
+    const rtn: View360Decision = { active: wanted && inputs.columnCount >= 2, wanted, source };
+    if (reason != null) {
+        rtn.reason = reason;
+    }
+    return rtn;
 }
 
-// Turning the 360 view off (#733): "leave" when every column fits at the current floors; "readjust" when they fit only
-// once the first column floor is cleared (the developer confirms first); "blocked" when they do not fit even at the
-// readable minimums, with how many columns are too many.
-export type View360Exit = { kind: "leave" } | { kind: "readjust" } | { kind: "blocked"; extraColumns: number };
+// Turning the 360 view off (#733, #1083): "leave" whenever the columns fit at their readable minimums (the remembered
+// proportions come back, nothing is readjusted); "blocked" when they do not fit even then, with how many columns are
+// too many.
+export type View360Exit = { kind: "leave" } | { kind: "blocked"; extraColumns: number };
 
 // How many columns fit side by side at their readable minimums, at least the first one.
 export function maxReadableColumns(widthPx: number, gapPx = 0): number {
@@ -168,15 +197,92 @@ export function maxReadableColumns(widthPx: number, gapPx = 0): number {
     return count;
 }
 
-export function exitView360(columnMins: number[], widthPx: number, gapPx = 0): View360Exit {
-    const count = columnMins?.length ?? 0;
-    if (count < 2 || !(widthPx > 0) || fitsAtCurrentFloors(columnMins, widthPx, gapPx)) {
+export function exitView360(columnCount: number, widthPx: number, gapPx = 0): View360Exit {
+    if (columnCount < 2 || !(widthPx > 0) || fitsAtReadableMinimums(columnCount, widthPx, gapPx)) {
         return { kind: "leave" };
     }
-    if (fitsAtReadableMinimums(count, widthPx, gapPx)) {
-        return { kind: "readjust" };
+    return { kind: "blocked", extraColumns: Math.max(1, columnCount - maxReadableColumns(widthPx, gapPx)) };
+}
+
+// ---- the developer's proportions (#1083) ------------------------------------------------------------------------
+
+// The share of each top-level column (summing to 1), from the tree's sizes; empty when they cannot be read.
+export function columnFractions(sizes: number[]): number[] {
+    const clean = (sizes ?? []).map((s) => (Number.isFinite(s) && s > 0 ? s : 0));
+    const total = clean.reduce((acc, s) => acc + s, 0);
+    if (!(total > 0) || clean.some((s) => s === 0)) {
+        return [];
     }
-    return { kind: "blocked", extraColumns: Math.max(1, count - maxReadableColumns(widthPx, gapPx)) };
+    return clean.map((s) => s / total);
+}
+
+// Remembered proportions as stored in the tab's meta: positive shares, at least one; anything else is none.
+export function readFractions(raw: unknown): number[] {
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return null;
+    }
+    const fractions = columnFractions(raw.map((v) => (typeof v === "number" ? v : NaN)));
+    return fractions.length ? fractions : null;
+}
+
+export function sameFractions(a: number[], b: number[], tolerance = 0.0005): boolean {
+    if (a == null || b == null) {
+        return a == b;
+    }
+    return a.length === b.length && a.every((f, i) => Math.abs(f - b[i]) <= tolerance);
+}
+
+// The share a column at `index` takes from remembered proportions: its own while it was there, else the carpet slot,
+// the last non-first column's share. Null for the first column without proportions, or when no column beside the
+// first was remembered.
+export function slotFraction(fractions: number[], index: number): number {
+    if (!fractions?.length || index < 0) {
+        return null;
+    }
+    if (index < fractions.length) {
+        return fractions[index];
+    }
+    return fractions.length >= 2 ? fractions[fractions.length - 1] : null;
+}
+
+// The tree sizes (summing to 100) that give `count` columns back their remembered proportions: each column its own
+// share, a column past the remembered ones the slot's share. Null when nothing is remembered for them.
+export function restoredColumnSizes(fractions: number[], count: number): number[] {
+    if (!fractions?.length || count < 2) {
+        return null;
+    }
+    const shares = Array.from({ length: count }, (_, i) => slotFraction(fractions, i));
+    if (shares.some((s) => s == null)) {
+        return null;
+    }
+    const total = shares.reduce((acc, s) => acc + s, 0);
+    return shares.map((s) => (s / total) * 100);
+}
+
+// The fixed zone's width in 360 view from remembered proportions: what the first column took in the normal layout.
+export function rememberedFixedPx(fractions: number[], widthPx: number, gapPx = 0): number {
+    if (!fractions?.length || fractions.length < 2 || !(widthPx > 0)) {
+        return null;
+    }
+    const room = widthPx - Math.max(0, gapPx || 0) * (fractions.length - 1);
+    return room > 0 ? fractions[0] * room : null;
+}
+
+// The width each carpet column takes from remembered proportions: the columns beside the first share the carpet as
+// they shared the rest of the normal layout (40/60: the carpet panel at the whole carpet; 30/35/35: two panels side by
+// side), a column past the remembered ones at the slot's width. `indexes` are the columns' places among the tab's
+// top-level columns (1 for the first one beside the fixed zone). Null when no column beside the first was remembered.
+export function carpetSlotWidthsPx(fractions: number[], indexes: number[], viewportPx: number, gapPx = 0): number[] {
+    if (!fractions || fractions.length < 2 || !(viewportPx > 0)) {
+        return null;
+    }
+    const side = fractions.slice(1);
+    const sideTotal = side.reduce((acc, f) => acc + f, 0);
+    const room = viewportPx - Math.max(0, gapPx || 0) * (side.length - 1);
+    if (!(sideTotal > 0) || !(room > 0)) {
+        return null;
+    }
+    return indexes.map((i) => (slotFraction(fractions, Math.max(1, i)) / sideTotal) * room);
 }
 
 // The node whose children are the top-level columns (topColumns), or null for a single column.

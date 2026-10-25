@@ -66,6 +66,8 @@ import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { SecretsSection } from "./settings-secrets";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
+import { View360Screens } from "./settings-view360-screens";
+import { View360SettingKey } from "../view360/view360-decision";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -913,6 +915,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 ))}
                                                 {g.entries.some((e) => e.key === IntegrateOffKey) ? (
                                                     <IntegrationRuns />
+                                                ) : null}
+                                                {g.entries.some((e) => e.key === View360SettingKey) ? (
+                                                    <View360Screens />
                                                 ) : null}
                                             </PageCard>
                                         ))}

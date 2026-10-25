@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The tab bar's "360" toggle (FR-SHELL-066, DS-SHELL-117, #733): it shows whether the tab on screen is in 360 view and
-// what holds it on. A click turns the view on on demand, or leaves it: at once when every panel fits, after a
-// confirmation when the sizes must be readjusted, never while the panels do not fit even at their readable minimums
-// (a message says how many columns to close). A small "A" says the automatic decision holds the view on, and an
-// automatic switch plays one short glow on it.
+// what holds it on. A click turns the view on on demand, or leaves it at once with the developer's proportions
+// (#1083), never while the panels do not fit even at their readable minimums (a message says how many columns to
+// close). A small "A" says the automatic decision holds the view on, and an automatic switch plays one short glow on
+// it. Its menu sets this screen's column threshold (#1083).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, WOS } from "@/app/store/global";
@@ -15,9 +15,11 @@ import { useAtomValue } from "jotai";
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRestoreFocus } from "../busy-close";
 import { DialogFrame } from "../dialog-frame";
-import { useLocale, useT } from "../i18n/i18n";
+import { t, useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { openSettingsSection } from "../settings/settings-open";
+import { ScreenModel } from "./screen-store";
+import { ThresholdChoices } from "./screen-threshold";
 import { normalizeView360Setting, type View360Decision, type View360Exit } from "./view360-decision";
 import { CarpetIcon } from "./view360-icon";
 import type { View360Model } from "./view360-model";
@@ -25,11 +27,9 @@ import { View360Text } from "./view360-text";
 import "./view360.css";
 
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
-const PlainButton =
-    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 // The tooltip: the state, what holds it (or keeps it off), and what a click does.
-function toggleTitle(decision: View360Decision, single: boolean): string {
+function toggleTitle(decision: View360Decision, single: boolean, threshold: number): string {
     if (single) {
         return View360Text.tooltipSingle;
     }
@@ -38,14 +38,19 @@ function toggleTitle(decision: View360Decision, single: boolean): string {
             decision.source === "manual"
                 ? View360Text.heldManual
                 : decision.source === "auto"
-                  ? View360Text.heldAuto
+                  ? decision.reason === "columns"
+                      ? t("view360.ui.heldColumns", { count: threshold })
+                      : View360Text.heldAuto
                   : View360Text.heldSetting;
         return `${View360Text.tooltipOn}\n${held}\n${View360Text.clickOff}`;
     }
-    const off = decision.source === "manual" ? View360Text.offManual : View360Text.offAuto;
+    const off =
+        decision.source === "manual" ? View360Text.offManual : t("view360.ui.offColumns", { count: threshold });
     return `${View360Text.tooltipOff}\n${off}\n${View360Text.clickOn}`;
 }
 
+// The "close panels first" message (#733): leaving is refused only when the columns do not fit even at their
+// readable minimums.
 function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exit }) {
     const t = useT();
     const stayRef = useRef<HTMLButtonElement>(null);
@@ -53,65 +58,33 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     useEffect(() => {
         stayRef.current?.focus();
     }, []);
-    if (exit.kind === "blocked") {
-        const count = exit.extraColumns;
-        return (
-            <DialogFrame
-                role="molten-view360-blocked"
-                onEscape={() => view360.closeExitAsk()}
-                title={t("view360.ui.blockedTitle")}
-                trapFocus
-                onBackdrop={() => view360.closeExitAsk()}
-                buttons={
-                    <button
-                        ref={stayRef}
-                        type="button"
-                        className={AccentButton}
-                        data-testid="mt-v360-blocked-ok"
-                        onClick={() => view360.closeExitAsk()}
-                    >
-                        {t("view360.ui.blockedOk")}
-                        <MoltenWave />
-                    </button>
-                }
-            >
-                <p data-testid="mt-v360-blocked-text">
-                    {count === 1 ? t("view360.ui.blockedOne") : t("view360.ui.blockedMany", { count })}
-                </p>
-            </DialogFrame>
-        );
+    if (exit.kind !== "blocked") {
+        return null;
     }
+    const count = exit.extraColumns;
     return (
         <DialogFrame
-            role="molten-view360-readjust"
+            role="molten-view360-blocked"
             onEscape={() => view360.closeExitAsk()}
-            title={t("view360.ui.readjustTitle")}
+            title={t("view360.ui.blockedTitle")}
             trapFocus
             onBackdrop={() => view360.closeExitAsk()}
             buttons={
-                <>
-                    <button
-                        ref={stayRef}
-                        type="button"
-                        className={PlainButton}
-                        data-testid="mt-v360-readjust-stay"
-                        onClick={() => view360.closeExitAsk()}
-                    >
-                        {t("view360.ui.readjustStay")}
-                    </button>
-                    <button
-                        type="button"
-                        className={AccentButton}
-                        data-testid="mt-v360-readjust-confirm"
-                        onClick={() => view360.readjustAndLeave()}
-                    >
-                        {t("view360.ui.readjustConfirm")}
-                        <MoltenWave />
-                    </button>
-                </>
+                <button
+                    ref={stayRef}
+                    type="button"
+                    className={AccentButton}
+                    data-testid="mt-v360-blocked-ok"
+                    onClick={() => view360.closeExitAsk()}
+                >
+                    {t("view360.ui.blockedOk")}
+                    <MoltenWave />
+                </button>
             }
         >
-            <p>{t("view360.ui.readjustText")}</p>
+            <p data-testid="mt-v360-blocked-text">
+                {count === 1 ? t("view360.ui.blockedOne") : t("view360.ui.blockedMany", { count })}
+            </p>
         </DialogFrame>
     );
 }
@@ -123,6 +96,7 @@ function ToggleButton({ view360 }: { view360: View360Model }) {
     const setting = normalizeView360Setting(useAtomValue(view360.settingAtom));
     const signal = useAtomValue(view360.signalAtom);
     const exitAsk = useAtomValue(view360.exitAskAtom);
+    const threshold = useAtomValue(view360.thresholdAtom);
     const [mountSignal] = useState(signal);
     const single = columnCount < 2;
     const on = decision.active;
@@ -147,6 +121,16 @@ function ToggleButton({ view360 }: { view360: View360Model }) {
                 { type: "separator" }
             );
         }
+        // The screen's column threshold (#1083), the current value marked.
+        for (const count of ThresholdChoices) {
+            menu.push({
+                label: t("view360.ui.menuThreshold", { count }),
+                type: "checkbox",
+                checked: count === threshold,
+                click: () => ScreenModel.getInstance().setThreshold(count),
+            });
+        }
+        menu.push({ type: "separator" });
         menu.push({
             label: View360Text.menuSettings,
             click: () => fireAndForget(() => openSettingsSection("appearance")),
@@ -159,7 +143,7 @@ function ToggleButton({ view360 }: { view360: View360Model }) {
             <button
                 type="button"
                 className={cn("mt-v360-toggle cursor-pointer", on && "is-on", single && "is-disabled")}
-                title={toggleTitle(decision, single)}
+                title={toggleTitle(decision, single, threshold)}
                 aria-pressed={on}
                 aria-disabled={single}
                 data-testid="mt-v360-toggle"
