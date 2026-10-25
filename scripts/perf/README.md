@@ -107,9 +107,10 @@ The first baseline, `baselines/75f1354a.json`, is a full run of origin/develop 7
 from a clean export and measured with this harness through `--app`, on an Apple M1 Max, 64 GB, while other workloads
 were running (load average 4 to 6). A second full run of the same build is compared with it in the pull request of
 #452. Local metrics are only comparable to it on that machine; on another machine, take your own "before" report and
-pass it with `--baseline`. The current baseline, `baselines/fdc30e40.json`, keeps those machine-dependent values and
-replaces the bundle scenario with a run on origin/develop fdc30e40 (#1050), once the features merged since had used the
-raw bundle's whole tolerance.
+pass it with `--baseline`. `baselines/fdc30e40.json` kept those machine-dependent values and replaced the bundle
+scenario with a run on origin/develop fdc30e40 (#1050), once the features merged since had used the raw bundle's whole
+tolerance. The current baseline, `baselines/96cfeb72.json`, does the same on origin/develop 96cfeb72 (#1105), once they
+had used the up-front JavaScript's whole 2 % tolerance.
 
 ## CI
 
