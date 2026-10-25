@@ -34,13 +34,13 @@ it: name the button that does it, as their MoltenTerm shows it (English and Fren
 
 | Asked for | The button | Where |
 | --- | --- | --- |
-| Rebase the branch on its base | **Ask for a rebase** / **Demander un rebase** | the PR's row in the Reviews list, shown when it conflicts with its base |
-| Rerun failed CI jobs | **Rerun failed jobs** / **Relancer les jobs en échec** | the PR's row in the Reviews list, shown when a check failed |
-| Resolve what blocks a PR | **Analyze and resolve** / **Analyser et résoudre** | the PR's row in the Reviews list, shown when something blocks it (behind or in conflict with its base, failed remote checks, failed local CI statuses, no test report, changes requested): a work agent resolves the blockers in that order (a rebase, a fix on the branch, the local CI run until green, a rerun with a ticket for a flaky test), never merges, and the developer is told when no check fails on the pushed head or why it needs them |
+| Rebase the branch on its base | **Ask for a rebase** / **Demander un rebase** | the PR's row in the Control room (Pilotage), shown when it conflicts with its base |
+| Rerun failed CI jobs | **Rerun failed jobs** / **Relancer les jobs en échec** | the PR's row in the Control room (Pilotage), shown when a check failed |
+| Resolve what blocks a PR | **Analyze and resolve** / **Analyser et résoudre** | the PR's row in the Control room (Pilotage), shown when something blocks it (behind or in conflict with its base, failed remote checks, failed local CI statuses, no test report, changes requested): a work agent resolves the blockers in that order (a rebase, a fix on the branch, the local CI run until green, a rerun with a ticket for a flaky test), never merges, and the developer is told when no check fails on the pushed head or why it needs them |
 | Apply the review's comments | **Restart work** / **Relancer le travail** | the Review tab's header, once a review round is published |
 | Publish the comments | **Publish review** / **Publier la revue** | the Review tab |
-| Merge | **Validate** / **Valider** | the Review tab's header, or the PR's row in the Reviews list |
-| Move a draft to review | **Mark ready for review** / **Prête pour la revue** | the draft's row in the Reviews list, or its Review tab's header |
+| Merge | **Validate** / **Valider** | the Review tab's header, or the PR's row in the Control room (Pilotage) |
+| Move a draft to review | **Mark ready for review** / **Prête pour la revue** | the draft's row in the Control room (Pilotage), or its Review tab's header |
 
 The CI's failures are in `review_context` (`ci.checks`, and their log excerpts under `untrusted.cilogs`): explain them
 from there instead of running `gh`.

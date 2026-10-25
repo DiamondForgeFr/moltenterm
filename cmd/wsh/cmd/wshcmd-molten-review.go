@@ -69,7 +69,7 @@ var moltenReviewOpen bool
 
 var moltenReviewCmd = &cobra.Command{
 	Use:   "review",
-	Short: "the pull requests waiting for your review, as MoltenTerm's Reviews view and Review tab show them",
+	Short: "the pull requests waiting for your review, as MoltenTerm's Control room and Review tab show them",
 	Long: "Read-only, for agents too: list, show, comments. open hands the Review tab to this terminal's window.\n" +
 		"publish and merge open their sheet in the window and print its plan: GitHub gets a review or a merge only on\n" +
 		"your click in that sheet, and both refuse in a terminal where an agent runs. Local MoltenTerm terminals only.",
@@ -77,7 +77,7 @@ var moltenReviewCmd = &cobra.Command{
 
 var moltenReviewListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the project's pull requests waiting for review (--open shows the Reviews view)",
+	Short:   "list the project's pull requests waiting for review (--open shows the Control room)",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenReviewListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -85,7 +85,7 @@ var moltenReviewListCmd = &cobra.Command{
 
 func init() {
 	moltenReviewListCmd.Flags().BoolVar(&moltenJson, "json", false, "print the list as JSON")
-	moltenReviewListCmd.Flags().BoolVar(&moltenReviewOpen, "open", false, "open the Reviews view in this tab")
+	moltenReviewListCmd.Flags().BoolVar(&moltenReviewOpen, "open", false, "open the Control room in this tab")
 	moltenReviewCmd.AddCommand(moltenReviewListCmd)
 	moltenCmd.AddCommand(moltenReviewCmd)
 }
@@ -143,7 +143,7 @@ func moltenReviewListRun(cmd *cobra.Command, args []string) error {
 func moltenReviewOpenView() error {
 	tabId := getTabIdFromEnv()
 	if tabId == "" {
-		return fmt.Errorf("molten must run in a MoltenTerm terminal to open the Reviews view (WAVETERM_TABID is not set)")
+		return fmt.Errorf("molten must run in a MoltenTerm terminal to open the Control room (WAVETERM_TABID is not set)")
 	}
 	// A Reviews view already in the tab takes the focus, as the rail's button does.
 	if blocks, err := wshclient.BlocksListCommand(RpcClient, wshrpc.BlocksListRequest{}, nil); err == nil {
@@ -160,7 +160,7 @@ func moltenReviewOpenView() error {
 		Focused:  true,
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("opening the Reviews view: %w", err)
+		return fmt.Errorf("opening the Control room: %w", err)
 	}
 	return nil
 }

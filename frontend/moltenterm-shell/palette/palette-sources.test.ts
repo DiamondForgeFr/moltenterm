@@ -64,7 +64,7 @@ describe("panels", () => {
             "Files",
             "Browser",
             "CI/CD",
-            "Reviews",
+            "Control room",
             "System info",
             "Processes",
         ]);

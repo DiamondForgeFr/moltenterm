@@ -195,7 +195,7 @@ func (r *Reviews) notifyRerun(number int, runs []int64, done map[int64]ghRunStat
 	input := molten.NotificationInput{
 		Key:     "review:rerun:" + n,
 		Source:  "github",
-		Actions: []molten.NotificationAction{{Id: "reviews", Label: "Open the Reviews list", Kind: "open", View: reviewsViewName, LabelText: uimsg.Make("notif.review.batch.openReviews")}},
+		Actions: []molten.NotificationAction{{Id: "reviews", Label: "Open the Control room", Kind: "open", View: reviewsViewName, LabelText: uimsg.Make("notif.review.batch.openReviews")}},
 	}
 	if len(failed) == 0 {
 		input.Kind = "success"
@@ -206,7 +206,7 @@ func (r *Reviews) notifyRerun(number int, runs []int64, done map[int64]ghRunStat
 		input.Kind = "warning"
 		input.Title = "#" + n + ": failed again after the rerun"
 		input.TitleText = uimsg.Make("notif.review.rerun.failedTitle", "number", n)
-		input.Message = "Still failing: " + names + ". Investigate from the pull request's row in Reviews."
+		input.Message = "Still failing: " + names + ". Investigate from the pull request's row in the Control room."
 		input.MessageText = uimsg.Make("notif.review.rerun.failed", "names", names)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rerunTimeout)

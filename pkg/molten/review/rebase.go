@@ -195,7 +195,7 @@ func renderRebaseBrief(req RebaseRequest, tree string, ticket int) string {
 	if req.MergedPr > 0 {
 		fmt.Fprintf(&b, "MoltenTerm wrote this brief after the developer merged PR #%d into %s: the pull request ", req.MergedPr, req.BaseRef)
 	} else {
-		b.WriteString("MoltenTerm wrote this brief when the developer clicked Ask for a rebase in the Reviews list: the pull request ")
+		b.WriteString("MoltenTerm wrote this brief when the developer clicked Ask for a rebase in the Control room (the PR panel): the pull request ")
 	}
 	fmt.Fprintf(&b, "conflicts with %s and cannot be merged until it is rebased. You work under the developer's usual permissions.\n\n", req.BaseRef)
 	fmt.Fprintf(&b, "- Pull request: #%d", req.Number)
