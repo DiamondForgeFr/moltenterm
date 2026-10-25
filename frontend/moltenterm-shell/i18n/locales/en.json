@@ -3919,7 +3919,7 @@
                 "anythingPlaceholder": "For example: the changelog is in English only; I check the candidate by hand before the public release.",
                 "allChoices": "All the choices",
                 "fileTitle": "New file: {path}",
-                "fileIntro": "Proposed because nothing publishes to {targets} on the tag yet. It goes into the same pull request: read it before opening it.",
+                "fileIntro": "Proposed because no workflow publishes on the tag yet to: {targets}. It goes into the same pull request: read it before opening it.",
                 "npmSecret": "npm needs the repository secret NPM_TOKEN (an npm automation token) before the first release."
             },
             "appType": {
