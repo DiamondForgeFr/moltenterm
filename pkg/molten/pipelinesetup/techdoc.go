@@ -362,12 +362,19 @@ func writeBranches(out *strings.Builder, in TechDocInput) {
 	default:
 		out.WriteString("- nobody bypasses it.\n")
 	}
+	var sources []string
 	for _, src := range p.Sources {
-		name := src.Detail
-		if name == "" {
-			name = src.Code
+		switch src.Code {
+		case "ruleset":
+			sources = append(sources, "the GitHub ruleset "+mdCode(src.Path))
+		case "classicProtection":
+			sources = append(sources, "GitHub's branch protection")
+		default:
+			sources = append(sources, mdCell(src.Code))
 		}
-		fmt.Fprintf(out, "\nSource: %s.\n", mdCell(name))
+	}
+	if len(sources) > 0 {
+		fmt.Fprintf(out, "\nRead from %s.\n", strings.Join(sources, " and "))
 	}
 }
 
@@ -480,7 +487,7 @@ func writeApprovals(out *strings.Builder, in TechDocInput) {
 		for _, s := range docSteps(in.Pipeline, channel) {
 			if s.Confirm != "" && s.Id == "tag" {
 				found = true
-				fmt.Fprintf(out, "- %s, %s: the developer confirms before MoltenTerm runs it.\n", channelTitle(channel), mdCell(s.Title))
+				fmt.Fprintf(out, "- %s, step %s: MoltenTerm asks the developer to confirm before running it.\n", channelTitle(channel), mdCode(s.Id))
 			}
 		}
 	}
@@ -492,23 +499,49 @@ func writeApprovals(out *strings.Builder, in TechDocInput) {
 func writeTargets(out *strings.Builder, in TechDocInput) {
 	out.WriteString("\n## Publish targets\n\n")
 	found := false
+	// One line per target: what builds it and what publishes it.
+	var order []string
+	built := map[string]string{}
+	published := map[string][]string{}
+	note := func(id string) {
+		if _, ok := built[id]; !ok {
+			if _, ok := published[id]; !ok {
+				order = append(order, id)
+			}
+		}
+	}
 	for _, t := range in.Facts.Targets {
-		found = true
+		note(t.Id)
 		where := t.Source.Path
 		if where == "" {
 			where = t.Source.Detail
 		}
-		fmt.Fprintf(out, "- %s, built by %s", targetName(t.Id), mdCell(t.Packager))
-		if where != "" {
-			fmt.Fprintf(out, " (%s)", mdCode(where))
+		text := mdCell(t.Packager)
+		if where != "" && !strings.HasPrefix(where, WorkflowsDir+"/") {
+			text += " (" + mdCode(where) + ")"
 		}
-		out.WriteString(".\n")
+		built[t.Id] = text
 	}
 	for _, wf := range in.Facts.Workflows {
 		for _, ship := range wf.Ships {
-			found = true
-			fmt.Fprintf(out, "- %s, published by %s.\n", targetName(ship), mdCode(wf.File))
+			note(ship)
+			published[ship] = append(published[ship], mdCode(wf.File))
 		}
+	}
+	for _, id := range order {
+		found = true
+		fmt.Fprintf(out, "- %s", targetName(id))
+		var parts []string
+		if b, ok := built[id]; ok && b != "" && b != "workflow" {
+			parts = append(parts, "built by "+b)
+		}
+		if len(published[id]) > 0 {
+			parts = append(parts, "published by "+strings.Join(published[id], ", "))
+		}
+		if len(parts) > 0 {
+			out.WriteString(": " + strings.Join(parts, ", "))
+		}
+		out.WriteString(".\n")
 	}
 	for _, d := range in.Facts.DeployTargets() {
 		found = true

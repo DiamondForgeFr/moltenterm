@@ -39,7 +39,7 @@ func saasFoundryDocInput(t *testing.T) TechDocInput {
 	f := DetectWith(dir, molten.PipelineReport{Present: true, Valid: true, Pipeline: p})
 	f.Branches.Trunk, f.Branches.Release = "develop", "master"
 	f.Protection = &Protection{Branch: "master", Read: true, PullRequest: true, RequiredChecks: []string{"CI / Required gate"},
-		MergeMethods: []string{"merge"}, Bypass: BypassNever, Sources: []Source{{Code: "ruleset", Detail: "master protection"}}}
+		MergeMethods: []string{"merge"}, Bypass: BypassNever, Sources: []Source{{Code: "ruleset", Path: "master", Detail: "7"}}}
 	return TechDocInput{Pipeline: p, Facts: f, Repo: "DiamondForgeFr/SaasFoundryAI",
 		Change: TechDocChange{Date: "2026-10-25", Kind: TechDocChangeSetup, Author: "Setup test", Branch: "feature/7-release-pipeline", Template: TemplateVersion}}
 }
@@ -64,6 +64,7 @@ func TestTechDocOfSaaSFoundryAIsPipeline(t *testing.T) {
 		"- **Tags:** public `vX.Y.Z`, release candidates `vX.Y.Z-N`.",
 		"## Branches and protection",
 		"- required checks: `CI / Required gate`;",
+		"Read from the GitHub ruleset `master`.",
 		"- `rc-{version}`: the release branches",
 		"## Release candidate flow",
 		"## Public release flow",
@@ -78,7 +79,7 @@ func TestTechDocOfSaaSFoundryAIsPipeline(t *testing.T) {
 		"Local CI (`molten ci`)",
 		"| Build | dist | `npm run build` |",
 		"- `npm-production` (`publish-stable.yml`): GitHub applies the environment's protection rules",
-		"- npm, published by `publish-stable.yml`.",
+		"- npm: built by npm (`package.json`), published by `publish-stable.yml`.",
 		"## Sync-back\n\nMerge master back into develop with a merge commit merges `master` back into `develop`",
 		"| `package-lock.json` | json | `version`, `packages..version` |",
 		"| `README.md` | text | `\\*\\*v{version}\\*\\*` |",
