@@ -8,12 +8,21 @@
 // opens a draft pull request from a worktree of its own (#1098); the new commands ask for trust once it is merged.
 
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
-import { useT } from "../i18n/i18n";
+import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
+import { AnalyseStep } from "./release-setup-analyse";
+import {
+    analysePipeline,
+    optionsOfAnswers,
+    pendingPoints,
+    PointAnswers,
+    pointNumbers,
+    sameOptions,
+} from "./release-setup-analyse-model";
 import { setupDraft, setupSaveAnswers, setupSurvey, setupWrite } from "./release-setup-client";
 import { DetectStep } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
@@ -771,8 +780,11 @@ export function ReleaseSetup({
     onWritten: () => void;
 }) {
     const t = useT();
+    const tCount = useTCount();
     const [draft, setDraft] = useState<SetupDraft>(null);
     const [options, setOptions] = useState<SetupOptions>(null);
+    // Step 2a's answers to the points of the existing pipeline (FR-MC-040).
+    const [pointAnswers, setPointAnswers] = useState<PointAnswers>({});
     const [touched, setTouched] = useState(false);
     // Who drafted before the developer changed a choice: their choices then replace SaaSFoundryAI's draft.
     const [firstProvider, setFirstProvider] = useState<SetupDraft["provider"]>(null);
@@ -853,6 +865,7 @@ export function ReleaseSetup({
             setSurvey(answer);
             setAppType(type);
             setPath(saved?.path ?? answer?.recommended ?? "analyse");
+            setPointAnswers(saved?.points ?? {});
             if (saved?.touched && saved.options != null) {
                 setTouched(true);
                 load(saved.options);
@@ -874,7 +887,15 @@ export function ReleaseSetup({
         }
         const answers = done
             ? null
-            : { base: draft.base, step, apptype: appType, path, touched, options: touched ? options : undefined };
+            : {
+                  base: draft.base,
+                  step,
+                  apptype: appType,
+                  path,
+                  touched,
+                  options: touched ? options : undefined,
+                  points: Object.keys(pointAnswers).length > 0 ? pointAnswers : undefined,
+              };
         fireAndForget(async () => {
             try {
                 await setupSaveAnswers(dir, answers);
@@ -882,7 +903,7 @@ export function ReleaseSetup({
                 // Resuming is a convenience: the stepper works without it.
             }
         });
-    }, [resumed, draft?.base, step, appType, path, touched, options, done]);
+    }, [resumed, draft?.base, step, appType, path, touched, options, done, pointAnswers]);
 
     const change = (next: SetupOptions) => {
         setOptions(next);
@@ -920,6 +941,32 @@ export function ReleaseSetup({
         load(touched ? options : null, touched ? undefined : options?.kind);
     };
 
+    const analysing = step === "understand" && path === "analyse";
+    const points = useMemo(() => analysePipeline(survey, draft), [survey, draft]);
+    const pending = analysing ? pendingPoints(points, pointAnswers) : [];
+    const answerPoint = (key: string, value: string) => {
+        const next = { ...pointAnswers, [key]: value };
+        setPointAnswers(next);
+        if (options == null || draft == null) {
+            return;
+        }
+        const patched = optionsOfAnswers(options, draft, points, next, [key]);
+        if (!sameOptions(patched, options)) {
+            change(patched);
+        }
+    };
+    // Leaving 2a: the points not answered count as the repository reads them.
+    const goNext = (to: StepperStep) => {
+        if (analysing && options != null && draft != null) {
+            const unanswered = points.filter((p) => pointAnswers[p.key] == null).map((p) => p.key);
+            const patched = optionsOfAnswers(options, draft, points, pointAnswers, unanswered);
+            if (!sameOptions(patched, options)) {
+                change(patched);
+            }
+        }
+        goTo(to);
+    };
+
     const at = stepIndex(step);
     const nothing = options != null && options.kind !== "saas" && options.channels.length === 0;
     const canWrite =
@@ -941,7 +988,9 @@ export function ReleaseSetup({
         !done &&
         canOpenPr(draft.pr, ticket, "patch");
     const ready =
-        draft != null && options != null && (step === "detect" ? appType != null : step === "understand" && !nothing);
+        draft != null &&
+        options != null &&
+        (step === "detect" ? appType != null : step === "understand" && !nothing && pending.length === 0);
     const next = StepperSteps[at + 1];
     return (
         <DialogFrame
@@ -960,6 +1009,13 @@ export function ReleaseSetup({
                                 {t("mc.setup.stepper.stepOf", { n: at + 1, total: StepperSteps.length })}
                             </span>
                         )}
+                        {pending.length > 0 ? (
+                            <span className="text-warning" data-testid="setup-pending">
+                                {tCount("mc.setup.analyse.pending", pending.length, {
+                                    numbers: pending.map((p) => pointNumbers(points)[p.key]).join(", "),
+                                })}
+                            </span>
+                        ) : null}
                     </span>
                     {at > 0 && !done ? (
                         <button
@@ -986,7 +1042,7 @@ export function ReleaseSetup({
                             type="button"
                             className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             disabled={!ready}
-                            onClick={() => goTo(next)}
+                            onClick={() => goNext(next)}
                             data-testid="setup-next"
                         >
                             {t(nextLabelKey(step, path))}
@@ -1012,7 +1068,7 @@ export function ReleaseSetup({
                 path={path}
                 ready={ready}
                 locked={draft == null || writing || done}
-                onStep={goTo}
+                onStep={goNext}
             />
             {error ? (
                 <p
@@ -1062,7 +1118,37 @@ export function ReleaseSetup({
                     {writing || done ? null : (
                         <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
                     )}
-                    {step === "understand" ? (
+                    {analysing ? (
+                        <>
+                            <AnalyseStep
+                                survey={survey}
+                                draft={draft}
+                                points={points}
+                                answers={pointAnswers}
+                                onAnswer={answerPoint}
+                            />
+                            <details
+                                className="rounded-6 border border-border px-3 py-2"
+                                data-testid="setup-all-choices"
+                            >
+                                <summary className="cursor-pointer text-12 text-primary">
+                                    {t("mc.setup.analyse.allChoices")}
+                                </summary>
+                                <div className="mt-2 flex flex-col gap-3">
+                                    <WhatStep draft={draft} options={options} onChange={change} />
+                                    {nothing ? null : (
+                                        <ChoicesStep
+                                            draft={draft}
+                                            options={options}
+                                            onChange={change}
+                                            channel={channel}
+                                            setChannel={setChannel}
+                                        />
+                                    )}
+                                </div>
+                            </details>
+                        </>
+                    ) : step === "understand" ? (
                         <>
                             <WhatStep draft={draft} options={options} onChange={change} />
                             {nothing ? null : (

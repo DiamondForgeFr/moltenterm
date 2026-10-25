@@ -667,3 +667,19 @@ func tagWorkflowList(f Facts, channel string, prefix string) []TagWorkflow {
 	}
 	return rtn
 }
+
+// tagCiList: the CI workflows the channel's sample tag starts (#1101).
+func tagCiList(f Facts, channel string, prefix string) []string {
+	rc, public := sampleTags(prefix)
+	tag := public
+	if channel == ChannelRc {
+		tag = rc
+	}
+	rtn := []string{}
+	for _, wf := range f.Workflows {
+		if wf.Role == RoleCi && wf.RunsOnTag(tag) {
+			rtn = append(rtn, wf.File)
+		}
+	}
+	return rtn
+}

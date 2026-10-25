@@ -50,7 +50,9 @@ type DraftAnswer struct {
 	DeployTargets []DeployTarget `json:"deploytargets"`
 	// The workflows each channel's tag starts, with their environments, for the diagram.
 	TagWorkflows map[string][]TagWorkflow `json:"tagworkflows"`
-	Proposal     Proposal                 `json:"proposal"`
+	// The CI workflows each channel's tag starts too (its tests), which the existing pipeline's diagram draws (#1101).
+	TagCi    map[string][]string `json:"tagci"`
+	Proposal Proposal            `json:"proposal"`
 	// The committed file ("" when there is none), its hash, and the proposed text.
 	Current  string `json:"current"`
 	Base     string `json:"base"`
@@ -242,6 +244,7 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 		prefix = f.TagPrefix
 	}
 	answer.TagWorkflows = map[string][]TagWorkflow{ChannelRc: tagWorkflowList(f, ChannelRc, prefix), ChannelPublic: tagWorkflowList(f, ChannelPublic, prefix)}
+	answer.TagCi = map[string][]string{ChannelRc: tagCiList(f, ChannelRc, prefix), ChannelPublic: tagCiList(f, ChannelPublic, prefix)}
 	proposed, err := proposedText(current, f, answer.Proposal)
 	if err != nil {
 		return answer, err

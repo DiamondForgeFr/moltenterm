@@ -79,7 +79,8 @@ func TestSurveySaaSFoundryShapedCli(t *testing.T) {
 		t.Fatalf("type %s kind %s evidence %+v", answer.AppType, answer.Kind, answer.AppTypeEvidence)
 	}
 	tags := answer.Tags
-	if !tags.Read || tags.Count != 4 || tags.First != "v0.1.0-beta" || tags.Last != "v1.0.1" || tags.Prefix != "v" {
+	if !tags.Read || tags.Count != 4 || tags.First != "v0.1.0-beta" || tags.Last != "v1.0.1" || tags.Prefix != "v" ||
+		tags.Pre != 2 || tags.LastPublic != "v1.0.1" || tags.LastMerge {
 		t.Fatalf("tags %+v", tags)
 	}
 	if !answer.Releases.Read || answer.Releases.Count != 2 || answer.Releases.Last != "v1.0.1" {
@@ -97,6 +98,26 @@ func TestSurveySaaSFoundryShapedCli(t *testing.T) {
 	after, _ := os.ReadFile(filepath.Join(dir, ".molten/project.json"))
 	if string(before) != string(after) {
 		t.Fatal("the survey wrote the pipeline")
+	}
+}
+
+// The last public tag on a merge commit tells how the release branch took the last release (#1101); a later
+// pre-release does not count as the last public tag.
+func TestSurveyLastPublicTagOnAMergeCommit(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{})
+	gitIn(t, dir, "checkout", "--quiet", "-b", "rc-1.0.0")
+	writeFiles(t, dir, map[string]string{"release.txt": "1.0.0\n"})
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "--quiet", "-m", "chore: release 1.0.0")
+	gitIn(t, dir, "checkout", "--quiet", "develop")
+	writeFiles(t, dir, map[string]string{"app.txt": "two\n"})
+	gitIn(t, dir, "commit", "--quiet", "-am", "feat: two")
+	gitIn(t, dir, "merge", "--quiet", "--no-ff", "-m", "Merge rc-1.0.0", "rc-1.0.0")
+	gitIn(t, dir, "tag", "v1.0.0")
+	gitIn(t, dir, "tag", "v1.1.0-1", "rc-1.0.0")
+	tags := MakeSetup(surveyRunner(""), nil).readVersionTags(context.Background(), dir, "v")
+	if tags.Count != 2 || tags.Pre != 1 || tags.LastPublic != "v1.0.0" || !tags.LastMerge {
+		t.Fatalf("tags %+v", tags)
 	}
 }
 
@@ -162,16 +183,16 @@ func TestAnswersResumeAndDropOnANewBase(t *testing.T) {
 		t.Fatal("answers before any save")
 	}
 	opts := Options{Kind: KindOnPremise, Channels: []string{ChannelRc}, TagPrefix: "v"}
-	saved := Answers{Base: "h1", Step: StepUnderstand, AppType: AppTypeCli, Path: PathAnalyse, Touched: true, Options: &opts}
+	saved := Answers{Base: "h1", Step: StepUnderstand, AppType: AppTypeCli, Path: PathAnalyse, Touched: true, Options: &opts, Points: map[string]string{"hand": "no"}}
 	if _, err := s.SaveAnswers(AnswersRequest{Dir: dir, Answers: &saved}); err != nil {
 		t.Fatal(err)
 	}
 	got := s.loadAnswers(dir, "h1")
-	if got == nil || got.Step != StepUnderstand || got.AppType != AppTypeCli || !got.Touched || got.Options == nil || got.Options.Channels[0] != ChannelRc {
+	if got == nil || got.Step != StepUnderstand || got.AppType != AppTypeCli || !got.Touched || got.Options == nil || got.Options.Channels[0] != ChannelRc || got.Points["hand"] != "no" {
 		t.Fatalf("resumed %+v", got)
 	}
 	moved := s.loadAnswers(dir, "h2")
-	if moved == nil || moved.Step != "" || moved.Options != nil || moved.Touched || moved.AppType != AppTypeCli || moved.Path != PathAnalyse {
+	if moved == nil || moved.Step != "" || moved.Options != nil || moved.Points != nil || moved.Touched || moved.AppType != AppTypeCli || moved.Path != PathAnalyse {
 		t.Fatalf("after the pipeline moved %+v", moved)
 	}
 	if s.loadAnswers(t.TempDir(), "h1") != nil {

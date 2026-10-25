@@ -48,6 +48,11 @@ type SurveyTags struct {
 	Count  int    `json:"count"`
 	First  string `json:"first,omitempty"`
 	Last   string `json:"last,omitempty"`
+	// The pre-release tags among them (v1.0.0-1, v0.1.0-beta), the last public one, and whether its commit is a merge
+	// commit: how the release branch took the last release (#1101).
+	Pre        int    `json:"pre"`
+	LastPublic string `json:"lastpublic,omitempty"`
+	LastMerge  bool   `json:"lastmerge,omitempty"`
 }
 
 type SurveyReleases struct {
@@ -252,6 +257,17 @@ func (s *Setup) readVersionTags(ctx context.Context, dir string, prefix string) 
 		}
 		tags.Last = name
 		tags.Count++
+		if strings.ContainsAny(strings.TrimPrefix(name, prefix), "-+") {
+			tags.Pre++
+		} else {
+			tags.LastPublic = name
+		}
+	}
+	if tags.LastPublic != "" {
+		// "<commit> <parent> <parent>": two parents make a merge commit.
+		if out, err := s.git(ctx, dir, "rev-list", "--parents", "-n", "1", tags.LastPublic+"^{commit}"); err == nil {
+			tags.LastMerge = len(strings.Fields(string(out))) > 2
+		}
 	}
 	return tags
 }

@@ -37,7 +37,9 @@ type Answers struct {
 	Path    string   `json:"path,omitempty"`
 	Touched bool     `json:"touched,omitempty"`
 	Options *Options `json:"options,omitempty"`
-	SavedAt int64    `json:"savedat"`
+	// Step 2a's answers to the points of the existing pipeline, by point key (#1101).
+	Points  map[string]string `json:"points,omitempty"`
+	SavedAt int64             `json:"savedat"`
 }
 
 // AnswersRequest saves the answers of the project at Dir; nil Answers clears them.
@@ -80,7 +82,7 @@ func (s *Setup) loadAnswers(dir string, base string) *Answers {
 		return nil
 	}
 	if a.Base != base {
-		a.Base, a.Step, a.Touched, a.Options = base, "", false, nil
+		a.Base, a.Step, a.Touched, a.Options, a.Points = base, "", false, nil, nil
 	}
 	return &a
 }

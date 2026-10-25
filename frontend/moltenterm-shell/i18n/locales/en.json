@@ -3739,7 +3739,14 @@
                 "legendCommand": "A step MoltenTerm runs",
                 "legendManual": "Done by hand",
                 "legendTag": "The tag",
-                "legendWorkflow": "A GitHub workflow"
+                "legendWorkflow": "A GitHub workflow",
+                "targets": "Published to",
+                "checks": "required checks: {checks}",
+                "conditional": "only when needed or still to confirm",
+                "legendPr": "A pull request",
+                "legendTarget": "Published to",
+                "legendApproval": "An approval on GitHub",
+                "legendConditional": "Only when needed"
             },
             "update": {
                 "open": "Update the release setup",
@@ -3933,6 +3940,119 @@
                 "restartHint": "the existing workflows are kept; the new pipeline replaces only MoltenTerm's release block",
                 "describe": "Describe the pipeline I want",
                 "recommended": "Recommended"
+            },
+            "analyse": {
+                "understood": "What we understood",
+                "understoodIntro": "Each point says where it comes from. Confirm it, or adjust it: the diagram follows.",
+                "toConfirm": "To confirm",
+                "confirmed": "Confirmed",
+                "correct": "Correct",
+                "adjust": "Adjust",
+                "yourAnswer": "Your answer: {answer}",
+                "selectPoint": "Select point {n}",
+                "asRead": "As read",
+                "adjustTitle": "Adjust point {n}",
+                "adjustNone": "Adjust",
+                "adjustHint": "Select a point, or a node of the diagram, to see what it can be instead.",
+                "adjustFact": "This point is read as it is: change it in the repository or its settings, then read it again.",
+                "adjustIntro": "Change it here; MoltenTerm redraws. Nothing is written before your pull request.",
+                "adjustGithub": "Change it here; MoltenTerm redraws. What GitHub enforces stays as GitHub says: a change of the rules themselves is done on GitHub.",
+                "agentLater": "To say it in your words, ask the project's agent at step 3: it proposes step changes you tick.",
+                "rcNone": "Release candidate (none kept)",
+                "allChoices": "All the choices",
+                "pending": {
+                    "one": "{count} point to confirm ({numbers})",
+                    "other": "{count} points to confirm ({numbers})"
+                },
+                "node": {
+                    "promote": "promote",
+                    "bump": "bump",
+                    "reconcile": "reconcile",
+                    "changelog": "changelog {lang}",
+                    "commit": "commit + push",
+                    "pr": "PR → {release}",
+                    "merge": {
+                        "merge": "merge commit",
+                        "squash": "squash",
+                        "rebase": "rebase"
+                    },
+                    "syncBack": "back to {trunk}"
+                },
+                "point": {
+                    "branchesSingle": "Everything happens on {trunk}: it is both the working branch and the one releases are tagged on.",
+                    "branchesRc": "Work happens on {trunk}; a release starts on a branch {rc} made from {trunk}, and ships from {release}.",
+                    "branchesTwo": "Work happens on {trunk}; releases ship from {release}.",
+                    "branchesDeploy": "The release deploys {release}.",
+                    "protectionUnread": "The protection of {release} could not be read: we assume it only takes pull requests (the safe choice).",
+                    "protectionUnreadWhy": "GitHub said: {error}",
+                    "protectionPr": "{release} only takes pull requests.",
+                    "protectionChecks": {
+                        "one": "The check {checks} must be green.",
+                        "other": "The checks {checks} must be green."
+                    },
+                    "protectionNoBypass": "You cannot bypass it.",
+                    "protectionBypassPr": "You may bypass it through a pull request only.",
+                    "protectionBypassable": "{release} is protected, but you may bypass its rules: a release can push to it directly.",
+                    "protectionNone": "No rule protects {release}: a release can push to it directly.",
+                    "protectionPrWorkflows": "{workflows} runs on pull requests.",
+                    "merge": {
+                        "merge": "The pull request merges with a merge commit, never squash or rebase.",
+                        "squash": "The pull request is squashed.",
+                        "rebase": "The pull request is rebased."
+                    },
+                    "mergeOnly": "It is the only method the rules allow.",
+                    "mergeHistory": "{tag} sits on a merge commit.",
+                    "publishTag": "The tag {tag} publishes: {workflows} starts on it and publishes to {targets}.",
+                    "publishTagRuns": "The tag {tag} starts {workflows}.",
+                    "publishNone": "No workflow publishes on the tag {tag}: the tag only marks the version.",
+                    "publishTests": "The tag also runs {tests}.",
+                    "publishApproval": "The environment {environments} asks for an approval on GitHub first.",
+                    "hand": {
+                        "one": "One step is done by hand before the cut: {files}.",
+                        "other": "{count} steps are done by hand before the cut: {files}."
+                    },
+                    "handBehind": "{path} still reads {version} while the project is at {current}, so the bump cannot read it back.",
+                    "dispatchDocs": "The documentation is deployed by hand ({file}, manual trigger only). Should the release run it after publishing?",
+                    "dispatchDeploy": "{file} deploys by hand (manual trigger only). Should the release run it after publishing?",
+                    "dispatchApproval": "Its environment {environments} asks for an approval.",
+                    "rcPublished": "Release candidates are published: {workflows} starts on {tag}.",
+                    "rcNone": "No release candidate is published: no workflow publishes on a candidate's tag.",
+                    "rcTests": "A candidate's tag only runs {tests}.",
+                    "rcPreTags": {
+                        "one": "One pre-release tag was found.",
+                        "other": "{count} pre-release tags were found."
+                    },
+                    "declared": "MoltenTerm's pipeline already declares {rc} release candidate steps and {public} public release steps.",
+                    "deploy": "{workflow} deploys to {environment}."
+                },
+                "source": {
+                    "branchesDefault": "MoltenTerm's default branches",
+                    "ruleset": "GitHub ruleset \"{name}\"",
+                    "classic": "GitHub branch protection",
+                    "mergeMethods": "merge methods allowed: {methods}"
+                },
+                "choice": {
+                    "protection": {
+                        "rcpr": "By pull request, wait for its required checks",
+                        "promote": "Push directly to {release}"
+                    },
+                    "hand": {
+                        "yes": "Yes, by hand before the cut",
+                        "no": "No, leave them out"
+                    },
+                    "dispatch": {
+                        "yes": "Yes, after publishing",
+                        "no": "No"
+                    },
+                    "rc": {
+                        "keep": "Keep a release candidate",
+                        "skip": "No release candidate"
+                    },
+                    "deploy": {
+                        "yes": "Deploy it in the release",
+                        "no": "Leave it out"
+                    }
+                }
             }
         }
     },

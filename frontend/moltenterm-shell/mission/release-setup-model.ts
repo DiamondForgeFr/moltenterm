@@ -19,6 +19,7 @@ export type SetupWorkflow = {
     push: boolean;
     tags?: string[];
     branches?: string[];
+    pullrequest?: boolean;
     dispatch: boolean;
     inputs?: string[];
     requiredinputs?: string[];
@@ -175,6 +176,8 @@ export type SetupDraft = {
     merges: SetupChoice[];
     deploytargets: SetupDeployTarget[];
     tagworkflows: Record<SetupChannel, SetupTagWorkflow[]>;
+    // The CI workflows each channel's tag starts too (#1101).
+    tagci?: Record<SetupChannel, string[]>;
     proposal: SetupProposal;
     current: string;
     base: string;
@@ -499,18 +502,35 @@ export function diffHunks(rows: DiffLine[], context = 3): (DiffLine | { kind: "f
 
 export const FlowPhases: ReleasePhase[] = ["prepare", "cut", "build", "publish", "back"];
 
-export type FlowNodeKind = "command" | "manual" | "notes" | "tag" | "workflow" | "dispatch" | "deploy";
+// "pr" and "target" draw the existing pipeline (#1101): a pull request, and where a release is published to.
+export type FlowNodeKind =
+    | "command"
+    | "manual"
+    | "notes"
+    | "tag"
+    | "workflow"
+    | "dispatch"
+    | "deploy"
+    | "pr"
+    | "target";
 
 export type FlowNode = {
     key: string;
     label: string;
     kind: FlowNodeKind;
     phase: ReleasePhase;
-    // The lane it sits on: the trunk, the RC branch of the pull-request flow, the release branch, or GitHub (the
-    // workflows).
-    lane: "trunk" | "rc" | "release" | "github";
+    // The lane it sits on: the trunk, the RC branch of the pull-request flow, the release branch, GitHub (the
+    // workflows), or what the release is published to.
+    lane: "trunk" | "rc" | "release" | "github" | "targets";
     approval?: string;
     source?: SetupSource;
+    // Step 2a (#1101): the point of "What we understood" it belongs to, the point's number on its first node (a
+    // question while it is to confirm), a step run only when needed, and a pull request's required checks.
+    point?: string;
+    badge?: number;
+    question?: boolean;
+    conditional?: boolean;
+    checks?: string;
 };
 
 export type FlowModel = {

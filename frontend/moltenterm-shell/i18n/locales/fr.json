@@ -3739,7 +3739,14 @@
                 "legendCommand": "Une étape lancée par MoltenTerm",
                 "legendManual": "Faite à la main",
                 "legendTag": "Le tag",
-                "legendWorkflow": "Un workflow GitHub"
+                "legendWorkflow": "Un workflow GitHub",
+                "targets": "Publié vers",
+                "checks": "checks requis : {checks}",
+                "conditional": "seulement si besoin, ou encore à confirmer",
+                "legendPr": "Une pull request",
+                "legendTarget": "Publié vers",
+                "legendApproval": "Une approbation sur GitHub",
+                "legendConditional": "Seulement si besoin"
             },
             "update": {
                 "open": "Mettre à jour la mise en place de la release",
@@ -3933,6 +3940,119 @@
                 "restartHint": "les workflows existants sont gardés ; le nouveau pipeline ne remplace que le bloc release de MoltenTerm",
                 "describe": "Décrire le pipeline que je veux",
                 "recommended": "Recommandé"
+            },
+            "analyse": {
+                "understood": "Ce que nous avons compris",
+                "understoodIntro": "Chaque point dit d'où il vient. Confirmez-le ou ajustez-le : le schéma suit.",
+                "toConfirm": "À confirmer",
+                "confirmed": "Confirmé",
+                "correct": "Exact",
+                "adjust": "Ajuster",
+                "yourAnswer": "Votre réponse : {answer}",
+                "selectPoint": "Sélectionner le point {n}",
+                "asRead": "Comme lu",
+                "adjustTitle": "Ajuster le point {n}",
+                "adjustNone": "Ajuster",
+                "adjustHint": "Sélectionnez un point, ou un nœud du schéma, pour voir ce qu'il peut être d'autre.",
+                "adjustFact": "Ce point est lu tel quel : changez-le dans le dépôt ou ses réglages, puis relisez-le.",
+                "adjustIntro": "Changez-le ici ; MoltenTerm redessine. Rien n'est écrit avant votre pull request.",
+                "adjustGithub": "Changez-le ici ; MoltenTerm redessine. Ce que GitHub impose reste tel que GitHub le dit : un changement des règles elles-mêmes se fait sur GitHub.",
+                "agentLater": "Pour le dire avec vos mots, demandez à l'agent du projet à l'étape 3 : il propose des changements d'étapes que vous cochez.",
+                "rcNone": "Release candidate (aucune gardée)",
+                "allChoices": "Tous les choix",
+                "pending": {
+                    "one": "{count} point à confirmer ({numbers})",
+                    "other": "{count} points à confirmer ({numbers})"
+                },
+                "node": {
+                    "promote": "promotion",
+                    "bump": "bump",
+                    "reconcile": "réconciliation",
+                    "changelog": "changelog {lang}",
+                    "commit": "commit + push",
+                    "pr": "PR → {release}",
+                    "merge": {
+                        "merge": "merge commit",
+                        "squash": "squash",
+                        "rebase": "rebase"
+                    },
+                    "syncBack": "retour sur {trunk}"
+                },
+                "point": {
+                    "branchesSingle": "Tout se passe sur {trunk} : c'est à la fois la branche de travail et celle où les releases sont taguées.",
+                    "branchesRc": "On travaille sur {trunk} ; une release démarre sur une branche {rc} faite depuis {trunk}, et est livrée depuis {release}.",
+                    "branchesTwo": "On travaille sur {trunk} ; les releases sont livrées depuis {release}.",
+                    "branchesDeploy": "La release déploie {release}.",
+                    "protectionUnread": "La protection de {release} n'a pas pu être lue : nous supposons qu'elle n'accepte que des pull requests (le choix sûr).",
+                    "protectionUnreadWhy": "GitHub a répondu : {error}",
+                    "protectionPr": "{release} n'accepte que des pull requests.",
+                    "protectionChecks": {
+                        "one": "Le check {checks} doit être vert.",
+                        "other": "Les checks {checks} doivent être verts."
+                    },
+                    "protectionNoBypass": "Vous ne pouvez pas le contourner.",
+                    "protectionBypassPr": "Vous ne pouvez le contourner que par une pull request.",
+                    "protectionBypassable": "{release} est protégée, mais vous pouvez contourner ses règles : une release peut y pousser directement.",
+                    "protectionNone": "Aucune règle ne protège {release} : une release peut y pousser directement.",
+                    "protectionPrWorkflows": "{workflows} tourne sur les pull requests.",
+                    "merge": {
+                        "merge": "La pull request fusionne par merge commit, jamais squash ni rebase.",
+                        "squash": "La pull request est fusionnée en squash.",
+                        "rebase": "La pull request est fusionnée en rebase."
+                    },
+                    "mergeOnly": "C'est la seule méthode que les règles autorisent.",
+                    "mergeHistory": "{tag} est posé sur un merge commit.",
+                    "publishTag": "Le tag {tag} publie : {workflows} démarre dessus et publie vers {targets}.",
+                    "publishTagRuns": "Le tag {tag} lance {workflows}.",
+                    "publishNone": "Aucun workflow ne publie sur le tag {tag} : le tag ne fait que marquer la version.",
+                    "publishTests": "Le tag lance aussi {tests}.",
+                    "publishApproval": "L'environnement {environments} demande d'abord une approbation sur GitHub.",
+                    "hand": {
+                        "one": "Une étape se fait à la main avant la coupe : {files}.",
+                        "other": "{count} étapes se font à la main avant la coupe : {files}."
+                    },
+                    "handBehind": "{path} indique encore {version} alors que le projet est en {current} : le bump ne peut pas le relire.",
+                    "dispatchDocs": "La documentation se déploie à la main ({file}, déclenchement manuel seulement). La release doit-elle le lancer après la publication ?",
+                    "dispatchDeploy": "{file} déploie à la main (déclenchement manuel seulement). La release doit-elle le lancer après la publication ?",
+                    "dispatchApproval": "Son environnement {environments} demande une approbation.",
+                    "rcPublished": "Les release candidates sont publiées : {workflows} démarre sur {tag}.",
+                    "rcNone": "Aucune release candidate n'est publiée : aucun workflow ne publie sur le tag d'une candidate.",
+                    "rcTests": "Le tag d'une candidate ne lance que {tests}.",
+                    "rcPreTags": {
+                        "one": "Un tag de pré-version a été trouvé.",
+                        "other": "{count} tags de pré-version ont été trouvés."
+                    },
+                    "declared": "Le pipeline MoltenTerm déclare déjà {rc} étapes de release candidate et {public} étapes de release publique.",
+                    "deploy": "{workflow} déploie vers {environment}."
+                },
+                "source": {
+                    "branchesDefault": "branches par défaut de MoltenTerm",
+                    "ruleset": "Ruleset GitHub « {name} »",
+                    "classic": "Protection de branche GitHub",
+                    "mergeMethods": "méthodes de fusion autorisées : {methods}"
+                },
+                "choice": {
+                    "protection": {
+                        "rcpr": "Par pull request, attendre ses checks requis",
+                        "promote": "Pousser directement sur {release}"
+                    },
+                    "hand": {
+                        "yes": "Oui, à la main avant la coupe",
+                        "no": "Non, les laisser de côté"
+                    },
+                    "dispatch": {
+                        "yes": "Oui, après publication",
+                        "no": "Non"
+                    },
+                    "rc": {
+                        "keep": "Garder une release candidate",
+                        "skip": "Pas de release candidate"
+                    },
+                    "deploy": {
+                        "yes": "Le déployer dans la release",
+                        "no": "Le laisser de côté"
+                    }
+                }
             }
         }
     },

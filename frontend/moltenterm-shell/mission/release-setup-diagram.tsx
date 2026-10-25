@@ -16,7 +16,7 @@ const TopH = 22;
 const LaneH = 62;
 const LabelChars = 15;
 
-const LaneOrder: FlowNode["lane"][] = ["trunk", "rc", "release", "github"];
+const LaneOrder: FlowNode["lane"][] = ["trunk", "rc", "release", "github", "targets"];
 
 function shorten(text: string): string {
     return text.length > LabelChars ? `${text.slice(0, LabelChars - 1)}…` : text;
@@ -27,7 +27,7 @@ type Placed = FlowNode & { x: number; y: number };
 // layout gives every node its own slot, in phase order then declared order, and each phase the band of its slots.
 export function layoutFlow(model: FlowModel) {
     const lanes = LaneOrder.filter((lane) => {
-        if (lane === "github" || lane === "rc") {
+        if (lane === "github" || lane === "rc" || lane === "targets") {
             return model.nodes.some((n) => n.lane === lane);
         }
         return !(model.single && lane === "trunk");
@@ -59,6 +59,54 @@ export function layoutFlow(model: FlowModel) {
 
 function NodeMark({ node }: { node: Placed }) {
     const { x, y } = node;
+    const dash = node.conditional ? { strokeDasharray: "3 2", opacity: 0.75 } : {};
+    switch (node.kind) {
+        case "pr":
+            return (
+                <g style={dash}>
+                    <rect
+                        x={x - 14}
+                        y={y - 9}
+                        width={28}
+                        height={18}
+                        rx={3}
+                        style={{ fill: "var(--color-background)", stroke: "var(--color-accent)", strokeWidth: 2 }}
+                    />
+                    <text
+                        x={x}
+                        y={y + 4}
+                        textAnchor="middle"
+                        className="text-10"
+                        style={{ fill: "var(--color-accent)", fontWeight: 600 }}
+                    >
+                        PR
+                    </text>
+                </g>
+            );
+        case "target":
+            return (
+                <rect
+                    x={x - 10}
+                    y={y - 7}
+                    width={20}
+                    height={14}
+                    rx={3}
+                    style={{
+                        fill: "var(--color-background)",
+                        stroke: "var(--color-success)",
+                        strokeWidth: 2,
+                        ...dash,
+                    }}
+                />
+            );
+    }
+    if (node.conditional) {
+        return (
+            <g style={dash}>
+                <NodeMark node={{ ...node, conditional: false }} />
+            </g>
+        );
+    }
     switch (node.kind) {
         case "tag":
             return (
@@ -113,17 +161,32 @@ function NodeMark({ node }: { node: Placed }) {
     );
 }
 
-export function FlowDiagram({ model, className }: { model: FlowModel; className?: string }) {
+// selected / onSelect (step 2a, #1101): the nodes of the selected point are ringed, and clicking a node selects its
+// point.
+export function FlowDiagram({
+    model,
+    className,
+    selected,
+    onSelect,
+}: {
+    model: FlowModel;
+    className?: string;
+    selected?: string;
+    onSelect?: (point: string) => void;
+}) {
     const t = useT();
     const { lanes, laneY, placed, bands, width, height } = layoutFlow(model);
+    const has = (test: (n: FlowNode) => boolean) => model.nodes.some(test);
     const laneName = (lane: FlowNode["lane"]) =>
         lane === "github"
             ? t("mc.setup.diagram.github")
-            : lane === "trunk"
-              ? model.trunk
-              : lane === "rc"
-                ? (model.rcBranch ?? "")
-                : model.release;
+            : lane === "targets"
+              ? t("mc.setup.diagram.targets")
+              : lane === "trunk"
+                ? model.trunk
+                : lane === "rc"
+                  ? (model.rcBranch ?? "")
+                  : model.release;
     const promoteAt = placed.find((n) => n.key.endsWith("/promote"));
     // The pull-request flow: the RC branch leaves the trunk at its first step and joins the release branch where its
     // pull request is merged.
@@ -168,7 +231,7 @@ export function FlowDiagram({ model, className }: { model: FlowModel; className?
                             y1={laneY(lane)}
                             y2={laneY(lane)}
                             style={
-                                lane === "github"
+                                lane === "github" || lane === "targets"
                                     ? { stroke: "var(--color-border)", strokeWidth: 1.5, strokeDasharray: "4 5" }
                                     : lane === "trunk" || model.single
                                       ? { stroke: "var(--color-accent)", strokeWidth: 4, strokeLinecap: "round" }
@@ -215,13 +278,68 @@ export function FlowDiagram({ model, className }: { model: FlowModel; className?
                     />
                 ) : null}
                 {placed.map((node) => (
-                    <g key={node.key} data-kind={node.kind}>
+                    <g
+                        key={node.key}
+                        data-kind={node.kind}
+                        data-point={node.point}
+                        onClick={node.point && onSelect ? () => onSelect(node.point) : undefined}
+                        className={node.point && onSelect ? "cursor-pointer" : undefined}
+                    >
                         <title>
-                            {node.approval
-                                ? `${node.label} · ${t("mc.setup.diagram.approval", { environment: node.approval })}`
-                                : node.label}
+                            {[
+                                node.label,
+                                node.approval ? t("mc.setup.diagram.approval", { environment: node.approval }) : "",
+                                node.checks ? t("mc.setup.diagram.checks", { checks: node.checks }) : "",
+                                node.conditional ? t("mc.setup.diagram.conditional") : "",
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
                         </title>
+                        {selected && node.point === selected ? (
+                            <circle
+                                cx={node.x}
+                                cy={node.y}
+                                r={17}
+                                style={{
+                                    fill: "var(--color-accent)",
+                                    fillOpacity: 0.12,
+                                    stroke: "var(--color-accent)",
+                                    strokeWidth: 1.5,
+                                }}
+                                data-testid="setup-diagram-selected"
+                            />
+                        ) : null}
                         <NodeMark node={node} />
+                        {node.checks ? (
+                            <text
+                                x={node.x}
+                                y={node.y - 14}
+                                textAnchor="middle"
+                                className="text-10"
+                                style={{ fill: "var(--color-muted)" }}
+                            >
+                                {shorten(node.checks)}
+                            </text>
+                        ) : null}
+                        {node.badge != null ? (
+                            <g data-testid={`setup-diagram-badge-${node.badge}`}>
+                                <circle
+                                    cx={node.x + 13}
+                                    cy={node.y - 11}
+                                    r={7}
+                                    style={{ fill: node.question ? "var(--color-warning)" : "var(--color-accent)" }}
+                                />
+                                <text
+                                    x={node.x + 13}
+                                    y={node.y - 8}
+                                    textAnchor="middle"
+                                    className="text-10"
+                                    style={{ fill: "var(--color-background)", fontWeight: 600 }}
+                                >
+                                    {node.badge}
+                                </text>
+                            </g>
+                        ) : null}
                         <text
                             x={node.x}
                             y={node.y + 21}
@@ -262,6 +380,30 @@ export function FlowDiagram({ model, className }: { model: FlowModel; className?
                     <span className="inline-block h-2 w-3 rounded-4 border border-primary/60" />
                     {t("mc.setup.diagram.legendWorkflow")}
                 </span>
+                {has((n) => n.kind === "pr") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-accent" />
+                        {t("mc.setup.diagram.legendPr")}
+                    </span>
+                ) : null}
+                {has((n) => n.kind === "target") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-success" />
+                        {t("mc.setup.diagram.legendTarget")}
+                    </span>
+                ) : null}
+                {has((n) => n.approval != null) ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-full border border-warning" />
+                        {t("mc.setup.diagram.legendApproval")}
+                    </span>
+                ) : null}
+                {has((n) => n.conditional) ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block w-4 border-t border-dashed border-muted" />
+                        {t("mc.setup.diagram.legendConditional")}
+                    </span>
+                ) : null}
             </div>
         </div>
     );
