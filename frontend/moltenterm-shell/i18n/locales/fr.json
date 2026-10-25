@@ -1411,6 +1411,9 @@
         "effortTitle": "Effort : {effort}",
         "effortClick": "Cliquez pour changer le niveau d'effort",
         "handoffUnreadable": "Cette demande de passage de relais est illisible.",
+        "handoffAnswerTimeout": "MoltenTerm n'a pas répondu à temps : votre réponse à ce passage de relais n'a peut-être pas été prise en compte.",
+        "handoffAnswerFailed": "Votre réponse à ce passage de relais n'a pas pu être transmise ({detail}).",
+        "handoffAnswerFailedBare": "Votre réponse à ce passage de relais n'a pas pu être transmise.",
         "updating": "Mise à jour de MoltenTerm",
         "hooks": {
             "title": "États précis pour {name}",
@@ -7549,12 +7552,24 @@
             },
             "undelivered": {
                 "title": "Le passage de relais de {from} à {to} n'a pas été remis",
-                "message": "{detail} Le brief se trouve dans {path}."
+                "titleterminal": "Le passage de relais d'un terminal à {to} n'a pas été remis",
+                "message": "{reason} Le brief se trouve dans {path}.",
+                "ended": "La session de {receiver} s'est terminée avant que son invite soit disponible.",
+                "timeout": "L'invite de {receiver} n'est pas devenue disponible dans l'heure.",
+                "failed": "MoltenTerm n'a pas pu taper le passage de relais ({detail})."
             },
             "typed": {
                 "title": "Tapé dans l'invite de {receiver} : appuyez sur Entrée dans son terminal pour démarrer",
                 "message": "Le passage de relais de {from} a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
+                "messageterminal": "Le passage de relais d'un terminal a été ajouté après ce qui était déjà dans l'invite. Le brief se trouve dans {path}.",
                 "goto": "Aller à {receiver}"
+            },
+            "party": {
+                "terminal": "Un terminal",
+                "terminalin": "Un terminal · {project}"
+            },
+            "forget": {
+                "nopair": "Cette paire de terminaux ne peut plus être lue : rouvrez le menu."
             }
         },
         "agentlink": {
@@ -8320,6 +8335,7 @@
         },
         "pending": {
             "title": "{from} veut transférer du travail à {to}",
+            "titleTerminal": "Un terminal veut transférer du travail à {to}",
             "once": "Autoriser une fois",
             "always": "Toujours pour cette paire",
             "block": "Bloquer"

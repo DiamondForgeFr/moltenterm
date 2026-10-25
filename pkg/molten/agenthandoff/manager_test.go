@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 type typed struct {
@@ -510,15 +511,114 @@ func TestQueueDropsAnEndedReceiver(t *testing.T) {
 	env.lock.Lock()
 	delete(env.runs, "blockB")
 	env.lock.Unlock()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		notes := env.notifications()
-		if len(notes) == 2 && notes[1].Kind == "error" && strings.Contains(notes[1].Message, "ended") {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
+	waitFor(t, "the undelivered notice", func() bool { return len(env.notifications()) == 2 })
+	n := env.notifications()[1]
+	if n.Kind != "error" || !strings.Contains(n.Message, "Jérôme ended") {
+		t.Fatalf("undelivered notice: %+v", n)
 	}
-	t.Fatalf("no undelivered notice: %+v", env.notifications())
+	// #1129: the reason is a sentence the windows word, not English in a detail placeholder.
+	assertUndelivered(t, n, "handoff.undelivered.title", "handoff.undelivered.ended")
+	if n.MessageText.Parts["reason"].Vars["receiver"] != "Jérôme" {
+		t.Fatalf("ended reason: %+v", n.MessageText.Parts["reason"])
+	}
+}
+
+// assertUndelivered: the notice's title and its message's reason carry the codes, and no var holds a sentence of ours.
+func assertUndelivered(t *testing.T, n molten.NotificationInput, titleCode string, reasonCode string) {
+	t.Helper()
+	if n.TitleText == nil || n.TitleText.Code != titleCode {
+		t.Fatalf("title text: %+v", n.TitleText)
+	}
+	if n.MessageText == nil || n.MessageText.Code != "handoff.undelivered.message" || n.MessageText.Vars["path"] == "" {
+		t.Fatalf("message text: %+v", n.MessageText)
+	}
+	if _, ok := n.MessageText.Vars["detail"]; ok {
+		t.Fatalf("the message must not take English as its detail: %+v", n.MessageText.Vars)
+	}
+	reason := n.MessageText.Parts["reason"]
+	if reason == nil || reason.Code != reasonCode {
+		t.Fatalf("reason: %+v", reason)
+	}
+}
+
+func TestQueueTimeoutIsCoded(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	m.queueTimeout = -1
+	answerWith(m, env, DecisionOnce)
+	env.setState("blockB", molten.AgentStateWorking)
+	if res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}}); err != nil || res.Status != StatusQueued {
+		t.Fatalf("queued: %+v %v", res, err)
+	}
+	waitFor(t, "the undelivered notice", func() bool { return len(env.notifications()) == 2 })
+	n := env.notifications()[1]
+	assertUndelivered(t, n, "handoff.undelivered.title", "handoff.undelivered.timeout")
+	if !strings.Contains(n.Message, "within an hour") {
+		t.Fatalf("english: %q", n.Message)
+	}
+}
+
+// A refusal of the typing path keeps its own code; one without a code shows its English as the detail of ours.
+func TestQueueRefusalKeepsTheTypingCode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		refuse TypeResult
+		code   string
+	}{
+		{"coded", TypeResult{Message: "Jérôme is no longer the program in the foreground: nothing was typed.",
+			MessageText: uimsg.Make("termupdate.input.gone", "agent", "Jérôme")}, "termupdate.input.gone"},
+		{"uncoded", TypeResult{Message: "write /dev/pts/3: broken pipe."}, "handoff.undelivered.failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, env, _, _ := makeFixture(t)
+			answerWith(m, env, DecisionOnce)
+			var calls sync.Mutex
+			n := 0
+			env.typeOut = func(string) TypeResult {
+				calls.Lock()
+				defer calls.Unlock()
+				n++
+				if n == 1 {
+					return TypeResult{Retry: true, Message: "Jérôme is working."}
+				}
+				return tc.refuse
+			}
+			if res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "x"}}); err != nil || res.Status != StatusQueued {
+				t.Fatalf("queued: %+v %v", res, err)
+			}
+			waitFor(t, "the undelivered notice", func() bool { return len(env.notifications()) == 2 })
+			note := env.notifications()[1]
+			assertUndelivered(t, note, "handoff.undelivered.title", tc.code)
+			if tc.name == "uncoded" && note.MessageText.Parts["reason"].Vars["detail"] != "write /dev/pts/3: broken pipe" {
+				t.Fatalf("raw detail: %+v", note.MessageText.Parts["reason"])
+			}
+		})
+	}
+}
+
+// A shell's `molten agent send` has no name: the windows word "a terminal", never callName's English (#1129).
+func TestUnnamedSenderIsWordedByTheWindows(t *testing.T) {
+	m, env, _, _ := makeFixture(t)
+	answerWith(m, env, DecisionOnce)
+	env.setState("blockB", molten.AgentStateWorking)
+	if res, err := m.Send(context.Background(), SendRequest{Token: "tokShell", To: "Jérôme", Brief: Brief{Goal: "x"}}); err != nil || res.Status != StatusQueued {
+		t.Fatalf("queued: %+v %v", res, err)
+	}
+	approval := env.notifications()[0]
+	if p := approval.TitleText.Parts["from"]; p == nil || p.Code != "handoff.party.terminal" || approval.TitleText.Vars["from"] != "" {
+		t.Fatalf("approval title: %+v", approval.TitleText)
+	}
+	if p := approval.MessageText.Parts["from"]; p == nil || p.Code != "handoff.party.terminalin" || p.Vars["project"] != "projecta" {
+		t.Fatalf("approval message: %+v", approval.MessageText)
+	}
+	env.lock.Lock()
+	delete(env.runs, "blockB")
+	env.lock.Unlock()
+	waitFor(t, "the undelivered notice", func() bool { return len(env.notifications()) == 2 })
+	note := env.notifications()[1]
+	assertUndelivered(t, note, "handoff.undelivered.titleterminal", "handoff.undelivered.ended")
+	if note.TitleText.Vars["to"] != "Jérôme" {
+		t.Fatalf("title: %+v", note.TitleText)
+	}
 }
 
 func TestBriefFilesLinksAndSnapshots(t *testing.T) {

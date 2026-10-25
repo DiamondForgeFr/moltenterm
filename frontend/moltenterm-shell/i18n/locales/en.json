@@ -1411,6 +1411,9 @@
         "effortTitle": "Effort: {effort}",
         "effortClick": "Click to change the effort level",
         "handoffUnreadable": "This handoff request cannot be read.",
+        "handoffAnswerTimeout": "MoltenTerm did not answer in time: your answer to this handoff may not have been taken.",
+        "handoffAnswerFailed": "Your answer to this handoff could not be given ({detail}).",
+        "handoffAnswerFailedBare": "Your answer to this handoff could not be given.",
         "updating": "Updating MoltenTerm",
         "hooks": {
             "title": "Precise states for {name}",
@@ -7549,12 +7552,24 @@
             },
             "undelivered": {
                 "title": "{from}'s handoff to {to} was not delivered",
-                "message": "{detail} The brief is at {path}."
+                "titleterminal": "A terminal's handoff to {to} was not delivered",
+                "message": "{reason} The brief is at {path}.",
+                "ended": "{receiver} ended before its prompt was idle.",
+                "timeout": "{receiver}'s prompt was not idle within an hour.",
+                "failed": "MoltenTerm could not type the handoff ({detail})."
             },
             "typed": {
                 "title": "Typed in {receiver}'s prompt: press Enter in its terminal to start",
                 "message": "{from}'s handoff was added after what was already in the prompt. The brief is at {path}.",
+                "messageterminal": "A terminal's handoff was added after what was already in the prompt. The brief is at {path}.",
                 "goto": "Go to {receiver}"
+            },
+            "party": {
+                "terminal": "A terminal",
+                "terminalin": "A terminal · {project}"
+            },
+            "forget": {
+                "nopair": "This pair of terminals can no longer be read: open the menu again."
             }
         },
         "agentlink": {
@@ -8320,6 +8335,7 @@
         },
         "pending": {
             "title": "{from} wants to hand work to {to}",
+            "titleTerminal": "A terminal wants to hand work to {to}",
             "once": "Allow once",
             "always": "Always for this pair",
             "block": "Block"

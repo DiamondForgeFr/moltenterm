@@ -8,6 +8,8 @@ import (
 	"errors"
 	"sort"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The terminal's connections menu (FR-CONT-022, #1050) shows a pane's handoffs: every other active agent with the
@@ -78,8 +80,13 @@ func (m *Manager) pendingOf(blockId string) []PendingEntry {
 		if p.from.BlockId != blockId && p.to.BlockId != blockId {
 			continue
 		}
+		// A terminal without a name has From "": the window words it, not callName's English (#1129).
+		from := ""
+		if p.from.named() {
+			from = p.from.callName()
+		}
 		rtn = append(rtn, PendingEntry{RequestId: id, FromBlockId: p.from.BlockId, ToBlockId: p.to.BlockId,
-			From: p.from.callName(), To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160)})
+			From: from, To: p.to.callName(), Goal: cut(cleanLine(p.brief.Goal), 160)})
 	}
 	sort.Slice(rtn, func(i, j int) bool { return rtn[i].RequestId < rtn[j].RequestId })
 	return rtn
@@ -91,7 +98,7 @@ func (m *Manager) Forget(source string, req ForgetRequest) error {
 		return errors.New(errNotUi)
 	}
 	if req.BlockId == "" || req.OtherBlockId == "" {
-		return errors.New("name both terminals of the pair")
+		return uimsg.Errorf(uimsg.Make("handoff.forget.nopair"), "name both terminals of the pair")
 	}
 	key := pairKey(req.BlockId, req.OtherBlockId)
 	decision := m.forgetPair(key)
