@@ -334,7 +334,7 @@ export function ChoicesStep({
     const prefixOk = validTagPrefix(options.tagprefix);
     return (
         <div className="flex flex-col gap-3">
-            {options.channels.length > 1 ? (
+            {!bare && options.channels.length > 1 ? (
                 <div className="flex gap-1" role="tablist">
                     {options.channels.map((c) => (
                         <button

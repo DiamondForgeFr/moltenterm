@@ -5,6 +5,7 @@ package pipelinesetup
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,48 @@ import (
 )
 
 // Step 2a for a project already set up (#1102): the check drawn, adjusted, and the uncommitted edits as changes.
+
+// SaaSFoundryAI's committed pipeline writes short steps on one line: a change keeps every other step's text.
+func TestKeptReleaseKeepsTheStepsAsWritten(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Release *molten.PipelineRelease `json:"release"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil || file.Release == nil {
+		t.Fatalf("not a pipeline with a release: %v", err)
+	}
+	cur := file.Release
+	merged := &molten.PipelineRelease{Rc: cur.Rc}
+	for _, s := range cur.Public {
+		if s.Id != "close-milestone" {
+			merged.Public = append(merged.Public, s)
+		}
+	}
+	kept, ok := keptRelease(data, merged)
+	if !ok {
+		t.Fatal("the release block was not read step by step")
+	}
+	text, err := MergeTopLevel(data, nil, []keyValue{{Key: "release", Value: kept}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := strings.Count(string(data), "\n") - strings.Count(string(text), "\n")
+	if removed != 1 || strings.Contains(string(text), "close-milestone") {
+		t.Fatalf("%d lines removed:\n%s", removed, text)
+	}
+	have := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		have[line] = true
+	}
+	for _, line := range strings.Split(string(text), "\n") {
+		if !have[line] {
+			t.Fatalf("a kept step was rewritten: %q", line)
+		}
+	}
+}
 
 // upToDateRepository: the pre-#1046 pipeline updated once, so the check finds nothing to change.
 func upToDateRepository(t *testing.T) (string, *Setup) {
@@ -89,6 +132,16 @@ func TestCheckAdjustsAnUpToDatePipeline(t *testing.T) {
 	if len(check.Reasons) != 1 || check.Reasons[0].Code != UpdateReasonAdjusted {
 		t.Fatalf("reasons: %+v", check.Reasons)
 	}
+	// The steps that stay keep their text: removing one adds no line.
+	have := map[string]bool{}
+	for _, line := range strings.Split(check.Current, "\n") {
+		have[line] = true
+	}
+	for _, line := range strings.Split(check.Proposed, "\n") {
+		if !have[line] {
+			t.Fatalf("a kept step was rewritten: %q\n%s", line, check.Proposed)
+		}
+	}
 	if len(check.Options.Channels) != 2 {
 		t.Fatalf("an adjustment drops no channel: %v", check.Options.Channels)
 	}
@@ -114,6 +167,9 @@ func TestUpdateRefusesAnUpToDatePipeline(t *testing.T) {
 	check, err := s.Check(context.Background(), CheckRequest{Dir: dir})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if check.Proposed != check.Current {
+		t.Fatalf("nothing changes, yet the proposed text differs:\n%s\n---\n%s", check.Current, check.Proposed)
 	}
 	job := waitFor(t, s)(s.Update(context.Background(), UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, PrRequest: PrRequest{Ticket: 7}}))
 	if job.Failure == nil || job.Failure.Code != PrFailureUpdateChanged {

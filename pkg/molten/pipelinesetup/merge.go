@@ -233,6 +233,16 @@ type keyValue struct {
 	Value any
 }
 
+// verbatim is a value's text already laid out at the top level's depth: MergeTopLevel writes it as it is.
+type verbatim []byte
+
+func encodeTopLevel(value any, unit string) ([]byte, error) {
+	if text, ok := value.(verbatim); ok {
+		return text, nil
+	}
+	return encodeValue(value, unit)
+}
+
 // MergeTopLevel replaces or adds the top-level keys in the file's text; a nil value leaves its key as it is. Without a
 // file, it writes a new one with the base keys first.
 func MergeTopLevel(current []byte, base []keyValue, values []keyValue) ([]byte, error) {
@@ -246,7 +256,7 @@ func MergeTopLevel(current []byte, base []keyValue, values []keyValue) ([]byte, 
 			if kv.Value == nil {
 				continue
 			}
-			encoded, err := encodeValue(kv.Value, unit)
+			encoded, err := encodeTopLevel(kv.Value, unit)
 			if err != nil {
 				return nil, err
 			}
@@ -269,7 +279,7 @@ func MergeTopLevel(current []byte, base []keyValue, values []keyValue) ([]byte, 
 		if err != nil {
 			return nil, err
 		}
-		encoded, err := encodeValue(kv.Value, unit)
+		encoded, err := encodeTopLevel(kv.Value, unit)
 		if err != nil {
 			return nil, err
 		}

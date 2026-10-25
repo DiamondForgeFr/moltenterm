@@ -429,6 +429,74 @@ func indexOf(steps []molten.PipelineStep, id string) int {
 	return -1
 }
 
+// keptRelease lays the merged release block out with each step the file already has, unchanged, in its own text (a
+// step written on one line stays on one line), so the diff shows the steps that change and nothing else (#1102).
+// ok is false when the file's release block is not one it can read step by step.
+func keptRelease(current []byte, merged *molten.PipelineRelease) (verbatim, bool) {
+	values, err := topLevelValues(current)
+	if err != nil {
+		return nil, false
+	}
+	var channels map[string][]json.RawMessage
+	if json.Unmarshal(values["release"], &channels) != nil {
+		return nil, false
+	}
+	for key := range channels {
+		if key != ChannelRc && key != ChannelPublic {
+			return nil, false
+		}
+	}
+	unit := indentUnit(current)
+	var out strings.Builder
+	out.WriteString("{\n")
+	written := 0
+	for _, c := range []struct {
+		channel string
+		steps   []molten.PipelineStep
+	}{{ChannelRc, merged.Rc}, {ChannelPublic, merged.Public}} {
+		if len(c.steps) == 0 {
+			continue
+		}
+		raws := map[string]json.RawMessage{}
+		for _, raw := range channels[c.channel] {
+			var s molten.PipelineStep
+			if json.Unmarshal(raw, &s) == nil {
+				raws[s.Id+"/"+stepHash(s)] = raw
+			}
+		}
+		if written > 0 {
+			out.WriteString(",\n")
+		}
+		written++
+		fmt.Fprintf(&out, "%s%q: [\n", strings.Repeat(unit, 2), c.channel)
+		for i, s := range c.steps {
+			out.WriteString(strings.Repeat(unit, 3))
+			if raw, ok := raws[s.Id+"/"+stepHash(s)]; ok {
+				out.Write(raw)
+			} else {
+				ordered, err := orderedTree(mustEncode(s))
+				if err != nil {
+					return nil, false
+				}
+				writePretty(&out, ordered, unit, 3)
+			}
+			if i < len(c.steps)-1 {
+				out.WriteString(",")
+			}
+			out.WriteString("\n")
+		}
+		out.WriteString(strings.Repeat(unit, 2) + "]")
+	}
+	out.WriteString("\n" + unit + "}")
+	return verbatim(out.String()), true
+}
+
+func sameReleases(a, b *molten.PipelineRelease) bool {
+	da, _ := json.Marshal(a)
+	db, _ := json.Marshal(b)
+	return string(da) == string(db)
+}
+
 func signatureOf(changes []Change) string {
 	data, _ := json.Marshal(changes)
 	sum := sha256.Sum256(data)
@@ -661,7 +729,20 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInp
 			versions = proposal.Versions
 		}
 	}
-	text, err := proposedText(current, f, Proposal{Release: merged, Versions: versions})
+	// A release block nothing changes keeps its text as written: re-encoding it would show a reformat as a change.
+	var text []byte
+	var err error
+	if sameReleases(merged, cur) {
+		text, err = proposedText(current, f, Proposal{Versions: versions})
+	} else if kept, ok := keptRelease(current, merged); ok {
+		var values []keyValue
+		if versions != nil {
+			values = append(values, keyValue{Key: "versions", Value: versions})
+		}
+		text, err = MergeTopLevel(current, nil, append(values, keyValue{Key: "release", Value: kept}))
+	} else {
+		text, err = proposedText(current, f, Proposal{Release: merged, Versions: versions})
+	}
 	if err != nil {
 		return nil, err
 	}
