@@ -9,7 +9,7 @@
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { t, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -624,15 +624,6 @@ export function ReleaseRunPanel({
     );
 }
 
-// Brings what follows it on screen once: the trust prompt sits below the whole release card, often out of view (#1091).
-function ScrollIntoView() {
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        ref.current?.nextElementSibling?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }, []);
-    return <div ref={ref} aria-hidden />;
-}
-
 // The release followed, in the Project tab: its facts, the actions that move it forward under the trust rule, and its
 // end, by itself once all five phases are done or when the user abandons it.
 export function ReleaseRunSection({
@@ -783,7 +774,6 @@ export function ReleaseRunSection({
                     {error}
                 </p>
             ) : null}
-            {pending != null ? <ScrollIntoView /> : null}
             {pending != null ? (
                 <TrustPrompt
                     projectName={projectName}

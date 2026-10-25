@@ -3170,7 +3170,7 @@
             "manualDone": "Marquer comme fait : {step}",
             "manualConfirm": "Confirmez que « {step} » est fait : MoltenTerm l’enregistre et n’exécute rien.",
             "actionRefused": "Non envoyé : une autre action de cette release est encore en cours. Réessayez une fois qu’elle est terminée.",
-            "trustFirst": "Rien n’a encore été lancé : faites confiance aux commandes du projet ci-dessous, puis cette étape démarre.",
+            "trustFirst": "Rien n’a encore été lancé : cette étape démarre une fois que vous faites confiance aux commandes du projet.",
             "actionFailed": "MoltenTerm n’a pas pu le faire et n’a donné aucune raison. Réessayez.",
             "manualNext": "Ensuite, à la main : {step}. Marquez-le comme fait une fois terminé.",
             "approval": "En attente de l’approbation de {environment} sur GitHub.",
