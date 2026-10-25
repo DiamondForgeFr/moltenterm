@@ -117,7 +117,9 @@ export function ProposalCards({
 }) {
     const t = useT();
     const tCount = useTCount();
-    const by = refined.agentname || t("mc.setup.proposal.otherAgent");
+    // A pasted answer has no agent name: its own sentences, not a name slotted into the agent's.
+    const prefix = refined.agentname ? "mc.setup.proposal" : "mc.setup.proposal.pasted";
+    const by = refined.agentname;
     const count = refined.changes.length;
     return (
         <div className="flex flex-col gap-2 rounded-6 border border-accent/40 p-3" data-testid="setup-proposal">
@@ -127,8 +129,8 @@ export function ProposalCards({
                 </span>
                 <span className="text-secondary">
                     {count === 0
-                        ? t("mc.setup.proposal.none", { agent: by })
-                        : tCount("mc.setup.proposal.count", count, { agent: by })}
+                        ? t(`${prefix}.none`, { agent: by })
+                        : tCount(`${prefix}.count`, count, { agent: by })}
                 </span>
                 {count > 0 ? (
                     <span className="text-11 text-muted" data-testid="setup-proposal-chosen">
@@ -208,7 +210,7 @@ export function AgentProposal({
                 const r = await setupRefine(dir, draftText, request, answer);
                 setRefined(r);
                 setChosen(r.changes.map((c) => c.key));
-                onResult({ ...r, agentname: r.agentname || t("mc.setup.proposal.otherAgent") });
+                onResult({ ...r, agentname: r.agentname });
                 setPasted("");
             } catch (e) {
                 setError(serverErrorText(e));
@@ -229,7 +231,7 @@ export function AgentProposal({
             try {
                 const applied = await setupApply(dir, draftText, refined.changes, next);
                 if (n === applyRun.current) {
-                    onResult({ ...applied, agentname: refined.agentname || t("mc.setup.proposal.otherAgent") });
+                    onResult({ ...applied, agentname: refined.agentname });
                     setError(null);
                 }
             } catch (e) {
