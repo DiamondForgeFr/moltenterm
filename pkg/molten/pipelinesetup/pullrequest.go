@@ -435,7 +435,7 @@ func (s *Setup) hasOrigin(ctx context.Context, dir string) bool {
 // prepareBase fetches origin's trunk and reads the committed files again: the job refuses a base that moved since the
 // draft, and an included working copy that changed.
 func (s *Setup) prepareBase(ctx context.Context, dir string, base string, req PrRequest, job *PrJob) (*baseFiles, error) {
-	trunk := molten.ResolvedBranches(dir).Trunk
+	trunk := SetupBranches(dir).Trunk
 	if s.hasOrigin(ctx, dir) {
 		if out, err := s.git(ctx, dir, "fetch", "--quiet", "origin", trunk); err != nil {
 			return nil, fail(PrFailureFetch, errText(err, out))
@@ -688,7 +688,7 @@ func (s *Setup) writeTechDoc(ctx context.Context, job *PrJob, files prFiles, prU
 func prBody(job *PrJob, b *baseFiles, files prFiles, ticket int, required bool) string {
 	var out strings.Builder
 	if job.Kind == PrKindUpdate {
-		out.WriteString("Updates the release setup to what this version of MoltenTerm writes, with the changes chosen in its update dialog.\n\n")
+		out.WriteString("Updates the release setup to what this version of MoltenTerm writes, with the changes chosen in its pipeline setup.\n\n")
 	} else {
 		out.WriteString("Declares the release pipeline drafted by MoltenTerm's release setup and reviewed in its dialog.\n\n")
 	}

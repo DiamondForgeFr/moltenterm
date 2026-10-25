@@ -181,7 +181,7 @@ func (s *Setup) Survey(ctx context.Context, req SurveyRequest) (SurveyAnswer, er
 		answer.Recommended = PathAnalyse
 	}
 	answer.Answers = s.loadAnswers(dir, answer.Base)
-	answer.Git = b.Commit != ""
+	answer.Git = s.commitOf(ctx, dir, "HEAD") != ""
 	answer.Remote = s.hasOrigin(ctx, dir)
 	answer.Empty = surveyEmpty(dir, f, answer)
 	if answer.Pipeline == PipelineInvalid {

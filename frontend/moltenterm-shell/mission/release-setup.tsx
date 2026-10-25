@@ -1401,7 +1401,7 @@ export function ReleaseSetup({
                             <DescribeStep
                                 draft={draft}
                                 options={options}
-                                from={from}
+                                from={from === "template" && !template ? "standard" : from}
                                 models={models}
                                 model={model}
                                 words={words}

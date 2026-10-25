@@ -136,6 +136,11 @@ describe("step 2b: describe a new pipeline (FR-MC-041)", () => {
             facts: { ...draft.facts, ongithub: false, targets: [] },
         });
         expect(describeDefaults(offGithub, base)).toMatchObject({ rc: "internal", publish: [] });
+        // A new repository without the published branch yet (#1106): the trunk is the published branch.
+        expect(describeDefaults(draftOf(base, { branchnames: ["develop"] }), base)).toMatchObject({
+            trunk: "develop",
+            release: "develop",
+        });
         // An answer already given stays.
         expect(describeDefaults(draft, { ...base, rc: "none", publish: [] })).toMatchObject({
             rc: "none",

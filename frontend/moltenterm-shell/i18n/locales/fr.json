@@ -3778,7 +3778,7 @@
                 "noRecord": "Cette release a été mise en place avant que MoltenTerm ne note ce qu’il écrit : les étapes qu’il reconnaît comme les siennes sont mises à jour, les autres sont gardées.",
                 "group": {
                     "rc": "Release candidate",
-                    "public": "Version publique",
+                    "public": "Release publique",
                     "versions": "Fichiers de version",
                     "local": "Vos modifications non commitées"
                 },
@@ -3909,7 +3909,7 @@
                 },
                 "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d’abord pour les inclure.",
                 "includedAsChanges": "Vos modifications non commitées sont incluses comme changements à vérifier : chacune est listée ci-dessous, cochée, et vous pouvez en laisser de côté. Votre copie les garde telles quelles.",
-                "descNoRemote": "Ce dépôt n’a pas de remote origin : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n’est pas touchée."
+                "descNoRemote": "Ce dépôt n’a pas de dépôt distant (origin) : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n’est pas touchée."
             },
             "stepper": {
                 "step": {
@@ -4337,7 +4337,7 @@
                     "sub": "Le pipeline se prépare quand même, mais rien ne peut le valider par pull request : lancez git init et faites un premier commit, puis relisez."
                 },
                 "noRemote": {
-                    "title": "Pas de remote origin",
+                    "title": "Pas de dépôt distant (origin)",
                     "sub": "Une pull request a besoin d’origin. « Copier le patch » donne le commit à la place, à appliquer là où le projet reçoit ses changements."
                 },
                 "github": {

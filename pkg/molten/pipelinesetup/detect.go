@@ -134,7 +134,7 @@ func DetectWith(dir string, report molten.PipelineReport) Facts {
 	if p == nil || p.Release == nil || len(p.Release.Public) == 0 {
 		f.Missing = append(f.Missing, ChannelPublic)
 	}
-	f.Branches = molten.ResolvedBranches(dir)
+	f.Branches = SetupBranches(dir)
 	f.ReleaseWorktree = "../" + filepath.Base(mainCheckout(dir)) + "-release"
 	readSaaSFoundryFacts(dir, &f)
 	if p != nil && p.Versions != nil {
