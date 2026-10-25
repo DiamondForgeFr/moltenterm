@@ -15,10 +15,10 @@ import (
 
 const ManualStepDoneLine = "Done by hand, confirmed in MoltenTerm."
 
-func (r *Runs) recordManualStep(dir, project string, step molten.PipelineStep, tag string) (RunRecord, error) {
+func (r *Runs) recordManualStep(dir, project string, step molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
 	now := r.now()
 	zero := 0
-	title := step.Title
+	title := expandReleaseText(step.Title, session)
 	if title == "" {
 		title = step.Id
 	}
@@ -34,7 +34,7 @@ func (r *Runs) recordManualStep(dir, project string, step molten.PipelineStep, t
 		State:      RunStateSuccess,
 		Exit:       &zero,
 		Phases:     []string{},
-		Tag:        tag,
+		Tag:        session.Tag,
 	}
 	if err := r.identifyProject(project); err != nil {
 		return rec, err
@@ -43,7 +43,7 @@ func (r *Runs) recordManualStep(dir, project string, step molten.PipelineStep, t
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return rec, err
 	}
-	log := step.Manual + "\n" + ManualStepDoneLine + "\n"
+	log := expandReleaseText(step.Manual, session) + "\n" + ManualStepDoneLine + "\n"
 	if err := os.WriteFile(filepath.Join(runDir, LogFileName), []byte(log), 0600); err != nil {
 		return rec, err
 	}

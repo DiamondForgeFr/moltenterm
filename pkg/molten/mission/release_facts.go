@@ -465,6 +465,21 @@ func (r *Runs) checkFollowed(dir string, p *molten.Pipeline, tag string) (Releas
 	return session, nil
 }
 
+// manualStepOf tells whether a release step with this id, in either channel, is a manual one.
+func manualStepOf(p *molten.Pipeline, id string) bool {
+	if p == nil || p.Release == nil {
+		return false
+	}
+	for _, steps := range [][]molten.PipelineStep{p.Release.Rc, p.Release.Public} {
+		for _, s := range steps {
+			if s.Id == id && s.IsManual() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RunReleaseStep runs a declared step of the release followed, or its preparation again (ReleasePreparationStepId);
 // one at a time.
 func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
@@ -473,9 +488,15 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	}
 	dir := filepath.Clean(req.Dir)
 	project := canonicalRunDir(dir)
-	p, untrusted, err := r.trustedPipelineAt(dir, project)
-	if err != nil || untrusted != nil {
-		return RunResult{Untrusted: untrusted}, err
+	p, err := validPipelineAt(project)
+	if err != nil {
+		return RunResult{}, err
+	}
+	// A manual step runs nothing, so marking it done never waits for the commands' trust (#1091); every other step
+	// does.
+	untrusted := r.untrustedIn(dir, p)
+	if untrusted != nil && !manualStepOf(p, req.Step) {
+		return RunResult{Untrusted: untrusted}, nil
 	}
 	release, held := r.reserveAdmission(project, RunKindRelease, req.Tag)
 	if release == nil {
@@ -493,6 +514,9 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	steps := channelSteps(p, session.Channel)
 	var rec RunRecord
 	if req.Step == ReleasePreparationStepId {
+		if untrusted != nil {
+			return RunResult{Untrusted: untrusted}, nil
+		}
 		if len(molten.ReleasePreparation(steps)) == 0 {
 			return RunResult{}, uimsg.Errorf(uimsg.Make("mission.release.noPreparation"), "the pipeline declares no preparation")
 		}
@@ -504,14 +528,17 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 			continue
 		}
 		if step.IsManual() {
-			rec, err = r.recordManualStep(dir, project, step, session.Tag)
+			rec, err = r.recordManualStep(dir, project, step, session)
 			return RunResult{Run: &rec}, err
+		}
+		if untrusted != nil {
+			return RunResult{Untrusted: untrusted}, nil
 		}
 		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, project))
 		if err != nil {
 			return RunResult{}, err
 		}
-		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env, Run: run}
+		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: expandReleaseText(step.Title, session), Cwd: step.Cwd, Env: step.Env, Run: run}
 		rec, err = r.launchAt(dir, project, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}

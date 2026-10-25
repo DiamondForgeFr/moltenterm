@@ -340,16 +340,37 @@ func (r *Runs) trustedPipeline(dir string) (*molten.Pipeline, *UntrustedInfo, er
 }
 
 func (r *Runs) trustedPipelineAt(dir, project string) (*molten.Pipeline, *UntrustedInfo, error) {
+	p, err := validPipelineAt(project)
+	if err != nil {
+		return nil, nil, err
+	}
+	if untrusted := r.untrustedIn(dir, p); untrusted != nil {
+		return nil, untrusted, nil
+	}
+	return p, nil, nil
+}
+
+func validPipelineAt(project string) (*molten.Pipeline, error) {
 	report := molten.ValidatePipeline(project)
 	if !report.Valid {
-		return nil, nil, pipelineError(report)
+		return nil, pipelineError(report)
 	}
-	commands := PipelineCommands(report.Pipeline)
+	return report.Pipeline, nil
+}
+
+// untrustedIn is nil when the user trusts the pipeline's commands in dir, else the commands to review.
+func (r *Runs) untrustedIn(dir string, p *molten.Pipeline) *UntrustedInfo {
+	commands := PipelineCommands(p)
 	hash := CommandsHash(commands)
-	if !r.trust.IsTrusted(dir, hash) {
-		return nil, &UntrustedInfo{Hash: hash, Commands: commands}, nil
+	if r.trust.IsTrusted(dir, hash) {
+		return nil
 	}
-	return report.Pipeline, nil, nil
+	return &UntrustedInfo{Hash: hash, Commands: commands}
+}
+
+// expandReleaseText puts the release's words in a step's title or instructions, as the release panel shows them.
+func expandReleaseText(text string, session ReleaseSession) string {
+	return strings.NewReplacer("{tag}", session.Tag, "{version}", session.Version).Replace(text)
 }
 
 func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
