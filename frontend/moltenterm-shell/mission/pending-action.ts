@@ -92,6 +92,27 @@ export function usePendingLock(revision?: unknown): PendingLock {
     return { pending, run };
 }
 
+// How a click ended (#1091), so that none ends with nothing said: refused (another action of the card holds it, nothing
+// was sent), asked (the backend answered, but something must be answered first, such as the commands' trust) or done.
+export type ActionOutcome = "refused" | "asked" | "done";
+
+// fn resolving to false means it did not start: the gate reports it as answered, the outcome says asked.
+export async function runAction(
+    lock: PendingLock,
+    key: string,
+    fn: () => Promise<boolean | void>
+): Promise<ActionOutcome> {
+    let answer: boolean | void;
+    const ran = await lock.run(key, async () => {
+        answer = await fn();
+        return answer;
+    });
+    if (!ran) {
+        return "refused";
+    }
+    return answer === false ? "asked" : "done";
+}
+
 export const PendingLockContext = createContext<PendingLock>(null);
 
 // The card's lock when the component sits in one, its own otherwise.

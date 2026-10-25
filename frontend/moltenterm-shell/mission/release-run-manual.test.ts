@@ -121,3 +121,69 @@ describe("manual and dispatch release steps (FR-MC-037)", () => {
         expect(build.expect).toContain("npm-production");
     });
 });
+
+// SaaSFoundryAI's v1.1.0 (#1091): the last manual cut step before the pull-request flow, with backticks in its text.
+const prFlow: PipelineReleaseStep[] = [
+    { id: "prepare", title: "Bump on rc-{version}", phase: "prepare", run: "molten release prepare {tag} --pr" },
+    {
+        id: "changelog-en",
+        title: "Write the [{version}] section of docs/changelog.md",
+        phase: "cut",
+        manual: "en",
+        run: undefined,
+    },
+    {
+        id: "changelog-fr",
+        title: "Write the [{version}] section of docs/fr/changelog.md",
+        phase: "cut",
+        manual: "fr",
+        run: undefined,
+    },
+    {
+        id: "agents-version",
+        title: "Set the current version line of AGENTS.md to {version}",
+        phase: "cut",
+        manual: "On rc-{version}, set the line to '- Current version: {version} (npm package `saasfoundryai-cli`)'.",
+        run: undefined,
+    },
+    { id: "rewrite-notes", title: "Rewrite the public notes", notes: true, run: "molten release notes {tag}" },
+    {
+        id: "open-pr",
+        title: "Commit the release on rc-{version} and open its pull request to master",
+        phase: "cut",
+        confirm: "Pushes rc-{version}.",
+        run: "molten release open-pr {tag}",
+    },
+    { id: "tag", title: "Tag", phase: "cut", confirm: "{tag} is public once pushed.", run: "molten release tag {tag}" },
+];
+
+describe("the manual cut step before the pull-request flow (#1091)", () => {
+    const at = (done: string[]) =>
+        releaseRun(
+            facts({
+                tag: "v1.1.0",
+                version: "1.1.0",
+                session: { tag: "v1.1.0", version: "1.1.0", channel: "public", startedat: 1 },
+                notes: "/r/releases/v1.1.0.md",
+                notesdrafted: true,
+                steps: Object.fromEntries(done.map((id) => [id, ok()])),
+            }),
+            prFlow
+        ).phases.find((p) => p.id === "cut");
+
+    it("offers Mark as done for agents-version, its text with the release's words and its backticks", () => {
+        const cut = at(["changelog-en", "changelog-fr"]);
+        expect(cut.action).toMatchObject({ kind: "step", step: "agents-version" });
+        expect(cut.action.label).toBe("Mark as done: Set the current version line of AGENTS.md to 1.1.0");
+        expect(cut.action.kind === "step" && cut.action.confirm).toContain("runs nothing");
+        expect(cut.manual).toBe(
+            "On rc-1.1.0, set the line to '- Current version: 1.1.0 (npm package `saasfoundryai-cli`)'."
+        );
+    });
+
+    it("goes on to the pull request once it is recorded", () => {
+        const cut = at(["changelog-en", "changelog-fr", "agents-version"]);
+        expect(cut.manual).toBeUndefined();
+        expect(cut.action).toMatchObject({ kind: "step", step: "open-pr", confirm: "Pushes rc-1.1.0." });
+    });
+});

@@ -6,10 +6,10 @@
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
 // while it waits its public notes are read and edited here.
 
-import { atoms } from "@/app/store/global";
+import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { t, useLocale, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -35,7 +35,7 @@ import {
 } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
 import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
-import { PendingLock, PendingLockContext, useCardLock, usePendingLock } from "./pending-action";
+import { PendingLock, PendingLockContext, runAction, useCardLock, usePendingLock } from "./pending-action";
 import { ReleaseSession } from "./release-model";
 import { ReleaseFailureActions, ReleaseResolveActions } from "./release-resolve";
 import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
@@ -147,6 +147,16 @@ function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
     );
 }
 
+// Every release action and how it ended goes to waveapp.log: the panel's clicks are otherwise nowhere to be read back
+// (#1091).
+export function logReleaseAction(text: string) {
+    try {
+        getApi()?.sendLog(`[release] ${text}`);
+    } catch {
+        // No log outside the app (tests, the preview server).
+    }
+}
+
 function ActionButton({
     action,
     actions,
@@ -161,18 +171,30 @@ function ActionButton({
     const lock = useCardLock();
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
+    const [notice, setNotice] = useState<string>(null);
     const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
     const go = () =>
         fireAndForget(async () => {
             setError(null);
+            setNotice(null);
             try {
-                if (await lock.run(key, () => actions.run(action))) {
-                    setConfirming(false);
+                const outcome = await runAction(lock, key, () => actions.run(action));
+                if (outcome === "refused") {
+                    logReleaseAction(`${action.label}: not sent, another action of the card is under way`);
+                    setNotice(t("mc.releaseRun.actionRefused"));
+                    return;
                 }
+                if (outcome === "asked") {
+                    setNotice(t("mc.releaseRun.trustFirst"));
+                    return;
+                }
+                setConfirming(false);
             } catch (e) {
-                setError(serverErrorText(e));
+                const text = serverErrorText(e) || t("mc.releaseRun.actionFailed");
+                logReleaseAction(`${action.label}: ${text}`);
+                setError(text);
             }
         });
     return (
@@ -206,6 +228,11 @@ function ActionButton({
                     {plain ? null : <MoltenWave />}
                 </button>
             </div>
+            {notice ? (
+                <p className="text-right text-12 text-warning" role="status" data-testid="release-run-notice">
+                    {notice}
+                </p>
+            ) : null}
             {error ? (
                 <p className="text-right text-12 text-danger" role="alert">
                     {error}
@@ -597,6 +624,15 @@ export function ReleaseRunPanel({
     );
 }
 
+// Brings what follows it on screen once: the trust prompt sits below the whole release card, often out of view (#1091).
+function ScrollIntoView() {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        ref.current?.nextElementSibling?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, []);
+    return <div ref={ref} aria-hidden />;
+}
+
 // The release followed, in the Project tab: its facts, the actions that move it forward under the trust rule, and its
 // end, by itself once all five phases are done or when the user abandons it.
 export function ReleaseRunSection({
@@ -640,15 +676,23 @@ export function ReleaseRunSection({
                     reload();
                     return true;
                 }
-                const result = await releaseRunStep(
-                    dir,
-                    tag,
-                    action.kind === "prepare" ? PreparationStep : action.step
-                );
+                const step = action.kind === "prepare" ? PreparationStep : action.step;
+                logReleaseAction(`step ${step} of ${tag}: sent`);
+                let result: Awaited<ReturnType<typeof releaseRunStep>>;
+                try {
+                    result = await releaseRunStep(dir, tag, step);
+                } catch (e) {
+                    logReleaseAction(`step ${step} of ${tag}: refused, ${serverErrorText(e)}`);
+                    throw e;
+                }
                 if (result?.untrusted) {
+                    logReleaseAction(`step ${step} of ${tag}: waits for the commands' trust`);
                     setPending({ action, info: result.untrusted });
                     return false;
                 }
+                logReleaseAction(
+                    `step ${step} of ${tag}: run ${result?.run?.id ?? "none"} ${result?.run?.state ?? ""}`
+                );
                 reload();
                 return true;
             },
@@ -739,6 +783,7 @@ export function ReleaseRunSection({
                     {error}
                 </p>
             ) : null}
+            {pending != null ? <ScrollIntoView /> : null}
             {pending != null ? (
                 <TrustPrompt
                     projectName={projectName}

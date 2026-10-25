@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PendingGate } from "./pending-action";
+import { PendingGate, PendingLock, runAction } from "./pending-action";
 
 // A backend call the test answers when it wants: the button stays pending until then.
 function deferred<T = boolean | void>() {
@@ -106,5 +106,38 @@ describe("one action at a time on a card (#952)", () => {
         expect(g.held).toBe("action:Prepare");
         vi.runAllTimers();
         expect(g.held).toBe("");
+    });
+});
+
+describe("a click never ends with nothing said (#1091)", () => {
+    const lockOf = (g: PendingGate): PendingLock => ({ pending: g.held, run: (key, fn) => g.run(key, fn, true) });
+
+    it("says refused when another action of the card holds it, and sends nothing", async () => {
+        const { g } = gate();
+        const first = deferred();
+        void g.run("action:Mark as done: Write the [1.1.0] section of docs/fr/changelog.md", () => first.promise, true);
+        const sent = vi.fn(async () => true);
+        const outcome = await runAction(
+            lockOf(g),
+            "action:Mark as done: Set the current version line of AGENTS.md to 1.1.0",
+            sent
+        );
+        expect(outcome).toBe("refused");
+        expect(sent).not.toHaveBeenCalled();
+        first.resolve(true);
+    });
+
+    it("says asked when the backend answered that something must be answered first, such as the trust", async () => {
+        const { g } = gate();
+        const outcome = await runAction(lockOf(g), "action:Mark as done", async () => false);
+        expect(outcome).toBe("asked");
+        expect(g.held).toBe("");
+    });
+
+    it("says done once the step started or was recorded", async () => {
+        const { g } = gate();
+        expect(await runAction(lockOf(g), "action:Mark as done", async () => true)).toBe("done");
+        g.revised();
+        expect(await runAction(lockOf(g), "action:Save", async () => {})).toBe("done");
     });
 });
