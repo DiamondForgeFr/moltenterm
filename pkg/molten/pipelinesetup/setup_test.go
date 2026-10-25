@@ -178,6 +178,9 @@ func TestDraftSaaSFoundryShapedRepository(t *testing.T) {
 	if strings.Contains(rc[4].Confirm, "publish-stable.yml") {
 		t.Fatalf("the RC tag does not start publish-stable: %s", rc[4].Confirm)
 	}
+	if strings.Join(answer.TagCi[ChannelPublic], ",") != "test.yml" || strings.Join(answer.TagCi[ChannelRc], ",") != "test.yml" {
+		t.Fatalf("the tags' tests: %v", answer.TagCi)
+	}
 	if public[6].Run != "molten release dispatch deploy-docs.yml --ref {tag}" {
 		t.Fatalf("dispatch: %s", public[6].Run)
 	}

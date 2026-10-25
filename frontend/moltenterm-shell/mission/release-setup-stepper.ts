@@ -20,7 +20,16 @@ export type SetupSurvey = {
     apptype: SetupAppType;
     apptypeevidence: SetupSource[];
     kind: SetupKind;
-    tags: { read: boolean; prefix: string; count: number; first?: string; last?: string };
+    tags: {
+        read: boolean;
+        prefix: string;
+        count: number;
+        first?: string;
+        last?: string;
+        pre?: number;
+        lastpublic?: string;
+        lastmerge?: boolean;
+    };
     releases: { ongithub: boolean; read: boolean; error?: string; count: number; last?: string };
     publish: { file: string; tags: string[]; ships: string[] }[];
     changelogs: { path: string; sections: number; last?: string }[];
@@ -40,6 +49,8 @@ export type SetupAnswers = {
     path?: SetupPath;
     touched?: boolean;
     options?: SetupOptions;
+    // Step 2a's answers to the points of the existing pipeline (#1101).
+    points?: Record<string, string>;
 };
 
 // A web app or a SaaS is deployed (the saas template); every other type ships versions (pipelinesetup.KindOfAppType).
