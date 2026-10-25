@@ -1,54 +1,83 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The developer's choice of order for the Reviews list (FR-REV-024 AC-5): the suggested merge order or the list's own,
-// remembered on this computer and shared by its windows. Storage may be unavailable: the suggested order applies then.
+// The developer's sort of the Reviews panel (FR-REV-001 AC13, #1061; FR-REV-024 AC-5): by state, or by the suggested
+// merge order, remembered on this computer and shared by its windows. Storage may be unavailable: by state then.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import type { ReviewsSort } from "./reviews-sections-model";
 
-export type MergeOrderChoice = "suggested" | "list";
+export const ReviewsSortStorageKey = "moltenterm:reviews:sort";
 
-export const MergeOrderStorageKey = "moltenterm:reviews:mergeorder";
-
-function readChoice(): MergeOrderChoice {
+function readSort(): ReviewsSort {
     try {
-        return globalThis.localStorage?.getItem(MergeOrderStorageKey) === "list" ? "list" : "suggested";
+        return globalThis.localStorage?.getItem(ReviewsSortStorageKey) === "merge" ? "merge" : "state";
     } catch {
-        return "suggested";
+        return "state";
     }
 }
 
-export class MergeOrderPref {
-    private static instance: MergeOrderPref = null;
+export class ReviewsSortPref {
+    private static instance: ReviewsSortPref = null;
 
-    choiceAtom = atom(readChoice()) as PrimitiveAtom<MergeOrderChoice>;
+    sortAtom = atom(readSort()) as PrimitiveAtom<ReviewsSort>;
 
     private constructor() {
         globalThis.addEventListener?.("storage", (e: StorageEvent) => {
-            if (e.key === MergeOrderStorageKey) {
-                globalStore.set(this.choiceAtom, readChoice());
+            if (e.key === ReviewsSortStorageKey) {
+                globalStore.set(this.sortAtom, readSort());
             }
         });
     }
 
-    static getInstance(): MergeOrderPref {
-        if (MergeOrderPref.instance == null) {
-            MergeOrderPref.instance = new MergeOrderPref();
+    static getInstance(): ReviewsSortPref {
+        if (ReviewsSortPref.instance == null) {
+            ReviewsSortPref.instance = new ReviewsSortPref();
         }
-        return MergeOrderPref.instance;
+        return ReviewsSortPref.instance;
     }
 
     static resetInstance(): void {
-        MergeOrderPref.instance = null;
+        ReviewsSortPref.instance = null;
     }
 
-    set(choice: MergeOrderChoice) {
-        globalStore.set(this.choiceAtom, choice);
+    set(sort: ReviewsSort) {
+        globalStore.set(this.sortAtom, sort);
         try {
-            globalThis.localStorage?.setItem(MergeOrderStorageKey, choice);
+            globalThis.localStorage?.setItem(ReviewsSortStorageKey, sort);
         } catch {
             // The choice still holds for this session.
         }
     }
+}
+
+// The sections the developer folded or unfolded (#1061), by project and section, for this session: a section they
+// never touched follows its default (the bottom sections fold when the panel's content is longer than the panel).
+export class ReviewsFolds {
+    private static instance: ReviewsFolds = null;
+
+    foldsAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
+
+    private constructor() {}
+
+    static getInstance(): ReviewsFolds {
+        if (ReviewsFolds.instance == null) {
+            ReviewsFolds.instance = new ReviewsFolds();
+        }
+        return ReviewsFolds.instance;
+    }
+
+    static resetInstance(): void {
+        ReviewsFolds.instance = null;
+    }
+
+    set(dir: string, section: string, open: boolean) {
+        globalStore.set(this.foldsAtom, { ...globalStore.get(this.foldsAtom), [`${dir}\n${section}`]: open });
+    }
+}
+
+// Whether a section is open: the developer's choice this session, else its default.
+export function sectionOpen(folds: Record<string, boolean>, dir: string, section: string, byDefault: boolean): boolean {
+    return folds?.[`${dir}\n${section}`] ?? byDefault;
 }

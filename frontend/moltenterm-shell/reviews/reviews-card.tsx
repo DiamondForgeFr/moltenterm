@@ -8,7 +8,7 @@
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { cn, fireAndForget } from "@/util/util";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { Phrase, phrase, useWordPhrase } from "../i18n/phrase";
@@ -16,11 +16,11 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
-import { RowAgentLine, useCardAgents, useDraftTurn, useHeadStillFails } from "./reviews-agent-bar";
+import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent-bar";
 import { BatchCheckbox, BatchRowChip } from "./reviews-batch";
 import type { BatchRowMark } from "./reviews-batch-model";
 import { CardAction, CardFact, CardFactTone, cardState, CardState, CardTone } from "./reviews-card-model";
-import { RerunConfirm, rerunnable, useRerunFailed } from "./reviews-ci-actions";
+import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
 import { ForecastMarkChip, ForecastNote, linkedRowClass, RowForecast } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
@@ -28,9 +28,10 @@ import { launchTargetOfPr } from "./reviews-launch-model";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
 import { MergeOrderRank, MergeOrderReason, RowOrder } from "./reviews-order";
+import { cardInputOf } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 
-const RailColours: Record<CardTone, string> = {
+export const RailColours: Record<CardTone, string> = {
     ready: "var(--mt-state-done)",
     you: "var(--mt-state-waiting)",
     agent: "var(--mt-state-working)",
@@ -38,7 +39,7 @@ const RailColours: Record<CardTone, string> = {
     wait: "var(--mt-line-2)",
 };
 
-const SentenceClasses: Record<CardTone, string> = {
+export const SentenceClasses: Record<CardTone, string> = {
     ready: "text-success",
     you: "text-[var(--mt-state-waiting)]",
     agent: "text-accent",
@@ -53,13 +54,14 @@ const FactClasses: Record<CardFactTone, string> = {
     muted: "text-muted",
 };
 
-const CalmButton =
+export const CalmButton =
     "flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2.5 text-12 whitespace-nowrap text-primary hover:bg-hover";
-const MoltenButton = "molten-btn flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12";
+export const MoltenButton =
+    "molten-btn flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12";
 // A disabled action keeps the calm look, never the molten one, and says why on hover and to assistive technologies.
 const DisabledButton =
     "flex h-[26px] shrink-0 items-center gap-1.5 rounded-6 border border-border/60 px-2.5 text-12 whitespace-nowrap text-muted opacity-70";
-const MoreButton =
+export const MoreButton =
     "flex h-[26px] w-[26px] shrink-0 cursor-pointer items-center justify-center rounded-6 border border-transparent text-secondary hover:border-border hover:text-primary";
 const ConfirmButton =
     "flex shrink-0 cursor-pointer items-center rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -107,7 +109,10 @@ export function ReviewRow({
     order,
     batchCheck,
     batchMark,
+    card: cardProp,
 }: {
+    // The state the list computed for the card's section (#1061).
+    card?: CardState;
     pr: ReviewPr;
     selected: boolean;
     marked: boolean;
@@ -129,9 +134,10 @@ export function ReviewRow({
     const t = useT();
     useLocale();
     const word = useWordPhrase();
-    const { agents, prTask, owner, live, state: taskState } = useCardAgents(dir, pr, rebaseAsk);
-    const headFails = useHeadStillFails(dir, pr, agents, taskState);
-    const board = useDraftTurn(dir, pr, agents);
+    const ctx = useCardContext(dir);
+    const input = useMemo(() => cardInputOf(pr, rebaseAsk, ctx), [pr, rebaseAsk, ctx]);
+    const prTask = input.task;
+    useHeadStillFails(dir, pr, input.agents, input.taskState);
     const markReady = useMarkReady(dir, pr.number, repo);
     const rerun = useRerunFailed(dir, pr.number);
     const [busy, setBusy] = useState<string>(null);
@@ -144,18 +150,8 @@ export function ReviewRow({
         setOutcome(null);
     }
     useEscape(confirm != null, () => setConfirm(null));
-    const card: CardState = cardState({
-        pr,
-        agents,
-        task: prTask,
-        taskState,
-        taskOwner: owner,
-        taskLive: live,
-        boardTurn: agents.length === 0 ? board.turn : null,
-        boardStatus: board.status,
-        headFails,
-        rerunnable: rerunnable(pr),
-    });
+    // The list passes the state it sorted the card by; alone (tests), the card computes the same.
+    const card: CardState = cardProp ?? cardState(input);
     const head = reviewHeadline(pr);
     const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
     const ask = (id: string, fn: () => Promise<RebaseOutcome>) => {

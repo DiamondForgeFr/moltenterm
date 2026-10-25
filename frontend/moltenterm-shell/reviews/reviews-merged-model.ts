@@ -78,15 +78,17 @@ export function notesByPr(notes: readonly ReviewNote[]): Record<number, number> 
 
 export const MergedOpenStorageKey = "moltenterm:reviews:mergedopen";
 
+// null: never chosen on this computer, the section follows its default (#1061: folded when the panel is long).
 function readOpen(): boolean {
     try {
-        return globalThis.localStorage?.getItem(MergedOpenStorageKey) !== "closed";
+        const stored = globalThis.localStorage?.getItem(MergedOpenStorageKey);
+        return stored == null ? null : stored !== "closed";
     } catch {
-        return true;
+        return null;
     }
 }
 
-// Whether Recently merged is expanded (AC2), shared by the windows of this computer; expanded when storage fails.
+// Whether Recently merged is expanded (AC3), shared by the windows of this computer; its default when never chosen.
 export class MergedOpenPref {
     private static instance: MergedOpenPref = null;
 

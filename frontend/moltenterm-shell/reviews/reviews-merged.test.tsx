@@ -69,34 +69,65 @@ describe("Recently merged (#843)", () => {
         expect(notesByPr([{ pr: { number: 3 } }, { pr: { number: 3 } }, { pr: null }] as any)).toEqual({ 3: 2 });
     });
 
-    it("shows when, who and where each PR ships", () => {
+    it("groups the PRs by version, one compact row each (#1061)", () => {
         vi.stubGlobal("localStorage", memoryStorage());
         const html = renderToStaticMarkup(
             <MergedSection
                 answer={answer([
-                    merged(7, { ticket: 801, ships: "next" }),
-                    merged(6, { ships: "tag", shipsin: "v1.0.0-4" }),
+                    merged(7, {
+                        ticket: 801,
+                        title: "[#801] Terminal header icon",
+                        ships: "next",
+                        author: "boss",
+                        agents: [{ firstname: "Paul", agent: "claude", model: "opus" }],
+                    }),
+                    merged(6, { ships: "tag", shipsin: "v1.0.0-4", author: "boss" }),
+                    merged(5, { ships: "tag", shipsin: "v1.0.0-4", author: "ana" }),
                 ])}
                 onShowNotes={() => {}}
             />
         );
         expect(html).toContain("Recently merged");
-        expect(html).toContain("merged 1 hour ago by boss");
+        expect(html).toContain("In the next version");
+        expect(html).toContain("Prepare the notes");
+        expect(html).toContain("In v1.0.0-4");
+        expect(html).toContain("Release notes");
         expect(html).toContain("#801");
-        expect(html).toContain("next release");
-        expect(html).toContain("in v1.0.0-4");
-        expect(html).toContain("2 notes");
-        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(2);
-        // #960: the way to the whole history, which opens only when asked; on the heading line, before the rows (#1070).
+        expect(html).toContain("Terminal header icon");
+        expect(html).not.toContain("[#801]");
+        expect(html).toContain("Paul · Opus");
+        // The developer merged it: "by you" is not said; the developer's own PR without an agent says "you".
+        expect(html).not.toContain("by boss");
+        expect(html).toContain(">you<");
+        expect(html).toContain("by ana");
+        expect(html).not.toContain("next release");
+        expect(html).toContain("✎");
+        expect(html).toContain("1 h");
+        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(3);
+        expect(html).not.toContain("reviews-merged-detail");
+        // #960, #1070: the way to the whole history, which opens only when asked.
         expect(html).toContain("All merged pull requests");
         expect(html.indexOf("reviews-merged-all")).toBeLessThan(html.indexOf("reviews-merged-row"));
         expect(html).not.toContain("merged-history");
     });
 
-    it("remembers collapsed and expanded", () => {
+    it("shows six rows a group, then the rest in the history", () => {
+        vi.stubGlobal("localStorage", memoryStorage());
+        const rows = Array.from({ length: 9 }, (_, i) => merged(100 + i, { ships: "next" }));
+        const html = renderToStaticMarkup(<MergedSection answer={answer(rows)} onShowNotes={() => {}} />);
+        expect(html.match(/data-testid="reviews-merged-row"/g)).toHaveLength(6);
+        expect(html).toContain("… 3 more");
+        expect(html).toContain("Show all");
+    });
+
+    it("remembers collapsed and expanded, else follows its default", () => {
         const storage = memoryStorage();
         vi.stubGlobal("localStorage", storage);
-        expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBe(true);
+        expect(globalStore.get(MergedOpenPref.getInstance().openAtom)).toBeNull();
+        const folded = renderToStaticMarkup(
+            <MergedSection answer={answer([merged(7)])} onShowNotes={() => {}} defaultOpen={false} />
+        );
+        expect(folded).not.toContain("reviews-merged-row");
         MergedOpenPref.getInstance().set(false);
         expect(storage.data.get(MergedOpenStorageKey)).toBe("closed");
         MergedOpenPref.resetInstance();
