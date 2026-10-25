@@ -90,7 +90,13 @@ export function DescribeStep({
     onFrom,
     onWords,
     children,
+    askedTemplate,
+    forgotten,
 }: {
+    // Opened from step 1's "Use a template" (#1106): says so when none is saved yet.
+    askedTemplate?: boolean;
+    // The name of the template the draft was started from, just forgotten: its choices are kept (#1106).
+    forgotten?: string;
     // The templates saved on this computer, checked against this project (FR-MC-042); null while they are read.
     templates?: SetupTemplateFit[];
     template?: string;
@@ -153,6 +159,23 @@ export function DescribeStep({
             <div className={BlockClass} role="radiogroup" aria-label={t("mc.setup.describe.fromTitle")}>
                 <span className={ChipClass}>{t("mc.setup.describe.fromTitle")}</span>
                 <p className="text-12 text-secondary">{t("mc.setup.describe.fromIntro")}</p>
+                {forgotten ? (
+                    <p
+                        className="rounded-4 border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-11 text-secondary"
+                        role="status"
+                        data-testid="setup-template-forgotten"
+                    >
+                        {t("mc.setup.template.forgottenKept", { name: forgotten })}
+                    </p>
+                ) : null}
+                {askedTemplate && templates != null && templates.length === 0 ? (
+                    <p
+                        className="rounded-4 border border-border bg-hover px-2.5 py-1.5 text-11 text-secondary"
+                        data-testid="setup-templates-none"
+                    >
+                        {t("mc.setup.template.noneSaved")}
+                    </p>
+                ) : null}
                 <TemplateChoices
                     fits={orderedFits(templates)}
                     selected={from === "template" ? template : ""}

@@ -225,4 +225,45 @@ describe("step 2b: describe a new pipeline (FR-MC-041)", () => {
         expect(none).toContain("No other linked project has a pipeline committed in its repository yet.");
         expect(none.match(/data-testid="setup-diagram"/g)).toHaveLength(1);
     });
+
+    // #1106: step 1's "Use a template" with none saved, and a forgotten template whose choices stay.
+    it("says when no template is saved yet, and that a forgotten template's choices are kept", () => {
+        const o = describeDefaults(draftOf(base), base);
+        const html = renderToStaticMarkup(
+            <DescribeStep
+                draft={draftOf(o)}
+                options={o}
+                from="template"
+                models={[]}
+                model=""
+                words=""
+                appType="cli"
+                templates={[]}
+                template=""
+                askedTemplate
+                onChange={() => {}}
+                onFrom={() => {}}
+                onWords={() => {}}
+            />
+        );
+        expect(html).toContain("No template is saved on this computer yet");
+        const forgotten = renderToStaticMarkup(
+            <DescribeStep
+                draft={draftOf(o)}
+                options={o}
+                from="standard"
+                models={[]}
+                model=""
+                words=""
+                appType="cli"
+                templates={[]}
+                forgotten="My CLI"
+                onChange={() => {}}
+                onFrom={() => {}}
+                onWords={() => {}}
+            />
+        );
+        expect(forgotten).toContain("“My CLI” is forgotten on this computer; the choices it filled in are kept below");
+        expect(forgotten).not.toContain("No template is saved");
+    });
 });

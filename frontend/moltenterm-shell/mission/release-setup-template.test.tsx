@@ -215,7 +215,7 @@ describe("step 4: save the pipeline as a template (FR-MC-042)", () => {
         ]);
         const need = needText({ code: "workflow", ok: false, target: "npm" });
         expect(translate("fr", need.key, { ...need.vars, target: "npm" })).toBe(
-            "Aucun workflow ne publie encore sur npm au tag : l'étape 3 propose molten-publish.yml."
+            "Aucun workflow ne publie encore sur npm au tag : l’étape 3 propose molten-publish.yml."
         );
     });
 

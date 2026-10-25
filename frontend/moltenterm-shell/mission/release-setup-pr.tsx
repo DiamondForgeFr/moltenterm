@@ -398,7 +398,13 @@ export function PrPanel({
     return (
         <div className={SectionClass} data-testid="setup-pr" ref={panel}>
             <div className={SectionTitle}>{t("mc.setup.pr.title")}</div>
-            <p className="text-11 text-muted">{plan.ongithub ? t("mc.setup.pr.desc") : t("mc.setup.pr.descPatch")}</p>
+            <p className="text-11 text-muted">
+                {plan.ongithub
+                    ? t("mc.setup.pr.desc")
+                    : plan.remote === false
+                      ? t("mc.setup.pr.descNoRemote")
+                      : t("mc.setup.pr.descPatch")}
+            </p>
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-12">
                 {plan.ticketrequired ? (
                     <>

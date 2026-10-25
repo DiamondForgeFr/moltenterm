@@ -18,7 +18,7 @@ vi.mock("./mission-client", () => ({
 }));
 vi.mock("./runs-view", () => ({ TrustPrompt: () => null }));
 
-import { flowModel, SetupDraft, SetupOptions, SetupPrJob } from "./release-setup-model";
+import { flowModel, SetupCheck, SetupDraft, SetupOptions, SetupPrJob } from "./release-setup-model";
 import { PreparedStep, PrFollow } from "./release-setup-prepared";
 import {
     diffCounts,
@@ -33,6 +33,7 @@ import {
     proposesFormat,
     SetupPrStatus,
     toggledCheck,
+    updateDraftOf,
 } from "./release-setup-prepared-model";
 
 const current = `{
@@ -384,5 +385,93 @@ describe("the pull request followed in step 3 (#1104)", () => {
                 />
             )
         ).toBe("");
+    });
+});
+
+// The update path's step 3 is the new setup's (#1106): rows per change, the result drawn, the commands to approve
+// and the agent's proposals, the changes already ticked at step 2.
+describe("step 3 of a project already set up (#1106)", () => {
+    const check: SetupCheck = {
+        state: "update",
+        reasons: [],
+        changes: [],
+        recordtemplate: 1,
+        template: 2,
+        releasebranch: "master",
+        current,
+        base: "b",
+        proposed,
+        signature: "s",
+        errors: [],
+        validatewarnings: [],
+        pr: { ...draft.pr, branch: "chore/release-pipeline", subject: "chore(release): update the release setup" },
+        options: { ...options, channels: ["rc", "public"] },
+    };
+    const updateDraft = updateDraftOf({ ...draft, recordexists: true }, check);
+
+    it("builds its draft from the update", () => {
+        expect(updateDraft.current).toBe(current);
+        expect(updateDraft.proposed).toBe(proposed);
+        expect(updateDraft.pr.subject).toBe("chore(release): update the release setup");
+        expect(updateDraft.proposal.release.public.map((s) => s.id)).toEqual([
+            "prepare",
+            "changelog-en",
+            "open-pr",
+            "tag",
+        ]);
+        expect(updateDraft.files).toEqual([]);
+    });
+
+    it("shows the rows, the diagram, the commands and the agent, without step 2's ticks", () => {
+        const html = renderToStaticMarkup(
+            <PreparedStep
+                dir="/p"
+                draft={updateDraft}
+                options={updateDraft.options}
+                refined={null}
+                onRefined={() => {}}
+                onRefining={() => {}}
+                update={{ template: 2 }}
+                agent={{ name: "Claude Code" }}
+            />
+        );
+        expect(html).toContain("Updated by MoltenTerm with its template 2");
+        expect(html).toContain('data-testid="prepared-step-public/changelog-en"');
+        expect(html).toContain('data-testid="setup-diagram-mark-added"');
+        expect(html).toContain("Commands to approve");
+        expect(html).toContain("Ask Claude Code for a proposal");
+        expect(html).not.toContain('data-testid="prepared-check-toggle-changelog-en"');
+        expect(html).not.toContain('data-testid="prepared-format-toggle"');
+        expect(html).not.toContain("The ticks are locked");
+    });
+
+    it("says before any click that no coding agent can answer, and keeps another agent's answer possible", () => {
+        const html = renderToStaticMarkup(
+            <PreparedStep
+                dir="/p"
+                draft={updateDraft}
+                options={updateDraft.options}
+                refined={null}
+                onRefined={() => {}}
+                onRefining={() => {}}
+                update={{ template: 2 }}
+                agent={{ name: "" }}
+            />
+        );
+        expect(html).toContain("No coding agent for this project");
+        expect(html).not.toContain('data-testid="setup-refine"');
+        expect(html).toContain('data-testid="setup-paste"');
+        const missing = renderToStaticMarkup(
+            <PreparedStep
+                dir="/p"
+                draft={draft}
+                options={options}
+                refined={null}
+                onRefined={() => {}}
+                onRefining={() => {}}
+                agent={{ name: "", missing: "Codex" }}
+            />
+        );
+        expect(missing).toContain("Codex, the coding agent chosen for this project, is not installed");
     });
 });

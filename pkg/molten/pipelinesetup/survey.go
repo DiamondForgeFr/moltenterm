@@ -103,7 +103,7 @@ type SurveyAnswer struct {
 	Git            bool     `json:"git"`
 	Remote         bool     `json:"remote"`
 	Empty          bool     `json:"empty"`
-	Agent          string   `json:"agent,omitempty"`
+	Agent          string   `json:"agent"`
 	AgentName      string   `json:"agentname,omitempty"`
 	AgentMissing   string   `json:"agentmissing,omitempty"`
 	PipelineErrors []string `json:"pipelineerrors,omitempty"`
