@@ -78,7 +78,7 @@ describe("the agent's step changes (#1099, FR-MC-039)", () => {
         expect(html).toContain("Écarter la proposition");
     });
 
-    it("names a pasted answer's author as another agent, and says when nothing is proposed", () => {
+    it("words a pasted answer as such, and says when nothing is proposed", () => {
         const html = renderToStaticMarkup(
             <ProposalCards
                 refined={{ ...refined, agent: "", agentname: "", changes: [], rejected: [] }}
@@ -88,7 +88,7 @@ describe("the agent's step changes (#1099, FR-MC-039)", () => {
                 onDrop={() => {}}
             />
         );
-        expect(html).toContain("another agent proposes no change to the draft.");
+        expect(html).toContain("The pasted answer proposes no change to the draft.");
     });
 
     it("asks in the developer's words, and offers any other agent the same request", () => {

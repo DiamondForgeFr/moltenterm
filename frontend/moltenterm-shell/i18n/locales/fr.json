@@ -3674,7 +3674,8 @@
             },
             "review": {
                 "folded": "{count} lignes inchangées",
-                "byAgent": "La proposition avec les changements de {agent} que vous avez cochés : rien n’est écrit avant que vous ouvriez la pull request.",
+                "byAgent": "La proposition avec les changements cochés de {agent} : rien n’est écrit avant que vous ouvriez la pull request.",
+                "byPasted": "La proposition avec les changements cochés de la réponse collée : rien n’est écrit avant que vous ouvriez la pull request.",
                 "bySaaSFoundry": "Rédigé par SaaSFoundryAI.",
                 "byMoltenTerm": "Rédigé par MoltenTerm d’après le dépôt.",
                 "refining": "L’agent lit le dépôt…",
@@ -3693,7 +3694,13 @@
                 "copied": "Copiée",
                 "pastePlaceholder": "Collez la réponse de l’agent ({\"changes\": [...]})",
                 "read": "Lire la réponse",
-                "otherAgent": "un autre agent",
+                "pasted": {
+                    "count": {
+                        "one": "La réponse collée propose 1 changement.",
+                        "other": "La réponse collée propose {count} changements."
+                    },
+                    "none": "La réponse collée ne propose aucun changement à la proposition."
+                },
                 "pill": "Proposition de l’agent",
                 "count": {
                     "one": "{agent} propose 1 changement.",
@@ -3716,7 +3723,7 @@
                     "other": "{count} changements proposés ne sont pas retenus"
                 },
                 "rejected": {
-                    "outside": "Hors de ce que la configuration propose ({detail}) : seuls les étapes de release et le bloc versions changent.",
+                    "outside": "Hors de ce que la configuration propose ({detail}) : seuls changent les étapes de release et le bloc versions.",
                     "malformed": "Pas un changement d’étape lisible par MoltenTerm : {detail}",
                     "missing": "Aucune étape {detail} dans la proposition.",
                     "exists": "La proposition a déjà une étape {detail}.",

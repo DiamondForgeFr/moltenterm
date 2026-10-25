@@ -3675,6 +3675,7 @@
             "review": {
                 "folded": "{count} unchanged lines",
                 "byAgent": "The draft with the changes you ticked from {agent}: nothing is written until you open the pull request.",
+                "byPasted": "The draft with the changes you ticked from the pasted answer: nothing is written until you open the pull request.",
                 "bySaaSFoundry": "Drafted by SaaSFoundryAI.",
                 "byMoltenTerm": "Drafted by MoltenTerm from the repository.",
                 "refining": "The agent reads the repository…",
@@ -3693,7 +3694,13 @@
                 "copied": "Copied",
                 "pastePlaceholder": "Paste the agent's answer ({\"changes\": [...]})",
                 "read": "Read the answer",
-                "otherAgent": "another agent",
+                "pasted": {
+                    "count": {
+                        "one": "The pasted answer proposes 1 change.",
+                        "other": "The pasted answer proposes {count} changes."
+                    },
+                    "none": "The pasted answer proposes no change to the draft."
+                },
                 "pill": "Agent proposal",
                 "count": {
                     "one": "{agent} proposes 1 change.",

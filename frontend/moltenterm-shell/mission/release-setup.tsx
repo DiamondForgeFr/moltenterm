@@ -653,7 +653,9 @@ export function ReviewStep({
                   ))}
             <p className="text-12 text-secondary">
                 {refined
-                    ? t("mc.setup.review.byAgent", { agent: refined.agentname })
+                    ? refined.agentname
+                        ? t("mc.setup.review.byAgent", { agent: refined.agentname })
+                        : t("mc.setup.review.byPasted")
                     : draft.provider === "saasfoundry"
                       ? t("mc.setup.review.bySaaSFoundry")
                       : t("mc.setup.review.byMoltenTerm")}
