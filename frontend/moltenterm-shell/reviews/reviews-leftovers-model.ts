@@ -12,12 +12,10 @@ import type { ReviewsAnswer } from "./reviews-model";
 import type { AgentBarFacts, UpcomingAnswer, UpcomingLeftover } from "./reviews-upcoming-model";
 
 // The cleanup's steps a leftover needs: never the ticket, the local trunk or the other PRs, which belong to a merge.
-export const LeftoverCleanupSteps: ReviewCleanupStepId[] = [
-    "review-worktree",
-    "agent-worktree",
-    "local-branch",
-    "remote-branch",
-];
+// Origin's branch goes last, once the agent worktree is gone: deleting it first makes the worktree's commits unpushed,
+// so the risk the developer confirmed for a kept worktree would no longer match and its removal would be refused.
+export const LeftoverCleanupSteps: ReviewCleanupStepId[] = ["review-worktree", "agent-worktree", "local-branch"];
+export const LeftoverRemoteStep: ReviewCleanupStepId = "remote-branch";
 
 // The agent states whose session closes without asking: nothing is going on in it.
 const RestingStates = new Set(["idle", "done"]);

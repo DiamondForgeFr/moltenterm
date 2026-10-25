@@ -24,6 +24,7 @@ import {
     keptAgentStep,
     LeftoverCleanupSteps,
     leftoverKey,
+    LeftoverRemoteStep,
     panelsClosable,
 } from "./reviews-leftovers-model";
 import { upcomingGet } from "./reviews-upcoming-client";
@@ -137,7 +138,14 @@ export class LeftoversModel {
         const { dir, leftover } = target;
         this.patch(dir, leftover.pr, { busy: true, error: null, notes: null, confirm: null });
         try {
-            const { result, kept, busyConfirmed } = await work();
+            const done = await work();
+            const { kept, busyConfirmed } = done;
+            let result = done.result;
+            const treeFailed = result?.steps?.some((s) => s.id === "agent-worktree" && s.state === "failed");
+            if (kept == null && !treeFailed) {
+                const remote = await runReviewCleanup({ ...this.request(target), steps: [LeftoverRemoteStep] });
+                result = mergeResults(result, remote);
+            }
             const patch: Partial<LeftoverState> = { notes: cleanupNotes(t, result, leftover) };
             if (kept != null) {
                 patch.confirm = { kind: "kept", step: kept, busyConfirmed };
