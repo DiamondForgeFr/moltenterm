@@ -36,6 +36,7 @@ var textFieldNames = map[string]bool{
 // English; a field that already holds a code is a code, not a sentence.
 var englishFields = map[string]string{
 	"mission.BranchCiBranch.Error":         "gh's raw error reading a branch's runs, data shown as gh said it (#836)",
+	"pipelinesetup.SurveyReleases.Error":   "gh's raw error, the detail under mc.setup.detect.releasesUnread (#1100)",
 	"review.MergePlan.Warnings":            "check ids (MergeCheck codes), worded by the Validate sheet",
 	"review.MergeRecord.Error":             "gh's raw error (tokens masked), the detail under Code, which the sheet words",
 	"review.Forecast.Error":                "a code (ForecastError…) the Reviews list words under reviews.forecast.error.*",
