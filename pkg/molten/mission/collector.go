@@ -84,6 +84,9 @@ const (
 	// Write and Update open a pull request (#1098): its progress, and the issues its commit can name.
 	SetupPrStateCommand = "moltenmissionsetupprstate"
 	SetupTicketsCommand = "moltenmissionsetuptickets"
+	// The stepper's step 1 and its answers kept between openings (FR-MC-038).
+	SetupSurveyCommand  = "moltenmissionsetupsurvey"
+	SetupAnswersCommand = "moltenmissionsetupanswers"
 	UpdateEvent         = "molten:mission:update"
 	RunEvent            = "molten:mission:run"
 	CiEvent             = "molten:mission:ci"
@@ -196,6 +199,11 @@ func (c *Collector) Size() int {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return len(c.projects)
+}
+
+// SetupAnswersDir: the pipeline setup stepper's answers, one file per project (FR-MC-038).
+func SetupAnswersDir(dataDir string) string {
+	return filepath.Join(CacheDir(dataDir), "setup-answers")
 }
 
 func CacheDir(dataDir string) string {
@@ -686,7 +694,7 @@ func Start() {
 	asks.tell = func(ctx context.Context, blockId string, line string) bool {
 		return termupdate.TypeHandoffLine(ctx, blockId, line).Result == termupdate.InputSent
 	}
-	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir)); err != nil {
+	if err := registerRoute(collector, runs, ci, panes, worktrees, groups, reviews, launches, asks, DepSyncTreesDir(dataDir), SetupAnswersDir(dataDir)); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.
