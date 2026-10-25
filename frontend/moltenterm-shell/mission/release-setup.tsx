@@ -984,8 +984,11 @@ export function ReleaseSetup({
     }, [describing, step, models, dir]);
     const choosePath = (next: SetupPath) => {
         setPath(next);
+        // The description does not carry over to 2a: the analysis starts again from the repository's own draft.
         if (next === "analyse" && options?.rc != null) {
-            change(undescribed(options));
+            setOptions(undescribed(options));
+            setTouched(false);
+            load(null, appType ? kindOfAppType(appType) : undefined);
         }
     };
     const chooseFrom = (next: DescribeFrom, dirOf?: string) => {
