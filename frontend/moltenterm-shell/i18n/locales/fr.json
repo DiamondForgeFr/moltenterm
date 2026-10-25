@@ -3746,26 +3746,32 @@
                 "legendPr": "Une pull request",
                 "legendTarget": "Publié vers",
                 "legendApproval": "Une approbation sur GitHub",
-                "legendConditional": "Seulement si besoin"
+                "legendConditional": "Seulement si besoin",
+                "legendChange": {
+                    "changed": "modifié",
+                    "added": "ajouté",
+                    "removed": "retiré"
+                }
             },
             "update": {
                 "open": "Mettre à jour la mise en place de la release",
                 "openHint": "Cette version de MoltenTerm écrit la release autrement.",
                 "upToDate": "Mise en place de la release à jour avec cette version de MoltenTerm",
-                "title": "Mettre à jour la release de {project}",
-                "subtitle": "MoltenTerm a comparé la release commitée avec ce que cette version écrit. Rien n'est écrit avant votre pull request.",
                 "why": "Pourquoi",
                 "reason": {
                     "protected": "{branch} est protégée : les releases passent par une pull request.",
                     "labels": "Libellés de version trouvés hors des fichiers de version : {count}. La release peut les mettre à jour.",
                     "template": "Des étapes écrites par une version antérieure de MoltenTerm diffèrent de ce qu’il écrit maintenant.",
-                    "customised": "Vous avez modifié des étapes écrites par MoltenTerm : gardez les vôtres ou prenez sa version. Un choix écrit n’est plus proposé."
+                    "customised": "Vous avez modifié des étapes écrites par MoltenTerm : gardez les vôtres ou prenez sa version. Un choix écrit n’est plus proposé.",
+                    "adjusted": "Les choix que vous avez ajustés écrivent ces étapes autrement.",
+                    "local": "Vos modifications non commitées sont incluses : chacune est un changement à vérifier."
                 },
                 "noRecord": "Cette release a été mise en place avant que MoltenTerm ne note ce qu’il écrit : les étapes qu’il reconnaît comme les siennes sont mises à jour, les autres sont gardées.",
                 "group": {
                     "rc": "Release candidate",
                     "public": "Version publique",
-                    "versions": "Fichiers de version"
+                    "versions": "Fichiers de version",
+                    "local": "Vos modifications non commitées"
                 },
                 "kind": {
                     "added": "Nouvelle",
@@ -3795,7 +3801,28 @@
                 "filesHint": "Seuls les blocs release et versions changent ; MoltenTerm note aussi dans .molten/release-setup.json les étapes qu’il a écrites.",
                 "keepAll": "Vous gardez chaque changement tel quel : le pipeline ne change pas, et la pull request note vos choix dans .molten/release-setup.json pour qu'ils ne soient plus proposés.",
                 "invalid": "Le pipeline mis à jour ne serait pas valide : {errors}",
-                "openSetup": "Ouvrir la configuration du pipeline"
+                "openSetup": "Ouvrir la configuration du pipeline",
+                "localFile": "Vos modifications hors des étapes de release : {keys}",
+                "local": {
+                    "added": "Une étape que vous avez ajoutée dans votre copie.",
+                    "changed": "Vous avez modifié ceci dans votre copie, sans le commiter.",
+                    "removed": "Vous avez retiré cette étape dans votre copie.",
+                    "versions": "Vous avez modifié ceci dans votre copie, sans le commiter."
+                },
+                "takeLocal": "Inclure cette modification",
+                "committed": "Commité",
+                "yourEdit": "Votre modification",
+                "yoursKept": "la vôtre, gardée",
+                "yoursReplaced": "la vôtre, remplacée",
+                "changes": "Changements",
+                "changesHint": "coché = pris · numérotés comme sur le schéma · vos propres étapes sont gardées sauf si vous les cochez",
+                "setUpBy": "Configuré par MoltenTerm avec le modèle {record} ; cette version écrit le modèle {template}.",
+                "upToDateTitle": "Pipeline à jour",
+                "upToDateHint": "Le pipeline correspond à ce qu’écrit le modèle {template}, et la protection de la branche de release aussi. Vous pouvez encore le revoir, et ajuster un choix dans « Tous les choix » : ce qu’il change s’affiche ici.",
+                "declared": "Le pipeline déclaré",
+                "adjusted": "Vous avez ajusté ces choix : les changements qu’ils entraînent sont listés plus haut, avec leur raison.",
+                "adjustHint": "Ces choix sont lus dans le pipeline déclaré. Changez-en un pour voir ce qu’il change, puis ouvrez la pull request à l’étape suivante.",
+                "nothing": "Rien ne change : le bouton de pull request reste désactivé tant qu’aucun choix n’est ajusté ni aucune modification incluse."
             },
             "pr": {
                 "title": "Valider par pull request",
@@ -3852,7 +3879,8 @@
                     "failed": "La pull request n'a pas pu être préparée. Votre copie n'a pas changé.",
                     "includeConflict": "Vos modifications non commitées sont en conflit avec {ref}. Préparez à nouveau sans elles, ou commitez-les d'abord."
                 },
-                "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d'abord pour les inclure."
+                "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d'abord pour les inclure.",
+                "includedAsChanges": "Vos modifications non commitées sont incluses comme changements à vérifier : chacune est listée ci-dessous, cochée, et vous pouvez en laisser de côté. Votre copie les garde telles quelles."
             },
             "stepper": {
                 "step": {
@@ -3871,13 +3899,20 @@
                 "templateLater": "L’enregistrement d’un pipeline comme modèle arrive dans une prochaine version.",
                 "fork": {
                     "analyse": "2a analyser",
-                    "describe": "2b décrire"
+                    "describe": "2b décrire",
+                    "update": "2a mettre à jour"
                 },
                 "nextDraw": "Suivant : dessiner le pipeline",
                 "nextDescribe": "Suivant : décrire le pipeline",
                 "nextPrepare": "Suivant : préparer le pipeline",
                 "stepOf": "Étape {n} sur {total}",
-                "close": "Fermer sans rien écrire"
+                "close": "Fermer sans rien écrire",
+                "updateSub": {
+                    "one": "{count} changement proposé",
+                    "other": "{count} changements proposés"
+                },
+                "upToDateSub": "à jour, à revoir",
+                "nextUpdate": "Suivant : préparer la mise à jour"
             },
             "describe": {
                 "fromTitle": "Partir de",

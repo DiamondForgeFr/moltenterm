@@ -33,9 +33,6 @@ import { releaseState, treeRules } from "./versions";
 
 // The release setup's dialogs load on their first opening, out of the entry every tab view evaluates (NFR-PERF-003).
 const ReleaseSetup = lazy(() => import("./release-setup").then((m) => ({ default: m.ReleaseSetup })));
-const ReleaseSetupUpdate = lazy(() =>
-    import("./release-setup-update").then((m) => ({ default: m.ReleaseSetupUpdate }))
-);
 
 const MilestoneReadDelayMs = 300;
 
@@ -69,9 +66,10 @@ export function ReleaseMenu({
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
     const [drift, setDrift] = useState<PipelineDrift>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
+    // The stepper, and the step it opens at: an update opens at step 2 (#1102).
     const [settingUp, setSettingUp] = useState(false);
+    const [setupAt, setSetupAt] = useState<"understand">(null);
     const [setupState, setSetupState] = useState<SetupCheck>(null);
-    const [updating, setUpdating] = useState(false);
     const [milestone, setMilestone] = useState<{ version: string; warning: MilestoneWarning; error: string }>(null);
 
     // The numbers are computed when the menu opens, from the remote as it is now.
@@ -241,7 +239,8 @@ export function ReleaseMenu({
                             reason={setupState.reasons[0]}
                             onOpen={() => {
                                 setOpen(false);
-                                setUpdating(true);
+                                setSetupAt("understand");
+                                setSettingUp(true);
                             }}
                         />
                     ) : null}
@@ -257,6 +256,7 @@ export function ReleaseMenu({
                                     type="button"
                                     onClick={() => {
                                         setOpen(false);
+                                        setSetupAt("understand");
                                         setSettingUp(true);
                                     }}
                                     className="cursor-pointer text-11 text-accent hover:underline"
@@ -358,18 +358,12 @@ export function ReleaseMenu({
                     <ReleaseSetup
                         dir={dir}
                         projectName={projectName}
-                        onClose={() => setSettingUp(false)}
+                        onClose={() => {
+                            setSettingUp(false);
+                            setSetupAt(null);
+                        }}
                         onWritten={() => onSetUp?.()}
-                    />
-                </Suspense>
-            ) : null}
-            {updating ? (
-                <Suspense fallback={null}>
-                    <ReleaseSetupUpdate
-                        dir={dir}
-                        projectName={projectName}
-                        onClose={() => setUpdating(false)}
-                        onWritten={() => onSetUp?.()}
+                        openAt={setupAt ?? undefined}
                     />
                 </Suspense>
             ) : null}

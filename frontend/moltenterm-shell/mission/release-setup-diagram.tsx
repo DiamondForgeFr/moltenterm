@@ -24,6 +24,14 @@ function shorten(text: string): string {
 
 type Placed = FlowNode & { x: number; y: number };
 
+// The badge of a change the update proposes (#1102), as the legend and the change list colour it.
+const ChangeColors: Record<NonNullable<FlowNode["change"]>, string> = {
+    changed: "var(--color-warning)",
+    versions: "var(--color-warning)",
+    added: "var(--color-success)",
+    removed: "var(--color-error)",
+};
+
 // A pull request's badge sits beside it: its required checks are written above.
 const badgeDx = (node: FlowNode) => (node.kind === "pr" ? 23 : 13);
 const badgeDy = (node: FlowNode) => (node.kind === "pr" ? 0 : -11);
@@ -326,12 +334,22 @@ export function FlowDiagram({
                             </text>
                         ) : null}
                         {node.badge != null ? (
-                            <g data-testid={`setup-diagram-badge-${node.badge}`}>
+                            <g
+                                data-testid={`setup-diagram-badge-${node.badge}`}
+                                data-change={node.change}
+                                style={node.untaken ? { opacity: 0.4 } : undefined}
+                            >
                                 <circle
                                     cx={node.x + badgeDx(node)}
                                     cy={node.y + badgeDy(node)}
                                     r={7}
-                                    style={{ fill: node.question ? "var(--color-warning)" : "var(--color-accent)" }}
+                                    style={{
+                                        fill: node.change
+                                            ? ChangeColors[node.change]
+                                            : node.question
+                                              ? "var(--color-warning)"
+                                              : "var(--color-accent)",
+                                    }}
                                 />
                                 <text
                                     x={node.x + badgeDx(node)}
@@ -423,6 +441,17 @@ export function FlowDiagram({
                         {t("mc.setup.diagram.legendApproval")}
                     </span>
                 ) : null}
+                {(["changed", "added", "removed"] as const).map((kind) =>
+                    has((n) => n.change === kind || (kind === "changed" && n.change === "versions")) ? (
+                        <span key={kind} className="flex items-center gap-1">
+                            <span
+                                className="inline-block h-2 w-2 rounded-full"
+                                style={{ background: ChangeColors[kind] }}
+                            />
+                            {t(`mc.setup.diagram.legendChange.${kind}`)}
+                        </span>
+                    ) : null
+                )}
                 {has((n) => n.conditional) ? (
                     <span className="flex items-center gap-1">
                         <span className="inline-block w-4 border-t border-dashed border-muted" />

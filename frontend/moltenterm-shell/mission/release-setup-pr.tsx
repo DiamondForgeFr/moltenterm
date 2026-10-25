@@ -75,10 +75,13 @@ export function UncommittedNotice({
     plan,
     current,
     onInclude,
+    asChanges,
 }: {
     plan: SetupPrPlan;
     current: string;
     onInclude: (include: boolean) => void;
+    // Step 2a of a project already set up lists the included edits as changes of their own (#1102).
+    asChanges?: boolean;
 }) {
     const t = useT();
     const [open, setOpen] = useState(false);
@@ -95,7 +98,7 @@ export function UncommittedNotice({
         >
             <p className="text-secondary">
                 {plan.included
-                    ? t("mc.setup.pr.included")
+                    ? t(asChanges ? "mc.setup.pr.includedAsChanges" : "mc.setup.pr.included")
                     : t("mc.setup.pr.uncommitted", { path: PipelineFile, ref: plan.ref || "HEAD" })}
             </p>
             {plan.conflict && !plan.included ? (

@@ -23,7 +23,14 @@ import {
     pointNumbers,
     sameOptions,
 } from "./release-setup-analyse-model";
-import { setupDraft, setupModels, setupSaveAnswers, setupSurvey, setupWrite } from "./release-setup-client";
+import {
+    setupDraft,
+    setupModels,
+    setupSaveAnswers,
+    setupSurvey,
+    setupUpdate,
+    setupWrite,
+} from "./release-setup-client";
 import { DescribeStep } from "./release-setup-describe";
 import { describeDefaults, DescribeFrom, describes, SetupModel, undescribed } from "./release-setup-describe-model";
 import { DetectStep } from "./release-setup-detect";
@@ -46,7 +53,7 @@ import {
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
-import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
+import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { PreparedStep } from "./release-setup-prepared";
 import { proposedFiles } from "./release-setup-prepared-model";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
@@ -62,6 +69,7 @@ import {
     StepperSteps,
     stepReachable,
 } from "./release-setup-stepper";
+import { UpdateFiles, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
 
@@ -298,12 +306,15 @@ export function ChoicesStep({
     onChange,
     channel,
     setChannel,
+    bare,
 }: {
     draft: SetupDraft;
     options: SetupOptions;
     onChange: (o: SetupOptions) => void;
     channel: SetupChannel;
     setChannel: (c: SetupChannel) => void;
+    // Without the draft's diagram and reasons: step 2a of a project already set up draws its own (#1102).
+    bare?: boolean;
 }) {
     const t = useT();
     const facts = draft.facts;
@@ -343,8 +354,8 @@ export function ChoicesStep({
                     ))}
                 </div>
             ) : null}
-            <FlowDiagram model={flowModel(draft, channel, options.tagprefix)} />
-            <FlowReasons draft={draft} options={options} />
+            {bare ? null : <FlowDiagram model={flowModel(draft, channel, options.tagprefix)} />}
+            {bare ? null : <FlowReasons draft={draft} options={options} />}
             <div className="grid grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[80rem]:grid-cols-3">
                 <div className={SectionClass}>
                     <div className={SectionTitle}>{t("mc.setup.choices.branchModel")}</div>
@@ -574,6 +585,7 @@ function StepBar({
     ready,
     locked,
     onStep,
+    update,
 }: {
     step: StepperStep;
     survey: SetupSurvey;
@@ -582,8 +594,11 @@ function StepBar({
     ready: boolean;
     locked: boolean;
     onStep: (s: StepperStep) => void;
+    // Step 2a of a project already set up (#1102): how many changes the update proposes; null otherwise.
+    update?: { changes: number };
 }) {
     const t = useT();
+    const tCount = useTCount();
     const at = stepIndex(step);
     const sub = (s: StepperStep, i: number): string => {
         if (s === "detect") {
@@ -600,6 +615,11 @@ function StepBar({
         }
         if (i > at) {
             return "—";
+        }
+        if (s === "understand" && update != null && path === "analyse") {
+            return update.changes > 0
+                ? tCount("mc.setup.stepper.updateSub", update.changes)
+                : t("mc.setup.stepper.upToDateSub");
         }
         if (s === "understand") {
             return path === "describe" ? t("mc.setup.stepper.describeSub") : t("mc.setup.stepper.analyseSub");
@@ -658,7 +678,11 @@ function StepBar({
                                                             : "border-border text-muted"
                                                     )}
                                                 >
-                                                    {t(`mc.setup.stepper.fork.${p}`)}
+                                                    {t(
+                                                        p === "analyse" && update != null
+                                                            ? "mc.setup.stepper.fork.update"
+                                                            : `mc.setup.stepper.fork.${p}`
+                                                    )}
                                                 </span>
                                             ))}
                                         </span>
@@ -675,17 +699,21 @@ function StepBar({
 
 // The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template. Step 3 is
 // the prepared pipeline with its exact changes and its pull request (#1104, release-setup-prepared.tsx). The answers
-// are kept per project between openings.
+// are kept per project between openings. A project already set up takes path 2a through the update check (#1102,
+// FR-MC-040): step 2 shows its declared pipeline and the changes, step 3 opens the update's pull request.
 export function ReleaseSetup({
     dir,
     projectName,
     onClose,
     onWritten,
+    openAt,
 }: {
     dir: string;
     projectName: string;
     onClose: () => void;
     onWritten: () => void;
+    // The step to open at instead of the one saved: the Release menu's update opens at step 2 (#1102).
+    openAt?: StepperStep;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -727,6 +755,7 @@ export function ReleaseSetup({
     useCopyPatch(pr.job);
     const writing = pr.busy;
     const request = useRef(0);
+    const upd = useSetupCheck(dir);
 
     const load = (opts: SetupOptions, kind?: SetupKind, include = includeLocal) =>
         fireAndForget(async () => {
@@ -788,7 +817,10 @@ export function ReleaseSetup({
             } else {
                 load(null, type ? kindOfAppType(type) : undefined);
             }
-            setStep(resumeStep(saved));
+            if (answer?.pipeline === "complete") {
+                upd.start(saved?.update);
+            }
+            setStep(openAt && type ? openAt : resumeStep(saved));
             setResumed(true);
         });
         return () => {
@@ -814,6 +846,10 @@ export function ReleaseSetup({
                   words: words || undefined,
                   from: path === "describe" ? from : undefined,
                   model: path === "describe" && from === "model" ? model : undefined,
+                  update:
+                      upd.options != null || Object.keys(upd.choices).length > 0
+                          ? { options: upd.options ?? undefined, choices: upd.choices }
+                          : undefined,
               };
         fireAndForget(async () => {
             try {
@@ -822,7 +858,22 @@ export function ReleaseSetup({
                 // Resuming is a convenience: the stepper works without it.
             }
         });
-    }, [resumed, draft?.base, step, appType, path, touched, options, done, pointAnswers, words, from, model]);
+    }, [
+        resumed,
+        draft?.base,
+        step,
+        appType,
+        path,
+        touched,
+        options,
+        done,
+        pointAnswers,
+        words,
+        from,
+        model,
+        upd.options,
+        upd.choices,
+    ]);
 
     const describing = describes(path, appType);
     // Step 2b opens on the questions' defaults, and reads the other projects once for "another project as a model".
@@ -920,7 +971,29 @@ export function ReleaseSetup({
         load(touched ? options : null, touched ? undefined : options?.kind);
     };
 
-    const analysing = step === "understand" && path === "analyse";
+    // Path 2a of a project already set up (#1102): the update check, not the analysis points.
+    const updating = survey?.pipeline === "complete" && path === "analyse" && upd.check?.state !== "missing";
+    const check = updating ? upd.check : null;
+    const update = (mode: "pr" | "patch") =>
+        pr.start(async () => {
+            const job = await setupUpdate(
+                dir,
+                check.base,
+                check.signature,
+                upd.choices,
+                prRequestOf(check.pr, ticket, mode),
+                upd.options ?? undefined
+            );
+            onWritten();
+            return job;
+        });
+    const againUpdate = () => {
+        pr.reset();
+        upd.reload();
+    };
+    const canUpdate = (mode: "pr" | "patch") =>
+        updateReady(check) && !upd.loading && !done && canOpenPr(check.pr, ticket, mode);
+    const analysing = step === "understand" && path === "analyse" && !updating;
     const points = useMemo(() => analysePipeline(survey, draft), [survey, draft]);
     const pending = analysing ? pendingPoints(points, pointAnswers) : [];
     const answerPoint = (key: string, value: string) => {
@@ -969,8 +1042,19 @@ export function ReleaseSetup({
     const ready =
         draft != null &&
         options != null &&
-        (step === "detect" ? appType != null : step === "understand" && !nothing && pending.length === 0);
+        (step === "detect"
+            ? appType != null && !(survey?.pipeline === "complete" && upd.check == null && upd.error == null)
+            : step === "understand" &&
+              (updating
+                  ? check != null && !upd.loading && check.errors.length === 0
+                  : !nothing && pending.length === 0));
     const next = StepperSteps[at + 1];
+    const uncommitted =
+        check != null ? (
+            <UncommittedNotice plan={check.pr} current={check.current} onInclude={upd.include} asChanges />
+        ) : draft != null ? (
+            <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
+        ) : null;
     return (
         <DialogFrame
             role="mc-release-setup"
@@ -982,7 +1066,7 @@ export function ReleaseSetup({
             buttons={
                 <>
                     <span className="mr-auto flex items-center gap-2 text-11 text-muted">
-                        {loading ? <DominoLoader /> : null}
+                        {loading || upd.loading ? <DominoLoader /> : null}
                         {done ? null : (
                             <span data-testid="setup-step-of">
                                 {t("mc.setup.stepper.stepOf", { n: at + 1, total: StepperSteps.length })}
@@ -1024,9 +1108,22 @@ export function ReleaseSetup({
                             onClick={() => goNext(next)}
                             data-testid="setup-next"
                         >
-                            {t(nextLabelKey(step, path))}
+                            {t(
+                                updating && step === "understand"
+                                    ? "mc.setup.stepper.nextUpdate"
+                                    : nextLabelKey(step, path)
+                            )}
                             <MoltenWave />
                         </button>
+                    ) : check != null ? (
+                        <PrFooterButtons
+                            plan={check.pr}
+                            job={pr.job}
+                            busy={writing}
+                            canOpen={canUpdate("pr")}
+                            canPatch={canUpdate("patch")}
+                            onOpen={update}
+                        />
                     ) : (
                         <PrFooterButtons
                             plan={draft?.pr}
@@ -1048,13 +1145,14 @@ export function ReleaseSetup({
                 ready={ready}
                 locked={draft == null || writing || done}
                 onStep={goNext}
+                update={check != null ? { changes: check.changes.length } : undefined}
             />
-            {error ? (
+            {error || (updating && upd.error) ? (
                 <p
                     className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
                     role="alert"
                 >
-                    {error}
+                    {error || upd.error}
                 </p>
             ) : null}
             {step === "detect" ? (
@@ -1065,9 +1163,7 @@ export function ReleaseSetup({
                     </div>
                 ) : (
                     <div className="@container flex flex-col gap-3">
-                        {draft == null || writing || done ? null : (
-                            <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
-                        )}
+                        {draft == null || writing || done ? null : uncommitted}
                         <DetectStep
                             survey={survey}
                             error={surveyError}
@@ -1094,10 +1190,28 @@ export function ReleaseSetup({
                     {touched && firstProvider === "saasfoundry" && draft.provider === "moltenterm" ? (
                         <p className="text-11 text-muted">{t("mc.setup.choicesReplace")}</p>
                     ) : null}
-                    {writing || done ? null : (
-                        <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
-                    )}
-                    {analysing ? (
+                    {writing || done ? null : uncommitted}
+                    {step === "understand" && updating ? (
+                        check == null ? (
+                            upd.error ? null : (
+                                <div className="flex items-center gap-2 py-6 text-12 text-muted">
+                                    <DominoLoader />
+                                    {t("mc.setup.reading")}
+                                </div>
+                            )
+                        ) : (
+                            <UpdateStep draft={draft} check={check} choices={upd.choices} onChoose={upd.choose}>
+                                <ChoicesStep
+                                    draft={draft}
+                                    options={{ ...options, ...(check.options ?? {}) }}
+                                    onChange={upd.adjust}
+                                    channel={channel}
+                                    setChannel={setChannel}
+                                    bare
+                                />
+                            </UpdateStep>
+                        )
+                    ) : analysing ? (
                         <>
                             <AnalyseStep
                                 survey={survey}
@@ -1164,7 +1278,24 @@ export function ReleaseSetup({
                             )}
                         </>
                     ) : null}
-                    {step === "prepare" ? (
+                    {step === "prepare" && check != null ? (
+                        <>
+                            <UpdateFiles check={check}>
+                                <DiffView before={check.current} after={check.proposed} />
+                            </UpdateFiles>
+                            <PrPanel
+                                dir={dir}
+                                plan={check.pr}
+                                choice={ticket}
+                                onChoice={setTicket}
+                                job={pr.job}
+                                busy={writing}
+                                error={pr.error}
+                                onAgain={againUpdate}
+                            />
+                        </>
+                    ) : null}
+                    {step === "prepare" && check == null ? (
                         <PreparedStep
                             dir={dir}
                             draft={draft}
