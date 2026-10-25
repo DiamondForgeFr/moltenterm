@@ -235,7 +235,8 @@ export function clampFixedPx(px: number, width: number, needPx = 0): number {
 export function clampColumnPx(px: number, viewportWidth: number): number {
     const max = Math.max(MinCarpetColumnPx, viewportWidth);
     const want = Number.isFinite(px) && px > 0 ? px : DefaultCarpetColumnPx;
-    return Math.round(Math.min(Math.max(want, MinCarpetColumnPx), max));
+    // Down, never to the nearest: slots sharing the carpet's width in half pixels would add up past it (#1131).
+    return Math.floor(Math.min(Math.max(want, MinCarpetColumnPx), max));
 }
 
 function sumPx(values: number[]): number {

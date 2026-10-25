@@ -822,6 +822,15 @@ describe("360 view carpet positions per screen width (#1131)", () => {
         { name: "wide", width: 3440, threshold: 3, sizes: [30, 35, 35], open: [30, 35, 35, 35, 35], visible: 2 },
         { name: "normal", width: 1920, threshold: 2, sizes: [50, 50], open: [50, 25, 25, 25], visible: 1 },
         { name: "narrow", width: 1440, threshold: 2, sizes: [40, 60], open: [40, 30, 30, 30], visible: 1 },
+        // Two half-pixel slots: rounding them up would push the last panel past the carpet's edge.
+        {
+            name: "narrow, odd width",
+            width: 1441,
+            threshold: 3,
+            sizes: [30, 35, 35],
+            open: [30, 35, 35, 35, 35],
+            visible: 2,
+        },
     ];
 
     for (const screen of screens) {
