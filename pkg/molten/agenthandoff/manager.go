@@ -67,6 +67,8 @@ type TypeResult struct {
 	Submitted bool
 	Retry     bool
 	Message   string
+	// MessageText: Message's code (the typing path's, pkg/molten/termupdate), worded in the windows' notices (#1129).
+	MessageText *uimsg.Text
 }
 
 // Env is what the handoffs need from wavesrv; tests replace it.
@@ -564,12 +566,12 @@ func approvalNotification(key string, id string, from Party, to Party, b Brief) 
 		Key:       key,
 		Source:    NotificationSource,
 		Title:     capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
-		TitleText: uimsg.Make("handoff.approval.title", "from", from.callName(), "to", to.callName()),
+		TitleText: withSender(uimsg.Make("handoff.approval.title", "to", to.callName()), from, false),
 		Message: fmt.Sprintf("%s → %s: %s. Allowing it types a prompt in %s's terminal.", capitalize(fromWhere), toWhere,
 			goal, to.callName()),
 		// The windows show where each agent works with a separator rather than English's "in".
-		MessageText: uimsg.Make("handoff.approval.message", "from", partWhere(from), "to", partWhere(to), "goal", goal,
-			"receiver", to.callName()),
+		MessageText: withSender(uimsg.Make("handoff.approval.message", "to", partWhere(to), "goal", goal,
+			"receiver", to.callName()), from, true),
 		Kind:        "warning",
 		WorkspaceId: from.WorkspaceId,
 		// The asking agent waits on it: the 360 view's radar pulses that panel (FR-SHELL-068).
@@ -587,6 +589,31 @@ func partWhere(p Party) string {
 		return p.label()
 	}
 	return p.label() + " · " + p.Project
+}
+
+// named: the party has a name to show; a shell's `molten agent send` comes from a terminal without one.
+func (p Party) named() bool {
+	return p.FirstName != "" || p.AgentName != ""
+}
+
+// withSender fills text's "from" placeholder, which starts its sentence: the sender's name (where: with its project),
+// or the windows' own words for a terminal without a name, never callName's English "a terminal" (#1129).
+func withSender(text *uimsg.Text, from Party, where bool) *uimsg.Text {
+	if from.named() {
+		name := from.callName()
+		if where {
+			name = partWhere(from)
+		}
+		if text.Vars == nil {
+			text.Vars = make(map[string]string)
+		}
+		text.Vars["from"] = name
+		return text
+	}
+	if where && from.Project != "" {
+		return text.With("from", uimsg.Make("handoff.party.terminalin", "project", from.Project))
+	}
+	return text.With("from", uimsg.Make("handoff.party.terminal"))
 }
 
 // Answer is the developer's answer from a window.
@@ -753,12 +780,16 @@ func (m *Manager) runQueue(blockId string) {
 		run, ok := m.env.Run(blockId)
 		if !ok || !run.Running || run.FirstName == "" {
 			for _, gone := range m.dropQueue(blockId) {
-				m.notifyUndelivered(gone, fmt.Sprintf("%s ended before its prompt was idle.", gone.to.callName()))
+				receiver := gone.to.callName()
+				m.notifyUndelivered(gone, fmt.Sprintf("%s ended before its prompt was idle.", capitalize(receiver)),
+					uimsg.Make("handoff.undelivered.ended", "receiver", receiver))
 			}
 			return
 		}
 		if m.now().Sub(d.queuedAt) > m.queueTimeout {
-			m.notifyUndelivered(d, fmt.Sprintf("%s's prompt was not idle within an hour.", d.to.callName()))
+			receiver := d.to.callName()
+			m.notifyUndelivered(d, fmt.Sprintf("%s's prompt was not idle within an hour.", capitalize(receiver)),
+				uimsg.Make("handoff.undelivered.timeout", "receiver", receiver))
 			if !m.popQueue(blockId) {
 				return
 			}
@@ -785,7 +816,7 @@ func (m *Manager) runQueue(blockId string) {
 				m.notifyTyped(d)
 			}
 		} else {
-			m.notifyUndelivered(d, out.Message)
+			m.notifyUndelivered(d, out.Message, out.MessageText)
 		}
 		if !m.popQueue(blockId) {
 			return
@@ -806,7 +837,7 @@ func (m *Manager) notifyTyped(d *delivery) {
 		Title:       fmt.Sprintf("Typed in %s's prompt: press Enter in its terminal to start", receiver),
 		TitleText:   uimsg.Make("handoff.typed.title", "receiver", receiver),
 		Message:     fmt.Sprintf("%s's handoff was added after what was already in the prompt. The brief is at %s.", capitalize(d.from.callName()), d.briefPath),
-		MessageText: uimsg.Make("handoff.typed.message", "from", capitalize(d.from.callName()), "path", d.briefPath),
+		MessageText: typedMessageText(d),
 		Kind:        "warning",
 		WorkspaceId: d.to.WorkspaceId,
 		TabId:       d.to.TabId,
@@ -818,18 +849,38 @@ func (m *Manager) notifyTyped(d *delivery) {
 	})
 }
 
-func (m *Manager) notifyUndelivered(d *delivery, reason string) {
+// The sender sits mid-sentence in some languages ("le passage de relais de Camille"): a nameless terminal gets its own
+// sentence rather than a placeholder.
+func typedMessageText(d *delivery) *uimsg.Text {
+	if !d.from.named() {
+		return uimsg.Make("handoff.typed.messageterminal", "path", d.briefPath)
+	}
+	return uimsg.Make("handoff.typed.message", "from", d.from.callName(), "path", d.briefPath)
+}
+
+func undeliveredTitleText(d *delivery) *uimsg.Text {
+	if !d.from.named() {
+		return uimsg.Make("handoff.undelivered.titleterminal", "to", d.to.callName())
+	}
+	return uimsg.Make("handoff.undelivered.title", "from", d.from.callName(), "to", d.to.callName())
+}
+
+// notifyUndelivered tells the developer why a handoff was dropped; reasonText is reason's code, nil when the typing
+// path sent none: its English then shows as the detail of a sentence of ours (#1129).
+func (m *Manager) notifyUndelivered(d *delivery, reason string, reasonText *uimsg.Text) {
 	m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
 	if d.receipt {
 		return
 	}
+	if reasonText == nil || reasonText.Code == "" {
+		reasonText = uimsg.Make("handoff.undelivered.failed", "detail", strings.TrimSuffix(strings.TrimSpace(reason), "."))
+	}
 	m.env.Notify(molten.NotificationInput{
-		Source:    NotificationSource,
-		Title:     capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
-		TitleText: uimsg.Make("handoff.undelivered.title", "from", d.from.callName(), "to", d.to.callName()),
-		Message:   fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
-		// reason is the typing path's English: it stays the detail.
-		MessageText: uimsg.Make("handoff.undelivered.message", "detail", reason, "path", d.briefPath),
+		Source:      NotificationSource,
+		Title:       capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
+		TitleText:   undeliveredTitleText(d),
+		Message:     fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
+		MessageText: uimsg.Make("handoff.undelivered.message", "path", d.briefPath).With("reason", reasonText),
 		Kind:        "error",
 	})
 }

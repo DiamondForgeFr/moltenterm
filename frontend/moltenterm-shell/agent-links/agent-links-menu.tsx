@@ -351,7 +351,9 @@ function PendingRow({ entry, props }: { entry: PendingEntry; props: MenuProps })
     return (
         <div className="rounded-6 border border-accent/40 bg-accent/10 px-2 py-1.5" data-testid="agent-links-pending">
             <div className="text-12 text-primary">
-                {t("agentLinks.pending.title", { from: entry.from, to: entry.to })}
+                {entry.from
+                    ? t("agentLinks.pending.title", { from: entry.from, to: entry.to })
+                    : t("agentLinks.pending.titleTerminal", { to: entry.to })}
             </div>
             {entry.goal ? <div className="truncate text-11 text-secondary">{entry.goal}</div> : null}
             <div className="mt-1 flex flex-wrap gap-2">

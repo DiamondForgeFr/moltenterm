@@ -127,13 +127,13 @@ func samePath(a string, b string) bool {
 func (waveEnv) TypePrompt(ctx context.Context, blockId string, line string) TypeResult {
 	out := termupdate.TypeHandoffLine(ctx, blockId, line)
 	if out.Result == termupdate.InputSent {
-		return TypeResult{Sent: true, Submitted: out.Submitted, Message: out.Message}
+		return TypeResult{Sent: true, Submitted: out.Submitted, Message: out.Message, MessageText: out.MessageText}
 	}
 	switch out.Reason {
 	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-		return TypeResult{Retry: true, Message: out.Message}
+		return TypeResult{Retry: true, Message: out.Message, MessageText: out.MessageText}
 	}
-	return TypeResult{Message: out.Message}
+	return TypeResult{Message: out.Message, MessageText: out.MessageText}
 }
 
 func (waveEnv) BrowserPage(ctx context.Context, blockId string, tabId int64) (string, string, bool) {
