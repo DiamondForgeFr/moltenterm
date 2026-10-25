@@ -64,6 +64,8 @@ type cleanupFixture struct {
 	removeAll    func(path string) error
 	removeAlls   int
 	waits        int
+	// gitCalls: the cleanup's git calls, in order (#1132).
+	gitCalls []string
 }
 
 // worktreeRemoveOf is the path of a git worktree remove call, "" for any other command.
@@ -183,6 +185,9 @@ func (f *cleanupFixture) run(ctx context.Context, dir string, name string, args 
 	if name == "gh" {
 		return f.gh(args)
 	}
+	if name == "git" {
+		f.logGit(args)
+	}
 	removed := worktreeRemoveOf(name, args)
 	if removed != "" && f.refuseRemove != nil {
 		return nil, f.refuseRemove
@@ -200,6 +205,12 @@ func (f *cleanupFixture) run(ctx context.Context, dir string, name string, args 
 		return out, f.afterRemove(removed)
 	}
 	return out, nil
+}
+
+func (f *cleanupFixture) logGit(args []string) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.gitCalls = append(f.gitCalls, strings.Join(args, " "))
 }
 
 // recreateDsStore is what the system's file browser does in the issue: it writes into the folder git is deleting, and

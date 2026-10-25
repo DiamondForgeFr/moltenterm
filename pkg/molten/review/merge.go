@@ -363,8 +363,8 @@ func shortHead(oid string) string {
 }
 
 // runGh names the repository in every call (the ghArgs rule of pkg/molten/release): gh resolves a remote named
-// upstream before origin. With --repo, gh pr merge --delete-branch also leaves the local checkout and branch alone:
-// those are the cleanup's (FR-REV-013), which checks them first.
+// upstream before origin. The local checkout and branch, and the remote branch, are the cleanup's (FR-REV-013),
+// which checks them first.
 func (m *Merger) runGh(ctx context.Context, dir string, repo string, args ...string) ([]byte, error) {
 	if m.gh == nil {
 		return nil, noGhError()
@@ -903,7 +903,7 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	record.State = MergeMerging
 	record.Head = head
 	m.record(k, record)
-	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, plan.Queue, head)...)
+	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, head)...)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "head branch was modified") {
 			m.end(k, record, MergeRefused, RefusedHeadMoved, MergeCodeGithubMoved, err)

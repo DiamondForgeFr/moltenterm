@@ -365,14 +365,11 @@ func updateBranchArgs(number string, method string) []string {
 	return []string{"pr", "update-branch", number}
 }
 
-// mergeArgs: a squash takes the commit title and message the repository sets (no --subject or --body); a merge queue
-// merges by itself, and the remote branch is then the cleanup's (it deletes it only at the head GitHub merged).
-func mergeArgs(number string, method string, queue bool, head string) []string {
-	args := []string{"pr", "merge", number, "--" + method}
-	if !queue {
-		args = append(args, "--delete-branch")
-	}
-	return append(args, "--match-head-commit", head)
+// mergeArgs: a squash takes the commit title and message the repository sets (no --subject or --body). The remote
+// branch is the cleanup's, never the merge's (#1132): it goes last, once the worktrees and the local branch are gone,
+// and only at the head GitHub merged. Deleted first, a worktree whose removal then fails loses its upstream.
+func mergeArgs(number string, method string, head string) []string {
+	return []string{"pr", "merge", number, "--" + method, "--match-head-commit", head}
 }
 
 func (s *Store) mergePrefsFile(repo string) string {

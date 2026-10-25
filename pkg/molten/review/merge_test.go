@@ -529,7 +529,7 @@ func TestMergeRebaseBoundToHead(t *testing.T) {
 	if len(writes) != 1 {
 		t.Fatalf("one merge call: %v", writes)
 	}
-	want := "pr merge 7 --rebase --delete-branch --match-head-commit " + oidA + " --repo " + testRepo
+	want := "pr merge 7 --rebase --match-head-commit " + oidA + " --repo " + testRepo
 	if got := strings.Join(writes[0], " "); got != want {
 		t.Errorf("merge call:\n got %s\nwant %s", got, want)
 	}

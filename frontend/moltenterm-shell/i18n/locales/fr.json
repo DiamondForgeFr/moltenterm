@@ -7111,12 +7111,13 @@
                 "remote-branch": {
                     "label": "Branche distante",
                     "plan": {
-                        "none": "origin/{branch} sera supprimée avec la fusion."
+                        "none": "origin/{branch} sera supprimée en dernier, une fois le worktree et la branche locale partis."
                     },
                     "did": {
-                        "deletedbymerge": "origin/{branch} supprimée par la fusion.",
+                        "deletedbymerge": "origin/{branch} était déjà supprimée.",
                         "deleted": "origin/{branch} supprimée.",
                         "pushedafter": "Conservée : origin/{branch} a des commits poussés après la fusion.",
+                        "localfirst": "Conservée tant que le worktree et la branche locale restent : origin/{branch} est supprimée en dernier.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
                         "none": "origin/{branch} n'a pas pu être supprimée."
                     }

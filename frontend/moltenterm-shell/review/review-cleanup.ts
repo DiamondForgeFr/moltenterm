@@ -153,12 +153,16 @@ export function runReviewCleanup(req: ReviewCleanupRequest): Promise<ReviewClean
     return TabRpcClient.wshRpcCall(CleanupCommand, req, { route: ReviewRoute, timeout: CleanupTimeoutMs });
 }
 
+// Removing a kept agent worktree also deletes origin's branch, after the local one (#1132): wavesrv keeps it while
+// the worktree or the local branch stays.
+const AgentTreeSteps: ReviewCleanupStepId[] = ["agent-worktree", "local-branch", "remote-branch"];
+
 // confirmAgentWorktree removes the kept agent worktree and its branch, losing what the developer was shown (the risk).
 export function confirmAgentWorktree(
     req: Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed">,
     risk: ReviewWorktreeRisk
 ): Promise<ReviewCleanupResult> {
-    return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"], worktreeconfirmed: risk });
+    return runReviewCleanup({ ...req, steps: AgentTreeSteps, worktreeconfirmed: risk });
 }
 
 // removeKeptWorktree removes a kept worktree once the sheet closed the panels still open in it: the agent worktree
@@ -174,7 +178,7 @@ export function removeKeptWorktree(
     if (step.code === "kept" && step.confirm != null) {
         return confirmAgentWorktree(req, step.confirm);
     }
-    return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"] });
+    return runReviewCleanup({ ...req, steps: AgentTreeSteps });
 }
 
 // removeLeftover removes again the folder a worktree step left after git unregistered the worktree (#716).
