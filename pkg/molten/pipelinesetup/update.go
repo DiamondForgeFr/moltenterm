@@ -1036,7 +1036,7 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 	if err := s.checkPrRequest(dir, PrKindUpdate, &req.PrRequest); err != nil {
 		return PrJob{}, err
 	}
-	trunk := molten.ResolvedBranches(dir).Trunk
+	trunk := SetupBranches(dir).Trunk
 	job := &PrJob{Dir: dir, Kind: PrKindUpdate, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
 	backend := s.docBackend(ctx, dir, req.Mode)
 	return s.startJob(job, techDocSteps(jobSteps(dir, req.PrRequest), backend), func(ctx context.Context, job *PrJob) error {

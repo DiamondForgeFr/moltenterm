@@ -114,7 +114,7 @@ func (s *Setup) readBase(ctx context.Context, dir string) (*baseFiles, error) {
 	if err != nil {
 		return nil, err
 	}
-	b := &baseFiles{Trunk: molten.ResolvedBranches(dir).Trunk, LocalPipeline: local, LocalRecord: readLocalRecord(dir)}
+	b := &baseFiles{Trunk: SetupBranches(dir).Trunk, LocalPipeline: local, LocalRecord: readLocalRecord(dir)}
 	for _, ref := range baseRefs(b.Trunk) {
 		if commit := s.commitOf(ctx, dir, ref); commit != "" {
 			b.Ref, b.Commit = strings.TrimPrefix(ref, "refs/heads/"), commit

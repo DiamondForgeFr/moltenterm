@@ -39,11 +39,15 @@ export function availableTargets(draft: SetupDraft): DescribeTarget[] {
 export function describeDefaults(draft: SetupDraft, options: SetupOptions): SetupOptions {
     const branches = draft.facts.branches;
     const publish = availableTargets(draft);
+    // A published branch the repository does not have (a new repository, #1106) would make the release promote onto
+    // nothing: the trunk is offered instead, and the developer can still pick another one.
+    const names = draft.branchnames ?? [];
+    const release = names.length > 0 && !names.includes(branches.release) ? branches.trunk : branches.release;
     return {
         ...options,
         kind: "on-premise",
         trunk: options.trunk || branches.trunk,
-        release: options.release || branches.release,
+        release: options.release || release,
         rc: options.rc ?? (publish.length > 0 ? "published" : "internal"),
         publish: options.publish ?? publish,
     };

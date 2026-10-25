@@ -376,7 +376,7 @@ func (s *Setup) Write(req WriteRequest) (PrJob, error) {
 	if err := s.checkPrRequest(dir, PrKindWrite, &req.PrRequest); err != nil {
 		return PrJob{}, err
 	}
-	trunk := molten.ResolvedBranches(dir).Trunk
+	trunk := SetupBranches(dir).Trunk
 	job := &PrJob{Dir: dir, Kind: PrKindWrite, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
 	backend := s.docBackend(context.Background(), dir, req.Mode)
 	return s.startJob(job, techDocSteps(jobSteps(dir, req.PrRequest), backend), func(ctx context.Context, job *PrJob) error {
