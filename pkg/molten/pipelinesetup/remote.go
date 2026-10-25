@@ -37,6 +37,8 @@ type Protection struct {
 	// The protection could be read; Error says why not (gh's own words).
 	Read  bool   `json:"read"`
 	Error string `json:"error,omitempty"`
+	// What gh's failure means (GhMissing, GhSignedOut, GhFailed); "" when gh was not reached at all.
+	Problem string `json:"problem,omitempty"`
 	// What it asks of a change to the branch.
 	PullRequest     bool     `json:"pullrequest"`
 	RequiredChecks  []string `json:"requiredchecks"`
@@ -147,6 +149,7 @@ func ReadProtection(ctx context.Context, run Runner, dir string, branch string) 
 	out, err := run(ctx, dir, "gh", ghRepoArgs(repo, "/rules/branches/"+branch)...)
 	if err != nil {
 		p.Error = err.Error()
+		p.Problem = ghProblem(p.Error)
 		return p
 	}
 	var rules []ruleEntry

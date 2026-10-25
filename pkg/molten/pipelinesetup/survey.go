@@ -56,10 +56,12 @@ type SurveyTags struct {
 }
 
 type SurveyReleases struct {
-	// Read through gh when origin is on GitHub; Error is gh's own words when it could not.
+	// Read through gh when origin is on GitHub; Error is gh's own words when it could not, Problem what it means
+	// (GhMissing, GhSignedOut, GhFailed).
 	OnGithub bool   `json:"ongithub"`
 	Read     bool   `json:"read"`
 	Error    string `json:"error,omitempty"`
+	Problem  string `json:"problem,omitempty"`
 	Count    int    `json:"count"`
 	Last     string `json:"last,omitempty"`
 }
@@ -95,6 +97,35 @@ type SurveyAnswer struct {
 	// The committed pipeline's hash (DraftAnswer.Base), and the answers saved for this project.
 	Base    string   `json:"base"`
 	Answers *Answers `json:"answers,omitempty"`
+	// What the empty and error states need (#1106): a git repository with commits, an origin remote, nothing to read
+	// (no build file, workflow or tag), and the coding agent that proposes changes ("" when none can start;
+	// AgentMissing names the chosen one when it is not installed). The pipeline's validation errors when it is invalid.
+	Git            bool     `json:"git"`
+	Remote         bool     `json:"remote"`
+	Empty          bool     `json:"empty"`
+	Agent          string   `json:"agent,omitempty"`
+	AgentName      string   `json:"agentname,omitempty"`
+	AgentMissing   string   `json:"agentmissing,omitempty"`
+	PipelineErrors []string `json:"pipelineerrors,omitempty"`
+}
+
+// What a failing gh means for the setup (#1106).
+const (
+	GhMissing   = "missing"
+	GhSignedOut = "signedout"
+	GhFailed    = "failed"
+)
+
+// ghProblem reads gh's failure: not installed, signed out, or any other failure (network, rate limit).
+func ghProblem(text string) string {
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "executable file not found") || (strings.Contains(lower, "no such file or directory") && strings.Contains(lower, "gh")):
+		return GhMissing
+	case strings.Contains(lower, "gh auth login") || strings.Contains(lower, "not logged") || strings.Contains(lower, "authentication") || strings.Contains(lower, "401"):
+		return GhSignedOut
+	}
+	return GhFailed
 }
 
 // KindOfAppType: a web app or a SaaS is deployed (the saas template), every other type ships versions.
@@ -150,7 +181,39 @@ func (s *Setup) Survey(ctx context.Context, req SurveyRequest) (SurveyAnswer, er
 		answer.Recommended = PathAnalyse
 	}
 	answer.Answers = s.loadAnswers(dir, answer.Base)
+	answer.Git = b.Commit != ""
+	answer.Remote = s.hasOrigin(ctx, dir)
+	answer.Empty = surveyEmpty(dir, f, answer)
+	if answer.Pipeline == PipelineInvalid {
+		answer.PipelineErrors = f.PipelineErrors
+	}
+	if s.ChooseAgent != nil {
+		choice := s.ChooseAgent(dir)
+		if refineArgv(choice.Agent) != nil {
+			answer.Agent, answer.AgentName = choice.Agent, choice.AgentName
+		} else if choice.Missing {
+			answer.AgentMissing = choice.ChosenName
+		}
+	}
 	return answer, nil
+}
+
+// buildFiles: what tells MoltenTerm what a project builds; a folder with none of them, no workflow and no tag has
+// nothing to read yet.
+var buildFiles = []string{"package.json", "Cargo.toml", "go.mod", "pyproject.toml", "setup.py", "pom.xml", "build.gradle",
+	"build.gradle.kts", "Gemfile", "composer.json", "Package.swift", "mix.exs", "deno.json", "Dockerfile", "Makefile",
+	".goreleaser.yml", ".goreleaser.yaml", "tauri.conf.json", "electron-builder.yml", "electron-builder.json"}
+
+func surveyEmpty(dir string, f Facts, answer SurveyAnswer) bool {
+	if len(f.Workflows) > 0 || answer.Tags.Count > 0 || answer.Releases.Count > 0 || f.HasPipeline || len(f.Changelogs) > 0 {
+		return false
+	}
+	for _, name := range buildFiles {
+		if fileExists(filepath.Join(dir, name)) {
+			return false
+		}
+	}
+	return true
 }
 
 func orEmpty(list []string) []string {
@@ -280,6 +343,7 @@ func (s *Setup) readReleases(ctx context.Context, dir string, github bool) Surve
 	out, err := s.Run(ctx, dir, "gh", "release", "list", "--limit", strconv.Itoa(maxSurveyReleases), "--json", "tagName,isLatest")
 	if err != nil {
 		rel.Error = errText(err, out)
+		rel.Problem = ghProblem(rel.Error + " " + err.Error())
 		return rel
 	}
 	var list []struct {

@@ -345,3 +345,56 @@ func TestCheckListsTheUncommittedEditsAsChanges(t *testing.T) {
 		t.Fatalf("a left-out edit was recorded as declined: %+v", rec)
 	}
 }
+
+// The update takes the agent's proposals as a new setup does (#1106): the ticked changes, built on the checked update,
+// go into its pull request; only the owned keys are taken, and an invalid text is refused.
+func TestUpdateTakesTheAgentsTickedChanges(t *testing.T) {
+	dir, s := upToDateRepository(t)
+	ctx := context.Background()
+	plain, err := s.Check(ctx, CheckRequest{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adjusted := *plain.Options
+	adjusted.Milestone = false
+	check, err := s.Check(ctx, CheckRequest{Dir: dir, Options: &adjusted})
+	if err != nil || check.State != UpdateStateUpdate {
+		t.Fatalf("check: %v %+v", err, check.State)
+	}
+	answer := `{"changes": [{"op": "add", "channel": "public", "after": "sync-back", "step": {"id": "announce", "title": "Announce the release", "phase": "back", "manual": "Post the notes in the team channel."}, "why": "The team is told by hand."}]}`
+	refined, err := s.Refine(ctx, RefineRequest{Dir: dir, Text: check.Proposed, Answer: answer})
+	if err != nil || len(refined.Changes) != 1 || len(refined.Errors) > 0 {
+		t.Fatalf("refine: %v %+v", err, refined)
+	}
+	var tree map[string]any
+	if err := json.Unmarshal([]byte(refined.Proposed), &tree); err != nil {
+		t.Fatal(err)
+	}
+	tree["name"] = "renamed by the window"
+	widened, err := json.Marshal(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := readPipeline(t, dir).Name
+
+	invalid := waitFor(t, s)(s.Update(ctx, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Options: &adjusted,
+		Refined: `{"schema": 1, "release": {"public": [{"id": "x"}]}}`, PrRequest: PrRequest{Ticket: 7}}))
+	if invalid.Failure == nil || invalid.Failure.Code != PrFailureInvalid {
+		t.Fatalf("an invalid refined text must be refused: %+v", invalid.Failure)
+	}
+
+	updateAndMerge(t, s, UpdateRequest{Dir: dir, Base: check.Base, Signature: check.Signature, Options: &adjusted, Refined: string(widened)})
+	p := readPipeline(t, dir)
+	if _, ok := stepById(p.Release.Public, "announce"); !ok {
+		t.Fatal("the agent's ticked step is not in the update")
+	}
+	if _, ok := stepById(p.Release.Public, "close-milestone"); ok {
+		t.Fatal("the update's own change was lost")
+	}
+	if p.Name != before {
+		t.Fatalf("a key the setup does not own changed: %q", p.Name)
+	}
+	if rec := readRecordFile(t, dir); rec == nil || rec.Steps["public/announce"] != "" {
+		t.Fatalf("the agent's step is recorded as MoltenTerm's: %+v", rec)
+	}
+}
