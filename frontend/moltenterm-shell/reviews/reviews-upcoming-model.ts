@@ -8,6 +8,7 @@
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction } from "../i18n/i18n";
+import type { Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
 import type { ReviewsAnswer } from "./reviews-model";
@@ -117,6 +118,10 @@ export type AgentBarFacts = {
     errored?: boolean;
     // A task's agent whose terminal is still open but no longer on the task's branch (#1057).
     offBranch?: boolean;
+    // The merge queue's agent on the PR it works on (#1128): its line says the queue's work and offers Go there, never
+    // Stop (the banner stops the whole queue).
+    batch?: boolean;
+    work?: Phrase;
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv.

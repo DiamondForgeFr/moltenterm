@@ -5669,6 +5669,13 @@
             },
             "goTo": "Go there",
             "goToTitle": "Show {name}'s terminal",
+            "work": {
+                "group": "group merge: {list}",
+                "queue": "merge queue: {list}"
+            },
+            "pointer": {
+                "ended": "ended, its agent's session is still open"
+            },
             "cancel": "Stop",
             "cancelling": "Cancelling…",
             "cancelTitle": "Cancel every validation not being merged; nothing more is merged",
@@ -6207,7 +6214,14 @@
                 "draftReady": "Ready for review",
                 "ciRunning": "CI running",
                 "mergeChecking": "GitHub is checking the merge",
-                "ready": "Ready to merge"
+                "ready": "Ready to merge",
+                "batch": {
+                    "checking": "Read on GitHub before its merge",
+                    "rebasing": "{name} rebases it on {base}",
+                    "waitingChecks": "Waits for its checks before its merge",
+                    "waitingRebased": "Rebased by {name}, waits for its checks",
+                    "merging": "Merging"
+                }
             },
             "why": {
                 "conflicts": "conflicts with {base}",

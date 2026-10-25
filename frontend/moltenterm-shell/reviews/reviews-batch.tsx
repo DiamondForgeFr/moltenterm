@@ -416,3 +416,37 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
         </div>
     );
 }
+
+// The pointer a hidden, finished queue leaves in "Agents on it" while its agent's session is open (#1128,
+// FR-REV-026 AC13): one line with Go there; it goes with the session.
+export function BatchPointer({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
+    const t = useT();
+    useLocale();
+    const agents = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agent = run.blockid ? agents.states[run.blockid] : null;
+    const name = agent?.firstname || run.agentname || t("reviews.batch.yourAgent");
+    return (
+        <div
+            className="flex min-w-0 items-center gap-2 rounded-4 border border-border px-3 py-1.5 text-11 leading-5 text-secondary"
+            data-testid="reviews-batch-pointer"
+        >
+            <i className="fa fa-solid fa-layer-group text-11 text-muted" aria-hidden />
+            <span className="min-w-0 grow truncate">
+                <span className="font-medium text-primary">{batchHeadline(run, agent?.firstname, ids)}</span>
+                {" · "}
+                {t("reviews.batch.pointer.ended")}
+            </span>
+            <button
+                type="button"
+                className={PlainButton}
+                onClick={() => fireAndForget(() => showPanel(run.blockid))}
+                onKeyDown={stop}
+                title={t("reviews.batch.goToTitle", { name })}
+                data-testid="reviews-batch-pointer-goto"
+            >
+                {t("reviews.batch.goTo")}
+                <i className="fa fa-solid fa-arrow-right text-10" aria-hidden />
+            </button>
+        </div>
+    );
+}

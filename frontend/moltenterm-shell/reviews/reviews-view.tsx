@@ -25,7 +25,8 @@ import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { useCardContext } from "./reviews-agent-bar";
 import { ReviewsAskQueue } from "./reviews-ask-queue";
-import { BatchBanner, BatchConfirmDialog } from "./reviews-batch";
+import { BatchBanner, BatchConfirmDialog, BatchPointer } from "./reviews-batch";
+import { batchPointerShown } from "./reviews-batch-agent";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
     batchItemEnded,
@@ -286,9 +287,11 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // join (FR-REV-026), which wavesrv publishes. Its banner sits in "Agents on it" (#1123), shown even with no card.
     const batchRun = useBatchRun(dir, answer.target);
     const batchVisible = batchShown(batchRun);
+    // Hidden once ended, the queue keeps a pointer there while its agent's session is open (#1128).
+    const batchPointer = batchPointerShown(batchRun, ctx.states);
     const sections = useMemo(
-        () => withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible),
-        [listed, cards, sort, ranks, batchVisible]
+        () => withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible || batchPointer),
+        [listed, cards, sort, ranks, batchVisible, batchPointer]
     );
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
@@ -574,6 +577,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             {section.turn === queueTurn ? queueBlock : null}
                             {section.turn === "agents" && batchVisible ? (
                                 <BatchBanner run={batchRun} ids={shownIds} />
+                            ) : null}
+                            {section.turn === "agents" && batchPointer ? (
+                                <BatchPointer run={batchRun} ids={shownIds} />
                             ) : null}
                             {isOpen && section.prs.length > 0 ? (
                                 <div

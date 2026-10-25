@@ -16,7 +16,6 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass, NullAtom } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
 import { Phrase, useWordPhrase } from "../i18n/phrase";
@@ -29,9 +28,10 @@ import { TabActivity, whileShown } from "../tab-activity";
 import { agentGlyph } from "../tab-identity";
 import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
+import { BatchRuns, queueKey } from "./reviews-batch-client";
 import { reviewsGet } from "./reviews-client";
 import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
-import type { CardContext } from "./reviews-sections-model";
+import { cardAgents, type CardContext } from "./reviews-sections-model";
 import {
     AgentLine,
     agentLines,
@@ -50,7 +50,6 @@ import {
     barTimeText,
     boardStatusText,
     branchAgent,
-    branchAgents,
     DraftTurn,
     draftTurn,
     durationText,
@@ -109,20 +108,12 @@ export function useBranchAgent(dir: string, branch: string): AgentBarFacts {
     return useMemo(() => branchAgent(upcoming, states, branch), [upcoming, states, branch]);
 }
 
-// Every agent on a branch of the project, live (#1057), and the windows' agent states, which name a task's terminal
-// once it left the branch.
-function useBranchAgents(dir: string, branch: string): { agents: AgentBarFacts[]; states: AgentStatesData } {
-    const upcoming = useUpcomingAnswer(dir);
-    const states = useAtomValue(AgentStates.getInstance().dataAtom);
-    const agents = useMemo(() => branchAgents(upcoming, states, branch), [upcoming, states, branch]);
-    return { agents, states };
-}
-
-// The agent a row's task is judged against, with the branch's agents, the task's state now and whether its agent is
-// live; the card's state (#1060) reads the same.
+// The agent a row's task is judged against, with every agent on the branch (#1057) and the merge queue's agent on the
+// PR it works on (#1128), the task's state now and whether its agent is live; the card's state (#1060) reads the same.
 export function useCardAgents(dir: string, pr: ReviewPr, task: RebaseAsk) {
-    const { agents, states } = useBranchAgents(dir, pr.branch);
-    const now = useMinuteNow();
+    const ctx = useCardContext(dir);
+    const { states, now } = ctx;
+    const agents = useMemo(() => cardAgents(pr, ctx), [pr, ctx]);
     const prTask: PrTask = task != null ? { ...task, kind: task.kind ?? "rebase" } : null;
     const owner = taskAgent(prTask, agents, states);
     const live = taskAgentLive(prTask, owner);
@@ -135,9 +126,16 @@ export function useCardContext(dir: string): CardContext {
     const upcoming = useUpcomingAnswer(dir);
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const now = useMinuteNow();
+    const runs = useAtomValue(BatchRuns.getInstance().runsAtom);
     return useMemo(
-        () => ({ upcoming, states, now, boardText: (status: string) => boardStatusText(t, status) }),
-        [upcoming, states, now, t]
+        () => ({
+            upcoming,
+            states,
+            now,
+            boardText: (status: string) => boardStatusText(t, status),
+            batchRun: (base: string) => runs[queueKey(dir, base)] ?? null,
+        }),
+        [upcoming, states, now, t, runs, dir]
     );
 }
 
@@ -201,6 +199,7 @@ export function AgentBar({
     stacked?: boolean;
 }) {
     const t = useT();
+    const word = useWordPhrase();
     const now = useMinuteNow();
     const fullConfig = useAtomValue(atoms?.fullConfigAtom ?? (NullAtom as Atom<FullConfigType>));
     const trustDir = useTrustAsk(facts?.blockId);
@@ -221,22 +220,27 @@ export function AgentBar({
     const taskShown = task != null && task.state !== "running" && !!task.text;
     const stuck = taskShown && task.state === "stuck";
     const barTime = barTimeText(t, facts, now);
+    // The merge queue's agent says the queue's work (#1128), as a held state says what MoltenTerm has it do.
+    const work = facts.work != null && facts.state !== "waiting" ? word(facts.work) : "";
+    const said = facts.held != null || !!work;
     // A finished sub-agent says its state once, with its time: "finished 13 min ago".
-    const finishedLine = !taskShown && facts.held == null && subagent && facts.subState === "done" ? barTime : "";
+    const finishedLine = !taskShown && !said && subagent && facts.subState === "done" ? barTime : "";
     const stateText = taskShown
         ? task.text
-        : facts.held != null
-          ? serverText(facts.held.text, facts.held.english)
-          : finishedLine
-            ? finishedLine
-            : subagent
-              ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
-              : barStateText(t, facts.state);
+        : work
+          ? work
+          : facts.held != null
+            ? serverText(facts.held.text, facts.held.english)
+            : finishedLine
+              ? finishedLine
+              : subagent
+                ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
+                : barStateText(t, facts.state);
     const timeText = finishedLine ? "" : barTime;
     const signed = signersSuffix(t, signers, facts.name);
     const rail = stuck ? "waiting" : facts.state;
     // A working agent shows the dominoes in place of the word, which stays its accessible name (#1060).
-    const dominoOnly = !taskShown && facts.held == null && !finishedLine && facts.state === "working";
+    const dominoOnly = !taskShown && !said && !finishedLine && facts.state === "working";
     const goTo = (e: React.MouseEvent, blockId: string) => {
         e.stopPropagation();
         fireAndForget(() => showPanel(blockId));
@@ -290,14 +294,14 @@ export function AgentBar({
             ) : (
                 <span
                     className={cn(
-                        facts.held != null || taskShown ? "min-w-0 truncate" : "shrink-0",
+                        said || taskShown ? "min-w-0 truncate" : "shrink-0",
                         facts.state === "waiting" || (stuck && !task.quiet)
                             ? "font-semibold text-[var(--mt-state-waiting)]"
                             : taskShown && !task.quiet
                               ? "text-[var(--mt-state-done)]"
                               : "text-secondary"
                     )}
-                    title={facts.held != null || taskShown ? stateText : undefined}
+                    title={said || taskShown ? stateText : undefined}
                     data-testid="reviews-agent-state"
                 >
                     {stateText}
@@ -528,7 +532,9 @@ export function RowAgentLine({
     const actionsOf = (line: AgentLine): React.ReactNode => {
         const agent = line.facts;
         const blockId = agent?.kind === "panel" && (!line.task || live) ? agent.blockId : "";
-        if (!blockId || (line.task && state === "done")) {
+        // The merge queue's agent works for the queue: its line keeps Go there only, the banner's Stop ends the whole
+        // queue (#1128).
+        if (!blockId || (line.task && state === "done") || agent.batch) {
             return null;
         }
         if (confirmStop === blockId) {

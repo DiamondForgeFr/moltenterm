@@ -8,6 +8,8 @@
 // them. Pure, so the list and each card read the same state.
 
 import type { AgentStatesData } from "../agent-state-model";
+import { batchWorkItem, withBatchAgent } from "./reviews-batch-agent";
+import type { BatchRun } from "./reviews-batch-model";
 import { CardInput, CardState, cardState, CardStateKinds, CardTurn } from "./reviews-card-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
@@ -24,18 +26,27 @@ export type ReviewsSort = "state" | "merge";
 export const MergedGroupRows = 6;
 
 // What a card's state is computed from besides the PR: wavesrv's placement of the agents, the windows' agent states,
-// the minute clock and the board column worded.
+// the minute clock, the board column worded and the project's merge queue for a base (#1128).
 export type CardContext = {
     upcoming: UpcomingAnswer;
     states: AgentStatesData;
     now: number;
     boardText: (status: string) => string;
+    batchRun?: (base: string) => BatchRun;
 };
+
+// cardAgents: every agent of the PR's branch, and the merge queue's agent while the queue works on the PR (#1128).
+export function cardAgents(pr: ReviewPr, ctx: CardContext): AgentBarFacts[] {
+    const agents = branchAgents(ctx.upcoming, ctx.states, pr.branch);
+    return withBatchAgent(agents, ctx.batchRun?.(pr.base), pr, ctx.states);
+}
 
 // cardInputOf: the card state's input for a PR, as the card reads it (its agents, its task, its draft turn); the list
 // and the card both build it here, so a card's section never disagrees with its own state.
 export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): CardInput {
-    const agents = branchAgents(ctx.upcoming, ctx.states, pr.branch);
+    const run = ctx.batchRun?.(pr.base);
+    const batchItem = batchWorkItem(run, pr);
+    const agents = cardAgents(pr, ctx);
     const task: PrTask = ask != null ? { ...ask, kind: ask.kind ?? "rebase" } : null;
     const owner = taskAgent(task, agents, ctx.states);
     const live = taskAgentLive(task, owner);
@@ -59,6 +70,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         boardStatus,
         headFails: headStillFails(pr, agents[0] ?? null, taskState),
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),
+        batch: batchItem != null ? { run, item: batchItem } : undefined,
     };
 }
 

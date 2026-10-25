@@ -7,6 +7,8 @@
 // motion (#1063) read the same state. Sentences are phrases (key + vars), worded where they show.
 
 import { phrase, type Phrase } from "../i18n/phrase";
+import { batchStatePhrase } from "./reviews-batch-agent";
+import type { BatchItem, BatchRun } from "./reviews-batch-model";
 import { blockedReasons, checkNames, checksOf, ReviewPr } from "./reviews-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
 import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
@@ -106,6 +108,8 @@ export type CardInput = {
     rerunnable?: boolean;
     // Its rank in the suggested merge order.
     rank?: number;
+    // The merge queue's step while the queue works on the PR (#1128); its agent is in agents (withBatchAgent).
+    batch?: { run: BatchRun; item: BatchItem };
 };
 
 const Tones: Record<CardStateKind, CardTone> = {
@@ -358,9 +362,10 @@ const AssistedReview = (): CardAction => action("assisted-review", "reviews.card
 const Launch = (): CardAction => action("launch", "reviews.card.action.launch");
 const Github = (): CardAction => action("github", "reviews.card.action.github");
 
-// The agent's own actions in the menu: its work beside the diff, and Stop (panels only: a terminal to act on).
+// The agent's own actions in the menu: its work beside the diff, and Stop (panels only: a terminal to act on). The
+// merge queue's agent has neither: its work is the queue's, which the banner stops (#1128).
 function agentActions(agent: AgentBarFacts): CardAction[] {
-    if (agent?.kind !== "panel" || !agent.blockId) {
+    if (agent?.kind !== "panel" || !agent.blockId || agent.batch) {
         return [];
     }
     return [
@@ -425,13 +430,16 @@ export function cardState(input: CardInput): CardState {
             const task = input.task;
             const onTask =
                 working != null && task != null && input.taskState === "running" && input.taskOwner === working;
+            const onBatch = working?.batch && input.batch != null;
             sentence =
                 working == null
                     ? phrase("reviews.card.state.agentAway")
-                    : onTask
-                      ? phrase(`reviews.card.state.agentOn.${task.kind}`, { name, base: pr.base })
-                      : phrase("reviews.card.state.agentWorking", { name });
-            if (onTask && task.kind === "rebase") {
+                    : onBatch
+                      ? batchStatePhrase(input.batch.run, input.batch.item, name)
+                      : onTask
+                        ? phrase(`reviews.card.state.agentOn.${task.kind}`, { name, base: pr.base })
+                        : phrase("reviews.card.state.agentWorking", { name });
+            if ((onTask && task.kind === "rebase") || (onBatch && input.batch.item.state === "rebasing")) {
                 said.add("conflicts");
             } else if (pr.merge === "conflicts") {
                 why = phrase("reviews.card.why.conflicts", { base: pr.base });
