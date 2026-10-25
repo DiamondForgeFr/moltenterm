@@ -56,12 +56,16 @@ type DraftAnswer struct {
 	// The proposed file's validation.
 	Errors           []string `json:"errors"`
 	ValidateWarnings []string `json:"validatewarnings"`
+	// The hash of each release step the template drafted ("rc/prepare"), handed back to Write (#1086).
+	Generated map[string]string `json:"generated"`
 }
 
 type WriteRequest struct {
 	Dir  string `json:"dir"`
 	Text string `json:"text"`
 	Base string `json:"base"`
+	// The draft's Generated: the steps written as the template drafted them are recorded as MoltenTerm's (#1086).
+	Generated map[string]string `json:"generated,omitempty"`
 }
 
 type WriteAnswer struct {
@@ -198,6 +202,7 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 		return answer, err
 	}
 	answer.Proposed = string(proposed)
+	answer.Generated = releaseHashes(answer.Proposal.Release)
 	check := molten.ValidatePipelineData(dir, proposed)
 	answer.Errors, answer.ValidateWarnings = check.Errors, check.Warnings
 	return answer, nil
@@ -265,34 +270,52 @@ func (s *Setup) Write(req WriteRequest) (WriteAnswer, error) {
 		return WriteAnswer{}, uimsg.Errorf(uimsg.Make("mission.setup.notValid", "errors", strings.Join(report.Errors, "; ")),
 			"the proposed %s is not valid: %s", molten.ProjectPipelineFile, strings.Join(report.Errors, "; "))
 	}
-	folder := filepath.Join(dir, filepath.Dir(molten.ProjectPipelineFile))
-	if info, err := os.Lstat(folder); err == nil && !info.IsDir() {
-		return WriteAnswer{}, fmt.Errorf("%s is not a folder", folder)
-	}
-	if err := os.MkdirAll(folder, 0755); err != nil {
-		return WriteAnswer{}, err
-	}
-	path := filepath.Join(dir, molten.ProjectPipelineFile)
-	tmp, err := os.CreateTemp(folder, ".project.json.*")
+	path, err := writeProjectFile(dir, molten.ProjectPipelineFile, data)
 	if err != nil {
 		return WriteAnswer{}, err
+	}
+	answer := WriteAnswer{Path: path, Warnings: report.Warnings}
+	// The record only lets a later update tell the template's text from the developer's (#1086): a failure to write it
+	// leaves the pipeline written.
+	if err := writeRecord(dir, recordOf(report.Pipeline, req.Generated, nil)); err != nil {
+		answer.Warnings = append(answer.Warnings, fmt.Sprintf("%s: %v", RecordFile, err))
+	}
+	return answer, nil
+}
+
+// writeProjectFile replaces a file of the project atomically, never through a link.
+func writeProjectFile(dir string, rel string, data []byte) (string, error) {
+	path := filepath.Join(dir, filepath.FromSlash(rel))
+	folder := filepath.Dir(path)
+	if info, err := os.Lstat(folder); err == nil && !info.IsDir() {
+		return "", fmt.Errorf("%s is not a folder", folder)
+	}
+	if err := os.MkdirAll(folder, 0755); err != nil {
+		return "", err
+	}
+	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+		return "", fmt.Errorf("%s is not a regular file: it is not written through a link", rel)
+	}
+	tmp, err := os.CreateTemp(folder, "."+filepath.Base(path)+".*")
+	if err != nil {
+		return "", err
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
-		return WriteAnswer{}, err
+		return "", err
 	}
 	if err := tmp.Chmod(0644); err != nil {
 		tmp.Close()
-		return WriteAnswer{}, err
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return WriteAnswer{}, err
+		return "", err
 	}
 	if err := os.Rename(tmp.Name(), path); err != nil {
-		return WriteAnswer{}, err
+		return "", err
 	}
-	return WriteAnswer{Path: path, Warnings: report.Warnings}, nil
+	return path, nil
 }
 
 // refineArgv is the agent's non-interactive form without a shell, a file writer or the web: it reads the repository and

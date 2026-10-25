@@ -6,12 +6,14 @@
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MissionRouteId } from "./mission-client";
-import type { SetupDraft, SetupKind, SetupOptions, SetupRefined } from "./release-setup-model";
+import type { SetupCheck, SetupDraft, SetupKind, SetupOptions, SetupRefined } from "./release-setup-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionSetupDraftCommand = "moltenmissionsetupdraft";
 export const MissionSetupRefineCommand = "moltenmissionsetuprefine";
 export const MissionSetupWriteCommand = "moltenmissionsetupwrite";
+export const MissionSetupCheckCommand = "moltenmissionsetupcheck";
+export const MissionSetupUpdateCommand = "moltenmissionsetupupdate";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -31,6 +33,25 @@ export function setupRefine(dir: string, text: string): Promise<SetupRefined> {
     return setupCall(MissionSetupRefineCommand, { dir, text }, SetupRefineTimeoutMs);
 }
 
-export function setupWrite(dir: string, text: string, base: string): Promise<{ path: string; warnings: string[] }> {
-    return setupCall(MissionSetupWriteCommand, { dir, text, base }, SetupWriteTimeoutMs);
+export function setupWrite(
+    dir: string,
+    text: string,
+    base: string,
+    generated?: Record<string, string>
+): Promise<{ path: string; warnings: string[] }> {
+    return setupCall(MissionSetupWriteCommand, { dir, text, base, generated }, SetupWriteTimeoutMs);
+}
+
+// Compares the release setup with what this version of MoltenTerm writes (#1086); the remote facts are read again.
+export function setupCheck(dir: string, choices?: Record<string, boolean>): Promise<SetupCheck> {
+    return setupCall(MissionSetupCheckCommand, { dir, choices }, SetupDraftTimeoutMs);
+}
+
+export function setupUpdate(
+    dir: string,
+    base: string,
+    signature: string,
+    choices: Record<string, boolean>
+): Promise<{ path: string; warnings: string[] }> {
+    return setupCall(MissionSetupUpdateCommand, { dir, base, signature, choices }, SetupDraftTimeoutMs);
 }

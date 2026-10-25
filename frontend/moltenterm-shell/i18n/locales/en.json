@@ -3693,7 +3693,56 @@
                 "legendTag": "The tag",
                 "legendWorkflow": "A GitHub workflow"
             },
-            "trustBody": "The release setup just wrote these commands. Trusting starts nothing: MoltenTerm runs them in {dir}, with your rights, when you start a release. It asks again whenever they change."
+            "trustBody": "The release setup just wrote these commands. Trusting starts nothing: MoltenTerm runs them in {dir}, with your rights, when you start a release. It asks again whenever they change.",
+            "update": {
+                "open": "Update the release setup",
+                "openHint": "This version of MoltenTerm writes the release differently.",
+                "upToDate": "Release setup up to date with this version of MoltenTerm",
+                "title": "Update the release setup of {project}",
+                "subtitle": "MoltenTerm compared the release with what this version writes. Nothing is written before you click Update.",
+                "why": "Why",
+                "reason": {
+                    "protected": "{branch} is protected: releases go through a pull request.",
+                    "labels": "Version labels found outside the version files: {count}. The release can bump them.",
+                    "template": "Steps written by an earlier version of MoltenTerm differ from what it writes now.",
+                    "customised": "You changed steps MoltenTerm wrote: keep yours or take its version. A choice you write is not offered again."
+                },
+                "noRecord": "This release was set up before MoltenTerm kept track of what it wrote: the steps it recognises as its own are updated, the others are kept.",
+                "group": {
+                    "rc": "Release candidate",
+                    "public": "Public release",
+                    "versions": "Version files"
+                },
+                "kind": {
+                    "added": "New",
+                    "removed": "Removed",
+                    "changed": "Changed",
+                    "versions": "Changed"
+                },
+                "versionsTitle": "Files that carry the version",
+                "customised": {
+                    "added": "A step you added.",
+                    "changed": "You changed this step: your version is kept unless you tick the new one.",
+                    "removed": "MoltenTerm does not write this step: it is yours and stays unless you tick its removal.",
+                    "versions": "You changed this block: your version is kept unless you tick the new one."
+                },
+                "apply": "Apply this change",
+                "useNew": {
+                    "added": "Add it",
+                    "changed": "Use the new version",
+                    "removed": "Remove it",
+                    "versions": "Use the new version"
+                },
+                "show": "Show",
+                "hide": "Hide",
+                "before": "Now",
+                "after": "After the update",
+                "files": "The file",
+                "filesHint": "Only the release and version blocks change; MoltenTerm also notes in .molten/release-setup.json which steps it wrote.",
+                "keepAll": "You keep every change as it is: the file stays the same, and Update records your choices in .molten/release-setup.json so they are not offered again.",
+                "invalid": "The updated pipeline would not be valid: {errors}",
+                "write": "Update"
+            }
         }
     },
     "workspace": {
@@ -7103,7 +7152,8 @@
                 "notValid": "The proposed pipeline is not valid: {errors}",
                 "noAgent": "No supported coding agent (Claude Code or Codex) is installed on this computer.",
                 "agentFailed": "{agent} could not refine the draft: {detail}",
-                "agentNoJson": "{agent} answered without a pipeline."
+                "agentNoJson": "{agent} answered without a pipeline.",
+                "updateChanged": "The update changed since it was shown: check it again."
             }
         },
         "notif": {

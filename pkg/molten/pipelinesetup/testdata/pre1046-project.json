@@ -1,0 +1,112 @@
+{
+    "schema": 1,
+    "name": "SaaSFoundryAI",
+    "versions": {
+        "tagprefix": "v",
+        "firstpublic": "1.0.0",
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": ".saasfoundry.json", "format": "json", "keys": [["version"]] }
+        ],
+        "changelogs": ["docs/changelog.md", "docs/fr/changelog.md"]
+    },
+    "ci": {
+        "prepare": { "run": "npm ci" },
+        "jobs": [
+            { "name": "lint", "title": "Lint", "lane": "static", "run": "npm run lint" }
+        ]
+    },
+    "release": {
+        "rc": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto master once its CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow test.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "changelog-en",
+                "title": "Write the {version} section of docs/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. The cut commits it with the version."
+            },
+            {
+                "id": "changelog-fr",
+                "title": "Write the {version} section of docs/fr/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. The cut commits it with the version."
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ],
+        "public": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto master once its CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow test.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "changelog-en",
+                "title": "Write the {version} section of docs/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. The cut commits it with the version."
+            },
+            {
+                "id": "changelog-fr",
+                "title": "Write the {version} section of docs/fr/changelog.md",
+                "phase": "cut",
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. The cut commits it with the version."
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push: publish-stable.yml starts on the tag",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed: publish-stable.yml starts on the tag, and the environment npm-production asks for an approval on GitHub.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "close-milestone",
+                "title": "Close the milestone once the release is published",
+                "phase": "publish",
+                "run": "molten release close-milestone {tag}"
+            },
+            {
+                "id": "dispatch-deploy-docs",
+                "title": "Run Deploy Documentation at {tag}",
+                "phase": "publish",
+                "run": "molten release dispatch deploy-docs.yml --ref {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ]
+    }
+}
+

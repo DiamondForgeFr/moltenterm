@@ -27,7 +27,9 @@ import {
     ReleaseSession,
 } from "./release-model";
 import { ReleaseSetup } from "./release-setup";
-import { needsReleaseSetup } from "./release-setup-model";
+import { setupCheck } from "./release-setup-client";
+import { needsReleaseSetup, SetupCheck, SetupUpdateReason } from "./release-setup-model";
+import { ReleaseSetupUpdate, useReasonText } from "./release-setup-update";
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
@@ -63,6 +65,8 @@ export function ReleaseMenu({
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
     const [settingUp, setSettingUp] = useState(false);
+    const [setupState, setSetupState] = useState<SetupCheck>(null);
+    const [updating, setUpdating] = useState(false);
     const [milestone, setMilestone] = useState<{ version: string; warning: MilestoneWarning; error: string }>(null);
 
     // The numbers are computed when the menu opens, from the remote as it is now.
@@ -104,6 +108,29 @@ export function ReleaseMenu({
             cancelled = true;
         };
     }, [open, dir]);
+
+    // A pipeline set up before: checked again each time the menu opens, the release branch's protection included (#1086).
+    const missingSetup = needsReleaseSetup(rcSteps, publicSteps);
+    useEffect(() => {
+        setSetupState(null);
+        if (!open || missingSetup) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            try {
+                const answer = await setupCheck(dir);
+                if (!cancelled) {
+                    setSetupState(answer);
+                }
+            } catch {
+                // The menu stays usable: the check only adds an offer.
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [open, dir, missingSetup]);
 
     const tag = releaseChoiceTag(plan, choice, version);
     const shipped = releaseBaseOf(plan?.rules, tag);
@@ -190,13 +217,31 @@ export function ReleaseMenu({
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
-                    {needsReleaseSetup(rcSteps, publicSteps) ? (
+                    {missingSetup ? (
                         <ReleaseSetupButton
                             onOpen={() => {
                                 setOpen(false);
                                 setSettingUp(true);
                             }}
                         />
+                    ) : null}
+                    {setupState?.state === "update" ? (
+                        <ReleaseSetupUpdateButton
+                            reason={setupState.reasons[0]}
+                            onOpen={() => {
+                                setOpen(false);
+                                setUpdating(true);
+                            }}
+                        />
+                    ) : null}
+                    {setupState?.state === "uptodate" ? (
+                        <div
+                            className="flex items-center gap-1.5 px-1 text-11 text-muted"
+                            data-testid="release-setup-uptodate"
+                        >
+                            <i className="fa fa-solid fa-check text-11 text-success" />
+                            {t("mc.setup.update.upToDate")}
+                        </div>
                     ) : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-12 text-muted">
@@ -289,6 +334,14 @@ export function ReleaseMenu({
                     onWritten={() => onSetUp?.()}
                 />
             ) : null}
+            {updating ? (
+                <ReleaseSetupUpdate
+                    dir={dir}
+                    projectName={projectName}
+                    onClose={() => setUpdating(false)}
+                    onWritten={() => onSetUp?.()}
+                />
+            ) : null}
             {untrusted != null ? (
                 <TrustPrompt
                     projectName={projectName}
@@ -316,6 +369,28 @@ export function ReleaseSetupButton({ onOpen }: { onOpen: () => void }) {
             <span className="flex flex-col">
                 <span className="text-13 leading-5 font-medium text-primary">{t("mc.setup.open")}</span>
                 <span className="text-11 text-muted">{t("mc.setup.openHint")}</span>
+            </span>
+        </button>
+    );
+}
+
+// The menu's offer when this version of MoltenTerm writes the release setup differently (#1086), with the first reason.
+export function ReleaseSetupUpdateButton({ reason, onOpen }: { reason: SetupUpdateReason; onOpen: () => void }) {
+    const t = useT();
+    const reasonText = useReasonText();
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="flex w-full cursor-pointer items-start gap-2 rounded-6 border border-accent/50 bg-accent/10 px-3 py-2 text-left transition-colors duration-120 ease-mt hover:border-accent"
+            data-testid="release-setup-update"
+        >
+            <i className="fa fa-solid fa-arrows-rotate mt-[3px] text-11 text-accent" />
+            <span className="flex flex-col">
+                <span className="text-13 leading-5 font-medium text-primary">{t("mc.setup.update.open")}</span>
+                <span className="text-11 text-muted">
+                    {reason ? reasonText(reason) : t("mc.setup.update.openHint")}
+                </span>
             </span>
         </button>
     );

@@ -3693,7 +3693,56 @@
                 "legendTag": "Le tag",
                 "legendWorkflow": "Un workflow GitHub"
             },
-            "trustBody": "La mise en place de la release vient d’écrire ces commandes. Faire confiance ne lance rien : MoltenTerm les lance dans {dir}, avec vos droits, quand vous démarrez une release. Il redemande chaque fois qu’elles changent."
+            "trustBody": "La mise en place de la release vient d’écrire ces commandes. Faire confiance ne lance rien : MoltenTerm les lance dans {dir}, avec vos droits, quand vous démarrez une release. Il redemande chaque fois qu’elles changent.",
+            "update": {
+                "open": "Mettre à jour la mise en place de la release",
+                "openHint": "Cette version de MoltenTerm écrit la release autrement.",
+                "upToDate": "Mise en place de la release à jour avec cette version de MoltenTerm",
+                "title": "Mettre à jour la release de {project}",
+                "subtitle": "MoltenTerm a comparé la release avec ce que cette version écrit. Rien n’est écrit avant votre clic sur Mettre à jour.",
+                "why": "Pourquoi",
+                "reason": {
+                    "protected": "{branch} est protégée : les releases passent par une pull request.",
+                    "labels": "Libellés de version trouvés hors des fichiers de version : {count}. La release peut les mettre à jour.",
+                    "template": "Des étapes écrites par une version antérieure de MoltenTerm diffèrent de ce qu’il écrit maintenant.",
+                    "customised": "Vous avez modifié des étapes écrites par MoltenTerm : gardez les vôtres ou prenez sa version. Un choix écrit n’est plus proposé."
+                },
+                "noRecord": "Cette release a été mise en place avant que MoltenTerm ne note ce qu’il écrit : les étapes qu’il reconnaît comme les siennes sont mises à jour, les autres sont gardées.",
+                "group": {
+                    "rc": "Release candidate",
+                    "public": "Version publique",
+                    "versions": "Fichiers de version"
+                },
+                "kind": {
+                    "added": "Nouvelle",
+                    "removed": "Retirée",
+                    "changed": "Modifiée",
+                    "versions": "Modifié"
+                },
+                "versionsTitle": "Fichiers qui portent la version",
+                "customised": {
+                    "added": "Une étape que vous avez ajoutée.",
+                    "changed": "Vous avez modifié cette étape : votre version est gardée, sauf si vous cochez la nouvelle.",
+                    "removed": "MoltenTerm n’écrit pas cette étape : elle est à vous et reste, sauf si vous cochez son retrait.",
+                    "versions": "Vous avez modifié ce bloc : votre version est gardée, sauf si vous cochez la nouvelle."
+                },
+                "apply": "Appliquer ce changement",
+                "useNew": {
+                    "added": "L’ajouter",
+                    "changed": "Prendre la nouvelle version",
+                    "removed": "La retirer",
+                    "versions": "Prendre la nouvelle version"
+                },
+                "show": "Afficher",
+                "hide": "Masquer",
+                "before": "Maintenant",
+                "after": "Après la mise à jour",
+                "files": "Le fichier",
+                "filesHint": "Seuls les blocs release et versions changent ; MoltenTerm note aussi dans .molten/release-setup.json les étapes qu’il a écrites.",
+                "keepAll": "Vous gardez tout tel quel : le fichier ne change pas, et Mettre à jour note vos choix dans .molten/release-setup.json pour ne plus les proposer.",
+                "invalid": "Le pipeline mis à jour ne serait pas valide : {errors}",
+                "write": "Mettre à jour"
+            }
         }
     },
     "workspace": {
@@ -7103,7 +7152,8 @@
                 "notValid": "Le pipeline proposé n’est pas valide : {errors}",
                 "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
                 "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
-                "agentNoJson": "{agent} a répondu sans pipeline."
+                "agentNoJson": "{agent} a répondu sans pipeline.",
+                "updateChanged": "La mise à jour a changé depuis son affichage : vérifiez-la à nouveau."
             }
         },
         "notif": {
