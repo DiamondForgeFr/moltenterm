@@ -8,6 +8,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 import { MergedDays, type ReviewMergedPr } from "./reviews-merged-model";
 import type { ReviewsAnswer } from "./reviews-model";
 
@@ -26,6 +27,8 @@ export type LocalMerge = {
     ticket?: number;
     // merged by MoltenTerm, not elsewhere (a Validate refused on a PR merged away)
     byyou?: boolean;
+    // merged by the merge queue (#1123): "group" when the group merge put it there, "queue" when a Validate did.
+    byqueue?: "group" | "queue";
 };
 
 // By mergeKey.
@@ -33,6 +36,17 @@ export type LocalMerges = Record<string, LocalMerge>;
 
 // What is known of a PR's merge, for an open Review tab (#898).
 export type KnownMerge = { at?: number; by?: string; byyou?: boolean; base?: string; oid?: string };
+
+// mergedByQueueText: what a Recently merged row says of a PR the merge queue merged (#1123), "" otherwise.
+export function mergedByQueueText(byqueue: LocalMerge["byqueue"]): string {
+    if (byqueue === "group") {
+        return t("reviews.merged.byGroup");
+    }
+    if (byqueue === "queue") {
+        return t("reviews.merged.byQueue");
+    }
+    return "";
+}
 
 export function mergeKey(dir: string, number: number): string {
     return `${dir}#${number}`;
@@ -64,7 +78,12 @@ export class ReviewsMerges {
         const key = mergeKey(dir, merge.number);
         const merges = globalStore.get(this.mergesAtom);
         const known = merges[key];
-        if (known != null && (known.oid || !merge.oid) && (known.mergedat || !merge.mergedat)) {
+        if (
+            known != null &&
+            (known.oid || !merge.oid) &&
+            (known.mergedat || !merge.mergedat) &&
+            (known.byqueue || !merge.byqueue)
+        ) {
             return;
         }
         globalStore.set(this.mergesAtom, {

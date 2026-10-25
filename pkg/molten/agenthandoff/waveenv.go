@@ -92,7 +92,8 @@ func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 }
 
 // projectDirOf: the workspace's project when the folder is in it (or unknown), else the folder's git root, else the
-// folder.
+// folder. A linked worktree belongs to its main checkout (#1123): the merge queue's agent works in a tree under
+// MoltenTerm's data folder, and its worktree's name is never its project.
 func projectDirOf(folder string, project string) string {
 	if project != "" && (folder == "" || within(folder, project)) {
 		return project
@@ -100,10 +101,27 @@ func projectDirOf(folder string, project string) string {
 	if folder == "" {
 		return ""
 	}
-	if root := molten.FindGitRoot(folder); root != "" {
+	root := molten.FindGitRoot(folder)
+	if root == "" {
+		return folder
+	}
+	main := molten.MainCheckoutOfTree(root)
+	if main == "" {
 		return root
 	}
-	return folder
+	if project != "" && samePath(main, project) {
+		return project
+	}
+	return main
+}
+
+func samePath(a string, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
 }
 
 func (waveEnv) TypePrompt(ctx context.Context, blockId string, line string) TypeResult {

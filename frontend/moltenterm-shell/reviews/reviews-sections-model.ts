@@ -121,6 +121,17 @@ export function sectionsByTurn(
     })).filter((s) => s.prs.length > 0);
 }
 
+// withTurnShown: the sections with turn's present, empty when no card is in it, at its place in TurnOrder. The merge
+// queue's banner lives in "Agents on it" (#1123): the section shows while the queue does, cards or not.
+export function withTurnShown(sections: TurnSection[], turn: CardTurn, shown: boolean): TurnSection[] {
+    if (!shown || sections.some((s) => s.turn === turn)) {
+        return sections;
+    }
+    const place = TurnOrder.indexOf(turn);
+    const rtn = sections.filter((s) => TurnOrder.indexOf(s.turn) < place);
+    return [...rtn, { turn, prs: [] }, ...sections.slice(rtn.length)];
+}
+
 // The cards a keyboard walks: those of the open sections, in their shown order.
 export function sectionRows(sections: readonly TurnSection[], folded: Partial<Record<CardTurn, boolean>>): ReviewPr[] {
     return sections.filter((s) => !folded?.[s.turn]).flatMap((s) => s.prs);

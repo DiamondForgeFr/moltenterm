@@ -23,6 +23,9 @@ import (
 const trunkLogLimit = 300
 const branchLogLimit = 150
 const maxBranches = 60
+
+// The branches an agent tool names after its worktree (Claude Code's Agent tool: worktree-agent-<id>).
+const agentTreePrefix = "worktree-agent-"
 const maxAhead = 400
 const maxSincePublic = 500
 const defaultTagPrefix = "v"
@@ -59,6 +62,9 @@ type Branch struct {
 	Date    string     `json:"date"`
 	Commits []Commit   `json:"commits"`
 	Fork    *ForkPoint `json:"fork"`
+	// AgentTree: a branch an agent tool made for its worktree (worktree-agent-…), kept because it holds commits of its
+	// own (#1123).
+	AgentTree bool `json:"agenttree,omitempty"`
 }
 
 // Merge is a branch merged into the trunk by a merge commit, read back from the commit's second parent: where the
@@ -351,7 +357,11 @@ func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Bran
 		if len(branches) >= maxBranches {
 			break
 		}
-		branch := Branch{Name: parts[0], Sha: parts[1], Date: parts[2], Commits: []Commit{}}
+		agentTree := strings.HasPrefix(parts[0], agentTreePrefix)
+		if agentTree && !g.hasOwnCommits(parts[0]) {
+			continue
+		}
+		branch := Branch{Name: parts[0], Sha: parts[1], Date: parts[2], Commits: []Commit{}, AgentTree: agentTree}
 		if baseRef != "" {
 			if fork, err := g.out("merge-base", baseRef, parts[0]); err == nil && fork != "" {
 				branch.Fork = &ForkPoint{Sha: fork, Date: g.commitDate(fork)}
@@ -361,6 +371,19 @@ func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Bran
 		branches = append(branches, branch)
 	}
 	return branches
+}
+
+// hasOwnCommits: the agent tool's branch holds a commit no other branch, remote branch or tag holds (#1123). Its
+// worktree starts on the checkout's commit, often the release branch's, which reads as commits ahead of the trunk;
+// other agents' branches do not count, so two that started on the same commit are both left out.
+func (g *gitReader) hasOwnCommits(name string) bool {
+	count, err := g.out("rev-list", "--count", "refs/heads/"+name, "--not", "--exclude="+agentTreePrefix+"*", "--branches",
+		"--remotes", "--tags")
+	if err != nil {
+		return true
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(count))
+	return err != nil || n > 0
 }
 
 func earlierDate(a string, b string) bool {

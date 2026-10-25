@@ -368,17 +368,37 @@ export function batchNowText(item: BatchItem): string {
     return t("reviews.batch.banner.now.other");
 }
 
+// ShownIds: the number each PR's card shows (#1108), by PR number.
+export type ShownIds = Record<number, number>;
+
+// batchItemId: the number the PR's card shows (#1108), its ticket's when the list does not say.
+export function batchItemId(item: BatchItem, ids?: ShownIds): number {
+    return ids?.[item.number] ?? (item.ticket || item.number);
+}
+
+// batchHeadline: who works on the queue and its PRs in order, with the numbers the cards show (#1123): "Pauline ·
+// group merge: #1102 → #1105". A queue fed only by Validate is the merge queue, not a group merge.
+export function batchHeadline(run: BatchRun, firstName: string, ids?: ShownIds): string {
+    const list = run.items.map((it) => `#${batchItemId(it, ids)}`).join(" → ");
+    const group = run.items.some((it) => it.source === "batch");
+    if (firstName) {
+        return t(group ? "reviews.batch.headline.groupBy" : "reviews.batch.headline.queueBy", { name: firstName, list });
+    }
+    return t(group ? "reviews.batch.headline.group" : "reviews.batch.headline.queue", { list });
+}
+
 // The banner counts the merged PRs, never the position: "12 of 12" read as done while the last PR still waited for its
 // checks (#887).
-export function batchTitle(run: BatchRun): string {
+export function batchTitle(run: BatchRun, ids?: ShownIds): string {
     const count = run.items.length;
     const current = batchCurrent(run);
     const merged = batchMergedCount(run);
+    const number = current != null ? batchItemId(current, ids) : 0;
     const progress =
         current == null
             ? t("reviews.batch.banner.progressIdle", { merged, count })
-            : t("reviews.batch.banner.progress", { merged, count, number: current.number, now: batchNowText(current) });
-    const vars = { progress, merged, number: current?.number ?? 0, base: run.base };
+            : t("reviews.batch.banner.progress", { merged, count, number, now: batchNowText(current) });
+    const vars = { progress, merged, number, base: run.base };
     switch (run.state) {
         case "running":
             return tCount("reviews.batch.banner.running", count, vars);
@@ -392,15 +412,15 @@ export function batchTitle(run: BatchRun): string {
     return tCount("reviews.batch.banner.interrupted", count, vars);
 }
 
-// batchStepText: what happens to the PR, in one line.
-export function batchStepText(run: BatchRun, item: BatchItem): string {
+// batchStepText: what happens to the PR, in one line. firstName: the agent's, when its terminal is known (#1123).
+export function batchStepText(run: BatchRun, item: BatchItem, firstName?: string): string {
     if (item == null) {
         return "";
     }
     const vars = {
         number: item.number,
         base: run.base,
-        name: batchAgentName(run),
+        name: firstName || batchAgentName(run),
         names: (item.names ?? []).join(", "),
     };
     if (item.waiting) {
@@ -451,12 +471,15 @@ export function batchKeptText(kept: BatchKept): string {
 }
 
 // batchSummary: the ended queue's merged PRs and the others with their reasons, and the CI runs redone.
-export function batchSummary(run: BatchRun): string {
-    const merged = run.items.filter((it) => it.state === "merged").map((it) => `#${it.number}`);
+export function batchSummary(run: BatchRun, ids?: ShownIds): string {
+    const merged = run.items.filter((it) => it.state === "merged").map((it) => `#${batchItemId(it, ids)}`);
     const skipped = run.items
         .filter((it) => it.state !== "merged")
         .map((it) =>
-            t("reviews.batch.summary.skippedItem", { number: it.number, reason: batchReasonText(it, run.base) })
+            t("reviews.batch.summary.skippedItem", {
+                number: batchItemId(it, ids),
+                reason: batchReasonText(it, run.base),
+            })
         );
     const parts = [
         merged.length > 0

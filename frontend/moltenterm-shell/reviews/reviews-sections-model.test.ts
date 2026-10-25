@@ -22,6 +22,7 @@ import {
     sectionsByTurn,
     upcomingEntries,
     upcomingWaitingCount,
+    withTurnShown,
 } from "./reviews-sections-model";
 import type { AgentBarFacts, UpcomingAnswer, UpcomingBranch } from "./reviews-upcoming-model";
 
@@ -113,6 +114,22 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
             ["waiting", [1105]],
         ]);
         expect(turns([])).toEqual([]);
+    });
+
+    it("shows the agents' section for the merge queue's banner, cards or not (#1123)", () => {
+        const sections = [
+            { turn: "yours" as const, prs: [pr(1101)] },
+            { turn: "waiting" as const, prs: [pr(1105)] },
+        ];
+        expect(withTurnShown(sections, "agents", true).map((s) => [s.turn, s.prs.length])).toEqual([
+            ["yours", 1],
+            ["agents", 0],
+            ["waiting", 1],
+        ]);
+        expect(withTurnShown(sections, "agents", false)).toBe(sections);
+        expect(withTurnShown([], "agents", true).map((s) => s.turn)).toEqual(["agents"]);
+        const withAgents = [{ turn: "agents" as const, prs: [pr(1106)] }];
+        expect(withTurnShown(withAgents, "agents", true)).toBe(withAgents);
     });
 
     it("moves a card when its state changes, not when GitHub's draft flag does", () => {

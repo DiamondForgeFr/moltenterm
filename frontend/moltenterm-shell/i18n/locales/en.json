@@ -2606,6 +2606,7 @@
                 "commit": "this commit"
             },
             "aheadOfDevelop": "{count} ahead of develop",
+            "agentTree": "agent worktree",
             "mergedAt": "{count} · merged {when}",
             "leftDevelop": "Left develop {when}",
             "forkUnknown": "Where it left develop is not known: git's history read stops before it.",
@@ -4811,7 +4812,24 @@
                 "one": "+{count} sub-agent",
                 "other": "+{count} sub-agents"
             },
-            "subagentsLess": "Show fewer sub-agents"
+            "subagentsLess": "Show fewer sub-agents",
+            "work": {
+                "batch": "group merge: {list}",
+                "batchMerged": {
+                    "one": "{merged} of {count} merged",
+                    "other": "{merged} of {count} merged"
+                },
+                "batchCount": {
+                    "one": "group merge of {count} PR into {base}",
+                    "other": "group merge of {count} PRs into {base}"
+                },
+                "rebase": "rebase of #{number}",
+                "restart": "review comments on #{number}",
+                "investigate": "CI of #{number}",
+                "finish": "finishing #{number}",
+                "review": "review of #{number}",
+                "release": "release {tag}"
+            }
         },
         "steps": {
             "none": "No project step for the overview: the pipeline declares none in its \"{section}\" section.",
@@ -5443,6 +5461,12 @@
         "batch": {
             "tabName": "Merge queue",
             "yourAgent": "Your agent",
+            "headline": {
+                "group": "Group merge: {list}",
+                "queue": "Merge queue: {list}",
+                "groupBy": "{name} · group merge: {list}",
+                "queueBy": "{name} · merge queue: {list}"
+            },
             "method": {
                 "merge": "merge commit",
                 "squash": "squash",
@@ -5539,9 +5563,9 @@
                 "pushed": "Pushed after your validation: back to review",
                 "withdrawn": "Validation cancelled"
             },
-            "goTo": "Go to the agent",
+            "goTo": "Go there",
             "goToTitle": "Show {name}'s terminal",
-            "cancel": "Cancel all",
+            "cancel": "Stop",
             "cancelling": "Cancelling…",
             "cancelTitle": "Cancel every validation not being merged; nothing more is merged",
             "dismiss": "Hide",
@@ -5630,6 +5654,8 @@
             "showAll": "Show all",
             "you": "you",
             "by": "by {name}",
+            "byGroup": "by the group merge",
+            "byQueue": "by the merge queue",
             "rowAria": "#{number} {title}, show its details",
             "prLink": "PR #{number} ↗",
             "mergedAt": "merged {when}",

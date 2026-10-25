@@ -331,6 +331,7 @@ function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
                                 count: `${b.count}${b.countCapped ? "+" : ""}`,
                             })}
                             {b.prNumber ? ` · PR #${b.prNumber}` : ""}
+                            {b.agentTree ? ` · ${t("mc.lineMap.agentTree")}` : ""}
                         </span>
                     </div>
                 ))}
@@ -431,6 +432,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
                 {b.name}
                 <span className="ml-1.5 font-normal text-muted">
                     · {b.state === "open" ? t("mc.lineMap.inProgress") : t("mc.lineMap.merged")}
+                    {b.agentTree ? ` · ${t("mc.lineMap.agentTree")}` : ""}
                 </span>
             </div>
             <div className="text-secondary">

@@ -97,3 +97,40 @@ func TestEarlierDateAcrossOffsets(t *testing.T) {
 		t.Fatal("an unreadable date is never earlier")
 	}
 }
+
+// The agent tool's worktree branches (#1123): one still on the commit its worktree started from is noise and is left
+// out, even when that commit is ahead of the trunk (a release branch's); one with commits of its own stays, marked.
+func TestCollectGitLeavesOutEmptyAgentBranches(t *testing.T) {
+	dir := makeMergeRepo(t)
+	gitRun(t, dir, "checkout", "-q", "-b", "main")
+	commit(t, dir, "r.txt", "chore(release): v1")
+	gitRun(t, dir, "branch", "worktree-agent-a1")
+	gitRun(t, dir, "branch", "worktree-agent-a2")
+	gitRun(t, dir, "checkout", "-q", "-b", "worktree-agent-b1")
+	commit(t, dir, "w.txt", "feat(#9): the agent's own work")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]Branch{}
+	for _, b := range snap.Branches {
+		names[b.Name] = b
+	}
+	if _, ok := names["worktree-agent-a1"]; ok {
+		t.Errorf("an empty agent branch is listed: %+v", names["worktree-agent-a1"])
+	}
+	if _, ok := names["worktree-agent-a2"]; ok {
+		t.Errorf("a second empty agent branch on the same commit is listed")
+	}
+	own, ok := names["worktree-agent-b1"]
+	if !ok || !own.AgentTree || len(own.Commits) == 0 {
+		t.Errorf("the agent branch with its own commit: %+v (listed %v)", own, ok)
+	}
+	if f, ok := names["feature/3-thing"]; !ok || f.AgentTree {
+		t.Errorf("a feature branch: %+v (listed %v)", f, ok)
+	}
+	if _, ok := names["main"]; !ok {
+		t.Errorf("main is missing: %v", names)
+	}
+}

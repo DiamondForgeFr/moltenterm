@@ -73,7 +73,7 @@ import {
     withMerged,
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
-import { cardStates, sectionOf, sectionRows, sectionsByTurn } from "./reviews-sections-model";
+import { cardStates, sectionOf, sectionRows, sectionsByTurn, withTurnShown } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 
@@ -282,7 +282,14 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // Each card's one state (#1060), computed here once so its section and the card itself agree.
     const ctx = useCardContext(dir);
     const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
-    const sections = useMemo(() => sectionsByTurn(listed, cards, sort, ranks), [listed, cards, sort, ranks]);
+    // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
+    // join (FR-REV-026), which wavesrv publishes. Its banner sits in "Agents on it" (#1123), shown even with no card.
+    const batchRun = useBatchRun(dir, answer.target);
+    const batchVisible = batchShown(batchRun);
+    const sections = useMemo(
+        () => withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible),
+        [listed, cards, sort, ranks, batchVisible]
+    );
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
     for (const s of sections) {
@@ -300,9 +307,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const hot =
         active == null || relations.partners.length === 0 ? [] : [active, ...relations.partners.map((p) => p.number)];
     const status = forecastStatus(forecast, forecastReq);
-    // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
-    // join (FR-REV-026), which wavesrv publishes.
-    const batchRun = useBatchRun(dir, answer.target);
     const [confirming, setConfirming] = useState(false);
     const queuePrs = useMemo(() => {
         const numbers = new Set(queue.steps.filter((s) => !s.merged).map((s) => s.number));
@@ -466,7 +470,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     };
     // Check the agents sits on the heading of the agents' section, else of the first PR section shown.
     const checkTurn = sections.some((s) => s.turn === "agents") ? "agents" : sections[0]?.turn;
-    // The queue, its banner and the after-merge line sit at the top of "Yours", else above the sections.
+    // The queue and the after-merge line sit at the top of "Yours", else above the sections.
     const queueTurn: CardTurn = sections[0]?.turn === "yours" ? "yours" : null;
     const queueBlock = (
         <>
@@ -476,7 +480,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 onHandOver={handOver}
                 onClose={() => model.closeAfterMerge(dir)}
             />
-            {batchShown(batchRun) ? <BatchBanner run={batchRun} ids={shownIds} /> : null}
             {shown ? (
                 <MergeQueueBlock
                     queue={queue}
@@ -506,7 +509,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const bottomOpen = long !== true;
     const motionAround = [
         afterMerge?.merged.join(" ") ?? "",
-        batchShown(batchRun) ? "batch" : "",
+        batchVisible ? "batch" : "",
         shown ? queue.steps.map((s) => `${s.number}${s.merged ? "m" : ""}`).join(" ") : "",
     ].join("|");
     return (
@@ -554,7 +557,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                         >
                             <SectionHeading
                                 title={t(text.title)}
-                                count={section.prs.length}
+                                count={section.prs.length > 0 ? section.prs.length : undefined}
                                 hint={text.hint ? t(text.hint) : undefined}
                                 open={isOpen}
                                 onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
@@ -569,7 +572,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             </SectionHeading>
                             {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
                             {section.turn === queueTurn ? queueBlock : null}
-                            {isOpen ? (
+                            {section.turn === "agents" && batchVisible ? (
+                                <BatchBanner run={batchRun} ids={shownIds} />
+                            ) : null}
+                            {isOpen && section.prs.length > 0 ? (
                                 <div
                                     className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
                                     role="list"

@@ -2606,6 +2606,7 @@
                 "commit": "ce commit"
             },
             "aheadOfDevelop": "{count} d'avance sur develop",
+            "agentTree": "worktree d'agent",
             "mergedAt": "{count} · fusionnée le {when}",
             "leftDevelop": "A quitté develop le {when}",
             "forkUnknown": "On ne sait pas où elle a quitté develop : l'historique lu par git s'arrête avant.",
@@ -4811,7 +4812,24 @@
                 "one": "+{count} sous-agent",
                 "other": "+{count} sous-agents"
             },
-            "subagentsLess": "Afficher moins de sous-agents"
+            "subagentsLess": "Afficher moins de sous-agents",
+            "work": {
+                "batch": "fusion groupée : {list}",
+                "batchMerged": {
+                    "one": "{merged} sur {count} fusionnée",
+                    "other": "{merged} sur {count} fusionnées"
+                },
+                "batchCount": {
+                    "one": "fusion groupée de {count} PR dans {base}",
+                    "other": "fusion groupée de {count} PR dans {base}"
+                },
+                "rebase": "rebase de #{number}",
+                "restart": "commentaires de revue sur #{number}",
+                "investigate": "CI de #{number}",
+                "finish": "finition de #{number}",
+                "review": "revue de #{number}",
+                "release": "version {tag}"
+            }
         },
         "steps": {
             "none": "Aucune étape de projet pour la vue d'ensemble : le pipeline n'en déclare aucune dans sa section « {section} ».",
@@ -5443,6 +5461,12 @@
         "batch": {
             "tabName": "File de fusion",
             "yourAgent": "Votre agent",
+            "headline": {
+                "group": "Fusion groupée : {list}",
+                "queue": "File de fusion : {list}",
+                "groupBy": "{name} · fusion groupée : {list}",
+                "queueBy": "{name} · file de fusion : {list}"
+            },
             "method": {
                 "merge": "commit de fusion",
                 "squash": "squash",
@@ -5539,9 +5563,9 @@
                 "pushed": "Un push après votre validation : à relire de nouveau",
                 "withdrawn": "Validation annulée"
             },
-            "goTo": "Aller à l'agent",
+            "goTo": "Y aller",
             "goToTitle": "Afficher le terminal de {name}",
-            "cancel": "Tout annuler",
+            "cancel": "Arrêter",
             "cancelling": "Annulation…",
             "cancelTitle": "Annuler chaque validation qui n'est pas en cours de fusion ; rien de plus n'est fusionné",
             "dismiss": "Masquer",
@@ -5630,6 +5654,8 @@
             "showAll": "Tout afficher",
             "you": "vous",
             "by": "par {name}",
+            "byGroup": "par la fusion groupée",
+            "byQueue": "par la file de fusion",
             "rowAria": "#{number} {title}, afficher le détail",
             "prLink": "PR #{number} ↗",
             "mergedAt": "fusionnée {when}",

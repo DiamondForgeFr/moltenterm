@@ -19,6 +19,8 @@ import {
     agentStateTitle,
 } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { agentWorkText, batchOriginOf } from "../agent-work-model";
+import { useBatchRun } from "../reviews/reviews-batch-client";
 import { useCompanionFollow } from "../companion/companion-follow";
 import { useLocale, useT } from "../i18n/i18n";
 import { AdapterSteps } from "../mission/adapter-steps";
@@ -147,14 +149,20 @@ export function ReleasesCard({ snapshot }: ProjectCardProps) {
     return <ReleaseHistory view={view} />;
 }
 
-function AgentLine({ info }: { info: AgentStateInfo }) {
+function AgentLine({ info, dir }: { info: AgentStateInfo; dir: string }) {
     const t = useT();
+    useLocale();
     useWorkingBeat(info.state === "working");
     const [block] = useWaveObjectValue<Block>(makeORef("block", info.blockid));
     const meta = block?.meta;
     const folder = blockFolder({ view: meta?.view, connection: meta?.connection, "cmd:cwd": meta?.["cmd:cwd"] });
     const paneState = usePaneStatus(folder, null);
-    const branch = folder ? makePaneView(folder, paneState, null).branch : "";
+    // What the agent works on comes before its folder's git state (#1123): a merge queue's agent sits on a detached
+    // commit that says nothing of the PRs it rebases.
+    const batchOrigin = batchOriginOf(meta);
+    const batchRun = useBatchRun(batchOrigin ? dir : null, batchOrigin?.base);
+    const work = agentWorkText(meta, batchRun?.blockid === info.blockid ? batchRun : null);
+    const branch = !work && folder ? makePaneView(folder, paneState, null).branch : "";
     const goTo = () =>
         fireAndForget(() =>
             MoltentermNotifications.getInstance().goTo({
@@ -168,25 +176,39 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
             <button
                 type="button"
                 onClick={goTo}
-                title={`${agentStateTitle(info)}\n${t("project.agents.goToPane")}`}
-                className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
+                title={[agentStateTitle(info), work, t("project.agents.goToPane")].filter((s) => !!s).join("\n")}
+                className="-mx-1 flex min-w-0 cursor-pointer flex-col rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
                 data-testid="project-agent"
             >
-                <span
-                    className={cn(
-                        "inline-block h-2 w-2 shrink-0 rounded-full",
-                        AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                        info.state === "working" && "mt-beat-blink"
-                    )}
-                    aria-hidden
-                />
-                <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
-                <span
-                    className={cn("max-w-[55%] shrink-0 truncate text-12", AgentStateText[info.state] ?? "text-muted")}
-                >
-                    {agentStateLabel(info.state)}
-                    {branch ? <span className="text-muted"> · {branch}</span> : null}
+                <span className="flex min-w-0 items-center gap-2.5">
+                    <span
+                        className={cn(
+                            "inline-block h-2 w-2 shrink-0 rounded-full",
+                            AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
+                            info.state === "working" && "mt-beat-blink"
+                        )}
+                        aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
+                    <span
+                        className={cn(
+                            "max-w-[55%] shrink-0 truncate text-12",
+                            AgentStateText[info.state] ?? "text-muted"
+                        )}
+                    >
+                        {agentStateLabel(info.state)}
+                        {branch ? <span className="text-muted"> · {branch}</span> : null}
+                    </span>
                 </span>
+                {work ? (
+                    // The work gets its own line: it is what the developer reads the line for (#1123).
+                    <span
+                        className="min-w-0 truncate pl-[18px] text-12 text-secondary"
+                        data-testid="project-agent-work"
+                    >
+                        {work}
+                    </span>
+                ) : null}
             </button>
             <AgentSubagents info={info} onGoTo={goTo} />
         </div>
@@ -247,7 +269,7 @@ function AgentSubagents({ info, onGoTo }: { info: AgentStateInfo; onGoTo: () => 
     );
 }
 
-function Agents({ workspaceId }: { workspaceId: string }) {
+function Agents({ workspaceId, dir }: { workspaceId: string; dir: string }) {
     const t = useT();
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data.states, workspaceId), [data, workspaceId]);
@@ -257,7 +279,7 @@ function Agents({ workspaceId }: { workspaceId: string }) {
     return (
         <div className="flex flex-col" data-testid="project-agents">
             {agents.slice(0, MaxAgentsShown).map((info) => (
-                <AgentLine key={info.blockid} info={info} />
+                <AgentLine key={info.blockid} info={info} dir={dir} />
             ))}
             {agents.length > MaxAgentsShown ? (
                 <span className="pt-0.5 text-11 text-muted">
@@ -344,7 +366,7 @@ export function NowCard({
             <div className="h-px bg-border" />
             <div className="flex flex-col gap-1.5">
                 <SubHeading>{t("project.agents.heading")}</SubHeading>
-                <Agents workspaceId={project.workspace?.oid} />
+                <Agents workspaceId={project.workspace?.oid} dir={project.dir} />
             </div>
         </div>
     );
