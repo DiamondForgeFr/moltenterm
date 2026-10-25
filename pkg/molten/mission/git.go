@@ -65,6 +65,9 @@ type Branch struct {
 	// AgentTree: a branch an agent tool made for its worktree (worktree-agent-…), kept because it holds commits of its
 	// own (#1123).
 	AgentTree bool `json:"agenttree,omitempty"`
+	// The linked worktree that has the branch checked out, the main checkout aside (#1133): shown on hover only, the
+	// row names the branch.
+	Worktree string `json:"worktree,omitempty"`
 }
 
 // Merge is a branch merged into the trunk by a merge commit, read back from the commit's second parent: where the
@@ -347,8 +350,67 @@ func (g *gitReader) ahead(releaseRef string, baseRef string) []Commit {
 	return parseCommits(g.lines(append([]string{"log", "--no-walk=unsorted", commitFormat}, shas...)...))
 }
 
-func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Branch {
+// longLived are the branches whose commits are no branch's own work (#1133): the trunk, the release branch and the
+// rc branches, local and on origin. A worktree started on the release branch's tip holds commits the trunk lacks.
+type longLived struct {
+	refs     []string
+	rcPrefix string
+}
+
+func (g *gitReader) longLivedOf(names []string, rcPattern string) longLived {
+	rtn := longLived{}
+	seen := map[string]bool{}
+	for _, name := range names {
+		for _, ref := range []string{"refs/heads/" + name, "refs/remotes/origin/" + name} {
+			if name == "" || seen[ref] || !g.refExists(ref) {
+				continue
+			}
+			seen[ref] = true
+			rtn.refs = append(rtn.refs, ref)
+		}
+	}
+	if prefix, _, ok := strings.Cut(rcPattern, "{"); ok && prefix != "" && !strings.ContainsAny(prefix, "*?[\\") {
+		rtn.rcPrefix = prefix
+	}
+	return rtn
+}
+
+// notArgs exclude the long-lived branches' commits from a branch's log; an rc branch is not measured against itself.
+func (l longLived) notArgs(self string) []string {
+	args := append([]string{"--not"}, l.refs...)
+	if l.rcPrefix == "" {
+		return args
+	}
+	for _, space := range []string{"refs/heads/", "refs/remotes/origin/"} {
+		args = append(args, "--exclude=refs/heads/"+self, "--exclude=refs/remotes/origin/"+self, "--glob="+space+l.rcPrefix+"*")
+	}
+	return args
+}
+
+// worktrees maps each branch checked out in a linked worktree to the worktree's folder; the main checkout, listed
+// first, is the project itself.
+func (g *gitReader) worktrees() map[string]string {
+	rtn := map[string]string{}
+	path := ""
+	first := true
+	for _, line := range g.lines("worktree", "list", "--porcelain") {
+		if p, ok := strings.CutPrefix(line, "worktree "); ok {
+			if path != "" {
+				first = false
+			}
+			path = p
+			continue
+		}
+		if ref, ok := strings.CutPrefix(line, "branch refs/heads/"); ok && !first && path != "" {
+			rtn[ref] = path
+		}
+	}
+	return rtn
+}
+
+func (g *gitReader) featureBranches(baseRef string, skip map[string]bool, long longLived) []Branch {
 	branches := []Branch{}
+	trees := g.worktrees()
 	for _, line := range g.lines("for-each-ref", "--sort=-committerdate", "--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)", "refs/heads") {
 		parts := strings.Split(line, "\t")
 		if len(parts) < 3 || skip[parts[0]] {
@@ -357,16 +419,24 @@ func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Bran
 		if len(branches) >= maxBranches {
 			break
 		}
-		agentTree := strings.HasPrefix(parts[0], agentTreePrefix)
-		if agentTree && !g.hasOwnCommits(parts[0]) {
+		name := parts[0]
+		agentTree := strings.HasPrefix(name, agentTreePrefix)
+		worktree := trees[name]
+		if agentTree && worktree == "" && !g.hasOwnCommits(name) {
 			continue
 		}
-		branch := Branch{Name: parts[0], Sha: parts[1], Date: parts[2], Commits: []Commit{}, AgentTree: agentTree}
+		branch := Branch{Name: name, Sha: parts[1], Date: parts[2], Commits: []Commit{}, AgentTree: agentTree, Worktree: worktree}
 		if baseRef != "" {
-			if fork, err := g.out("merge-base", baseRef, parts[0]); err == nil && fork != "" {
+			if fork, err := g.out("merge-base", baseRef, name); err == nil && fork != "" {
 				branch.Fork = &ForkPoint{Sha: fork, Date: g.commitDate(fork)}
 			}
-			branch.Commits = parseCommits(g.lines("log", commitFormat, "-n", strconv.Itoa(branchLogLimit), baseRef+".."+parts[0]))
+		}
+		if len(long.refs) > 0 {
+			args := append([]string{"log", commitFormat, "-n", strconv.Itoa(branchLogLimit), "refs/heads/" + name}, long.notArgs(name)...)
+			branch.Commits = parseCommits(g.lines(args...))
+		}
+		if agentTree && len(branch.Commits) == 0 {
+			continue
 		}
 		branches = append(branches, branch)
 	}
@@ -512,7 +582,8 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 			snap.Merges = g.merges(baseRef, b.Commits)
 		}
 	}
-	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip)...)
+	long := g.longLivedOf([]string{snap.Trunk, snap.Release}, molten.RcBranchPattern(dir))
+	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip, long)...)
 	snap.Tags = g.tags()
 	snap.Ahead = g.ahead(releaseRef, baseRef)
 	snap.LastPublic = g.lastPublic()

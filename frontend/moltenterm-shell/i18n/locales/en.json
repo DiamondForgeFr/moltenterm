@@ -2610,6 +2610,8 @@
             },
             "aheadOfDevelop": "{count} ahead of develop",
             "agentTree": "agent worktree",
+            "worktree": "Worktree: {folder}",
+            "worktreeAgent": "Worktree: {folder} · {name} works there",
             "mergedAt": "{count} · merged {when}",
             "leftDevelop": "Left develop {when}",
             "forkUnknown": "Where it left develop is not known: git's history read stops before it.",

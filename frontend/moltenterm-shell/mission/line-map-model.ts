@@ -66,6 +66,8 @@ export type LineMapBranch = {
     url: string;
     // An agent tool's worktree branch (#1123), labelled as such.
     agentTree?: boolean;
+    // The linked worktree holding it (#1133): the row names the branch, the worktree shows on hover only.
+    worktree?: string;
 };
 
 export type StationKind = "rc" | "public";
@@ -216,6 +218,27 @@ function mergeBranches(
     return rtn;
 }
 
+export type WorktreeHover = { folder: string; agent: string };
+
+// /tmp and /private/tmp are one folder on some systems; git and the shell may each name either.
+function samePathForm(path: string): string {
+    return (path ?? "").replace(/[/\\]+$/, "").replace(/^\/private(?=\/)/, "");
+}
+
+// What a branch's hover says of its worktree (#1133): the folder's name, and the first agent whose pane works in it.
+export function worktreeHover(worktree: string, agents: readonly { name: string; cwd: string }[]): WorktreeHover {
+    if (!worktree) {
+        return null;
+    }
+    const root = samePathForm(worktree);
+    const folder = root.split(/[/\\]/).pop() || root;
+    const agent = (agents ?? []).find((a) => {
+        const cwd = samePathForm(a.cwd);
+        return cwd !== "" && (cwd === root || cwd.startsWith(root + "/") || cwd.startsWith(root + "\\"));
+    });
+    return { folder, agent: agent?.name ?? "" };
+}
+
 function openBranches(input: LineMapInput, links: ReturnType<typeof githubLinks>): LineMapBranch[] {
     const { git } = input;
     const rows = projectBranchRows(git, input.ciBranches, input.prs).rows.filter((r) => r.role === "feature");
@@ -247,6 +270,7 @@ function openBranches(input: LineMapInput, links: ReturnType<typeof githubLinks>
             ci: row.ci,
             url: links.pull(row.pr?.number) ?? links.issue(ticket),
             agentTree: !!branch.agenttree,
+            worktree: branch.worktree || null,
         });
     }
     return rtn;

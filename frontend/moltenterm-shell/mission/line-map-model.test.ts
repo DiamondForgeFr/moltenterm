@@ -14,6 +14,7 @@ import {
     stationKind,
     stationSource,
     withLineMapDays,
+    worktreeHover,
 } from "./line-map-model";
 import { MissionGit, RawCommit } from "./mission-model";
 
@@ -410,5 +411,47 @@ describe("the remembered window", () => {
         const both = withLineMapDays(prefs, "/b", true, 90);
         expect(both).toEqual({ "/a": { days: 7 }, "/b": { days: 30, fulldays: 90 } });
         expect(lineMapDays(both, "/a", false)).toBe(7);
+    });
+});
+
+describe("a branch in an agent's worktree (#1133)", () => {
+    it("is named after the branch and carries its worktree for the hover", () => {
+        const git = makeGit();
+        git.branches.push({
+            name: "feature/9-x",
+            sha: "f1",
+            date: "2026-10-04T10:00:00Z",
+            commits: [c("f1", "2026-10-04T10:00:00Z", "feat(#9): the agent's work")],
+            fork: { sha: "d1", date: "2026-10-04T00:00:00Z" },
+            worktree: "/repo/.claude/worktrees/agent-x",
+        });
+        git.branches.push({
+            name: "feature/10-own",
+            sha: "g1",
+            date: "2026-10-03T10:00:00Z",
+            commits: [c("g1", "2026-10-03T10:00:00Z", "feat(#10): own")],
+            fork: null,
+        });
+        const model = buildLineMap({ git, now: NOW, days: 21 });
+        const rows = new Map(model.branches.map((b) => [b.name, b]));
+        expect(rows.get("feature/9-x")?.worktree).toBe("/repo/.claude/worktrees/agent-x");
+        expect(rows.get("feature/10-own")?.worktree).toBeNull();
+        expect([...rows.keys()].some((n) => n.includes("agent-x"))).toBe(false);
+    });
+
+    it("names the folder, and the agent working in it", () => {
+        const agents = [
+            { name: "Olivia", cwd: "/repo" },
+            { name: "Valentin", cwd: "/private/repo/.claude/worktrees/agent-x/pkg" },
+        ];
+        expect(worktreeHover("/repo/.claude/worktrees/agent-x/", agents)).toEqual({
+            folder: "agent-x",
+            agent: "Valentin",
+        });
+        expect(worktreeHover("/repo/.claude/worktrees/agent-y", agents)).toEqual({ folder: "agent-y", agent: "" });
+        expect(
+            worktreeHover("/repo/.claude/worktrees/agent-x", [{ name: "Ana", cwd: "/repo/.claude/worktrees/agent-xy" }])
+        ).toEqual({ folder: "agent-x", agent: "" });
+        expect(worktreeHover("", agents)).toBeNull();
     });
 });

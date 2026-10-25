@@ -2610,6 +2610,8 @@
             },
             "aheadOfDevelop": "{count} d'avance sur develop",
             "agentTree": "worktree d'agent",
+            "worktree": "Worktree : {folder}",
+            "worktreeAgent": "Worktree : {folder} · {name} y travaille",
             "mergedAt": "{count} · fusionnée le {when}",
             "leftDevelop": "A quitté develop le {when}",
             "forkUnknown": "On ne sait pas où elle a quitté develop : l'historique lu par git s'arrête avant.",
