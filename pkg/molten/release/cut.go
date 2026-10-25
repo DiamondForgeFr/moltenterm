@@ -158,6 +158,7 @@ func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 	} else if _, err := e.writeNotes(ctx, wt, p, tag, v, false); err != nil {
 		return err
 	}
+	e.formatRelease(ctx, p, wt, tag)
 	if pr {
 		e.printf("\n%s prepared on %s, nothing committed. Review the notes, then open the pull request (molten release open-pr %s).\n", tag, rcBranch, tag)
 	} else {
@@ -276,6 +277,7 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	if head == "" || head != e.revParse(ctx, p.Root, "origin/"+p.Release) {
 		return fmt.Errorf("%s moved since the preparation (or nothing is prepared): prepare %s again", p.Release, tag)
 	}
+	e.formatRelease(ctx, p, wt, tag)
 	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
 	if err != nil {
 		return err

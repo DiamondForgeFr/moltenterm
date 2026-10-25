@@ -2973,7 +2973,11 @@
             "start": "Lancer {tag}",
             "choose": "Choisir une release",
             "milestoneError": "Impossible de lire le jalon : {error}",
-            "andMore": "et {count} de plus"
+            "andMore": "et {count} de plus",
+            "driftUncommitted": "Le pipeline (.molten/project.json) a des modifications non commitées : la release les suivrait alors que sa branche porte le pipeline commité.",
+            "driftBase": "Le pipeline (.molten/project.json) diffère de {base}, dont la branche de release est issue.",
+            "driftHint": "Commitez-le et poussez-le, ou mettez ce checkout à jour, puis relancez. Rien n’a encore démarré.",
+            "startAnyway": "Démarrer quand même"
         },
         "builds": {
             "neverBuilt": "Jamais compilé",
@@ -3171,6 +3175,11 @@
             "manualConfirm": "Confirmez que « {step} » est fait : MoltenTerm l’enregistre et n’exécute rien.",
             "actionRefused": "Non envoyé : une autre action de cette release est encore en cours. Réessayez une fois qu’elle est terminée.",
             "trustFirst": "Rien n’a encore été lancé : cette étape démarre une fois que vous faites confiance aux commandes du projet.",
+            "uncheckedMissing": "{path} n’existe pas encore (cherché dans {dir}) : cette étape ne semble pas faite. Rien n’a été enregistré.",
+            "uncheckedLacks": "{path} ne contient pas encore « {contains} » (cherché dans {dir}) : cette étape ne semble pas faite. Rien n’a été enregistré.",
+            "markDoneAnyway": "Marquer comme fait quand même",
+            "formatNone": "Aucun formateur trouvé pour les fichiers écrits par MoltenTerm (notes, changelogs) : ils sont commités tels quels. Si la CI du projet vérifie le formatage, déclarez son formateur dans versions.format.",
+            "formatFailed": "Les fichiers écrits par MoltenTerm ne sont pas formatés comme la CI du projet le vérifie : son formateur a échoué. Lancez-le dans le worktree de release avant le commit :",
             "actionFailed": "MoltenTerm n’a pas pu le faire et n’a donné aucune raison. Réessayez.",
             "manualNext": "Ensuite, à la main : {step}. Marquez-le comme fait une fois terminé.",
             "approval": "En attente de l’approbation de {environment} sur GitHub.",

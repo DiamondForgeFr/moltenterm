@@ -339,6 +339,7 @@ func (e *Env) Notes(ctx context.Context, tag string, opts NotesOptions) error {
 	if err != nil {
 		return err
 	}
+	e.formatRelease(ctx, p, wt, tag)
 	if data, err := os.ReadFile(notesPath); err == nil {
 		e.printf("\n%s\n", strings.TrimSpace(ParsePublicNotes(string(data)).Body))
 	}

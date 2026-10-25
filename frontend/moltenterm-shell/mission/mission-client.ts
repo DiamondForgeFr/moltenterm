@@ -427,10 +427,26 @@ export function missionBuilds(dir: string, fresh: boolean): Promise<BuildsFacts>
     return TabRpcClient.wshRpcCall(MissionBuildsCommand, { dir, fresh }, { route: MissionRouteId, timeout: 60000 });
 }
 
-export type ReleaseStartResult = { session?: ReleaseSession; run?: RunRecord; untrusted?: UntrustedInfo };
+// must match PipelineDrift in pkg/molten/mission/release_drift.go: the checkout's pipeline is not the one the release
+// branch is made from (#1095).
+export type PipelineDrift = { uncommitted?: boolean; base?: string };
 
-export function releaseStart(dir: string, channel: ReleaseChannel, tag: string): Promise<ReleaseStartResult> {
-    return missionCall(MissionReleaseStartCommand, { dir, channel, tag });
+export type ReleaseStartResult = {
+    session?: ReleaseSession;
+    run?: RunRecord;
+    untrusted?: UntrustedInfo;
+    // Nothing started: the pipeline is uncommitted or differs from origin's trunk, to be confirmed.
+    pipelinedrift?: PipelineDrift;
+};
+
+// force: starts although the pipeline drifted, the developer having confirmed it.
+export function releaseStart(
+    dir: string,
+    channel: ReleaseChannel,
+    tag: string,
+    force?: boolean
+): Promise<ReleaseStartResult> {
+    return missionCall(MissionReleaseStartCommand, { dir, channel, tag, force: force || undefined });
 }
 
 // Ends the release launched from the Project tab, or stops following a tag cut at the terminal.
@@ -494,8 +510,9 @@ function releaseCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: MissionRouteId, timeout: ReleaseFactsTimeoutMs });
 }
 
-export function releaseRunStep(dir: string, tag: string, step: string): Promise<RunResult> {
-    return releaseCall(MissionReleaseStepCommand, { dir, tag, step });
+// force: records a manual step although its check failed (#1095).
+export function releaseRunStep(dir: string, tag: string, step: string, force?: boolean): Promise<RunResult> {
+    return releaseCall(MissionReleaseStepCommand, { dir, tag, step, force: force || undefined });
 }
 
 export function releaseRerunFailed(dir: string, tag: string): Promise<void> {
@@ -575,7 +592,12 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
 }
 
 // must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
-export type BranchDeleteReason = "merged-pr" | "merged-pr-worktree" | "merged-worktree" | "on-trunk" | "patches-on-trunk";
+export type BranchDeleteReason =
+    | "merged-pr"
+    | "merged-pr-worktree"
+    | "merged-worktree"
+    | "on-trunk"
+    | "patches-on-trunk";
 export type BranchKeepReason =
     | "protected"
     | "not-on-trunk"

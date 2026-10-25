@@ -34,11 +34,27 @@ import {
     useReleaseFacts,
 } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
-import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
-import { PendingLock, PendingLockContext, runAction, useCardLock, usePendingLock } from "./pending-action";
+import { latestRun, ManualCheckFailure, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
+import {
+    ActionOutcome,
+    PendingLock,
+    PendingLockContext,
+    runAction,
+    useCardLock,
+    usePendingLock,
+} from "./pending-action";
 import { ReleaseSession } from "./release-model";
 import { ReleaseFailureActions, ReleaseResolveActions } from "./release-resolve";
-import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
+import {
+    Phase,
+    PhaseAction,
+    PhaseStatus,
+    PreparationStep,
+    ReleaseFormat,
+    ReleaseGhJob,
+    ReleaseRun,
+    releaseRun,
+} from "./release-run";
 import { TrustPrompt } from "./runs-view";
 
 const NodeClasses: Record<PhaseStatus, string> = {
@@ -71,8 +87,9 @@ const AccentButton =
     "molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50";
 
 export type ReleasePanelActions = {
-    // Resolves true when a step started: the card stays pending until it read the release again.
-    run: (action: PhaseAction) => Promise<boolean | void>;
+    // Resolves true when a step started: the card stays pending until it read the release again. A manual step whose
+    // check failed is recorded only once confirmed: onUnproved hears what is missing, and the action resolves false.
+    run: (action: PhaseAction, onUnproved?: (failure: ManualCheckFailure) => void) => Promise<boolean | void>;
     loadNotes: () => Promise<string>;
     saveNotes: (text: string) => Promise<void>;
 } & Partial<ReleaseResolveActions>;
@@ -157,6 +174,25 @@ export function logReleaseAction(text: string) {
     }
 }
 
+// Sends a phase's action under the card's lock. A manual step whose check failed comes back asked with what is missing
+// (#1095); force sends it again as confirmed anyway.
+export async function sendAction(
+    lock: PendingLock,
+    key: string,
+    actions: ReleasePanelActions,
+    action: PhaseAction,
+    force?: boolean
+): Promise<{ outcome: ActionOutcome; failure: ManualCheckFailure }> {
+    const sent: PhaseAction = force && action.kind === "step" ? { ...action, force: true } : action;
+    let failure: ManualCheckFailure = null;
+    const outcome = await runAction(lock, key, () =>
+        actions.run(sent, (f) => {
+            failure = f;
+        })
+    );
+    return { outcome, failure: outcome === "asked" ? failure : null };
+}
+
 function ActionButton({
     action,
     actions,
@@ -172,18 +208,25 @@ function ActionButton({
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
     const [notice, setNotice] = useState<string>(null); // an i18n key, worded at render: the language may change meanwhile
+    const [unproved, setUnproved] = useState<ManualCheckFailure>(null);
     const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
-    const go = () =>
+    const go = (force?: boolean) =>
         fireAndForget(async () => {
             setError(null);
             setNotice(null);
+            setUnproved(null);
             try {
-                const outcome = await runAction(lock, key, () => actions.run(action));
+                const { outcome, failure } = await sendAction(lock, key, actions, action, force);
                 if (outcome === "refused") {
                     logReleaseAction(`${action.label}: not sent, another action of the card is under way`);
                     setNotice("mc.releaseRun.actionRefused");
+                    return;
+                }
+                if (outcome === "asked" && failure != null) {
+                    setConfirming(false);
+                    setUnproved(failure);
                     return;
                 }
                 if (outcome === "asked") {
@@ -197,6 +240,50 @@ function ActionButton({
                 setError(text);
             }
         });
+    if (unproved != null) {
+        return (
+            <div className="mt-3 flex flex-col gap-2" data-testid="release-run-unproved">
+                <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
+                    <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
+                    <span className="min-w-0 break-words">
+                        {unproved.missing
+                            ? t("mc.releaseRun.uncheckedMissing", { path: unproved.path, dir: unproved.dir })
+                            : t("mc.releaseRun.uncheckedLacks", {
+                                  path: unproved.path,
+                                  contains: unproved.contains,
+                                  dir: unproved.dir,
+                              })}
+                    </span>
+                </p>
+                <div className="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        disabled={lock.pending !== ""}
+                        className={PlainButton}
+                        onClick={() => setUnproved(null)}
+                    >
+                        {t("common.cancel")}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={lock.pending !== ""}
+                        aria-busy={busy}
+                        className={cn(PlainButton, "inline-flex items-center")}
+                        onClick={() => go(true)}
+                        data-testid="release-run-mark-anyway"
+                    >
+                        {busy ? <DominoLoader className="mr-1.5" /> : null}
+                        {busy ? (action.busy ?? action.label) : t("mc.releaseRun.markDoneAnyway")}
+                    </button>
+                </div>
+                {error ? (
+                    <p className="text-right text-12 text-danger" role="alert">
+                        {error}
+                    </p>
+                ) : null}
+            </div>
+        );
+    }
     return (
         <div className="mt-3 flex flex-col gap-2">
             {confirming && confirm ? (
@@ -345,6 +432,35 @@ function NotesEditor({
     );
 }
 
+// The files the release wrote are not formatted the way the project checks (#1095): said before the commit, with the
+// command to run when the formatter failed.
+function UnformattedNote({ format }: { format: ReleaseFormat }) {
+    const t = useT();
+    const failed = format.state === "failed";
+    return (
+        <div
+            className={cn(
+                "mt-2 flex items-start gap-1.5 rounded-4 border px-2 py-1.5 text-12",
+                failed ? "border-warning/40 bg-warning/10 text-secondary" : "border-border bg-hover/40 text-secondary"
+            )}
+            data-testid="release-run-unformatted"
+        >
+            <i
+                className={cn(
+                    "fa fa-solid mt-0.5 text-11",
+                    failed ? "fa-triangle-exclamation text-warning" : "fa-circle-info text-muted"
+                )}
+            />
+            <div className="flex min-w-0 flex-col gap-1">
+                <span>{failed ? t("mc.releaseRun.formatFailed") : t("mc.releaseRun.formatNone")}</span>
+                {failed && format.command ? (
+                    <code className="font-mono text-11 break-all text-primary">{format.command}</code>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 function Detail({
     run,
     phase,
@@ -416,6 +532,9 @@ function Detail({
                         {t("mc.releaseRun.showCi")}
                     </button>
                 </div>
+            ) : null}
+            {phase.id === "cut" && phase.status !== "done" && run.unformatted ? (
+                <UnformattedNote format={run.unformatted} />
             ) : null}
             {phase.cause ? (
                 <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger">
@@ -656,7 +775,7 @@ export function ReleaseRunSection({
     const trunk = facts?.trunk;
     const actions = useMemo<ReleasePanelActions>(
         () => ({
-            run: async (action) => {
+            run: async (action, onUnproved) => {
                 if (action.kind === "rerun") {
                     await releaseRerunFailed(dir, tag);
                     reload();
@@ -668,13 +787,22 @@ export function ReleaseRunSection({
                     return true;
                 }
                 const step = action.kind === "prepare" ? PreparationStep : action.step;
-                logReleaseAction(`step ${step} of ${tag}: sent`);
+                const force = action.kind === "step" && action.force;
+                logReleaseAction(`step ${step} of ${tag}: sent${force ? ", confirmed although its check failed" : ""}`);
                 let result: Awaited<ReturnType<typeof releaseRunStep>>;
                 try {
-                    result = await releaseRunStep(dir, tag, step);
+                    result = await releaseRunStep(dir, tag, step, force);
                 } catch (e) {
                     logReleaseAction(`step ${step} of ${tag}: refused, ${serverErrorText(e)}`);
                     throw e;
+                }
+                if (result?.unproved) {
+                    const u = result.unproved;
+                    logReleaseAction(
+                        `step ${step} of ${tag}: not recorded, ${u.path} ${u.missing ? "is missing" : `lacks "${u.contains}"`} in ${u.dir}`
+                    );
+                    onUnproved?.(u);
+                    return false;
                 }
                 if (result?.untrusted) {
                     logReleaseAction(`step ${step} of ${tag}: waits for the commands' trust`);

@@ -13,7 +13,7 @@ import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
-import { missionRefresh, missionTrust, releaseMilestone, releaseStart } from "./mission-client";
+import { missionRefresh, missionTrust, PipelineDrift, releaseMilestone, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
 import {
     milestoneWarning,
@@ -67,6 +67,7 @@ export function ReleaseMenu({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
+    const [drift, setDrift] = useState<PipelineDrift>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
     const [settingUp, setSettingUp] = useState(false);
     const [setupState, setSetupState] = useState<SetupCheck>(null);
@@ -81,6 +82,7 @@ export function ReleaseMenu({
         setPlan(null);
         setChoice(null);
         setError(null);
+        setDrift(null);
         let cancelled = false;
         fireAndForget(async () => {
             try {
@@ -177,17 +179,22 @@ export function ReleaseMenu({
     }
 
     const steps = choice === "rc" ? rcSteps : publicSteps;
-    const launch = () =>
+    const launch = (force?: boolean) =>
         fireAndForget(async () => {
             if (!tag || !choice) {
                 return;
             }
             setBusy(true);
             setError(null);
+            setDrift(null);
             try {
-                const result = await releaseStart(dir, choice, tag);
+                const result = await releaseStart(dir, choice, tag, force);
                 if (result?.untrusted) {
                     setUntrusted(result.untrusted);
+                    return;
+                }
+                if (result?.pipelinedrift) {
+                    setDrift(result.pipelinedrift);
                     return;
                 }
                 setOpen(false);
@@ -315,10 +322,13 @@ export function ReleaseMenu({
                                     {releaseNote(steps)}
                                 </div>
                             ) : null}
+                            {drift ? (
+                                <PipelineDriftNote drift={drift} busy={busy} onStart={() => launch(true)} />
+                            ) : null}
                             <button
                                 type="button"
                                 disabled={!tag || busy}
-                                onClick={launch}
+                                onClick={() => launch()}
                                 className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             >
                                 {busy ? <DominoLoader className="mr-1.5" /> : null}
@@ -437,6 +447,38 @@ export function ReleaseSetupEntry({
                 </Suspense>
             ) : null}
         </>
+    );
+}
+
+// The checkout's pipeline is not the one the release branch is made from (#1095): nothing started, the developer may
+// start anyway.
+function PipelineDriftNote({ drift, busy, onStart }: { drift: PipelineDrift; busy: boolean; onStart: () => void }) {
+    const t = useT();
+    return (
+        <div
+            className="flex flex-col gap-2 rounded-4 border border-warning/50 bg-warning/10 p-2 text-11 text-primary"
+            data-testid="release-pipeline-drift"
+        >
+            <div className="flex items-start gap-1.5">
+                <i className="fa fa-solid fa-triangle-exclamation mt-[2px] text-11 text-warning" />
+                <span className="flex flex-col gap-1">
+                    {drift.uncommitted ? <span>{t("mc.releaseMenu.driftUncommitted")}</span> : null}
+                    {drift.base ? <span>{t("mc.releaseMenu.driftBase", { base: drift.base })}</span> : null}
+                    <span className="text-muted">{t("mc.releaseMenu.driftHint")}</span>
+                </span>
+            </div>
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={onStart}
+                    className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                    data-testid="release-start-anyway"
+                >
+                    {t("mc.releaseMenu.startAnyway")}
+                </button>
+            </div>
+        </div>
     );
 }
 

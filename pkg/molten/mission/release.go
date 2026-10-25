@@ -51,12 +51,16 @@ type ReleaseStartRequest struct {
 	Dir     string `json:"dir"`
 	Channel string `json:"channel"`
 	Tag     string `json:"tag"`
+	// Starts although the checkout's pipeline is not the one the release branch is made from (#1095).
+	Force bool `json:"force,omitempty"`
 }
 
 type ReleaseStartResult struct {
 	Session   *ReleaseSession `json:"session,omitempty"`
 	Run       *RunRecord      `json:"run,omitempty"`
 	Untrusted *UntrustedInfo  `json:"untrusted,omitempty"`
+	// Nothing started: the pipeline is uncommitted or differs from origin's trunk, to be confirmed (#1095).
+	PipelineDrift *PipelineDrift `json:"pipelinedrift,omitempty"`
 }
 
 func (r *Runs) releaseSessionFile(dir string) string {
@@ -317,6 +321,11 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	}
 	if r.tagExists(project, req.Tag) {
 		return ReleaseStartResult{}, uimsg.Errorf(uimsg.Make("mission.release.tagged", "tag", req.Tag), "%s is already tagged", req.Tag)
+	}
+	if !req.Force {
+		if drift := r.pipelineDrift(project); drift != nil {
+			return ReleaseStartResult{PipelineDrift: drift}, nil
+		}
 	}
 	session := ReleaseSession{Tag: req.Tag, Version: version, Channel: req.Channel, StartedAt: r.now().UnixMilli()}
 	if err := r.writeReleaseSession(project, session); err != nil {
