@@ -281,10 +281,15 @@ export type PreparedFile = {
     status: "new" | "changed";
     kind: "pipeline" | "record" | "whole";
     content?: string;
+    // A generated file that exists already (the pipeline's documentation, FR-MC-043): the diff is from this text, and
+    // the card starts closed.
+    before?: string;
+    collapsed?: boolean;
     // An i18n key with its values, saying what the file is for.
     introKey?: string;
     introVars?: Record<string, string>;
     warningKey?: string;
+    warningVars?: Record<string, string>;
     // A publish workflow (FR-MC-041): where it publishes, read as mc.setup.describe.target.<id>.
     targets?: string[];
 };

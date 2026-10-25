@@ -224,7 +224,7 @@ export type SetupPrPlan = {
     localbase: string;
     local?: string;
 };
-export type SetupPrStepId = "ticket" | "worktree" | "write" | "commit" | "push" | "pr" | "patch";
+export type SetupPrStepId = "ticket" | "worktree" | "write" | "commit" | "push" | "pr" | "patch" | "doc";
 export type SetupPrStep = {
     id: SetupPrStepId;
     state: "pending" | "running" | "done" | "failed" | "skipped";
@@ -250,7 +250,22 @@ export type SetupPrJob = {
     prnumber?: number;
     patch?: string;
     files: string[];
+    // The technical documentation's backend page, once written (FR-MC-043).
+    docurl?: string;
 };
+
+// must match TechDocPlan and TechDocLink in pkg/molten/pipelinesetup/techdocplan.go (FR-MC-043)
+export type SetupTechDocPlan = {
+    backend: string;
+    topic: string;
+    title: string;
+    path?: string;
+    url?: string;
+    current: string;
+    proposed: string;
+    warnings: string[];
+};
+export type SetupTechDocLink = { backend: string; path?: string; url?: string };
 export type SetupTicket = { number: number; title: string };
 
 // The developer's ticket for the setup's commit: an open issue, or one MoltenTerm creates.
@@ -342,6 +357,7 @@ export type SetupCheck = {
     options?: SetupOptions;
     adjusted?: boolean;
     drawn?: { rc?: PipelineReleaseStep[]; public?: PipelineReleaseStep[] };
+    doc?: SetupTechDocLink;
 };
 
 // A change is applied when the developer ticked it, else by its default (a customised step is kept).

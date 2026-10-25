@@ -19,6 +19,7 @@ import type {
     SetupProposedFile,
     SetupRefined,
     SetupStepChange,
+    SetupTechDocPlan,
     SetupTicket,
 } from "./release-setup-model";
 import type { SetupPrStatus } from "./release-setup-prepared-model";
@@ -38,6 +39,7 @@ export const MissionSetupSurveyCommand = "moltenmissionsetupsurvey";
 export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
 export const MissionSetupModelsCommand = "moltenmissionsetupmodels";
 export const MissionSetupPrStatusCommand = "moltenmissionsetupprstatus";
+export const MissionSetupTechDocCommand = "moltenmissionsetuptechdoc";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -168,4 +170,9 @@ export function setupPrStatus(dir: string, number: number): Promise<SetupPrStatu
 
 export function setupTickets(dir: string): Promise<{ tickets: SetupTicket[] }> {
     return setupCall(MissionSetupTicketsCommand, { dir }, SetupDraftTimeoutMs);
+}
+
+// The pipeline's technical documentation as the pull request would leave it (FR-MC-043); nothing is written.
+export function setupTechDoc(dir: string, text: string, kind: "write" | "update"): Promise<SetupTechDocPlan> {
+    return setupCall(MissionSetupTechDocCommand, { dir, text, kind }, SetupDraftTimeoutMs);
 }

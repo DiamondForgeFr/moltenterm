@@ -28,6 +28,7 @@ import {
 } from "./release-model";
 import { setupCheck } from "./release-setup-client";
 import { needsReleaseSetup, SetupCheck, setupReasonText, SetupUpdateReason } from "./release-setup-model";
+import { TechDocLinkButton } from "./release-techdoc-link";
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
@@ -267,6 +268,7 @@ export function ReleaseMenu({
                             </span>
                         </div>
                     ) : null}
+                    {setupState?.doc ? <TechDocLinkButton doc={setupState.doc} onOpen={() => setOpen(false)} /> : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-12 text-muted">
                             <DominoLoader />
