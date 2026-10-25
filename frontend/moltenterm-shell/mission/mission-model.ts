@@ -66,6 +66,8 @@ export type MissionBranch = {
     date: string;
     commits: RawCommit[];
     fork: { sha: string; date: string };
+    // An agent tool's worktree branch with commits of its own (#1123); the empty ones are left out by wavesrv.
+    agenttree?: boolean;
 };
 
 export type MissionGit = {

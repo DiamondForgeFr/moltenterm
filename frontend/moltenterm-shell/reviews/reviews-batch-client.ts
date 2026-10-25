@@ -55,6 +55,7 @@ export function noteBatchMerges(run: BatchRun) {
             branch: item.headref,
             ticket: item.ticket,
             byyou: merged,
+            byqueue: merged ? (item.source === "batch" ? "group" : "queue") : undefined,
         });
     }
 }

@@ -64,6 +64,8 @@ export type LineMapBranch = {
     prNumber: number;
     ci: CiVerdictStatus;
     url: string;
+    // An agent tool's worktree branch (#1123), labelled as such.
+    agentTree?: boolean;
 };
 
 export type StationKind = "rc" | "public";
@@ -244,6 +246,7 @@ function openBranches(input: LineMapInput, links: ReturnType<typeof githubLinks>
             prNumber: row.pr?.number ?? null,
             ci: row.ci,
             url: links.pull(row.pr?.number) ?? links.issue(ticket),
+            agentTree: !!branch.agenttree,
         });
     }
     return rtn;

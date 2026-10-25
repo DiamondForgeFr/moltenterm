@@ -16,6 +16,7 @@ import { formatWhen } from "../mission/time-format";
 import { openWebLink } from "../open-web-link";
 import { useReviewNotes } from "../review/review-notes";
 import { LaunchBackButton } from "./reviews-launch";
+import { mergedByQueueText, mergeKey, ReviewsMerges } from "./reviews-merges";
 import { MergedDays, MergedOpenPref, notesByPr, ReviewMergedPr } from "./reviews-merged-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { SectionHeading } from "./reviews-section-heading";
@@ -244,10 +245,16 @@ function MergedRow({
     onShowNotes: () => void;
 }) {
     const t = useT();
+    const local = useAtomValue(ReviewsMerges.getInstance().mergesAtom)[mergeKey(dir, pr.number)];
     const who = mergedWho(pr, modelDisplayName);
     const title = mergedTitle(pr);
     const whoText = [
-        who.agent ? [who.agent, who.model].filter(Boolean).join(" · ") : who.you ? t("reviews.merged.you") : "",
+        mergedByQueueText(local?.byqueue),
+        who.agent
+            ? [who.agent, who.model].filter(Boolean).join(" · ")
+            : who.you && !local?.byqueue
+              ? t("reviews.merged.you")
+              : "",
         who.author ? t("reviews.merged.by", { name: who.author }) : "",
         who.reviewer ? t("reviews.signature.reviewedBy", { name: who.reviewer }) : "",
     ]

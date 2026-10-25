@@ -7,9 +7,11 @@
 // its row. Nothing opens by itself: the agent's terminal is reached from the banner's Go to the agent.
 
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { AgentStates } from "../agent-state-store";
 import { DialogFrame } from "../dialog-frame";
-import { useT, useTCount } from "../i18n/i18n";
+import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { topModal } from "../modal-focus";
 import { MoltenWave } from "../molten-button";
@@ -22,7 +24,9 @@ import {
     batchActive,
     batchConfirmKey,
     batchCurrent,
+    batchHeadline,
     batchItemEnded,
+    batchItemId,
     batchMethodShown,
     BatchPlan,
     batchPlanCostText,
@@ -34,6 +38,7 @@ import {
     batchTitle,
     canWithdraw,
     methodText,
+    ShownIds,
 } from "./reviews-batch-model";
 
 const PlainButton =
@@ -248,17 +253,22 @@ export function BatchConfirmDialog({
     );
 }
 
-// The banner over the Reviews list (FR-REV-026 AC7): the dominoes while the queue runs, its progress and the PR in
-// progress, each validated PR with its place and Cancel validation until its merge starts, Cancel all and the way to
-// the agent's terminal; the summary once it ended.
+// The banner in the Reviews list's "Agents on it" section (FR-REV-026 AC7, #1123): who works on the queue and its PRs
+// in order, the dominoes while it runs, its progress and the PR in progress, each validated PR with its place and
+// Cancel validation until its merge starts, Stop and the way to the agent's terminal; the summary once it ended, until
+// Hide.
 // ids: the number each PR's card shows (#1108), by PR number.
-export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, number> }) {
+export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
     const t = useT();
+    useLocale();
     const word = useWordPhrase();
+    const agents = useAtomValue(AgentStates.getInstance().dataAtom);
     const [busy, setBusy] = useState("");
     const [error, setError] = useState<Phrase>(null);
     const active = batchActive(run);
     const current = batchCurrent(run);
+    // The agent's terminal still open: an ended queue whose agent stays (its copy kept) is reached from here too.
+    const agent = run.blockid ? agents.states[run.blockid] : null;
     const act = (what: string, fn: () => Promise<unknown>) => {
         if (busy) {
             return;
@@ -305,16 +315,18 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, 
                         aria-hidden
                     />
                 )}
-                <span className="min-w-0 grow truncate font-medium text-primary" data-testid="reviews-batch-title">
-                    {batchTitle(run)}
+                <span className="min-w-0 grow truncate font-medium text-primary" data-testid="reviews-batch-headline">
+                    {batchHeadline(run, agent?.firstname, ids)}
                 </span>
-                {run.blockid && (active || run.kept) ? (
+                {run.blockid && (active || run.kept || agent != null) ? (
                     <button
                         type="button"
                         className={PlainButton}
                         onClick={() => fireAndForget(() => showPanel(run.blockid))}
                         onKeyDown={stop}
-                        title={t("reviews.batch.goToTitle", { name: run.agentname || t("reviews.batch.yourAgent") })}
+                        title={t("reviews.batch.goToTitle", {
+                            name: agent?.firstname || run.agentname || t("reviews.batch.yourAgent"),
+                        })}
                         data-testid="reviews-batch-goto"
                     >
                         {t("reviews.batch.goTo")}
@@ -346,6 +358,9 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, 
                     </button>
                 )}
             </div>
+            <div className="text-11 text-secondary" data-testid="reviews-batch-title">
+                {batchTitle(run, ids)}
+            </div>
             {active && run.resumedat ? (
                 <div className="text-11 text-secondary" data-testid="reviews-batch-resumed">
                     {t("reviews.batch.resumed")}
@@ -363,12 +378,10 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, 
                                 data-pr={it.number}
                                 data-state={it.state}
                             >
-                                <span className="shrink-0 font-medium text-primary">
-                                    #{ids?.[it.number] ?? it.number}
-                                </span>
+                                <span className="shrink-0 font-medium text-primary">#{batchItemId(it, ids)}</span>
                                 <span className="min-w-0 grow truncate text-secondary" title={mark?.title}>
                                     {it.title ? `${it.title} · ` : ""}
-                                    {it === current ? batchStepText(run, it) : mark?.label}
+                                    {it === current ? batchStepText(run, it, agent?.firstname) : mark?.label}
                                 </span>
                                 {canWithdraw(it) ? (
                                     <button
@@ -378,7 +391,7 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, 
                                             act(`withdraw:${it.number}`, () => model.withdraw(run, it.number))
                                         }
                                         onKeyDown={stop}
-                                        title={t("reviews.batch.withdrawTitle", { number: it.number })}
+                                        title={t("reviews.batch.withdrawTitle", { number: batchItemId(it, ids) })}
                                         data-testid="reviews-batch-withdraw"
                                     >
                                         {busy === `withdraw:${it.number}` ? <DominoLoader /> : null}
@@ -392,7 +405,7 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, 
             ) : null}
             {!active ? (
                 <div className="text-11 text-secondary" data-testid="reviews-batch-summary">
-                    {batchSummary(run)}
+                    {batchSummary(run, ids)}
                 </div>
             ) : null}
             {error != null ? (
