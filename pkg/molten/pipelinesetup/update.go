@@ -507,6 +507,128 @@ func keptRelease(current []byte, merged *molten.PipelineRelease, others ...[]byt
 	return verbatim(out.String()), true
 }
 
+// keptVersions lays the new versions block out with each field the file already has, unchanged, in its own text and
+// order; the new fields come after them. ok is false when the file's block cannot be read.
+func keptVersions(current []byte, v *molten.PipelineVersions) (verbatim, bool) {
+	values, err := topLevelValues(current)
+	if err != nil {
+		return nil, false
+	}
+	raw, ok := values["versions"]
+	if !ok {
+		return nil, false
+	}
+	order, err := objectKeys(raw)
+	if err != nil {
+		return nil, false
+	}
+	var old map[string]json.RawMessage
+	if json.Unmarshal(raw, &old) != nil {
+		return nil, false
+	}
+	encoded := mustEncode(v)
+	var nextRaw map[string]json.RawMessage
+	if json.Unmarshal(encoded, &nextRaw) != nil {
+		return nil, false
+	}
+	tree, err := orderedTree(encoded)
+	if err != nil {
+		return nil, false
+	}
+	obj, ok := tree.(*orderedObject)
+	if !ok {
+		return nil, false
+	}
+	next := map[string]any{}
+	for i, key := range obj.keys {
+		next[key] = obj.values[i]
+	}
+	keys := []string{}
+	for _, key := range order {
+		if _, ok := next[key]; ok {
+			keys = append(keys, key)
+		}
+	}
+	for _, key := range obj.keys {
+		if _, ok := old[key]; !ok {
+			keys = append(keys, key)
+		}
+	}
+	unit := indentUnit(current)
+	var out strings.Builder
+	out.WriteString("{\n")
+	for i, key := range keys {
+		fmt.Fprintf(&out, "%s%q: ", strings.Repeat(unit, 2), key)
+		before, had := old[key]
+		switch {
+		case had && sameJson(before, nextRaw[key]):
+			out.Write(before)
+		case had && keptArray(&out, before, nextRaw[key], next[key], unit):
+		default:
+			writePretty(&out, next[key], unit, 2)
+		}
+		if i < len(keys)-1 {
+			out.WriteString(",")
+		}
+		out.WriteString("\n")
+	}
+	out.WriteString(unit + "}")
+	return verbatim(out.String()), true
+}
+
+// keptArray writes a changed array of the versions block (its files) with each element the file already has in its
+// own text; false when either side is not an array.
+func keptArray(out *strings.Builder, before, after json.RawMessage, tree any, unit string) bool {
+	var olds, news []json.RawMessage
+	items, ok := tree.([]any)
+	if json.Unmarshal(before, &olds) != nil || json.Unmarshal(after, &news) != nil || !ok || len(items) != len(news) {
+		return false
+	}
+	out.WriteString("[\n")
+	for i, item := range news {
+		out.WriteString(strings.Repeat(unit, 3))
+		written := false
+		for _, o := range olds {
+			if sameJson(o, item) {
+				out.Write(o)
+				written = true
+				break
+			}
+		}
+		if !written {
+			writePretty(out, items[i], unit, 3)
+		}
+		if i < len(news)-1 {
+			out.WriteString(",")
+		}
+		out.WriteString("\n")
+	}
+	out.WriteString(strings.Repeat(unit, 2) + "]")
+	return true
+}
+
+// objectKeys: a JSON object's keys in the order its text writes them.
+func objectKeys(raw []byte) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if _, err := dec.Token(); err != nil {
+		return nil, err
+	}
+	var keys []string
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, _ := tok.(string)
+		keys = append(keys, key)
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
 func sameReleases(a, b *molten.PipelineRelease) bool {
 	da, _ := json.Marshal(a)
 	db, _ := json.Marshal(b)
@@ -777,20 +899,23 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInp
 			versions = proposal.Versions
 		}
 	}
-	// A release block nothing changes keeps its text as written: re-encoding it would show a reformat as a change.
-	var text []byte
-	var err error
-	if sameReleases(merged, cur) {
-		text, err = proposedText(current, f, Proposal{Versions: versions})
-	} else if kept, ok := keptRelease(current, merged); ok {
-		var values []keyValue
-		if versions != nil {
-			values = append(values, keyValue{Key: "versions", Value: versions})
+	// What does not change keeps its text as written: re-encoding it would show a reformat as a change.
+	var values []keyValue
+	if versions != nil {
+		var value any = versions
+		if kept, ok := keptVersions(current, versions); ok {
+			value = kept
 		}
-		text, err = MergeTopLevel(current, nil, append(values, keyValue{Key: "release", Value: kept}))
-	} else {
-		text, err = proposedText(current, f, Proposal{Release: merged, Versions: versions})
+		values = append(values, keyValue{Key: "versions", Value: value})
 	}
+	if !sameReleases(merged, cur) {
+		var value any = merged
+		if kept, ok := keptRelease(current, merged); ok {
+			value = kept
+		}
+		values = append(values, keyValue{Key: "release", Value: value})
+	}
+	text, err := MergeTopLevel(current, []keyValue{{Key: "schema", Value: molten.PipelineSchema}, {Key: "name", Value: f.Name}}, values)
 	if err != nil {
 		return nil, err
 	}

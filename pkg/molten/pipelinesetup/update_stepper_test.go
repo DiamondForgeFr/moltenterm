@@ -61,6 +61,43 @@ func TestStep2aProposesTheChecksAndTheFormatter(t *testing.T) {
 	}
 }
 
+// The formatter added to SaaSFoundryAI's versions block: one new field, the version files as written.
+func TestKeptVersionsAddsOnlyTheNewField(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Versions *molten.PipelineVersions `json:"versions"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil || file.Versions == nil {
+		t.Fatalf("no versions block: %v", err)
+	}
+	file.Versions.Format = "npm run format --"
+	kept, ok := keptVersions(data, file.Versions)
+	if !ok {
+		t.Fatal("the versions block was not read")
+	}
+	text, err := MergeTopLevel(data, nil, []keyValue{{Key: "versions", Value: kept}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		have[line] = true
+	}
+	var added []string
+	for _, line := range strings.Split(string(text), "\n") {
+		if !have[line] {
+			added = append(added, line)
+		}
+	}
+	// The format line, and the comma the field before it gains.
+	if len(added) != 2 || !strings.Contains(strings.Join(added, "\n"), `"format": "npm run format --"`) {
+		t.Fatalf("added lines: %q", added)
+	}
+}
+
 // SaaSFoundryAI's committed pipeline writes short steps on one line: a change keeps every other step's text.
 func TestKeptReleaseKeepsTheStepsAsWritten(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "saasfoundry-committed-f191383e.json"))
