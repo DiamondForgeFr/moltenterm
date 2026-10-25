@@ -78,8 +78,9 @@ export function cardStates(
 export type TurnSection = { turn: CardTurn; prs: ReviewPr[] };
 
 // sectionsByTurn: the PR cards by whose turn it is, each section ordered by the sort chosen. By state: the state's
-// precedence, then the list's own order (newest update first). By merge order: ranked cards first by rank, the others
-// after by state. Sections without a card are left out.
+// precedence, then the merge queue's rank, ranked cards first (#1062: the queue at the top of Yours reads in the
+// cards' order), then the list's own order (newest update first). By merge order: ranked cards first by rank, the
+// others after by state. Sections without a card are left out.
 export function sectionsByTurn(
     prs: readonly ReviewPr[],
     cards: Record<number, CardState>,
@@ -88,8 +89,14 @@ export function sectionsByTurn(
 ): TurnSection[] {
     const precedence = (pr: ReviewPr) => CardStateKinds.indexOf(cards[pr.number]?.kind ?? "ready");
     const indexed = prs.map((pr, i) => ({ pr, i }));
+    // Ranked before unranked, so the order stays a total one.
+    const rankGap = (a: ReviewPr, b: ReviewPr) => {
+        const ra = ranks?.[a.number] ?? Infinity;
+        const rb = ranks?.[b.number] ?? Infinity;
+        return ra === rb ? 0 : ra < rb ? -1 : 1;
+    };
     const byState = (a: { pr: ReviewPr; i: number }, b: { pr: ReviewPr; i: number }) =>
-        precedence(a.pr) - precedence(b.pr) || a.i - b.i;
+        precedence(a.pr) - precedence(b.pr) || rankGap(a.pr, b.pr) || a.i - b.i;
     const compare =
         sort === "merge"
             ? (a: { pr: ReviewPr; i: number }, b: { pr: ReviewPr; i: number }) => {

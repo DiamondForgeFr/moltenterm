@@ -125,6 +125,11 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         expect(turns([onIt])).toEqual([["agents", [1107]]]);
     });
 
+    it("by state, cards of one state follow the merge queue's ranks, ranked first (#1062)", () => {
+        const ready = [pr(1201), pr(1202), pr(1203), pr(1204)];
+        expect(turns(ready, "state", { 1203: 1, 1201: 2, 1204: 3 })).toEqual([["yours", [1203, 1201, 1204, 1202]]]);
+    });
+
     it("sorts by merge order: ranked cards first, the others by state (AC13)", () => {
         expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1101, 1104, 1107]]);
         expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1101, 1104, 1107]]);
