@@ -20,7 +20,6 @@ import {
     canWithdraw,
     queueItem,
     queueOrder,
-    toggleBatchSelection,
 } from "./reviews-batch-model";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr } from "./reviews-model";
@@ -210,11 +209,6 @@ describe("batch merge model", () => {
         expect(batchConfirmKey("Escape")).toBe("cancel");
         expect(batchConfirmKey("a")).toBeNull();
         expect(batchConfirmKey("Tab")).toBeNull();
-    });
-
-    it("toggles a PR in and out of the selection", () => {
-        expect(toggleBatchSelection([], 3)).toEqual([3]);
-        expect(toggleBatchSelection([3, 4], 3)).toEqual([4]);
     });
 
     it("titles the banner with the progress and names the PR in progress", () => {

@@ -1,19 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Reviews panel's sort (FR-REV-001 AC13, #1061) and the suggested merge order (FR-REV-024): the header's segmented
-// control (by state, or by merge order), the line saying what the merge order costs in CI runs, and each card's rank
-// and reason. The order itself is reviews-order-model.ts's.
+// The Reviews panel's sort (FR-REV-001 AC13, #1061) and each card's rank in the suggested merge order (FR-REV-024):
+// the header's segmented control (by state, or by merge order). The merge queue itself, with its cost, is
+// reviews-queue.tsx's (#1062); the order is reviews-order-model.ts's.
 
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useT } from "../i18n/i18n";
-import type { MergeOrderHeader } from "./reviews-order-model";
 import { ReviewsSortPref } from "./reviews-order-store";
 import type { ReviewsSort } from "./reviews-sections-model";
-
-// What a row shows of the order: its rank and why it takes it; no rank when it is left out of the order (#1059).
-export type RowOrder = { rank: number; reason: string };
 
 // "To learn" joins with the learning grades (#788, #1064).
 const Sorts: { sort: ReviewsSort; label: string; title: string }[] = [
@@ -59,55 +55,19 @@ export function SortControl({ sort }: { sort: ReviewsSort }) {
     );
 }
 
-// What the merge order shown costs, while it is chosen.
-export function MergeOrderCost({ header }: { header: MergeOrderHeader }) {
-    return (
-        <div className="flex min-w-0 items-center" data-testid="reviews-order">
-            {header?.text ? (
-                <span
-                    className={cn(
-                        "min-w-0 truncate text-11",
-                        header.kind === "uptodate" ? "text-warning" : "text-secondary"
-                    )}
-                    title={header.title}
-                    aria-live="polite"
-                    data-testid="reviews-order-cost"
-                    data-kind={header.kind}
-                >
-                    {header.text}
-                </span>
-            ) : null}
-        </div>
-    );
-}
-
-export function MergeOrderRank({ order }: { order: RowOrder }) {
+// A card's rank in the merge queue; none for a PR the queue does not hold.
+export function MergeOrderRank({ rank }: { rank: number }) {
     const t = useT();
-    if (order?.rank == null) {
+    if (rank == null) {
         return null;
     }
     return (
         <span
             className="mr-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-4 border border-accent/50 bg-accent/10 px-1 align-[1px] text-10 leading-none font-semibold text-accent tabular-nums"
-            title={t("reviews.order.rankTitle", { rank: order.rank })}
+            title={t("reviews.order.rankTitle", { rank })}
             data-testid="reviews-order-rank"
         >
-            {order.rank}
+            {rank}
         </span>
-    );
-}
-
-export function MergeOrderReason({ order }: { order: RowOrder }) {
-    if (!order?.reason) {
-        return null;
-    }
-    return (
-        <div
-            className="truncate text-11 leading-4 text-secondary"
-            title={order.reason}
-            data-testid="reviews-order-reason"
-        >
-            {order.reason}
-        </div>
     );
 }

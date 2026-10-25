@@ -11,6 +11,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { AgentStates } from "../agent-state-store";
 import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
 import { openMoltentermView } from "../open-view";
 import { showTabFromHere } from "../opener-tab";
@@ -29,7 +30,9 @@ import { showPanel } from "../review/review-panels";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
+import { BusyAgent, QueuedAsk, ReviewsAskQueue } from "./reviews-ask-queue";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
+import type { Forecast } from "./reviews-forecast-model";
 import { ReviewsMerges } from "./reviews-merges";
 import {
     blockersText,
@@ -45,7 +48,17 @@ import {
     repoOfPrUrl,
     ReviewPr,
     reviewPrOfCleanup,
+    ReviewsAnswer,
 } from "./reviews-model";
+import {
+    AfterMerge,
+    afterMergeOf,
+    forgetMerged,
+    joinAfterMerge,
+    MergeQueue,
+    QueueMemory,
+    queueMemory,
+} from "./reviews-queue-model";
 import { checkAgentsPlan, CheckReport, prLeft, PrTaskKind } from "./reviews-task-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface; or, by its branch, a future PR's
@@ -65,6 +78,10 @@ export class ReviewsModel {
     // A row's Validate sheet, open with no Review tab (#707), in the Reviews panel blockId.
     validateSheetAtom = atom(null) as PrimitiveAtom<ReviewsValidateSheet>;
     stopSheet: () => void = null;
+    // The status line after a merge of a queued PR (#1062, FR-REV-024), by project folder; and the queue each project's
+    // last read showed, which the next read is compared with.
+    afterMergeAtom = atom({}) as PrimitiveAtom<Record<string, AfterMerge>>;
+    queueMemories: Record<string, QueueMemory> = {};
 
     private constructor() {}
 
@@ -196,6 +213,94 @@ export class ReviewsModel {
             ...asks,
             [key]: { kind, name: outcome.name, blockId: outcome.blockId, head: pr.headoid ?? "", at: Date.now() },
         });
+    }
+
+    // noteQueueRead (#1062): a new read of a project's list against the queue the last one showed: the queued PRs merged
+    // since then make the status line say what changed. takenByQueue: the PRs the running merge queue rebases itself.
+    noteQueueRead(
+        dir: string,
+        answer: ReviewsAnswer,
+        listed: readonly ReviewPr[],
+        queue: MergeQueue,
+        forecast: Forecast,
+        takenByQueue: (number: number) => boolean
+    ) {
+        let memory = this.queueMemories[dir];
+        const after = afterMergeOf(memory, answer, listed, takenByQueue);
+        if (after != null) {
+            const shown = globalStore.get(this.afterMergeAtom);
+            globalStore.set(this.afterMergeAtom, { ...shown, [dir]: joinAfterMerge(shown[dir], after) });
+            memory = forgetMerged(memory, after.merged);
+        }
+        this.queueMemories[dir] = queueMemory(queue, forecast, listed) ?? memory;
+    }
+
+    closeAfterMerge(dir: string) {
+        const shown = globalStore.get(this.afterMergeAtom);
+        if (shown[dir] == null) {
+            return;
+        }
+        const next = { ...shown };
+        delete next[dir];
+        globalStore.set(this.afterMergeAtom, next);
+    }
+
+    // handOverAfterMerge: "Hand the rebase over" on the status line: each PR named goes to its agent, as Ask for a
+    // rebase does (a busy agent gets it after its task, the card says so); what could not be asked stays on the line.
+    async handOverAfterMerge(dir: string, repo: string, listed: readonly ReviewPr[]): Promise<void> {
+        const after = globalStore.get(this.afterMergeAtom)[dir];
+        if (after == null) {
+            return;
+        }
+        const failures: Phrase[] = [];
+        for (const need of after.needs) {
+            const pr = listed.find((p) => p.number === need.number);
+            if (pr == null) {
+                continue;
+            }
+            const outcome = await this.askRebase(dir, pr, repo, need.after);
+            if (outcome?.busy != null) {
+                this.queueAsk(dir, pr, repo, "rebase", outcome.busy, need.after);
+            } else if (outcome?.kind === "failed") {
+                failures.push(outcome.text);
+            }
+        }
+        if (failures.length === 0) {
+            this.closeAfterMerge(dir);
+            return;
+        }
+        const shown = globalStore.get(this.afterMergeAtom);
+        globalStore.set(this.afterMergeAtom, { ...shown, [dir]: { ...after, needs: [], failures } });
+    }
+
+    // queueAsk (#1062, FR-REV-022 AC12): "Hand the rebase to {name} after its task": the task waits for the busy agent
+    // and goes to it, with no dialog, once it is neither working nor waiting.
+    queueAsk(dir: string, pr: ReviewPr, repo: string, kind: PrTaskKind, agent: BusyAgent, mergedPr?: number) {
+        const queue = this.askQueue();
+        queue.queue({ dir, repo, pr, kind, agent, mergedPr });
+    }
+
+    // askQueue: the queue of asks, sending through this model and watching the agents' states once it is first used.
+    askQueue(): ReviewsAskQueue {
+        const queue = ReviewsAskQueue.getInstance();
+        if (queue.sender != null) {
+            return queue;
+        }
+        const states = AgentStates.getInstance();
+        queue.sender = (ask) => this.sendQueued(ask);
+        queue.statesOf = () => globalStore.get(states.dataAtom);
+        queue.unsubscribe = globalStore.sub(states.dataAtom, () => queue.check(globalStore.get(states.dataAtom)));
+        return queue;
+    }
+
+    sendQueued(ask: QueuedAsk): Promise<RebaseOutcome> {
+        switch (ask.kind) {
+            case "investigate":
+                return this.investigateOnce(ask.dir, ask.pr, ask.repo, null);
+            case "finish":
+                return this.finishOnce(ask.dir, ask.pr, ask.repo, null);
+        }
+        return this.askRebaseOnce(ask.dir, ask.pr, ask.repo, null, ask.mergedPr);
     }
 
     // Retry (#954): the same task again, with the PR as the list reads it now. The agent that took it gets it in its

@@ -272,6 +272,8 @@ export type RebaseOutcome = {
     result?: RebaseResult;
     text: Phrase;
     note?: boolean;
+    // The agent busy on the branch (#1062): the card offers to hand it the task after its own.
+    busy?: { blockId: string; name: string };
 };
 
 // notChosen: the agent already on the branch took the work, not the one the developer chose (#845).
@@ -379,6 +381,7 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
                             result.agentstate === "waiting"
                                 ? phrase("reviews.rebase.waiting", vars)
                                 : phrase("reviews.rebase.working", vars),
+                        busy: result.blockid ? { blockId: result.blockid, name } : undefined,
                     };
                 case "inflight":
                     return { kind: "info", text: phrase("reviews.rebase.inflight") };
