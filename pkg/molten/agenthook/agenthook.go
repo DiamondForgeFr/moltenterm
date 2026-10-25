@@ -35,6 +35,8 @@ type AgentStateRequest struct {
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
 	Start   bool   `json:"start,omitempty"`
+	// Subagent: the report is a sub-agent's (its agent_id), not the pane's main session's (#1092).
+	Subagent string `json:"subagent,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a

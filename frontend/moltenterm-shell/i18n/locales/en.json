@@ -6799,6 +6799,10 @@
             "localCi": "waiting for the local CI of #{number} on its pushed head",
             "green": "the CI of #{number} passes"
         },
+        "agentState": {
+            "subagent": "1 sub-agent running",
+            "subagents": "{count} sub-agents running"
+        },
         "review": {
             "batchempty": "Select the pull requests to merge first.",
             "batchmethod": "This merge method is no longer allowed on this repository: pick another one.",

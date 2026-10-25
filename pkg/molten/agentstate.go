@@ -290,6 +290,9 @@ type AgentStateRequest struct {
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
 	Start   bool   `json:"start,omitempty"`
+	// Subagent: the report is about a sub-agent of the pane's session (its agent_id, #1092), never the main session's
+	// state: working means it runs, done that it stopped.
+	Subagent string `json:"subagent,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.
@@ -322,6 +325,10 @@ type AgentStateInfo struct {
 	Model     string `json:"model,omitempty"`
 	ModelName string `json:"modelname,omitempty"`
 	Effort    string `json:"effort,omitempty"`
+	// Subagents: how many sub-agents of the session run now, as its hooks report them (#1092). Background: State is
+	// working only because of them, the main session's prompt is idle (or done) and takes a message.
+	Subagents  int  `json:"subagents,omitempty"`
+	Background bool `json:"background,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 }
@@ -340,7 +347,11 @@ type AgentRunInfo struct {
 	// Started, in Unix milliseconds.
 	Started int64
 	Running bool
-	State   string
+	// State: the main session's, never its sub-agents' (#1092): a handoff is typed when it is neither working nor
+	// waiting, sub-agents running or not.
+	State string
+	// Subagents: how many sub-agents of the session run now (#1092).
+	Subagents int
 	// StateSince: when the agent entered State, in Unix milliseconds.
 	StateSince int64
 	// Pid: the agent's process, when the process tree found it in a local terminal (0 otherwise); PidStartMs tells a

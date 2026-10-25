@@ -8,7 +8,7 @@
 // the menu.
 
 import { runsByBlock, type AgentIntegrationRun } from "../agent-integration-runs";
-import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
+import { agentCallName, agentLabel, agentPromptState, type AgentStateInfo } from "../agent-state-model";
 import { integrationSetting } from "../companion/companion-integration-model";
 import { t } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
@@ -138,7 +138,7 @@ export function shareAgents(
             agentId: info.agent,
             paneTitle: paneTitle(info.blockid),
             sessionId: byBlock.get(info.blockid)?.sessionid,
-            state: info.state,
+            state: agentPromptState(info),
         };
         if (!agent.sessionId) {
             const run = runs.get(info.blockid);

@@ -41,8 +41,8 @@ func TestAgentHookMatchesMolten(t *testing.T) {
 
 	pairs := map[string][2]any{
 		"state request": {
-			AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true},
-			agenthook.AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true},
+			AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true, Subagent: "a"},
+			agenthook.AgentStateRequest{BlockId: "b", State: "done", Agent: "codex", Message: "m", TurnEnd: true, Start: true, Subagent: "a"},
 		},
 		"session request": {
 			AgentSessionRequest{BlockId: "b", Agent: "codex", Path: "/p", SessionId: "s"},
