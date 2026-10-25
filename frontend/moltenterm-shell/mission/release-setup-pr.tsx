@@ -98,15 +98,22 @@ export function UncommittedNotice({
                     ? t("mc.setup.pr.included")
                     : t("mc.setup.pr.uncommitted", { path: PipelineFile, ref: plan.ref || "HEAD" })}
             </p>
+            {plan.conflict && !plan.included ? (
+                <p className="text-11 text-warning" data-testid="setup-uncommitted-conflict">
+                    {t("mc.setup.pr.conflict", { ref: plan.ref || "HEAD" })}
+                </p>
+            ) : null}
             <div className="flex flex-wrap gap-3">
-                <button
-                    type="button"
-                    className="cursor-pointer text-11 text-primary underline-offset-2 hover:underline"
-                    onClick={() => onInclude(!plan.included)}
-                    data-testid="setup-include-local"
-                >
-                    {plan.included ? t("mc.setup.pr.leaveOut") : t("mc.setup.pr.include")}
-                </button>
+                {plan.conflict && !plan.included ? null : (
+                    <button
+                        type="button"
+                        className="cursor-pointer text-11 text-primary underline-offset-2 hover:underline"
+                        onClick={() => onInclude(!plan.included)}
+                        data-testid="setup-include-local"
+                    >
+                        {plan.included ? t("mc.setup.pr.leaveOut") : t("mc.setup.pr.include")}
+                    </button>
+                )}
                 {plan.local != null ? (
                     <button
                         type="button"
@@ -349,6 +356,13 @@ export function PrPanel({
     onAgain: () => void;
 }) {
     const t = useT();
+    const panel = useRef<HTMLDivElement>(null);
+    // The block sits under the diff: the progress and the outcome are brought into view.
+    useEffect(() => {
+        if (job?.id) {
+            panel.current?.scrollIntoView?.({ block: "nearest" });
+        }
+    }, [job?.id, job?.finished]);
     if (plan == null) {
         return null;
     }
@@ -360,10 +374,12 @@ export function PrPanel({
             </div>
         );
     }
-    const names = prNamesOf(plan, job?.ticket || choice.ticket);
-    const locked = busy || job != null;
+    const live = job != null && job.failure == null ? job : null;
+    const names = prNamesOf(plan, live?.ticket || choice.ticket);
+    // After a failure the ticket can change (a branch that already exists takes another ticket).
+    const locked = busy || (job?.finished && job.failure == null);
     return (
-        <div className={SectionClass} data-testid="setup-pr">
+        <div className={SectionClass} data-testid="setup-pr" ref={panel}>
             <div className={SectionTitle}>{t("mc.setup.pr.title")}</div>
             <p className="text-11 text-muted">{plan.ongithub ? t("mc.setup.pr.desc") : t("mc.setup.pr.descPatch")}</p>
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-12">
@@ -377,11 +393,11 @@ export function PrPanel({
                 ) : null}
                 <dt className="text-muted">{t("mc.setup.pr.branch")}</dt>
                 <dd className="min-w-0 font-mono text-11 wrap-anywhere text-secondary" data-testid="setup-pr-branch">
-                    {job?.branch || names.branch}
+                    {live?.branch || names.branch}
                 </dd>
                 <dt className="text-muted">{t("mc.setup.pr.commit")}</dt>
                 <dd className="min-w-0 font-mono text-11 wrap-anywhere text-secondary" data-testid="setup-pr-subject">
-                    {job?.subject || names.subject}
+                    {live?.subject || names.subject}
                 </dd>
                 <dt className="text-muted">{t("mc.setup.pr.into")}</dt>
                 <dd className="font-mono text-11 text-secondary">

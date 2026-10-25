@@ -533,6 +533,9 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err != nil {
 		return CheckAnswer{}, err
 	}
+	if err := b.includable(req.IncludeLocal); err != nil {
+		return CheckAnswer{}, err
+	}
 	c, err := s.check(ctx, dir, b, req.Choices, req.IncludeLocal)
 	if err != nil {
 		return CheckAnswer{}, err

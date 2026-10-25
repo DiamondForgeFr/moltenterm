@@ -49,19 +49,21 @@ const (
 	PrStateSkipped = "skipped"
 
 	// Why a job stopped, worded by the window under mc.setup.pr.failure.<code>.
-	PrFailureMoved         = "moved"
-	PrFailureLocalChanged  = "localChanged"
-	PrFailureUpdateChanged = "updateChanged"
-	PrFailureBranchExists  = "branchExists"
-	PrFailureInvalid       = "invalid"
-	PrFailureNothing       = "nothing"
-	PrFailureFetch         = "fetch"
-	PrFailureTicket        = "ticket"
-	PrFailureWorktree      = "worktree"
-	PrFailureCommit        = "commit"
-	PrFailurePush          = "push"
-	PrFailurePr            = "pr"
-	PrFailureFailed        = "failed"
+	PrFailureMoved        = "moved"
+	PrFailureLocalChanged = "localChanged"
+	// The included uncommitted edits and origin changed the same lines.
+	PrFailureIncludeConflict = "includeConflict"
+	PrFailureUpdateChanged   = "updateChanged"
+	PrFailureBranchExists    = "branchExists"
+	PrFailureInvalid         = "invalid"
+	PrFailureNothing         = "nothing"
+	PrFailureFetch           = "fetch"
+	PrFailureTicket          = "ticket"
+	PrFailureWorktree        = "worktree"
+	PrFailureCommit          = "commit"
+	PrFailurePush            = "push"
+	PrFailurePr              = "pr"
+	PrFailureFailed          = "failed"
 
 	PrBranchDescription = "release-pipeline"
 
@@ -88,9 +90,11 @@ type PrPlan struct {
 	// The title of the ticket MoltenTerm creates when none is picked (the project's language for tickets: English).
 	TicketTitle string `json:"tickettitle"`
 	// The working copy's pipeline (or record) differs from the committed one; Included: the proposal is built on it.
-	Uncommitted bool   `json:"uncommitted"`
-	Included    bool   `json:"included"`
-	LocalBase   string `json:"localbase"`
+	Uncommitted bool `json:"uncommitted"`
+	// The uncommitted edits and origin changed the same lines: they cannot be included.
+	Conflict  bool   `json:"conflict"`
+	Included  bool   `json:"included"`
+	LocalBase string `json:"localbase"`
 	// The working copy's pipeline when it differs, for the window to show the edits.
 	Local string `json:"local,omitempty"`
 }
@@ -233,11 +237,16 @@ func (s *Setup) planOf(dir string, b *baseFiles, kind string, include bool) PrPl
 		ticket = "{N}"
 	}
 	plan := PrPlan{Git: b.Commit != "", Ref: b.Ref, Commit: shortSha(b.Commit), Target: prTarget(dir, b.Trunk), OnGithub: onGithub(dir),
-		TicketRequired: required, Uncommitted: b.uncommitted(), Included: include && b.uncommitted(), LocalBase: localHash(b)}
+		TicketRequired: required, Uncommitted: b.uncommitted(), Conflict: b.IncludeConflict, Included: include && b.uncommitted(),
+		LocalBase: localHash(b)}
 	plan.Branch, plan.Subject = prNames(dir, kind, ticket)
 	plan.TicketTitle = ticketTitle(kind)
+	// The edits as they would be included: on an older checkout, the working copy's file also lacks what origin merged.
 	if plan.Uncommitted {
-		plan.Local = string(b.LocalPipeline)
+		plan.Local = string(b.IncludedPipeline)
+		if b.IncludeConflict {
+			plan.Local = string(b.LocalPipeline)
+		}
 	}
 	return plan
 }
@@ -440,6 +449,9 @@ func (s *Setup) prepareBase(ctx context.Context, dir string, base string, req Pr
 	}
 	if req.IncludeLocal && localHash(b) != req.LocalBase {
 		return nil, fail(PrFailureLocalChanged, "")
+	}
+	if req.IncludeLocal && b.IncludeConflict {
+		return nil, fail(PrFailureIncludeConflict, "")
 	}
 	return b, nil
 }

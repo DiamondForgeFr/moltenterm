@@ -3794,8 +3794,10 @@
                     "commit": "Le commit n'a pas pu être fait dans le worktree. Votre copie n'a pas changé.",
                     "push": "Le push a été refusé. Votre copie n'a pas changé.",
                     "pr": "{branch} est poussée, mais la pull request n'a pas pu être ouverte. Ouvrez-la sur GitHub, ou copiez le patch.",
-                    "failed": "La pull request n'a pas pu être préparée. Votre copie n'a pas changé."
-                }
+                    "failed": "La pull request n'a pas pu être préparée. Votre copie n'a pas changé.",
+                    "includeConflict": "Vos modifications non commitées sont en conflit avec {ref}. Préparez à nouveau sans elles, ou commitez-les d'abord."
+                },
+                "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d'abord pour les inclure."
             }
         }
     },
@@ -7279,7 +7281,8 @@
                 "prUnknown": "Cette pull request n'est plus suivie : préparez-la à nouveau.",
                 "ticketsUnread": "Les tickets ouverts n'ont pas pu être lus : {detail}",
                 "noGit": "Ce projet n'est pas un dépôt git avec sa branche de travail : il n'y a rien sur quoi ouvrir une pull request.",
-                "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un."
+                "ticketNeeded": "Le format de commit du projet nomme un ticket : choisissez-en un ou créez-en un.",
+                "includeConflict": "Vos modifications non commitées de {path} sont en conflit avec {ref} : commitez-les ou rebasez-les d'abord, ou laissez-les de côté."
             }
         },
         "notif": {

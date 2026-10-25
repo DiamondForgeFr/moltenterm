@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 // The setup builds on the committed pipeline (#1098): the files at origin/<trunk> (else the local trunk), read with git,
@@ -35,6 +36,12 @@ type baseFiles struct {
 	Record        []byte
 	LocalPipeline []byte
 	LocalRecord   []byte
+	// The working copy's edits carried onto the committed files (a three-way merge from HEAD's): what "include them"
+	// builds on, so that an edit made on an older checkout does not undo what origin merged since. Conflict: the edits
+	// and origin changed the same lines.
+	IncludedPipeline []byte
+	IncludedRecord   []byte
+	IncludeConflict  bool
 }
 
 func (b *baseFiles) uncommitted() bool {
@@ -44,7 +51,7 @@ func (b *baseFiles) uncommitted() bool {
 // buildOn: the pipeline and the record the proposal is built on.
 func (b *baseFiles) buildOn(includeLocal bool) ([]byte, []byte) {
 	if includeLocal {
-		return b.LocalPipeline, b.LocalRecord
+		return b.IncludedPipeline, b.IncludedRecord
 	}
 	return b.Pipeline, b.Record
 }
@@ -116,17 +123,72 @@ func (s *Setup) readBase(ctx context.Context, dir string) (*baseFiles, error) {
 	}
 	if b.Commit == "" {
 		b.Pipeline, b.Record = b.LocalPipeline, b.LocalRecord
+		b.IncludedPipeline, b.IncludedRecord = b.LocalPipeline, b.LocalRecord
 		return b, nil
 	}
 	if b.Pipeline, err = s.committedFile(ctx, dir, b.Commit, molten.ProjectPipelineFile); err != nil {
 		return nil, err
 	}
-	record, err := s.committedFile(ctx, dir, b.Commit, RecordFile)
-	if err != nil || int64(len(record)) > maxRecordBytes {
-		record = nil
+	b.Record = s.recordAt(ctx, dir, b.Commit)
+	head := s.commitOf(ctx, dir, "HEAD")
+	var headPipeline, headRecord []byte
+	if head != "" {
+		headPipeline, _ = s.committedFile(ctx, dir, head, molten.ProjectPipelineFile)
+		headRecord = s.recordAt(ctx, dir, head)
 	}
-	b.Record = record
+	var conflict bool
+	b.IncludedPipeline, conflict = s.carryEdits(ctx, dir, headPipeline, b.LocalPipeline, b.Pipeline)
+	b.IncludeConflict = conflict
+	b.IncludedRecord, conflict = s.carryEdits(ctx, dir, headRecord, b.LocalRecord, b.Record)
+	b.IncludeConflict = b.IncludeConflict || conflict
 	return b, nil
+}
+
+// includable refuses to build on uncommitted edits that conflict with the committed file.
+func (b *baseFiles) includable(includeLocal bool) error {
+	if includeLocal && b.IncludeConflict {
+		return uimsg.Errorf(uimsg.Make("mission.setup.includeConflict", "path", molten.ProjectPipelineFile, "ref", b.Ref),
+			"your uncommitted changes to %s conflict with %s: commit or rebase them first, or leave them out", molten.ProjectPipelineFile, b.Ref)
+	}
+	return nil
+}
+
+func (s *Setup) recordAt(ctx context.Context, dir string, commit string) []byte {
+	record, err := s.committedFile(ctx, dir, commit, RecordFile)
+	if err != nil || int64(len(record)) > maxRecordBytes {
+		return nil
+	}
+	return record
+}
+
+// carryEdits applies the working copy's edits (from the checkout's HEAD to local) onto the committed file, with git
+// merge-file; conflict when both changed the same lines.
+func (s *Setup) carryEdits(ctx context.Context, dir string, head, local, committed []byte) ([]byte, bool) {
+	switch {
+	case bytes.Equal(head, local):
+		return committed, false
+	case bytes.Equal(head, committed), bytes.Equal(local, committed):
+		return local, false
+	case local == nil:
+		// Deleted in the working copy: the setup does not delete the committed file.
+		return committed, false
+	}
+	tmp, err := os.MkdirTemp("", "molten-setup-merge-")
+	if err != nil {
+		return nil, true
+	}
+	defer os.RemoveAll(tmp)
+	names := []string{"local", "head", "committed"}
+	for i, data := range [][]byte{local, head, committed} {
+		if err := os.WriteFile(filepath.Join(tmp, names[i]), data, 0600); err != nil {
+			return nil, true
+		}
+	}
+	out, err := s.git(ctx, dir, "merge-file", "-p", filepath.Join(tmp, "local"), filepath.Join(tmp, "head"), filepath.Join(tmp, "committed"))
+	if err != nil {
+		return nil, true
+	}
+	return out, false
 }
 
 // pipelineReport validates the text the setup builds on as the project's file; an absent file is not present.

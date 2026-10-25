@@ -163,6 +163,9 @@ func (s *Setup) Draft(ctx context.Context, req DraftRequest) (DraftAnswer, error
 	if err != nil {
 		return DraftAnswer{}, err
 	}
+	if err := b.includable(req.IncludeLocal); err != nil {
+		return DraftAnswer{}, err
+	}
 	current, _ := b.buildOn(req.IncludeLocal)
 	report := pipelineReport(dir, current)
 	f := DetectWith(dir, report)
@@ -422,6 +425,9 @@ func (s *Setup) Refine(ctx context.Context, req RefineRequest) (RefineAnswer, er
 	}
 	b, err := s.readBase(ctx, dir)
 	if err != nil {
+		return RefineAnswer{}, err
+	}
+	if err := b.includable(req.IncludeLocal); err != nil {
 		return RefineAnswer{}, err
 	}
 	// The agent's text goes through the template's merge (#1098): it can only change the keys the setup sets up, in
