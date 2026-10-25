@@ -25,7 +25,9 @@ export type ReviewCleanupStepId =
     | "local-branch"
     | "remote-branch"
     | "local-trunk"
-    | "other-prs";
+    | "other-prs"
+    // #1121: the PR's local copies the request names (the Leftovers group only, never Validate's sheet).
+    | "copy-branches";
 
 export type ReviewCleanupState = "done" | "skipped" | "failed";
 // planned: a step of Validate's plan sheet, before the merge (pkg/molten/review/postmerge.go).
@@ -44,7 +46,14 @@ export const ReviewCleanupSteps: ReviewCleanupStepId[] = [
 ];
 
 // must match WorktreeRisk in pkg/molten/mission/worktree.go
-export type ReviewWorktreeRisk = { sha: string; changecount: number; unpushed: number; ignoredfilecount: number };
+export type ReviewWorktreeRisk = {
+    sha: string;
+    changecount: number;
+    unpushed: number;
+    ignoredfilecount: number;
+    // #1121: the worktree's lock is held by a process that ended; wavesrv checks it again before removing.
+    endedlock?: boolean;
+};
 
 // must match WorktreeLoss in pkg/molten/review/loss.go; commitcount -1: git could not tell.
 export type ReviewWorktreeLoss = {
@@ -135,6 +144,9 @@ export type ReviewCleanupRequest = {
     worktreeconfirmed?: ReviewWorktreeRisk;
     // Remove again on the folder a worktree step left (code leftover, #716); wavesrv only removes the one it recorded.
     leftover?: string;
+    // #1121, the Leftovers group: a PR closed without merging whose content is on the base, and the PR's local copies.
+    closed?: boolean;
+    copies?: string[];
 };
 
 export function runReviewCleanup(req: ReviewCleanupRequest): Promise<ReviewCleanupResult> {

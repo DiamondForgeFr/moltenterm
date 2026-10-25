@@ -61,6 +61,9 @@ type WorktreePlan struct {
 	Sha      string `json:"sha,omitempty"`
 	Detached bool   `json:"detached,omitempty"`
 	Locked   bool   `json:"locked,omitempty"`
+	// LockPid: the process git's lock reason names, 0 when none; LockEnded: that process no longer runs (#1121).
+	LockPid   int32 `json:"lockpid,omitempty"`
+	LockEnded bool  `json:"lockended,omitempty"`
 	// Operation: the git operation left in progress in the worktree (rebase, merge, cherry-pick, revert, bisect), #1028.
 	Operation string `json:"operation,omitempty"`
 	// Changes lists the first uncommitted paths; ChangeCount counts them all.
@@ -94,6 +97,8 @@ type WorktreeRisk struct {
 	IgnoredFileCount int    `json:"ignoredfilecount"`
 	// Locked: the user confirmed removing a locked worktree (Clean branches, #1028); without it a locked one stays.
 	Locked bool `json:"locked,omitempty"`
+	// EndedLock: remove a worktree whose lock's holder ended (#1121); refused while that holder runs again.
+	EndedLock bool `json:"endedlock,omitempty"`
 }
 
 type WorktreeRemoveRequest struct {
@@ -402,6 +407,9 @@ func (w *Worktrees) plan(ctx context.Context, path string, closing []string) (Wo
 		return plan, uimsg.Errorf(uimsg.Make("worktree.notListed", "path", path), "%s is not a linked worktree of its repository", path)
 	}
 	plan.Locked = locked
+	if locked {
+		plan.LockEnded, plan.LockPid = LockEnded(lockReasonOf(list, path))
+	}
 	plan.Operation = gitOperation(gitDir)
 	plan.Refused = w.refusal(path, plan.Main)
 	plan.RefusedText = refusalText(plan.Refused)
@@ -510,7 +518,10 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	if plan.Missing {
 		return WorktreeRemoveResult{Gone: true, Real: plan.Real}, nil
 	}
-	if plan.Locked && (req.Confirmed == nil || !req.Confirmed.Locked) {
+	// The plan was just read under the removal lock: an ended lock is the holder found dead now, not when the
+	// developer looked.
+	endedOk := req.Confirmed != nil && req.Confirmed.EndedLock && plan.LockEnded
+	if plan.Locked && (req.Confirmed == nil || !req.Confirmed.Locked) && !endedOk {
 		return WorktreeRemoveResult{}, uimsg.Errorf(uimsg.Make("worktree.locked", "path", path), "the worktree is locked (git worktree unlock %s)", path)
 	}
 	if plan.Refused != "" {

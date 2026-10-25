@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // What a merged PR left behind (#1088, FR-REV-022 AC14): wavesrv finds the branches whose merged PR's head is their tip
-// (pkg/molten/mission/upcoming_done.go); a card names what remains of each (worktree, agent session, branches) and Clean
+// (pkg/molten/mission/upcoming_done.go), and since #1121 (AC15) a closed PR's branch whose content is in the base, a
+// worktree locked by a session that ended, the PR's local copies and its review worktree; a card names what remains of each (worktree, agent session, branches) and Clean
 // up runs the cleanup after a merge (FR-REV-013) on those only. Kept apart from the components to be tested alone.
 
 import type { TFunction } from "../i18n/i18n";
@@ -47,7 +48,49 @@ export function leftoverRows(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): 
     return upcoming.leftovers.filter((l) => !withPr.has(l.branch));
 }
 
-export type LeftoverPart = { kind: "worktree" | "agent" | "local" | "remote"; text: string; title?: string };
+// leftoverSteps: the cleanup's steps a leftover's facts need (#1121), origin's branch aside (LeftoverRemoteStep). The
+// review worktree is always asked: wavesrv finds it by the PR's number, and it is quiet when there is none.
+export function leftoverSteps(leftover: UpcomingLeftover): ReviewCleanupStepId[] {
+    const steps: ReviewCleanupStepId[] = [];
+    for (const step of LeftoverCleanupSteps) {
+        if (step === "agent-worktree" && !leftover.worktree) {
+            continue;
+        }
+        if (step === "local-branch" && !leftover.local) {
+            continue;
+        }
+        steps.push(step);
+    }
+    if ((leftover.copies ?? []).length > 0) {
+        steps.push("copy-branches");
+    }
+    return steps;
+}
+
+// leftoverState: the card's state line, which says why the PR's leftovers are leftovers.
+export function leftoverState(t: TFunction, leftover: UpcomingLeftover): string {
+    if (leftover.state === "closed") {
+        return t("reviewsAgents.leftovers.stateClosed", { number: leftover.pr, base: leftover.base ?? "" });
+    }
+    return t("reviewsAgents.leftovers.state", { number: leftover.pr });
+}
+
+export type LeftoverPart = {
+    kind: "worktree" | "review" | "agent" | "local" | "copy" | "remote";
+    text: string;
+    title?: string;
+};
+
+function worktreeText(t: TFunction, leftover: UpcomingLeftover): string {
+    const folder = folderName(leftover.worktree);
+    switch (leftover.lock) {
+        case "ended":
+            return t("reviewsAgents.leftovers.part.lockEnded", { folder });
+        case "held":
+            return t("reviewsAgents.leftovers.part.lockHeld", { folder });
+    }
+    return t("reviewsAgents.leftovers.part.worktree", { folder });
+}
 
 function folderName(path: string): string {
     const parts = (path ?? "").split(/[\\/]/).filter((p) => !!p);
@@ -80,18 +123,24 @@ export function agentText(t: TFunction, agent: AgentBarFacts): string {
 // leftoverParts: what remains of a merged PR, in the order Clean up removes it.
 export function leftoverParts(t: TFunction, leftover: UpcomingLeftover, agents: AgentBarFacts[]): LeftoverPart[] {
     const parts: LeftoverPart[] = [];
-    if (leftover.worktree) {
+    if (leftover.reviewtree) {
         parts.push({
-            kind: "worktree",
-            text: t("reviewsAgents.leftovers.part.worktree", { folder: folderName(leftover.worktree) }),
-            title: leftover.worktree,
+            kind: "review",
+            text: t("reviewsAgents.leftovers.part.reviewTree", { folder: folderName(leftover.reviewtree) }),
+            title: leftover.reviewtree,
         });
+    }
+    if (leftover.worktree) {
+        parts.push({ kind: "worktree", text: worktreeText(t, leftover), title: leftover.worktree });
     }
     for (const agent of agents ?? []) {
         parts.push({ kind: "agent", text: agentText(t, agent) });
     }
     if (leftover.local) {
         parts.push({ kind: "local", text: t("reviewsAgents.leftovers.part.local", { branch: leftover.branch }) });
+    }
+    for (const copy of leftover.copies ?? []) {
+        parts.push({ kind: "copy", text: t("reviewsAgents.leftovers.part.copy", { branch: copy }) });
     }
     if (leftover.remote) {
         parts.push({ kind: "remote", text: t("reviewsAgents.leftovers.part.remote", { branch: leftover.branch }) });
@@ -147,6 +196,11 @@ export function cleanupNotes(t: TFunction, result: ReviewCleanupResult, leftover
             notes.push(t("reviewsAgents.leftovers.failed", { error: why }));
             continue;
         }
+        const special = leftoverNote(t, step, leftover);
+        if (special != null) {
+            notes.push(special);
+            continue;
+        }
         notes.push(
             t(`review.validate.cleanup.${step.id}.did.${step.code || "none"}`, {
                 branch: step.branch || leftover.branch,
@@ -157,6 +211,25 @@ export function cleanupNotes(t: TFunction, result: ReviewCleanupResult, leftover
         );
     }
     return notes;
+}
+
+// leftoverNote: the steps whose sentence is the Leftovers group's own (#1121): the copies kept, and a closed PR's
+// branches kept for commits that are not in the base (Validate's sentence speaks of the merged pull request).
+function leftoverNote(t: TFunction, step: ReviewCleanupStepResult, leftover: UpcomingLeftover): string {
+    if (step.id === "copy-branches" && step.code === "copieskept") {
+        return t("reviewsAgents.leftovers.copiesKept", { branches: (step.names ?? []).join(", ") });
+    }
+    if (leftover.state !== "closed" || step.code !== "kept") {
+        return null;
+    }
+    const vars = { branch: step.branch || leftover.branch, base: step.base || leftover.base || "" };
+    if (step.id === "local-branch") {
+        return t("reviewsAgents.leftovers.keptNotInBase", vars);
+    }
+    if (step.id === "remote-branch") {
+        return t("reviewsAgents.leftovers.remoteKeptNotInBase", vars);
+    }
+    return null;
 }
 
 // cleanedUp: the leftover's worktree and branches went; the card leaves until wavesrv answers again.

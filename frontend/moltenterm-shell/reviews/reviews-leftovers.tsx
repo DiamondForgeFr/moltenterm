@@ -4,7 +4,8 @@
 // The Reviews view's "Leftovers to clean up" group (#1088, FR-REV-022 AC14), right after Upcoming: a merged PR whose
 // branch holds nothing new is no upcoming work, it is what the merge left (a worktree, an agent session, the branches).
 // One quiet card per PR names each of them, the agent session with its state, and one Clean up removes them through
-// the cleanup after a merge (FR-REV-013). What would lose something is confirmed first, by name.
+// the cleanup after a merge (FR-REV-013). What would lose something is confirmed first, by name. Since #1121 (AC15) a
+// card may also be a closed PR whose content is in the base, and each part says why it is a leftover.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getApi } from "@/app/store/global";
@@ -20,7 +21,7 @@ import { showPanel } from "../review/review-panels";
 import { keptButtonLabel, lossLines, panelLines } from "../review/review-stepper";
 import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses } from "./reviews-card";
 import { LeftoverConfirm, LeftoversModel, LeftoverState } from "./reviews-leftovers-client";
-import { agentText, leftoverKey, leftoverParts, leftoverRows } from "./reviews-leftovers-model";
+import { agentText, leftoverKey, leftoverParts, leftoverRows, leftoverState } from "./reviews-leftovers-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { SectionHeading } from "./reviews-section-heading";
@@ -31,8 +32,10 @@ const DestructiveButton =
 
 const PartIcons: Record<string, string> = {
     worktree: "folder",
+    review: "folder",
     agent: "terminal",
     local: "code-branch",
+    copy: "code-branch",
     remote: "cloud",
 };
 
@@ -155,10 +158,11 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                 click: () => fireAndForget(() => showPanel(panel.blockId)),
             });
         }
-        if (leftover.worktree) {
+        const folder = leftover.worktree || leftover.reviewtree;
+        if (folder) {
             items.push({
                 label: t("review.validate.showFolder"),
-                click: () => getApi().openNativePath(leftover.worktree),
+                click: () => getApi().openNativePath(folder),
             });
         }
         if (items.length === 0) {
@@ -187,7 +191,7 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                         className={cn("text-12 leading-4 font-medium", SentenceClasses.wait)}
                         data-testid="reviews-leftover-state"
                     >
-                        {t("reviewsAgents.leftovers.state", { number: leftover.pr })}
+                        {leftoverState(t, leftover)}
                     </div>
                     <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4 text-muted">
                         {parts.map((part, i) => (

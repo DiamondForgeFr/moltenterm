@@ -11,6 +11,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -42,6 +43,9 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 		},
 		Agents:    liveAgentPlaces,
 		Subagents: liveSubagents,
+		ReviewTreesDir: func(projectDir string) string {
+			return molten.ReviewTreesDir(wavebase.GetWaveDataDir(), projectDir)
+		},
 	}
 }
 

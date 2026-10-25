@@ -44,6 +44,14 @@ export type UpcomingLeftover = {
     local?: boolean;
     remote?: boolean;
     commitat?: number;
+    // #1121: closed = closed without merging, its content already in base; lock: the worktree's lock (ended: its
+    // holder process ended; held: unknown holder, the cleanup keeps it); reviewtree, copies: what else the PR left.
+    state?: "merged" | "closed";
+    base?: string;
+    lock?: "ended" | "held";
+    lockpid?: number;
+    reviewtree?: string;
+    copies?: string[];
 };
 
 // must match BranchAgent in pkg/molten/mission/upcoming.go
