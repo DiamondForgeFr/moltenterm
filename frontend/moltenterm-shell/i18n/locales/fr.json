@@ -4870,20 +4870,6 @@
                 "rebase": "rebase",
                 "repository": "la méthode du dépôt"
             },
-            "select": {
-                "start": "Fusionner plusieurs…",
-                "startTitle": "Sélectionnez des pull requests et ajoutez-les à la file de fusion : elles fusionnent l'une après l'autre dans l'ordre suggéré",
-                "count": {
-                    "one": "{count} pull request sélectionnée",
-                    "other": "{count} pull requests sélectionnées"
-                },
-                "merge": {
-                    "one": "Fusionner {count} PR avec un agent…",
-                    "other": "Fusionner {count} PR avec un agent…"
-                },
-                "none": "Sélectionnez d'abord les pull requests à fusionner",
-                "rowAria": "Sélectionner #{number} pour la fusion groupée"
-            },
             "confirm": {
                 "title": {
                     "one": "Fusionner {count} pull request avec un agent",
@@ -5164,6 +5150,89 @@
                 "blocked": "Pas encore fusionnable"
             }
         },
+        "queue": {
+            "title": "Ordre conseillé",
+            "aria": "File de fusion conseillée",
+            "pr": "#{number}",
+            "draftPr": "le brouillon #{number}",
+            "listAnd": "{head} et {last}",
+            "stepTitle": "Position {rank} : #{number} {title}. Montre sa carte.",
+            "stepRebase": "rebasée par votre agent avant sa fusion",
+            "stepWait": "attend sa CI",
+            "stepMerged": "#{number} fusionnée",
+            "cost": {
+                "saved": {
+                    "one": "{count} rebase au lieu de {list} dans l'ordre de la liste",
+                    "other": "{count} rebases au lieu de {list} dans l'ordre de la liste"
+                },
+                "same": {
+                    "one": "{count} rebase",
+                    "other": "{count} rebases"
+                },
+                "none": "aucun rebase à faire",
+                "upToDate": "branches à jour exigées ici : chaque fusion relance la CI des autres",
+                "title": "Un rebase relance la CI d'une pull request. La file compte les pull requests qu'une fusion précédente met en conflit, que votre agent rebase avant de les fusionner."
+            },
+            "legend": {
+                "rebase": "⟲ rebasée par votre agent avant sa fusion",
+                "wait": "◔ attend sa CI",
+                "outside": {
+                    "one": "{prs} hors file : déjà en conflit avec {base}",
+                    "other": "{prs} hors file : déjà en conflit avec {base}"
+                }
+            },
+            "merge": "Fusionner dans cet ordre…",
+            "mergeTitle": "Ouvre la confirmation de la file de fusion avec ces pull requests dans cet ordre : rien ne fusionne avant votre confirmation.",
+            "why": {
+                "wait": "la file l'attendra",
+                "rebaseAfter": "à rebaser après {prs}",
+                "before": "avant {prs}",
+                "noImpact": "ne touche aucune autre PR"
+            },
+            "fact": {
+                "sameLines": "mêmes lignes que {prs} : {paths}",
+                "noPaths": "en conflit avec {prs}"
+            },
+            "tag": {
+                "paths": "⇄ conflit avec #{number} · {paths}",
+                "noPaths": "⇄ conflit avec #{number}"
+            },
+            "edge": {
+                "up": "↑ {pr} (plus haut) touche aussi {paths}",
+                "upNoPaths": "↑ {pr}, plus haut",
+                "down": "↓ {pr} (plus bas) touche aussi {paths}",
+                "downNoPaths": "↓ {pr}, plus bas",
+                "hidden": "↓ {pr} (section repliée) touche aussi {paths}",
+                "hiddenNoPaths": "↓ {pr}, dans une section repliée"
+            },
+            "after": {
+                "aria": "Ce qui a changé après la fusion",
+                "mergedOne": "✓ {prs} fusionnée.",
+                "merged": "✓ {prs} fusionnées.",
+                "needs": "#{number} touche les mêmes lignes que #{after} : elle doit maintenant être rebasée.",
+                "needsNoPaths": "#{number} est en conflit avec #{after} : elle doit maintenant être rebasée.",
+                "nothing": "Aucune autre pull request n'a besoin d'un rebase.",
+                "handOver": "Confier le rebase",
+                "handOverTitle": "Demande à l'agent de chaque pull request citée de la rebaser ; rien ne part avant ce clic.",
+                "later": "Plus tard",
+                "close": "Fermer"
+            },
+            "ask": {
+                "rebase": "Confier le rebase à {name} après sa tâche",
+                "other": "Le confier à {name} après sa tâche",
+                "queued": {
+                    "rebase": "Rebase en attente pour {name}, après sa tâche",
+                    "investigate": "Analyse en attente pour {name}, après sa tâche",
+                    "finish": "Vérification en attente pour {name}, après sa tâche"
+                },
+                "sending": "Transmission à {name}…",
+                "cancel": "Annuler",
+                "dismiss": "Fermer",
+                "prGone": "#{number} a quitté la liste : la demande en attente est abandonnée.",
+                "noAgent": "{name} ne travaille plus sur la branche : la demande en attente n'est pas partie.",
+                "failed": "La demande en attente n'a pas pu joindre {name}."
+            }
+        },
         "forecast": {
             "computing": "Prévision des conflits…",
             "computingTitle": "Chaque fusion est simulée dans une copie privée du dépôt : rien n'est écrit dans votre copie de travail, vos branches ou GitHub.",
@@ -5241,8 +5310,8 @@
             "offer": "Aucun agent ne travaille sur {branch}. En démarrer un avec la consigne de rebase ?",
             "start": "Démarrer un agent",
             "noagent": "Aucun agent de code pris en charge n'est installé : démarrez-en un dans {folder} et donnez-lui la consigne {brief}",
-            "working": "{name} travaille sur {branch} : redemandez une fois son travail terminé.",
-            "waiting": "{name} attend votre réponse : redemandez une fois son travail terminé.",
+            "working": "{name} travaille sur {branch}.",
+            "waiting": "{name} attend votre réponse sur {branch}.",
             "inflight": "Un agent est déjà en cours de contact pour cette pull request.",
             "notready": "{name} ne peut pas prendre le rebase maintenant : {message}",
             "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",

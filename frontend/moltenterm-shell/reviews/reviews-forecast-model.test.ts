@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { listForecast } from "./reviews-forecast";
+import { wordPhrase } from "../i18n/phrase";
 import {
     Forecast,
     forecastBaseOid,
@@ -16,6 +16,7 @@ import {
     pathsText,
 } from "./reviews-forecast-model";
 import { ReviewPr, ReviewsAnswer } from "./reviews-model";
+import { cardRelations } from "./reviews-queue-model";
 
 const Base = "b".repeat(40);
 const head = (n: number) => String(n).repeat(40).slice(0, 40);
@@ -156,16 +157,21 @@ describe("conflict forecast model", () => {
         expect(pathsText(["a", "b", "c", "d"], 40)).toBe("a, b, c and 37 more");
     });
 
-    it("links the active row to the rows it would put in conflict", () => {
+    it("relates the active card to every card it conflicts with, either way (#1062)", () => {
         const forecast = forecastOf(Prs);
-        const ready = Prs.slice(0, 3);
-        const shown = listForecast(forecast, ready, Prs, 1);
-        expect(shown.targets).toEqual([2, 4]);
-        expect(shown.rows[1].mark.count).toBe(2);
-        expect(shown.rows[2]).toMatchObject({ linked: true, note: "Conflicts once PR #1 is merged: src/a.ts" });
-        expect(shown.rows[3]).toMatchObject({ linked: false, note: "", mark: null });
-        expect(shown.rows[4].mark).toBeNull();
-        expect(listForecast(forecast, ready, Prs, null).targets).toEqual([]);
+        const shown = cardRelations(forecast, Prs, 1);
+        expect(shown.partners.map((p) => p.number)).toEqual([2, 4]);
+        expect(shown.cards[1].role).toBe("source");
+        expect(wordPhrase(shown.cards[1].fact)).toBe("same lines as #2 and the draft #4: src/a.ts, a and 3 more");
+        expect(shown.cards[2].role).toBe("linked");
+        expect(wordPhrase(shown.cards[2].tag)).toBe("⇄ conflict with #1 · src/a.ts");
+        expect(shown.cards[3]).toMatchObject({ role: null, fact: null, tag: null });
+        // The draft only receives the conflict, and still shows its partner from its own card.
+        const fromDraft = cardRelations(forecast, Prs, 4);
+        expect(fromDraft.partners.map((p) => p.number)).toEqual([1]);
+        expect(wordPhrase(fromDraft.cards[1].tag)).toBe("⇄ conflict with #4 · a and 4 more");
+        expect(cardRelations(forecast, Prs, null).partners).toEqual([]);
+        expect(cardRelations(forecast, Prs, 3).cards[1].role).toBeNull();
     });
 
     it("states the forecast: computing, stale, failed, ready", () => {

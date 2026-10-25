@@ -4870,20 +4870,6 @@
                 "rebase": "rebase",
                 "repository": "the repository's method"
             },
-            "select": {
-                "start": "Merge several…",
-                "startTitle": "Select pull requests and add them to the merge queue: they merge one after the other in the suggested order",
-                "count": {
-                    "one": "{count} pull request selected",
-                    "other": "{count} pull requests selected"
-                },
-                "merge": {
-                    "one": "Merge {count} PR with an agent…",
-                    "other": "Merge {count} PRs with an agent…"
-                },
-                "none": "Select the pull requests to merge first",
-                "rowAria": "Select #{number} for the batch merge"
-            },
             "confirm": {
                 "title": {
                     "one": "Merge {count} pull request with an agent",
@@ -5164,6 +5150,89 @@
                 "blocked": "Cannot merge yet"
             }
         },
+        "queue": {
+            "title": "Suggested order",
+            "aria": "Suggested merge queue",
+            "pr": "#{number}",
+            "draftPr": "the draft #{number}",
+            "listAnd": "{head} and {last}",
+            "stepTitle": "Position {rank}: #{number} {title}. Shows its card.",
+            "stepRebase": "rebased by your agent before its merge",
+            "stepWait": "waits for its CI",
+            "stepMerged": "#{number} merged",
+            "cost": {
+                "saved": {
+                    "one": "{count} rebase instead of {list} in list order",
+                    "other": "{count} rebases instead of {list} in list order"
+                },
+                "same": {
+                    "one": "{count} rebase",
+                    "other": "{count} rebases"
+                },
+                "none": "no rebase needed",
+                "upToDate": "up-to-date branches required here: every merge reruns the others' CI",
+                "title": "A rebase reruns a pull request's CI. The queue counts the pull requests an earlier merge puts in conflict, which your agent rebases before merging them."
+            },
+            "legend": {
+                "rebase": "⟲ rebased by your agent before its merge",
+                "wait": "◔ waits for its CI",
+                "outside": {
+                    "one": "{prs} out of the queue: already conflicts with {base}",
+                    "other": "{prs} out of the queue: already conflict with {base}"
+                }
+            },
+            "merge": "Merge in this order…",
+            "mergeTitle": "Opens the merge queue's confirmation with these pull requests in this order: nothing merges before you confirm.",
+            "why": {
+                "wait": "the queue will wait for it",
+                "rebaseAfter": "to rebase after {prs}",
+                "before": "before {prs}",
+                "noImpact": "touches no other pull request"
+            },
+            "fact": {
+                "sameLines": "same lines as {prs}: {paths}",
+                "noPaths": "conflicts with {prs}"
+            },
+            "tag": {
+                "paths": "⇄ conflict with #{number} · {paths}",
+                "noPaths": "⇄ conflict with #{number}"
+            },
+            "edge": {
+                "up": "↑ {pr}, higher up · {paths}",
+                "upNoPaths": "↑ {pr}, higher up",
+                "down": "↓ {pr}, lower down · {paths}",
+                "downNoPaths": "↓ {pr}, lower down",
+                "hidden": "↓ {pr}, in a folded section · {paths}",
+                "hiddenNoPaths": "↓ {pr}, in a folded section"
+            },
+            "after": {
+                "aria": "What changed after the merge",
+                "mergedOne": "✓ {prs} merged.",
+                "merged": "✓ {prs} merged.",
+                "needs": "#{number} touches the same lines as #{after}: it now needs a rebase.",
+                "needsNoPaths": "#{number} conflicts with #{after}: it now needs a rebase.",
+                "nothing": "No other pull request needs a rebase.",
+                "handOver": "Hand the rebase over",
+                "handOverTitle": "Asks the agent of each pull request named to rebase it; nothing starts before this click.",
+                "later": "Later",
+                "close": "Close"
+            },
+            "ask": {
+                "rebase": "Hand the rebase to {name} after its task",
+                "other": "Hand it to {name} after its task",
+                "queued": {
+                    "rebase": "Rebase queued for {name}, after its task",
+                    "investigate": "Analysis queued for {name}, after its task",
+                    "finish": "Check queued for {name}, after its task"
+                },
+                "sending": "Handing it to {name}…",
+                "cancel": "Cancel",
+                "dismiss": "Dismiss",
+                "prGone": "#{number} left the list: the queued ask was dropped.",
+                "noAgent": "{name} no longer works on the branch: the queued ask was not sent.",
+                "failed": "The queued ask could not reach {name}."
+            }
+        },
         "forecast": {
             "computing": "Forecasting conflicts…",
             "computingTitle": "Each merge is simulated in a private copy of the repository: nothing is written to your checkout, your branches or GitHub.",
@@ -5241,8 +5310,8 @@
             "offer": "No agent works on {branch}. Start one with the rebase brief?",
             "start": "Start an agent",
             "noagent": "No supported coding agent is installed: start one in {folder} and give it the brief {brief}",
-            "working": "{name} is working on {branch}: ask again once it is done.",
-            "waiting": "{name} is waiting for your answer: ask again once it is done.",
+            "working": "{name} is working on {branch}.",
+            "waiting": "{name} is waiting for your answer on {branch}.",
             "inflight": "An agent is already being reached for this pull request.",
             "notready": "{name} cannot take the rebase now: {message}",
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",

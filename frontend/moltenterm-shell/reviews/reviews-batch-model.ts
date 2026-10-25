@@ -192,10 +192,6 @@ export function batchSelectable(pr: ReviewPr): boolean {
     return pr != null && !pr.draft;
 }
 
-export function toggleBatchSelection(selected: number[], number: number): number[] {
-    return selected.includes(number) ? selected.filter((n) => n !== number) : [...selected, number];
-}
-
 export type BatchPlanStep = { pr: ReviewPr; rank: number; reason: string; rebase: boolean };
 
 // BatchPlan is what the confirmation modal shows: the selected PRs in the suggested order (their list order while the

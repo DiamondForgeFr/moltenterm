@@ -1,8 +1,8 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The conflict forecast's links (FR-REV-023): thin warning-toned brackets in the list's left gutter, from the PR whose
-   merge would cause the conflicts to each PR it would put in conflict. Each line draws once from the cause to the
+/* The conflict forecast's links (FR-REV-023): thin warning-toned brackets in the list's left gutter, from the hovered or
+   focused card to each card it conflicts with, either way (#1062). Each line draws once from the cause to the
    impacted row, then stands still (#1059): a looping line kept repainting for as long as a row stayed selected, behind
    dialogs too. Under reduced motion it shows drawn. The path's pathLength is 1, so the dash covers any length. */
 
@@ -51,8 +51,14 @@
     }
 }
 
+/* A linked card out of sight (#1062): its edge line fades in once, like the lines. */
+.mt-forecast-edge {
+    animation: mt-forecast-in var(--mt-duration-base, 180ms) var(--mt-ease, ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .mt-forecast-links,
+    .mt-forecast-edge,
     .mt-forecast-link {
         animation: none;
     }
