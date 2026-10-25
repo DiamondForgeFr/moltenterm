@@ -452,7 +452,7 @@ export function TemplateChoices({
                                 {t("mc.setup.template.fit", { met: fit.met, total: fit.total })}
                             </span>
                         </button>
-                        <div className="flex items-center gap-2 px-2.5 pb-1.5 pl-7 text-11">
+                        <div className="flex items-center gap-2 px-2.5 pb-1.5 pl-[30px] text-11">
                             {confirming === tpl.id ? (
                                 <>
                                     <span className="text-secondary">{t("mc.setup.template.forgetAsk")}</span>
