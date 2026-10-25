@@ -5,7 +5,8 @@
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
 // collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
 // is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
-// sorts them by state or by merge order. A card opens the PR's assisted review; the keyboard walks the cards of the
+// sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
+// Yours (#1062), and a hovered or focused card lights up the cards it conflicts with. A card opens the PR's assisted review; the keyboard walks the cards of the
 // open sections (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
@@ -16,28 +17,29 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
-import { errorPhrase, Phrase } from "../i18n/phrase";
+import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
 import { useCardContext } from "./reviews-agent-bar";
-import { BatchBanner, BatchConfirmDialog, BatchSelectBar } from "./reviews-batch";
+import { ReviewsAskQueue } from "./reviews-ask-queue";
+import { BatchBanner, BatchConfirmDialog } from "./reviews-batch";
 import { BatchRuns, useBatchRun } from "./reviews-batch-client";
 import {
+    batchItemEnded,
     batchPlan,
     batchRowMark,
-    batchSelectable,
     batchShown,
     batchStartRequest,
+    queueItem,
     queueOrder,
-    toggleBatchSelection,
 } from "./reviews-batch-model";
 import { ReviewRow } from "./reviews-card";
 import type { CardTurn } from "./reviews-card-model";
 import { CheckAgentsButton, CheckAgentsReport, useCheckAgents } from "./reviews-check";
 import { useReviews } from "./reviews-client";
-import { ForecastLinks, ForecastStatusLine, listForecast } from "./reviews-forecast";
+import { EdgeWhere, ForecastLinks } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
 import { LaunchBar, LaunchDialogs } from "./reviews-launch";
@@ -53,9 +55,18 @@ import {
     splitReviews,
 } from "./reviews-model";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
-import { MergeOrderCost, RowOrder, SortControl, useReviewsSort } from "./reviews-order";
-import { mergeOrderHeader, mergeOrderReason, mergeOutsideReason, suggestedMergeOrder } from "./reviews-order-model";
+import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { AfterMergeLine, MergeQueueBlock } from "./reviews-queue";
+import {
+    cardRelations,
+    edgeLine,
+    mergeQueue,
+    queueRanks,
+    queueShown,
+    queueWhy,
+    withMerged,
+} from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
 import { cardStates, sectionOf, sectionRows, sectionsByTurn } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
@@ -215,15 +226,19 @@ const TurnSectionText: Record<CardTurn, { title: string; hint?: string }> = {
 
 function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
     const t = useT();
+    const word = useWordPhrase();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const asks = useAtomValue(model.rebaseAsksAtom);
     const readied = useAtomValue(model.readiedAtom);
+    const afterMerges = useAtomValue(model.afterMergeAtom);
+    const queuedAsks = useAtomValue(ReviewsAskQueue.getInstance().asksAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
     const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
+    const [handing, setHanding] = useState(false);
     // Whether the panel's content is longer than the panel, read once on the first render: the bottom sections then
     // start folded (FR-REV-001 AC12).
     const [long, setLong] = useState<boolean>(null);
@@ -231,81 +246,61 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
     const listed = useMemo(() => [...listSplit.ready, ...listSplit.drafts], [listSplit]);
     const mergedNumbers = useMemo(() => (answer.merged ?? []).map((pr) => pr.number), [answer.merged]);
-    // The conflict forecast (FR-REV-023): asked for the PRs listed, shown for the hovered row, else the selected one.
+    // The conflict forecast (FR-REV-023), asked for the PRs listed.
     const forecastReq = useMemo(() => forecastRequestOf(answer, listSplit), [answer, listSplit]);
     useForecastWatch(dir, forecastReq);
     const forecast = useForecastAnswer(dir);
-    // The sort (FR-REV-001 AC13): by state, or by the suggested merge order (FR-REV-024).
     const locale = useLocale();
     const sort = useReviewsSort();
-    const byMerge = sort === "merge";
-    const mergeOrder = useMemo(
-        () => suggestedMergeOrder(forecast, listSplit.ready, listed),
-        [forecast, listSplit, listed]
+    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs that can merge or wait for their CI.
+    const baseQueue = useMemo(() => mergeQueue(forecast, listSplit.ready, listed), [forecast, listSplit, listed]);
+    const afterMerge = afterMerges[dir];
+    const queue = useMemo(
+        () =>
+            withMerged(
+                baseQueue,
+                afterMerge != null && afterMerge.read === (answer.githubat ?? 0) ? afterMerge.merged : []
+            ),
+        [baseQueue, afterMerge, answer.githubat]
     );
-    const orderHeader = useMemo(() => mergeOrderHeader(mergeOrder, true), [mergeOrder, locale]);
-    const rowOrders = useMemo(() => {
-        const rtn: Record<number, RowOrder> = {};
-        if (!byMerge || !mergeOrder.usable) {
-            return rtn;
-        }
-        for (const step of mergeOrder.steps) {
-            const pr = listSplit.ready.find((p) => p.number === step.number);
-            rtn[step.number] = { rank: step.rank, reason: mergeOrderReason(step, answer.target, pr) };
-        }
-        for (const step of mergeOrder.outside) {
-            rtn[step.number] = { rank: null, reason: mergeOutsideReason(answer.target) };
-        }
-        return rtn;
-    }, [mergeOrder, byMerge, listSplit, answer.target, locale]);
+    const shown = forecastReq != null && queueShown(queue);
+    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
+    // Only the first step that can merge keeps an orange Validate.
+    const firstStep = shown ? queue.steps.find((s) => !s.merged && !s.wait)?.number : null;
     // Each card's one state (#1060), computed here once so its section and the card itself agree.
     const ctx = useCardContext(dir);
     const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
-    const sections = useMemo(() => {
-        const ranks: Record<number, number> = {};
-        for (const [n, order] of Object.entries(rowOrders)) {
-            if (order.rank != null) {
-                ranks[Number(n)] = order.rank;
-            }
-        }
-        return sectionsByTurn(listed, cards, sort, ranks);
-    }, [listed, cards, sort, rowOrders]);
+    const sections = useMemo(() => sectionsByTurn(listed, cards, sort, ranks), [listed, cards, sort, ranks]);
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
     for (const s of sections) {
         foldedTurns[s.turn] = !turnOpen(s.turn);
     }
     const rows = sectionRows(sections, foldedTurns);
-    const forecastActive = hovered ?? selected;
-    const shownForecast = useMemo(
-        () => listForecast(forecast, listSplit.ready, listed, forecastActive),
-        [forecast, listSplit, listed, forecastActive]
-    );
+    // The conflicts as relations (FR-REV-023): the hovered card, else the focused (selected) one.
+    const active = hovered ?? selected;
+    const relations = useMemo(() => cardRelations(forecast, listed, active), [forecast, listed, active, locale]);
+    const hot =
+        active == null || relations.partners.length === 0 ? [] : [active, ...relations.partners.map((p) => p.number)];
     const status = forecastStatus(forecast, forecastReq);
-    // The batch merge (FR-REV-025): the PRs selected for it, the confirmation modal, and the merge queue they join
-    // (FR-REV-026), which wavesrv publishes.
+    // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
+    // join (FR-REV-026), which wavesrv publishes.
     const batchRun = useBatchRun(dir, answer.target);
-    const [selecting, setSelecting] = useState(false);
-    const [batchSelected, setBatchSelected] = useState<number[]>([]);
     const [confirming, setConfirming] = useState(false);
+    const queuePrs = useMemo(() => {
+        const numbers = new Set(queue.steps.filter((s) => !s.merged).map((s) => s.number));
+        return listSplit.ready.filter((pr) => numbers.has(pr.number));
+    }, [queue, listSplit]);
     const plannedBatch = useMemo(
-        () =>
-            confirming
-                ? batchPlan(
-                      forecast,
-                      listSplit.ready.filter((pr) => batchSelected.includes(pr.number)),
-                      listed,
-                      answer.target
-                  )
-                : null,
-        [confirming, forecast, listSplit, listed, batchSelected, answer.target, locale]
+        () => (confirming ? batchPlan(forecast, queuePrs, listed, answer.target) : null),
+        [confirming, forecast, queuePrs, listed, answer.target, locale]
     );
-    const check = useCheckAgents(dir, answer.repo, listed);
-    const endSelection = () => {
-        setSelecting(false);
-        setBatchSelected([]);
-        setConfirming(false);
+    const takenByQueue = (n: number) => {
+        const item = queueItem(batchRun, n);
+        return item != null && !batchItemEnded(item);
     };
+    const canMerge = queuePrs.some((pr) => !takenByQueue(pr.number));
+    const check = useCheckAgents(dir, answer.repo, listed);
     const startBatch = async (method: ReviewMergeMethod): Promise<Phrase> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
@@ -321,9 +316,15 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         } catch (e) {
             return errorPhrase(e);
         }
-        endSelection();
+        setConfirming(false);
         return null;
     };
+    useEffect(() => {
+        model.noteQueueRead(dir, answer, listed, baseQueue, forecast, takenByQueue);
+    }, [dir, answer, listed, baseQueue, forecast]);
+    useEffect(() => {
+        ReviewsAskQueue.getInstance().refresh(dir, listed);
+    }, [dir, listed]);
     useLayoutEffect(() => {
         const el = listRef.current;
         if (long != null || el == null) {
@@ -366,13 +367,27 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         }
     }, [notesAsk, dir]);
     const openReview = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
-    // While PRs are being selected for a batch, a row's click and Enter select it instead of opening its review.
-    const open = (pr: ReviewPr) => {
-        if (selecting && batchSelectable(pr)) {
-            setBatchSelected((current) => toggleBatchSelection(current, pr.number));
+    // A queue step brings its card into view, unfolding its section, and focuses it.
+    const goToCard = (number: number) => {
+        const turn = sectionOf(sections, number);
+        if (turn != null && !turnOpen(turn)) {
+            ReviewsFolds.getInstance().set(dir, turn, true);
+        }
+        setSelected(number);
+        requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-pr="${number}"]`)?.focus());
+    };
+    const handOver = () => {
+        if (handing) {
             return;
         }
-        openReview(pr);
+        setHanding(true);
+        fireAndForget(async () => {
+            try {
+                await model.handOverAfterMerge(dir, answer.repo, listed);
+            } finally {
+                setHanding(false);
+            }
+        });
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
         // A dialog the list renders (the batch merge's modal) is portaled out of it: its keys are not the rows'.
@@ -393,7 +408,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             const pr = rows.find((r) => r.number === current);
             if (pr != null) {
                 e.preventDefault();
-                open(pr);
+                openReview(pr);
             }
         }
     };
@@ -403,37 +418,56 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         selected: selected === pr.number,
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
-        onOpen: () => open(pr),
+        onOpen: () => openReview(pr),
         onValidate: () => model.openValidate(dir, pr, answer.repo, blockId),
         onAskRebase: () => model.askRebase(dir, pr, answer.repo),
         onInvestigate: () => model.investigate(dir, pr, answer.repo),
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,
         repo: answer.repo,
-        forecast: shownForecast.rows[pr.number],
-        forecastActive: forecastActive === pr.number,
-        order: rowOrders[pr.number],
-        batchCheck: selecting && batchSelectable(pr) ? batchSelected.includes(pr.number) : null,
+        relation: relations.cards[pr.number],
+        rank: ranks[pr.number],
+        queueWhy: shown ? queueWhy(queue, pr.number, relations.byCard[pr.number]) : null,
+        calm: ranks[pr.number] != null && pr.number !== firstStep,
+        queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number),
     });
+    const edgeText = (number: number, where: EdgeWhere) =>
+        word(
+            edgeLine(
+                relations.partners.find((p) => p.number === number),
+                where
+            )
+        );
     // Read from the row under the pointer, not from each row's enter and leave: a scroll under a still pointer
     // changes the row without a leave.
     const onPointerOver = (e: React.MouseEvent) => {
         const row = (e.target as HTMLElement).closest?.("[data-pr]");
         setHovered(row == null ? null : Number(row.getAttribute("data-pr")));
     };
-    const selectable = listed.filter(batchSelectable).length;
     // Check the agents sits on the heading of the agents' section, else of the first PR section shown.
     const checkTurn = sections.some((s) => s.turn === "agents") ? "agents" : sections[0]?.turn;
-    const batchTurn: CardTurn = sections[0]?.turn === "yours" ? "yours" : null;
-    const batchBlock = (
+    // The queue, its banner and the after-merge line sit at the top of "Yours", else above the sections.
+    const queueTurn: CardTurn = sections[0]?.turn === "yours" ? "yours" : null;
+    const queueBlock = (
         <>
+            <AfterMergeLine
+                after={afterMerge}
+                busy={handing}
+                onHandOver={handOver}
+                onClose={() => model.closeAfterMerge(dir)}
+            />
             {batchShown(batchRun) ? <BatchBanner run={batchRun} /> : null}
-            {selecting ? (
-                <BatchSelectBar
-                    count={batchSelected.length}
+            {shown ? (
+                <MergeQueueBlock
+                    queue={queue}
+                    prs={listed}
+                    base={answer.target}
+                    status={status}
+                    hot={hot}
+                    canMerge={canMerge}
+                    onStep={goToCard}
                     onMerge={() => setConfirming(true)}
-                    onCancel={endSelection}
                 />
             ) : null}
             {confirming && plannedBatch != null ? (
@@ -458,7 +492,12 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             onMouseLeave={() => setHovered(null)}
             data-role="molten-reviews"
         >
-            <ForecastLinks listRef={listRef} source={forecastActive} targets={shownForecast.targets} />
+            <ForecastLinks
+                listRef={listRef}
+                source={hot.length > 0 ? active : null}
+                targets={relations.partners.map((p) => p.number)}
+                edgeText={edgeText}
+            />
             {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
             <LaunchBar dir={dir} mergedNumbers={mergedNumbers} trunk={answer.target} />
             <LaunchDialogs trunk={answer.target} />
@@ -467,13 +506,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     {t("reviews.reportsError")}
                 </div>
             ) : null}
-            {byMerge && forecastReq != null && listSplit.ready.length > 1 ? (
-                <div className="-mb-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                    <MergeOrderCost header={orderHeader} />
-                    <ForecastStatusLine status={status} />
-                </div>
-            ) : null}
-            {batchTurn == null ? batchBlock : null}
+            {queueTurn == null ? queueBlock : null}
             {sections.length === 0 ? (
                 <p
                     className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
@@ -500,26 +533,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
                             testId={`reviews-section-${section.turn}-toggle`}
                         >
-                            {section.turn === batchTurn && selectable > 1 && !selecting ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelecting(true);
-                                        setBatchSelected([]);
-                                    }}
-                                    onKeyDown={(e) => e.stopPropagation()}
-                                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-4 border border-border px-1.5 py-0.5 text-11 leading-4 font-normal text-secondary hover:bg-hover hover:text-primary"
-                                    title={t("reviews.batch.select.startTitle")}
-                                    data-testid="reviews-batch-start"
-                                >
-                                    <i className="fa fa-solid fa-layer-group text-10" aria-hidden />
-                                    {t("reviews.batch.select.start")}
-                                </button>
-                            ) : null}
                             {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
                         </SectionHeading>
                         {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
-                        {section.turn === batchTurn ? batchBlock : null}
+                        {section.turn === queueTurn ? queueBlock : null}
                         {isOpen ? (
                             <div
                                 className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"

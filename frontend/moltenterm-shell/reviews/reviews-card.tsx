@@ -3,7 +3,8 @@
 
 // A Reviews card (#1060, FR-REV-001 AC11): one computed state (reviews-card-model.ts) draws the left rail, one state
 // sentence with its reason, one primary action and a "…" menu for the rest; the facts line carries what is true but
-// is no state; every agent of the branch has its own line below. A click on the card, or Enter on it, opens the PR's
+// is no state; every agent of the branch has its own line below. In the merge queue (#1062) the card carries its rank
+// and its place in the order's direction, and its conflicts with the other cards. A click on the card, or Enter on it, opens the PR's
 // assisted review; the card's own buttons keep their clicks and keys.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
@@ -17,19 +18,23 @@ import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent-bar";
-import { BatchCheckbox, BatchRowChip } from "./reviews-batch";
+import type { QueuedAsk } from "./reviews-ask-queue";
+import { BatchRowChip } from "./reviews-batch";
 import type { BatchRowMark } from "./reviews-batch-model";
 import { CardAction, CardFact, CardFactTone, cardState, CardState, CardTone } from "./reviews-card-model";
 import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
-import { ForecastMarkChip, ForecastNote, linkedRowClass, RowForecast } from "./reviews-forecast";
+import { relationClass } from "./reviews-forecast";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfPr } from "./reviews-launch-model";
 import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
-import { MergeOrderRank, MergeOrderReason, RowOrder } from "./reviews-order";
+import { MergeOrderRank } from "./reviews-order";
+import { QueuedAskLine } from "./reviews-queue";
+import type { CardRelation } from "./reviews-queue-model";
 import { cardInputOf } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
+import type { PrTaskKind } from "./reviews-task-model";
 
 export const RailColours: Record<CardTone, string> = {
     ready: "var(--mt-state-done)",
@@ -104,10 +109,11 @@ export function ReviewRow({
     rebaseAsk,
     dir,
     repo,
-    forecast,
-    forecastActive,
-    order,
-    batchCheck,
+    relation,
+    rank,
+    queueWhy,
+    calm,
+    queued,
     batchMark,
     card: cardProp,
 }: {
@@ -124,11 +130,17 @@ export function ReviewRow({
     rebaseAsk: RebaseAsk;
     dir: string;
     repo: string;
-    forecast?: RowForecast;
-    forecastActive?: boolean;
-    order?: RowOrder;
-    // batchCheck: the row's box while PRs are selected for a batch merge, null otherwise; batchMark: its place in the run.
-    batchCheck?: boolean;
+    // The card's conflicts with the other cards (#1062, FR-REV-023): its facts line, and its part while a card is
+    // hovered or focused.
+    relation?: CardRelation;
+    // Its place in the merge queue (#1062, FR-REV-024): rank, and the words in the order's direction.
+    rank?: number;
+    queueWhy?: Phrase;
+    // A later step of the queue: its Validate stays calm, only the first step's is orange.
+    calm?: boolean;
+    // A task waiting for its busy agent (FR-REV-022 AC12).
+    queued?: QueuedAsk;
+    // batchMark: its place in the merge queue's run.
     batchMark?: BatchRowMark;
 }) {
     const t = useT();
@@ -142,6 +154,8 @@ export function ReviewRow({
     const rerun = useRerunFailed(dir, pr.number);
     const [busy, setBusy] = useState<string>(null);
     const [outcome, setOutcome] = useState<RebaseOutcome>(null);
+    // The task the outcome answers, for the offer to queue it for a busy agent (#1062).
+    const [outcomeTask, setOutcomeTask] = useState<PrTaskKind>(null);
     const [error, setError] = useState<Phrase>(null);
     const [confirm, setConfirm] = useState<CardConfirm>(null);
     const [lastHead, setLastHead] = useState(pr.headoid);
@@ -154,12 +168,13 @@ export function ReviewRow({
     const card: CardState = cardProp ?? cardState(input);
     const head = reviewHeadline(pr);
     const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
-    const ask = (id: string, fn: () => Promise<RebaseOutcome>) => {
+    const ask = (id: string, kind: PrTaskKind, fn: () => Promise<RebaseOutcome>) => {
         if (busy != null) {
             return;
         }
         setBusy(id);
         setOutcome(null);
+        setOutcomeTask(kind);
         fireAndForget(async () => {
             try {
                 setOutcome(await fn());
@@ -199,18 +214,18 @@ export function ReviewRow({
                 return;
             case "relaunch":
             case "start-agent":
-                ask(action.id, () =>
+                ask(action.id, rebaseAsk != null ? (rebaseAsk.kind ?? "rebase") : "finish", () =>
                     rebaseAsk != null
                         ? model.retryTask(dir, pr, repo, rebaseAsk.kind ?? "rebase")
                         : model.askFinish(dir, pr, repo)
                 );
                 return;
             case "rebase":
-                ask(action.id, onAskRebase);
+                ask(action.id, "rebase", onAskRebase);
                 return;
             case "investigate":
                 if (onInvestigate != null) {
-                    ask(action.id, onInvestigate);
+                    ask(action.id, "investigate", onInvestigate);
                 }
                 return;
             case "assisted-review":
@@ -284,8 +299,13 @@ export function ReviewRow({
             ? word(card.primary.confirm)
             : word(card.menu.find((a) => a.id === "mark-ready")?.confirm);
     const sentence = word(card.sentence);
-    const why = word(card.why);
+    // A queued card says its place in the order where its own state gives no reason, or only the CI's.
+    const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
+    const why = word(queueSays ? queueWhy : card.why);
     const primary = card.primary;
+    const molten = card.molten && !(calm && primary.id === "validate");
+    const relationFact = word(relation?.fact);
+    const relationTag = word(relation?.tag);
     const primaryName =
         card.agent != null
             ? phrase("reviews.card.name", { name: card.agent.name || card.agent.parentName || "" })
@@ -303,15 +323,14 @@ export function ReviewRow({
             data-tone={card.tone}
             data-turn={card.turn}
             aria-label={[
-                order?.rank != null ? t("reviews.order.rankTitle", { rank: order.rank }) : "",
+                rank != null ? t("reviews.order.rankTitle", { rank }) : "",
                 head.ticket ? t("reviews.aria.ticket", { ticket: head.ticket, title: head.title }) : head.title,
                 t("reviews.aria.pr", { number: pr.number }),
                 pr.draft ? t("reviews.card.draftTag") : "",
                 why ? `${sentence} · ${why}` : sentence,
                 ...facts.map((f) => word(f.text)),
-                order?.reason,
-                forecast?.mark?.aria,
-                forecast?.note,
+                relationFact,
+                relationTag,
             ]
                 .filter(Boolean)
                 .join(", ")}
@@ -325,8 +344,9 @@ export function ReviewRow({
                 "group relative flex cursor-pointer flex-col gap-1 border-b border-border py-2.5 pr-3 pl-[15px] outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60",
                 marked && "ring-2 ring-accent/70 ring-inset",
-                linkedRowClass(forecast?.linked)
+                relationClass(relation?.role)
             )}
+            data-relation={relation?.role || undefined}
         >
             <span
                 className="absolute inset-y-0 left-0 w-[3px]"
@@ -337,8 +357,7 @@ export function ReviewRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
-                        {batchCheck != null ? <BatchCheckbox checked={batchCheck} number={pr.number} /> : null}
-                        <MergeOrderRank order={order} />
+                        <MergeOrderRank rank={rank} />
                         {head.ticket ? <span className="shrink-0 text-accent">{head.ticket}</span> : null}
                         <span className="min-w-0 truncate" title={`PR #${pr.number} · ${pr.branch}`}>
                             {head.title}
@@ -350,6 +369,14 @@ export function ReviewRow({
                                 data-testid="reviews-draft-tag"
                             >
                                 {t("reviews.card.draftTag")}
+                            </span>
+                        ) : null}
+                        {relationTag ? (
+                            <span
+                                className="inline-flex shrink-0 items-center gap-1 rounded-4 border border-[color-mix(in_srgb,var(--mt-state-waiting)_45%,transparent)] px-1.5 text-11 leading-4 font-normal whitespace-nowrap text-[var(--mt-state-waiting)]"
+                                data-testid="reviews-conflict-tag"
+                            >
+                                {relationTag}
                             </span>
                         ) : null}
                     </div>
@@ -377,17 +404,25 @@ export function ReviewRow({
                         {facts.map((f) => (
                             <CardFactView key={f.id} fact={f} pr={pr} />
                         ))}
-                        <ForecastMarkChip mark={forecast?.mark} active={forecastActive} />
+                        {relationFact ? (
+                            <span
+                                className="inline-flex min-w-0 items-center gap-1 text-[var(--mt-state-waiting)]"
+                                data-testid="reviews-fact-conflicts-with"
+                            >
+                                <i className="fa fa-solid fa-code-merge text-10" aria-hidden />
+                                <span className="min-w-0 truncate" title={relationFact}>
+                                    {relationFact}
+                                </span>
+                            </span>
+                        ) : null}
                         <BatchRowChip mark={batchMark} />
                         <LaunchCardActions dir={dir} target={launchTargetOfPr(pr)} runningOnly />
-                        <ForecastNote text={forecast?.note} />
                     </div>
                     {card.history ? (
                         <div className="text-11 leading-4 text-muted" data-testid="reviews-card-history">
                             {word(card.history)}
                         </div>
                     ) : null}
-                    <MergeOrderReason order={order} />
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                     <button
@@ -399,15 +434,15 @@ export function ReviewRow({
                         onKeyDown={stopRow}
                         aria-disabled={primary.disabled != null ? true : undefined}
                         aria-busy={primaryBusy || undefined}
-                        className={primary.disabled != null ? DisabledButton : card.molten ? MoltenButton : CalmButton}
+                        className={primary.disabled != null ? DisabledButton : molten ? MoltenButton : CalmButton}
                         title={primaryTitle || undefined}
                         data-testid="reviews-card-primary"
                         data-action={primary.id}
-                        data-molten={card.molten || undefined}
+                        data-molten={molten || undefined}
                     >
                         {primaryBusy ? <DominoLoader /> : null}
                         {word(primary.label)}
-                        {card.molten && primary.disabled == null ? <MoltenWave /> : null}
+                        {molten && primary.disabled == null ? <MoltenWave /> : null}
                     </button>
                     <button
                         type="button"
@@ -463,8 +498,26 @@ export function ReviewRow({
                     data-testid="reviews-rebase-outcome"
                 >
                     <span className="min-w-0">{word(outcome.text)}</span>
+                    {outcome.busy != null && outcomeTask != null && queued == null ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                model.queueAsk(dir, pr, repo, outcomeTask, outcome.busy);
+                                setOutcome(null);
+                            }}
+                            onKeyDown={stopRow}
+                            className={ConfirmButton}
+                            data-testid="reviews-queue-ask"
+                        >
+                            {t(outcomeTask === "rebase" ? "reviews.queue.ask.rebase" : "reviews.queue.ask.other", {
+                                name: outcome.busy.name,
+                            })}
+                        </button>
+                    ) : null}
                 </div>
             ) : null}
+            <QueuedAskLine ask={queued} />
             {error != null ? (
                 <div className="text-12 leading-4 text-danger" role="status" data-testid="reviews-card-error">
                     {word(error)}

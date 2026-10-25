@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the selection of the
-// PRs, the confirmation modal (the order, the method, what the agent does, the main checkout untouched; Enter adds them
+// The batch merge and the merge queue in the Reviews list (FR-REV-025, FR-REV-026, DS-REV-017): the confirmation
+// modal, opened from the merge queue's Merge in this order (#1062), (the order, the method, what the agent does, the main checkout untouched; Enter adds them
 // to the queue, Escape cancels), the banner over the list while the queue runs and once it ended, and each PR's mark on
 // its row. Nothing opens by itself: the agent's terminal is reached from the banner's Go to the agent.
 
@@ -48,60 +48,6 @@ const MarkTones: Record<string, string> = {
 
 function stop(e: React.SyntheticEvent) {
     e.stopPropagation();
-}
-
-// The selection bar under the waiting group's heading: how many PRs are selected and the way to the modal.
-export function BatchSelectBar({
-    count,
-    onMerge,
-    onCancel,
-}: {
-    count: number;
-    onMerge: () => void;
-    onCancel: () => void;
-}) {
-    const t = useT();
-    const tCount = useTCount();
-    return (
-        <div
-            className="flex flex-wrap items-center gap-2 rounded-4 border border-accent/40 bg-accent/5 px-2.5 py-1.5 text-12"
-            data-testid="reviews-batch-select"
-        >
-            <span className="min-w-0 grow text-secondary">{tCount("reviews.batch.select.count", count)}</span>
-            <button type="button" className={PlainButton} onClick={onCancel} data-testid="reviews-batch-select-cancel">
-                {t("common.cancel")}
-            </button>
-            <button
-                type="button"
-                className="molten-btn cursor-pointer rounded-4 px-2.5 py-0.5 text-11"
-                aria-disabled={count === 0 || undefined}
-                onClick={() => count > 0 && onMerge()}
-                title={count === 0 ? t("reviews.batch.select.none") : undefined}
-                data-testid="reviews-batch-select-merge"
-            >
-                {tCount("reviews.batch.select.merge", count)}
-                <MoltenWave />
-            </button>
-        </div>
-    );
-}
-
-export function BatchCheckbox({ checked, number }: { checked: boolean; number: number }) {
-    const t = useT();
-    return (
-        <span
-            role="checkbox"
-            aria-checked={checked}
-            aria-label={t("reviews.batch.select.rowAria", { number })}
-            className={cn(
-                "mr-2 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-3 border align-[-2px]",
-                checked ? "border-accent bg-accent text-primary" : "border-border bg-transparent"
-            )}
-            data-testid="reviews-batch-check"
-        >
-            {checked ? <i className="fa fa-solid fa-check text-10" aria-hidden /> : null}
-        </span>
-    );
 }
 
 export function BatchRowChip({ mark }: { mark: BatchRowMark }) {

@@ -141,7 +141,18 @@ describe("reviews model", () => {
                 firstname: "Rita",
                 branch: "b",
             })
-        ).toMatchObject({ kind: "info", text: "Rita is working on b: ask again once it is done." });
+        ).toMatchObject({ kind: "info", text: "Rita is working on b." });
+        // The busy agent's terminal comes with it (#1062): the card offers to hand it the task after its own.
+        expect(
+            rebaseOutcome({
+                status: "busy",
+                reason: "agentbusy",
+                agentstate: "working",
+                firstname: "Rita",
+                blockid: "blk-rita",
+                branch: "b",
+            }).busy
+        ).toEqual({ blockId: "blk-rita", name: "Rita" });
         expect(
             rebaseOutcome({ status: "busy", reason: "agentbusy", agentstate: "waiting", firstname: "Rita" }).text
         ).toContain("waiting for your answer");
