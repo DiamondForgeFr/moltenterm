@@ -87,6 +87,11 @@ const WordedReasons = new Set<BatchReason>([
     "method",
 ]);
 export type BatchKept = "changes" | "unpushed" | "rebasing" | "working" | "unread";
+// An earlier queue's worktree that stays (#1122), and why.
+export type BatchStaleTree = {
+    path: string;
+    kept: "changes" | "unpushed" | "rebasing" | "inuse" | "locked" | "unread";
+};
 export type BatchMethod = "merge" | "squash" | "rebase";
 
 // A PR joining the queue: from the batch modal, bound to its listed head; from the Validate sheet, by its plan.
@@ -140,6 +145,7 @@ export type BatchRun = {
     workspaceid?: string;
     cleaned?: boolean;
     kept?: BatchKept;
+    stale?: BatchStaleTree[];
     cancelasked?: boolean;
     dismissed?: boolean;
     resumedat?: number;
@@ -469,6 +475,9 @@ export function batchSummary(run: BatchRun): string {
     parts.push(tCount("reviews.batch.summary.ciRuns", run.ciruns ?? 0));
     if (run.kept) {
         parts.push(batchKeptText(run.kept));
+    }
+    for (const tree of run.stale ?? []) {
+        parts.push(t(`reviews.batch.stale.${tree.kept}`, { name: tree.path.split(/[\\/]/).pop() }));
     }
     return parts.join(" ");
 }

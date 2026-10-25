@@ -111,6 +111,11 @@ func processesIn(cwds []procCwd, path string) []TreeProcess {
 	return rtn
 }
 
+// ProcessesInTree lists the live processes working inside path (the merge queue's earlier worktrees, #1122).
+func ProcessesInTree(path string) []TreeProcess {
+	return processesIn(liveCwds(), path)
+}
+
 // processesList names processes as the windows show them: "claude (4242), zsh (77)".
 func processesList(procs []TreeProcess) string {
 	names := make([]string, 0, len(procs))

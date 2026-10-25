@@ -104,6 +104,9 @@ const (
 	BatchKeptRebasing = "rebasing"
 	BatchKeptWorking  = "working"
 	BatchKeptUnread   = "unread"
+	// An earlier queue's worktree (BatchRun.Stale) also stays when it is locked, or a terminal or a process is in it.
+	BatchKeptLocked = "locked"
+	BatchKeptInUse  = "inuse"
 
 	MaxBatchPrs = 30
 
@@ -192,10 +195,12 @@ type BatchRun struct {
 	Worktree    string `json:"worktree,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	// Cleaned: the agent's terminal and worktree went at the end; Kept: why the worktree stayed (BatchKept…).
-	Cleaned     bool   `json:"cleaned,omitempty"`
-	Kept        string `json:"kept,omitempty"`
-	CancelAsked bool   `json:"cancelasked,omitempty"`
-	Dismissed   bool   `json:"dismissed,omitempty"`
+	Cleaned bool   `json:"cleaned,omitempty"`
+	Kept    string `json:"kept,omitempty"`
+	// Stale: the earlier queues' worktrees of the project that stay, each with why (#1122).
+	Stale       []BatchTree `json:"stale,omitempty"`
+	CancelAsked bool        `json:"cancelasked,omitempty"`
+	Dismissed   bool        `json:"dismissed,omitempty"`
 	// ResumedAt: the queue resumed after MoltenTerm restarted.
 	ResumedAt int64 `json:"resumedat,omitempty"`
 	StartedAt int64 `json:"startedat"`
@@ -252,6 +257,8 @@ type BatchEnv struct {
 	ComputeLimit time.Duration
 	// ChecksSettle: how long after a rebase every check of the old head is expected on the new one.
 	ChecksSettle time.Duration
+	// TreeInUse: a live process works in the folder (mission.ProcessesInTree); an earlier queue's worktree then stays.
+	TreeInUse func(path string) bool
 }
 
 type batchCtl struct {
@@ -402,6 +409,7 @@ func (b *BatchRunner) load(dir string, base string) (BatchRun, bool) {
 
 func copyRun(run BatchRun) BatchRun {
 	run.Items = append([]BatchItem(nil), run.Items...)
+	run.Stale = append([]BatchTree(nil), run.Stale...)
 	for i := range run.Items {
 		run.Items[i].Names = append([]string(nil), run.Items[i].Names...)
 		run.Items[i].Overridden = append([]string(nil), run.Items[i].Overridden...)
