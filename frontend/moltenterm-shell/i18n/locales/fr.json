@@ -5669,6 +5669,13 @@
             },
             "goTo": "Y aller",
             "goToTitle": "Afficher le terminal de {name}",
+            "work": {
+                "group": "fusion groupée : {list}",
+                "queue": "file de fusion : {list}"
+            },
+            "pointer": {
+                "ended": "terminée, la session de son agent est encore ouverte"
+            },
             "cancel": "Arrêter",
             "cancelling": "Annulation…",
             "cancelTitle": "Annuler chaque validation qui n'est pas en cours de fusion ; rien de plus n'est fusionné",
@@ -6207,7 +6214,14 @@
                 "draftReady": "Prête à passer en revue",
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
-                "ready": "Prête à fusionner"
+                "ready": "Prête à fusionner",
+                "batch": {
+                    "checking": "Relue sur GitHub avant sa fusion",
+                    "rebasing": "{name} la rebase sur {base}",
+                    "waitingChecks": "Attend ses checks avant sa fusion",
+                    "waitingRebased": "Rebasée par {name}, attend ses checks",
+                    "merging": "Fusion en cours"
+                }
             },
             "why": {
                 "conflicts": "conflits avec {base}",
