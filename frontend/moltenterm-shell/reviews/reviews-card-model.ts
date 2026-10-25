@@ -72,6 +72,7 @@ export type CardState = {
     why?: Phrase;
     // The agent the state is about (states 1 to 3), when one is known.
     agent?: AgentBarFacts;
+    // Null when the card asks nothing (#1085: an agent works and no terminal of it is here to follow).
     primary: CardAction;
     // molten: the primary is the developer's move now (one orange button per card at most); else a calm button.
     molten: boolean;
@@ -379,7 +380,17 @@ function relaunchAction(input: CardInput): CardAction {
     return action("start-agent", "reviews.card.action.startAgent");
 }
 
-// cardState: the card's one state, its sentence, its primary action, its menu and its facts.
+// In a menu, Mark ready comes first and says what it does (#1085): it is how the developer takes a draft over.
+function menuOrder(menu: CardAction[]): CardAction[] {
+    const ready = menu.find((a) => a.id === "mark-ready");
+    if (ready == null) {
+        return menu;
+    }
+    return [{ ...ready, label: phrase("reviews.card.action.markReadyMenu") }, ...menu.filter((a) => a !== ready)];
+}
+
+// cardState: the card's one state, its sentence, its primary action (none when nothing is the developer's to do and
+// there is no agent to follow), its menu and its facts.
 export function cardState(input: CardInput): CardState {
     const { pr } = input;
     const agents = input.agents ?? [];
@@ -435,12 +446,12 @@ export function cardState(input: CardInput): CardState {
                 why = phrase("reviews.card.why.recentCommit");
             }
             const blockId = agentBlockId(working);
-            primary = blockId
-                ? { ...action("follow", "reviews.card.action.follow", { name }), blockId }
-                : AssistedReview();
+            // Without a terminal to follow, the card asks nothing (#1085): a primary would read as the developer's
+            // task. Everything stays in the menu.
+            primary = blockId ? { ...action("follow", "reviews.card.action.follow", { name }), blockId } : null;
             menu = [
                 ...agentActions(working),
-                ...(primary.id === "follow" ? [AssistedReview()] : []),
+                AssistedReview(),
                 mergeAction(input, working ?? null),
                 Launch(),
                 Github(),
@@ -548,8 +559,8 @@ export function cardState(input: CardInput): CardState {
         why,
         agent,
         primary,
-        molten: !CalmKinds.has(kind) && primary.disabled == null,
-        menu: menu.filter((a) => a != null && a.id !== primary.id),
+        molten: primary != null && !CalmKinds.has(kind) && primary.disabled == null,
+        menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
         facts: cardFacts(input, kind, said),
         history,
     };

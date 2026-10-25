@@ -296,7 +296,7 @@ export function ReviewRow({
         ContextMenuModel.getInstance().showContextMenu(items, anchored);
     };
     const markReadyNotes =
-        card.primary.id === "mark-ready"
+        card.primary?.id === "mark-ready"
             ? word(card.primary.confirm)
             : word(card.menu.find((a) => a.id === "mark-ready")?.confirm);
     const sentence = word(card.sentence);
@@ -304,7 +304,7 @@ export function ReviewRow({
     const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
     const why = word(queueSays ? queueWhy : card.why);
     const primary = card.primary;
-    const molten = card.molten && !(calm && primary.id === "validate");
+    const molten = card.molten && !(calm && primary?.id === "validate");
     const relationFact = word(relation?.fact);
     const relationTag = word(relation?.tag);
     const primaryName =
@@ -312,8 +312,18 @@ export function ReviewRow({
             ? phrase("reviews.card.name", { name: card.agent.name || card.agent.parentName || "" })
             : phrase("reviews.card.name", { name: prTask?.name || "" });
     const primaryTitle =
-        primary.disabled != null ? word(primary.disabled) : word(actionTitle(primary, pr, primaryName));
-    const primaryBusy = busy === primary.id || (primary.id === "mark-ready" && markReady.phase === "sending");
+        primary == null
+            ? ""
+            : primary.disabled != null
+              ? word(primary.disabled)
+              : word(actionTitle(primary, pr, primaryName));
+    const primaryBusy =
+        primary != null && (busy === primary.id || (primary.id === "mark-ready" && markReady.phase === "sending"));
+    // A card that asks nothing says where taking it over lives (#1085): the menu, Mark ready first.
+    const moreTitle =
+        primary == null && card.menu.some((a) => a.id === "mark-ready")
+            ? t("reviews.card.moreTakeOver")
+            : t("reviews.card.more");
     const facts: CardFact[] = card.facts;
     return (
         <div
@@ -323,7 +333,7 @@ export function ReviewRow({
             data-state={card.kind}
             data-tone={card.tone}
             data-turn={card.turn}
-            data-motion={card.motion || undefined}
+            data-works={card.motion || undefined}
             aria-label={[
                 rank != null ? t("reviews.order.rankTitle", { rank }) : "",
                 head.ticket ? t("reviews.aria.ticket", { ticket: head.ticket, title: head.title }) : head.title,
@@ -439,32 +449,34 @@ export function ReviewRow({
                     ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            run(primary);
-                        }}
-                        onKeyDown={stopRow}
-                        aria-disabled={primary.disabled != null ? true : undefined}
-                        aria-busy={primaryBusy || undefined}
-                        className={primary.disabled != null ? DisabledButton : molten ? MoltenButton : CalmButton}
-                        title={primaryTitle || undefined}
-                        data-testid="reviews-card-primary"
-                        data-action={primary.id}
-                        data-molten={molten || undefined}
-                    >
-                        {primaryBusy ? <DominoLoader /> : null}
-                        {word(primary.label)}
-                        {molten && primary.disabled == null ? <MoltenWave /> : null}
-                    </button>
+                    {primary != null ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                run(primary);
+                            }}
+                            onKeyDown={stopRow}
+                            aria-disabled={primary.disabled != null ? true : undefined}
+                            aria-busy={primaryBusy || undefined}
+                            className={primary.disabled != null ? DisabledButton : molten ? MoltenButton : CalmButton}
+                            title={primaryTitle || undefined}
+                            data-testid="reviews-card-primary"
+                            data-action={primary.id}
+                            data-molten={molten || undefined}
+                        >
+                            {primaryBusy ? <DominoLoader /> : null}
+                            {word(primary.label)}
+                            {molten && primary.disabled == null ? <MoltenWave /> : null}
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         onClick={openMenu}
                         onKeyDown={stopRow}
                         aria-haspopup="menu"
                         aria-label={t("reviews.card.moreTitle", { number: pr.number })}
-                        title={t("reviews.card.more")}
+                        title={moreTitle}
                         className={MoreButton}
                         data-testid="reviews-card-more"
                     >
