@@ -449,6 +449,7 @@ var windowCommands = map[string]string{
 	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
 	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
+	SetupUpdateCommand: "a release setup is updated from a MoltenTerm window",
 	// Launch (FR-REV-031) switches the checkout and runs the project's servers: the developer's click only.
 	LaunchSaveRecipeCommand: "a launch recipe is confirmed from a MoltenTerm window",
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
@@ -570,6 +571,18 @@ func (l *routeLink) handleSetup(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.setup.Write(req)
+	case SetupCheckCommand:
+		var req pipelinesetup.CheckRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Check(ctx, req)
+	case SetupUpdateCommand:
+		var req pipelinesetup.UpdateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.setup.Update(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }

@@ -75,6 +75,9 @@ const (
 	SetupDraftCommand  = "moltenmissionsetupdraft"
 	SetupRefineCommand = "moltenmissionsetuprefine"
 	SetupWriteCommand  = "moltenmissionsetupwrite"
+	// Updating an existing setup (#1086): the check writes nothing, the update is the developer's click.
+	SetupCheckCommand  = "moltenmissionsetupcheck"
+	SetupUpdateCommand = "moltenmissionsetupupdate"
 	UpdateEvent        = "molten:mission:update"
 	RunEvent           = "molten:mission:run"
 	CiEvent            = "molten:mission:ci"

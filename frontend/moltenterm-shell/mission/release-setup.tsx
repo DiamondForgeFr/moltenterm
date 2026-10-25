@@ -573,7 +573,7 @@ export function ChoicesStep({
     );
 }
 
-function DiffView({ before, after }: { before: string; after: string }) {
+export function DiffView({ before, after }: { before: string; after: string }) {
     const t = useT();
     const rows = diffHunks(lineDiff(before, after));
     return (
@@ -809,7 +809,7 @@ export function ReleaseSetup({
             setWriting(true);
             setError(null);
             try {
-                await setupWrite(dir, text, draft.base);
+                await setupWrite(dir, text, draft.base, draft.generated);
                 onWritten();
                 const info = await missionUntrusted(dir);
                 if (info?.commands?.length) {

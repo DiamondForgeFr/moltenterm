@@ -180,7 +180,59 @@ export type SetupDraft = {
     proposed: string;
     errors: string[];
     validatewarnings: string[];
+    generated?: Record<string, string>;
 };
+
+// must match Change, UpdateReason and CheckAnswer in pkg/molten/pipelinesetup/update.go (#1086)
+export type SetupChangeKind = "added" | "removed" | "changed" | "versions";
+export type SetupChange = {
+    key: string;
+    channel?: SetupChannel;
+    id?: string;
+    kind: SetupChangeKind;
+    title?: string;
+    before?: string;
+    after?: string;
+    customised: boolean;
+    take: boolean;
+};
+export type SetupUpdateReason = { code: "protected" | "labels" | "template" | "customised"; detail?: string };
+export type SetupCheck = {
+    state: "missing" | "update" | "uptodate";
+    reasons: SetupUpdateReason[];
+    changes: SetupChange[];
+    recordtemplate: number;
+    template: number;
+    releasebranch: string;
+    current: string;
+    base: string;
+    proposed: string;
+    signature: string;
+    errors: string[];
+    validatewarnings: string[];
+};
+
+// A change is applied when the developer ticked it, else by its default (a customised step is kept).
+export function changeTaken(change: SetupChange, choices: Record<string, boolean>): boolean {
+    const choice = choices?.[change.key];
+    return choice == null ? change.take : choice;
+}
+
+// The changes by where they go: the release candidate's steps, the public release's, then the version files.
+export function changeGroups(
+    changes: readonly SetupChange[]
+): { group: SetupChannel | "versions"; changes: SetupChange[] }[] {
+    const groups: { group: SetupChannel | "versions"; changes: SetupChange[] }[] = [];
+    for (const group of ["rc", "public", "versions"] as const) {
+        const list = (changes ?? []).filter((c) =>
+            group === "versions" ? c.kind === "versions" : c.channel === group
+        );
+        if (list.length > 0) {
+            groups.push({ group, changes: list });
+        }
+    }
+    return groups;
+}
 
 export type SetupRefined = {
     agent: string;
