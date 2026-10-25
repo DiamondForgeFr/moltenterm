@@ -6,6 +6,7 @@ import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeSt
 import { describe, expect, it } from "vitest";
 import {
     CarpetColumnGapPx,
+    CarpetEndReservePx,
     CarpetInvitePx,
     CarpetMarginPx,
     CarpetPadTopPx,
@@ -23,6 +24,8 @@ import {
     carpetColumnRect,
     carpetInsertPlace,
     carpetNodeTransform,
+    carpetPanelRoomPx,
+    carpetScrollStops,
     carpetSplitPlace,
     clampColumnPx,
     clampFixedDragPx,
@@ -376,7 +379,28 @@ describe("computeCarpetLayout", () => {
             { nodeId: "preview", x: Lead + 720 + CarpetColumnGapPx, width: 500 },
             { nodeId: "files", x: Lead + 1220 + 2 * CarpetColumnGapPx, width: 400 },
         ]);
-        expect(layout.maxScroll).toBe(layout.contentWidth - layout.viewport.width);
+        // Free widths do not add up to the carpet's: the last position is the last panel's edge, with empty room after
+        // the end invitation rather than a cut panel (#1131).
+        expect(layout.maxScroll).toBe(layout.columns[2].x);
+        expect(layout.maxScroll).toBeGreaterThan(layout.contentWidth - layout.viewport.width);
+    });
+
+    it("leaves room for the end invitation beside a panel as wide as the carpet (#1131)", () => {
+        const wide = computeCarpetLayout({
+            width: 1600,
+            height: 900,
+            fixedNodeId: "term",
+            fixedPx: 600,
+            columns: [
+                { nodeId: "a", widthPx: 5000 },
+                { nodeId: "b", widthPx: 5000 },
+            ],
+        });
+        const room = carpetPanelRoomPx(wide.viewport.width);
+        expect(room).toBe(wide.viewport.width - CarpetEndReservePx);
+        expect(wide.columns.map((c) => c.width)).toEqual([room, room]);
+        expect(wide.maxScroll).toBe(wide.columns[1].x);
+        expect(carpetScrollStops(wide)).toEqual([0, wide.columns[0].x, wide.columns[1].x]);
     });
 
     it("lays an invitation to add a panel at each end of the carpet (#702)", () => {
@@ -438,14 +462,17 @@ describe("scrolling", () => {
 
     it("lists the columns in view", () => {
         expect(visibleCarpetColumnIds(layout, 0)).toEqual(["a", "b"]);
-        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["b", "c"]);
+        expect(visibleCarpetColumnIds(layout, layout.maxScroll)).toEqual(["c"]);
         expect(visibleCarpetColumnIds(null, 0)).toEqual([]);
     });
 
-    it("scrolls just enough to reveal a column", () => {
+    it("reveals a column at the nearest snap position showing it whole (#1131)", () => {
         const b = layout.columns[1];
-        expect(scrollToRevealColumn(layout, "b", 0)).toBe(b.x + b.width - viewWidth);
+        expect(carpetScrollStops(layout)).toEqual([0, layout.columns[0].x, b.x, layout.columns[2].x]);
+        expect(scrollToRevealColumn(layout, "b", 0)).toBe(b.x);
         expect(scrollToRevealColumn(layout, "b", layout.maxScroll)).toBe(b.x);
+        // Already whole in view: the carpet stays.
+        expect(scrollToRevealColumn(layout, "b", b.x + b.width - viewWidth)).toBe(b.x + b.width - viewWidth);
         expect(scrollToRevealColumn(layout, "a", 0)).toBe(0);
         expect(scrollToRevealColumn(layout, "fixed", 120)).toBe(120);
     });
@@ -453,7 +480,7 @@ describe("scrolling", () => {
     it("brings an end's invitation along with the first or last column (#702)", () => {
         expect(scrollToRevealColumn(layout, "c", 0)).toBe(layout.maxScroll);
         expect(scrollToRevealColumn(layout, "a", layout.maxScroll)).toBe(0);
-        // A last column too wide for both shows only itself.
+        // A last column wider than the carpet is narrowed to leave its invitation room (#1131).
         const wide = computeCarpetLayout({
             width: 1600,
             height: 900,

@@ -31,6 +31,11 @@ export const PinnedColumnMinPx = 320;
 export const FixedColumnGapPx = CarpetMarginPx;
 // The "add a panel" invitation laid at each end of the carpet (#702): a slim column, a column gap from its neighbour.
 export const CarpetInvitePx = 44;
+// The room one invitation takes with its gap. Panels share the carpet's width minus this room, so the first position
+// (start invitation + panels) and the last one (panels + end invitation) show whole panels (#1131).
+export const CarpetEndReservePx = CarpetInvitePx + CarpetColumnGapPx;
+// Below this, two scroll positions are the same panel edge (slots from proportions are fractional).
+const EdgeEpsilonPx = 0.5;
 // The readable minimum of a column other than the first (FR-SHELL-066's automatic decision counts it too).
 export const ReadableCarpetColumnPx = 360;
 // What the carpet needs to show one column at its readable minimum: the column, the carpet's padding and margins.
@@ -341,7 +346,7 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
         x = CarpetInvitePx + CarpetColumnGapPx;
     }
     const columns: CarpetColumn[] = input.columns.map((col, i) => {
-        const colWidth = clampColumnPx(col.widthPx, viewport.width);
+        const colWidth = clampColumnPx(col.widthPx, carpetPanelRoomPx(viewport.width));
         const rtn = { nodeId: col.nodeId, x: x + (i > 0 ? CarpetColumnGapPx : 0), width: colWidth };
         x = rtn.x + colWidth;
         return rtn;
@@ -358,8 +363,44 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
         columns,
         invites,
         contentWidth,
-        maxScroll: Math.max(0, contentWidth - viewport.width),
+        maxScroll: lastScrollStop(columns, contentWidth, viewport.width),
     };
+}
+
+// The width panels share on a carpet of this width: what the end invitation and its gap leave (#1131).
+export function carpetPanelRoomPx(viewportWidth: number): number {
+    return Math.max(0, viewportWidth - CarpetEndReservePx);
+}
+
+// The carpet's last position (#1131): the first panel edge from which the end of the carpet is in view, so it shows
+// whole panels. When the panels' widths do not add up to the carpet's, the carpet ends with some empty room rather
+// than a cut panel. Only when no edge works (the last panel and its invitation wider than the carpet) does it stop
+// where the content ends.
+function lastScrollStop(columns: CarpetColumn[], contentWidth: number, viewWidth: number): number {
+    const contentEnd = Math.max(0, contentWidth - viewWidth);
+    if (contentEnd <= EdgeEpsilonPx) {
+        return 0;
+    }
+    const edge = columns.map((c) => c.x).find((x) => x >= contentEnd - EdgeEpsilonPx);
+    return edge ?? contentEnd;
+}
+
+// The carpet's snap positions, left to right (#1131): its start (with the start invitation), each panel's start
+// edge, and its last position. Stepping and revealing a panel stop there.
+export function carpetScrollStops(layout: CarpetLayout): number[] {
+    if (layout == null) {
+        return [0];
+    }
+    const stops = [0];
+    for (const column of layout.columns) {
+        if (column.x < layout.maxScroll - EdgeEpsilonPx && column.x > stops[stops.length - 1] + EdgeEpsilonPx) {
+            stops.push(column.x);
+        }
+    }
+    if (layout.maxScroll > stops[stops.length - 1] + EdgeEpsilonPx) {
+        stops.push(layout.maxScroll);
+    }
+    return stops;
 }
 
 // Where a carpet column (or an invitation) is drawn before scrolling, in the layout's coordinates.
@@ -389,10 +430,10 @@ export function visibleCarpetColumnIds(layout: CarpetLayout, scrollLeft: number)
     return layout.columns.filter((c) => c.x + c.width > start && c.x < end).map((c) => c.nodeId);
 }
 
-// The scroll position that brings a column fully into view while moving as little as possible (a column wider than
-// the carpet shows its start), or the current position when it is already in view or not on the carpet. The first and
-// last columns bring their end's invitation along when both fit (#702): a panel just added at an end leaves the
-// invitation in view, to add another.
+// The scroll position that brings a column fully into view: the current one when it already is, otherwise the nearest
+// snap position showing it whole (#1131), so the carpet stops on panel edges. A column wider than the carpet shows its
+// start; one not on the carpet keeps the current position. The first and last columns bring their end's invitation
+// along when both fit (#702): a panel just added at an end leaves the invitation in view, to add another.
 export function scrollToRevealColumn(layout: CarpetLayout, nodeId: string, scrollLeft: number): number {
     const current = clampScroll(layout, scrollLeft);
     const index = layout?.columns.findIndex((c) => c.nodeId === nodeId) ?? -1;
@@ -401,23 +442,24 @@ export function scrollToRevealColumn(layout: CarpetLayout, nodeId: string, scrol
     }
     const column = layout.columns[index];
     const viewWidth = layout.viewport.width;
-    let start = column.x;
-    let end = column.x + column.width;
-    const startInvite = index === 0 ? layout.invites?.find((i) => i.end === "start") : null;
-    const endInvite = index === layout.columns.length - 1 ? layout.invites?.find((i) => i.end === "end") : null;
-    if (startInvite != null && end - startInvite.x <= viewWidth) {
-        start = startInvite.x;
-    }
-    if (endInvite != null && endInvite.x + endInvite.width - start <= viewWidth) {
-        end = endInvite.x + endInvite.width;
-    }
-    if (start < current || end - start > viewWidth) {
+    const start = column.x;
+    const end = column.x + column.width;
+    const shows = (pos: number) => pos <= start + EdgeEpsilonPx && pos + viewWidth >= end - EdgeEpsilonPx;
+    const stops = carpetScrollStops(layout).filter(shows);
+    if (!stops.length) {
         return clampScroll(layout, start);
     }
-    if (end > current + viewWidth) {
-        return clampScroll(layout, end - viewWidth);
+    if (index === 0 && stops[0] === 0) {
+        return 0;
     }
-    return current;
+    const last = stops[stops.length - 1];
+    if (index === layout.columns.length - 1 && Math.abs(last - layout.maxScroll) <= EdgeEpsilonPx) {
+        return layout.maxScroll;
+    }
+    if (shows(current)) {
+        return current;
+    }
+    return stops.reduce((best, pos) => (Math.abs(pos - current) < Math.abs(best - current) ? pos : best));
 }
 
 // Where a panel added at an end of the carpet goes in the tree (#702): a new top-level column right before the first

@@ -16,7 +16,15 @@ import {
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
-import { CarpetReservePx, scrollToRevealColumn, visibleCarpetColumnIds } from "./carpet-model";
+import {
+    CarpetEndReservePx,
+    CarpetReservePx,
+    carpetPanelRoomPx,
+    carpetScrollStops,
+    scrollToRevealColumn,
+    visibleCarpetColumnIds,
+    type CarpetLayout,
+} from "./carpet-model";
 import { ResizeSettleMs } from "./view360-decision";
 import { View360FixedPxMetaKey, View360FractionsMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
@@ -700,9 +708,11 @@ describe("View360Model threshold per screen and proportions (#1083)", () => {
         expect(model.active).toBe(true);
         expect(globalStore.get(model.decisionAtom)).toMatchObject({ source: "auto", reason: "columns" });
         expect(globalStore.get(model.signalAtom)).toBe(1);
-        // The fixed zone keeps 40 %, each carpet panel takes the whole carpet like the 60 % column did.
+        // The fixed zone keeps 40 %, each carpet panel takes the whole carpet like the 60 % column did, but for the
+        // room of the add-a-panel column (#1131).
         expect(layout.fixed.width).toBe(640);
-        expect(layout.columns.map((c) => c.width)).toEqual([layout.viewport.width, layout.viewport.width]);
+        const room = carpetPanelRoomPx(layout.viewport.width);
+        expect(layout.columns.map((c) => c.width)).toEqual([room, room]);
         // Entering touched nothing in the tree.
         expect(three.children.map((c) => c.size)).toEqual([40, 30, 30]);
         // Closing the third panel: back to the normal layout with 40/60, not the 40/30 the tree was left with.
@@ -727,7 +737,7 @@ describe("View360Model threshold per screen and proportions (#1083)", () => {
         const layout = pass(model, sizedRow(30, 35, 35, 35), 3000);
         expect(model.active).toBe(true);
         expect(layout.fixed.width).toBe(900);
-        const slot = (layout.viewport.width - 12) / 2;
+        const slot = (carpetPanelRoomPx(layout.viewport.width) - 12) / 2;
         expect(layout.columns.map((c) => c.width)).toEqual([slot, slot, slot]);
     });
 
@@ -787,4 +797,96 @@ describe("View360Model threshold per screen and proportions (#1083)", () => {
         expect(after.columns[0].width).toBeLessThan(layout.columns[0].width);
         expect(after.columns[1].width).toBe(layout.columns[1].width);
     });
+});
+
+// Every panel and invitation at least partly in view at this position is wholly in view.
+function wholeAt(layout: CarpetLayout, pos: number): boolean {
+    const end = pos + layout.viewport.width;
+    const items = [...layout.columns, ...layout.invites];
+    return items
+        .filter((c) => c.x + c.width > pos + 0.5 && c.x < end - 0.5)
+        .every((c) => c.x >= pos - 0.5 && c.x + c.width <= end + 0.5);
+}
+
+describe("360 view carpet positions per screen width (#1131)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        setSetting("auto");
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        setThreshold(8);
+    });
+
+    const screens = [
+        { name: "wide", width: 3440, threshold: 3, sizes: [30, 35, 35], open: [30, 35, 35, 35, 35], visible: 2 },
+        { name: "normal", width: 1920, threshold: 2, sizes: [50, 50], open: [50, 25, 25, 25], visible: 1 },
+        { name: "narrow", width: 1440, threshold: 2, sizes: [40, 60], open: [40, 30, 30, 30], visible: 1 },
+    ];
+
+    for (const screen of screens) {
+        describe(`${screen.name} screen (${screen.width} px)`, () => {
+            function carpet(): CarpetLayout {
+                setThreshold(screen.threshold);
+                const { model } = makeModel(null, sizedRow(...screen.sizes));
+                pass(model, sizedRow(...screen.sizes), screen.width);
+                const layout = pass(model, sizedRow(...screen.open), screen.width);
+                expect(model.active).toBe(true);
+                return layout;
+            }
+
+            it("the first position shows the start add button and whole panels", () => {
+                const layout = carpet();
+                expect(wholeAt(layout, 0)).toBe(true);
+                expect(visibleCarpetColumnIds(layout, 0)).toHaveLength(screen.visible);
+            });
+
+            it("the last position shows whole panels and the end add button", () => {
+                const layout = carpet();
+                const last = layout.maxScroll;
+                expect(wholeAt(layout, last)).toBe(true);
+                const invite = layout.invites.find((i) => i.end === "end");
+                expect(invite.x + invite.width).toBeLessThanOrEqual(last + layout.viewport.width + 0.5);
+                expect(visibleCarpetColumnIds(layout, last)).toHaveLength(screen.visible);
+                // A panel's start edge: nothing of the panel before it is cut.
+                expect(layout.columns.some((c) => Math.abs(c.x - last) < 0.5)).toBe(true);
+            });
+
+            it("snaps on panel edges: whole panels, and in the middle of the carpet a glimpse of the next one", () => {
+                const layout = carpet();
+                const stops = carpetScrollStops(layout);
+                expect(stops[0]).toBe(0);
+                expect(stops[stops.length - 1]).toBe(layout.maxScroll);
+                for (const stop of stops.slice(1)) {
+                    expect(layout.columns.some((c) => Math.abs(c.x - stop) < 0.5)).toBe(true);
+                    const end = stop + layout.viewport.width;
+                    const whole = layout.columns.filter((c) => c.x >= stop - 0.5 && c.x + c.width <= end + 0.5);
+                    expect(whole).toHaveLength(screen.visible);
+                    // What is not whole is the next panel's first pixels, in the add button's room.
+                    const cut = layout.columns.filter((c) => c.x < end - 0.5 && c.x + c.width > end + 0.5);
+                    expect(cut.every((c) => end - c.x <= CarpetEndReservePx)).toBe(true);
+                }
+            });
+
+            it("stepping to any panel from any position stops on a snap position showing it whole", () => {
+                const layout = carpet();
+                const stops = carpetScrollStops(layout);
+                for (const from of [0, layout.maxScroll / 3, ...stops]) {
+                    for (const column of layout.columns) {
+                        const to = scrollToRevealColumn(layout, column.nodeId, from);
+                        expect(visibleCarpetColumnIds(layout, to)).toContain(column.nodeId);
+                        expect(column.x).toBeGreaterThanOrEqual(to - 0.5);
+                        expect(column.x + column.width).toBeLessThanOrEqual(to + layout.viewport.width + 0.5);
+                        // A panel already whole in view does not move the carpet; otherwise it lands on a snap.
+                        if (to !== from) {
+                            expect(stops).toContain(to);
+                        }
+                    }
+                }
+                expect(scrollToRevealColumn(layout, layout.columns[0].nodeId, layout.maxScroll)).toBe(0);
+                const lastId = layout.columns[layout.columns.length - 1].nodeId;
+                expect(scrollToRevealColumn(layout, lastId, 0)).toBe(layout.maxScroll);
+            });
+        });
+    }
 });
