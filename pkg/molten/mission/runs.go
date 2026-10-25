@@ -104,6 +104,8 @@ type RunRequest struct {
 type RunResult struct {
 	Run       *RunRecord     `json:"run,omitempty"`
 	Untrusted *UntrustedInfo `json:"untrusted,omitempty"`
+	// A manual release step's check failed (#1095): nothing is recorded until it is confirmed anyway.
+	Unproved *ManualCheckFailure `json:"unproved,omitempty"`
 }
 
 type LogChunk struct {

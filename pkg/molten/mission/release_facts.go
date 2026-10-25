@@ -33,6 +33,9 @@ const (
 
 var notesRegex = regexp.MustCompile(`(?m)^\s*▶ notes:\s*(.+?)\s*$`)
 
+// What the release chain prints once it ran the project's formatter on the files it wrote (release.FormatMarker, #1095).
+var formatRegex = regexp.MustCompile(`(?m)^\s*▶ format:\s*(formatted|none|failed)\s*(.*?)\s*$`)
+
 // What `molten release dispatch` prints while a run waits for an environment approval, and once it goes on (FR-MC-037).
 var approvalRegex = regexp.MustCompile(`(?m)^\s*▶ (approval|approved):\s*(\S+)\s*(\S*)\s*$`)
 
@@ -124,12 +127,28 @@ type ReleaseFacts struct {
 	ReleasePr *ReleasePr `json:"releasepr,omitempty"`
 	// A running step waits for a branch's GitHub CI (the promotion, #836).
 	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
+	// The last word of the release chain on formatting its files, while the tag is not pushed (#1095).
+	Format *ReleaseFormat `json:"format,omitempty"`
+}
+
+// How the release's files last went through the project's formatter (#1095): formatted, none (no formatter found) or
+// failed.
+type ReleaseFormat struct {
+	State string `json:"state"`
+	// The formatter that formatted them.
+	Formatter string `json:"formatter,omitempty"`
+	// What failed, to be run in the release worktree.
+	Command string `json:"command,omitempty"`
+	// The step whose run said it.
+	Step string `json:"step"`
 }
 
 type ReleaseStepRequest struct {
 	Dir  string `json:"dir"`
 	Tag  string `json:"tag"`
 	Step string `json:"step"`
+	// Records a manual step although its check fails (#1095): the developer confirmed it is done anyway.
+	Force bool `json:"force,omitempty"`
 }
 
 type ReleaseNotesRequest struct {
@@ -182,9 +201,10 @@ func (r *Runs) followedRelease(ctx context.Context, dir string, p *molten.Pipeli
 
 // stepFacts reads the last run of each declared release step for the tag, and the preparation's apart. Runs started
 // before `since` (the release launched here) belong to an earlier, abandoned attempt at the same tag and are not read.
-func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]ReleaseStepFact, *ReleaseStepFact, string) {
+func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]ReleaseStepFact, *ReleaseStepFact, string, *ReleaseFormat) {
 	facts := map[string]ReleaseStepFact{}
 	var preparation *ReleaseStepFact
+	var format *ReleaseFormat
 	notes := ""
 	runs := r.List(dir)
 	// Oldest first, so that the newest run of a step, and the newest notes announced, win.
@@ -197,7 +217,7 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 		fact := ReleaseStepFact{RunId: rec.Id, State: rec.State, Running: rec.State == RunStateRunning, Exit: rec.Exit, Phases: rec.Phases, Tail: []string{}}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimRight(line, "\r")
-			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) {
+			if strings.TrimSpace(line) == "" || notesRegex.MatchString(line) || formatRegex.MatchString(line) {
 				continue
 			}
 			fact.Tail = append(fact.Tail, line)
@@ -218,8 +238,18 @@ func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]Releas
 			}
 			notes = filepath.Clean(path)
 		}
+		if m := formatRegex.FindAllSubmatch(data, -1); len(m) > 0 {
+			last := m[len(m)-1]
+			format = &ReleaseFormat{State: string(last[1]), Step: rec.StepId}
+			switch format.State {
+			case release.FormatFormatted:
+				format.Formatter = string(last[2])
+			case release.FormatFailed:
+				format.Command = string(last[2])
+			}
+		}
 	}
-	return facts, preparation, notes
+	return facts, preparation, notes, format
 }
 
 func isFile(path string) bool {
@@ -430,9 +460,11 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	trunk, trunkRef := resolveTrunk(ctx, r.git, dir)
 	facts.Trunk = trunk
 	var announced string
-	facts.Steps, facts.Preparation, announced = r.stepFacts(dir, session.Tag, since)
+	var format *ReleaseFormat
+	facts.Steps, facts.Preparation, announced, format = r.stepFacts(dir, session.Tag, since)
 	facts.Awaits = r.awaitedCi(dir, session.Tag, since)
 	if !facts.TagExists {
+		facts.Format = format
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
 		if releasesByPr(p) {
@@ -528,7 +560,11 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 			continue
 		}
 		if step.IsManual() {
-			rec, err = r.recordManualStep(dir, project, step, session)
+			unproved := r.checkManualStep(project, step, session)
+			if unproved != nil && !req.Force {
+				return RunResult{Unproved: unproved}, nil
+			}
+			rec, err = r.recordManualStep(dir, project, step, session, unproved)
 			return RunResult{Run: &rec}, err
 		}
 		if untrusted != nil {

@@ -100,6 +100,8 @@ type Project struct {
 	// ci.prepare: what installs the project's dependencies, run in the release worktree before its first commit when
 	// the project has git hooks that need them (#1046).
 	Install string
+	// versions.format: the formatter the release's files go through before they are committed (#1095), empty to detect.
+	Format string
 }
 
 // releaseBranchMissing says which branch was looked for, and why that one (#415).
@@ -244,6 +246,7 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	if v := report.Pipeline.Versions; v != nil {
 		p.NotesAgent = v.NotesAgent
 		p.Changelogs = v.Changelogs
+		p.Format = strings.TrimSpace(v.Format)
 		if v.TagPrefix != "" {
 			p.Rules.TagPrefix = v.TagPrefix
 		}

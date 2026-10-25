@@ -74,7 +74,7 @@ func TestRunOutputCannotCompleteLiveCommand(t *testing.T) {
 				t.Fatal("output emitted a completion notification")
 			}
 			if kind == RunKindRelease {
-				facts, _, _ := r.stepFacts(dir, "v1.0.0", 0)
+				facts, _, _, _ := r.stepFacts(dir, "v1.0.0", 0)
 				fact := facts["fixture"]
 				if !fact.Running || fact.Exit != nil || !strings.Contains(strings.Join(fact.Tail, "\n"), "exit=0") {
 					t.Fatalf("release facts: %+v", fact)

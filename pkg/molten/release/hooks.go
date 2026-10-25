@@ -65,13 +65,34 @@ func (e *Env) installForHooks(ctx context.Context, p *Project, wt string) error 
 	if info, err := os.Stat(filepath.Join(wt, "node_modules")); err == nil && info.IsDir() {
 		return nil
 	}
-	run := p.Install
-	if run == "" {
-		run = installCommand(wt)
-	}
+	run := dependenciesCommand(p, wt)
 	e.printf("The project's git hooks need its dependencies: %s in %s.\n", run, wt)
 	if _, err := e.run(ctx, wt, "sh", "-c", run); err != nil {
 		return fmt.Errorf("could not install the dependencies the git hooks need (%s): %w", run, err)
+	}
+	return nil
+}
+
+func dependenciesCommand(p *Project, wt string) string {
+	if p.Install != "" {
+		return p.Install
+	}
+	return installCommand(wt)
+}
+
+// installDependencies installs the project's node dependencies in the release worktree when they are not there, for
+// a formatter they hold (#1095).
+func (e *Env) installDependencies(ctx context.Context, p *Project, wt string) error {
+	if info, err := os.Stat(filepath.Join(wt, "node_modules")); err == nil && info.IsDir() {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(wt, "package.json")); err != nil {
+		return fmt.Errorf("the project has no package.json to install its formatter from")
+	}
+	run := dependenciesCommand(p, wt)
+	e.printf("The project's formatter is in its dependencies: %s in %s.\n", run, wt)
+	if _, err := e.run(ctx, wt, "sh", "-c", run); err != nil {
+		return fmt.Errorf("could not install the dependencies that hold the formatter (%s): %w", run, err)
 	}
 	return nil
 }

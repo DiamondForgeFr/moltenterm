@@ -45,6 +45,9 @@ type PipelineVersions struct {
 	// Files a release may change beside the version files and the notes, such as changelogs edited by hand before the cut
 	// (FR-MC-037): the cut commits them with the release.
 	Changelogs []string `json:"changelogs,omitempty"`
+	// The project's formatter for the files a release writes (#1095), e.g. "npx prettier --write": the files are appended
+	// as arguments. Empty: detected (prettier), else none.
+	Format string `json:"format,omitempty"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
@@ -123,7 +126,16 @@ type PipelineStep struct {
 	// A manual step (FR-MC-037): what the developer does by hand, shown in place of a command; the release waits until
 	// they confirm it is done, and nothing runs. It has no `run`.
 	Manual string `json:"manual,omitempty"`
+	// What proves a manual step done (#1095), checked before it is recorded: a file of the project holding a text.
+	Check *PipelineStepCheck `json:"check,omitempty"`
 	PipelineCommand
+}
+
+// A manual step's proof (#1095): `path` (a file of the project, read in the release worktree) holds `contains`, both
+// with {tag} and {version} expanded, e.g. {"path": "CHANGELOG.md", "contains": "## [{version}]"}.
+type PipelineStepCheck struct {
+	Path     string `json:"path"`
+	Contains string `json:"contains"`
 }
 
 // IsManual tells whether the step is done by hand rather than run.
@@ -360,6 +372,9 @@ func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 			c.checkManual(label, step, phases[i])
 		} else {
 			c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+			if step.Check != nil {
+				c.errorf("%s (%s): only a manual step declares a check", label, step.Id)
+			}
 		}
 		confirmed = confirmed || step.Confirm != ""
 		if step.Phase != "" && releasePhaseIndex(step.Phase) < 0 {
@@ -403,6 +418,15 @@ func (c *pipelineChecker) checkManual(label string, step PipelineStep, phase str
 	}
 	if phase == PipelineReleasePhasePrepare {
 		c.errorf("%s: a manual step cannot be in the prepare phase, which runs as soon as the release starts: give it the phase cut (or a later one)", where)
+	}
+	if check := step.Check; check != nil {
+		expanded := filepath.FromSlash(strings.NewReplacer("{tag}", "v1.0.0", "{version}", "1.0.0").Replace(check.Path))
+		if strings.TrimSpace(check.Path) == "" || strings.Contains(check.Path, "..") || !insideProject(c.dir, expanded) {
+			c.errorf("%s: check.path must name a file of the project, without .. (got %q)", where, check.Path)
+		}
+		if strings.TrimSpace(check.Contains) == "" {
+			c.errorf("%s: check.contains is empty: name the text that proves the step done (e.g. \"## [{version}]\")", where)
+		}
 	}
 }
 
@@ -553,6 +577,9 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 		if strings.TrimSpace(path) == "" || strings.Contains(path, "..") || !insideProject(c.dir, filepath.FromSlash(path)) {
 			c.errorf("versions.changelogs[%d] must name a file of the project, without .. (got %q)", i, path)
 		}
+	}
+	if v.Format != "" && strings.TrimSpace(v.Format) == "" {
+		c.errorf("versions.format is blank: name the formatter's command (e.g. \"npx prettier --write\"), or leave it out")
 	}
 	for i, arg := range v.NotesAgent {
 		if strings.TrimSpace(arg) == "" {

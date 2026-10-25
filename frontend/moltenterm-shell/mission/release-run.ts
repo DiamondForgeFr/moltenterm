@@ -80,6 +80,17 @@ export type ReleaseFacts = {
     awaits?: ReleaseCiAwait;
     // The workflows the pushed tag starts, read at the tag; absent when they could not be read (#1040).
     tagworkflows?: ReleaseTagWorkflows;
+    // The release chain's last word on formatting the files it wrote, while the tag is not pushed (#1095).
+    format?: ReleaseFormat;
+};
+
+// must match ReleaseFormat in pkg/molten/mission/release_facts.go
+export type ReleaseFormat = {
+    state: "formatted" | "none" | "failed";
+    formatter?: string;
+    // What failed, to be run in the release worktree.
+    command?: string;
+    step: string;
 };
 
 // must match ReleaseTagWorkflow in pkg/molten/mission/release_tag_workflows.go
@@ -92,7 +103,8 @@ export type PhaseLink = { label: string; url: string };
 
 // busy: what the button says from the click until the backend answered (#952).
 export type PhaseAction =
-    | { kind: "step"; step: string; label: string; confirm?: string; busy?: string }
+    // force: a manual step recorded although its check failed, the developer having confirmed it (#1095).
+    | { kind: "step"; step: string; label: string; confirm?: string; busy?: string; force?: boolean }
     | { kind: "prepare"; label: string; busy?: string }
     | { kind: "rerun"; label: string; busy?: string }
     | { kind: "dispatch"; workflow: string; label: string; confirm: string; busy?: string };
@@ -139,6 +151,9 @@ export type ReleaseRun = {
     notesStep: PipelineReleaseStep;
     // Changes whenever the notes step ran again: the editor then reads the notes again.
     notesRevision: string;
+    // The files the release wrote are not formatted the way the project checks (no formatter found, or it failed),
+    // said in the cut before its commit (#1095).
+    unformatted?: ReleaseFormat;
 };
 
 // must match ReleasePreparationStepId in pkg/molten/mission/release.go: no declared step id can start with "@".
@@ -687,5 +702,7 @@ export function releaseRun(facts: ReleaseFacts, declared: readonly PipelineRelea
     const editNotes = c.status === "waiting" && !!facts.notes && c.action?.kind === "step" && c.action.confirm != null;
     const rewritten = notesStep ? facts.steps[notesStep.id] : null;
     const notesRevision = rewritten ? `${rewritten.runid}:${rewritten.state}` : "";
-    return { active: current != null, tag, channel, phases, current, editNotes, notesStep, notesRevision };
+    const unformatted =
+        !facts.tagexists && facts.format != null && facts.format.state !== "formatted" ? facts.format : undefined;
+    return { active: current != null, tag, channel, phases, current, editNotes, notesStep, notesRevision, unformatted };
 }

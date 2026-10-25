@@ -186,6 +186,7 @@ func (e *Env) commitPrepared(ctx context.Context, p *Project, wt string, tag str
 	if IsReleaseCommit(subject, body, tag) && len(changed) == 0 {
 		return false, nil
 	}
+	e.formatRelease(ctx, p, wt, tag)
 	allowed, err := e.checkPrepared(ctx, p, wt, tag, v)
 	if err != nil {
 		return false, err

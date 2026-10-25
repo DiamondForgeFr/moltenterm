@@ -2973,7 +2973,11 @@
             "start": "Start {tag}",
             "choose": "Choose a release",
             "milestoneError": "The milestone could not be read: {error}",
-            "andMore": "and {count} more"
+            "andMore": "and {count} more",
+            "driftUncommitted": "The pipeline (.molten/project.json) has changes that are not committed: the release would follow them while its branch carries the committed pipeline.",
+            "driftBase": "The pipeline (.molten/project.json) differs from {base}, which the release branch is made from.",
+            "driftHint": "Commit and push it, or bring this checkout up to date, then start again. Nothing started yet.",
+            "startAnyway": "Start anyway"
         },
         "builds": {
             "neverBuilt": "Never built",
@@ -3171,6 +3175,11 @@
             "manualConfirm": "Confirm that “{step}” is done: MoltenTerm records it and runs nothing.",
             "actionRefused": "Not sent: another action of this release is still under way. Try again once it ends.",
             "trustFirst": "Nothing ran yet: this step starts once you trust the project's commands.",
+            "uncheckedMissing": "{path} is not there yet (looked in {dir}): this step does not look done. Nothing was recorded.",
+            "uncheckedLacks": "{path} does not contain “{contains}” yet (looked in {dir}): this step does not look done. Nothing was recorded.",
+            "markDoneAnyway": "Mark as done anyway",
+            "formatNone": "No formatter was found for the files MoltenTerm wrote (notes, changelogs): they are committed as written. If the project's CI checks the formatting, declare its formatter in versions.format.",
+            "formatFailed": "The files MoltenTerm wrote are not formatted the way the project's CI checks: its formatter failed. Run it in the release worktree before the commit:",
             "actionFailed": "MoltenTerm could not do it, and gave no reason. Try again.",
             "manualNext": "Next, by hand: {step}. Mark it done once it is.",
             "approval": "Waiting for the approval of {environment} on GitHub.",

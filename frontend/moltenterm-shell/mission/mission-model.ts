@@ -334,7 +334,11 @@ export type TrustedCommand = {
 
 export type UntrustedInfo = { hash: string; commands: TrustedCommand[] };
 
-export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo };
+// must match ManualCheckFailure in pkg/molten/mission/release_manual.go: what a manual release step's check did not
+// find (#1095); nothing was recorded.
+export type ManualCheckFailure = { path: string; contains: string; missing?: boolean; dir: string };
+
+export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo; unproved?: ManualCheckFailure };
 
 export type LogChunk = { text: string; size: number };
 
