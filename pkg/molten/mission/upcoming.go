@@ -166,8 +166,10 @@ type UpcomingEnv struct {
 }
 
 type upcomingState struct {
-	answer    UpcomingAnswer
-	at        time.Time
+	answer UpcomingAnswer
+	at     time.Time
+	// places: the agent terminals the answer placed (placesKey); other ones make it out of date at once (#1077).
+	places    string
 	ticketKey string
 	ticketsAt time.Time
 	tickets   map[int]upcomingTicket
@@ -211,12 +213,30 @@ func (u *Upcoming) projectLock(dir string) *sync.Mutex {
 	return m
 }
 
-// cached answers with a fresh enough answer, or nil when one is due.
-func (u *Upcoming) cached(dir string, force bool) *UpcomingAnswer {
+// placesKey names the agent terminals and where they work, in a stable order.
+func placesKey(places []AgentPlace) string {
+	parts := make([]string, 0, len(places))
+	for _, p := range places {
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Review))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "\n")
+}
+
+func (u *Upcoming) places(ctx context.Context) []AgentPlace {
+	if u.env.Agents == nil {
+		return nil
+	}
+	return u.env.Agents(ctx)
+}
+
+// cached answers with a fresh enough answer, or nil when one is due. An answer computed with other agent terminals
+// is never fresh: the agents a restart restores, or one starting, show at the next ask, forced or not (#1077).
+func (u *Upcoming) cached(dir string, force bool, places string) *UpcomingAnswer {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	state := u.states[dir]
-	if state == nil || state.at.IsZero() {
+	if state == nil || state.at.IsZero() || state.places != places {
 		return nil
 	}
 	age := u.env.Now().Sub(state.at)
@@ -241,12 +261,13 @@ func (u *Upcoming) stateOf(dir string) *upcomingState {
 	return state
 }
 
-func (u *Upcoming) store(dir string, answer UpcomingAnswer) {
+func (u *Upcoming) store(dir string, answer UpcomingAnswer, places string) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	if state := u.states[dir]; state != nil {
 		state.answer = answer
 		state.at = u.env.Now()
+		state.places = places
 	}
 }
 
@@ -256,21 +277,25 @@ func (u *Upcoming) Get(req UpcomingRequest) (UpcomingAnswer, error) {
 		return UpcomingAnswer{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	if answer := u.cached(dir, req.Force); answer != nil {
+	placesCtx, cancelPlaces := context.WithTimeout(context.Background(), upcomingGitTimeout)
+	defer cancelPlaces()
+	places := u.places(placesCtx)
+	key := placesKey(places)
+	if answer := u.cached(dir, req.Force, key); answer != nil {
 		return *answer, nil
 	}
 	m := u.projectLock(dir)
 	m.Lock()
 	defer m.Unlock()
-	if answer := u.cached(dir, req.Force); answer != nil {
+	if answer := u.cached(dir, req.Force, key); answer != nil {
 		return *answer, nil
 	}
-	answer := u.compute(dir)
-	u.store(dir, answer)
+	answer := u.compute(dir, places)
+	u.store(dir, answer, key)
 	return answer, nil
 }
 
-func (u *Upcoming) compute(dir string) UpcomingAnswer {
+func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	answer := UpcomingAnswer{Dir: dir, Branches: []UpcomingBranch{}, Agents: []BranchAgent{}, At: u.env.Now().UnixMilli()}
 	var snap Snapshot
 	ok := false
@@ -291,10 +316,6 @@ func (u *Upcoming) compute(dir string) UpcomingAnswer {
 		return answer
 	}
 	ticketRes := branchTicketRes(readBranchNaming(dir))
-	var places []AgentPlace
-	if u.env.Agents != nil {
-		places = u.env.Agents(ctx)
-	}
 	answer.Agents = MatchBranchAgents(trees, places)
 	if u.env.Subagents != nil {
 		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, answer.Agents, u.env.Subagents(places))...)
