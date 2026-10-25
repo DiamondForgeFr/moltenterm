@@ -29,7 +29,6 @@ import type { CSSProperties } from "react";
 import { rememberedPanelPx } from "../panel-size/panel-size-model";
 import {
     cachedBlockView,
-    clearFirstColumnFloor,
     currentFirstColumnFloorPx,
     currentPanelSizes,
     rememberPanelWidth,
@@ -66,9 +65,12 @@ import {
 } from "./carpet-model";
 import { countBeside, partPinnedColumns, TabPins, withoutPin, withPin, withPinWidth } from "./pin-model";
 import { PinText } from "./pin-text";
+import { ScreenModel } from "./screen-store";
 import {
     anyColumnTooTight,
     autoWants,
+    carpetSlotWidthsPx,
+    columnFractions,
     columnMinimumsPx,
     columnsParent,
     decideView360,
@@ -77,15 +79,27 @@ import {
     fitsAtReadableMinimums,
     normalColumnPxs,
     normalizeView360Setting,
-    readableMinimumsPx,
+    overThreshold,
+    rememberedFixedPx,
     ResizeSettleMs,
+    restoredColumnSizes,
+    sameFractions,
     sharedColumnSizes,
     topColumns,
     View360Decision,
     View360Exit,
     View360SettingKey,
 } from "./view360-decision";
-import { setTabFixedPx, setTabPins, setTabView360, storedFixedPx, storedPins, tabManualView360 } from "./view360-meta";
+import {
+    setTabFixedPx,
+    setTabFractions,
+    setTabPins,
+    setTabView360,
+    storedFixedPx,
+    storedFractions,
+    storedPins,
+    tabManualView360,
+} from "./view360-meta";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
@@ -129,6 +143,11 @@ export class View360Model {
     settingAtom: Atom<string>;
     manualAtom: Atom<boolean>;
     autoOnAtom: PrimitiveAtom<boolean> = atom(false);
+    // More columns than this screen's threshold, and columns that do not fit even at their readable minimums (#1083).
+    columnsOverAtom: PrimitiveAtom<boolean> = atom(false);
+    cannotFitAtom: PrimitiveAtom<boolean> = atom(false);
+    // "360 view beyond N columns" on the screen the window is on (#1083).
+    thresholdAtom: Atom<number>;
     columnCountAtom: PrimitiveAtom<number> = atom(0);
     // Bumped on each automatic switch, for its short glow.
     signalAtom: PrimitiveAtom<number> = atom(0);
@@ -178,19 +197,36 @@ export class View360Model {
     applySettled = false;
     inLayoutPass = false;
 
+    // The developer's proportions (#1083): the shares of the top-level columns, taken while the tab is drawn in the
+    // normal layout within the threshold, as this window last wrote them (the tab's meta holds them across restarts).
+    savedFractions: number[] = null;
+    // Whether the last layout pass drew the tab in 360 view: leaving it gives the proportions back.
+    drawnActive = false;
+    // Carpet columns dragged during this 360 view, by node id: a drag wins over the remembered proportions.
+    carpetPx: Map<string, number> = new Map();
+    // The fixed zone's width set by the grip during this 360 view, null while it follows the proportions.
+    grippedFixedPx: number = null;
+    // Each carpet column's slot width at the last pass, from the remembered proportions.
+    slotPx: Map<string, number> = new Map();
+
     constructor(layoutModel: LayoutModel, tabAtom: Atom<Tab>) {
         this.layoutModel = layoutModel;
         this.tabAtom = tabAtom;
         this.settingAtom = getSettingsKeyAtom(View360SettingKey as keyof SettingsType) as Atom<string>;
         this.manualAtom = atom((get) => tabManualView360(get(tabAtom)));
+        this.thresholdAtom = ScreenModel.getInstance().thresholdAtom;
         this.decisionAtom = atom((get) =>
             decideView360({
                 setting: normalizeView360Setting(get(this.settingAtom)),
                 manual: get(this.manualAtom),
                 autoOn: get(this.autoOnAtom),
+                columnsOver: get(this.columnsOverAtom),
+                cannotFit: get(this.cannotFitAtom),
                 columnCount: get(this.columnCountAtom),
             })
         );
+        // Another screen, or another threshold chosen for it: the decision is taken again.
+        globalStore.sub(this.thresholdAtom, () => this.layoutModel.updateTree());
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
@@ -253,12 +289,12 @@ export class View360Model {
         this.setActive(!this.active);
     }
 
-    // Turning the view off (#733): left at once when every column fits at the current floors; otherwise the
-    // confirmation (fits once the first column's floor is cleared) or the "close panels first" message, and the view stays.
+    // Turning the view off (#733, #1083): left at once whenever the columns fit at their readable minimums, with the
+    // remembered proportions; otherwise the "close panels first" message, and the view stays.
     requestLeave(): View360Exit {
-        const exit = exitView360(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap);
+        const exit = exitView360(this.lastColumnMins.length, this.lastEvalWidth, this.lastEvalGap);
         if (exit.kind === "leave") {
-            this.leave(this.lastColumnMins, false);
+            this.leave();
         } else {
             globalStore.set(this.exitAskAtom, exit);
         }
@@ -269,44 +305,75 @@ export class View360Model {
         globalStore.set(this.exitAskAtom, null);
     }
 
-    // "Readjust every size": the first column's floor is cleared and the columns share the width at their readable minimums.
-    // A panel opened meanwhile may leave no room even then: the message says so instead.
-    readjustAndLeave(): void {
-        const exit = exitView360(readableMinimumsPx(this.lastColumnMins.length), this.lastEvalWidth, this.lastEvalGap);
-        if (exit.kind === "blocked") {
-            globalStore.set(this.exitAskAtom, exit);
-            return;
-        }
-        globalStore.set(this.exitAskAtom, null);
-        clearFirstColumnFloor();
-        this.leave(readableMinimumsPx(this.lastColumnMins.length), true);
+    // Back to the normal layout; the proportions come back with the next layout pass (restoreProportions). When the
+    // threshold, the first column's floor or the always setting would turn the view straight back on, the tab is
+    // turned off by hand (until its columns drop back to the threshold); otherwise it follows the automatic decision
+    // again, its leaving margin reset.
+    private leave() {
+        const count = this.lastColumnMins.length;
+        const holds =
+            globalStore.get(this.columnsOverAtom) ||
+            normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ||
+            autoWants(false, count, this.lastEvalWidth, this.lastEvalGap, this.lastColumnMins);
+        globalStore.set(this.autoOnAtom, false);
+        this.setManual(holds ? false : null);
+        this.layoutModel.updateTree();
     }
 
-    // Back to the normal layout: the columns share the width again when asked to or when one would be under its
-    // minimum; the automatic decision is reset (its leaving margin would hold the view on), an on-demand choice goes
-    // back to automatic, and under the always setting the tab is turned off by hand.
-    private leave(columnMins: number[], share: boolean) {
-        const parent = columnsParent(this.layoutModel.treeState?.rootNode);
-        if (parent != null && parent.children.length === columnMins.length) {
-            const width = this.lastEvalWidth;
-            const gap = this.lastEvalGap;
-            const normalPxs = normalColumnPxs(
-                parent.children.map((c) => c.size),
-                width,
-                gap
-            );
-            if (share || anyColumnTooTight(normalPxs, columnMins)) {
-                const sizes = sharedColumnSizes(columnMins, width, gap);
-                const resize: LayoutTreeResizeNodeAction = {
-                    type: LayoutTreeActionType.ResizeNode,
-                    resizeOperations: parent.children.map((c, i) => ({ nodeId: c.id, size: sizes[i] })),
-                };
-                this.layoutModel.treeReducer(resize);
-            }
+    // ---- the developer's proportions (#1083) --------------------------------------------------------------------
+
+    rememberedFractions(): number[] {
+        return this.savedFractions ?? storedFractions(globalStore.get(this.tabAtom));
+    }
+
+    // Called on each pass drawn in the normal layout within the threshold: what the developer's splitters say.
+    private rememberFractions(rootNode: LayoutNode) {
+        const columns = topColumns(rootNode);
+        if (columns.length < 2) {
+            return;
         }
-        globalStore.set(this.autoOnAtom, false);
-        this.setManual(normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ? false : null);
-        this.layoutModel.updateTree();
+        const fractions = columnFractions(columns.map((c) => c.size));
+        if (!fractions.length || sameFractions(fractions, this.rememberedFractions())) {
+            return;
+        }
+        this.savedFractions = fractions;
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => setTabFractions(tabId, fractions));
+        }
+    }
+
+    // Leaving 360 view: the columns take back the proportions the developer set, never a readjusted share. Without
+    // remembered proportions, only a column that would fall under its minimum makes the columns share the width.
+    private restoreProportions(rootNode: LayoutNode) {
+        const parent = columnsParent(rootNode);
+        if (parent == null) {
+            return;
+        }
+        const children = parent.children;
+        let sizes = restoredColumnSizes(this.rememberedFractions(), children.length);
+        if (sizes == null) {
+            const mins = this.lastColumnMins;
+            const normalPxs = normalColumnPxs(
+                children.map((c) => c.size),
+                this.lastEvalWidth,
+                this.lastEvalGap
+            );
+            if (mins.length !== children.length || !anyColumnTooTight(normalPxs, mins)) {
+                return;
+            }
+            sizes = sharedColumnSizes(mins, this.lastEvalWidth, this.lastEvalGap);
+        }
+        if (sameFractions(columnFractions(children.map((c) => c.size)), columnFractions(sizes))) {
+            return;
+        }
+        // Set on the tree for the pass being drawn, then through the reducer so the layout keeps it.
+        children.forEach((c, i) => (c.size = sizes[i]));
+        const resize: LayoutTreeResizeNodeAction = {
+            type: LayoutTreeActionType.ResizeNode,
+            resizeOperations: children.map((c, i) => ({ nodeId: c.id, size: sizes[i] })),
+        };
+        setTimeout(() => this.layoutModel.treeReducer(resize), 0);
     }
 
     // ---- the automatic decision ------------------------------------------------------------------------------------
@@ -340,11 +407,33 @@ export class View360Model {
         this.lastEvalWidth = width;
         this.lastEvalGap = gap;
 
+        // The screen's column threshold (#1083) switches at once: a column opened or closed, another screen.
+        const threshold = globalStore.get(this.thresholdAtom);
+        const before = this.active;
+        const prevCount = this.lastColumnCount;
+        globalStore.set(this.columnsOverAtom, overThreshold(count, threshold));
+        globalStore.set(this.cannotFitAtom, !fitsAtReadableMinimums(count, width, gap));
+        // Turned off by hand beyond the threshold, the tab follows the automatic decision again once its columns drop
+        // back to the threshold, unless the readable minimums would turn the view straight back on.
+        if (
+            prevCount != null &&
+            overThreshold(prevCount, threshold) &&
+            !overThreshold(count, threshold) &&
+            globalStore.get(this.manualAtom) === false &&
+            normalizeView360Setting(globalStore.get(this.settingAtom)) === "auto" &&
+            !autoWants(false, count, width, gap, columnMins)
+        ) {
+            this.setManual(null);
+        }
+
         const prevOn = globalStore.get(this.autoOnAtom);
         const want = autoWants(prevOn, count, width, gap, columnMins);
         const first = this.lastColumnCount == null;
         const countChanged = !first && count !== this.lastColumnCount;
         this.lastColumnCount = count;
+        if (!first && this.active !== before && globalStore.get(this.decisionAtom).source === "auto") {
+            globalStore.set(this.signalAtom, globalStore.get(this.signalAtom) + 1);
+        }
         if (want === prevOn) {
             this.cancelSettle();
             this.applySettled = false;
@@ -410,6 +499,10 @@ export class View360Model {
         if (this.dragColumn?.nodeId === column.id) {
             return this.dragColumn.px;
         }
+        const px = this.carpetPx.get(column.id) ?? this.slotPx.get(column.id);
+        if (px != null) {
+            return px;
+        }
         const kind = carpetColumnKind(cachedBlockView(columnLeadLeaf(column)?.data?.blockId));
         return rememberedPanelPx(currentPanelSizes(), kind, "width") ?? defaultCarpetWidthPx(kind);
     }
@@ -422,16 +515,34 @@ export class View360Model {
         if (split == null || !(bounds?.width > 0)) {
             if (!this.active) {
                 this.savedFixedPx = null;
+                this.grippedFixedPx = null;
+                this.carpetPx.clear();
+                if (bounds?.width > 0) {
+                    if (this.drawnActive) {
+                        this.restoreProportions(rootNode);
+                    } else if (!globalStore.get(this.columnsOverAtom)) {
+                        this.rememberFractions(rootNode);
+                    }
+                    this.drawnActive = false;
+                }
             }
             this.setLayout(null);
             this.setPlacements({});
             return null;
         }
+        this.drawnActive = true;
         const floorPx = currentFirstColumnFloorPx() ?? 0;
         this.fixedNeedPx = floorPx;
         // The grip being dragged sets the floor (#848): below the current one, the drag wins until it ends.
         const fixedNeedPx = this.dragFixedPx != null ? Math.min(floorPx, this.dragFixedPx) : floorPx;
-        let fixedPx = this.storedFixedPx();
+        const fractions = this.rememberedFractions();
+        // The developer's proportions (#1083): the fixed zone keeps the first column's share of the width, unless the
+        // grip moved it during this view.
+        let fixedPx =
+            this.dragFixedPx ??
+            this.grippedFixedPx ??
+            rememberedFixedPx(fractions, bounds.width, this.gapPx()) ??
+            this.storedFixedPx();
         if (fixedPx == null) {
             // Entering the view, the fixed zone keeps the first column's normal width, then holds it while panels
             // are laid on the carpet.
@@ -446,7 +557,7 @@ export class View360Model {
             }
         }
         const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
-        const layout = computeCarpetLayout({
+        const carpetInput = () => ({
             width: bounds.width,
             height: bounds.height,
             fixedNodeId: split.fixed.id,
@@ -460,6 +571,15 @@ export class View360Model {
                     this.dragPin?.nodeId === p.node.id ? this.dragPin.px : (p.pin.px ?? this.columnWidthPx(p.node)),
             })),
         });
+        this.slotPx = new Map();
+        let layout = computeCarpetLayout(carpetInput());
+        // The carpet slots keep the developer's proportions (#1083), sized once the carpet's own width is known.
+        const indexes = carpet.map((c) => split.carpet.indexOf(c) + 1);
+        const slots = carpetSlotWidthsPx(fractions, indexes, layout.viewport.width, CarpetColumnGapPx);
+        if (slots != null) {
+            carpet.forEach((c, i) => this.slotPx.set(c.id, slots[i]));
+            layout = computeCarpetLayout(carpetInput());
+        }
         if (split.fixed !== rootNode) {
             for (const column of layout.fixedColumns) {
                 this.rootChildren.set(column.nodeId, {
@@ -930,6 +1050,7 @@ export class View360Model {
         if (this.dragFixedPx != null) {
             const px = this.dragFixedPx;
             this.savedFixedPx = px;
+            this.grippedFixedPx = px;
             const tabId = this.tabId;
             if (tabId != null) {
                 fireAndForget(() => setTabFixedPx(tabId, px));
@@ -937,6 +1058,7 @@ export class View360Model {
             setFirstColumnFloor(px);
         }
         if (this.dragColumn != null) {
+            this.carpetPx.set(this.dragColumn.nodeId, this.dragColumn.px);
             rememberPanelWidth(this.dragColumn.kind, this.dragColumn.px);
         }
         this.dragFixedPx = null;

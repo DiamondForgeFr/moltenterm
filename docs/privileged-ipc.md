@@ -54,6 +54,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-i18n.ts` | `moltenterm-system-languages`, `moltenterm-set-language-packs`, `moltenterm-set-locale` |
 | `moltenterm-system-notify.ts` | `moltenterm-system-notify`, `moltenterm-system-notify-close` |
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
+| `moltenterm-screen.ts` | `moltenterm-screen-get` |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |

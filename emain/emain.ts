@@ -65,6 +65,7 @@ import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, m
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
+import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH (#1083)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
@@ -426,6 +427,7 @@ async function appMain() {
     initIpcHandlers();
     initBusyCloseReplies(); // MOLTENTERM-PATCH (#490, #806): registered application replies to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
+    initMoltentermScreen(); // MOLTENTERM-PATCH (#1083): the screen each window is on, for the 360 view threshold
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads

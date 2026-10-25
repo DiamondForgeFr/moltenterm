@@ -159,6 +159,9 @@ contextBridge.exposeInMainWorld("api", {
     moltentermGetWindowActivity: () => sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
+    // MOLTENTERM-PATCH (#1083): the screen the window is on, for the 360 view's threshold (emain/moltenterm-screen.ts)
+    moltentermGetScreen: () => sendSync("moltenterm-screen-get"),
+    onMoltentermScreen: (callback) => ipcRenderer.on("moltenterm-screen", (_event, info) => callback(info)),
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
     moltentermWebviewShown: (
         blockId: string,
