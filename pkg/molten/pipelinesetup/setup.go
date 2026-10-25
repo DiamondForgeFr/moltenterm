@@ -146,6 +146,8 @@ type Setup struct {
 	AnswersDir string
 	// The folders of the projects linked to a workspace, for "another project as a model" (FR-MC-041); nil lists none.
 	ProjectDirs func(ctx context.Context) ([]string, error)
+	// Where the technical documentation goes (FR-MC-043); nil: SaaSFoundryAI's backend, else the repository file.
+	DocBackends []TechDocBackend
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob
@@ -374,7 +376,8 @@ func (s *Setup) Write(req WriteRequest) (PrJob, error) {
 	}
 	trunk := molten.ResolvedBranches(dir).Trunk
 	job := &PrJob{Dir: dir, Kind: PrKindWrite, Mode: req.Mode, Target: prTarget(dir, trunk), OnGithub: onGithub(dir), Ref: "origin/" + trunk}
-	return s.startJob(job, jobSteps(dir, req.PrRequest), func(ctx context.Context, job *PrJob) error {
+	backend := s.docBackend(context.Background(), dir, req.Mode)
+	return s.startJob(job, techDocSteps(jobSteps(dir, req.PrRequest), backend), func(ctx context.Context, job *PrJob) error {
 		b, err := s.prepareBase(ctx, dir, req.Base, req.PrRequest, job)
 		if err != nil {
 			return err
@@ -387,6 +390,7 @@ func (s *Setup) Write(req WriteRequest) (PrJob, error) {
 		if err := s.checkNewFiles(ctx, dir, b.Commit, req.Files); err != nil {
 			return err
 		}
+		s.withTechDoc(dir, b, current, &files, PrKindWrite, req.Mode, backend)
 		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
 		return s.runPr(ctx, dir, b, files, req.PrRequest, job)
 	})

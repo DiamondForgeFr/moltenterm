@@ -145,6 +145,8 @@ type PrJob struct {
 	PrNumber int        `json:"prnumber,omitempty"`
 	Patch    string     `json:"patch,omitempty"`
 	Files    []string   `json:"files"`
+	// The technical documentation's backend page, once written (FR-MC-043).
+	DocUrl string `json:"docurl,omitempty"`
 
 	finishedAt time.Time
 }
@@ -169,6 +171,10 @@ type TicketsAnswer struct {
 type prFiles struct {
 	files map[string][]byte
 	order []string
+	// The technical documentation (FR-MC-043): built once the branch is known, and written to a backend once the pull
+	// request is open (the page's address back).
+	techDoc func(ctx context.Context, branch string, files *prFiles) error
+	afterPr func(ctx context.Context, prUrl string) (string, error)
 }
 
 func (p *prFiles) add(rel string, data []byte) {
@@ -546,6 +552,12 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	s.update(job, func(j *PrJob) {
 		j.Branch, j.Subject, j.Ticket = branch, subject, ticket
 	})
+	if files.techDoc != nil {
+		if err := files.techDoc(ctx, branch, &files); err != nil {
+			return fail(PrFailureInvalid, err.Error())
+		}
+		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
+	}
 	s.stepState(job, PrStepWorktree, PrStateRunning, "")
 	if req.Mode == PrModePr && s.hasOrigin(ctx, dir) {
 		out, err := s.git(ctx, dir, "ls-remote", "--heads", "origin", "refs/heads/"+branch)
@@ -633,6 +645,7 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	s.stepState(job, PrStepPush, PrStateDone, branch)
 	if !job.OnGithub {
 		s.stepState(job, PrStepPr, PrStateSkipped, "")
+		s.writeTechDoc(ctx, job, files, "")
 		return nil
 	}
 	s.stepState(job, PrStepPr, PrStateRunning, "")
@@ -648,7 +661,25 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	n := numberOfUrl(url)
 	s.update(job, func(j *PrJob) { j.PrUrl, j.PrNumber = url, n })
 	s.stepState(job, PrStepPr, PrStateDone, "#"+strconv.Itoa(n))
+	s.writeTechDoc(ctx, job, files, url)
 	return nil
+}
+
+// writeTechDoc writes the document to its backend once the pull request is open; a failure is the step's, the pull
+// request stays open.
+func (s *Setup) writeTechDoc(ctx context.Context, job *PrJob, files prFiles, prUrl string) {
+	if files.afterPr == nil {
+		s.stepState(job, PrStepDoc, PrStateSkipped, "")
+		return
+	}
+	s.stepState(job, PrStepDoc, PrStateRunning, "")
+	page, err := files.afterPr(ctx, prUrl)
+	if err != nil {
+		s.stepState(job, PrStepDoc, PrStateFailed, trimOutput(err.Error()))
+		return
+	}
+	s.update(job, func(j *PrJob) { j.DocUrl = page })
+	s.stepState(job, PrStepDoc, PrStateDone, "")
 }
 
 func prBody(job *PrJob, b *baseFiles, files prFiles, ticket int, required bool) string {

@@ -113,6 +113,8 @@ const (
 
 	// Step 2b's "another project as a model" (FR-MC-041): the linked projects' committed pipelines, only read.
 	SetupModelsCommand = "moltenmissionsetupmodels"
+	// The pipeline's technical documentation as the pull request would leave it (FR-MC-043), only read.
+	SetupTechDocCommand = "moltenmissionsetuptechdoc"
 	// The rail's Reviews counts (#688): a passive ask that reads GitHub this often, so a merge or a new PR shows
 	// without opening the view.
 	railGithubInterval = 2 * time.Minute
