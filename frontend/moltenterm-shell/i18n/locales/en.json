@@ -5535,6 +5535,7 @@
                 "othersGreen": "{count} other checks green",
                 "ciRunning": "CI {success}/{total}, {pending} running",
                 "ciGreen": "CI {success}/{total}",
+                "ciSkipped": "CI {success}/{total}, {skipped} skipped",
                 "report": "report",
                 "noReport": "no test report",
                 "conflicts": "conflicts with {base}",
@@ -5562,7 +5563,8 @@
             "blocked": "Blocked, nobody on it",
             "waiting": "Waiting",
             "waitingHint": "CI or a reviewer",
-            "none": "No pull request open into"
+            "none": "No pull request open into",
+            "working": "Work in progress in this section"
         }
     },
     "sessions": {

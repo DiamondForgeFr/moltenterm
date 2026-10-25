@@ -5535,6 +5535,7 @@
                 "othersGreen": "{count} autres vérifications vertes",
                 "ciRunning": "CI {success}/{total}, {pending} en cours",
                 "ciGreen": "CI {success}/{total}",
+                "ciSkipped": "CI {success}/{total}, ignorées : {skipped}",
                 "report": "rapport",
                 "noReport": "pas de rapport de test",
                 "conflicts": "conflits avec {base}",
@@ -5562,7 +5563,8 @@
             "blocked": "Bloquées, personne dessus",
             "waiting": "En attente",
             "waitingHint": "CI ou relecteur",
-            "none": "Aucune pull request ouverte vers"
+            "none": "Aucune pull request ouverte vers",
+            "working": "Du travail est en cours dans cette section"
         }
     },
     "sessions": {

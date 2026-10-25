@@ -545,6 +545,11 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                 open={isOpen}
                                 onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
                                 testId={`reviews-section-${section.turn}-toggle`}
+                                working={
+                                    section.prs.some((pr) => cards[pr.number]?.works)
+                                        ? t("reviews.sections.working")
+                                        : undefined
+                                }
                             >
                                 {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
                             </SectionHeading>

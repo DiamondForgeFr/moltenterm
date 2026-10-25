@@ -6,6 +6,7 @@
 // list of blocks.
 
 import { cn } from "@/util/util";
+import { DominoLoader } from "../suite/suite";
 
 export function SectionHeading({
     title,
@@ -14,11 +15,15 @@ export function SectionHeading({
     open,
     onToggle,
     testId,
+    working,
     children,
 }: {
     title: string;
     count?: number | string;
     hint?: React.ReactNode;
+    // A folded section whose cards work shows the dominoes by its count (#1085, FR-REV-022 AC13): its label names
+    // them. An open section leaves it to its cards, so the heading never adds an animation to theirs.
+    working?: string;
     open: boolean;
     onToggle: () => void;
     testId?: string;
@@ -45,6 +50,15 @@ export function SectionHeading({
                 <span className="min-w-0 truncate">{title}</span>
                 {count != null && count !== "" ? (
                     <span className="shrink-0 text-12 font-normal text-muted tabular-nums">{count}</span>
+                ) : null}
+                {working && !open ? (
+                    <span
+                        className="inline-flex shrink-0 self-center text-accent"
+                        title={working}
+                        data-testid={testId ? `${testId}-working` : undefined}
+                    >
+                        <DominoLoader label={working} />
+                    </span>
                 ) : null}
                 {hint ? <span className="min-w-0 truncate text-11 font-normal text-muted">{hint}</span> : null}
             </button>

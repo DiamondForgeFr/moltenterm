@@ -59,7 +59,8 @@ export type CardAction = {
     blockId?: string;
 };
 
-export type CardFactTone = "ok" | "soft" | "bad" | "muted";
+// running: checks still run, with a still mark (the card's one animation is its state line or its agent line, #1085).
+export type CardFactTone = "ok" | "soft" | "bad" | "muted" | "running";
 
 export type CardFact = { id: string; text: Phrase; tone: CardFactTone };
 
@@ -78,6 +79,11 @@ export type CardState = {
     facts: CardFact[];
     // What a stopped task left, one muted line ("Salomé stopped without fixing Backend").
     history?: Phrase;
+    // Something works and nothing is the developer's to do for now (#1085, FR-REV-022 AC13): the dominoes' meaning.
+    works: boolean;
+    // Where the card's one domino animation is: "state" in place of the state dot; "agent" when an agent line of the
+    // card already shows it (the state line keeps its dot); null when nothing works.
+    motion: "state" | "agent" | null;
 };
 
 export type CardInput = {
@@ -125,8 +131,27 @@ const Turns: Record<CardStateKind, CardTurn> = {
     ready: "yours",
 };
 
-// Calm primaries: nothing is the developer's to do right now.
+// Calm primaries: nothing is the developer's to do right now. The same states are the ones where something works
+// (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
+
+// agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
+// background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
+export function agentLineMoves(agent: AgentBarFacts, stoppedTask: boolean): boolean {
+    if (agent == null || stoppedTask) {
+        return false;
+    }
+    return agent.state === "working" || agent.state === "background";
+}
+
+function cardMotion(input: CardInput, works: boolean): "state" | "agent" | null {
+    if (!works) {
+        return null;
+    }
+    const stopped = input.taskState === "stuck";
+    const moves = (input.agents ?? []).some((a) => agentLineMoves(a, stopped && a === input.taskOwner));
+    return moves ? "agent" : "state";
+}
 
 // agentName: how the card names an agent: its first name, a sub-agent by its parent, a background agent by its
 // parent session when known.
@@ -240,13 +265,24 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
         facts.push({
             id: "ci",
             text: phrase("reviews.card.fact.ciRunning", { success, total: checks.length, pending }),
-            tone: "muted",
+            tone: "running",
         });
-    } else if (checks.length > 0 && failed.length === 0 && pending === 0) {
+    } else if (checks.length > 0 && failed.length === 0 && pending === 0 && success === checks.length) {
         facts.push({
             id: "ci",
             text: phrase("reviews.card.fact.ciGreen", { success, total: checks.length }),
             tone: "ok",
+        });
+    } else if (checks.length > 0 && failed.length === 0 && pending === 0) {
+        // Skipped or neutral checks are done but not green (#1085): no check mark, and they are named.
+        facts.push({
+            id: "ci",
+            text: phrase("reviews.card.fact.ciSkipped", {
+                success,
+                total: checks.length,
+                skipped: checks.length - success,
+            }),
+            tone: "muted",
         });
     }
     if (pr.report?.state === "present") {
@@ -501,7 +537,10 @@ export function cardState(input: CardInput): CardState {
             menu = [AssistedReview(), Launch(), Github()];
             break;
     }
+    const works = CalmKinds.has(kind);
     return {
+        works,
+        motion: cardMotion(input, works),
         kind,
         tone: Tones[kind],
         turn: Turns[kind],

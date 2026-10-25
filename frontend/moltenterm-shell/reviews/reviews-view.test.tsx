@@ -139,6 +139,27 @@ describe("Reviews card (#1060)", () => {
         expect(primary(html)).toContain("Assisted review");
     });
 
+    it("something works: the dominoes replace the state dot (#1085)", () => {
+        const running = rowHtml(
+            pr(8, {
+                ci: {
+                    state: "pending",
+                    success: 1,
+                    failure: 0,
+                    pending: 1,
+                    checks: [{ name: "Backend", state: "pending" }, Green[1]],
+                },
+            })
+        );
+        expect(running).toContain('data-motion="state"');
+        expect(running).toContain('data-testid="reviews-card-working"');
+        expect(running).toContain("df-domino-loader");
+        expect(running).not.toContain('data-testid="reviews-card-dot"');
+        const ready = rowHtml(pr(9));
+        expect(ready).not.toContain("df-domino-loader");
+        expect(ready).toContain('data-testid="reviews-card-dot"');
+    });
+
     it("conflicts: one action, Hand the rebase over", () => {
         const html = rowHtml(pr(9, { merge: "conflicts" }));
         expect(primary(html)).toContain("Hand the rebase over");
