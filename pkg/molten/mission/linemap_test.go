@@ -5,7 +5,9 @@ package mission
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -132,5 +134,73 @@ func TestCollectGitLeavesOutEmptyAgentBranches(t *testing.T) {
 	}
 	if _, ok := names["main"]; !ok {
 		t.Errorf("main is missing: %v", names)
+	}
+}
+
+// The agent tool's isolation (#1133): worktree-agent-x starts on main's release commit, which develop lacks, then its
+// worktree checks out feature/9-x from develop. The row is feature/9-x, once it has a commit, and it names its
+// worktree; worktree-agent-x and a branch holding only an rc branch's commits are not drawn, while a branch with
+// commits on neither long-lived branch still is.
+func TestCollectGitNamesTheWorktreeBranchNotTheAgentBranch(t *testing.T) {
+	dir := makeMergeRepo(t)
+	manifest := `{"mainBranch":"main","workflow":{"workingBranch":"develop","branchNaming":{"release":"rc-{version}"}}}`
+	if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "checkout", "-q", "-b", "main")
+	commit(t, dir, "r.txt", "chore(release): v1.0.0-6 (rc)")
+	gitRun(t, dir, "branch", "worktree-agent-x")
+	gitRun(t, dir, "checkout", "-q", "-b", "rc-1.0.0", "develop")
+	commit(t, dir, "v.txt", "chore(release): bump to 1.0.0")
+	gitRun(t, dir, "branch", "fix/11-from-rc")
+	gitRun(t, dir, "checkout", "-q", "-b", "feature/10-own", "develop")
+	commit(t, dir, "o.txt", "feat(#10): work of its own")
+	gitRun(t, dir, "checkout", "-q", "develop")
+	tree := filepath.Join(t.TempDir(), "agent-x")
+	gitRun(t, dir, "worktree", "add", "-q", tree, "worktree-agent-x")
+	gitRun(t, tree, "checkout", "-q", "-b", "feature/9-x", "develop")
+
+	read := func() map[string]Branch {
+		snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := map[string]Branch{}
+		for _, b := range snap.Branches {
+			names[b.Name] = b
+		}
+		return names
+	}
+	names := read()
+	if b, ok := names["worktree-agent-x"]; ok {
+		t.Errorf("the agent branch on main's release commit is listed: %+v", b)
+	}
+	if b := names["feature/9-x"]; len(b.Commits) != 0 {
+		t.Errorf("feature/9-x before its first commit: %+v", b)
+	}
+	if b := names["fix/11-from-rc"]; len(b.Commits) != 0 {
+		t.Errorf("a branch holding only the rc branch's commits: %+v", b)
+	}
+	if b := names["feature/10-own"]; len(b.Commits) != 1 || b.Worktree != "" {
+		t.Errorf("a branch with its own commit, in no worktree: %+v", b)
+	}
+	if b := names["rc-1.0.0"]; len(b.Commits) != 1 {
+		t.Errorf("the rc branch keeps its own commit: %+v", b)
+	}
+
+	commit(t, tree, "n.txt", "feat(#9): the agent's work")
+	names = read()
+	b, ok := names["feature/9-x"]
+	if !ok || len(b.Commits) != 1 || b.AgentTree {
+		t.Fatalf("feature/9-x with a commit: %+v (listed %v)", b, ok)
+	}
+	if filepath.Base(b.Worktree) != "agent-x" {
+		t.Errorf("feature/9-x's worktree: %q", b.Worktree)
+	}
+	if _, ok := names["worktree-agent-x"]; ok {
+		t.Errorf("the agent branch is listed once its worktree moved on")
+	}
+	if d := names["develop"]; d.Worktree != "" {
+		t.Errorf("the main checkout is named: %+v", d.Worktree)
 	}
 }

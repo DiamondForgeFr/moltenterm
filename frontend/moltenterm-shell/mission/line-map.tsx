@@ -12,9 +12,12 @@
 // its rules stop matching, a glint or a dash must not jump.
 
 import { atoms } from "@/app/store/global";
+import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { atom, useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { agentCallName } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
@@ -34,6 +37,7 @@ import {
     LineMapModel,
     LineMapStation,
     prsFingerprint,
+    worktreeHover,
 } from "./line-map-model";
 import {
     delayStyle,
@@ -420,6 +424,29 @@ function StationDetail({ s }: { s: LineMapStation }) {
     );
 }
 
+// The agents' panes and the folder each works in, for a branch's hover (#1133).
+const AgentPanesAtom = atom((get) =>
+    Object.values(get(AgentStates.getInstance().dataAtom).states ?? {})
+        .filter((s) => s != null)
+        .map((s) => ({
+            name: agentCallName(s),
+            cwd: get(getWaveObjectAtom<Block>(makeORef("block", s.blockid)))?.meta?.["cmd:cwd"] ?? "",
+        }))
+);
+
+function WorktreeLine({ worktree }: { worktree: string }) {
+    const t = useT();
+    const panes = useAtomValue(AgentPanesAtom);
+    const hover = worktreeHover(worktree, panes);
+    return (
+        <div className="break-all text-muted" title={worktree} data-testid="line-map-worktree">
+            {hover.agent
+                ? t("mc.lineMap.worktreeAgent", { folder: hover.folder, name: hover.agent })
+                : t("mc.lineMap.worktree", { folder: hover.folder })}
+        </div>
+    );
+}
+
 function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
     const t = useT();
     const verdict = ciVerdictView(b.ci);
@@ -445,6 +472,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
                     ? t("mc.lineMap.leftDevelop", { when: formatWhen(new Date(b.fork).toISOString()) })
                     : t("mc.lineMap.forkUnknown")}
             </div>
+            {b.worktree ? <WorktreeLine worktree={b.worktree} /> : null}
             {b.pr ? (
                 <div className="text-secondary">
                     PR #{b.pr.number}
