@@ -142,7 +142,8 @@ func (s *Setup) buildTechDoc(ctx context.Context, dir string, b *baseFiles, text
 	if kind == PrKindUpdate {
 		change.Kind = TechDocChangeUpdate
 	}
-	build.input = TechDocInput{Pipeline: report.Pipeline, Facts: f, Change: change, Previous: build.plan.Current, Repo: s.githubRepo(ctx, dir)}
+	build.input = TechDocInput{Pipeline: report.Pipeline, Facts: f, Change: change, Previous: build.plan.Current, Repo: s.githubRepo(ctx, dir),
+		Lang: molten.DocLanguage(dir)}
 	build.plan.Proposed = BuildTechDoc(build.input)
 	if len(build.plan.Proposed) > maxTechDocBytes {
 		return nil, errors.New("the technical documentation is too large")

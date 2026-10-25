@@ -349,3 +349,74 @@ func TestTechDocGoesToTheBackendAfterThePullRequest(t *testing.T) {
 		t.Fatalf("fallback: %+v", fallback)
 	}
 }
+
+// The document follows the project's documentation language (#1106): French when language.srs says so, English
+// otherwise; identifiers stay, and an update carries the earlier rows whatever language they were written in.
+func TestTechDocFollowsTheDocLanguage(t *testing.T) {
+	in := saasFoundryDocInput(t)
+	english := BuildTechDoc(in)
+	in.Lang = "fr"
+	french := BuildTechDoc(in)
+	for _, want := range []string{
+		"# Pipeline de release: SaaSFoundryAI",
+		"ne le modifiez pas à la main",
+		"## Vue d’ensemble",
+		"## Branches et protection",
+		"## Flux de release publique",
+		"subgraph public[\"Release publique\"]",
+		"(à la main)\"/]",
+		"-. le tag lance .->",
+		"## Historique des changements",
+		"| Date | Changement | Par | Pull request | Modèle MoltenTerm |",
+		"| 2026-10-25 | Pipeline mis en place | Setup test |",
+		"`publish-stable.yml`",
+	} {
+		if !strings.Contains(french, want) {
+			t.Fatalf("the French document lacks %q:\n%s", want, french)
+		}
+	}
+	for _, english := range []string{"## Overview", "Pipeline set up", "(by hand)", "do not edit it by hand"} {
+		if strings.Contains(french, english) {
+			t.Fatalf("the French document still says %q", english)
+		}
+	}
+	in.Lang = "de"
+	if BuildTechDoc(in) != english {
+		t.Fatal("an unknown language does not fall back to English")
+	}
+	in.Lang = "fr-FR"
+	if BuildTechDoc(in) != french {
+		t.Fatal("fr-FR is not French")
+	}
+	in.Lang = "fr"
+	in.Previous = english
+	in.Change = TechDocChange{Date: "2026-11-02", Kind: TechDocChangeUpdate, Author: "Other dev", Template: 3}
+	update := BuildTechDoc(in)
+	if !strings.Contains(update, "| 2026-11-02 | Pipeline mis à jour | Other dev |") || !strings.Contains(update, "| 2026-10-25 | Pipeline set up | Setup test |") || strings.Count(update, "| Date |") != 1 {
+		t.Fatalf("history across languages:\n%s", update[strings.Index(update, techDocHistoryStart):])
+	}
+}
+
+// Every language words every sentence English has, with the same placeholders.
+func TestTechDocWordsAreComplete(t *testing.T) {
+	en := techDocTexts[TechDocLangEn]
+	if en["hist.head"] != techDocHistoryHead {
+		t.Fatal("the English history heading moved")
+	}
+	for lang, texts := range techDocTexts {
+		for key, text := range en {
+			other, ok := texts[key]
+			if !ok {
+				t.Fatalf("%s lacks %s", lang, key)
+			}
+			if strings.Count(other, "%s") != strings.Count(text, "%s") || strings.Count(other, "%d") != strings.Count(text, "%d") {
+				t.Fatalf("%s.%s: placeholders differ from English", lang, key)
+			}
+		}
+		for key := range texts {
+			if _, ok := en[key]; !ok {
+				t.Fatalf("%s has %s, which English lacks", lang, key)
+			}
+		}
+	}
+}

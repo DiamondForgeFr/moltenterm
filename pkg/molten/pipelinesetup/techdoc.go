@@ -57,6 +57,8 @@ type TechDocInput struct {
 	Previous string
 	// The GitHub repository (owner/name or host/owner/name), for the links; "" writes none.
 	Repo string
+	// The project's documentation language (.saasfoundry.json language.srs); "" or an unknown one writes English.
+	Lang string
 }
 
 func mdCell(text string) string {
@@ -115,24 +117,36 @@ func diagramId(parts ...string) string {
 	return b.String()
 }
 
+// Product names stay as they are; the others are worded (target.<id>).
 var targetNames = map[string]string{
-	"npm": "npm", "githubrelease": "GitHub Release", "pages": "GitHub Pages", "container": "Container image",
-	"msi": "MSI installer", "nsis": "NSIS installer", "dmg": "DMG image", "appx": "AppX package", "linux": "Linux packages",
-	"appimage": "AppImage", "deb": "Debian package", "rpm": "RPM package", "snap": "Snap", "pacman": "Pacman package",
+	"npm": "npm", "githubrelease": "GitHub Release", "pages": "GitHub Pages", "appimage": "AppImage", "snap": "Snap",
 }
 
-func targetName(id string) string {
-	if name, ok := targetNames[strings.ToLower(id)]; ok {
+var wordedTargets = map[string]bool{
+	"container": true, "msi": true, "nsis": true, "dmg": true, "appx": true, "linux": true, "deb": true, "rpm": true, "pacman": true,
+}
+
+func (w docWords) targetName(id string) string {
+	key := strings.ToLower(id)
+	if name, ok := targetNames[key]; ok {
 		return name
+	}
+	if wordedTargets[key] {
+		return w.s("target." + key)
 	}
 	return id
 }
 
-func channelTitle(channel string) string {
+// channelKey: the words' suffix of a channel ("rc", "pub").
+func channelKey(channel string) string {
 	if channel == ChannelRc {
-		return "Release candidate"
+		return "rc"
 	}
-	return "Public release"
+	return "pub"
+}
+
+func (w docWords) channelTitle(channel string) string {
+	return w.s("channel." + channelKey(channel))
 }
 
 func releaseBranches(in TechDocInput) (string, string) {
@@ -196,28 +210,28 @@ func tagStarts(f Facts, channel string, prefix string) []Workflow {
 	return rtn
 }
 
-func stepWho(s molten.PipelineStep) string {
+func (w docWords) stepWho(s molten.PipelineStep) string {
 	if s.Manual != "" {
-		return "By hand"
+		return w.s("who.hand")
 	}
 	return "MoltenTerm"
 }
 
-func stepWhat(s molten.PipelineStep) string {
+func (w docWords) stepWhat(s molten.PipelineStep) string {
 	if s.Manual != "" {
 		return mdCell(s.Manual)
 	}
 	text := mdCode(s.Run)
 	if s.Notes {
-		text += " (writes the release notes)"
+		text += w.s("what.notes")
 	}
 	if s.Check != nil {
-		text += "<br>Checked: " + mdCode(s.Check.Path) + " contains " + mdCode(s.Check.Contains)
+		text += w.f("what.checked", mdCode(s.Check.Path), mdCode(s.Check.Contains))
 	}
 	return text
 }
 
-func writeDiagram(out *strings.Builder, in TechDocInput, channels []string) {
+func writeDiagram(out *strings.Builder, in TechDocInput, w docWords, channels []string) {
 	trunk, _ := releaseBranches(in)
 	prefix := tagPrefixOf(in)
 	out.WriteString("```mermaid\nflowchart LR\n")
@@ -226,7 +240,7 @@ func writeDiagram(out *strings.Builder, in TechDocInput, channels []string) {
 		if len(steps) == 0 {
 			continue
 		}
-		fmt.Fprintf(out, "  subgraph %s[\"%s\"]\n    direction LR\n", diagramId(channel), diagramLabel(channelTitle(channel)))
+		fmt.Fprintf(out, "  subgraph %s[\"%s\"]\n    direction LR\n", diagramId(channel), diagramLabel(w.channelTitle(channel)))
 		start := diagramId(channel, "trunk")
 		fmt.Fprintf(out, "    %s([\"%s\"])\n", start, diagramLabel(trunk))
 		prev := start
@@ -239,7 +253,7 @@ func writeDiagram(out *strings.Builder, in TechDocInput, channels []string) {
 			}
 			switch {
 			case s.Manual != "":
-				fmt.Fprintf(out, "    %s[/\"%s (by hand)\"/]\n", id, label)
+				fmt.Fprintf(out, "    %s[/\"%s\"/]\n", id, w.f("diagram.hand", label))
 			case s.Id == "tag":
 				fmt.Fprintf(out, "    %s{{\"%s\"}}\n", id, label)
 				tagNode = id
@@ -257,73 +271,77 @@ func writeDiagram(out *strings.Builder, in TechDocInput, channels []string) {
 			id := diagramId(channel, "wf", wf.File)
 			label := wf.File
 			if len(wf.Environments) > 0 {
-				label += " · approval: " + strings.Join(wf.Environments, ", ")
+				label += w.s("diagram.approval") + strings.Join(wf.Environments, ", ")
 			}
-			fmt.Fprintf(out, "  %s[\"%s\"]\n  %s -. tag starts .-> %s\n", id, diagramLabel(label), tagNode, id)
+			fmt.Fprintf(out, "  %s[\"%s\"]\n  %s -. %s .-> %s\n", id, diagramLabel(label), tagNode, w.s("diagram.starts"), id)
 			for _, ship := range wf.Ships {
 				target := diagramId(channel, "to", ship)
-				fmt.Fprintf(out, "  %s[(\"%s\")]\n  %s --> %s\n", target, diagramLabel(targetName(ship)), id, target)
+				fmt.Fprintf(out, "  %s[(\"%s\")]\n  %s --> %s\n", target, diagramLabel(w.targetName(ship)), id, target)
 			}
 		}
 	}
 	out.WriteString("```\n")
 }
 
-func writeOverview(out *strings.Builder, in TechDocInput, o Options) {
+func writeOverview(out *strings.Builder, in TechDocInput, w docWords, o Options) {
 	trunk, release := releaseBranches(in)
 	prefix := tagPrefixOf(in)
-	kind := "distributed (versions are published)"
+	kind := w.s("kind.dist")
 	if in.Facts.Kind == KindSaas {
-		kind = "SaaS (deployed to environments)"
+		kind = w.s("kind.saas")
 	}
-	model := "the trunk is promoted onto the published branch, and the tag is made there"
+	model := w.s("model.promote")
 	switch {
 	case trunk == release || o.BranchModel == BranchModelSingle:
-		model = "versions are tagged on the trunk itself"
+		model = w.s("model.single")
 	case o.BranchModel == BranchModelRcPr:
-		model = "a release branch made from the trunk reaches the published branch by pull request (" + mdCode(o.Merge) + "), and the tag is made on the merge commit"
+		model = w.f("model.rcpr", mdCode(o.Merge))
 	}
-	fmt.Fprintf(out, "- **Kind:** %s\n", kind)
-	fmt.Fprintf(out, "- **Trunk:** %s · **published branch:** %s: %s.\n", mdCode(trunk), mdCode(release), model)
-	fmt.Fprintf(out, "- **Tags:** public %s, release candidates %s.\n", mdCode(prefix+"X.Y.Z"), mdCode(prefix+"X.Y.Z-N"))
+	out.WriteString(w.f("ov.kind", kind))
+	out.WriteString(w.f("ov.trunk", mdCode(trunk), mdCode(release), model))
+	out.WriteString(w.f("ov.tags", mdCode(prefix+"X.Y.Z"), mdCode(prefix+"X.Y.Z-N")))
 	var targets []string
 	seen := map[string]bool{}
 	for _, t := range in.Facts.Targets {
 		if !seen[t.Id] {
 			seen[t.Id] = true
-			targets = append(targets, targetName(t.Id))
+			targets = append(targets, w.targetName(t.Id))
 		}
 	}
 	for _, wf := range in.Facts.Workflows {
 		for _, ship := range wf.Ships {
 			if !seen[ship] {
 				seen[ship] = true
-				targets = append(targets, targetName(ship))
+				targets = append(targets, w.targetName(ship))
 			}
 		}
 	}
 	if len(targets) > 0 {
-		fmt.Fprintf(out, "- **Published to:** %s.\n", strings.Join(targets, ", "))
+		out.WriteString(w.f("ov.targets", strings.Join(targets, ", ")))
 	}
 }
 
-func writeBranches(out *strings.Builder, in TechDocInput) {
+func writeHeading(out *strings.Builder, text string) {
+	out.WriteString("\n## " + text + "\n\n")
+}
+
+func writeBranches(out *strings.Builder, in TechDocInput, w docWords) {
 	trunk, release := releaseBranches(in)
-	out.WriteString("\n## Branches and protection\n\n")
-	fmt.Fprintf(out, "- %s: the trunk, where work is merged.\n", mdCode(trunk))
+	writeHeading(out, w.s("br.title"))
+	out.WriteString(w.f("br.trunk", mdCode(trunk)))
 	if release != trunk {
-		fmt.Fprintf(out, "- %s: the published branch, which carries the public versions.\n", mdCode(release))
+		out.WriteString(w.f("br.release", mdCode(release)))
 	}
 	if in.Facts.RcBranchPattern != "" {
-		fmt.Fprintf(out, "- %s: the release branches, made from the trunk for each version.\n", mdCode(in.Facts.RcBranchPattern))
+		out.WriteString(w.f("br.rc", mdCode(in.Facts.RcBranchPattern)))
 	}
 	p := in.Facts.Protection
 	if p == nil {
-		out.WriteString("\nThe published branch's protection was not read.\n")
+		out.WriteString(w.s("br.notRead"))
 		return
 	}
 	if !p.Read {
-		fmt.Fprintf(out, "\nThe protection of %s could not be read", mdCode(p.Branch))
+		out.WriteString(w.f("br.unread", mdCode(p.Branch)))
 		if p.Error != "" {
 			fmt.Fprintf(out, " (%s)", mdCell(p.Error))
 		}
@@ -331,61 +349,61 @@ func writeBranches(out *strings.Builder, in TechDocInput) {
 		return
 	}
 	if !p.PullRequest && len(p.RequiredChecks) == 0 && !p.RestrictUpdates && !p.NoForcePush {
-		fmt.Fprintf(out, "\n%s is not protected.\n", mdCode(p.Branch))
+		out.WriteString(w.f("br.unprotected", mdCode(p.Branch)))
 		return
 	}
-	fmt.Fprintf(out, "\nProtection of %s:\n\n", mdCode(p.Branch))
+	out.WriteString(w.f("br.protection", mdCode(p.Branch)))
 	if p.PullRequest {
-		out.WriteString("- changes arrive by pull request;\n")
+		out.WriteString(w.s("br.pr"))
 	}
 	if len(p.RequiredChecks) > 0 {
-		fmt.Fprintf(out, "- required checks: %s", mdCodeList(p.RequiredChecks))
+		out.WriteString(w.f("br.checks", mdCodeList(p.RequiredChecks)))
 		if p.Strict {
-			out.WriteString(" (the branch must be up to date)")
+			out.WriteString(w.s("br.strict"))
 		}
-		out.WriteString(";\n")
+		out.WriteString(w.s("br.end"))
 	}
 	if p.RestrictUpdates {
-		out.WriteString("- updates are restricted;\n")
+		out.WriteString(w.s("br.restricted"))
 	}
 	if p.NoForcePush {
-		out.WriteString("- force pushes are refused;\n")
+		out.WriteString(w.s("br.noForce"))
 	}
 	if len(p.MergeMethods) > 0 {
-		fmt.Fprintf(out, "- merge methods allowed: %s;\n", mdCodeList(p.MergeMethods))
+		out.WriteString(w.f("br.methods", mdCodeList(p.MergeMethods)))
 	}
 	switch p.Bypass {
 	case BypassAlways:
-		out.WriteString("- the developer who set the pipeline up may bypass it.\n")
+		out.WriteString(w.s("br.bypassAlways"))
 	case BypassPullRequestsOnly:
-		out.WriteString("- the developer who set the pipeline up may bypass it in pull requests only.\n")
+		out.WriteString(w.s("br.bypassPr"))
 	default:
-		out.WriteString("- nobody bypasses it.\n")
+		out.WriteString(w.s("br.bypassNone"))
 	}
 	var sources []string
 	for _, src := range p.Sources {
 		switch src.Code {
 		case "ruleset":
-			sources = append(sources, "the GitHub ruleset "+mdCode(src.Path))
+			sources = append(sources, w.f("br.ruleset", mdCode(src.Path)))
 		case "classicProtection":
-			sources = append(sources, "GitHub's branch protection")
+			sources = append(sources, w.s("br.classic"))
 		default:
 			sources = append(sources, mdCell(src.Code))
 		}
 	}
 	if len(sources) > 0 {
-		fmt.Fprintf(out, "\nRead from %s.\n", strings.Join(sources, " and "))
+		out.WriteString(w.f("br.readFrom", strings.Join(sources, w.s("br.and"))))
 	}
 }
 
-func writeFlow(out *strings.Builder, in TechDocInput, channel string) {
+func writeFlow(out *strings.Builder, in TechDocInput, w docWords, channel string) {
 	steps := docSteps(in.Pipeline, channel)
-	fmt.Fprintf(out, "\n## %s flow\n\n", channelTitle(channel))
+	writeHeading(out, w.s("flow."+channelKey(channel)))
 	if len(steps) == 0 {
-		out.WriteString("Not set up.\n")
+		out.WriteString(w.s("flow.none"))
 		return
 	}
-	out.WriteString("| # | Phase | Step | Who | What runs, or the instructions | Asks to confirm |\n| --- | --- | --- | --- | --- | --- |\n")
+	out.WriteString(w.s("flow.head"))
 	for i, s := range steps {
 		phase := s.Phase
 		if phase == "" {
@@ -395,7 +413,7 @@ func writeFlow(out *strings.Builder, in TechDocInput, channel string) {
 		if confirm == "" {
 			confirm = "—"
 		}
-		fmt.Fprintf(out, "| %d | %s | %s | %s | %s | %s |\n", i+1, mdCell(phase), mdCell(s.Title), stepWho(s), stepWhat(s), confirm)
+		fmt.Fprintf(out, "| %d | %s | %s | %s | %s | %s |\n", i+1, mdCell(phase), mdCell(s.Title), w.stepWho(s), w.stepWhat(s), confirm)
 	}
 	manual := 0
 	for _, s := range steps {
@@ -403,30 +421,30 @@ func writeFlow(out *strings.Builder, in TechDocInput, channel string) {
 			manual++
 		}
 	}
-	fmt.Fprintf(out, "\n%d steps: %d run by MoltenTerm (`molten release`), %d by hand. Each command asks for the developer's trust once; a step by hand is recorded done when the developer marks it.\n", len(steps), len(steps)-manual, manual)
+	out.WriteString(w.f("flow.summary", len(steps), len(steps)-manual, manual))
 }
 
-func triggersOf(wf Workflow) string {
+func (w docWords) triggersOf(wf Workflow) string {
 	var parts []string
 	if wf.Push {
 		switch {
 		case wf.Tags != nil && wf.Branches != nil:
-			parts = append(parts, "push of tags "+mdCodeList(wf.Tags)+" or to "+mdCodeList(wf.Branches))
+			parts = append(parts, w.f("trig.tagsOr", mdCodeList(wf.Tags), mdCodeList(wf.Branches)))
 		case wf.Tags != nil:
-			parts = append(parts, "push of tags "+mdCodeList(wf.Tags))
+			parts = append(parts, w.f("trig.tags", mdCodeList(wf.Tags)))
 		case wf.Branches != nil:
-			parts = append(parts, "push to "+mdCodeList(wf.Branches))
+			parts = append(parts, w.f("trig.branches", mdCodeList(wf.Branches)))
 		default:
-			parts = append(parts, "every push")
+			parts = append(parts, w.s("trig.every"))
 		}
 	}
 	if wf.PullRequest {
-		parts = append(parts, "pull requests")
+		parts = append(parts, w.s("trig.pr"))
 	}
 	if wf.Dispatch {
-		text := "run by hand (workflow_dispatch)"
+		text := w.s("trig.dispatch")
 		if len(wf.RequiredInputs) > 0 {
-			text += ", inputs " + mdCodeList(wf.RequiredInputs)
+			text += w.f("trig.inputs", mdCodeList(wf.RequiredInputs))
 		}
 		parts = append(parts, text)
 	}
@@ -436,16 +454,16 @@ func triggersOf(wf Workflow) string {
 	return strings.Join(parts, "; ")
 }
 
-func writeWorkflows(out *strings.Builder, in TechDocInput) {
-	out.WriteString("\n## CI workflows\n\n")
+func writeWorkflows(out *strings.Builder, in TechDocInput, w docWords) {
+	writeHeading(out, w.s("wf.title"))
 	if len(in.Facts.Workflows) == 0 {
-		fmt.Fprintf(out, "No workflow in %s.\n", mdCode(WorkflowsDir))
+		out.WriteString(w.f("wf.none", mdCode(WorkflowsDir)))
 	} else {
-		out.WriteString("| Workflow | Name | Role | Triggers | Environments | Ships |\n| --- | --- | --- | --- | --- | --- |\n")
+		out.WriteString(w.s("wf.head"))
 		for _, wf := range in.Facts.Workflows {
 			ships := make([]string, len(wf.Ships))
 			for i, s := range wf.Ships {
-				ships[i] = targetName(s)
+				ships[i] = w.targetName(s)
 			}
 			shipText := strings.Join(ships, ", ")
 			if shipText == "" {
@@ -455,11 +473,11 @@ func writeWorkflows(out *strings.Builder, in TechDocInput) {
 			if name == "" {
 				name = "—"
 			}
-			fmt.Fprintf(out, "| %s | %s | %s | %s | %s | %s |\n", mdCode(WorkflowsDir+"/"+wf.File), name, wf.Role, triggersOf(wf), mdCodeList(wf.Environments), shipText)
+			fmt.Fprintf(out, "| %s | %s | %s | %s | %s | %s |\n", mdCode(WorkflowsDir+"/"+wf.File), name, wf.Role, w.triggersOf(wf), mdCodeList(wf.Environments), shipText)
 		}
 	}
 	if p := in.Pipeline; p != nil && p.Ci != nil && len(p.Ci.Jobs) > 0 {
-		out.WriteString("\nLocal CI (`molten ci`), declared in `.molten/project.json`:\n\n| Job | Lane | Runs |\n| --- | --- | --- |\n")
+		out.WriteString(w.s("wf.local"))
 		for _, job := range p.Ci.Jobs {
 			title := job.Title
 			if title == "" {
@@ -474,30 +492,30 @@ func writeWorkflows(out *strings.Builder, in TechDocInput) {
 	}
 }
 
-func writeApprovals(out *strings.Builder, in TechDocInput) {
-	out.WriteString("\n## Approvals and environments\n\n")
+func writeApprovals(out *strings.Builder, in TechDocInput, w docWords) {
+	writeHeading(out, w.s("ap.title"))
 	found := false
 	for _, wf := range in.Facts.Workflows {
 		for _, env := range wf.Environments {
 			found = true
-			fmt.Fprintf(out, "- %s (%s): GitHub applies the environment's protection rules (reviewers, wait timer) before the job runs; the release panel shows it waiting for approval.\n", mdCode(env), mdCode(wf.File))
+			out.WriteString(w.f("ap.env", mdCode(env), mdCode(wf.File)))
 		}
 	}
 	for _, channel := range []string{ChannelRc, ChannelPublic} {
 		for _, s := range docSteps(in.Pipeline, channel) {
 			if s.Confirm != "" && s.Id == "tag" {
 				found = true
-				fmt.Fprintf(out, "- %s, step %s: MoltenTerm asks the developer to confirm before running it.\n", channelTitle(channel), mdCode(s.Id))
+				out.WriteString(w.f("ap.confirm", w.channelTitle(channel), mdCode(s.Id)))
 			}
 		}
 	}
 	if !found {
-		out.WriteString("No environment approval; every step runs on the developer's click.\n")
+		out.WriteString(w.s("ap.none"))
 	}
 }
 
-func writeTargets(out *strings.Builder, in TechDocInput) {
-	out.WriteString("\n## Publish targets\n\n")
+func writeTargets(out *strings.Builder, in TechDocInput, w docWords) {
+	writeHeading(out, w.s("tg.title"))
 	found := false
 	// One line per target: what builds it and what publishes it.
 	var order []string
@@ -530,13 +548,13 @@ func writeTargets(out *strings.Builder, in TechDocInput) {
 	}
 	for _, id := range order {
 		found = true
-		fmt.Fprintf(out, "- %s", targetName(id))
+		fmt.Fprintf(out, "- %s", w.targetName(id))
 		var parts []string
 		if b, ok := built[id]; ok && b != "" && b != "workflow" {
-			parts = append(parts, "built by "+b)
+			parts = append(parts, w.f("tg.built", b))
 		}
 		if len(published[id]) > 0 {
-			parts = append(parts, "published by "+strings.Join(published[id], ", "))
+			parts = append(parts, w.f("tg.published", strings.Join(published[id], ", ")))
 		}
 		if len(parts) > 0 {
 			out.WriteString(": " + strings.Join(parts, ", "))
@@ -545,18 +563,18 @@ func writeTargets(out *strings.Builder, in TechDocInput) {
 	}
 	for _, d := range in.Facts.DeployTargets() {
 		found = true
-		fmt.Fprintf(out, "- Environment %s, deployed by %s.\n", mdCode(d.Environment), mdCode(d.Workflow))
+		out.WriteString(w.f("tg.env", mdCode(d.Environment), mdCode(d.Workflow)))
 	}
 	if !found {
-		out.WriteString("No publish target detected: versions are tags only.\n")
+		out.WriteString(w.s("tg.none"))
 	}
 }
 
-func writeSyncBack(out *strings.Builder, in TechDocInput) {
+func writeSyncBack(out *strings.Builder, in TechDocInput, w docWords) {
 	trunk, release := releaseBranches(in)
-	out.WriteString("\n## Sync-back\n\n")
+	writeHeading(out, w.s("sb.title"))
 	if s, ok := stepById(docSteps(in.Pipeline, ChannelPublic), "sync-back"); ok {
-		fmt.Fprintf(out, "%s merges %s back into %s after a public release (%s).", mdCell(s.Title), mdCode(release), mdCode(trunk), mdCode(s.Run))
+		out.WriteString(w.f("sb.step", mdCell(s.Title), mdCode(release), mdCode(trunk), mdCode(s.Run)))
 		if s.Confirm != "" {
 			fmt.Fprintf(out, " %s", mdCell(s.Confirm))
 		}
@@ -564,22 +582,22 @@ func writeSyncBack(out *strings.Builder, in TechDocInput) {
 		return
 	}
 	if trunk == release {
-		out.WriteString("None needed: versions are tagged on the trunk.\n")
+		out.WriteString(w.s("sb.single"))
 		return
 	}
-	fmt.Fprintf(out, "No sync-back step: %s does not come back into %s by the release.\n", mdCode(release), mdCode(trunk))
+	out.WriteString(w.f("sb.none", mdCode(release), mdCode(trunk)))
 }
 
-func writeVersions(out *strings.Builder, in TechDocInput) {
-	out.WriteString("\n## Version files and changelogs\n\n")
+func writeVersions(out *strings.Builder, in TechDocInput, w docWords) {
+	writeHeading(out, w.s("ver.title"))
 	v := &molten.PipelineVersions{}
 	if in.Pipeline != nil && in.Pipeline.Versions != nil {
 		v = in.Pipeline.Versions
 	}
 	if len(v.Files) == 0 {
-		out.WriteString("No version file is declared: the version lives in the tags only.\n")
+		out.WriteString(w.s("ver.none"))
 	} else {
-		out.WriteString("The release writes the version into these files (the first one holds the project's current version):\n\n| File | Format | Where |\n| --- | --- | --- |\n")
+		out.WriteString(w.s("ver.head"))
 		for _, f := range v.Files {
 			where := mdCode(f.Pattern)
 			if len(f.Keys) > 0 {
@@ -593,18 +611,18 @@ func writeVersions(out *strings.Builder, in TechDocInput) {
 		}
 	}
 	if len(v.Changelogs) > 0 {
-		fmt.Fprintf(out, "\nChangelogs, written by hand before the cut and committed with the version: %s.\n", mdCodeList(v.Changelogs))
+		out.WriteString(w.f("ver.changelogs", mdCodeList(v.Changelogs)))
 	}
 	notes := v.Notes
 	if notes == "" {
 		notes = DefaultNotesPath
 	}
-	fmt.Fprintf(out, "\nRelease notes: %s.", mdCode(notes))
+	out.WriteString(w.f("ver.notes", mdCode(notes)))
 	if v.FirstPublic != "" {
-		fmt.Fprintf(out, " First public version: %s.", mdCode(v.FirstPublic))
+		out.WriteString(w.f("ver.first", mdCode(v.FirstPublic)))
 	}
 	if v.Format != "" {
-		fmt.Fprintf(out, " Files the release writes are formatted with %s.", mdCode(v.Format))
+		out.WriteString(w.f("ver.format", mdCode(v.Format)))
 	}
 	out.WriteString("\n")
 }
@@ -617,9 +635,10 @@ func previousHistory(doc string) []string {
 		return nil
 	}
 	var rows []string
+	heads := historyHeads()
 	for _, line := range strings.Split(doc[start+len(techDocHistoryStart):end], "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "|") || line == techDocHistoryHead || line == techDocHistoryRule {
+		if !strings.HasPrefix(line, "|") || heads[line] || line == techDocHistoryRule {
 			continue
 		}
 		rows = append(rows, line)
@@ -645,10 +664,10 @@ func prLink(c TechDocChange, repo string) string {
 	return "[" + mdCode(c.Branch) + "](https://" + host + "/" + path + "/pulls?q=" + query + ")"
 }
 
-func historyRow(c TechDocChange, repo string) string {
-	kind := "Pipeline set up"
+func historyRow(c TechDocChange, repo string, w docWords) string {
+	kind := w.s("hist.setup")
 	if c.Kind == TechDocChangeUpdate {
-		kind = "Pipeline updated"
+		kind = w.s("hist.update")
 	}
 	author := mdCell(c.Author)
 	if author == "" {
@@ -661,9 +680,10 @@ func historyRow(c TechDocChange, repo string) string {
 	return fmt.Sprintf("| %s | %s | %s | %s | %d |", date, kind, author, prLink(c, repo), c.Template)
 }
 
-func writeHistory(out *strings.Builder, in TechDocInput) {
-	out.WriteString("\n## Change history\n\n" + techDocHistoryStart + "\n" + techDocHistoryHead + "\n" + techDocHistoryRule + "\n")
-	rows := []string{historyRow(in.Change, in.Repo)}
+func writeHistory(out *strings.Builder, in TechDocInput, w docWords) {
+	writeHeading(out, w.s("hist.title"))
+	out.WriteString(techDocHistoryStart + "\n" + w.s("hist.head") + "\n" + techDocHistoryRule + "\n")
+	rows := []string{historyRow(in.Change, in.Repo, w)}
 	for _, row := range previousHistory(in.Previous) {
 		if row != rows[0] && len(rows) < maxTechDocHistory {
 			rows = append(rows, row)
@@ -683,31 +703,32 @@ func BuildTechDoc(in TechDocInput) string {
 	if in.Pipeline != nil && in.Pipeline.Name != "" {
 		name = in.Pipeline.Name
 	}
-	fmt.Fprintf(&out, "# %s: %s\n\n", TechDocTitle, mdCell(name))
-	fmt.Fprintf(&out, "> Generated by MoltenTerm from %s with each pipeline setup or update; do not edit it by hand: the next update rewrites it, and shows the difference before writing.\n\n", mdCode(molten.ProjectPipelineFile))
+	w := wordsOf(in.Lang)
+	fmt.Fprintf(&out, "# %s: %s\n\n", w.s("title"), mdCell(name))
+	out.WriteString(w.f("generated", mdCode(molten.ProjectPipelineFile)))
 	o := InferOptions(in.Facts, in.Pipeline)
-	out.WriteString("## Overview\n\n")
-	writeOverview(&out, in, o)
+	out.WriteString("## " + w.s("overview") + "\n\n")
+	writeOverview(&out, in, w, o)
 	var channels []string
 	for _, c := range []string{ChannelRc, ChannelPublic} {
 		if len(docSteps(in.Pipeline, c)) > 0 {
 			channels = append(channels, c)
 		}
 	}
-	out.WriteString("\n## Flow diagram\n\n")
+	writeHeading(&out, w.s("diagram"))
 	if len(channels) == 0 {
-		out.WriteString("No release flow is set up.\n")
+		out.WriteString(w.s("noFlow"))
 	} else {
-		writeDiagram(&out, in, channels)
-		out.WriteString("\nRounded: the trunk. Slanted: a step done by hand. Hexagon: the tag. Dotted: what the tag starts on GitHub. Cylinder: where versions are published.\n")
+		writeDiagram(&out, in, w, channels)
+		out.WriteString(w.s("legend"))
 	}
-	writeBranches(&out, in)
-	writeFlow(&out, in, ChannelRc)
-	writeFlow(&out, in, ChannelPublic)
+	writeBranches(&out, in, w)
+	writeFlow(&out, in, w, ChannelRc)
+	writeFlow(&out, in, w, ChannelPublic)
 	prefix := tagPrefixOf(in)
-	out.WriteString("\n## Tags\n\n")
-	fmt.Fprintf(&out, "- Public versions: %s, made by the public flow's %s step.\n", mdCode(prefix+"X.Y.Z"), mdCode("tag"))
-	fmt.Fprintf(&out, "- Release candidates: %s (N counts from 1 for each version), made by the release candidate flow.\n", mdCode(prefix+"X.Y.Z-N"))
+	writeHeading(&out, w.s("tags"))
+	out.WriteString(w.f("tags.public", mdCode(prefix+"X.Y.Z"), mdCode("tag")))
+	out.WriteString(w.f("tags.rc", mdCode(prefix+"X.Y.Z-N")))
 	for _, channel := range channels {
 		starts := tagStarts(in.Facts, channel, prefix)
 		files := make([]string, len(starts))
@@ -716,16 +737,16 @@ func BuildTechDoc(in TechDocInput) string {
 		}
 		sort.Strings(files)
 		if len(files) == 0 {
-			fmt.Fprintf(&out, "- A %s tag starts no workflow.\n", strings.ToLower(channelTitle(channel)))
+			out.WriteString(w.s("tags.none." + channelKey(channel)))
 			continue
 		}
-		fmt.Fprintf(&out, "- A %s tag starts %s.\n", strings.ToLower(channelTitle(channel)), mdCodeList(files))
+		out.WriteString(w.f("tags.starts."+channelKey(channel), mdCodeList(files)))
 	}
-	writeWorkflows(&out, in)
-	writeApprovals(&out, in)
-	writeTargets(&out, in)
-	writeSyncBack(&out, in)
-	writeVersions(&out, in)
-	writeHistory(&out, in)
+	writeWorkflows(&out, in, w)
+	writeApprovals(&out, in, w)
+	writeTargets(&out, in, w)
+	writeSyncBack(&out, in, w)
+	writeVersions(&out, in, w)
+	writeHistory(&out, in, w)
 	return out.String()
 }

@@ -78,7 +78,9 @@ const (
 // What the window shows before the click: where the pull request starts and goes, and its names ({N}: the ticket).
 type PrPlan struct {
 	// A git repository: a pull request or a patch can be made from it.
-	Git    bool   `json:"git"`
+	Git bool `json:"git"`
+	// origin is configured: the branch can be pushed (#1106); without it only the patch is offered.
+	Remote bool   `json:"remote"`
 	Ref    string `json:"ref"`
 	Commit string `json:"commit"`
 	Target string `json:"target"`
@@ -245,6 +247,7 @@ func (s *Setup) planOf(dir string, b *baseFiles, kind string, include bool) PrPl
 	plan := PrPlan{Git: b.Commit != "", Ref: b.Ref, Commit: shortSha(b.Commit), Target: prTarget(dir, b.Trunk), OnGithub: onGithub(dir),
 		TicketRequired: required, Uncommitted: b.uncommitted(), Conflict: b.IncludeConflict, Included: include && b.uncommitted(),
 		LocalBase: localHash(b)}
+	plan.Remote = plan.Git && s.hasOrigin(context.Background(), dir)
 	plan.Branch, plan.Subject = prNames(dir, kind, ticket)
 	plan.TicketTitle = ticketTitle(kind)
 	// The edits as they would be included: on an older checkout, the working copy's file also lacks what origin merged.

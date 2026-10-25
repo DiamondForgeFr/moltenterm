@@ -121,7 +121,9 @@ func readJsonFile(path string, target any) (bool, error) {
 type saasFoundryManifest struct {
 	ProjectName string `json:"projectName"`
 	MainBranch  string `json:"mainBranch"`
-	Workflow    *struct {
+	// {"srs": "en", "tickets": "en", "codeComments": "en"}, or one language for all of them.
+	Language json.RawMessage `json:"language"`
+	Workflow *struct {
 		ProjectUrl     string            `json:"projectUrl"`
 		WorkingBranch  string            `json:"workingBranch"`
 		PrTargetBranch string            `json:"prTargetBranch"`
@@ -171,6 +173,27 @@ func FeatureBranchPattern(dir string) string {
 		return ""
 	}
 	return conv.BranchNaming["feature"]
+}
+
+// DocLanguage is the project's documentation language (.saasfoundry.json language.srs, the SRS's, #1106), or "" when it
+// declares none.
+func DocLanguage(dir string) string {
+	var manifest saasFoundryManifest
+	found, err := readJsonFile(filepath.Join(dir, ProjectSaaSFoundryFile), &manifest)
+	if !found || err != nil || len(manifest.Language) == 0 {
+		return ""
+	}
+	var one string
+	if json.Unmarshal(manifest.Language, &one) == nil {
+		return strings.TrimSpace(one)
+	}
+	var surfaces struct {
+		Srs string `json:"srs"`
+	}
+	if json.Unmarshal(manifest.Language, &surfaces) != nil {
+		return ""
+	}
+	return strings.TrimSpace(surfaces.Srs)
 }
 
 // CommitFormatOf is the project's commit format (.saasfoundry.json workflow.commitFormat): its pattern, and whether a

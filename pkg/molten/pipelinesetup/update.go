@@ -140,6 +140,9 @@ type UpdateRequest struct {
 	Choices   map[string]bool `json:"choices,omitempty"`
 	Options   *Options        `json:"options,omitempty"`
 	Proposals bool            `json:"proposals,omitempty"`
+	// The update's proposed file with the agent's ticked changes applied (#1099, #1106); "" takes the update as
+	// checked. Only the keys the setup sets up are taken from it, onto the checked update, and it must be valid.
+	Refined string `json:"refined,omitempty"`
 	PrRequest
 }
 
@@ -1051,6 +1054,11 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		if len(c.answer.Errors) > 0 {
 			return fail(PrFailureInvalid, strings.Join(c.answer.Errors, "; "))
 		}
+		if req.Refined != "" {
+			if err := refineChecked(dir, c, req.Refined); err != nil {
+				return err
+			}
+		}
 		files, err := updateFilesOf(c, req.Choices)
 		if err != nil {
 			return err
@@ -1059,6 +1067,28 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		s.update(job, func(j *PrJob) { j.Files = append([]string{}, files.order...) })
 		return s.runPr(ctx, dir, b, files, req.PrRequest, job)
 	})
+}
+
+// refineChecked puts the agent's ticked changes on the checked update: the owned keys of the refined text onto the
+// update's file, validated. A step the agent changed no longer matches the template's, so the record keeps it as the
+// developer's, as an edit by hand would be.
+func refineChecked(dir string, c *checked, refined string) error {
+	if len(refined) > maxPipelineBytes {
+		return fail(PrFailureInvalid, fmt.Sprintf("the proposed %s is too large", molten.ProjectPipelineFile))
+	}
+	merged, _, err := MergeOwned(c.text, []byte(refined), nameOf(dir, c.text))
+	if err != nil {
+		return fail(PrFailureInvalid, err.Error())
+	}
+	report := molten.ValidatePipelineData(dir, merged)
+	if !report.Valid || report.Pipeline == nil {
+		return fail(PrFailureInvalid, strings.Join(report.Errors, "; "))
+	}
+	c.text = merged
+	if report.Pipeline.Release != nil {
+		c.merged = report.Pipeline.Release
+	}
+	return nil
 }
 
 // updateFilesOf: the updated pipeline, and the record of the steps MoltenTerm wrote and the changes declined.

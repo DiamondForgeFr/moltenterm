@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 )
 
 // Step 1 of the stepper (FR-MC-038): the app type and what the repository shows of a pipeline, on real git tags and a
@@ -134,6 +136,14 @@ func TestSurveyEmptyRepositoryRecommendsDescribing(t *testing.T) {
 	if !answer.Tags.Read || answer.Tags.Count != 0 || answer.Releases.OnGithub || answer.Releases.Read {
 		t.Fatalf("tags %+v releases %+v", answer.Tags, answer.Releases)
 	}
+	// The empty state (#1106): nothing to read, a git repository without origin.
+	if !answer.Empty || !answer.Git || answer.Remote {
+		t.Fatalf("empty %v git %v remote %v", answer.Empty, answer.Git, answer.Remote)
+	}
+	writeFiles(t, dir, map[string]string{"go.mod": "module app\n"})
+	if again, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); again.Empty {
+		t.Fatal("a build file is something to read")
+	}
 }
 
 func TestSurveyReleasesUnreadSaysWhy(t *testing.T) {
@@ -143,8 +153,43 @@ func TestSurveyReleasesUnreadSaysWhy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !answer.Releases.OnGithub || answer.Releases.Read || !strings.Contains(answer.Releases.Error, "authentication") {
+	if !answer.Releases.OnGithub || answer.Releases.Read || !strings.Contains(answer.Releases.Error, "authentication") || answer.Releases.Problem != GhSignedOut {
 		t.Fatalf("releases %+v", answer.Releases)
+	}
+	if !answer.Remote {
+		t.Fatal("origin is configured")
+	}
+}
+
+// gh's failures, as the GitHub state words them (#1106).
+func TestGhProblem(t *testing.T) {
+	for text, want := range map[string]string{
+		`exec: "gh": executable file not found in $PATH`:                             GhMissing,
+		"To get started with GitHub CLI, please run:  gh auth login":                 GhSignedOut,
+		"HTTP 401: Bad credentials (https://api.github.com/repos/acme/app/releases)": GhSignedOut,
+		"error connecting to api.github.com":                                         GhFailed,
+	} {
+		if got := ghProblem(text); got != want {
+			t.Fatalf("%q: got %s, want %s", text, got, want)
+		}
+	}
+}
+
+// The coding agent that proposes changes is known at step 1, so the stepper says before any click when there is none.
+func TestSurveyNamesTheAgent(t *testing.T) {
+	dir := surveyRepository(t, map[string]string{"README.md": "# App\n"})
+	s := MakeSetup(surveyRunner(""), nil)
+	s.ChooseAgent = claudeChoice
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "claude" || answer.AgentName != "Claude Code" {
+		t.Fatalf("agent %q %q", answer.Agent, answer.AgentName)
+	}
+	s.ChooseAgent = func(string) agentchoice.Choice { return agentchoice.Choice{Missing: true, ChosenName: "Codex"} }
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "" || answer.AgentMissing != "Codex" {
+		t.Fatalf("missing agent %q %q", answer.Agent, answer.AgentMissing)
+	}
+	s.ChooseAgent = func(string) agentchoice.Choice { return agentchoice.Choice{} }
+	if answer, _ := s.Survey(context.Background(), SurveyRequest{Dir: dir}); answer.Agent != "" || answer.AgentMissing != "" {
+		t.Fatalf("no agent %q %q", answer.Agent, answer.AgentMissing)
 	}
 }
 
