@@ -690,67 +690,69 @@ function StepBar({
         return t("mc.setup.stepper.prepareSub");
     };
     return (
-        <ol className="mb-1 grid grid-cols-2 gap-1.5 @min-[44rem]:grid-cols-4" data-testid="setup-steps">
-            {StepperSteps.map((s, i) => {
-                const reachable = !locked && stepReachable(s, step, ready);
-                return (
-                    <li key={s} className="min-w-0">
-                        <button
-                            type="button"
-                            disabled={!reachable || s === step}
-                            onClick={() => onStep(s)}
-                            title={s === "template" ? t("mc.setup.stepper.templateLater") : undefined}
-                            aria-current={s === step ? "step" : undefined}
-                            className={cn(
-                                "flex w-full cursor-pointer items-start gap-2 rounded-6 border px-2.5 py-1.5 text-left disabled:cursor-default",
-                                s === step
-                                    ? "border-accent/70 bg-accent/10"
-                                    : i < at
-                                      ? "border-success/40 hover:border-success/70"
-                                      : "border-border opacity-80"
-                            )}
-                            data-testid={`setup-step-${s}`}
-                        >
-                            <span
+        <div className="@container">
+            <ol className="mb-1 grid grid-cols-2 gap-1.5 @min-[44rem]:grid-cols-4" data-testid="setup-steps">
+                {StepperSteps.map((s, i) => {
+                    const reachable = !locked && stepReachable(s, step, ready);
+                    return (
+                        <li key={s} className="min-w-0">
+                            <button
+                                type="button"
+                                disabled={!reachable || s === step}
+                                onClick={() => onStep(s)}
+                                title={s === "template" ? t("mc.setup.stepper.templateLater") : undefined}
+                                aria-current={s === step ? "step" : undefined}
                                 className={cn(
-                                    "mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border font-mono text-11",
+                                    "flex w-full cursor-pointer items-start gap-2 rounded-6 border px-2.5 py-1.5 text-left disabled:cursor-default",
                                     s === step
-                                        ? "border-accent text-accent"
+                                        ? "border-accent/70 bg-accent/10"
                                         : i < at
-                                          ? "border-success text-success"
-                                          : "border-border text-muted"
+                                          ? "border-success/40 hover:border-success/70"
+                                          : "border-border opacity-80"
                                 )}
+                                data-testid={`setup-step-${s}`}
                             >
-                                {i < at ? "✓" : i + 1}
-                            </span>
-                            <span className="flex min-w-0 flex-col">
-                                <span className="text-12 font-medium text-primary">
-                                    {t(`mc.setup.stepper.step.${s}`)}
+                                <span
+                                    className={cn(
+                                        "mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border font-mono text-11",
+                                        s === step
+                                            ? "border-accent text-accent"
+                                            : i < at
+                                              ? "border-success text-success"
+                                              : "border-border text-muted"
+                                    )}
+                                >
+                                    {i < at ? "✓" : i + 1}
                                 </span>
-                                <span className="truncate text-11 text-muted">{sub(s, i)}</span>
-                                {s === "understand" ? (
-                                    <span className="mt-0.5 flex gap-1 text-10">
-                                        {(["analyse", "describe"] as SetupPath[]).map((p) => (
-                                            <span
-                                                key={p}
-                                                className={cn(
-                                                    "rounded-4 border px-1",
-                                                    p === path
-                                                        ? "border-accent/60 text-accent"
-                                                        : "border-border text-muted"
-                                                )}
-                                            >
-                                                {t(`mc.setup.stepper.fork.${p}`)}
-                                            </span>
-                                        ))}
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="text-12 font-medium text-primary">
+                                        {t(`mc.setup.stepper.step.${s}`)}
                                     </span>
-                                ) : null}
-                            </span>
-                        </button>
-                    </li>
-                );
-            })}
-        </ol>
+                                    <span className="truncate text-11 text-muted">{sub(s, i)}</span>
+                                    {s === "understand" ? (
+                                        <span className="mt-0.5 flex gap-1 text-10">
+                                            {(["analyse", "describe"] as SetupPath[]).map((p) => (
+                                                <span
+                                                    key={p}
+                                                    className={cn(
+                                                        "rounded-4 border px-1",
+                                                        p === path
+                                                            ? "border-accent/60 text-accent"
+                                                            : "border-border text-muted"
+                                                    )}
+                                                >
+                                                    {t(`mc.setup.stepper.fork.${p}`)}
+                                                </span>
+                                            ))}
+                                        </span>
+                                    ) : null}
+                                </span>
+                            </button>
+                        </li>
+                    );
+                })}
+            </ol>
+        </div>
     );
 }
 
