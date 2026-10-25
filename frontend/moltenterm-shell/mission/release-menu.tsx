@@ -251,7 +251,18 @@ export function ReleaseMenu({
                             data-testid="release-setup-uptodate"
                         >
                             <i className="fa fa-solid fa-check text-11 text-success" />
-                            {t("mc.setup.update.upToDate")}
+                            <span className="min-w-0 flex-1">{t("mc.setup.update.upToDate")}</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false);
+                                    setSettingUp(true);
+                                }}
+                                className="shrink-0 cursor-pointer text-11 text-accent hover:underline"
+                                data-testid="release-setup-reopen"
+                            >
+                                {t("mc.setup.update.openSetup")}
+                            </button>
                         </div>
                     ) : null}
                     {plan == null && error == null ? (

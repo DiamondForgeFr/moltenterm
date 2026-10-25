@@ -3519,29 +3519,12 @@
         "setup": {
             "open": "Set up the release",
             "openHint": "Drafted from the repository, reviewed before anything is written.",
-            "title": "Set up the release of {project}",
-            "subtitle": "MoltenTerm drafts the missing release from the committed pipeline. Nothing is written before your pull request.",
+            "title": "Deployment pipeline · {project}",
+            "subtitle": "Understand, adjust and validate how this project ships. Nothing is written before your pull request.",
             "reading": "Reading the repository…",
             "back": "Back",
-            "next": "Next",
             "fromSaaSFoundry": "Drafted by SaaSFoundryAI, which knows this project's profile and generated workflows.",
             "choicesReplace": "Your choices are drafted by MoltenTerm's templates, in place of SaaSFoundryAI's draft.",
-            "step": {
-                "kind": "App kind",
-                "what": "What to set up",
-                "choices": "Choices",
-                "review": "Review"
-            },
-            "kind": {
-                "intro": "How does this project reach its users?",
-                "on-premise": "Distributed app",
-                "on-premiseHint": "Versions people install or download: a desktop app, a CLI, a package. Release candidates, a tag, files built and published, then the release brought back to the trunk.",
-                "saas": "SaaS cloud app",
-                "saasHint": "Deployments rather than shipped versions: the release branch deployed to its environments, with their approvals.",
-                "detected": "Detected",
-                "evidence": "What the repository shows",
-                "noEvidence": "Nothing packaged or deployed was found: choose the kind that fits."
-            },
             "what": {
                 "intro": "Which releases should the Release menu start?",
                 "missing": "Missing from the pipeline.",
@@ -3669,7 +3652,12 @@
                 "protection": "The protection of {path}: {detail}.",
                 "reconcile": "{path} diverged: {detail} (commits ahead / behind / conflicting files).",
                 "labelsManual": "Version labels no pattern finds alone.",
-                "rcOnBranch": "No workflow starts on a candidate's tag: it stays on {path}."
+                "rcOnBranch": "No workflow starts on a candidate's tag: it stays on {path}.",
+                "typeNpmBin": "npm package {detail} with a command (bin in {path}).",
+                "typeGoreleaser": "Release binaries built by {path}.",
+                "typeCargoBin": "Rust binary ({path}).",
+                "typeCargoLib": "Rust library ({path}).",
+                "typePython": "Python package ({path})."
             },
             "manual": {
                 "titlePlaceholder": "What to do, in a few words",
@@ -3799,7 +3787,8 @@
                 "files": "The file",
                 "filesHint": "Only the release and version blocks change; MoltenTerm also notes in .molten/release-setup.json which steps it wrote.",
                 "keepAll": "You keep every change as it is: the pipeline stays the same, and the pull request records your choices in .molten/release-setup.json so they are not offered again.",
-                "invalid": "The updated pipeline would not be valid: {errors}"
+                "invalid": "The updated pipeline would not be valid: {errors}",
+                "openSetup": "Open the pipeline setup"
             },
             "pr": {
                 "title": "Validate by pull request",
@@ -3857,6 +3846,93 @@
                     "includeConflict": "Your uncommitted changes conflict with {ref}. Prepare again without them, or commit them first."
                 },
                 "conflict": "They change the same lines as {ref}: commit or rebase them first to include them."
+            },
+            "stepper": {
+                "step": {
+                    "detect": "Detect",
+                    "understand": "Understand",
+                    "prepare": "Prepare and validate",
+                    "template": "Template"
+                },
+                "reading": "reading the repository",
+                "detectShips": "{type} · pipeline found",
+                "detectNoShips": "{type} · no pipeline yet",
+                "analyseSub": "Did we understand it right?",
+                "describeSub": "Describe the pipeline you want",
+                "prepareSub": "diagram, files, pull request",
+                "optional": "optional",
+                "templateLater": "Saving a pipeline as a template comes in a later version.",
+                "fork": {
+                    "analyse": "2a analyse",
+                    "describe": "2b describe"
+                },
+                "nextDraw": "Next: draw the pipeline",
+                "nextDescribe": "Next: describe the pipeline",
+                "nextPrepare": "Next: prepare the pipeline",
+                "stepOf": "Step {n} of {total}",
+                "close": "Close without writing"
+            },
+            "appType": {
+                "desktop": "Desktop app",
+                "desktopHint": "Electron, Tauri: installers, signed builds, auto-update",
+                "desktopShort": "Desktop app",
+                "cli": "Command-line tool / npm package",
+                "cliHint": "a command people install: an npm package, a published binary",
+                "cliShort": "CLI",
+                "web": "Web app / SaaS",
+                "webHint": "deployed to environments (staging, production)",
+                "webShort": "Web / SaaS",
+                "library": "Library",
+                "libraryHint": "a package other projects depend on, no binary",
+                "libraryShort": "Library",
+                "other": "Something else",
+                "otherHint": "you describe it at step 2",
+                "otherShort": "Other"
+            },
+            "detect": {
+                "typeTitle": "App type",
+                "typeIntro": "Read from the build files and the workflows. Confirm it or pick another one: it decides the targets and the version formats offered.",
+                "detected": "Detected",
+                "pipelineTitle": "A pipeline already?",
+                "pipelineIntro": "A published version usually means yes. What we found:",
+                "unread": "The repository could not be read: {error}",
+                "tags": {
+                    "one": "{count} version tag: {last}",
+                    "other": "{count} version tags, the last one {last}"
+                },
+                "noTags": "No version tag ({prefix}X.Y.Z)",
+                "tagsUnread": "The tags could not be read",
+                "releases": {
+                    "one": "{count} GitHub release: {last}",
+                    "other": "{count} GitHub releases, the latest {last}"
+                },
+                "noReleases": "No GitHub release",
+                "releasesUnread": "The GitHub releases could not be read",
+                "publish": "A workflow publishes on a version tag",
+                "noPublish": "No workflow publishes on a version tag",
+                "changelogs": {
+                    "one": "A changelog with dated sections",
+                    "other": "{count} changelogs with dated sections"
+                },
+                "changelogsUndated": "Changelog without dated version sections",
+                "noChangelog": "No changelog",
+                "pipeline": {
+                    "none": "No MoltenTerm pipeline yet",
+                    "invalid": "MoltenTerm pipeline not valid",
+                    "norelease": "MoltenTerm pipeline: declared, no release block",
+                    "partial": "MoltenTerm pipeline: one of the two releases declared",
+                    "complete": "MoltenTerm pipeline: release candidate and public release declared"
+                },
+                "ships": "Yes: this project already ships.",
+                "shipsNext": "Next we draw what we understood, for you to confirm or adjust (2a).",
+                "noShips": "No pipeline found.",
+                "noShipsNext": "Next you describe the one you want (2b).",
+                "pathTitle": "How to go on",
+                "analyse": "Analyse the existing pipeline",
+                "restart": "Start from scratch: describe the pipeline I want",
+                "restartHint": "the existing workflows are kept; the new pipeline replaces only MoltenTerm's release block",
+                "describe": "Describe the pipeline I want",
+                "recommended": "Recommended"
             }
         }
     },

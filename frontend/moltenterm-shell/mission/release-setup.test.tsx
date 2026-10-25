@@ -12,7 +12,7 @@ vi.mock("./mission-client", () => ({
 }));
 vi.mock("./runs-view", () => ({ TrustPrompt: () => null }));
 
-import { ChoicesStep, KindStep, ReviewStep } from "./release-setup";
+import { ChoicesStep, ReviewStep } from "./release-setup";
 import { FlowDiagram } from "./release-setup-diagram";
 import { flowModel, SetupDraft, SetupOptions } from "./release-setup-model";
 
@@ -112,13 +112,6 @@ const draft: SetupDraft = {
 };
 
 describe("release setup stepper (FR-MC-036, DS-MC-030)", () => {
-    it("confirms the detected kind with its evidence", () => {
-        const html = renderToStaticMarkup(<KindStep draft={draft} options={options} onKind={() => {}} />);
-        expect(html).toContain("Distributed app");
-        expect(html).toContain("Detected");
-        expect(html).toContain("msi target in electron-builder.config.cjs");
-    });
-
     it("explains why a version format or a branch model is unavailable", () => {
         const html = renderToStaticMarkup(
             <ChoicesStep draft={draft} options={options} onChange={() => {}} channel="public" setChannel={() => {}} />
