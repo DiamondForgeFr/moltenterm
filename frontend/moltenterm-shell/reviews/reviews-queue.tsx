@@ -9,6 +9,7 @@
 // reviews-queue-model.ts's and reviews-ask-queue.ts's.
 
 import { cn } from "@/util/util";
+import { useLayoutEffect, useRef } from "react";
 import { useT } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
@@ -71,8 +72,24 @@ export function MergeQueueBlock({
     const id = (n: number) => shownNumber(queue.ids, n);
     const chosen = queueChosen(queue).length;
     const out = queue.out ?? [];
+    const blockRef = useRef<HTMLDivElement>(null);
+    const refocus = useRef<number>(null);
+    // The step moves when it changes side: its checkbox keeps the keyboard focus at its new place, once drawn there.
+    const choose = (number: number, inGroup: boolean) => {
+        refocus.current = number;
+        onChoose(number, inGroup);
+    };
+    useLayoutEffect(() => {
+        const number = refocus.current;
+        if (number == null) {
+            return;
+        }
+        refocus.current = null;
+        blockRef.current?.querySelector<HTMLElement>(`[data-step="${number}"] [role=checkbox]`)?.focus();
+    });
     return (
         <div
+            ref={blockRef}
             role="group"
             aria-label={t("reviews.queue.aria")}
             className="grid gap-1.5 rounded-4 border border-[var(--mt-line-2)] bg-[var(--mt-surface-2)] px-2.5 py-2"
@@ -135,7 +152,7 @@ export function MergeQueueBlock({
                                     <StepCheck
                                         checked
                                         label={t("reviews.queue.stepTakeOut", { number: id(s.number) })}
-                                        onToggle={() => onChoose(s.number, false)}
+                                        onToggle={() => choose(s.number, false)}
                                     />
                                 ) : null}
                                 <button
@@ -181,7 +198,7 @@ export function MergeQueueBlock({
                                 <StepCheck
                                     checked={false}
                                     label={t("reviews.queue.stepAdd", { number: id(n) })}
-                                    onToggle={() => onChoose(n, true)}
+                                    onToggle={() => choose(n, true)}
                                 />
                                 <button
                                     type="button"
