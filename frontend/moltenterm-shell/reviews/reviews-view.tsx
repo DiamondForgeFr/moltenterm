@@ -6,7 +6,8 @@
 // collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
 // is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
 // sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
-// Yours (#1062), and a hovered or focused card lights up the cards it conflicts with. A card opens the PR's assisted review; the keyboard walks the cards of the
+// Yours (#1062), and a hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
+// when they arrive, leave, reorder or change section (#1063, reviews-motion.tsx). A card opens the PR's assisted review; the keyboard walks the cards of the
 // open sections (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
@@ -54,6 +55,7 @@ import {
     reviewsRetryIsPrimary,
     splitReviews,
 } from "./reviews-model";
+import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
@@ -277,6 +279,11 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         foldedTurns[s.turn] = !turnOpen(s.turn);
     }
     const rows = sectionRows(sections, foldedTurns);
+    // The cards' places for their motion (#1063), folded sections included: folding never animates.
+    const motionLayout = useMemo(
+        () => sections.flatMap((s) => s.prs.map((pr) => ({ number: pr.number, section: s.turn }))),
+        [sections]
+    );
     // The conflicts as relations (FR-REV-023): the hovered card, else the focused (selected) one.
     const active = hovered ?? selected;
     const relations = useMemo(() => cardRelations(forecast, listed, active), [forecast, listed, active, locale]);
@@ -483,6 +490,11 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         </>
     );
     const bottomOpen = long !== true;
+    const motionAround = [
+        afterMerge?.merged.join(" ") ?? "",
+        batchShown(batchRun) ? "batch" : "",
+        shown ? queue.steps.map((s) => `${s.number}${s.merged ? "m" : ""}`).join(" ") : "",
+    ].join("|");
     return (
         <div
             ref={listRef}
@@ -515,42 +527,44 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     {t("reviews.sections.none")} <code>{answer.target}</code>.
                 </p>
             ) : null}
-            {sections.map((section) => {
-                const text = TurnSectionText[section.turn];
-                const isOpen = turnOpen(section.turn);
-                return (
-                    <section
-                        key={section.turn}
-                        className="flex flex-col gap-2"
-                        aria-label={t(text.title)}
-                        data-testid={`reviews-section-${section.turn}`}
-                    >
-                        <SectionHeading
-                            title={t(text.title)}
-                            count={section.prs.length}
-                            hint={text.hint ? t(text.hint) : undefined}
-                            open={isOpen}
-                            onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
-                            testId={`reviews-section-${section.turn}-toggle`}
+            <CardMotion dir={dir} layout={motionLayout} merged={mergedNumbers} around={motionAround}>
+                {sections.map((section) => {
+                    const text = TurnSectionText[section.turn];
+                    const isOpen = turnOpen(section.turn);
+                    return (
+                        <section
+                            key={section.turn}
+                            className="flex flex-col gap-2"
+                            aria-label={t(text.title)}
+                            data-testid={`reviews-section-${section.turn}`}
                         >
-                            {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
-                        </SectionHeading>
-                        {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
-                        {section.turn === queueTurn ? queueBlock : null}
-                        {isOpen ? (
-                            <div
-                                className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
-                                role="list"
-                                data-testid={`reviews-section-${section.turn}-list`}
+                            <SectionHeading
+                                title={t(text.title)}
+                                count={section.prs.length}
+                                hint={text.hint ? t(text.hint) : undefined}
+                                open={isOpen}
+                                onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
+                                testId={`reviews-section-${section.turn}-toggle`}
                             >
-                                {section.prs.map((pr) => (
-                                    <ReviewRow key={pr.number} {...rowProps(pr)} />
-                                ))}
-                            </div>
-                        ) : null}
-                    </section>
-                );
-            })}
+                                {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
+                            </SectionHeading>
+                            {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
+                            {section.turn === queueTurn ? queueBlock : null}
+                            {isOpen ? (
+                                <div
+                                    className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
+                                    role="list"
+                                    data-testid={`reviews-section-${section.turn}-list`}
+                                >
+                                    {section.prs.map((pr) => (
+                                        <ReviewRow key={pr.number} {...rowProps(pr)} />
+                                    ))}
+                                </div>
+                            ) : null}
+                        </section>
+                    );
+                })}
+            </CardMotion>
             <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} />
             {answer.repo ? (
                 <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} defaultOpen={bottomOpen} />
