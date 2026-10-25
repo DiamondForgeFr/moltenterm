@@ -64,9 +64,12 @@ import {
     cardRelations,
     edgeLine,
     mergeQueue,
+    queueCanMerge,
+    queueChoice,
     queueRanks,
     queueShown,
     queueWhy,
+    shownNumbersOf,
     withMerged,
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
@@ -234,6 +237,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const asks = useAtomValue(model.rebaseAsksAtom);
     const readied = useAtomValue(model.readiedAtom);
     const afterMerges = useAtomValue(model.afterMergeAtom);
+    const groupOuts = useAtomValue(model.groupOutAtom);
     const queuedAsks = useAtomValue(ReviewsAskQueue.getInstance().asksAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const [selected, setSelected] = useState<number>(null);
@@ -254,21 +258,27 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const forecast = useForecastAnswer(dir);
     const locale = useLocale();
     const sort = useReviewsSort();
-    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs that can merge or wait for their CI.
-    const baseQueue = useMemo(() => mergeQueue(forecast, listSplit.ready, listed), [forecast, listSplit, listed]);
+    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs that can merge or wait for their CI, for
+    // those the developer kept in the group merge (#1108).
+    const groupOut = groupOuts[dir];
+    const baseQueue = useMemo(
+        () => mergeQueue(forecast, listSplit.ready, listed, groupOut),
+        [forecast, listSplit, listed, groupOut]
+    );
     const afterMerge = afterMerges[dir];
     const queue = useMemo(
         () =>
             withMerged(
                 baseQueue,
-                afterMerge != null && afterMerge.read === (answer.githubat ?? 0) ? afterMerge.merged : []
+                afterMerge != null && afterMerge.read === (answer.githubat ?? 0) ? afterMerge.merged : [],
+                afterMerge?.ids
             ),
         [baseQueue, afterMerge, answer.githubat]
     );
+    // The number each card shows (#1108), merged PRs included for the banner of the running merge queue.
+    const shownIds = useMemo(() => shownNumbersOf(answer.merged ?? [], listed), [answer.merged, listed]);
     const shown = forecastReq != null && queueShown(queue);
     const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
-    // Only the first step that can merge keeps an orange Validate.
-    const firstStep = shown ? queue.steps.find((s) => !s.merged && !s.wait)?.number : null;
     // Each card's one state (#1060), computed here once so its section and the card itself agree.
     const ctx = useCardContext(dir);
     const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
@@ -306,7 +316,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         const item = queueItem(batchRun, n);
         return item != null && !batchItemEnded(item);
     };
-    const canMerge = queuePrs.some((pr) => !takenByQueue(pr.number));
+    const queueFree = queuePrs.some((pr) => !takenByQueue(pr.number));
     const check = useCheckAgents(dir, answer.repo, listed);
     const startBatch = async (method: ReviewMergeMethod): Promise<Phrase> => {
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
@@ -331,6 +341,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     }, [dir, answer, listed, baseQueue, forecast]);
     useEffect(() => {
         ReviewsAskQueue.getInstance().refresh(dir, listed);
+        model.forgetLeftGroupOut(dir, listed);
     }, [dir, listed]);
     useLayoutEffect(() => {
         const el = listRef.current;
@@ -435,7 +446,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         relation: relations.cards[pr.number],
         rank: ranks[pr.number],
         queueWhy: shown ? queueWhy(queue, pr.number, relations.byCard[pr.number]) : null,
-        calm: ranks[pr.number] != null && pr.number !== firstStep,
+        groupMerge: shown ? queueChoice(queue, pr.number) : null,
+        onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number),
     });
@@ -464,7 +476,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 onHandOver={handOver}
                 onClose={() => model.closeAfterMerge(dir)}
             />
-            {batchShown(batchRun) ? <BatchBanner run={batchRun} /> : null}
+            {batchShown(batchRun) ? <BatchBanner run={batchRun} ids={shownIds} /> : null}
             {shown ? (
                 <MergeQueueBlock
                     queue={queue}
@@ -472,8 +484,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     base={answer.target}
                     status={status}
                     hot={hot}
-                    canMerge={canMerge}
+                    canMerge={queueFree && queueCanMerge(queue)}
+                    free={queueFree || queuePrs.length === 0}
                     onStep={goToCard}
+                    onChoose={(number, inGroup) => model.setInGroupMerge(dir, number, inGroup)}
                     onMerge={() => setConfirming(true)}
                 />
             ) : null}

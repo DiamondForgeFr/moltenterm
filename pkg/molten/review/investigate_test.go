@@ -367,3 +367,20 @@ func TestAskInvestigateNeedsTheChecks(t *testing.T) {
 		t.Errorf("a terminal must not start an investigation")
 	}
 }
+
+// #1108: the agent's line names the number its Reviews card shows: the ticket, from the request or the branch, else the PR.
+func TestHoldNumberIsTheCardNumber(t *testing.T) {
+	cases := []struct {
+		req  RestartRequest
+		want string
+	}{
+		{RestartRequest{PrKey: PrKey{Number: 1096}, Ticket: 1091}, "1091"},
+		{RestartRequest{PrKey: PrKey{Number: 1096}, HeadRef: "fix/1088-leftovers"}, "1088"},
+		{RestartRequest{PrKey: PrKey{Number: 1096}, HeadRef: "spike"}, "1096"},
+	}
+	for _, c := range cases {
+		if got := holdNumber(c.req); got != c.want {
+			t.Errorf("holdNumber(%+v) = %s, want %s", c.req, got, c.want)
+		}
+	}
+}

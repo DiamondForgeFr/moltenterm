@@ -209,6 +209,11 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
     const order = suggestedMergeOrder(forecast, prs, listed);
     const byNumber = new Map(prs.map((pr) => [pr.number, pr]));
     const stepOf = new Map<number, MergeOrderStep>([...order.steps, ...order.outside].map((s) => [s.number, s]));
+    // The reasons name the PRs by the number their cards show (#1108).
+    const ids: Record<number, number> = {};
+    for (const p of [...(listed ?? []), ...prs]) {
+        ids[p.number] = p.ticket || p.number;
+    }
     const steps = withOutside(order)
         .filter((n) => byNumber.has(n))
         .map((n, i) => {
@@ -217,7 +222,7 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
             return {
                 pr,
                 rank: i + 1,
-                reason: step != null ? mergeOrderReason(step, base, pr) : "",
+                reason: step != null ? mergeOrderReason(step, base, pr, ids) : "",
                 rebase: step?.rebase ?? false,
             };
         });

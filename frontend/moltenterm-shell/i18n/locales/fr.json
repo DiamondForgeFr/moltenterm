@@ -5273,6 +5273,12 @@
             "stepRebase": "rebasée par votre agent avant sa fusion",
             "stepWait": "attend sa CI",
             "stepMerged": "#{number} fusionnée",
+            "stepOutTitle": "#{number} {title} : hors de la fusion groupée. Montre sa carte.",
+            "stepTakeOut": "Retirer #{number} de la fusion groupée",
+            "stepAdd": "Ajouter #{number} à la fusion groupée",
+            "mergeCount": "Fusionner ces {count} dans cet ordre…",
+            "chooseOne": "Une seule pull request choisie : le Valider de sa carte la fusionne.",
+            "chooseNone": "Aucune pull request choisie pour la fusion groupée.",
             "cost": {
                 "saved": {
                     "one": "{count} rebase au lieu de {list} dans l'ordre de la liste",
@@ -5569,6 +5575,10 @@
             "moreTakeOver": "Un agent s'en occupe, rien à faire pour l'instant. Pour la reprendre : Passer en revue, Revue assistée…",
             "draftTag": "brouillon",
             "draftTagTitle": "Cette pull request est un brouillon sur GitHub.",
+            "prChip": "PR #{number}",
+            "prChipTitle": "Pull request #{number} · {branch}",
+            "groupAdd": "Ajouter à la fusion groupée",
+            "groupTakeOut": "Retirer de la fusion groupée",
             "disabledTitle": "{action} : {reason}",
             "confirm": {
                 "agentWorking": "{name} travaille encore sur cette branche.",

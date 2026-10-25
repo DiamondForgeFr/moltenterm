@@ -195,8 +195,13 @@ export function BatchConfirmDialog({
                             </span>
                             <span className="min-w-0">
                                 <span className="font-medium text-primary">
-                                    #{step.pr.number} {step.pr.tickettitle || step.pr.title}
+                                    #{step.pr.ticket || step.pr.number} {step.pr.tickettitle || step.pr.title}
                                 </span>
+                                {step.pr.ticket ? (
+                                    <span className="ml-1.5 text-11 text-muted">
+                                        {t("reviews.card.prChip", { number: step.pr.number })}
+                                    </span>
+                                ) : null}
                                 {step.reason ? (
                                     <span className="block truncate text-11 text-secondary">{step.reason}</span>
                                 ) : null}
@@ -246,7 +251,8 @@ export function BatchConfirmDialog({
 // The banner over the Reviews list (FR-REV-026 AC7): the dominoes while the queue runs, its progress and the PR in
 // progress, each validated PR with its place and Cancel validation until its merge starts, Cancel all and the way to
 // the agent's terminal; the summary once it ended.
-export function BatchBanner({ run }: { run: BatchRun }) {
+// ids: the number each PR's card shows (#1108), by PR number.
+export function BatchBanner({ run, ids }: { run: BatchRun; ids?: Record<number, number> }) {
     const t = useT();
     const word = useWordPhrase();
     const [busy, setBusy] = useState("");
@@ -357,7 +363,9 @@ export function BatchBanner({ run }: { run: BatchRun }) {
                                 data-pr={it.number}
                                 data-state={it.state}
                             >
-                                <span className="shrink-0 font-medium text-primary">#{it.number}</span>
+                                <span className="shrink-0 font-medium text-primary">
+                                    #{ids?.[it.number] ?? it.number}
+                                </span>
                                 <span className="min-w-0 grow truncate text-secondary" title={mark?.title}>
                                     {it.title ? `${it.title} · ` : ""}
                                     {it === current ? batchStepText(run, it) : mark?.label}

@@ -356,12 +356,17 @@ function plural(n: number, key: string, vars: Record<string, string | number> = 
     return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n, ...vars });
 }
 
-export function prsText(numbers: number[]): string {
-    return numbers.map((n) => `#${n}`).join(", ");
+export function prsText(numbers: number[], ids?: Record<number, number>): string {
+    return numbers.map((n) => `#${ids?.[n] ?? n}`).join(", ");
 }
 
 // mergeOrderReason: why a PR takes its place, in one short line.
-export function mergeOrderReason(step: MergeOrderStep, base: string, pr?: ReviewPr): string {
+export function mergeOrderReason(
+    step: MergeOrderStep,
+    base: string,
+    pr?: ReviewPr,
+    ids?: Record<number, number>
+): string {
     const parts: string[] = [];
     if (step.group === "conflictsbase") {
         parts.push(t("reviews.order.reason.conflictsBase", { base: base || "base" }));
@@ -369,12 +374,12 @@ export function mergeOrderReason(step: MergeOrderStep, base: string, pr?: Review
         parts.push(t("reviews.order.reason.missing"));
     } else {
         if (step.rebaseAfter.length > 0) {
-            parts.push(t("reviews.order.reason.rebaseAfter", { prs: prsText(step.rebaseAfter) }));
+            parts.push(t("reviews.order.reason.rebaseAfter", { prs: prsText(step.rebaseAfter, ids) }));
         }
         if (step.impactsLater.length > 0) {
-            parts.push(t("reviews.order.reason.puts", { prs: prsText(step.impactsLater) }));
+            parts.push(t("reviews.order.reason.puts", { prs: prsText(step.impactsLater, ids) }));
         } else if (step.impactsEarlier.length > 0 && step.rebaseAfter.length === 0) {
-            parts.push(t("reviews.order.reason.after", { prs: prsText(step.impactsEarlier) }));
+            parts.push(t("reviews.order.reason.after", { prs: prsText(step.impactsEarlier, ids) }));
         }
         if (parts.length === 0) {
             parts.push(t("reviews.order.reason.noImpact"));

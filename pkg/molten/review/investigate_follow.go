@@ -273,15 +273,24 @@ func (r *Restarter) releaseState(f agentFollow, state string, message string, te
 	r.env.ReleaseState(f.blockId, state, message, text)
 }
 
+// holdNumber: the number the agent's line names, the one its Reviews card shows (#1108): the ticket,
+// else the PR number.
+func holdNumber(req RestartRequest) string {
+	if ticket := restartTicket(req); ticket > 0 {
+		return strconv.Itoa(ticket)
+	}
+	return strconv.Itoa(req.Number)
+}
+
 // holdFixing: the agent works on the CI (from its start, and whenever it works again).
 func (r *Restarter) holdFixing(f agentFollow, st *followState) {
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	st.stoppedAt, st.failSeen = time.Time{}, ""
 	r.holdState(f, st, molten.AgentStateWorking, "Resolving what blocks #"+number, uimsg.Make("agentHold.fixing", "number", number))
 }
 
 func (r *Restarter) holdCi(f agentFollow, st *followState) {
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	r.holdState(f, st, molten.AgentStateWorking, "Waiting for the CI of #"+number, uimsg.Make("agentHold.ci", "number", number))
 }
 
@@ -352,7 +361,8 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 			r.needsYou(ctx, f, st, name, message, uimsg.Make("notif.review.localCiMissing", "number", number, "branch", f.req.HeadRef))
 			return true
 		}
-		r.holdState(f, st, molten.AgentStateWorking, "Waiting for the local CI of #"+number, uimsg.Make("agentHold.localCi", "number", number))
+		held := holdNumber(f.req)
+		r.holdState(f, st, molten.AgentStateWorking, "Waiting for the local CI of #"+held, uimsg.Make("agentHold.localCi", "number", held))
 		return true
 	}
 	if r.env.Now().Sub(st.stoppedAt) > ciWatchMax {
@@ -411,7 +421,8 @@ func (f agentFollow) terminalAction() molten.NotificationAction {
 // ciGreen: the PR's required checks pass on the pushed head; the run turns green and says what the agent did.
 func (r *Restarter) ciGreen(ctx context.Context, f agentFollow, name string, outcome string) {
 	number := strconv.Itoa(f.req.Number)
-	r.releaseState(f, molten.AgentStateDone, "The CI of #"+number+" passes", uimsg.Make("agentHold.green", "number", number))
+	held := holdNumber(f.req)
+	r.releaseState(f, molten.AgentStateDone, "The CI of #"+held+" passes", uimsg.Make("agentHold.green", "number", held))
 	r.resolveNotice(ctx, f)
 	input := molten.NotificationInput{
 		Key:         agentDoneKey(f.req.PrKey),

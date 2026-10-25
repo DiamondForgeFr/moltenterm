@@ -4,7 +4,8 @@
 // The Reviews merge queue (#1062, FR-REV-024, FR-REV-025): the numbered queue at the top of "Yours", readable without
 // hovering (rank, ⟲ rebased by your agent, ◔ waits for its CI), its cost in rebases, a legend for the marks shown and
 // the PRs left out, and "Merge in this order…" at the bottom right, after the steps (developer decision 2026-10-24);
-// the status line after a merge; and a card's task queued for a busy agent (FR-REV-022 AC12). The data is
+// each step's checkbox, which takes it out of the group merge or puts it back (#1108), the steps taken out after the
+// others; the status line after a merge; and a card's task queued for a busy agent (FR-REV-022 AC12). The data is
 // reviews-queue-model.ts's and reviews-ask-queue.ts's.
 
 import { cn } from "@/util/util";
@@ -16,7 +17,16 @@ import { QueuedAsk, ReviewsAskQueue } from "./reviews-ask-queue";
 import { ForecastStatusLine } from "./reviews-forecast";
 import type { ForecastStatus } from "./reviews-forecast-model";
 import type { ReviewPr } from "./reviews-model";
-import { AfterMerge, afterMergeText, MergeQueue, queueCost, queueLegend } from "./reviews-queue-model";
+import {
+    AfterMerge,
+    afterMergeText,
+    MergeQueue,
+    queueChosen,
+    queueCost,
+    queueLegend,
+    QueueMinSteps,
+    shownNumber,
+} from "./reviews-queue-model";
 
 const SmallButton =
     "flex shrink-0 cursor-pointer items-center rounded-4 border border-border px-2 py-0.5 text-11 leading-4 text-secondary hover:bg-hover hover:text-primary";
@@ -32,7 +42,9 @@ export function MergeQueueBlock({
     status,
     hot,
     canMerge,
+    free,
     onStep,
+    onChoose,
     onMerge,
 }: {
     queue: MergeQueue;
@@ -41,9 +53,13 @@ export function MergeQueueBlock({
     status: ForecastStatus;
     // The steps related to the hovered or focused card, lit.
     hot: readonly number[];
-    // Merge in this order is offered: no merge queue runs already over these PRs.
+    // Merge in this order is offered: at least two steps chosen, and no merge queue runs already over them.
     canMerge: boolean;
+    // No merge queue runs over the chosen steps: with too few chosen, a line says why the button is gone.
+    free: boolean;
     onStep: (number: number) => void;
+    // A step's checkbox puts it into the group merge or takes it out (#1108).
+    onChoose: (number: number, inGroup: boolean) => void;
     onMerge: () => void;
 }) {
     const t = useT();
@@ -52,6 +68,9 @@ export function MergeQueueBlock({
     const legend = word(queueLegend(queue, base));
     const titleOf = (n: number) =>
         prs.find((pr) => pr.number === n)?.tickettitle ?? prs.find((pr) => pr.number === n)?.title ?? "";
+    const id = (n: number) => shownNumber(queue.ids, n);
+    const chosen = queueChosen(queue).length;
+    const out = queue.out ?? [];
     return (
         <div
             role="group"
@@ -82,11 +101,11 @@ export function MergeQueueBlock({
                         .filter(Boolean)
                         .join(", ");
                     const title = s.merged
-                        ? t("reviews.queue.stepMerged", { number: s.number })
+                        ? t("reviews.queue.stepMerged", { number: id(s.number) })
                         : [
                               t("reviews.queue.stepTitle", {
                                   rank: s.rank,
-                                  number: s.number,
+                                  number: id(s.number),
                                   title: titleOf(s.number),
                               }),
                               marks,
@@ -96,13 +115,9 @@ export function MergeQueueBlock({
                     const next = queue.steps[i + 1];
                     return (
                         <li key={s.number} className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => !s.merged && onStep(s.number)}
-                                title={title}
-                                aria-label={title}
+                            <span
                                 className={cn(
-                                    "inline-flex cursor-pointer items-center gap-1 rounded-3 border border-[var(--mt-line-2)] px-1.5 leading-4 whitespace-nowrap text-secondary hover:text-primary",
+                                    "inline-flex items-center rounded-3 border border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-secondary",
                                     s.rebase && "border-dashed",
                                     s.wait && "text-muted",
                                     s.merged && "line-through opacity-55",
@@ -114,19 +129,71 @@ export function MergeQueueBlock({
                                 data-step={s.number}
                                 data-merged={s.merged || undefined}
                                 data-hot={hot.includes(s.number) || undefined}
+                                data-chosen={!s.merged || undefined}
                             >
-                                <span className="font-semibold text-accent tabular-nums">
-                                    {s.merged ? "✓" : s.rank}
-                                </span>
-                                #{s.number}
-                                {s.rebase ? <span aria-hidden>⟲</span> : null}
-                                {s.wait ? <span aria-hidden>◔</span> : null}
-                            </button>
+                                {!s.merged ? (
+                                    <StepCheck
+                                        checked
+                                        label={t("reviews.queue.stepTakeOut", { number: id(s.number) })}
+                                        onToggle={() => onChoose(s.number, false)}
+                                    />
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={() => !s.merged && onStep(s.number)}
+                                    title={title}
+                                    aria-label={title}
+                                    className={cn(
+                                        "inline-flex cursor-pointer items-center gap-1 pr-1.5 hover:text-primary",
+                                        s.merged && "pl-1.5"
+                                    )}
+                                    data-testid="reviews-queue-step-go"
+                                >
+                                    <span className="font-semibold text-accent tabular-nums">
+                                        {s.merged ? "✓" : s.rank}
+                                    </span>
+                                    #{id(s.number)}
+                                    {s.rebase ? <span aria-hidden>⟲</span> : null}
+                                    {s.wait ? <span aria-hidden>◔</span> : null}
+                                </button>
+                            </span>
                             {next != null ? (
                                 <span className="text-10 text-muted" aria-hidden>
                                     {s.merged && !next.merged ? "·" : "→"}
                                 </span>
                             ) : null}
+                        </li>
+                    );
+                })}
+                {out.map((n, i) => {
+                    const title = t("reviews.queue.stepOutTitle", { number: id(n), title: titleOf(n) });
+                    return (
+                        <li
+                            key={n}
+                            className={cn("flex items-center gap-1", i === 0 && queue.steps.length > 0 && "ml-2")}
+                        >
+                            <span
+                                className="inline-flex items-center rounded-3 border border-dashed border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-muted"
+                                data-testid="reviews-queue-step"
+                                data-step={n}
+                                data-out
+                            >
+                                <StepCheck
+                                    checked={false}
+                                    label={t("reviews.queue.stepAdd", { number: id(n) })}
+                                    onToggle={() => onChoose(n, true)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => onStep(n)}
+                                    title={title}
+                                    aria-label={title}
+                                    className="inline-flex cursor-pointer items-center pr-1.5 hover:text-primary"
+                                    data-testid="reviews-queue-step-go"
+                                >
+                                    #{id(n)}
+                                </button>
+                            </span>
                         </li>
                     );
                 })}
@@ -145,12 +212,37 @@ export function MergeQueueBlock({
                         className="molten-btn flex h-[26px] cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12"
                         data-testid="reviews-queue-merge"
                     >
-                        {t("reviews.queue.merge")}
+                        {t("reviews.queue.mergeCount", { count: chosen })}
                         <MoltenWave />
                     </button>
                 </div>
+            ) : free && chosen < QueueMinSteps ? (
+                <div className="text-right text-11 text-muted" data-testid="reviews-queue-choose">
+                    {chosen === 0 ? t("reviews.queue.chooseNone") : t("reviews.queue.chooseOne")}
+                </div>
             ) : null}
         </div>
+    );
+}
+
+// A step's checkbox (#1108): in the group merge or taken out, from the pointer or the keyboard (Space or Enter).
+function StepCheck({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            aria-label={label}
+            title={label}
+            onClick={onToggle}
+            className="inline-flex cursor-pointer items-center self-stretch rounded-l-3 px-1 text-10 hover:bg-hover hover:text-primary"
+            data-testid="reviews-queue-step-check"
+        >
+            <i
+                className={cn("fa", checked ? "fa-solid fa-square-check text-accent" : "fa-regular fa-square")}
+                aria-hidden
+            />
+        </button>
     );
 }
 
