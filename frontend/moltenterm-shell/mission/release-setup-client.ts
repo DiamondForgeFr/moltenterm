@@ -19,6 +19,7 @@ import type {
     SetupStepChange,
     SetupTicket,
 } from "./release-setup-model";
+import type { SetupAnswers, SetupSurvey } from "./release-setup-stepper";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionSetupDraftCommand = "moltenmissionsetupdraft";
@@ -30,6 +31,8 @@ export const MissionSetupCheckCommand = "moltenmissionsetupcheck";
 export const MissionSetupUpdateCommand = "moltenmissionsetupupdate";
 export const MissionSetupPrStateCommand = "moltenmissionsetupprstate";
 export const MissionSetupTicketsCommand = "moltenmissionsetuptickets";
+export const MissionSetupSurveyCommand = "moltenmissionsetupsurvey";
+export const MissionSetupAnswersCommand = "moltenmissionsetupanswers";
 
 const SetupDraftTimeoutMs = 90000;
 // The coding agent reads the repository: the backend stops it at 10 minutes.
@@ -115,6 +118,16 @@ export function setupUpdate(
 
 export function setupPrState(id: string): Promise<SetupPrJob> {
     return setupCall(MissionSetupPrStateCommand, { id }, SetupWriteTimeoutMs);
+}
+
+// Step 1 of the stepper (FR-MC-038): the app type, what the repository shows of a pipeline, and the saved answers.
+export function setupSurvey(dir: string): Promise<SetupSurvey> {
+    return setupCall(MissionSetupSurveyCommand, { dir }, SetupDraftTimeoutMs);
+}
+
+// Keeps the stepper's answers for the project in MoltenTerm's data; null forgets them.
+export function setupSaveAnswers(dir: string, answers: SetupAnswers): Promise<{ saved: boolean }> {
+    return setupCall(MissionSetupAnswersCommand, { dir, answers: answers ?? undefined }, SetupWriteTimeoutMs);
 }
 
 export function setupTickets(dir: string): Promise<{ tickets: SetupTicket[] }> {

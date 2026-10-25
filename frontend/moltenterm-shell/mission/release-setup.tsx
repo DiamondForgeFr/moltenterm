@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// "Set up the release" (FR-MC-036, DS-MC-030): a stepper over the window, like Validate's (#672). It drafts the missing
-// release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's detection), lets the
-// developer confirm the app kind, what to set up and each choice with a live diagram, then shows the whole flow and the
-// diff of .molten/project.json. The setup reads the committed pipeline and never writes the folder opened: the click
+// The deployment pipeline setup (FR-MC-036, FR-MC-038, DS-MC-030): a stepper over the window, like Validate's (#672).
+// It drafts the missing release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's
+// detection), lets the developer confirm the app type, what to set up and each choice with a live diagram, then shows
+// the whole flow and the diff of .molten/project.json. The setup reads the committed pipeline and never writes the folder opened: the click
 // opens a draft pull request from a worktree of its own (#1098); the new commands ask for trust once it is merged.
 
 import { cn, fireAndForget } from "@/util/util";
@@ -14,7 +14,8 @@ import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { setupDraft, setupWrite } from "./release-setup-client";
+import { setupDraft, setupSaveAnswers, setupSurvey, setupWrite } from "./release-setup-client";
+import { DetectStep } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
 import {
     addManual,
@@ -38,11 +39,20 @@ import {
 import { PrFooterButtons, PrPanel, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { AgentProposal } from "./release-setup-proposal";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
+import {
+    kindOfAppType,
+    nextLabelKey,
+    resumeStep,
+    SetupAppType,
+    SetupPath,
+    SetupSurvey,
+    stepIndex,
+    StepperStep,
+    StepperSteps,
+    stepReachable,
+} from "./release-setup-stepper";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
-
-type StepId = "kind" | "what" | "choices" | "review";
-const Steps: StepId[] = ["kind", "what", "choices", "review"];
 
 const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
@@ -219,68 +229,6 @@ function ManualForm({
                 >
                     {t("mc.setup.manual.add")}
                 </button>
-            </div>
-        </div>
-    );
-}
-
-export function KindStep({
-    draft,
-    options,
-    onKind,
-}: {
-    draft: SetupDraft;
-    options: SetupOptions;
-    onKind: (k: SetupKind) => void;
-}) {
-    const t = useT();
-    const sourceText = useSourceText();
-    const kinds: SetupKind[] = ["on-premise", "saas"];
-    return (
-        <div className="flex flex-col gap-3">
-            <p className="text-12 text-secondary">{t("mc.setup.kind.intro")}</p>
-            {kinds.map((kind) => (
-                <label
-                    key={kind}
-                    className={cn(
-                        "flex cursor-pointer flex-col gap-1 rounded-6 border px-3 py-2",
-                        options.kind === kind
-                            ? "border-accent/60 bg-accent/10"
-                            : "border-border hover:border-secondary/40"
-                    )}
-                    data-testid={`setup-kind-${kind}`}
-                >
-                    <span className="flex items-center gap-2 text-13 font-medium text-primary">
-                        <input
-                            type="radio"
-                            name="setup-kind"
-                            checked={options.kind === kind}
-                            onChange={() => onKind(kind)}
-                            className="cursor-pointer"
-                        />
-                        {t(`mc.setup.kind.${kind}`)}
-                        {draft.facts.kind === kind ? (
-                            <span className="rounded-4 border border-border px-1.5 text-10 text-muted">
-                                {t("mc.setup.kind.detected")}
-                            </span>
-                        ) : null}
-                    </span>
-                    <span className="text-11 text-muted">{t(`mc.setup.kind.${kind}Hint`)}</span>
-                </label>
-            ))}
-            <div className={SectionClass}>
-                <div className={SectionTitle}>{t("mc.setup.kind.evidence")}</div>
-                {draft.facts.kindevidence.length === 0 ? (
-                    <div className="text-11 text-muted">{t("mc.setup.kind.noEvidence")}</div>
-                ) : (
-                    <ul className="flex flex-col gap-0.5 pl-4 text-11 text-secondary">
-                        {draft.facts.kindevidence.map((e, i) => (
-                            <li key={i} className="list-disc">
-                                {sourceText(e)}
-                            </li>
-                        ))}
-                    </ul>
-                )}
             </div>
         </div>
     );
@@ -701,6 +649,114 @@ export function ReviewStep({
     );
 }
 
+function StepBar({
+    step,
+    survey,
+    appType,
+    path,
+    ready,
+    locked,
+    onStep,
+}: {
+    step: StepperStep;
+    survey: SetupSurvey;
+    appType: SetupAppType;
+    path: SetupPath;
+    ready: boolean;
+    locked: boolean;
+    onStep: (s: StepperStep) => void;
+}) {
+    const t = useT();
+    const at = stepIndex(step);
+    const sub = (s: StepperStep, i: number): string => {
+        if (s === "detect") {
+            if (survey == null || appType == null) {
+                return t("mc.setup.stepper.reading");
+            }
+            const type = t(`mc.setup.appType.${appType}Short`);
+            return survey.ships
+                ? t("mc.setup.stepper.detectShips", { type })
+                : t("mc.setup.stepper.detectNoShips", { type });
+        }
+        if (s === "template") {
+            return t("mc.setup.stepper.optional");
+        }
+        if (i > at) {
+            return "—";
+        }
+        if (s === "understand") {
+            return path === "describe" ? t("mc.setup.stepper.describeSub") : t("mc.setup.stepper.analyseSub");
+        }
+        return t("mc.setup.stepper.prepareSub");
+    };
+    return (
+        <ol className="mb-1 grid grid-cols-2 gap-1.5 @min-[44rem]:grid-cols-4" data-testid="setup-steps">
+            {StepperSteps.map((s, i) => {
+                const reachable = !locked && stepReachable(s, step, ready);
+                return (
+                    <li key={s} className="min-w-0">
+                        <button
+                            type="button"
+                            disabled={!reachable || s === step}
+                            onClick={() => onStep(s)}
+                            title={s === "template" ? t("mc.setup.stepper.templateLater") : undefined}
+                            aria-current={s === step ? "step" : undefined}
+                            className={cn(
+                                "flex w-full cursor-pointer items-start gap-2 rounded-6 border px-2.5 py-1.5 text-left disabled:cursor-default",
+                                s === step
+                                    ? "border-accent/70 bg-accent/10"
+                                    : i < at
+                                      ? "border-success/40 hover:border-success/70"
+                                      : "border-border opacity-80"
+                            )}
+                            data-testid={`setup-step-${s}`}
+                        >
+                            <span
+                                className={cn(
+                                    "mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border font-mono text-11",
+                                    s === step
+                                        ? "border-accent text-accent"
+                                        : i < at
+                                          ? "border-success text-success"
+                                          : "border-border text-muted"
+                                )}
+                            >
+                                {i < at ? "✓" : i + 1}
+                            </span>
+                            <span className="flex min-w-0 flex-col">
+                                <span className="text-12 font-medium text-primary">
+                                    {t(`mc.setup.stepper.step.${s}`)}
+                                </span>
+                                <span className="truncate text-11 text-muted">{sub(s, i)}</span>
+                                {s === "understand" ? (
+                                    <span className="mt-0.5 flex gap-1 text-10">
+                                        {(["analyse", "describe"] as SetupPath[]).map((p) => (
+                                            <span
+                                                key={p}
+                                                className={cn(
+                                                    "rounded-4 border px-1",
+                                                    p === path
+                                                        ? "border-accent/60 text-accent"
+                                                        : "border-border text-muted"
+                                                )}
+                                            >
+                                                {t(`mc.setup.stepper.fork.${p}`)}
+                                            </span>
+                                        ))}
+                                    </span>
+                                ) : null}
+                            </span>
+                        </button>
+                    </li>
+                );
+            })}
+        </ol>
+    );
+}
+
+// The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template. Until
+// #1101–#1104 give steps 2 and 3 their own content, step 2 hosts the former What and Choices steps and step 3 the
+// former Review with its pull request (FR-MC-036). The answers are kept per project between openings.
 export function ReleaseSetup({
     dir,
     projectName,
@@ -718,15 +774,21 @@ export function ReleaseSetup({
     const [touched, setTouched] = useState(false);
     // Who drafted before the developer changed a choice: their choices then replace SaaSFoundryAI's draft.
     const [firstProvider, setFirstProvider] = useState<SetupDraft["provider"]>(null);
-    const [step, setStep] = useState<StepId>("kind");
+    const [step, setStep] = useState<StepperStep>("detect");
+    const [survey, setSurvey] = useState<SetupSurvey>(null);
+    const [surveyError, setSurveyError] = useState<string>(null);
+    const [appType, setAppType] = useState<SetupAppType>(null);
+    const [path, setPath] = useState<SetupPath>("analyse");
+    // The answers are saved only once the saved ones were read, so an opening never overwrites them with blanks.
+    const [resumed, setResumed] = useState(false);
     const [channel, setChannel] = useState<SetupChannel>("rc");
     const [error, setError] = useState<string>(null);
     const [loading, setLoading] = useState(true);
     const [refined, setRefined] = useState<SetupProposalResult>(null);
     const [refining, setRefining] = useState(false);
-    // The proposal's cards live in the Review step: leaving it goes back to the draft (#1099).
-    const goTo = (next: StepId) => {
-        if (next !== "review") {
+    // The proposal's cards live in the Prepare step: leaving it goes back to the draft (#1099).
+    const goTo = (next: StepperStep) => {
+        if (next !== "prepare") {
             setRefined(null);
             setRefining(false);
         }
@@ -769,9 +831,56 @@ export function ReleaseSetup({
             }
         });
 
+    // Step 1's survey first: the app type it detects (or the one saved) picks the template the draft starts from.
     useEffect(() => {
-        load(null);
+        let cancelled = false;
+        fireAndForget(async () => {
+            let answer: SetupSurvey = null;
+            try {
+                answer = await setupSurvey(dir);
+            } catch (e) {
+                if (!cancelled) {
+                    setSurveyError(serverErrorText(e));
+                }
+            }
+            if (cancelled) {
+                return;
+            }
+            const saved = answer?.answers;
+            const type = saved?.apptype ?? answer?.apptype ?? null;
+            setSurvey(answer);
+            setAppType(type);
+            setPath(saved?.path ?? answer?.recommended ?? "analyse");
+            if (saved?.touched && saved.options != null) {
+                setTouched(true);
+                load(saved.options);
+            } else {
+                load(null, type ? kindOfAppType(type) : undefined);
+            }
+            setStep(resumeStep(saved));
+            setResumed(true);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [dir]);
+
+    const done = pr.job?.finished && pr.job.failure == null;
+    useEffect(() => {
+        if (!resumed || draft == null) {
+            return;
+        }
+        const answers = done
+            ? null
+            : { base: draft.base, step, apptype: appType, path, touched, options: touched ? options : undefined };
+        fireAndForget(async () => {
+            try {
+                await setupSaveAnswers(dir, answers);
+            } catch {
+                // Resuming is a convenience: the stepper works without it.
+            }
+        });
+    }, [resumed, draft?.base, step, appType, path, touched, options, done]);
 
     const change = (next: SetupOptions) => {
         setOptions(next);
@@ -779,11 +888,18 @@ export function ReleaseSetup({
         load(next);
     };
     const chooseKind = (kind: SetupKind) => {
-        if (!touched) {
+        if (!touched || options == null) {
             load(null, kind);
             return;
         }
         change({ ...options, kind });
+    };
+    const chooseType = (type: SetupAppType) => {
+        setAppType(type);
+        const kind = kindOfAppType(type);
+        if (options?.kind !== kind) {
+            chooseKind(kind);
+        }
     };
     const text = refined?.proposed ?? draft?.proposed ?? "";
     const errors = refined?.errors ?? draft?.errors ?? [];
@@ -802,9 +918,8 @@ export function ReleaseSetup({
         load(touched ? options : null, touched ? undefined : options?.kind);
     };
 
-    const at = Steps.indexOf(step);
+    const at = stepIndex(step);
     const nothing = options != null && options.kind !== "saas" && options.channels.length === 0;
-    const done = pr.job?.finished && pr.job.failure == null;
     const canWrite =
         draft != null &&
         !loading &&
@@ -823,6 +938,9 @@ export function ReleaseSetup({
         !nothing &&
         !done &&
         canOpenPr(draft.pr, ticket, "patch");
+    const ready =
+        draft != null && options != null && (step === "detect" ? appType != null : step === "understand" && !nothing);
+    const next = StepperSteps[at + 1];
     return (
         <DialogFrame
             role="mc-release-setup"
@@ -833,30 +951,43 @@ export function ReleaseSetup({
             onEscape={writing ? undefined : onClose}
             buttons={
                 <>
-                    {loading ? <DominoLoader className="mr-auto" /> : null}
-                    <button type="button" className={PlainButton} onClick={onClose} disabled={writing}>
-                        {done ? t("common.close") : t("common.cancel")}
-                    </button>
+                    <span className="mr-auto flex items-center gap-2 text-11 text-muted">
+                        {loading ? <DominoLoader /> : null}
+                        {done ? null : (
+                            <span data-testid="setup-step-of">
+                                {t("mc.setup.stepper.stepOf", { n: at + 1, total: StepperSteps.length })}
+                            </span>
+                        )}
+                    </span>
                     {at > 0 && !done ? (
                         <button
                             type="button"
                             className={PlainButton}
-                            onClick={() => goTo(Steps[at - 1])}
+                            onClick={() => goTo(StepperSteps[at - 1])}
                             disabled={writing}
                         >
                             {t("mc.setup.back")}
                         </button>
                     ) : null}
-                    {step !== "review" ? (
+                    <button
+                        type="button"
+                        className={PlainButton}
+                        onClick={onClose}
+                        disabled={writing}
+                        data-testid="setup-close"
+                    >
+                        {done ? t("common.close") : t("mc.setup.stepper.close")}
+                    </button>
+                    {step !== "prepare" ? (
                         <button
                             key="next"
                             type="button"
                             className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
-                            disabled={draft == null || nothing}
-                            onClick={() => goTo(Steps[at + 1])}
+                            disabled={!ready}
+                            onClick={() => goTo(next)}
                             data-testid="setup-next"
                         >
-                            {t("mc.setup.next")}
+                            {t(nextLabelKey(step, path))}
                             <MoltenWave />
                         </button>
                     ) : (
@@ -872,28 +1003,15 @@ export function ReleaseSetup({
                 </>
             }
         >
-            <ol className="mb-1 flex flex-wrap gap-1.5" data-testid="setup-steps">
-                {Steps.map((s, i) => (
-                    <li key={s}>
-                        <button
-                            type="button"
-                            disabled={draft == null || i > at + 1 || writing || done}
-                            onClick={() => goTo(s)}
-                            className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-11 disabled:cursor-default",
-                                s === step
-                                    ? "border-accent/70 bg-accent/15 text-accent"
-                                    : i < at
-                                      ? "border-success/60 text-success"
-                                      : "border-border text-muted"
-                            )}
-                        >
-                            <span className="font-mono">{i + 1}</span>
-                            {t(`mc.setup.step.${s}`)}
-                        </button>
-                    </li>
-                ))}
-            </ol>
+            <StepBar
+                step={step}
+                survey={survey}
+                appType={appType}
+                path={path}
+                ready={ready}
+                locked={draft == null || writing || done}
+                onStep={goTo}
+            />
             {error ? (
                 <p
                     className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
@@ -902,7 +1020,29 @@ export function ReleaseSetup({
                     {error}
                 </p>
             ) : null}
-            {draft == null || options == null ? (
+            {step === "detect" ? (
+                survey == null && surveyError == null ? (
+                    <div className="flex items-center gap-2 py-6 text-12 text-muted">
+                        <DominoLoader />
+                        {t("mc.setup.reading")}
+                    </div>
+                ) : (
+                    <div className="@container flex flex-col gap-3">
+                        {draft == null || writing || done ? null : (
+                            <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
+                        )}
+                        <DetectStep
+                            survey={survey}
+                            error={surveyError}
+                            pipelineRef={draft?.pr?.ref ?? ""}
+                            appType={appType}
+                            path={path}
+                            onType={chooseType}
+                            onPath={setPath}
+                        />
+                    </div>
+                )
+            ) : draft == null || options == null ? (
                 error ? null : (
                     <div className="flex items-center gap-2 py-6 text-12 text-muted">
                         <DominoLoader />
@@ -920,18 +1060,21 @@ export function ReleaseSetup({
                     {writing || done ? null : (
                         <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
                     )}
-                    {step === "kind" ? <KindStep draft={draft} options={options} onKind={chooseKind} /> : null}
-                    {step === "what" ? <WhatStep draft={draft} options={options} onChange={change} /> : null}
-                    {step === "choices" ? (
-                        <ChoicesStep
-                            draft={draft}
-                            options={options}
-                            onChange={change}
-                            channel={channel}
-                            setChannel={setChannel}
-                        />
+                    {step === "understand" ? (
+                        <>
+                            <WhatStep draft={draft} options={options} onChange={change} />
+                            {nothing ? null : (
+                                <ChoicesStep
+                                    draft={draft}
+                                    options={options}
+                                    onChange={change}
+                                    channel={channel}
+                                    setChannel={setChannel}
+                                />
+                            )}
+                        </>
                     ) : null}
-                    {step === "review" ? (
+                    {step === "prepare" ? (
                         <ReviewStep
                             dir={dir}
                             draft={draft}
@@ -941,7 +1084,7 @@ export function ReleaseSetup({
                             onRefining={setRefining}
                         />
                     ) : null}
-                    {step === "review" ? (
+                    {step === "prepare" ? (
                         <PrPanel
                             dir={dir}
                             plan={draft.pr}
