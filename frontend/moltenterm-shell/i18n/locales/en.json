@@ -4683,7 +4683,35 @@
             },
             "openTicket": "Open the ticket",
             "openAgent": "Go to the agent working on it",
-            "ticketsError": "The tickets' titles and statuses could not be read."
+            "ticketsError": "The tickets' titles and statuses could not be read.",
+            "waitingHint": {
+                "one": "{count} waiting for you",
+                "other": "{count} waiting for you"
+            },
+            "goThere": "Go there",
+            "moreTitle": "More actions for #{ticket}",
+            "state": {
+                "nobody": "Nobody on it",
+                "done": "{name} has finished",
+                "idle": "{name} is idle",
+                "subagent": "A sub-agent of {name} is on it",
+                "subagentDone": "A sub-agent of {name} has finished",
+                "background": "An agent is probably on it"
+            },
+            "session": {
+                "title": "{name}'s session",
+                "titleUnknown": "An agent session",
+                "agents": {
+                    "one": "{count} agent",
+                    "other": "{count} agents"
+                },
+                "orchestrates": {
+                    "one": "{name} orchestrates {count} ticket",
+                    "other": "{name} orchestrates {count} tickets"
+                },
+                "launch": "Launch #{ticket}",
+                "background": "in the background"
+            }
         },
         "task": {
             "what": {
@@ -5019,7 +5047,30 @@
             "notes": "{count} notes",
             "notesTitle": "Show the review notes kept on PR #{number}",
             "all": "All merged pull requests",
-            "allTitle": "Open the history of every pull request merged into {target}"
+            "allTitle": "Open the history of every pull request merged into {target}",
+            "group": {
+                "next": "In the next version",
+                "tag": "In {tag}",
+                "unknown": "Version not known yet",
+                "prepare": "Prepare the notes",
+                "notes": "Release notes",
+                "historyTitle": "Open the merged pull requests of this version"
+            },
+            "more": {
+                "one": "… {count} more",
+                "other": "… {count} more"
+            },
+            "showAll": "Show all",
+            "you": "you",
+            "by": "by {name}",
+            "rowAria": "#{number} {title}, show its details",
+            "prLink": "PR #{number} ↗",
+            "mergedAt": "merged {when}",
+            "age": {
+                "minutes": "{count} min",
+                "hours": "{count} h",
+                "days": "{count} d"
+            }
         },
         "history": {
             "title": "Merged pull requests",
@@ -5414,6 +5465,21 @@
             "history": {
                 "gone": "{name} stopped before finishing {what}."
             }
+        },
+        "sort": {
+            "aria": "Sort the pull requests",
+            "state": "By state",
+            "stateTitle": "Within each section, what needs you first, in the order of the card states.",
+            "merge": "Merge order"
+        },
+        "sections": {
+            "yours": "Yours",
+            "yoursHint": "merge, answer, unblock",
+            "agents": "Agents on it",
+            "blocked": "Blocked, nobody on it",
+            "waiting": "Waiting",
+            "waitingHint": "CI or a reviewer",
+            "none": "No pull request open into"
         }
     },
     "sessions": {
@@ -6586,7 +6652,8 @@
             "delete": "Delete",
             "deleteConfirm": "Delete this note?",
             "byAgent": "Explained by {agent}",
-            "openLine": "Open the file at this line, as of the merged PR or the base branch"
+            "openLine": "Open the file at this line, as of the merged PR or the base branch",
+            "emptyLine": "none. Keep an AI explanation from a Review tab: it stays here after the merge."
         }
     },
     "server": {
