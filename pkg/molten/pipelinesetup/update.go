@@ -4,6 +4,7 @@
 package pipelinesetup
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -46,6 +47,15 @@ const (
 	// Steps the developer edited or added differ from the template: kept unless they choose otherwise, and a choice
 	// written once is not offered again.
 	UpdateReasonCustomised = "customised"
+	// The changes come from the choices the developer adjusted in step 2a (#1102), not from a newer template.
+	UpdateReasonAdjusted = "adjusted"
+	// The developer's uncommitted edits are included as changes to check (#1102).
+	UpdateReasonLocal = "local"
+
+	// The working copy's uncommitted edits, listed as changes of their own (#1102): one per release step
+	// ("local/rc/prepare"), and one for every edit outside the release steps.
+	LocalPrefix  = "local/"
+	LocalFileKey = "local/file"
 
 	maxRecordBytes = 256 << 10
 	hashChars      = 12
@@ -78,14 +88,18 @@ type Change struct {
 	Customised bool `json:"customised"`
 	// The default choice: take the template's version (add, remove, replace) or keep the file's.
 	Take bool `json:"take"`
+	// An uncommitted edit of the working copy (#1102): Before is the committed side, After the working copy's.
+	Local bool `json:"local,omitempty"`
 }
 
 type CheckRequest struct {
 	Dir string `json:"dir"`
 	// The developer's choices by change key; a change not named takes its default.
 	Choices map[string]bool `json:"choices,omitempty"`
-	// Check the working copy's uncommitted pipeline instead of the committed one (#1098).
+	// List the working copy's uncommitted edits as changes to check, on top of the committed pipeline (#1098, #1102).
 	IncludeLocal bool `json:"includelocal,omitempty"`
+	// The choices the developer adjusted in step 2a (#1102); nil: the ones the pipeline stands for.
+	Options *Options `json:"options,omitempty"`
 }
 
 type CheckAnswer struct {
@@ -106,6 +120,11 @@ type CheckAnswer struct {
 	ValidateWarnings []string `json:"validatewarnings"`
 	// Where the pull request starts and goes (#1098).
 	Pr PrPlan `json:"pr"`
+	// The choices the check was made with (inferred, or adjusted), and whether the developer adjusted them (#1102).
+	Options  *Options `json:"options,omitempty"`
+	Adjusted bool     `json:"adjusted,omitempty"`
+	// What step 2a draws (#1102): the declared steps with the ones the template adds in place, the removed ones kept.
+	Drawn *molten.PipelineRelease `json:"drawn,omitempty"`
 }
 
 type UpdateRequest struct {
@@ -113,6 +132,7 @@ type UpdateRequest struct {
 	Base      string          `json:"base"`
 	Signature string          `json:"signature"`
 	Choices   map[string]bool `json:"choices,omitempty"`
+	Options   *Options        `json:"options,omitempty"`
 	PrRequest
 }
 
@@ -362,8 +382,9 @@ func chosen(c Change, choices map[string]bool) bool {
 }
 
 // mergeChannel applies the choices: the template's steps in its order, a change kept as the file has it, and the steps
-// the template no longer writes, when kept, after the step that came before them in the file.
-func mergeChannel(channel string, current, proposed []molten.PipelineStep, changes []Change, choices map[string]bool) []molten.PipelineStep {
+// the template no longer writes, when kept, after the step that came before them in the file. prefix names the changes
+// ("" for the template's, LocalPrefix for the uncommitted edits).
+func mergeChannel(prefix string, channel string, current, proposed []molten.PipelineStep, changes []Change, choices map[string]bool) []molten.PipelineStep {
 	byKey := map[string]Change{}
 	for _, c := range changes {
 		byKey[c.Key] = c
@@ -371,7 +392,7 @@ func mergeChannel(channel string, current, proposed []molten.PipelineStep, chang
 	var rtn []molten.PipelineStep
 	for _, p := range proposed {
 		kept, inFile := stepById(current, p.Id)
-		c, ok := byKey[channel+"/"+p.Id]
+		c, ok := byKey[prefix+channel+"/"+p.Id]
 		switch {
 		case ok && chosen(c, choices):
 			rtn = append(rtn, p)
@@ -384,7 +405,7 @@ func mergeChannel(channel string, current, proposed []molten.PipelineStep, chang
 		if _, ok := stepById(proposed, s.Id); ok {
 			continue
 		}
-		if c, ok := byKey[channel+"/"+s.Id]; ok && chosen(c, choices) {
+		if c, ok := byKey[prefix+channel+"/"+s.Id]; ok && chosen(c, choices) {
 			continue
 		}
 		at := 0
@@ -424,10 +445,155 @@ type checked struct {
 	text     []byte
 }
 
-func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, choices map[string]bool, includeLocal bool) (*checked, error) {
-	current, recordData := b.buildOn(includeLocal)
+// What a check is made with: the developer's ticks, whether their uncommitted edits are included, and the choices
+// they adjusted (nil: inferred from the pipeline).
+type checkInput struct {
+	choices      map[string]bool
+	includeLocal bool
+	options      *Options
+}
+
+func sameOptions(a, b Options) bool {
+	da, _ := json.Marshal(a)
+	db, _ := json.Marshal(b)
+	return string(da) == string(db)
+}
+
+// localChannelChanges lists a channel's uncommitted edits, step by step, in the working copy's order, the removed
+// ones last. They are the developer's own: taken by default.
+func localChannelChanges(channel string, committed, local []molten.PipelineStep) []Change {
+	var rtn []Change
+	for _, l := range local {
+		key := LocalPrefix + channel + "/" + l.Id
+		c, ok := stepById(committed, l.Id)
+		if !ok {
+			rtn = append(rtn, Change{Key: key, Channel: channel, Id: l.Id, Kind: ChangeAdded, Title: l.Title, After: stepText(l), Take: true, Local: true})
+			continue
+		}
+		if stepHash(c) != stepHash(l) {
+			rtn = append(rtn, Change{Key: key, Channel: channel, Id: l.Id, Kind: ChangeChanged, Title: l.Title, Before: stepText(c), After: stepText(l),
+				Take: true, Local: true})
+		}
+	}
+	for _, c := range committed {
+		if _, ok := stepById(local, c.Id); !ok {
+			rtn = append(rtn, Change{Key: LocalPrefix + channel + "/" + c.Id, Channel: channel, Id: c.Id, Kind: ChangeRemoved, Title: c.Title,
+				Before: stepText(c), Take: true, Local: true})
+		}
+	}
+	return rtn
+}
+
+// differingKeys: the top-level keys, the release block aside, whose values differ (a reformat is no difference).
+func differingKeys(a, b map[string]json.RawMessage) []string {
+	var rtn []string
+	seen := map[string]bool{}
+	for _, values := range []map[string]json.RawMessage{a, b} {
+		for key := range values {
+			if key == "release" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			va, inA := a[key]
+			vb, inB := b[key]
+			if inA != inB || !sameJson(va, vb) {
+				rtn = append(rtn, key)
+			}
+		}
+	}
+	sort.Strings(rtn)
+	return rtn
+}
+
+func keysText(values map[string]json.RawMessage, keys []string) string {
+	picked := map[string]json.RawMessage{}
+	for _, key := range keys {
+		if v, ok := values[key]; ok {
+			picked[key] = v
+		}
+	}
+	if len(picked) == 0 {
+		return ""
+	}
+	data, err := json.MarshalIndent(picked, "", "    ")
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func releaseBlockOf(p *molten.Pipeline) *molten.PipelineRelease {
+	if p == nil || p.Release == nil {
+		return &molten.PipelineRelease{}
+	}
+	return p.Release
+}
+
+// withLocalEdits lists the working copy's uncommitted edits as changes (#1102) and returns the pipeline the check
+// builds on: the committed file with the ticked edits. Every edit ticked gives the working copy's text as it is; a
+// release step left out keeps its committed version, and the edits outside the release steps come as one change.
+func withLocalEdits(dir string, b *baseFiles, choices map[string]bool) ([]byte, []Change, error) {
+	included := b.IncludedPipeline
+	if len(bytes.TrimSpace(b.Pipeline)) == 0 || len(bytes.TrimSpace(included)) == 0 || bytes.Equal(included, b.Pipeline) {
+		return included, nil, nil
+	}
+	committedReport := pipelineReport(dir, b.Pipeline)
+	localReport := pipelineReport(dir, included)
+	if !committedReport.Valid || !localReport.Valid {
+		// The check reports what makes the text invalid.
+		return included, nil, nil
+	}
+	committed, local := releaseBlockOf(committedReport.Pipeline), releaseBlockOf(localReport.Pipeline)
+	changes := append(localChannelChanges(ChannelRc, committed.Rc, local.Rc), localChannelChanges(ChannelPublic, committed.Public, local.Public)...)
+	committedValues, err := topLevelValues(b.Pipeline)
+	if err != nil {
+		return nil, nil, err
+	}
+	localValues, err := topLevelValues(included)
+	if err != nil {
+		return nil, nil, err
+	}
+	if keys := differingKeys(committedValues, localValues); len(keys) > 0 {
+		changes = append(changes, Change{Key: LocalFileKey, Kind: ChangeChanged, Title: strings.Join(keys, ", "),
+			Before: keysText(committedValues, keys), After: keysText(localValues, keys), Take: true, Local: true})
+	}
+	if len(changes) == 0 {
+		return b.Pipeline, nil, nil
+	}
+	all, file := true, false
+	for _, c := range changes {
+		all = all && chosen(c, choices)
+		file = file || (c.Key == LocalFileKey && chosen(c, choices))
+	}
+	if all {
+		return included, changes, nil
+	}
+	base := b.Pipeline
+	if file {
+		base = included
+	}
+	release := &molten.PipelineRelease{
+		Rc:     mergeChannel(LocalPrefix, ChannelRc, committed.Rc, local.Rc, changes, choices),
+		Public: mergeChannel(LocalPrefix, ChannelPublic, committed.Public, local.Public, changes, choices),
+	}
+	text, err := MergeTopLevel(base, nil, []keyValue{{Key: "release", Value: release}})
+	if err != nil {
+		return nil, nil, err
+	}
+	return text, changes, nil
+}
+
+func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, in checkInput) (*checked, error) {
+	current, recordData := b.buildOn(in.includeLocal)
 	answer := CheckAnswer{Reasons: []UpdateReason{}, Changes: []Change{}, Template: TemplateVersion, Current: string(b.Pipeline),
-		Base: hashOf(b.Pipeline), Errors: []string{}, ValidateWarnings: []string{}, Pr: s.planOf(dir, b, PrKindUpdate, includeLocal)}
+		Base: hashOf(b.Pipeline), Errors: []string{}, ValidateWarnings: []string{}, Pr: s.planOf(dir, b, PrKindUpdate, in.includeLocal)}
+	var local []Change
+	if in.includeLocal {
+		var err error
+		if current, local, err = withLocalEdits(dir, b, in.choices); err != nil {
+			return nil, err
+		}
+	}
 	report := pipelineReport(dir, current)
 	f := DetectWith(dir, report)
 	if f.HasPipeline && !f.PipelineValid {
@@ -446,36 +612,51 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, choices map
 		answer.RecordTemplate = rec.Template
 	}
 	o := InferOptions(f, pipeline)
+	if in.options != nil {
+		adjusted := *in.options
+		// Both channels are declared: an adjustment changes how they run, not whether they exist.
+		adjusted.Channels = []string{ChannelRc, ChannelPublic}
+		answer.Adjusted = !sameOptions(adjusted, o)
+		o = adjusted
+	}
+	answer.Options = &o
 	proposal := Build(f, o, pipeline)
 	cur := pipeline.Release
-	answer.Changes = append(answer.Changes, channelChanges(ChannelRc, cur.Rc, proposal.Release.Rc, rec)...)
-	answer.Changes = append(answer.Changes, channelChanges(ChannelPublic, cur.Public, proposal.Release.Public, rec)...)
+	var all []Change
+	all = append(all, channelChanges(ChannelRc, cur.Rc, proposal.Release.Rc, rec)...)
+	all = append(all, channelChanges(ChannelPublic, cur.Public, proposal.Release.Public, rec)...)
 	if proposal.Versions != nil {
-		answer.Changes = append(answer.Changes, Change{Key: VersionsKey, Kind: ChangeVersions, Before: versionsText(pipeline.Versions),
+		all = append(all, Change{Key: VersionsKey, Kind: ChangeVersions, Before: versionsText(pipeline.Versions),
 			After: versionsText(proposal.Versions), Take: true})
 	}
-	var pending []Change
-	for _, c := range answer.Changes {
+	var template []Change
+	for _, c := range all {
 		if !declined(rec, c) {
-			pending = append(pending, c)
+			template = append(template, c)
 		}
 	}
-	answer.Changes = pending
-	if answer.Changes == nil {
-		answer.Changes = []Change{}
-	}
-	answer.Reasons = updateReasons(f, pipeline, proposal, answer.Changes)
+	answer.Changes = append(append([]Change{}, local...), template...)
+	answer.Reasons = updateReasons(f, pipeline, proposal, template, answer.Adjusted, len(local) > 0)
 	answer.State = UpdateStateUpToDate
 	if len(answer.Changes) > 0 {
 		answer.State = UpdateStateUpdate
 	}
 	answer.Signature = signatureOf(answer.Changes)
+	choices := in.choices
 	merged := &molten.PipelineRelease{
-		Rc:     mergeChannel(ChannelRc, cur.Rc, proposal.Release.Rc, answer.Changes, choices),
-		Public: mergeChannel(ChannelPublic, cur.Public, proposal.Release.Public, answer.Changes, choices),
+		Rc:     mergeChannel("", ChannelRc, cur.Rc, proposal.Release.Rc, template, choices),
+		Public: mergeChannel("", ChannelPublic, cur.Public, proposal.Release.Public, template, choices),
+	}
+	draw := map[string]bool{}
+	for _, c := range template {
+		draw[c.Key] = c.Kind != ChangeRemoved
+	}
+	answer.Drawn = &molten.PipelineRelease{
+		Rc:     mergeChannel("", ChannelRc, cur.Rc, proposal.Release.Rc, template, draw),
+		Public: mergeChannel("", ChannelPublic, cur.Public, proposal.Release.Public, template, draw),
 	}
 	var versions *molten.PipelineVersions
-	for _, c := range answer.Changes {
+	for _, c := range template {
 		if c.Kind == ChangeVersions && chosen(c, choices) {
 			versions = proposal.Versions
 		}
@@ -490,9 +671,13 @@ func (s *Setup) check(ctx context.Context, dir string, b *baseFiles, choices map
 	return &checked{answer: answer, pipeline: pipeline, proposal: proposal, merged: merged, versions: versions, record: rec, text: text}, nil
 }
 
-// updateReasons says why, in the order a developer cares about: the protection first, the labels, then the template.
-func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Change) []UpdateReason {
+// updateReasons says why, in the order a developer cares about: their own edits, the protection, the labels, then the
+// template or their adjustment.
+func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Change, adjusted bool, local bool) []UpdateReason {
 	rtn := []UpdateReason{}
+	if local {
+		rtn = append(rtn, UpdateReason{Code: UpdateReasonLocal})
+	}
 	if len(changes) == 0 {
 		return rtn
 	}
@@ -514,7 +699,10 @@ func updateReasons(f Facts, p *molten.Pipeline, proposal Proposal, changes []Cha
 		template = template || (c.Kind != ChangeVersions && !c.Customised)
 		customised = customised || c.Customised
 	}
-	if template {
+	switch {
+	case template && adjusted:
+		rtn = append(rtn, UpdateReason{Code: UpdateReasonAdjusted})
+	case template:
 		rtn = append(rtn, UpdateReason{Code: UpdateReasonTemplate})
 	}
 	if customised {
@@ -536,7 +724,7 @@ func (s *Setup) Check(ctx context.Context, req CheckRequest) (CheckAnswer, error
 	if err := b.includable(req.IncludeLocal); err != nil {
 		return CheckAnswer{}, err
 	}
-	c, err := s.check(ctx, dir, b, req.Choices, req.IncludeLocal)
+	c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options})
 	if err != nil {
 		return CheckAnswer{}, err
 	}
@@ -561,7 +749,7 @@ func (s *Setup) Update(ctx context.Context, req UpdateRequest) (PrJob, error) {
 		if err != nil {
 			return err
 		}
-		c, err := s.check(ctx, dir, b, req.Choices, req.IncludeLocal)
+		c, err := s.check(ctx, dir, b, checkInput{choices: req.Choices, includeLocal: req.IncludeLocal, options: req.Options})
 		if err != nil {
 			return fail(PrFailureFailed, err.Error())
 		}
@@ -592,6 +780,10 @@ func updateFilesOf(c *checked, choices map[string]bool) (prFiles, error) {
 		}
 	}
 	for _, change := range c.answer.Changes {
+		// An uncommitted edit left out is the developer's, not a template change to remember as declined.
+		if change.Local {
+			continue
+		}
 		if chosen(change, choices) {
 			delete(rec.Declined, change.Key)
 		} else {
