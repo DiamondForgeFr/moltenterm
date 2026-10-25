@@ -4,6 +4,7 @@
 // The release setup (FR-MC-036, DS-MC-030): what wavesrv drafts (pkg/molten/pipelinesetup), the stepper's choices,
 // the flow diagram's model and the review's line diff. Pure functions, tested without the app.
 
+import type { TFunction } from "../i18n/i18n";
 import type { PipelineReleaseStep, ReleasePhase } from "./mission-model";
 
 export type SetupKind = "on-premise" | "saas";
@@ -346,6 +347,10 @@ export type SetupRefined = {
 // The setup is offered when the pipeline cannot start one of the two releases.
 export function needsReleaseSetup(rcSteps: readonly unknown[], publicSteps: readonly unknown[]): boolean {
     return (rcSteps?.length ?? 0) === 0 || (publicSteps?.length ?? 0) === 0;
+}
+
+export function setupReasonText(t: TFunction, reason: SetupUpdateReason): string {
+    return t(`mc.setup.update.reason.${reason.code}`, { branch: reason.detail ?? "", count: reason.detail ?? "" });
 }
 
 export function toggled<T>(list: readonly T[], item: T, on: boolean): T[] {
