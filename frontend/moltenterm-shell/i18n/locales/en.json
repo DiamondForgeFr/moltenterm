@@ -5273,6 +5273,12 @@
             "stepRebase": "rebased by your agent before its merge",
             "stepWait": "waits for its CI",
             "stepMerged": "#{number} merged",
+            "stepOutTitle": "#{number} {title}: out of the group merge. Shows its card.",
+            "stepTakeOut": "Take #{number} out of the group merge",
+            "stepAdd": "Add #{number} to the group merge",
+            "mergeCount": "Merge these {count} in this order…",
+            "chooseOne": "One pull request chosen: its card's Validate merges it.",
+            "chooseNone": "No pull request chosen for the group merge.",
             "cost": {
                 "saved": {
                     "one": "{count} rebase instead of {list} in list order",
@@ -5569,6 +5575,10 @@
             "moreTakeOver": "An agent is on it, nothing to do for now. To take it over: Mark ready for review, Assisted review…",
             "draftTag": "draft",
             "draftTagTitle": "This pull request is a draft on GitHub.",
+            "prChip": "PR #{number}",
+            "prChipTitle": "Pull request #{number} · {branch}",
+            "groupAdd": "Add to the group merge",
+            "groupTakeOut": "Take out of the group merge",
             "disabledTitle": "{action}: {reason}",
             "confirm": {
                 "agentWorking": "{name} is still working on this branch.",

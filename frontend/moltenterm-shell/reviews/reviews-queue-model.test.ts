@@ -13,7 +13,11 @@ import {
     edgeLine,
     forgetMerged,
     joinAfterMerge,
+    keptOut,
     mergeQueue,
+    queueCanMerge,
+    queueChoice,
+    queueChosen,
     queueCost,
     queueLegend,
     queueMemory,
@@ -184,7 +188,7 @@ describe("merge queue (#1062)", () => {
             githubat: 42,
         };
         const after = afterMergeOf(memory, answer, left);
-        expect(after).toEqual({
+        expect({ ...after, ids: undefined }).toEqual({
             merged: [1206, 1201],
             needs: [{ number: 1202, after: 1201, paths: ["src/theme.ts"], pathcount: 1 }],
             read: 42,
@@ -215,6 +219,80 @@ describe("merge queue (#1062)", () => {
         const joined = joinAfterMerge(after, { merged: [1203], needs: [], read: 43 });
         expect(joined.merged).toEqual([1206, 1201, 1203]);
         expect(joined.read).toBe(43);
+    });
+
+    it("recomputes the order, the ranks and the cost for the steps chosen for the group merge (#1108)", () => {
+        const queue = mergeQueue(Shop, Ready, Listed, [1201, 1203]);
+        expect(queue.steps.map((s) => [s.rank, s.number, s.rebase])).toEqual([
+            [1, 1202, false],
+            [2, 1206, false],
+            [3, 1204, false],
+            [4, 1205, true],
+        ]);
+        expect(queue.out).toEqual([1201, 1203]);
+        expect(wordPhrase(queueCost(queue))).toBe("1 rebase");
+        expect(queueRanks(queue)[1201]).toBeUndefined();
+        expect(queueChoice(queue, 1202)).toBe("in");
+        expect(queueChoice(queue, 1201)).toBe("out");
+        expect(queueChoice(queue, 1207)).toBeNull();
+        expect(queueChosen(queue)).toEqual([1202, 1206, 1204, 1205]);
+        expect(queueCanMerge(queue)).toBe(true);
+        const rel = cardRelations(Shop, Listed, null);
+        expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("before #1205");
+        expect(wordPhrase(queueWhy(queue, 1202, rel.byCard[1202]))).not.toContain("#1201");
+        // A PR already conflicting with the base is never a step, taken out or not.
+        expect(mergeQueue(Shop, Ready, Listed, [1207]).out).toEqual([]);
+    });
+
+    it("keeps the block while two steps remain, chosen or taken out, and the button from two chosen (#1108)", () => {
+        const two = [pr(1206), pr(1201)];
+        const one = mergeQueue(Shop, two, two, [1201]);
+        expect(queueShown(one)).toBe(true);
+        expect(queueChosen(one)).toEqual([1206]);
+        expect(queueCanMerge(one)).toBe(false);
+        expect(queueShown(mergeQueue(Shop, [pr(1206)], [pr(1206)], []))).toBe(false);
+    });
+
+    it("forgets the PRs taken out once they leave the list (#1108)", () => {
+        expect(keptOut([1201, 1203], [pr(1203), pr(1204)])).toEqual([1203]);
+        expect(keptOut(null, [pr(1203)])).toEqual([]);
+    });
+
+    it("names every PR by the number its card shows: the ticket, else the PR (#1108)", () => {
+        const t = (n: number, ticket: number) => pr(n, { ticket, branch: `fix/${ticket}-x` });
+        const ready = [t(1201, 1101), t(1202, 1102), pr(1206), pr(1207, { merge: "conflicts", ticket: 1107 })];
+        const listed = [...ready, pr(1208, { draft: true, ticket: 1108 })];
+        const queue = mergeQueue(Shop, ready, listed);
+        expect(queue.ids).toEqual({ 1201: 1101, 1202: 1102, 1206: 1206, 1207: 1107, 1208: 1108 });
+        const rel = cardRelations(Shop, listed, 1201);
+        expect(wordPhrase(queueWhy(queue, 1201, rel.byCard[1201]))).toBe("before #1102");
+        expect(wordPhrase(queueWhy(queue, 1202, rel.byCard[1202]))).toBe("to rebase after #1101");
+        expect(wordPhrase(rel.cards[1201].fact)).toBe("same lines as #1102 and the draft #1108: src/theme.ts");
+        expect(wordPhrase(rel.cards[1202].tag)).toBe("⇄ conflict with #1101 · src/theme.ts");
+        expect(
+            wordPhrase(
+                edgeLine(
+                    rel.partners.find((p) => p.number === 1208),
+                    "down"
+                )
+            )
+        ).toBe("↓ the draft #1108, lower down · src/theme.ts");
+        expect(wordPhrase(queueLegend(queue, "develop"))).toContain("#1107 out of the queue");
+        const memory = queueMemory(queue, Shop, listed);
+        const left = listed.filter((p) => p.number !== 1201);
+        const answer: ReviewsAnswer = {
+            dir: "/shop",
+            state: "ok",
+            ready: left.filter((p) => !p.draft),
+            drafts: left.filter((p) => p.draft),
+            merged: [{ number: 1201, title: "", url: "", mergedat: "", ticket: 1101 } as never],
+            githubat: 7,
+        };
+        expect(wordPhrase(afterMergeText(afterMergeOf(memory, answer, left)))).toBe(
+            "✓ #1101 merged. #1102 touches the same lines as #1101: it now needs a rebase."
+        );
+        const struck = withMerged(mergeQueue(Shop, answer.ready, left), [1201], memory.ids);
+        expect(struck.ids[1201]).toBe(1101);
     });
 
     it("reads in French", () => {

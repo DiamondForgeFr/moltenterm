@@ -55,6 +55,7 @@ import {
     afterMergeOf,
     forgetMerged,
     joinAfterMerge,
+    keptOut,
     MergeQueue,
     QueueMemory,
     queueMemory,
@@ -82,6 +83,9 @@ export class ReviewsModel {
     // last read showed, which the next read is compared with.
     afterMergeAtom = atom({}) as PrimitiveAtom<Record<string, AfterMerge>>;
     queueMemories: Record<string, QueueMemory> = {};
+    // The PRs the developer took out of the group merge (#1108, FR-REV-024), by project folder: kept while the app
+    // runs, forgotten once a PR leaves the list. Every queueable PR is in by default.
+    groupOutAtom = atom({}) as PrimitiveAtom<Record<string, number[]>>;
 
     private constructor() {}
 
@@ -233,6 +237,31 @@ export class ReviewsModel {
             memory = forgetMerged(memory, after.merged);
         }
         this.queueMemories[dir] = queueMemory(queue, forecast, listed) ?? memory;
+    }
+
+    // setInGroupMerge (#1108): a queue step's checkbox, or its card's menu, puts a PR into the group merge or takes it
+    // out.
+    setInGroupMerge(dir: string, number: number, inGroup: boolean) {
+        const shown = globalStore.get(this.groupOutAtom);
+        const out = (shown[dir] ?? []).filter((n) => n !== number);
+        if (!inGroup) {
+            out.push(number);
+        }
+        globalStore.set(this.groupOutAtom, { ...shown, [dir]: out });
+    }
+
+    // forgetLeftGroupOut: the PRs taken out that left the list are forgotten; one that comes back is in again.
+    forgetLeftGroupOut(dir: string, listed: readonly ReviewPr[]) {
+        const shown = globalStore.get(this.groupOutAtom);
+        const out = shown[dir];
+        if (out == null) {
+            return;
+        }
+        const kept = keptOut(out, listed);
+        if (kept.length === out.length) {
+            return;
+        }
+        globalStore.set(this.groupOutAtom, { ...shown, [dir]: kept });
     }
 
     closeAfterMerge(dir: string) {

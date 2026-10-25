@@ -77,6 +77,8 @@ describe("merge queue views (#1062)", () => {
                 status={{ kind: "ready", text: "", title: "" }}
                 hot={[1202]}
                 canMerge
+                free
+                onChoose={() => {}}
                 onStep={() => {}}
                 onMerge={() => {}}
             />
@@ -93,7 +95,7 @@ describe("merge queue views (#1062)", () => {
         const cta = html.indexOf('data-testid="reviews-queue-merge"');
         expect(cta).toBeGreaterThan(html.indexOf('data-testid="reviews-queue-legend"'));
         expect(html.slice(0, cta)).toMatch(/justify-end[^>]*>\s*<button[^>]*$/);
-        expect(html).toContain("Merge in this order…");
+        expect(html).toContain("Merge these 3 in this order…");
         expect(html).toContain("molten-btn");
     });
 
@@ -106,6 +108,8 @@ describe("merge queue views (#1062)", () => {
                 status={null}
                 hot={[]}
                 canMerge={false}
+                free={false}
+                onChoose={() => {}}
                 onStep={() => {}}
                 onMerge={() => {}}
             />
@@ -143,7 +147,7 @@ describe("merge queue views (#1062)", () => {
         expect(none).not.toContain("Hand the rebase over");
     });
 
-    it("gives a queued card its rank and its place in the order; a later step's Validate is calm", () => {
+    it("gives a queued card its rank and its place in the order; every step's Validate looks the same (#1108)", () => {
         const first = rowHtml(pr(1201), { rank: 1, queueWhy: phrase("reviews.queue.why.before", { prs: "#1202" }) });
         expect(first).toContain('data-testid="reviews-order-rank"');
         expect(first).toContain("Ready to merge<span");
@@ -151,11 +155,15 @@ describe("merge queue views (#1062)", () => {
         expect(first).toContain('data-molten="true"');
         const later = rowHtml(pr(1202), {
             rank: 2,
-            calm: true,
             queueWhy: phrase("reviews.queue.why.rebaseAfter", { prs: "#1201" }),
         });
         expect(later).toContain("· to rebase after #1201");
-        expect(later).not.toContain('data-molten="true"');
+        // The order is a proposal for the group merge (developer decision 2026-10-25): any ready PR may be validated
+        // first, so no step's Validate is styled differently.
+        expect(later).toContain('data-molten="true"');
+        expect(later.match(/data-testid="reviews-card-primary"[^>]*>/)[0]).toBe(
+            first.match(/data-testid="reviews-card-primary"[^>]*>/)[0]
+        );
     });
 
     it("shows a card's conflicts at rest and its tag while linked to the hovered card", () => {
@@ -188,5 +196,71 @@ describe("merge queue views (#1062)", () => {
         );
         expect(failed).toContain('data-state="failed"');
         expect(failed).toContain("Dismiss");
+    });
+});
+
+describe("choosing the group merge and one number per card (#1108)", () => {
+    beforeAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+    afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    const Chosen: MergeQueue = {
+        usable: true,
+        steps: [
+            { number: 1096, rank: 1, rebase: false, wait: false, rebaseAfter: [], before: [] },
+            { number: 1094, rank: 2, rebase: false, wait: false, rebaseAfter: [], before: [] },
+        ],
+        outside: [],
+        cost: 0,
+        listCost: 0,
+        uptodate: "notrequired",
+        out: [1090],
+        ids: { 1096: 1091, 1094: 1092, 1090: 1088 },
+    };
+
+    function block(queue: MergeQueue, canMerge = true) {
+        return renderToStaticMarkup(
+            <MergeQueueBlock
+                queue={queue}
+                prs={[pr(1096, { ticket: 1091 }), pr(1094, { ticket: 1092 }), pr(1090, { ticket: 1088 })]}
+                base="develop"
+                status={null}
+                hot={[]}
+                canMerge={canMerge}
+                free
+                onStep={() => {}}
+                onChoose={() => {}}
+                onMerge={() => {}}
+            />
+        );
+    }
+
+    it("names the steps by their cards' numbers, checks the chosen ones and keeps the taken-out one to put back", () => {
+        const html = block(Chosen);
+        expect(html).toContain("#1091");
+        expect(html).toContain("#1092");
+        expect(html).not.toContain("#1096");
+        expect(html.match(/role="checkbox" aria-checked="true"/g)).toHaveLength(2);
+        expect(html).toContain('aria-label="Take #1091 out of the group merge"');
+        expect(html).toContain('data-step="1090" data-out="true"');
+        expect(html).toContain('role="checkbox" aria-checked="false" aria-label="Add #1088 to the group merge"');
+        expect(html.indexOf('data-step="1090"')).toBeGreaterThan(html.indexOf('data-step="1094"'));
+        expect(html).toContain("Merge these 2 in this order…");
+    });
+
+    it("gives way to a line when fewer than two are chosen", () => {
+        const one = block({ ...Chosen, steps: Chosen.steps.slice(0, 1), out: [1094, 1090] }, false);
+        expect(one).not.toContain("reviews-queue-merge");
+        expect(one).toContain("One pull request chosen: its card&#x27;s Validate merges it.");
+        const none = block({ ...Chosen, steps: [], out: [1096, 1094, 1090] }, false);
+        expect(none).toContain("No pull request chosen for the group merge.");
+    });
+
+    it("shows the ticket as the card's number and the PR as a chip; the PR's own number without a ticket", () => {
+        const html = rowHtml(pr(1096, { ticket: 1091, tickettitle: "Queue selection" }));
+        expect(html).toMatch(/data-testid="reviews-card-number">#1091</);
+        expect(html).toMatch(/data-testid="reviews-card-pr">PR #1096</);
+        const bare = rowHtml(pr(1096));
+        expect(bare).toMatch(/data-testid="reviews-card-number">#1096</);
+        expect(bare).not.toContain('data-testid="reviews-card-pr"');
     });
 });

@@ -4,7 +4,8 @@
 // A Reviews card (#1060, FR-REV-001 AC11): one computed state (reviews-card-model.ts) draws the left rail, one state
 // sentence with its reason, one primary action and a "…" menu for the rest; the facts line carries what is true but
 // is no state; every agent of the branch has its own line below. In the merge queue (#1062) the card carries its rank
-// and its place in the order's direction, and its conflicts with the other cards. A click on the card, or Enter on it, opens the PR's
+// and its place in the order's direction, and its conflicts with the other cards; its "…" menu takes it out of the group
+// merge or puts it back (#1108). Its number is its ticket's, its PR's a chip (#1108). A click on the card, or Enter on it, opens the PR's
 // assisted review; the card's own buttons keep their clicks and keys.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
@@ -31,7 +32,7 @@ import { MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import { blockersText, RebaseAsk, RebaseOutcome, reviewHeadline, ReviewPr } from "./reviews-model";
 import { MergeOrderRank } from "./reviews-order";
 import { QueuedAskLine } from "./reviews-queue";
-import type { CardRelation } from "./reviews-queue-model";
+import { CardRelation, groupMergeAction } from "./reviews-queue-model";
 import { cardInputOf } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import type { PrTaskKind } from "./reviews-task-model";
@@ -113,7 +114,8 @@ export function ReviewRow({
     relation,
     rank,
     queueWhy,
-    calm,
+    groupMerge,
+    onGroupMerge,
     queued,
     batchMark,
     card: cardProp,
@@ -137,8 +139,9 @@ export function ReviewRow({
     // Its place in the merge queue (#1062, FR-REV-024): rank, and the words in the order's direction.
     rank?: number;
     queueWhy?: Phrase;
-    // A later step of the queue: its Validate stays calm, only the first step's is orange.
-    calm?: boolean;
+    // Its place in the group merge (#1108): in it, taken out, or no step; the "…" menu changes it.
+    groupMerge?: "in" | "out" | null;
+    onGroupMerge?: (inGroup: boolean) => void;
     // A task waiting for its busy agent (FR-REV-022 AC12).
     queued?: QueuedAsk;
     // batchMark: its place in the merge queue's run.
@@ -262,11 +265,17 @@ export function ReviewRow({
                 return;
         }
     };
+    const group = onGroupMerge != null ? groupMergeAction(groupMerge) : null;
+    const groupItem: ContextMenuItem =
+        group == null ? null : { label: t(group.labelKey), click: () => onGroupMerge(group.inGroup) };
     const openMenu = (e: React.MouseEvent) => {
         e.stopPropagation();
         const items: ContextMenuItem[] = [];
         for (const action of card.menu) {
             if (action.id === "github" && items.length > 0) {
+                if (groupItem != null) {
+                    items.push(groupItem);
+                }
                 items.push({ type: "separator" });
             }
             items.push({
@@ -280,6 +289,9 @@ export function ReviewRow({
                 enabled: action.disabled == null,
                 click: () => run(action),
             });
+        }
+        if (groupItem != null && !items.includes(groupItem)) {
+            items.push(groupItem);
         }
         // Under the button, whether it was clicked or pressed from the keyboard (a key's click has no pointer place).
         const rect = e.currentTarget.getBoundingClientRect();
@@ -304,7 +316,9 @@ export function ReviewRow({
     const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
     const why = word(queueSays ? queueWhy : card.why);
     const primary = card.primary;
-    const molten = card.molten && !(calm && primary?.id === "validate");
+    // Every Validate looks the same (developer decision 2026-10-25, #1108): the suggested order is a proposal for the
+    // group merge, never a constraint on which PR to validate first.
+    const molten = card.molten;
     const relationFact = word(relation?.fact);
     const relationTag = word(relation?.tag);
     const primaryName =
@@ -370,10 +384,25 @@ export function ReviewRow({
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
                         <MergeOrderRank rank={rank} />
-                        {head.ticket ? <span className="shrink-0 text-accent">{head.ticket}</span> : null}
-                        <span className="min-w-0 truncate" title={`PR #${pr.number} · ${pr.branch}`}>
+                        {/* One number per card (#1108): the ticket, else the PR's; the PR's chip beside a ticket. */}
+                        <span className="shrink-0 text-accent" data-testid="reviews-card-number">
+                            {head.ticket || `#${pr.number}`}
+                        </span>
+                        <span
+                            className="min-w-0 truncate"
+                            title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
+                        >
                             {head.title}
                         </span>
+                        {head.ticket ? (
+                            <span
+                                className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-normal text-muted tabular-nums"
+                                title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
+                                data-testid="reviews-card-pr"
+                            >
+                                {t("reviews.card.prChip", { number: pr.number })}
+                            </span>
+                        ) : null}
                         {pr.draft ? (
                             <span
                                 className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase"
