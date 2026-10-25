@@ -12,7 +12,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { modelDisplayName } from "../companion/companion-proportion";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
@@ -27,7 +27,6 @@ import type { CardTone } from "./reviews-card-model";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
 import { launchTargetOfBranch } from "./reviews-launch-model";
-import { LeftoversSection } from "./reviews-leftovers";
 import type { ReviewsAnswer } from "./reviews-model";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { SectionHeading } from "./reviews-section-heading";
@@ -46,6 +45,10 @@ import {
     UpcomingFocusMarkMs,
     upcomingRows,
 } from "./reviews-upcoming-model";
+
+// Loaded on demand: the leftovers only show once a PR has merged, so their code stays out of the JS every tab view
+// loads up front (NFR-PERF-003, bundle.initialJsMB).
+const LeftoversSection = lazy(() => import("./reviews-leftovers").then((m) => ({ default: m.LeftoversSection })));
 
 function ticketUrl(branch: UpcomingBranch, repoUrl: string): string {
     if (branch.url) {
@@ -197,7 +200,9 @@ export function UpcomingSection({
                     </div>
                 ) : null}
             </section>
-            <LeftoversSection dir={dir} reviews={reviews} upcoming={upcoming} defaultOpen={defaultOpen} />
+            <Suspense fallback={null}>
+                <LeftoversSection dir={dir} reviews={reviews} upcoming={upcoming} defaultOpen={defaultOpen} />
+            </Suspense>
         </>
     );
 }

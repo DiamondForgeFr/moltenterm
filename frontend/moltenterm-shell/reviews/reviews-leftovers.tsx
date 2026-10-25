@@ -30,10 +30,10 @@ const DestructiveButton =
     "molten-btn molten-btn-destructive flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12 disabled:cursor-default disabled:opacity-50";
 
 const PartIcons: Record<string, string> = {
-    worktree: "fa-folder",
-    agent: "fa-terminal",
-    local: "fa-code-branch",
-    remote: "fa-cloud",
+    worktree: "folder",
+    agent: "terminal",
+    local: "code-branch",
+    remote: "cloud",
 };
 
 type Target = { dir: string; repo: string; leftover: UpcomingLeftover; agents: AgentBarFacts[] };
@@ -197,7 +197,7 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                                 title={part.title}
                                 data-testid={`reviews-leftover-part-${part.kind}`}
                             >
-                                <i className={cn("fa fa-solid text-10", PartIcons[part.kind])} aria-hidden />
+                                <i className={cn("fa fa-solid text-10", `fa-${PartIcons[part.kind]}`)} aria-hidden />
                                 <span className="min-w-0 truncate">{part.text}</span>
                             </li>
                         ))}
