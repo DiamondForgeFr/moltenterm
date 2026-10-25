@@ -57,6 +57,7 @@ const FactClasses: Record<CardFactTone, string> = {
     soft: "text-[var(--mt-state-waiting)]",
     bad: "text-danger",
     muted: "text-muted",
+    running: "text-muted",
 };
 
 export const CalmButton =
@@ -322,6 +323,7 @@ export function ReviewRow({
             data-state={card.kind}
             data-tone={card.tone}
             data-turn={card.turn}
+            data-motion={card.motion || undefined}
             aria-label={[
                 rank != null ? t("reviews.order.rankTitle", { rank }) : "",
                 head.ticket ? t("reviews.aria.ticket", { ticket: head.ticket, title: head.title }) : head.title,
@@ -387,11 +389,23 @@ export function ReviewRow({
                         )}
                         data-testid="reviews-card-state"
                     >
-                        <span
-                            className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
-                            style={{ background: RailColours[card.tone] }}
-                            aria-hidden
-                        />
+                        {/* Something works and nothing is the developer's (#1085): the dominoes, unless an agent line
+                            of the card already shows them. */}
+                        {card.motion === "state" ? (
+                            <span
+                                className="-mx-1 inline-flex shrink-0 scale-75 self-center"
+                                data-testid="reviews-card-working"
+                            >
+                                <DominoLoader />
+                            </span>
+                        ) : (
+                            <span
+                                className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
+                                style={{ background: RailColours[card.tone] }}
+                                aria-hidden
+                                data-testid="reviews-card-dot"
+                            />
+                        )}
                         <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
                             {sentence}
                             {why ? <span className="font-normal text-secondary"> · {why}</span> : null}
@@ -545,6 +559,8 @@ function CardFactView({ fact, pr }: { fact: CardFact; pr: ReviewPr }) {
             <i className="text-success not-italic" aria-hidden>
                 ✓
             </i>
+        ) : fact.tone === "running" ? (
+            <i className="fa fa-regular fa-clock text-10" aria-hidden data-testid="reviews-fact-running-mark" />
         ) : null;
     if (fact.id === "report" && pr.report?.state === "present" && pr.report.url) {
         return (

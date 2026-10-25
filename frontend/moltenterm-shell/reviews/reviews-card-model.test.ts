@@ -381,6 +381,99 @@ describe("one orange button per card, only on the developer's turn", () => {
     });
 });
 
+describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
+    const Running: ReviewCheck[] = [
+        ...Green.slice(0, 3),
+        ...Array.from({ length: 10 }, (_, i): ReviewCheck => ({ name: `Job ${i}`, state: "pending" })),
+    ];
+    const InProgress = { boardTurn: { owner: "agent" as const, kind: "agent" as const, status: "In Progress" } };
+
+    it("an agent inferred from the board column: the state line shows them", () => {
+        const s = state({ pr: pr({ draft: true }, Running), ...InProgress, boardStatus: "In Progress" });
+        expect(s.kind).toBe("agent-working");
+        expect([s.works, s.motion]).toEqual([true, "state"]);
+    });
+
+    it("an agent inferred from a recent commit: the state line shows them", () => {
+        const s = state({ pr: pr({ draft: true }), boardTurn: { owner: "agent", kind: "agent" } });
+        expect([s.kind, s.motion]).toEqual(["agent-working", "state"]);
+    });
+
+    it("a live working agent or a background agent: their line shows them, the state keeps its dot", () => {
+        expect(state({ pr: pr(), agents: [Nathan] }).motion).toBe("agent");
+        expect(state({ pr: pr(), agents: [Background] }).motion).toBe("agent");
+        expect(state({ pr: pr(), agents: [Background] }).works).toBe(true);
+    });
+
+    it("CI running with nothing asked: the state line shows them", () => {
+        const s = state(Cases[7].input);
+        expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
+        expect(state({ ...Cases[7].input, agents: [Jeanne] }).motion).toBe("state");
+    });
+
+    it("nothing works: no dominoes", () => {
+        for (const kind of [
+            "agent-waiting",
+            "interrupted",
+            "conflicts",
+            "failing",
+            "review-required",
+            "draft-ready",
+            "ready",
+        ]) {
+            const s = state(Cases.find((c) => c.kind === kind).input);
+            expect([kind, s.works, s.motion]).toEqual([kind, false, null]);
+        }
+    });
+
+    it("never two animations on one card", () => {
+        const inputs = [
+            ...Cases.map((c) => c.input),
+            { pr: pr({ draft: true }, Running), agents: [Nathan], ...InProgress },
+            { pr: pr({}, Running), agents: [Nathan, Background] },
+            { pr: pr({ draft: true }, Running), ...InProgress },
+        ];
+        for (const input of inputs) {
+            const s = state(input);
+            const barMoves = (input.agents ?? []).some((a) => a.state === "working" || a.state === "background");
+            expect(barMoves && s.motion === "state").toBe(false);
+        }
+    });
+
+    it("a stopped task's line does not animate: the state line may", () => {
+        const s = state({
+            pr: pr({}, Running),
+            agents: [Background],
+            task: Fix,
+            taskState: "stuck",
+            taskOwner: Background,
+            taskLive: true,
+        });
+        expect([s.kind, s.motion]).toEqual(["agent-working", "state"]);
+    });
+
+    it("the CI fact while checks run reads running, never the check mark", () => {
+        const s = state({ pr: pr({ draft: true }, Running), ...InProgress });
+        const ci = s.facts.find((f) => f.id === "ci");
+        expect(wordPhrase(ci.text)).toBe("CI 3/13, 10 running");
+        expect(ci.tone).toBe("running");
+    });
+
+    it("the CI fact once every check passed: the check mark", () => {
+        const ci = state({ pr: pr() }).facts.find((f) => f.id === "ci");
+        expect([wordPhrase(ci.text), ci.tone]).toEqual(["CI 4/4", "ok"]);
+    });
+
+    it("skipped checks are done but not green: named, no check mark", () => {
+        const skipped: ReviewCheck[] = [
+            ...Green.slice(0, 3),
+            ...Array.from({ length: 10 }, (_, i): ReviewCheck => ({ name: `Job ${i}`, state: "neutral" })),
+        ];
+        const ci = state({ pr: pr({}, skipped) }).facts.find((f) => f.id === "ci");
+        expect([wordPhrase(ci.text), ci.tone]).toEqual(["CI 3/13, 10 skipped", "muted"]);
+    });
+});
+
 describe("in French", () => {
     beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
@@ -393,5 +486,11 @@ describe("in French", () => {
         expect(words({ pr: pr() }).sentence).toBe("Prête à fusionner");
         expect(words({ pr: pr({ merge: "conflicts" }) }).primary).toBe("Confier le rebase");
         expect(words(Cases[4].input).sentence).toBe("CI en échec : Backend");
+        expect(
+            words({ pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]), agents: [Nathan] }).facts
+        ).toContain("CI 4/5, 1 en cours");
+        expect(words({ pr: pr({}, [...Green, { name: "E2E", state: "neutral" }]) }).facts).toContain(
+            "CI 4/5, ignorées : 1"
+        );
     });
 });
