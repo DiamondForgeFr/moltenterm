@@ -413,7 +413,7 @@ export function FlowDiagram({
                         {node.approval ? (
                             <text
                                 x={node.x}
-                                y={node.y - 12}
+                                y={node.y - (plain && node.badge != null ? 22 : 12)}
                                 textAnchor="middle"
                                 className="text-10"
                                 style={{ fill: "var(--color-warning)" }}
