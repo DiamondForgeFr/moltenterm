@@ -36,6 +36,23 @@ describe("Release menu (FR-MC-015)", () => {
         expect(releaseChoiceTag(plan, null, "1.0.0")).toBeNull();
     });
 
+    it("numbers the next candidate in the project's format, across a switch (#1155)", () => {
+        const tags = [tag("v1.0.1", "2026-09-01"), tag("v1.1.0-1", "2026-09-05"), tag("v1.1.0-2", "2026-09-10")];
+        const commits = [{ sha: "a", subject: "feat(#3): a thing" } as any];
+        const names = tags.map((t) => t.name);
+        const rcdot = { tagprefix: "v", rcformat: "rcdot" };
+        const plan = releasePlan(releaseState(tags, [], commits, rcdot), names, rcdot);
+        expect(plan.rc).toBe("v1.1.0-rc.3");
+        expect(releaseChoiceTag(plan, "rc", "")).toBe("v1.1.0-rc.3");
+        expect(releaseChoiceTag(plan, "public", "")).toBeNull();
+        expect(releaseBaseOf(rcdot, "v1.1.0-rc.3")).toBe("1.1.0");
+
+        const numeric = { tagprefix: "v" };
+        expect(releasePlan(releaseState(tags, [], commits, numeric), names, numeric).rc).toBe("v1.1.0-3");
+        const afterRc = [...names, "v1.1.0-rc.3"];
+        expect(releasePlan(releaseState(tags, [], commits, numeric), afterRc, numeric).rc).toBe("v1.1.0-rc.4");
+    });
+
     it("derives the next public release from the commits since the last one", () => {
         const tags = [tag("v1.2.0", "2026-09-01")];
         const plan = releasePlan(

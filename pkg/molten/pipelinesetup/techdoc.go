@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
 // The pipeline's technical documentation (FR-MC-043, #1107): how the project is built and shipped, generated once by
@@ -178,6 +179,15 @@ func tagPrefixOf(in TechDocInput) string {
 	return "v"
 }
 
+// rcPatternOf: how the documented project's candidates read (versions.rcformat).
+func rcPatternOf(in TechDocInput) string {
+	rules := versions.Rules{RcFormat: in.Facts.RcFormat}
+	if p := in.Pipeline; p != nil && p.Versions != nil {
+		rules.RcFormat = p.Versions.RcFormat
+	}
+	return rules.RcPattern()
+}
+
 func docSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
 	if p == nil || p.Release == nil {
 		return nil
@@ -299,7 +309,7 @@ func writeOverview(out *strings.Builder, in TechDocInput, w docWords, o Options)
 	}
 	out.WriteString(w.f("ov.kind", kind))
 	out.WriteString(w.f("ov.trunk", mdCode(trunk), mdCode(release), model))
-	out.WriteString(w.f("ov.tags", mdCode(prefix+"X.Y.Z"), mdCode(prefix+"X.Y.Z-N")))
+	out.WriteString(w.f("ov.tags", mdCode(prefix+"X.Y.Z"), mdCode(prefix+rcPatternOf(in))))
 	var targets []string
 	seen := map[string]bool{}
 	for _, t := range in.Facts.Targets {
@@ -728,7 +738,7 @@ func BuildTechDoc(in TechDocInput) string {
 	prefix := tagPrefixOf(in)
 	writeHeading(&out, w.s("tags"))
 	out.WriteString(w.f("tags.public", mdCode(prefix+"X.Y.Z"), mdCode("tag")))
-	out.WriteString(w.f("tags.rc", mdCode(prefix+"X.Y.Z-N")))
+	out.WriteString(w.f("tags.rc", mdCode(prefix+rcPatternOf(in))))
 	for _, channel := range channels {
 		starts := tagStarts(in.Facts, channel, prefix)
 		files := make([]string, len(starts))

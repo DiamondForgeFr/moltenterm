@@ -135,7 +135,7 @@ func applyDescription(dir string, f *Facts, o *Options) ([]ProposedFile, bool) {
 
 // publishedBy: the workflow that already publishes the target on a public tag, "" when none does.
 func publishedBy(f Facts, target string, prefix string) string {
-	_, public := sampleTags(prefix)
+	_, public := sampleTags(prefix, "")
 	for _, wf := range f.Workflows {
 		if !wf.RunsOnTag(public) {
 			continue
@@ -356,6 +356,9 @@ func AdaptModel(here Facts, model Facts, p *molten.Pipeline) Options {
 	o.Kind = KindOnPremise
 	o.Merge = mo.Merge
 	o.TagPrefix = model.TagPrefix
+	if model.RcFormat != "" {
+		o.RcFormat = model.RcFormat
+	}
 	o.Notes = mo.Notes
 	o.Milestone = mo.Milestone && here.OnGithub
 	o.Trunk = here.Branches.Trunk

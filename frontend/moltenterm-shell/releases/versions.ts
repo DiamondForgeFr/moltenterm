@@ -11,27 +11,36 @@ export const MaxRc = 65535;
 export const DefaultTagPrefix = "v";
 export const DefaultFirstPublic = "1.0.0";
 
-export type Version = { major: number; minor: number; patch: number; rc: number };
+// rclabel: "rc" for an X.Y.Z-rc.N candidate, absent for X.Y.Z-N; meaningless on a public release.
+export type Version = { major: number; minor: number; patch: number; rc: number; rclabel?: string };
 
 export type ReleaseChannel = "rc" | "public";
 
+// must match the RcFormat constants in pkg/molten/versions/tags.go
+export type RcFormat = "numeric" | "rcdot";
+
 // must match Rules in pkg/molten/versions/tags.go
-export type VersionRules = { tagprefix?: string; firstpublic?: string };
+export type VersionRules = { tagprefix?: string; firstpublic?: string; rcformat?: string };
 
-// No leading zeros, and a candidate number from 1: X.Y.Z-0 is never a release.
-const VersionRegex = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([1-9]\d*))?$/;
+// No leading zeros, and a candidate number from 1: X.Y.Z-0 is never a release. Both candidate forms are always read,
+// whatever versions.rcformat says: a project that switches keeps its old tags.
+const VersionRegex = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:(rc)\.)?([1-9]\d*))?$/;
 
-// null for anything but X.Y.Z or X.Y.Z-N (1 ≤ N ≤ MaxRc).
+// null for anything but X.Y.Z, X.Y.Z-N or X.Y.Z-rc.N (1 ≤ N ≤ MaxRc).
 export function parseVersion(s: string): Version {
     const m = VersionRegex.exec(s ?? "");
     if (!m) {
         return null;
     }
-    const rc = m[4] ? Number(m[4]) : 0;
+    const rc = m[5] ? Number(m[5]) : 0;
     if (rc > MaxRc) {
         return null;
     }
-    return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), rc };
+    const v: Version = { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), rc };
+    if (m[4]) {
+        v.rclabel = m[4];
+    }
+    return v;
 }
 
 // A public version, X.Y.Z; null otherwise.
@@ -46,24 +55,30 @@ export function isBaseVersion(s: string): boolean {
 
 export function formatVersion(v: Version): string {
     const base = `${v.major}.${v.minor}.${v.patch}`;
-    return v.rc === 0 ? base : `${base}-${v.rc}`;
+    if (v.rc === 0) {
+        return base;
+    }
+    return v.rclabel ? `${base}-${v.rclabel}.${v.rc}` : `${base}-${v.rc}`;
 }
 
 function sign(n: number): number {
     return n < 0 ? -1 : n > 0 ? 1 : 0;
 }
 
-// Semver order: 1.0.0-1 < 1.0.0-2 < 1.0.0-10 < 1.0.0 < 1.0.1-1.
+// Semver order: 1.0.0-1 < 1.0.0-2 < 1.0.0-10 < 1.0.0-rc.1 < 1.0.0 < 1.0.1-1. A numeric pre-release sorts before an
+// alphanumeric one, so every X.Y.Z-N comes before every X.Y.Z-rc.N, the order npm and the updaters apply.
 export function compareVersions(a: Version, b: Version): number {
     const head = sign(a.major - b.major) || sign(a.minor - b.minor) || sign(a.patch - b.patch);
-    if (head !== 0 || a.rc === b.rc) {
+    if (head !== 0) {
         return head;
     }
-    if (a.rc === 0) {
-        return 1;
+    if (a.rc === 0 || b.rc === 0) {
+        return sign(b.rc - a.rc);
     }
-    if (b.rc === 0) {
-        return -1;
+    const la = a.rclabel ?? "";
+    const lb = b.rclabel ?? "";
+    if (la !== lb) {
+        return la === "" ? -1 : lb === "" ? 1 : la < lb ? -1 : 1;
     }
     return sign(a.rc - b.rc);
 }
@@ -131,7 +146,8 @@ export function lastRc(rules: VersionRules, tags: readonly string[]): string {
     return highest(rules, tags, true);
 }
 
-// The next free candidate number of a public version: one more than the highest X.Y.Z-N already tagged.
+// The next free candidate number of a public version: one more than the highest candidate number already tagged, in
+// either form (after X.Y.Z-2, X.Y.Z-rc.3).
 export function nextRc(rules: VersionRules, base: Version, tags: readonly string[]): number {
     let max = 0;
     for (const tag of tags) {
@@ -142,6 +158,28 @@ export function nextRc(rules: VersionRules, base: Version, tags: readonly string
         max = Math.max(max, v.rc);
     }
     return max + 1;
+}
+
+// The next release candidate of a public version, in the project's format. A version that already has an X.Y.Z-rc.N
+// candidate keeps that form until it is public: an X.Y.Z-N after it would sort below it.
+export function nextCandidate(rules: VersionRules, base: Version, tags: readonly string[]): Version {
+    let label = rules?.rcformat === "rcdot" ? "rc" : "";
+    for (const tag of tags) {
+        const v = releaseOf(rules, tag);
+        if (v && v.rc !== 0 && v.rclabel && compareVersions({ ...v, rc: 0 }, { ...base, rc: 0 }) === 0) {
+            label = v.rclabel;
+        }
+    }
+    const rtn: Version = { major: base.major, minor: base.minor, patch: base.patch, rc: nextRc(rules, base, tags) };
+    if (label) {
+        rtn.rclabel = label;
+    }
+    return rtn;
+}
+
+// How the project's candidates read, for a message: X.Y.Z-N or X.Y.Z-rc.N.
+export function rcPattern(rules: VersionRules): string {
+    return rules?.rcformat === "rcdot" ? "X.Y.Z-rc.N" : "X.Y.Z-N";
 }
 
 export type BumpLevel = "major" | "minor" | "patch";
@@ -330,15 +368,14 @@ export function planRelease(
     }
     let version = base;
     if (channel === "rc") {
-        const rc = nextRc(rules, base, tags);
-        if (rc > MaxRc) {
+        version = nextCandidate(rules, base, tags);
+        if (version.rc > MaxRc) {
             return refused(
                 channel,
                 lastPublicTag,
                 `${formatVersion(base)} has no candidate number left (at most ${MaxRc}).`
             );
         }
-        version = { ...base, rc };
     }
     rtn.base = formatVersion(base);
     rtn.version = formatVersion(version);

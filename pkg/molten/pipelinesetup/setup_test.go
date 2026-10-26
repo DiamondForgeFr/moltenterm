@@ -460,11 +460,11 @@ func TestMergeKeepsOtherKeys(t *testing.T) {
 
 func TestEvaluateChoicesWithoutTargets(t *testing.T) {
 	choices := EvaluateChoices([]string{RcFormatNumeric, RcFormatRcDot}, RcFormatRules, nil)
-	if !choices[0].Allowed || choices[1].Allowed || len(choices[1].Reasons) != 1 || choices[1].Reasons[0].Code != ReasonChainNumeric {
+	if !choices[0].Allowed || !choices[1].Allowed || len(choices[1].Reasons) != 0 {
 		t.Fatalf("%+v", choices)
 	}
 	npm := EvaluateChoices([]string{RcFormatRcDot}, RcFormatRules, []string{TargetNpm})
-	if npm[0].Allowed || len(npm[0].Reasons) != 2 || npm[0].Reasons[0].Code != ReasonNpmDistTag {
+	if !npm[0].Allowed || len(npm[0].Reasons) != 1 || npm[0].Reasons[0].Code != ReasonNpmDistTag {
 		t.Fatalf("%+v", npm)
 	}
 }

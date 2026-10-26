@@ -216,13 +216,14 @@ func releaseVersion(p *molten.Pipeline, tag string) (string, bool, error) {
 	rules := versions.Rules{TagPrefix: versions.DefaultTagPrefix}
 	if p.Versions != nil {
 		rules.FirstPublic = p.Versions.FirstPublic
+		rules.RcFormat = p.Versions.RcFormat
 		if p.Versions.TagPrefix != "" {
 			rules.TagPrefix = p.Versions.TagPrefix
 		}
 	}
 	v, ok := rules.ReleaseOf(tag)
 	if !ok || strings.TrimSpace(tag) != tag {
-		return "", false, uimsg.Errorf(uimsg.Make("mission.release.notATag", "tag", tag, "prefix", rules.TagPrefix), "%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, rules.TagPrefix, rules.TagPrefix)
+		return "", false, uimsg.Errorf(uimsg.Make("mission.release.notATag", "tag", tag, "prefix", rules.TagPrefix, "rc", rules.RcPattern()), "%q is not a release tag (%sX.Y.Z or %s%s)", tag, rules.TagPrefix, rules.TagPrefix, rules.RcPattern())
 	}
 	return v.Base().String(), v.IsRc(), nil
 }

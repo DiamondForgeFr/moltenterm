@@ -277,7 +277,7 @@ function openBranches(input: LineMapInput, links: ReturnType<typeof githubLinks>
 }
 
 // A tag's kind, or null when it is not one of the project's releases (below versions.firstpublic). A tag outside the
-// strict X.Y.Z[-N] form still counts, by Notulia's dash rule.
+// strict X.Y.Z[-N|-rc.N] form still counts, by Notulia's dash rule.
 export function stationKind(name: string, rules: VersionRules): StationKind {
     const channel = channelOfTag(rules, name);
     if (channel) {

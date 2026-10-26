@@ -37,6 +37,9 @@ type PipelineVersions struct {
 	Notes     string `json:"notes,omitempty"`
 	// The first public release's number (X.Y.Z): proposed for it, and tags below its first candidate are not releases.
 	FirstPublic string `json:"firstpublic,omitempty"`
+	// How the next release candidates are numbered (#1155): "numeric" (X.Y.Z-N, the default) or "rcdot" (X.Y.Z-rc.N).
+	// Both forms are always read as the project's releases.
+	RcFormat string `json:"rcformat,omitempty"`
 	// The files that carry the version; the first one holds the project's current version (FR-REL-001).
 	Files []versions.VersionFile `json:"files,omitempty"`
 	// The coding agent CLI that writes the public notes from the release's facts (FR-REL-003), as argv: the prompt goes
@@ -590,6 +593,9 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 		if _, err := versions.ParseBase(v.FirstPublic); err != nil {
 			c.errorf("versions.firstpublic must be a public version, X.Y.Z (got %q)", v.FirstPublic)
 		}
+	}
+	if !versions.ValidRcFormat(v.RcFormat) {
+		c.errorf("versions.rcformat must be %q (X.Y.Z-N) or %q (X.Y.Z-rc.N) (got %q)", versions.RcFormatNumeric, versions.RcFormatRcDot, v.RcFormat)
 	}
 	current := ""
 	for i, f := range v.Files {

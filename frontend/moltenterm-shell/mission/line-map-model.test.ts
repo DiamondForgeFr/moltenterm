@@ -275,6 +275,9 @@ describe("stations", () => {
         expect(stationKind("v2.0.0-beta.1", rules)).toBe("rc");
         expect(stationKind("v2", rules)).toBe("public");
         expect(stationKind("release-1.0.0", rules)).toBeNull();
+        expect(stationKind("v1.0.0-rc.2", rules)).toBe("rc");
+        expect(stationKind("v0.9.0-rc.2", rules)).toBeNull();
+        expect(stationKind("v1.0.0-rc.2", { ...rules, rcformat: "rcdot" })).toBe("rc");
     });
 });
 

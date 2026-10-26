@@ -251,6 +251,7 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 			p.Rules.TagPrefix = v.TagPrefix
 		}
 		p.Rules.FirstPublic = v.FirstPublic
+		p.Rules.RcFormat = v.RcFormat
 		if v.Notes != "" {
 			p.Notes = v.Notes
 		}
@@ -285,7 +286,7 @@ func (p *Project) releaseOf(tag string) (versions.Version, string, error) {
 	v, ok := p.Rules.ReleaseOf(tag)
 	if !ok || strings.TrimSpace(tag) != tag {
 		prefix := p.Rules.TagPrefix
-		return versions.Version{}, "", fmt.Errorf("%q is not a release tag of this project (%sX.Y.Z or %sX.Y.Z-N)", tag, prefix, prefix)
+		return versions.Version{}, "", fmt.Errorf("%q is not a release tag of this project (%sX.Y.Z or %s%s)", tag, prefix, prefix, p.Rules.RcPattern())
 	}
 	if v.IsRc() {
 		return v, versions.ChannelRc, nil
