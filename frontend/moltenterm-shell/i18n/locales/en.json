@@ -4964,6 +4964,7 @@
             "cicd": "CI/CD",
             "reviews": "Control room",
             "review": "Review",
+            "pipeline": "Pipeline setup",
             "companion": "Companion",
             "system": "System",
             "launcher": "Launcher",
@@ -8559,6 +8560,23 @@
             "none": "No site permission is stored.",
             "allowed": "Allowed",
             "blocked": "Blocked"
+        }
+    },
+    "pipelineTab": {
+        "name": "Pipeline · {project}",
+        "viewName": "Pipeline setup",
+        "noProject": "No project to set up",
+        "noProjectHint": "Open the setup again from the Release menu of the Project panel.",
+        "help": {
+            "ask": "Ask for help",
+            "hint": "Your coding agent answers in a terminal that opens on the left. Nothing starts without your click.",
+            "hintNamed": "{agent} answers in a terminal that opens on the left. Nothing starts without your click.",
+            "sent": "Asked {agent} in the terminal on the left.",
+            "none": "No coding agent is installed: the steps stay described, without a conversation.",
+            "missing": "{agent} is chosen for this project but is not installed on this computer.",
+            "choose": "Choose an agent",
+            "busy": "The terminal on the left is running something: wait for it to finish, or stop it, then ask again.",
+            "failed": "The agent could not be asked. Look at the terminal on the left, or try again."
         }
     },
     "codingAgent": {

@@ -6,7 +6,7 @@
 // later phase waits for its own click in the Project tab. While a release is on its way the button says which.
 
 import { cn, fireAndForget } from "@/util/util";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -15,6 +15,7 @@ import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-b
 import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, PipelineDrift, releaseMilestone, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
+import { openPipelineSetupTab } from "./pipeline-tab-open";
 import {
     milestoneWarning,
     MilestoneWarning,
@@ -28,14 +29,23 @@ import {
 } from "./release-model";
 import { setupCheck } from "./release-setup-client";
 import { needsReleaseSetup, SetupCheck, setupReasonText, SetupUpdateReason } from "./release-setup-model";
+import type { StepperStep } from "./release-setup-stepper";
 import { TechDocLinkButton } from "./release-techdoc-link";
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
-// The release setup's dialogs load on their first opening, out of the entry every tab view evaluates (NFR-PERF-003).
-const ReleaseSetup = lazy(() => import("./release-setup").then((m) => ({ default: m.ReleaseSetup })));
-
 const MilestoneReadDelayMs = 300;
+
+// The setup actions open the setup's own tab (#1150), focused when it is already open; a failure is said in place.
+function openSetupTab(dir: string, projectName: string, openAt: StepperStep, onError: (text: string) => void) {
+    fireAndForget(async () => {
+        try {
+            await openPipelineSetupTab(dir, projectName, openAt);
+        } catch (e) {
+            onError(serverErrorText(e));
+        }
+    });
+}
 
 export function ReleaseMenu({
     dir,
@@ -45,7 +55,6 @@ export function ReleaseMenu({
     publicSteps,
     onStarted,
     onShowRelease,
-    onSetUp,
 }: {
     dir: string;
     projectName: string;
@@ -54,8 +63,6 @@ export function ReleaseMenu({
     publicSteps: PipelineReleaseStep[];
     onStarted: () => void;
     onShowRelease: () => void;
-    // The release setup wrote the pipeline (FR-MC-036): the header reads it again.
-    onSetUp?: () => void;
 }) {
     const t = useT();
     const [open, setOpen] = useState(false);
@@ -64,12 +71,10 @@ export function ReleaseMenu({
     const [version, setVersion] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
+    const [setupError, setSetupError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
     const [drift, setDrift] = useState<PipelineDrift>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
-    // The stepper, and the step it opens at: an update opens at step 2 (#1102).
-    const [settingUp, setSettingUp] = useState(false);
-    const [setupAt, setSetupAt] = useState<"understand">(null);
     const [setupState, setSetupState] = useState<SetupCheck>(null);
     const [milestone, setMilestone] = useState<{ version: string; warning: MilestoneWarning; error: string }>(null);
 
@@ -217,6 +222,12 @@ export function ReleaseMenu({
                 setError(serverErrorText(e));
             }
         });
+    // An update opens at step 2 (#1102); a setup where it was left.
+    const openSetup = (openAt?: StepperStep) => {
+        setOpen(false);
+        setSetupError(null);
+        openSetupTab(dir, projectName, openAt, setSetupError);
+    };
     const publicTitle =
         plan?.publicVersion && !plan.publicIsDecision
             ? t("mc.releaseMenu.publicTitle", { tag: plan.prefix + plan.publicVersion })
@@ -229,22 +240,11 @@ export function ReleaseMenu({
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
-                    {missingSetup ? (
-                        <ReleaseSetupButton
-                            onOpen={() => {
-                                setOpen(false);
-                                setSettingUp(true);
-                            }}
-                        />
-                    ) : null}
+                    {missingSetup ? <ReleaseSetupButton onOpen={() => openSetup()} /> : null}
                     {setupState?.state === "update" ? (
                         <ReleaseSetupUpdateButton
                             reason={setupState.reasons[0]}
-                            onOpen={() => {
-                                setOpen(false);
-                                setSetupAt("understand");
-                                setSettingUp(true);
-                            }}
+                            onOpen={() => openSetup("understand")}
                         />
                     ) : null}
                     {setupState?.state === "uptodate" ? (
@@ -257,11 +257,7 @@ export function ReleaseMenu({
                                 {t("mc.setup.update.upToDate")}
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setOpen(false);
-                                        setSetupAt("understand");
-                                        setSettingUp(true);
-                                    }}
+                                    onClick={() => openSetup("understand")}
                                     className="cursor-pointer text-11 text-accent hover:underline"
                                     data-testid="release-setup-reopen"
                                 >
@@ -357,19 +353,13 @@ export function ReleaseMenu({
                     {error ? <div className="text-12 text-danger">{error}</div> : null}
                 </MenuPopover>
             ) : null}
-            {settingUp ? (
-                <Suspense fallback={null}>
-                    <ReleaseSetup
-                        dir={dir}
-                        projectName={projectName}
-                        onClose={() => {
-                            setSettingUp(false);
-                            setSetupAt(null);
-                        }}
-                        onWritten={() => onSetUp?.()}
-                        openAt={setupAt ?? undefined}
-                    />
-                </Suspense>
+            {setupError ? (
+                <div
+                    className="absolute top-full right-0 mt-1 w-72 text-11 text-danger"
+                    data-testid="release-setup-error"
+                >
+                    {setupError}
+                </div>
             ) : null}
             {untrusted != null ? (
                 <TrustPrompt
@@ -425,39 +415,32 @@ export function ReleaseSetupUpdateButton({ reason, onOpen }: { reason: SetupUpda
 }
 
 // The Project header's entry when the project has no pipeline yet (FR-MC-036).
-export function ReleaseSetupEntry({
-    dir,
-    projectName,
-    onSetUp,
-}: {
-    dir: string;
-    projectName: string;
-    onSetUp: () => void;
-}) {
+export function ReleaseSetupEntry({ dir, projectName }: { dir: string; projectName: string }) {
     const t = useT();
-    const [open, setOpen] = useState(false);
+    const [error, setError] = useState<string>(null);
     return (
-        <>
+        <div className="relative">
             <button
                 type="button"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                    setError(null);
+                    openSetupTab(dir, projectName, undefined, setError);
+                }}
                 className={ActionSecondaryClass}
                 data-testid="release-setup-entry"
             >
                 <i className="fa fa-solid fa-rocket text-11" />
                 {t("mc.setup.open")}
             </button>
-            {open ? (
-                <Suspense fallback={null}>
-                    <ReleaseSetup
-                        dir={dir}
-                        projectName={projectName}
-                        onClose={() => setOpen(false)}
-                        onWritten={onSetUp}
-                    />
-                </Suspense>
+            {error ? (
+                <div
+                    className="absolute top-full right-0 mt-1 w-72 text-11 text-danger"
+                    data-testid="release-setup-error"
+                >
+                    {error}
+                </div>
             ) : null}
-        </>
+        </div>
     );
 }
 
