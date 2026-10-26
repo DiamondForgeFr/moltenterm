@@ -421,7 +421,8 @@ export function PrPanel({
         );
     }
     const live = job != null && job.failure == null ? job : null;
-    const names = prNamesOf(plan, live?.ticket || choice.ticket);
+    // A failed job's created ticket is the one a retry reuses (#1146).
+    const names = prNamesOf(plan, live?.ticket || choice.ticket || (choice.create ? job?.ticket : 0));
     // After a failure the ticket can change (a branch that already exists takes another ticket).
     const locked = busy || (job?.finished && job.failure == null);
     return (
