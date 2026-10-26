@@ -50,7 +50,6 @@ prototype-pollution input, or run in a credential-bearing deploy pipeline, reass
 | Locked dependency / advisory | Concrete condition and current caller | Disposition / owned action |
 | --- | --- | --- |
 | braces 3.0.3; [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | Docusaurus globby/fast-glob processes repository/config glob patterns. Deep attacker-provided brace patterns can exhaust the stack; no product/user pattern reaches this docs graph. | Low-impact docs follow-up: update the Docusaurus/glob chain; reassess if patterns come from requests or untrusted configuration. |
-| postcss-selector-parser 6.1.4; [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) | Docs CSS optimization parses repository styles. The advisory concerns very large attacker-supplied selectors in synchronous request paths; this graph is not the app's CSS runtime or a selector service. | Low-impact docs follow-up: update the cssnano/parser chain to >=7.1.6 with a docs build regression. |
 | qs 6.14.2; [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) | Requires stringify with both comma array format and encodeValuesOnly on null/undefined elements. Express's docs dev-server path parses query strings; no such stringify options/round-trip are configured here. | Condition nonapplicable; update docs server's qs chain to >=6.16.0 on the owned review date. |
 | qs 6.14.2; [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) | Requires parse with comma=true and reliance on array limits. The docs dev-server uses Express query parsing without that option. | Condition nonapplicable; retain the same qs update follow-up. |
 | qs 6.14.2; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Express allows prototype-named own query properties, so their presence is not claimed safe. This advisory additionally requires passing those attacker-created objects to stringify. No docs request parse→stringify round-trip is configured. | Condition nonapplicable to current callers; recheck any future query serialization and update qs. |
@@ -66,3 +65,14 @@ These are owned dated reviews, not promises that future dependency graphs or dep
 The policy blocks unknown/new occurrences until reviewed, and expires these reviews even if an advisory disappears.
 Advisory/version fingerprints do not detect a changed application input path or deployment configuration. Reviewers
 must reassess those source/deployment changes even when scanner metadata remains identical.
+
+## Resolved by upgrade
+
+- postcss-selector-parser 6.1.4; [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf) (#1170,
+  2026-10-26). The advisory record changed on 2026-10-26, so its dated review (removed here) no longer matched the finding's
+  scope and the scan blocked every pull request. Docusaurus 3.10.2 pins the cssnano 6 chain (postcss-calc, postcss-merge-rules,
+  postcss-minify-selectors, postcss-unique-selectors, postcss-discard-unused, stylehacks), which asks for `^6`. The root
+  `package.json` now overrides `postcss-selector-parser` to the fixed 7.1.6, the version every other docs consumer
+  already used, so the lockfile holds a single 7.1.6 copy. The Docusaurus cssnano preset still minifies selectors,
+  `calc()`, duplicate rules and unused keyframes, and Infima's stylesheet, with the override. Drop the override once
+  Docusaurus moves to cssnano 7.
