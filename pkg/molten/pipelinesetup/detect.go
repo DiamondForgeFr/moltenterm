@@ -287,9 +287,6 @@ func detectVersionFiles(dir string) ([]versions.VersionFile, Source) {
 	return rtn, Source{Code: "versionsFound", Path: strings.Join(names, ", "), Detail: first}
 }
 
-var langSuffixRegex = regexp.MustCompile(`(?i)\.([a-z]{2})\.md$`)
-var langDirRegex = regexp.MustCompile(`^[a-z]{2}$`)
-
 func detectChangelogs(dir string) []Changelog {
 	var paths []string
 	for _, pattern := range []string{"CHANGELOG*.md", "changelog*.md", "docs/changelog*.md", "docs/CHANGELOG*.md", "docs/*/changelog*.md", "docs/*/CHANGELOG*.md"} {
@@ -304,13 +301,7 @@ func detectChangelogs(dir string) []Changelog {
 	sort.Strings(paths)
 	rtn := []Changelog{}
 	for _, path := range paths {
-		lang := "en"
-		if m := langSuffixRegex.FindStringSubmatch(path); m != nil {
-			lang = strings.ToLower(m[1])
-		} else if parts := strings.Split(path, "/"); len(parts) == 3 && langDirRegex.MatchString(parts[1]) {
-			lang = parts[1]
-		}
-		rtn = append(rtn, Changelog{Path: path, Lang: lang})
+		rtn = append(rtn, Changelog{Path: path, Lang: molten.ChangelogLang(path)})
 	}
 	return rtn
 }

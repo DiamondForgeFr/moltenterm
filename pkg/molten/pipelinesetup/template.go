@@ -218,12 +218,20 @@ func rcBranchDisplay(f Facts) string {
 	return strings.ReplaceAll(pattern, "{version}", "X.Y.Z")
 }
 
-func changelogStep(path string, id string, at string) molten.PipelineStep {
+// changelogScope words what a channel's changelog section covers (#1142): a public user never saw the candidates.
+func changelogScope(channel string) string {
+	if channel == ChannelRc {
+		return "Cover what changed since the previous release, candidate or public."
+	}
+	return "Cover everything that changed since the last public release, release candidates included: public users never saw them. The public notes draft has that scope."
+}
+
+func changelogStep(path string, id string, at string, channel string) molten.PipelineStep {
 	return molten.PipelineStep{
 		Id:     id,
 		Title:  "Write the {version} section of " + path,
 		Phase:  "cut",
-		Manual: fmt.Sprintf("%s, write the {version} section of %s. The cut commits it with the version.", at, path),
+		Manual: fmt.Sprintf("%s, write the {version} section of %s. %s The cut commits it with the version.", at, path, changelogScope(channel)),
 	}
 }
 
@@ -347,7 +355,7 @@ func handSteps(f Facts, o Options, steps []molten.PipelineStep, key string, sour
 		for n := 2; stepIdTaken(steps, id); n++ {
 			id = fmt.Sprintf("changelog-%s-%d", StepId(lang), n)
 		}
-		step := changelogStep(path, id, at)
+		step := changelogStep(path, id, at, key)
 		steps = append(steps, step)
 		sources[key+"/"+step.Id] = Source{Code: "changelog", Path: path}
 	}

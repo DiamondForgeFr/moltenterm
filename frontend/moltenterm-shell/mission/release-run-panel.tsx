@@ -46,6 +46,7 @@ import {
 import { ReleaseSession } from "./release-model";
 import { ReleaseFailureActions, ReleaseResolveActions } from "./release-resolve";
 import {
+    ChangelogScope,
     Phase,
     PhaseAction,
     PhaseStatus,
@@ -193,6 +194,68 @@ export async function sendAction(
     return { outcome, failure: outcome === "asked" ? failure : null };
 }
 
+const MaxUncoveredShown = 12;
+
+// A public changelog section that leaves out changes since the last public release (#1142): listed, to be confirmed.
+export function UncoveredNote({ failure }: { failure: ManualCheckFailure }) {
+    const t = useT();
+    const items = failure.uncovered ?? [];
+    const shown = items.slice(0, MaxUncoveredShown);
+    const vars = { version: failure.version || failure.contains, path: failure.path, since: failure.since };
+    return (
+        <div
+            className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"
+            data-testid="release-run-uncovered"
+        >
+            <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11 text-warning" />
+            <div className="flex min-w-0 flex-col gap-1">
+                <span className="break-words">
+                    {failure.since ? t("mc.releaseRun.uncovered", vars) : t("mc.releaseRun.uncoveredFirst", vars)}
+                </span>
+                <ul className="flex flex-col gap-0.5 text-primary">
+                    {shown.map((item) => (
+                        <li key={item.ticket ? `#${item.ticket}` : item.text} className="break-words">
+                            {item.ticket ? <span className="mr-1.5 font-mono text-11">#{item.ticket}</span> : null}
+                            {item.text}
+                        </li>
+                    ))}
+                </ul>
+                {items.length > shown.length ? (
+                    <span className="text-muted">
+                        {t("mc.releaseRun.uncoveredMore", { count: items.length - shown.length })}
+                    </span>
+                ) : null}
+                <span>{t("mc.releaseRun.uncoveredHint")}</span>
+            </div>
+        </div>
+    );
+}
+
+// What a changelog section covers (#1142), said on its manual step.
+function ScopeNote({ scope, withNotes }: { scope: ChangelogScope; withNotes: boolean }) {
+    const t = useT();
+    let text: string;
+    if (scope.public) {
+        text = scope.since
+            ? t("mc.releaseRun.scopePublic", { since: scope.since })
+            : t("mc.releaseRun.scopePublicFirst");
+    } else {
+        text = scope.since ? t("mc.releaseRun.scopeRc", { since: scope.since }) : t("mc.releaseRun.scopeRcFirst");
+    }
+    return (
+        <p
+            className="mt-2 flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 px-2 py-1.5 text-12 text-secondary"
+            data-testid="release-run-scope"
+        >
+            <i className="fa fa-solid fa-list-check mt-0.5 text-11 text-accent" />
+            <span className="min-w-0 break-words">
+                {text}
+                {scope.public && withNotes ? ` ${t("mc.releaseRun.scopeSource")}` : null}
+            </span>
+        </p>
+    );
+}
+
 function ActionButton({
     action,
     actions,
@@ -243,18 +306,22 @@ function ActionButton({
     if (unproved != null) {
         return (
             <div className="mt-3 flex flex-col gap-2" data-testid="release-run-unproved">
-                <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
-                    <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
-                    <span className="min-w-0 break-words">
-                        {unproved.missing
-                            ? t("mc.releaseRun.uncheckedMissing", { path: unproved.path, dir: unproved.dir })
-                            : t("mc.releaseRun.uncheckedLacks", {
-                                  path: unproved.path,
-                                  contains: unproved.contains,
-                                  dir: unproved.dir,
-                              })}
-                    </span>
-                </p>
+                {unproved.uncovered?.length > 0 ? (
+                    <UncoveredNote failure={unproved} />
+                ) : (
+                    <p className="flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
+                        <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
+                        <span className="min-w-0 break-words">
+                            {unproved.missing
+                                ? t("mc.releaseRun.uncheckedMissing", { path: unproved.path, dir: unproved.dir })
+                                : t("mc.releaseRun.uncheckedLacks", {
+                                      path: unproved.path,
+                                      contains: unproved.contains,
+                                      dir: unproved.dir,
+                                  })}
+                        </span>
+                    </p>
+                )}
                 <div className="flex justify-end gap-2">
                     <button
                         type="button"
@@ -500,6 +567,7 @@ function Detail({
                     {phase.manual}
                 </p>
             ) : null}
+            {phase.scope ? <ScopeNote scope={phase.scope} withNotes={editing} /> : null}
             {phase.approval ? (
                 <p
                     className="mt-2 flex items-start gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-secondary"

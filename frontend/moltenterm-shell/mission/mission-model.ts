@@ -342,7 +342,19 @@ export type UntrustedInfo = { hash: string; commands: TrustedCommand[] };
 
 // must match ManualCheckFailure in pkg/molten/mission/release_manual.go: what a manual release step's check did not
 // find (#1095); nothing was recorded.
-export type ManualCheckFailure = { path: string; contains: string; missing?: boolean; dir: string };
+export type ManualCheckFailure = {
+    path: string;
+    contains: string;
+    missing?: boolean;
+    dir: string;
+    // A public changelog section that does not mention these changes since the last public release (#1142).
+    uncovered?: CoverageItem[];
+    since?: string;
+    version?: string;
+};
+
+// must match CoverageItem in pkg/molten/release/coverage.go: a ticket, or a commit claiming none (ticket absent).
+export type CoverageItem = { ticket?: number; text: string; url?: string };
 
 export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo; unproved?: ManualCheckFailure };
 

@@ -55,20 +55,6 @@ func changelogHeading(dir string, rel string) string {
 	return DefaultChangelogHeading
 }
 
-// changelogOf: the changelog a manual step writes, the longest known path its title or instructions name.
-func changelogOf(step molten.PipelineStep, paths []string) string {
-	best := ""
-	for _, path := range paths {
-		if path == "" || len(path) <= len(best) {
-			continue
-		}
-		if strings.Contains(step.Title, path) || strings.Contains(step.Manual, path) {
-			best = path
-		}
-	}
-	return best
-}
-
 // labelCheck: the first label bumped by hand, its line with the version as {version}.
 func labelCheck(f Facts, o Options) *molten.PipelineStepCheck {
 	for _, c := range o.Labels {
@@ -99,7 +85,7 @@ func checkOf(dir string, f Facts, o Options, step molten.PipelineStep) *molten.P
 	for _, c := range f.Changelogs {
 		paths = append(paths, c.Path)
 	}
-	path := changelogOf(step, paths)
+	path := molten.ChangelogOfStep(step, paths)
 	if path == "" {
 		return nil
 	}

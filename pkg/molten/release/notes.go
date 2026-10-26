@@ -244,17 +244,7 @@ func (e *Env) gatherNotesFacts(ctx context.Context, wt string, p *Project, tag s
 	if v.IsRc() {
 		facts.Channel = versions.ChannelRc
 	}
-	rangeArg := "HEAD"
-	if facts.Since != "" {
-		rangeArg = facts.Since + "..HEAD"
-	}
-	args := []string{"log", "--no-merges", "--format=%s", rangeArg}
-	// A fork's upstream history is not the project's own: the first release would otherwise list every upstream
-	// commit since the beginning.
-	if remotes, _ := e.gitLines(ctx, wt, "remote"); slices.Contains(remotes, "upstream") {
-		args = append(args, "--not", "--remotes=upstream")
-	}
-	subjects, err := e.gitLines(ctx, wt, args...)
+	subjects, err := e.rangeSubjects(ctx, wt, facts.Since)
 	if err != nil {
 		return facts, fmt.Errorf("could not read the commits since %s: %w", facts.sinceLabel(), err)
 	}
@@ -264,6 +254,22 @@ func (e *Env) gatherNotesFacts(ctx context.Context, wt string, p *Project, tag s
 		e.addGithubFacts(ctx, wt, &facts, v)
 	}
 	return facts, nil
+}
+
+// rangeSubjects: the commit subjects since a release ("" for the whole history) up to HEAD, newest first, merges
+// excluded.
+func (e *Env) rangeSubjects(ctx context.Context, wt string, since string) ([]string, error) {
+	rangeArg := "HEAD"
+	if since != "" {
+		rangeArg = since + "..HEAD"
+	}
+	args := []string{"log", "--no-merges", "--format=%s", rangeArg}
+	// A fork's upstream history is not the project's own: the first release would otherwise list every upstream
+	// commit since the beginning.
+	if remotes, _ := e.gitLines(ctx, wt, "remote"); slices.Contains(remotes, "upstream") {
+		args = append(args, "--not", "--remotes=upstream")
+	}
+	return e.gitLines(ctx, wt, args...)
 }
 
 func noteLine(subject string) string {
