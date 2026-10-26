@@ -142,7 +142,8 @@
         },
         "monaco-editor@0.55.1": {
             "dompurify": "3.4.17"
-        }
+        },
+        "postcss-selector-parser": "7.1.6"
     },
     "packageManager": "npm@10.9.2",
     "workspaces": [
