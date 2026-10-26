@@ -324,7 +324,7 @@ export function openReviewTab(workspaceid: string, pr: ReviewPrInfo): Promise<{ 
     return call(OpenCommand, { workspaceid, pr });
 }
 
-// openReviewAiPane returns the PR's AI panel in the tab, creating it right of the review block (DS-REV-012).
+// openReviewAiPane returns the PR's AI panel in the tab, creating it left of the review block (DS-REV-012).
 export function openReviewAiPane(
     tabid: string,
     blockid: string,

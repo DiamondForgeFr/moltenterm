@@ -25,7 +25,7 @@ import (
 const (
 	// ReviewView is the Review tab's block view; must match frontend/moltenterm-shell/review/review-model.ts.
 	ReviewView = "molten-review"
-	// AiPaneView is the AI panel's block view, beside the review block, with the session's terminal under it.
+	// AiPaneView is the AI panel's block view, left of the review block, with the session's terminal under it.
 	AiPaneView = "molten-review-ai"
 	// The AI panel's share of the tab's width next to the review block (layout sizes are relative; the block's is 10).
 	aiPaneNodeSize = uint(6)
@@ -158,7 +158,16 @@ func isAiPaneOf(block *waveobj.Block, key string) bool {
 	return tabKey(pr.Repo, pr.Number) == key
 }
 
-// OpenAiPane returns the PR's AI panel in the tab, creating it to the right of the review block (DS-REV-012): the
+// aiPaneLayoutAction lays the AI panel out on the left of the review block (DS-REV-012, #1165): in a tab holding an
+// agent and a panel, the agent is on the left and the graphics on the right. An AI panel laid out on the right by an
+// earlier version keeps its place until it or its tab is closed, so a running session is never disturbed.
+func aiPaneLayoutAction(aiBlockId string, reviewBlockId string) waveobj.LayoutActionData {
+	size := aiPaneNodeSize
+	return waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_SplitHorizontal, BlockId: aiBlockId,
+		TargetBlockId: reviewBlockId, Position: "before", NodeSize: &size}
+}
+
+// OpenAiPane returns the PR's AI panel in the tab, creating it on the left of the review block (DS-REV-012): the
 // briefing and the explanation cards, with the review session's terminal split under it.
 func OpenAiPane(ctx context.Context, req AiPaneRequest) (AiPaneResult, error) {
 	if req.TabId == "" || req.BlockId == "" {
@@ -187,10 +196,7 @@ func OpenAiPane(ctx context.Context, req AiPaneRequest) (AiPaneResult, error) {
 	if err != nil {
 		return AiPaneResult{}, err
 	}
-	size := aiPaneNodeSize
-	action := waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_SplitHorizontal, BlockId: block.OID,
-		TargetBlockId: req.BlockId, Position: "after", NodeSize: &size}
-	if err := wcore.QueueLayoutActionForTab(ctx, req.TabId, action); err != nil {
+	if err := wcore.QueueLayoutActionForTab(ctx, req.TabId, aiPaneLayoutAction(block.OID, req.BlockId)); err != nil {
 		return AiPaneResult{}, err
 	}
 	wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Block, block.OID))
