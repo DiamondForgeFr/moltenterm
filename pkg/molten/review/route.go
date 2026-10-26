@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
@@ -110,6 +111,8 @@ type Service struct {
 	forecaster *Forecaster
 	// batch: the batch merge by an agent (FR-REV-025); nil in the tests that do not need it.
 	batch *BatchRunner
+	// leftoverAsks: the requests to a leftover worktree's live owner (#1143); nil in the tests that do not need it.
+	leftoverAsks *LeftoverAsks
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -228,6 +231,20 @@ func Start() {
 		service.merger.greenOnly = func() bool {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewValidateGreenOnly
 		}
+		service.leftoverAsks = MakeLeftoverAsks(LeftoverAskEnv{
+			Owner: func(ctx context.Context, dir string, path string) (mission.LeftoverOwner, mission.LinkedTree, error) {
+				return mission.LiveLockOwner(ctx, mission.ExecRunner, dir, path)
+			},
+			Tree: func(ctx context.Context, dir string, path string) (mission.LinkedTree, bool, error) {
+				return mission.LinkedTreeOf(ctx, mission.ExecRunner, dir, path)
+			},
+			Send:     agenthandoff.SendFromApp,
+			AgentRun: attention.AgentRun,
+			Publish: func(answer LeftoverAsksAnswer) {
+				wps.Broker.Publish(wps.WaveEvent{Event: LeftoverAskEvent, Scopes: []string{answer.Dir}, Data: answer})
+			},
+			FollowEvery: leftoverFollowEvery,
+		})
 		service.publishNotes = func(notes Notes) {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
@@ -515,6 +532,25 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.Cleanup(ctx, req)
+	case LeftoverAskCommand:
+		// The developer's click on Clean up (#1143): its approval of MoltenTerm's request to the owner, a window's only.
+		req, err := decode[LeftoverAskRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.leftoverAsks == nil {
+			return nil, fmt.Errorf("the leftover requests are not available")
+		}
+		return s.leftoverAsks.Ask(ctx, req)
+	case LeftoverAsksCommand:
+		req, err := decode[LeftoverAsksRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if s.leftoverAsks == nil {
+			return LeftoverAsksAnswer{Dir: req.Dir, Asks: []LeftoverAsk{}}, nil
+		}
+		return s.leftoverAsks.List(req.Dir), nil
 	case CommentCommand:
 		req, err := decode[CommentRequest](data)
 		if err != nil {

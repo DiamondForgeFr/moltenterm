@@ -150,6 +150,9 @@ type AgentPlace struct {
 	// Cwd: the terminal's local folder; Link: the worktree MoltenTerm linked it to (molten:worktree).
 	Cwd  string
 	Link string
+	// Pid: the agent's process when the process tree found it (0 otherwise); a worktree lock's pid names its owner
+	// (#1143).
+	Pid int32
 	// Review: a review session's terminal, read-only, never the one working on the branch.
 	Review bool
 }
@@ -173,6 +176,8 @@ type UpcomingEnv struct {
 	Subagents func(places []AgentPlace) []PaneSubagent
 	// ReviewTreesDir: the folder of the project's review worktrees (molten.ReviewTreesDir), nil when unknown (#1121).
 	ReviewTreesDir func(projectDir string) string
+	// Procs: the process table, read once per answer that has a lock held by a live process (#1143); nil: none.
+	Procs func() ProcFacts
 }
 
 type upcomingState struct {
@@ -342,6 +347,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
 		targetRef = "refs/remotes/origin/" + answer.Target
 	}
+	ownerOf := u.lockOwners(places, answer.Agents)
 	closed := closedPrsByBranch(snap)
 	remotes := remoteBranches(refs)
 	branches := make([]UpcomingBranch, 0, len(candidates))
@@ -352,7 +358,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		}
 		done := classifyDone(g, closed, c, ref, targetRef)
 		if done.leftover {
-			leftover, shown := withTreeLock(LeftoverOf(c, done.pr, remotes, answer.Target), trees)
+			leftover, shown := withTreeLock(LeftoverOf(c, done.pr, remotes, answer.Target), trees, ownerOf)
 			if shown {
 				answer.Leftovers = append(answer.Leftovers, leftover)
 			}

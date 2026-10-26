@@ -120,6 +120,9 @@ func TestUpcomingExtraLeftovers(t *testing.T) {
 		Run:            run,
 		Snapshot:       func(string) (Snapshot, bool) { return snap, true },
 		ReviewTreesDir: func(string) string { return reviewDir },
+		Procs: func() ProcFacts {
+			return fakeProcs{names: map[int32]string{90002: "claude"}, cwds: map[int32]string{90002: "/w"}}
+		},
 	})
 	answer, err := u.Get(UpcomingRequest{Dir: dir})
 	if err != nil || answer.Error != "" {
@@ -153,8 +156,10 @@ func TestUpcomingExtraLeftovers(t *testing.T) {
 			t.Fatalf("a worktree whose locking session ended has no background agent: %+v", a)
 		}
 	}
-	if _, ok := leftovers[143]; ok {
-		t.Fatalf("a lock whose holder runs hides its leftover: %+v", leftovers[143])
+	// #1143: a lock whose holder runs lists its leftover with that owner, here a process no terminal runs.
+	if l := leftovers[143]; l.Lock != LeftoverLockLive || l.LockPid != 90002 || l.Owner == nil || l.Owner.Via != OwnerViaProcess ||
+		l.Owner.Process != "claude" || l.Owner.Folder != "/w" || l.Owner.Reachable() {
+		t.Fatalf("a lock whose holder runs names its owner: %+v %+v", l, l.Owner)
 	}
 	if l := leftovers[144]; l.Lock != LeftoverLockHeld {
 		t.Fatalf("a lock naming no pid: %+v", l)
@@ -168,7 +173,7 @@ func TestUpcomingExtraLeftovers(t *testing.T) {
 	if l := leftovers[47]; l.ReviewTree != realPath(reviewTree) || len(l.Copies) != 0 {
 		t.Fatalf("the review worktree of a PR merged outside Validate: %+v", l)
 	}
-	if len(answer.Leftovers) != 5 {
+	if len(answer.Leftovers) != 6 {
 		t.Fatalf("leftovers: %+v", answer.Leftovers)
 	}
 }

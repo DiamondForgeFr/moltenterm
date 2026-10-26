@@ -11,7 +11,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { AgentStates } from "../agent-state-store";
 import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
@@ -20,6 +20,8 @@ import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
 import { keptButtonLabel, lossLines, panelLines } from "../review/review-stepper";
 import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses } from "./reviews-card";
+import { LeftoverAsks, useLeftoverAsks } from "./reviews-leftover-asks";
+import { heldByLiveOwner, leftoverAway, unreachableOwner } from "./reviews-leftover-owner-model";
 import { LeftoverConfirm, LeftoversModel, LeftoverState } from "./reviews-leftovers-client";
 import { agentText, leftoverKey, leftoverParts, leftoverRows, leftoverState } from "./reviews-leftovers-model";
 import type { ReviewsAnswer } from "./reviews-model";
@@ -65,13 +67,15 @@ export function LeftoversSection({
     const cleanup = useAtomValue(model.statesAtom);
     const all = useAtomValue(model.allAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
+    const asks = useLeftoverAsks(dir);
     const targets: Target[] = useMemo(() => {
         const at = upcoming?.at ?? 0;
         return leftoverRows(upcoming, reviews)
             .filter((leftover) => {
                 // Cleaned up since wavesrv's answer: gone until it answers again.
                 const cleanedAt = cleanup[leftoverKey(dir, leftover.pr)]?.cleanedAt ?? 0;
-                return !(cleanedAt > 0 && at <= cleanedAt);
+                // Its owner was asked (#1143): the card is in the section of whose turn it is.
+                return !(cleanedAt > 0 && at <= cleanedAt) && !leftoverAway(leftover, asks, at);
             })
             .map((leftover) => ({
                 dir,
@@ -79,7 +83,16 @@ export function LeftoversSection({
                 leftover,
                 agents: branchAgents(upcoming, states, leftover.branch),
             }));
-    }, [upcoming, reviews, states, cleanup, dir]);
+    }, [upcoming, reviews, states, cleanup, dir, asks]);
+    // The owner removed the worktree this window asked it to (#1143): the rest of that cleanup goes now, as asked.
+    useEffect(() => {
+        for (const target of targets) {
+            if (heldByLiveOwner(target.leftover) || !LeftoverAsks.getInstance().takeContinue(dir, target.leftover.pr)) {
+                continue;
+            }
+            fireAndForget(() => model.cleanUp(target));
+        }
+    }, [targets, dir, model]);
     if (targets.length === 0 || !reviews?.repo) {
         return null;
     }
@@ -143,6 +156,9 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
     const parts = leftoverParts(t, leftover, agents);
     const url = prUrl(leftover, repoUrl);
     const panel = agents.find((a) => a.kind === "panel" && a.blockId);
+    // A live lock no MoltenTerm terminal runs (#1143): nothing is unlocked by force, Go there shows where its process runs.
+    const unreachable = unreachableOwner(leftover);
+    const unreachableFolder = unreachable != null ? unreachable.folder || leftover.worktree : "";
     const openMenu = (e: React.MouseEvent) => {
         e.stopPropagation();
         const items: ContextMenuItem[] = [];
@@ -208,6 +224,17 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                     </ul>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                    {unreachableFolder ? (
+                        <button
+                            type="button"
+                            className={CalmButton}
+                            title={t("reviewsAgents.leftovers.owner.goToFolder")}
+                            onClick={() => getApi().openNativePath(unreachableFolder)}
+                            data-testid="reviews-leftover-goto"
+                        >
+                            {t("reviewsAgents.goTo")}
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         className={cn(MoltenButton, "disabled:cursor-default disabled:opacity-60")}

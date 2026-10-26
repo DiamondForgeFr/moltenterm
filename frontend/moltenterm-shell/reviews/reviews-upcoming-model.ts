@@ -11,6 +11,7 @@ import { TFunction } from "../i18n/i18n";
 import type { Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
+import type { LeftoverOwner } from "./reviews-leftover-owner-model";
 import type { ReviewsAnswer } from "./reviews-model";
 
 // must match the names in pkg/molten/mission/upcoming.go
@@ -49,8 +50,10 @@ export type UpcomingLeftover = {
     // holder process ended; held: unknown holder, the cleanup keeps it); reviewtree, copies: what else the PR left.
     state?: "merged" | "closed";
     base?: string;
-    lock?: "ended" | "held";
+    lock?: "ended" | "held" | "live";
     lockpid?: number;
+    // #1143: live: a running process holds the lock; owner names it (only it removes the worktree).
+    owner?: LeftoverOwner;
     reviewtree?: string;
     copies?: string[];
 };

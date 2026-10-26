@@ -16,8 +16,8 @@ import (
 // What else a done PR leaves (#1121, FR-REV-022 AC15): a worktree whose lock's holder ended, local copies of the PR's
 // branch, and MoltenTerm's review worktree of a PR merged outside Validate. Each is listed only when removing it loses
 // nothing: a copy's tip is the merged head or one of its commits (else its content is on the target), and the cleanup
-// checks the worktrees again (FR-REV-013). A worktree locked by a process still running is left alone, its leftover
-// not listed: the session that locked it may still use it.
+// checks the worktrees again (FR-REV-013). A worktree locked by a process still running is never removed by MoltenTerm:
+// its leftover is listed with that owner (#1143, leftover_owner.go), whom Clean up asks to check and remove it.
 
 // localBranchFormat: name, tip, upstream and whether the upstream is gone, NUL-separated.
 const localBranchFormat = "%(refname)%00%(objectname)%00%(upstream)%00%(upstream:track)"
@@ -66,9 +66,9 @@ func upcomingNames(candidates []UpcomingBranch) map[string]bool {
 	return rtn
 }
 
-// withTreeLock says how the leftover's worktree is locked; false: a running process holds it, the leftover is not
-// shown.
-func withTreeLock(l UpcomingLeftover, trees []treeEntry) (UpcomingLeftover, bool) {
+// withTreeLock says how the leftover's worktree is locked. A running process holding it is the leftover's owner
+// (#1143), named by ownerOf; nil ownerOf: the leftover is not shown, as before #1143.
+func withTreeLock(l UpcomingLeftover, trees []treeEntry, ownerOf func(holder LockHolder, worktree string) LeftoverOwner) (UpcomingLeftover, bool) {
 	if l.Worktree == "" {
 		return l, true
 	}
@@ -81,7 +81,12 @@ func withTreeLock(l UpcomingLeftover, trees []treeEntry) (UpcomingLeftover, bool
 		case ended:
 			l.Lock, l.LockPid = LeftoverLockEnded, pid
 		case pid > 0:
-			return l, false
+			holder, _ := ParseLockReason(tree.lockReason)
+			if ownerOf == nil {
+				return l, false
+			}
+			owner := ownerOf(holder, l.Worktree)
+			l.Lock, l.LockPid, l.Owner = LeftoverLockLive, pid, &owner
 		default:
 			l.Lock = LeftoverLockHeld
 		}
