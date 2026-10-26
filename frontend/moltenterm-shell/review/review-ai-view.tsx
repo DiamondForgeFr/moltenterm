@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Review tab's AI panel (DS-REV-012): a pane right of the review block. The review session's terminal runs hidden
+// The Review tab's AI panel (DS-REV-012): a pane left of the review block (#1165). The review session's terminal runs hidden
 // and Show its terminal splits it under the panel (#916); the panel's command panel offers the session agent's Agent
 // section (FR-SHELL-048), sent to that terminal. It shows the session's state and the PR's
 // briefing (FR-REV-005): what changed, why, the risks and the files to look at first (links that open the file in the

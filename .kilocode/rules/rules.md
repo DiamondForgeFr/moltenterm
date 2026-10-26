@@ -52,6 +52,11 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - For accent buttons, use "bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer" (if you do "bg-accent hover:bg-accent/80" it looks weird as on hover the button gets darker instead of lighter)
   - **Moltenterm (MOLTENTERM-PATCH #145):** this replaces the line above. A call-to-action button takes the class `molten-btn` (add `molten-btn-destructive` or `molten-btn-warning` for those) with sizes only from Tailwind (e.g. `"molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"`, no `bg-*`, `text-*` colour or `hover:bg-*`), and `<MoltenWave />` from `frontend/moltenterm-shell/molten-button.tsx` as its last child. Wave's `Button` does this itself: no class or the `green` class gives the molten primary. Secondary actions stay calm (bordered or ghost). The style lives in `frontend/moltenterm-shell/molten-button.css`.
 
+### Agent left, graphics right (Moltenterm, MOLTENTERM-PATCH #1165)
+
+- A tab that holds an agent (its terminal or its AI panel) next to a graphical panel lays the agent out on the **left** and the graphical panel on the **right** (DS-REV-012). Example: the Review tab splits its AI panel before the review block (`aiPaneLayoutAction` in `pkg/molten/review/tab.go`).
+- A tab laid out the other way by an earlier version keeps its layout while it runs: never move or close a live agent's pane to apply the rule; it applies the next time the pane or the tab opens.
+
 ### Interface languages (Moltenterm, MOLTENTERM-PATCH #623, #628)
 
 - Every user-facing string goes through a key (FR-I18N-001, NFR-I18N-001): components call `const t = useT()`, models, menus and anything outside React call `t(key, vars)` (both from `frontend/moltenterm-shell/i18n/i18n.ts`), Electron main calls `mt(key, vars)` (`emain/moltenterm-i18n.ts`). Never a literal UI string in new code.
