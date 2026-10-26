@@ -354,7 +354,7 @@ func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *Release
 	}
 }
 
-var tagVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:-\d+)?$`)
+var tagVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:-(?:rc\.)?\d+)?$`)
 
 // mentionsRelease tells whether a branch name or a title names this release's version as a whole: the pull request
 // carrying v1.0.0-1 back is not v1.0.0's, nor v1.0.0-10's.
@@ -370,12 +370,18 @@ func mentionsRelease(s string, tag string) bool {
 		}
 		start, end := from+i, from+i+len(version)
 		before := start == 0 || !strings.ContainsRune("0123456789.", rune(s[start-1]))
-		after := end == len(s) || !(s[end] >= '0' && s[end] <= '9' || s[end] == '.' || (s[end] == '-' && end+1 < len(s) && s[end+1] >= '0' && s[end+1] <= '9'))
+		after := end == len(s) || !(s[end] >= '0' && s[end] <= '9' || s[end] == '.' || (s[end] == '-' && candidateSuffix(s[end+1:])))
 		if before && after {
 			return true
 		}
 		from = start + 1
 	}
+}
+
+// candidateSuffix: what follows a version's dash makes it a candidate's, 1 or rc.1 (#1155).
+func candidateSuffix(s string) bool {
+	s = strings.TrimPrefix(s, "rc.")
+	return s != "" && s[0] >= '0' && s[0] <= '9'
 }
 
 // onTrunk tells whether the tagged commit's change is on the trunk: merged, or carried back by a cherry-pick.

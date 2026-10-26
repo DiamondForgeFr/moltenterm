@@ -129,6 +129,17 @@ describe("tagRegistry", () => {
         ]);
     });
 
+    it("orders rc.N candidates with -N ones, in semver order (#1155)", () => {
+        const at = "2026-10-06T12:23:38+02:00";
+        const mixed: MissionGit = {
+            ...git,
+            tags: ["v1.1.0-rc.2", "v1.0.0", "v1.1.0-1", "v1.1.0", "v1.1.0-rc.10"].map((name) => ({ name, sha: name, date: at })),
+        };
+        const rows = tagRegistry(mixed, null, []);
+        expect(rows.map((r) => r.tag)).toEqual(["v1.1.0", "v1.1.0-rc.10", "v1.1.0-rc.2", "v1.1.0-1", "v1.0.0"]);
+        expect(rows.find((r) => r.tag === "v1.1.0-rc.2")).toMatchObject({ kind: "rc", version: "1.1.0" });
+    });
+
     it("reads the project's tag prefix", () => {
         const prefixed: MissionGit = {
             ...git,

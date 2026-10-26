@@ -3,6 +3,8 @@
 
 package pipelinesetup
 
+import "github.com/wavetermdev/waveterm/pkg/molten/versions"
+
 // The choices a target constrains (DS-MC-031), as data: a new packager adds rows here, the stepper shows whatever the
 // rows say, with their reason. Reasons are i18n codes, read by the frontend as mc.setup.reason.<code>.
 
@@ -23,8 +25,8 @@ const (
 	PackagerDocker          = "docker"
 	PackagerWorkflow        = "workflow"
 
-	RcFormatNumeric = "numeric"
-	RcFormatRcDot   = "rcdot"
+	RcFormatNumeric = versions.RcFormatNumeric
+	RcFormatRcDot   = versions.RcFormatRcDot
 
 	BranchModelPromote = "promote"
 	BranchModelSingle  = "single"
@@ -35,10 +37,9 @@ const (
 	MergeRebase = "rebase"
 
 	// Why a choice is unavailable, or what it implies.
-	ReasonMsiNumeric   = "msiNumeric"
-	ReasonChainNumeric = "chainNumeric"
-	ReasonNpmDistTag   = "npmDistTag"
-	ReasonChainMerge   = "chainMerge"
+	ReasonMsiNumeric = "msiNumeric"
+	ReasonNpmDistTag = "npmDistTag"
+	ReasonChainMerge = "chainMerge"
 	// The release branch takes pull requests only; a merge method its protection does not allow (#1046).
 	ReasonProtectedRelease = "protectedRelease"
 	ReasonProtectionMerge  = "protectionMerge"
@@ -57,11 +58,10 @@ type ChoiceRule struct {
 // RcFormatRules: an MSI installer only takes numbers after the dash (the Tauri bundler's .msi target accepts a
 // numeric pre-release only, https://v2.tauri.app/release/tauri-bundler/v1.2.0/; Windows Installer's ProductVersion is
 // numeric fields, https://learn.microsoft.com/en-us/windows/win32/msi/productversion). npm takes -rc.N with a dist-tag
-// such as next. MoltenTerm's release chain (pkg/molten/versions) numbers candidates -N for every project for now.
+// such as next. MoltenTerm's release chain (pkg/molten/versions) numbers them either way (versions.rcformat, #1155).
 var RcFormatRules = []ChoiceRule{
 	{Choice: RcFormatRcDot, Target: TargetMsi, Allowed: false, Reason: ReasonMsiNumeric},
 	{Choice: RcFormatRcDot, Target: TargetNpm, Allowed: true, Reason: ReasonNpmDistTag},
-	{Choice: RcFormatRcDot, Target: TargetAll, Allowed: false, Reason: ReasonChainNumeric},
 }
 
 var BranchModelRules = []ChoiceRule{}

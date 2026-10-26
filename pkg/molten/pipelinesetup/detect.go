@@ -60,8 +60,10 @@ type Facts struct {
 	Missing        []string               `json:"missing"`
 	Branches       molten.ProjectBranches `json:"branches"`
 	// .saasfoundry.json workflow.branchNaming.release, e.g. rc-{version}.
-	RcBranchPattern  string                 `json:"rcbranchpattern,omitempty"`
-	TagPrefix        string                 `json:"tagprefix"`
+	RcBranchPattern string `json:"rcbranchpattern,omitempty"`
+	TagPrefix       string `json:"tagprefix"`
+	// versions.rcformat, empty when undeclared (#1155).
+	RcFormat         string                 `json:"rcformat,omitempty"`
 	VersionsDeclared bool                   `json:"versionsdeclared"`
 	VersionFiles     []versions.VersionFile `json:"versionfiles"`
 	VersionSource    Source                 `json:"versionsource"`
@@ -141,6 +143,7 @@ func DetectWith(dir string, report molten.PipelineReport) Facts {
 		if p.Versions.TagPrefix != "" {
 			f.TagPrefix = p.Versions.TagPrefix
 		}
+		f.RcFormat = p.Versions.RcFormat
 		f.NotesDeclared = p.Versions.Notes != ""
 		if len(p.Versions.Files) > 0 {
 			f.VersionsDeclared = true

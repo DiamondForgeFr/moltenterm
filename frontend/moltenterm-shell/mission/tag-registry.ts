@@ -6,7 +6,7 @@
 // with its notes and the local builds made from it. Read from what the collector already returns: no new git or
 // GitHub call. Kept apart from the components so the rules can be tested without the app.
 
-import { DefaultTagPrefix } from "../releases/versions";
+import { compareVersions as compareReleases, DefaultTagPrefix, parseVersion } from "../releases/versions";
 import { milestoneKey } from "./github";
 import { MissionGit, MissionGithub, RunRecord } from "./mission-model";
 import { isPrereleaseTag, tagVersion } from "./versions";
@@ -46,7 +46,8 @@ function compareVersions(a: string, b: string): number {
     return 0;
 }
 
-// 1.1.0 > 1.1.0-2 > 1.1.0-1 > 1.0.0; tags outside X.Y.Z[-N] compare as 0.0.0.
+// 1.1.0 > 1.1.0-rc.1 > 1.1.0-2 > 1.1.0-1 > 1.0.0, the semver order of ../releases/versions.ts; tags outside
+// X.Y.Z[-N|-rc.N] compare as 0.0.0.
 function compareTags(a: string, b: string, prefix: string): number {
     const core = (tag: string) => {
         const v = baseVersion(tag, prefix);
@@ -56,8 +57,13 @@ function compareTags(a: string, b: string, prefix: string): number {
     if (byCore !== 0) {
         return byCore;
     }
+    const va = parseVersion(tagVersion(a, prefix));
+    const vb = parseVersion(tagVersion(b, prefix));
+    if (va && vb) {
+        return compareReleases(va, vb);
+    }
     const rc = (tag: string) => {
-        const m = /-(\d+)$/.exec(tagVersion(tag, prefix));
+        const m = /-(?:rc\.)?(\d+)$/.exec(tagVersion(tag, prefix));
         return m ? Number(m[1]) : Infinity;
     };
     const ra = rc(a);

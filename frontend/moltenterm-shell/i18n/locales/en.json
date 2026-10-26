@@ -3637,7 +3637,6 @@
             },
             "reason": {
                 "msiNumeric": "Windows installers only accept numbers after the dash ({target} target).",
-                "chainNumeric": "MoltenTerm's release chain numbers candidates -1, -2… for now.",
                 "npmDistTag": "npm accepts it, published under a dist-tag such as next.",
                 "protectedRelease": "{target} takes changes by pull request only: a promotion pushed straight to it is refused.",
                 "protectionMerge": "The rules of {target} do not allow this merge method.",
@@ -7869,7 +7868,7 @@
             },
             "release": {
                 "noSteps": "The pipeline declares no release.{channel} steps.",
-                "notATag": "“{tag}” is not a release tag ({prefix}X.Y.Z or {prefix}X.Y.Z-N).",
+                "notATag": "“{tag}” is not a release tag ({prefix}X.Y.Z or {prefix}{rc}).",
                 "rcTag": "{tag} is a release candidate's tag, not a public release's.",
                 "publicTag": "{tag} is a public release's tag, not a release candidate's.",
                 "onItsWay": "A release is already on its way: {tag}.",

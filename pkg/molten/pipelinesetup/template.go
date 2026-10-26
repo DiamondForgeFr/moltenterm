@@ -80,8 +80,12 @@ type Proposal struct {
 	Sources  map[string]Source            `json:"sources"`
 }
 
-func sampleTags(prefix string) (string, string) {
-	return prefix + "1.2.3-1", prefix + "1.2.3"
+// sampleTags: a candidate's tag and a public one, to read which workflows a tag starts; the candidate in the project's
+// format (versions.rcformat).
+func sampleTags(prefix string, rcFormat string) (string, string) {
+	rules := versions.Rules{TagPrefix: prefix, RcFormat: rcFormat}
+	base := versions.Version{Major: 1, Minor: 2, Patch: 3}
+	return rules.Tag(rules.NextCandidate(base, nil)), rules.Tag(base)
 }
 
 // DefaultOptions are what a developer who agrees clicks through: everything the repository shows, both channels.
@@ -90,6 +94,9 @@ func DefaultOptions(f Facts) Options {
 		TagPrefix: f.TagPrefix, RcFormat: RcFormatNumeric, Changelogs: []string{}, CiWorkflows: []string{},
 		Dispatch: []DispatchChoice{}, Notes: f.NotesDeclared, NotesPath: f.NotesPath, SyncBack: true, Milestone: f.OnGithub,
 		Manual: []ManualStep{}, Environments: []string{}, Labels: []LabelChoice{}}
+	if f.RcFormat != "" {
+		o.RcFormat = f.RcFormat
+	}
 	o.Channels = append(o.Channels, f.Missing...)
 	if len(o.Channels) == 0 {
 		o.Channels = []string{ChannelRc, ChannelPublic}
@@ -168,7 +175,7 @@ func StepId(name string) string {
 
 // tagWorkflows: the workflows the channel's tag starts, and the environments that will ask for an approval.
 func tagWorkflows(f Facts, channel string, prefix string) ([]string, []string) {
-	rc, public := sampleTags(prefix)
+	rc, public := sampleTags(prefix, f.RcFormat)
 	tag := public
 	if channel == ChannelRc {
 		tag = rc
@@ -443,7 +450,7 @@ func prSteps(f Facts, o Options, channel string, sources map[string]Source, bran
 // rcRunsNote names the workflows that do run on a candidate kept on its RC branch (its tests, on the tag or the
 // branch): " (test.yml runs on it)", or "".
 func rcRunsNote(f Facts, o Options) string {
-	rcTag, _ := sampleTags(o.TagPrefix)
+	rcTag, _ := sampleTags(o.TagPrefix, o.RcFormat)
 	branch := strings.ReplaceAll(rcBranchDisplay(f), "X.Y.Z", "1.2.3")
 	var files []string
 	for _, wf := range f.Workflows {
@@ -555,6 +562,9 @@ func saasSteps(f Facts, o Options, sources map[string]Source) []molten.PipelineA
 // Build drafts the proposal from the facts and the developer's choices.
 func Build(f Facts, o Options, current *molten.Pipeline) Proposal {
 	p := Proposal{Sources: map[string]Source{}}
+	if o.RcFormat != "" {
+		f.RcFormat = o.RcFormat
+	}
 	if o.TagPrefix == "" {
 		o.TagPrefix = versions.DefaultTagPrefix
 	}
@@ -627,6 +637,11 @@ func proposedVersions(f Facts, o Options, current *molten.Pipeline) *molten.Pipe
 	if o.TagPrefix != versions.DefaultTagPrefix || v.TagPrefix != "" {
 		v.TagPrefix = o.TagPrefix
 	}
+	if o.RcFormat == RcFormatRcDot {
+		v.RcFormat = RcFormatRcDot
+	} else if o.RcFormat == RcFormatNumeric {
+		v.RcFormat = ""
+	}
 	// The chain always drafts the notes (prepare) and the cut needs them: only where they are written is a choice.
 	if o.NotesPath != "" && o.NotesPath != f.NotesPath {
 		v.Notes = o.NotesPath
@@ -698,7 +713,7 @@ func tagWorkflowList(f Facts, channel string, prefix string) []TagWorkflow {
 
 // tagCiList: the CI workflows the channel's sample tag starts (#1101).
 func tagCiList(f Facts, channel string, prefix string) []string {
-	rc, public := sampleTags(prefix)
+	rc, public := sampleTags(prefix, f.RcFormat)
 	tag := public
 	if channel == ChannelRc {
 		tag = rc

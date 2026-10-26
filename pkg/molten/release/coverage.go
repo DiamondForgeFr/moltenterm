@@ -119,7 +119,8 @@ func CoverageItems(subjects []string, base string) []CoverageItem {
 // one, from the first heading naming the version, to the next heading of the same level or above.
 func ChangelogSection(text string, version string, heading string) (string, bool) {
 	lines := strings.Split(text, "\n")
-	versionRegex := regexp.MustCompile(`(^|[^0-9.])` + regexp.QuoteMeta(version) + `($|[^0-9.-]|-[^0-9])`)
+	// A candidate's heading is not the public version's: 1.1.0-2 and 1.1.0-rc.2 (#1155) do not name 1.1.0.
+	versionRegex := regexp.MustCompile(`(^|[^0-9.])` + regexp.QuoteMeta(version) + `($|[^0-9.-]|-[^0-9r]|-r($|[^c])|-rc($|[^.]))`)
 	start, level := -1, 0
 	for i, line := range lines {
 		line = strings.TrimRight(line, "\r")

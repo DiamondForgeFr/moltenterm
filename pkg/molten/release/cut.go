@@ -32,8 +32,10 @@ func (p *Project) checkNumber(v versions.Version, tags []string) error {
 				return fmt.Errorf("%s leads to %s, not above the last public release, %s", p.Rules.Tag(v), v.Base(), last)
 			}
 		}
-		if next := p.Rules.NextRc(v.Base(), tags); next != v.Rc {
-			return fmt.Errorf("the next release candidate of %s is %s, not %s", v.Base(), p.Rules.Tag(v.Base().WithRc(next)), p.Rules.Tag(v))
+		// Either form is taken (a project switching versions.rcformat), except X.Y.Z-N after an X.Y.Z-rc.N: it would sort
+		// below it.
+		if next := p.Rules.NextCandidate(v.Base(), tags); next.Rc != v.Rc || (next.RcLabel != "" && v.RcLabel == "") {
+			return fmt.Errorf("the next release candidate of %s is %s, not %s", v.Base(), p.Rules.Tag(next), p.Rules.Tag(v))
 		}
 		return nil
 	}

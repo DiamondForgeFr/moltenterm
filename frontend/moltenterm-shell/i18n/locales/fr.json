@@ -3637,7 +3637,6 @@
             },
             "reason": {
                 "msiNumeric": "Les installeurs Windows n’acceptent que des chiffres après le tiret (cible {target}).",
-                "chainNumeric": "La chaîne de release de MoltenTerm numérote les candidates -1, -2… pour l’instant.",
                 "npmDistTag": "npm l’accepte, publié sous un dist-tag comme next.",
                 "protectedRelease": "{target} n’accepte les changements que par pull request : une promotion poussée directement y est refusée.",
                 "protectionMerge": "Les règles de {target} n’autorisent pas cette méthode de fusion.",
@@ -7869,7 +7868,7 @@
             },
             "release": {
                 "noSteps": "Le pipeline ne déclare aucune étape release.{channel}.",
-                "notATag": "« {tag} » n'est pas un tag de version ({prefix}X.Y.Z ou {prefix}X.Y.Z-N).",
+                "notATag": "« {tag} » n'est pas un tag de version ({prefix}X.Y.Z ou {prefix}{rc}).",
                 "rcTag": "{tag} est le tag d'une version candidate, pas d'une version publique.",
                 "publicTag": "{tag} est le tag d'une version publique, pas d'une version candidate.",
                 "onItsWay": "Une version est déjà en cours de publication : {tag}.",

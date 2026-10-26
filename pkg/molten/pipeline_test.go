@@ -297,7 +297,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 	report := validateWith(t, map[string]string{
 		".molten/project.json": `{
 		  "schema": 1, "name": "x",
-		  "versions": {"tagprefix": "v", "firstpublic": "1.0.0", "files": [
+		  "versions": {"tagprefix": "v", "firstpublic": "1.0.0", "rcformat": "rcdot", "files": [
 		    {"path": "package.json", "format": "json", "keys": [["version"]]},
 		    {"path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]]},
 		    {"path": "Cargo.toml", "format": "regex", "pattern": "(?m)^version = \"([^\"]+)\""}
@@ -321,7 +321,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 	report = validateWith(t, map[string]string{
 		".molten/project.json": `{
 		  "schema": 1, "name": "x",
-		  "versions": {"firstpublic": "1.0", "files": [
+		  "versions": {"firstpublic": "1.0", "rcformat": "rc.N", "files": [
 		    {"path": "package.json", "format": "json", "keys": [["nope"]]},
 		    {"path": "../outside.json", "format": "json", "keys": [["version"]]},
 		    {"path": "missing.json", "format": "json", "keys": [["version"]]},
@@ -333,6 +333,7 @@ func TestValidatePipelineVersions(t *testing.T) {
 	})
 	for _, want := range []string{
 		`versions.firstpublic must be a public version, X.Y.Z (got "1.0")`,
+		`versions.rcformat must be "numeric" (X.Y.Z-N) or "rcdot" (X.Y.Z-rc.N) (got "rc.N")`,
 		`versions.files[0] (package.json): package.json: ["nope"] is missing`,
 		`versions.files[1]: path "../outside.json" must be a file of the project`,
 		"versions.files[2] (missing.json)",

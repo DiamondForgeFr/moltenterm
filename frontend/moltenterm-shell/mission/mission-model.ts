@@ -46,6 +46,8 @@ export type TreeData = {
     tagPrefix?: string;
     // versions.firstpublic: tags below its first candidate are not the project's releases.
     firstPublic?: string;
+    // versions.rcformat: how the next release candidates are numbered (#1155).
+    rcFormat?: string;
 };
 
 export type MissionTag = { name: string; sha: string; date: string; notes?: string; notesinternal?: string };
@@ -86,6 +88,7 @@ export type MissionGit = {
     fetcherror?: string;
     tagprefix?: string;
     firstpublic?: string;
+    rcformat?: string;
 };
 
 // must match the states in pkg/molten/mission/github.go
@@ -150,6 +153,7 @@ export type PipelineDef = {
         tagprefix?: string;
         notes?: string;
         firstpublic?: string;
+        rcformat?: string;
         files?: { path: string; format: "json" | "regex"; keys?: string[][]; pattern?: string }[];
     };
     ci?: {
@@ -207,6 +211,7 @@ export function toTreeData(git: MissionGit): TreeData {
         release: git.release,
         tagPrefix: git.tagprefix || DefaultTagPrefix,
         firstPublic: git.firstpublic || "",
+        rcFormat: git.rcformat || "",
         branches: (git.branches ?? []).map((b) => ({ ...b, commits: b.commits ?? [], fork: b.fork ?? null })),
         tags: (git.tags ?? []).map((t) => ({
             name: t.name,

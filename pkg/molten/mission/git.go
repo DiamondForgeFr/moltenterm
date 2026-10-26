@@ -107,6 +107,8 @@ type GitSnapshot struct {
 	TagPrefix string `json:"tagprefix"`
 	// versions.firstpublic: tags below its first candidate are not the project's releases.
 	FirstPublic string `json:"firstpublic,omitempty"`
+	// versions.rcformat: how the next release candidates are numbered (#1155).
+	RcFormat string `json:"rcformat,omitempty"`
 }
 
 // ProjectBranches are the two long-lived branches (molten.ProjectBranches).
@@ -154,7 +156,7 @@ func ConfiguredVersions(dir string) (string, string) {
 	return prefix, notes
 }
 
-// ConfiguredRules reads the project's numbering rules (versions.tagprefix, versions.firstpublic).
+// ConfiguredRules reads the project's numbering rules (versions.tagprefix, versions.firstpublic, versions.rcformat).
 func ConfiguredRules(dir string) versions.Rules {
 	var pipeline struct {
 		Versions versions.Rules `json:"versions"`
@@ -544,7 +546,7 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 	if _, err := g.out("rev-parse", "--git-dir"); err != nil {
 		return nil, err
 	}
-	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Merges: []Merge{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic}
+	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Merges: []Merge{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic, RcFormat: g.rules.RcFormat}
 	remote, _ := g.out("remote", "get-url", "origin")
 	snap.RemoteUrl = GitHubWebUrl(remote)
 	if fetch && remote != "" {
