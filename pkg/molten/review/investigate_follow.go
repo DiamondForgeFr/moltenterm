@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -276,10 +277,7 @@ func (r *Restarter) releaseState(f agentFollow, state string, message string, te
 // holdNumber: the number the agent's line names, the one its Reviews card shows (#1108): the ticket,
 // else the PR number.
 func holdNumber(req RestartRequest) string {
-	if ticket := restartTicket(req); ticket > 0 {
-		return strconv.Itoa(ticket)
-	}
-	return strconv.Itoa(req.Number)
+	return mission.MakePrCard(req.Number, restartTicket(req)).Number()
 }
 
 // holdFixing: the agent works on the CI (from its start, and whenever it works again).
@@ -310,7 +308,7 @@ func (r *Restarter) followInvestigation(ctx context.Context, f agentFollow, st *
 		st.stoppedAt = r.env.Now()
 	}
 	name := agentName(run, f.agent)
-	number := strconv.Itoa(f.req.Number)
+	number := holdNumber(f.req)
 	outcome := readOutcome(f.outcomePath)
 	if reason, ok := outcomeNeedsYou(outcome); ok {
 		message, text := needsYouReason(reason)
@@ -397,18 +395,19 @@ func (r *Restarter) needsYou(ctx context.Context, f agentFollow, st *followState
 		return
 	}
 	st.notice = message
-	number := strconv.Itoa(f.req.Number)
+	card := f.card()
 	r.notify(ctx, molten.NotificationInput{
 		Key:         agentNoticeKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       name + " needs you on #" + number,
-		TitleText:   uimsg.Make("notif.review.needsTitle", "name", name, "number", number),
+		Title:       name + " needs you on " + card.English(),
+		TitleText:   card.Aside(uimsg.Make("notif.review.needsTitle", "name", name, "number", card.Number())),
 		Message:     message,
 		MessageText: text,
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
+		Actions:     []molten.NotificationAction{card.Action(f.req.Dir)},
 	})
 }
 
@@ -420,23 +419,23 @@ func (f agentFollow) terminalAction() molten.NotificationAction {
 
 // ciGreen: the PR's required checks pass on the pushed head; the run turns green and says what the agent did.
 func (r *Restarter) ciGreen(ctx context.Context, f agentFollow, name string, outcome string) {
-	number := strconv.Itoa(f.req.Number)
-	held := holdNumber(f.req)
+	card := f.card()
+	held := card.Number()
 	r.releaseState(f, molten.AgentStateDone, "The CI of #"+held+" passes", uimsg.Make("agentHold.green", "number", held))
 	r.resolveNotice(ctx, f)
 	input := molten.NotificationInput{
 		Key:         agentDoneKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "success",
-		Title:       "#" + number + ": CI green again",
-		TitleText:   uimsg.Make("notif.review.ciGreenTitle", "number", number),
-		Message:     name + " stopped and the required checks of #" + number + " pass.",
-		MessageText: uimsg.Make("notif.review.ciGreenPlain", "name", name, "number", number),
+		Title:       card.English() + ": CI green again",
+		TitleText:   card.Aside(uimsg.Make("notif.review.ciGreenTitle", "number", held)),
+		Message:     name + " stopped and the required checks of #" + held + " pass.",
+		MessageText: uimsg.Make("notif.review.ciGreenPlain", "name", name, "number", held),
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
 		Actions: []molten.NotificationAction{f.terminalAction(), {Id: "review", Label: "Open the review", LabelText: uimsg.Make("notif.review.openReview"),
-			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}},
+			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}, card.Action(f.req.Dir)},
 	}
 	if outcome != "" {
 		input.Message = name + ": " + outcome

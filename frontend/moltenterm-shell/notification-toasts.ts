@@ -11,6 +11,7 @@ import { trustReviewAction } from "./mission/trust-approval-model";
 import { missedForPanel, planArrivals, stillWaiting } from "./notification-attention";
 import { toastArrivals, ToastCoalesceMs } from "./notification-rules";
 import {
+    checkClickable,
     MoltentermNotification,
     notificationActionLabel,
     notificationMessage,
@@ -22,7 +23,7 @@ import { Toasts } from "./toast-store";
 
 export function notificationToast(entry: MoltentermNotification): ToastInput {
     const model = MoltentermNotifications.getInstance();
-    const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid) || trustReviewAction(entry) != null;
+    const hasOrigin = checkClickable(entry) || trustReviewAction(entry) != null;
     return {
         id: notificationToastId(entry.id),
         notificationId: entry.id,

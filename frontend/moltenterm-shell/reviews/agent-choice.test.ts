@@ -114,10 +114,13 @@ describe("wavesrv's notifications about the agents it started (#758)", () => {
             branch: "feature/733-x",
             count: "2",
             names: "a, b",
+            pr: " (PR #740)",
         };
-        expect(en("server.notif.review.rebasedTitle", vars)).toBe("#737 rebased on develop by Bruno, ready for review");
+        expect(en("server.notif.review.rebasedTitle", vars)).toBe(
+            "#737 (PR #740) rebased on develop by Bruno, ready for review"
+        );
         expect(fr("server.notif.review.rebasedTitle", vars)).toBe(
-            "#737 rebasée sur develop par Bruno, prête pour la revue"
+            "#737 (PR #740) rebasée sur develop par Bruno, prête pour la revue"
         );
         expect(en("server.notif.review.changes", vars)).toBe(
             "Bruno pushed, but its copy of feature/733-x has uncommitted files (2): a, b"

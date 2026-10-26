@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -227,7 +228,7 @@ func agentName(run molten.AgentRunInfo, fallback string) string {
 
 func (r *Restarter) noticeNeeds(ctx context.Context, f agentFollow, st *followState, run molten.AgentRunInfo, running bool, facts treeFacts) {
 	name := agentName(run, f.agent)
-	number := strconv.Itoa(f.req.Number)
+	card := f.card()
 	branch := f.req.HeadRef
 	var message string
 	var text *uimsg.Text
@@ -258,13 +259,14 @@ func (r *Restarter) noticeNeeds(ctx context.Context, f agentFollow, st *followSt
 		Key:         agentNoticeKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       name + " needs you on #" + number,
-		TitleText:   uimsg.Make("notif.review.needsTitle", "name", name, "number", number),
+		Title:       name + " needs you on " + card.English(),
+		TitleText:   card.Aside(uimsg.Make("notif.review.needsTitle", "name", name, "number", card.Number())),
 		Message:     message,
 		MessageText: text,
 		WorkspaceId: f.req.WorkspaceId,
 		TabId:       f.tabId,
 		BlockId:     f.blockId,
+		Actions:     []molten.NotificationAction{card.Action(f.req.Dir)},
 	})
 }
 
@@ -302,31 +304,36 @@ func (r *Restarter) finish(ctx context.Context, f agentFollow, run molten.AgentR
 	}
 	r.resolveNotice(ctx, f)
 	name := agentName(run, f.agent)
-	number, branch, base := strconv.Itoa(f.req.Number), f.req.HeadRef, f.req.BaseRef
+	card, branch, base := f.card(), f.req.HeadRef, f.req.BaseRef
 	input := molten.NotificationInput{
 		Key:         agentDoneKey(f.req.PrKey),
 		Source:      "agent",
 		Kind:        "success",
-		Title:       "#" + number + " rebased on " + base + " by " + name + ", ready for review",
-		TitleText:   uimsg.Make("notif.review.rebasedTitle", "number", number, "base", base, "name", name),
+		Title:       card.English() + " rebased on " + base + " by " + name + ", ready for review",
+		TitleText:   card.Aside(uimsg.Make("notif.review.rebasedTitle", "number", card.Number(), "base", base, "name", name)),
 		WorkspaceId: f.req.WorkspaceId,
 		Actions: []molten.NotificationAction{{Id: "review", Label: "Open the review", LabelText: uimsg.Make("notif.review.openReview"),
-			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}},
+			Kind: "gesture", Gesture: ReviewOpenGesture, Args: map[string]any{"pr": f.prInfo()}}, card.Action(f.req.Dir)},
 	}
 	if f.origin.Kind == AgentOriginRestart {
 		round := strconv.Itoa(f.origin.Round)
-		input.Title = name + " pushed the changes of review round " + round + " on #" + number + ", ready for review"
-		input.TitleText = uimsg.Make("notif.review.reworkedTitle", "name", name, "round", round, "number", number)
+		input.Title = name + " pushed the changes of review round " + round + " on " + card.English() + ", ready for review"
+		input.TitleText = card.Aside(uimsg.Make("notif.review.reworkedTitle", "name", name, "round", round, "number", card.Number()))
 	}
 	if f.origin.Kind == AgentOriginFinish {
-		input.Title = name + " pushed what was left on #" + number + ", ready for review"
-		input.TitleText = uimsg.Make("notif.review.finishedTitle", "name", name, "number", number)
+		input.Title = name + " pushed what was left on " + card.English() + ", ready for review"
+		input.TitleText = card.Aside(uimsg.Make("notif.review.finishedTitle", "name", name, "number", card.Number()))
 	}
 	if removed {
 		input.Message = "Its terminal is closed and its copy of " + branch + " removed: nothing was left behind."
 		input.MessageText = uimsg.Make("notif.review.cleanedUp", "branch", branch)
 	}
 	r.notify(ctx, input)
+}
+
+// card names the PR as its Control room card does (#1130).
+func (f agentFollow) card() mission.PrCard {
+	return mission.MakePrCard(f.req.Number, restartTicket(f.req))
 }
 
 func (f agentFollow) prInfo() PrInfo {

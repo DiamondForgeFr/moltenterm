@@ -31,8 +31,7 @@ const (
 	rerunTimeout     = 45 * time.Second
 	rerunFollowEvery = 30 * time.Second
 	// A run still going after this is left to the list: the notification would come too late to help.
-	rerunFollowMax  = 2 * time.Hour
-	reviewsViewName = "molten-reviews"
+	rerunFollowMax = 2 * time.Hour
 )
 
 type ReviewsRerunRequest struct {
@@ -58,7 +57,7 @@ type ghRunState struct {
 }
 
 // failedRuns are the runs holding a failed check of the PR, and those checks' names, as the snapshot has them.
-func failedRuns(answer ReviewsAnswer, number int) ([]int64, []string, bool) {
+func failedRuns(answer ReviewsAnswer, number int) ([]int64, []string, int, bool) {
 	for _, pr := range append(append([]ReviewPr{}, answer.Ready...), answer.Drafts...) {
 		if pr.Number != number {
 			continue
@@ -77,9 +76,9 @@ func failedRuns(answer ReviewsAnswer, number int) ([]int64, []string, bool) {
 			}
 		}
 		sort.Slice(runs, func(i, j int) bool { return runs[i] < runs[j] })
-		return runs, names, true
+		return runs, names, pr.Ticket, true
 	}
-	return nil, nil, false
+	return nil, nil, 0, false
 }
 
 // RerunFailed reruns the failed jobs of the PR's failed checks (`gh run rerun <id> --failed`).
@@ -97,7 +96,7 @@ func (r *Reviews) RerunFailed(req ReviewsRerunRequest) (ReviewsRerunResult, erro
 			"MoltenTerm has not read #%d on GitHub yet", req.Number)
 	}
 	answer := BuildReviews(snap)
-	runs, names, found := failedRuns(answer, req.Number)
+	runs, names, ticket, found := failedRuns(answer, req.Number)
 	if !found {
 		return ReviewsRerunResult{}, uimsg.Errorf(uimsg.Make("mission.reviews.rerunUnknown", "number", strconv.Itoa(req.Number)),
 			"MoltenTerm has not read #%d on GitHub yet", req.Number)
@@ -117,7 +116,7 @@ func (r *Reviews) RerunFailed(req ReviewsRerunRequest) (ReviewsRerunResult, erro
 		}
 	}
 	r.collector.Get(dir, 0, true)
-	go r.followRerun(dir, repoRef, req.Number, runs)
+	go r.followRerun(dir, repoRef, MakePrCard(req.Number, ticket), runs)
 	return ReviewsRerunResult{Runs: runs, Checks: names}, nil
 }
 
@@ -137,7 +136,7 @@ func (r *Reviews) readRun(dir string, repoRef string, id int64) (ghRunState, err
 }
 
 // followRerun reads the rerun runs until each completed, then reads GitHub again and tells the outcome.
-func (r *Reviews) followRerun(dir string, repoRef string, number int, runs []int64) {
+func (r *Reviews) followRerun(dir string, repoRef string, card PrCard, runs []int64) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			panichandler.PanicHandler("molten:mission:reviews:rerun", rec)
@@ -169,10 +168,10 @@ func (r *Reviews) followRerun(dir string, repoRef string, number int, runs []int
 		}
 	}
 	r.collector.Get(dir, 0, true)
-	r.notifyRerun(number, runs, done)
+	r.notifyRerun(dir, card, runs, done)
 }
 
-func (r *Reviews) notifyRerun(number int, runs []int64, done map[int64]ghRunState) {
+func (r *Reviews) notifyRerun(dir string, card PrCard, runs []int64, done map[int64]ghRunState) {
 	if r.notify == nil {
 		return
 	}
@@ -191,27 +190,26 @@ func (r *Reviews) notifyRerun(number int, runs []int64, done map[int64]ghRunStat
 			failed = append(failed, "run "+strconv.FormatInt(id, 10))
 		}
 	}
-	n := strconv.Itoa(number)
 	input := molten.NotificationInput{
-		Key:     "review:rerun:" + n,
+		Key:     "review:rerun:" + strconv.Itoa(card.Pr),
 		Source:  "github",
-		Actions: []molten.NotificationAction{{Id: "reviews", Label: "Open the Control room", Kind: "open", View: reviewsViewName, LabelText: uimsg.Make("notif.review.batch.openReviews")}},
+		Actions: []molten.NotificationAction{card.Action(dir)},
 	}
 	if len(failed) == 0 {
 		input.Kind = "success"
-		input.Title = "#" + n + ": the rerun jobs passed"
-		input.TitleText = uimsg.Make("notif.review.rerun.passedTitle", "number", n)
+		input.Title = card.English() + ": the rerun jobs passed"
+		input.TitleText = card.Aside(uimsg.Make("notif.review.rerun.passedTitle", "number", card.Number()))
 	} else {
 		names := strings.Join(failed, ", ")
 		input.Kind = "warning"
-		input.Title = "#" + n + ": failed again after the rerun"
-		input.TitleText = uimsg.Make("notif.review.rerun.failedTitle", "number", n)
+		input.Title = card.English() + ": failed again after the rerun"
+		input.TitleText = card.Aside(uimsg.Make("notif.review.rerun.failedTitle", "number", card.Number()))
 		input.Message = "Still failing: " + names + ". Investigate from the pull request's row in the Control room."
 		input.MessageText = uimsg.Make("notif.review.rerun.failed", "names", names)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rerunTimeout)
 	defer cancel()
 	if err := r.notify(ctx, input); err != nil {
-		log.Printf("molten: the rerun of #%d could not be told: %v\n", number, err)
+		log.Printf("molten: the rerun of #%d could not be told: %v\n", card.Pr, err)
 	}
 }

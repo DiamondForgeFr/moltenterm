@@ -40,8 +40,8 @@ vi.mock("./open-view", () => ({ openMoltentermView: vi.fn() }));
 vi.mock("./project/project-model", () => ({ checkProjectRoute: () => false, checkProjectSource: () => false }));
 vi.mock("./project/project-tab", () => ({ showProjectTab: vi.fn() }));
 
-import { displayActions, MoltentermNotification } from "./notifications-model";
-import { MoltentermNotifications } from "./notifications-store";
+import { checkClickable, displayActions, MoltentermNotification } from "./notifications-model";
+import { MoltentermNotifications, registerNotificationGesture } from "./notifications-store";
 
 function waiting(extra: Partial<MoltentermNotification>): MoltentermNotification {
     return {
@@ -93,5 +93,46 @@ describe("Go to the terminal (FR-SHELL-055 AC4)", () => {
             expect.objectContaining({ oref: "tab:tab9", meta: { "molten:focusblock": expect.anything() } })
         );
         expect(app.switchWorkspace).toHaveBeenCalledWith("other");
+    });
+});
+
+describe("a PR's notification opens its card (#1130)", () => {
+    beforeEach(() => {
+        app.setMeta = vi.fn(async () => {});
+        app.setActiveTab = vi.fn();
+        app.switchWorkspace = vi.fn();
+        app.focusNode = vi.fn();
+    });
+
+    const card = {
+        id: "card",
+        label: "Show in Control room",
+        kind: "gesture" as const,
+        gesture: "reviews:card",
+        args: { dir: "/p/app", number: 1120 },
+    };
+
+    it("runs the card action on a click, not the way to its terminal", async () => {
+        const opened = vi.fn(async () => ({ ok: true }));
+        const unregister = registerNotificationGesture("reviews:card", opened);
+        try {
+            const entry = waiting({ workspaceid: "other", tabid: "tab9", blockid: "far", actions: [card] });
+            await MoltentermNotifications.getInstance().open(entry);
+            expect(opened).toHaveBeenCalledWith({ dir: "/p/app", number: 1120 });
+            expect(app.switchWorkspace).not.toHaveBeenCalled();
+            expect(app.setActiveTab).not.toHaveBeenCalled();
+        } finally {
+            unregister();
+        }
+    });
+
+    it("makes a notification with no origin clickable once it has a card", () => {
+        expect(checkClickable(waiting({ workspaceid: undefined }))).toBe(false);
+        expect(checkClickable(waiting({ workspaceid: undefined, actions: [card] }))).toBe(true);
+    });
+
+    it("still goes to the terminal without a card", async () => {
+        await MoltentermNotifications.getInstance().open(waiting({ tabid: "tab2", blockid: "there" }));
+        expect(app.setActiveTab).toHaveBeenCalledWith("tab2");
     });
 });

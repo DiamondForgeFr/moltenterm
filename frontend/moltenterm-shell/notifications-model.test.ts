@@ -318,6 +318,44 @@ describe("notificationTitle (#727)", () => {
         expect(notificationMessage(built)).toBe("Build 9c425c4 finished.");
     });
 
+    it("names a PR by its card's number, the PR number after it only when they differ (#1130)", () => {
+        const ticketed = {
+            title: "#1107 (PR #1120): CI green again",
+            titletext: {
+                code: "notif.review.ciGreenTitle",
+                vars: { number: "1107" },
+                parts: { pr: { code: "notif.review.prAside", vars: { number: "1120" } } },
+            },
+        };
+        const plain = {
+            title: "#1120: CI green again",
+            titletext: { code: "notif.review.ciGreenTitle", vars: { number: "1120", pr: "" } },
+        };
+        const conflict = {
+            title: "#1107 (PR #1120) needs you: the merge queue stopped on it",
+            titletext: {
+                code: "notif.review.queue.stoppedTitle",
+                vars: { number: "1107" },
+                parts: { pr: { code: "notif.review.prAside", vars: { number: "1120" } } },
+            },
+        };
+        expect(notificationTitle(ticketed)).toBe("#1107 (PR #1120): CI green again");
+        expect(notificationTitle(plain)).toBe("#1120: CI green again");
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            expect(notificationTitle(ticketed)).toBe("#1107 (PR #1120) : la CI est de nouveau verte");
+            expect(notificationTitle(plain)).toBe("#1120 : la CI est de nouveau verte");
+            expect(notificationTitle(conflict)).toBe(
+                "#1107 (PR #1120) a besoin de vous : la file de fusion s'est arrêtée dessus"
+            );
+            expect(
+                notificationActionLabel({ label: "Show in Control room", labeltext: { code: "notif.review.openCard" } })
+            ).toBe("Voir dans Pilotage");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
+
     it("shows a title without a known code as published", () => {
         expect(notificationTitle({ title: "Claude needs your permission" }, fr)).toBe("Claude needs your permission");
         expect(notificationTitle({ title: "Later", titlecode: "somethingnew" }, fr)).toBe("Later");
