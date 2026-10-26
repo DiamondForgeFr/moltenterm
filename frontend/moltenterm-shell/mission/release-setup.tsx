@@ -14,15 +14,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { AnalyseStep } from "./release-setup-analyse";
-import {
-    analysePipeline,
-    optionsOfAnswers,
-    pendingPoints,
-    PointAnswers,
-    pointNumbers,
-    sameOptions,
-} from "./release-setup-analyse-model";
+import { analysePipeline, optionsOfAnswers, PointAnswers, sameOptions } from "./release-setup-analyse-model";
 import {
     setupDeleteTemplate,
     setupDraft,
@@ -55,6 +47,7 @@ import {
     toggled,
     validTagPrefix,
 } from "./release-setup-model";
+import { PlainFlowScreen } from "./release-setup-plain";
 import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { PreparedStep } from "./release-setup-prepared";
 import { proposedFiles, updateDraftOf } from "./release-setup-prepared-model";
@@ -75,7 +68,7 @@ import {
 } from "./release-setup-stepper";
 import { TemplateStep, useDefaultTemplateName, useTemplateSave } from "./release-setup-template";
 import { canSaveTemplate, SetupTemplateFit } from "./release-setup-template-model";
-import { UpdateFilesNote, updateReady, UpdateStep, useSetupCheck } from "./release-setup-update";
+import { UpdateFilesNote, updateReady, useSetupCheck } from "./release-setup-update";
 
 export const NewTicketChoice: SetupTicketChoice = { ticket: 0, create: true, title: "" };
 
@@ -723,7 +716,6 @@ export function ReleaseSetup({
     openAt?: StepperStep;
 }) {
     const t = useT();
-    const tCount = useTCount();
     const [draft, setDraft] = useState<SetupDraft>(null);
     const [options, setOptions] = useState<SetupOptions>(null);
     // Step 2a's answers to the points of the existing pipeline (FR-MC-040).
@@ -846,7 +838,10 @@ export function ReleaseSetup({
                 upd.start(saved?.update);
             }
             if (readNonce === 0) {
-                setStep(openAt && type ? openAt : resumeStep(saved));
+                // The survey runs without a screen (FR-MC-044): the setup opens on "Your way of publishing", or on
+                // the description when nothing was found. Step 1 stays for an invalid pipeline or a failed survey.
+                const resume = openAt && type ? openAt : resumeStep(saved);
+                setStep(resume === "detect" && type && answer?.pipeline !== "invalid" ? "understand" : resume);
             }
             setResumed(true);
         });
@@ -1097,18 +1092,6 @@ export function ReleaseSetup({
         survey?.agent == null ? undefined : { name: survey.agentname ?? "", missing: survey.agentmissing };
     const analysing = step === "understand" && path === "analyse" && !updating;
     const points = useMemo(() => analysePipeline(survey, draft), [survey, draft]);
-    const pending = analysing ? pendingPoints(points, pointAnswers) : [];
-    const answerPoint = (key: string, value: string) => {
-        const next = { ...pointAnswers, [key]: value };
-        setPointAnswers(next);
-        if (options == null || draft == null) {
-            return;
-        }
-        const patched = optionsOfAnswers(options, draft, points, next, [key]);
-        if (!sameOptions(patched, options)) {
-            change(patched);
-        }
-    };
     // Leaving 2a: the points not answered count as the repository reads them.
     const goNext = (to: StepperStep) => {
         if (analysing && options != null && draft != null) {
@@ -1122,6 +1105,8 @@ export function ReleaseSetup({
     };
 
     const at = stepIndex(step);
+    // "Your way of publishing" (FR-MC-044) replaces step 2a's screens, with its own footer.
+    const plainShown = step === "understand" && path === "analyse" && draft != null && options != null;
     const nothing = options != null && options.kind !== "saas" && options.channels.length === 0;
     const canWrite =
         draft != null &&
@@ -1149,7 +1134,7 @@ export function ReleaseSetup({
             : step === "understand"
               ? updating
                   ? check != null && !upd.loading && check.errors.length === 0
-                  : !nothing && pending.length === 0
+                  : !nothing
               : step === "prepare" && !loading && !refining && !nothing && canSaveTemplate(draft, options));
     const next = StepperSteps[at + 1];
     const uncommitted =
@@ -1170,24 +1155,21 @@ export function ReleaseSetup({
                 <>
                     <span className="mr-auto flex items-center gap-2 text-11 text-muted">
                         {loading || upd.loading ? <DominoLoader /> : null}
-                        {done ? null : (
+                        {done || plainShown ? null : (
                             <span data-testid="setup-step-of">
                                 {t("mc.setup.stepper.stepOf", { n: at + 1, total: StepperSteps.length })}
                             </span>
                         )}
-                        {pending.length > 0 ? (
-                            <span className="text-warning" data-testid="setup-pending">
-                                {tCount("mc.setup.analyse.pending", pending.length, {
-                                    numbers: pending.map((p) => pointNumbers(points)[p.key]).join(", "),
-                                })}
-                            </span>
-                        ) : null}
                     </span>
-                    {at > 0 && (!done || step === "template") ? (
+                    {at > 0 && !plainShown && (!done || step === "template") ? (
                         <button
                             type="button"
                             className={PlainButton}
-                            onClick={() => goTo(StepperSteps[at - 1])}
+                            onClick={() =>
+                                step === "understand" && path === "describe" && survey != null
+                                    ? choosePath("analyse")
+                                    : goTo(StepperSteps[at - 1])
+                            }
                             disabled={writing || templateForm.saving}
                         >
                             {t("mc.setup.back")}
@@ -1258,7 +1240,7 @@ export function ReleaseSetup({
                                 />
                             )}
                         </>
-                    ) : (
+                    ) : plainShown ? null : (
                         <button
                             key="next"
                             type="button"
@@ -1278,17 +1260,19 @@ export function ReleaseSetup({
                 </>
             }
         >
-            <StepBar
-                step={step}
-                survey={survey}
-                appType={appType}
-                path={path}
-                ready={ready}
-                locked={draft == null || writing || done || templateForm.saving}
-                templateSaved={templateForm.saved != null}
-                onStep={goNext}
-                update={check != null ? { changes: check.changes.length } : undefined}
-            />
+            {plainShown ? null : (
+                <StepBar
+                    step={step}
+                    survey={survey}
+                    appType={appType}
+                    path={path}
+                    ready={ready}
+                    locked={draft == null || writing || done || templateForm.saving}
+                    templateSaved={templateForm.saved != null}
+                    onStep={goNext}
+                    update={check != null ? { changes: check.changes.length } : undefined}
+                />
+            )}
             {(error && !(step === "detect" && survey?.pipeline === "invalid")) || (updating && upd.error) ? (
                 <p
                     className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
@@ -1346,56 +1330,60 @@ export function ReleaseSetup({
                         <p className="text-11 text-muted">{t("mc.setup.choicesReplace")}</p>
                     ) : null}
                     {writing || done ? null : uncommitted}
-                    {step === "understand" && updating ? (
-                        check == null ? (
-                            upd.error ? null : (
-                                <div className="flex items-center gap-2 py-6 text-12 text-muted">
-                                    <DominoLoader />
-                                    {t("mc.setup.reading")}
-                                </div>
-                            )
-                        ) : (
-                            <UpdateStep draft={draft} check={check} choices={upd.choices} onChoose={upd.choose}>
-                                <ChoicesStep
-                                    draft={draft}
-                                    options={{ ...options, ...(check.options ?? {}) }}
-                                    onChange={upd.adjust}
-                                    channel={channel}
-                                    setChannel={setChannel}
-                                    bare
-                                />
-                            </UpdateStep>
+                    {step === "understand" && updating && check == null ? (
+                        upd.error ? null : (
+                            <div className="flex items-center gap-2 py-6 text-12 text-muted">
+                                <DominoLoader />
+                                {t("mc.setup.reading")}
+                            </div>
                         )
-                    ) : analysing ? (
-                        <>
-                            <AnalyseStep
-                                survey={survey}
-                                draft={draft}
-                                points={points}
-                                answers={pointAnswers}
-                                onAnswer={answerPoint}
-                            />
-                            <details
-                                className="rounded-6 border border-border px-3 py-2"
-                                data-testid="setup-all-choices"
-                            >
-                                <summary className="cursor-pointer text-12 text-primary">
-                                    {t("mc.setup.analyse.allChoices")}
-                                </summary>
-                                <div className="mt-2 flex flex-col gap-3">
-                                    <WhatStep draft={draft} options={options} onChange={change} />
-                                    {nothing ? null : (
+                    ) : plainShown ? (
+                        <PlainFlowScreen
+                            survey={survey}
+                            draft={draft}
+                            check={check}
+                            projectName={projectName}
+                            busy={writing}
+                            canConfirm={
+                                updating
+                                    ? check != null && !upd.loading && check.errors.length === 0
+                                    : !loading && !nothing
+                            }
+                            onDescribe={() => choosePath("describe")}
+                            onAdjust={() => choosePath("describe")}
+                            onConfirm={() => goNext("prepare")}
+                            allChoices={
+                                <fieldset disabled className="flex flex-col gap-3" data-testid="setup-all-choices">
+                                    <legend className="mb-2 text-11 font-medium text-secondary uppercase">
+                                        {t("mc.setup.analyse.allChoices")}
+                                    </legend>
+                                    {updating ? (
                                         <ChoicesStep
                                             draft={draft}
-                                            options={options}
-                                            onChange={change}
+                                            options={{ ...options, ...(check.options ?? {}) }}
+                                            onChange={upd.adjust}
                                             channel={channel}
                                             setChannel={setChannel}
+                                            bare
                                         />
+                                    ) : (
+                                        <>
+                                            <WhatStep draft={draft} options={options} onChange={change} />
+                                            {nothing ? null : (
+                                                <ChoicesStep
+                                                    draft={draft}
+                                                    options={options}
+                                                    onChange={change}
+                                                    channel={channel}
+                                                    setChannel={setChannel}
+                                                    bare
+                                                />
+                                            )}
+                                        </>
                                     )}
-                                </div>
-                            </details>
-                        </>
+                                </fieldset>
+                            }
+                        />
                     ) : step === "understand" && describing ? (
                         options.rc == null ? null : (
                             <DescribeStep

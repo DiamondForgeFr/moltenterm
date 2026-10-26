@@ -69,7 +69,7 @@ export function layoutFlow(model: FlowModel) {
     return { lanes, laneY, placed, bands, width, height };
 }
 
-function NodeMark({ node }: { node: Placed }) {
+function NodeMark({ node, plain }: { node: Placed; plain?: boolean }) {
     const { x, y } = node;
     const dash = node.conditional ? { strokeDasharray: "3 2", opacity: 0.75 } : {};
     switch (node.kind) {
@@ -91,7 +91,7 @@ function NodeMark({ node }: { node: Placed }) {
                         className="text-10"
                         style={{ fill: "var(--color-accent)", fontWeight: 600 }}
                     >
-                        PR
+                        {plain ? "✓" : "PR"}
                     </text>
                 </g>
             );
@@ -115,7 +115,7 @@ function NodeMark({ node }: { node: Placed }) {
     if (node.conditional) {
         return (
             <g style={dash}>
-                <NodeMark node={{ ...node, conditional: false }} />
+                <NodeMark node={{ ...node, conditional: false }} plain={plain} />
             </g>
         );
     }
@@ -174,19 +174,31 @@ function NodeMark({ node }: { node: Placed }) {
 }
 
 // selected / onSelect (step 2a, #1101): the nodes of the selected point are ringed, and clicking a node selects its
-// point.
+// point. onHover tells which point the pointer is over (null when it leaves). plain (FR-MC-044): the diagram of "Your
+// way of publishing", in plain words: no phase names, a plain legend, "approval" without the environment's name.
 export function FlowDiagram({
     model,
     className,
     selected,
     onSelect,
+    onHover,
+    plain,
 }: {
     model: FlowModel;
     className?: string;
     selected?: string;
     onSelect?: (point: string) => void;
+    onHover?: (point: string) => void;
+    plain?: boolean;
 }) {
     const t = useT();
+    const approvalText = (node: FlowNode, short: boolean) =>
+        plain
+            ? t("mc.setup.plain.diagram.approval")
+            : t(short ? "mc.setup.diagram.approvalShort" : "mc.setup.diagram.approval", {
+                  environment: node.approval,
+              });
+    const legend = (key: string) => t(plain ? `mc.setup.plain.diagram.${key}` : `mc.setup.diagram.${key}`);
     const { lanes, laneY, placed, bands, width, height } = layoutFlow(model);
     const has = (test: (n: FlowNode) => boolean) => model.nodes.some(test);
     const laneName = (lane: FlowNode["lane"]) =>
@@ -227,9 +239,11 @@ export function FlowDiagram({
                             height={height}
                             style={{ fill: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent" }}
                         />
-                        <text x={band.x + 6} y={14} className="text-10" style={{ fill: "var(--color-muted)" }}>
-                            {PhaseTitles[band.phase]}
-                        </text>
+                        {plain ? null : (
+                            <text x={band.x + 6} y={14} className="text-10" style={{ fill: "var(--color-muted)" }}>
+                                {PhaseTitles[band.phase]}
+                            </text>
+                        )}
                     </g>
                 ))}
                 {lanes.map((lane) => (
@@ -295,14 +309,18 @@ export function FlowDiagram({
                         data-kind={node.kind}
                         data-point={node.point}
                         onClick={node.point && onSelect ? () => onSelect(node.point) : undefined}
-                        className={node.point && onSelect ? "cursor-pointer" : undefined}
+                        onMouseEnter={node.point && onHover ? () => onHover(node.point) : undefined}
+                        onMouseLeave={node.point && onHover ? () => onHover(null) : undefined}
+                        className={node.point && (onSelect || onHover) ? "cursor-pointer" : undefined}
                     >
                         <title>
                             {[
                                 node.label,
-                                node.approval ? t("mc.setup.diagram.approval", { environment: node.approval }) : "",
+                                node.approval ? approvalText(node, false) : "",
                                 node.checks ? t("mc.setup.diagram.checks", { checks: node.checks }) : "",
-                                node.conditional ? t("mc.setup.diagram.conditional") : "",
+                                node.conditional
+                                    ? t(plain ? "mc.setup.plain.diagram.conditional" : "mc.setup.diagram.conditional")
+                                    : "",
                             ]
                                 .filter(Boolean)
                                 .join(" · ")}
@@ -321,7 +339,7 @@ export function FlowDiagram({
                                 data-testid="setup-diagram-selected"
                             />
                         ) : null}
-                        <NodeMark node={node} />
+                        <NodeMark node={node} plain={plain} />
                         {node.checks ? (
                             <text
                                 x={node.x}
@@ -400,7 +418,7 @@ export function FlowDiagram({
                                 className="text-10"
                                 style={{ fill: "var(--color-warning)" }}
                             >
-                                {shorten(t("mc.setup.diagram.approvalShort", { environment: node.approval }))}
+                                {shorten(approvalText(node, true))}
                             </text>
                         ) : null}
                     </g>
@@ -409,36 +427,40 @@ export function FlowDiagram({
             <div className="flex flex-wrap gap-3 border-t border-border px-2 py-1 text-10 text-muted">
                 <span className="flex items-center gap-1">
                     <span className="inline-block h-2 w-2 rounded-full bg-accent" />
-                    {t("mc.setup.diagram.legendCommand")}
+                    {legend("legendCommand")}
                 </span>
-                <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full border border-dashed border-accent" />
-                    {t("mc.setup.diagram.legendManual")}
-                </span>
+                {!plain || has((n) => n.kind === "manual") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-full border border-dashed border-accent" />
+                        {legend("legendManual")}
+                    </span>
+                ) : null}
                 <span className="flex items-center gap-1">
                     <span className="inline-block h-2 w-2 rotate-45 bg-accent" />
-                    {t("mc.setup.diagram.legendTag")}
+                    {legend("legendTag")}
                 </span>
-                <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-3 rounded-4 border border-primary/60" />
-                    {t("mc.setup.diagram.legendWorkflow")}
-                </span>
+                {!plain || has((n) => n.kind === "dispatch") ? (
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-3 rounded-4 border border-primary/60" />
+                        {legend("legendWorkflow")}
+                    </span>
+                ) : null}
                 {has((n) => n.kind === "pr") ? (
                     <span className="flex items-center gap-1">
                         <span className="inline-block h-2 w-3 rounded-4 border border-accent" />
-                        {t("mc.setup.diagram.legendPr")}
+                        {legend("legendPr")}
                     </span>
                 ) : null}
                 {has((n) => n.kind === "target") ? (
                     <span className="flex items-center gap-1">
                         <span className="inline-block h-2 w-3 rounded-4 border border-success" />
-                        {t("mc.setup.diagram.legendTarget")}
+                        {legend("legendTarget")}
                     </span>
                 ) : null}
                 {has((n) => n.approval != null) ? (
                     <span className="flex items-center gap-1">
                         <span className="inline-block h-2 w-2 rounded-full border border-warning" />
-                        {t("mc.setup.diagram.legendApproval")}
+                        {legend("legendApproval")}
                     </span>
                 ) : null}
                 {(["changed", "added", "removed"] as const).map((kind) =>
@@ -455,7 +477,7 @@ export function FlowDiagram({
                 {has((n) => n.conditional) ? (
                     <span className="flex items-center gap-1">
                         <span className="inline-block w-4 border-t border-dashed border-muted" />
-                        {t("mc.setup.diagram.legendConditional")}
+                        {legend("legendConditional")}
                     </span>
                 ) : null}
             </div>
