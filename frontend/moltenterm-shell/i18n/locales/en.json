@@ -7956,10 +7956,10 @@
                 "silent": "{name} stopped on {tag} without saying what it did: its terminal says."
             },
             "review": {
-                "rebasedTitle": "#{number} rebased on {base} by {name}, ready for review",
-                "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}, ready for review",
-                "finishedTitle": "{name} pushed what was left on #{number}, ready for review",
-                "needsTitle": "{name} needs you on #{number}",
+                "rebasedTitle": "#{number}{pr} rebased on {base} by {name}, ready for review",
+                "reworkedTitle": "{name} pushed the changes of review round {round} on #{number}{pr}, ready for review",
+                "finishedTitle": "{name} pushed what was left on #{number}{pr}, ready for review",
+                "needsTitle": "{name} needs you on #{number}{pr}",
                 "stopped": "{name} stopped before pushing {branch}: its terminal says what it needs.",
                 "exited": "{name}'s session ended before {branch} was pushed.",
                 "midRebase": "{name} stopped in the middle of the rebase of {branch}: its terminal says what it needs.",
@@ -7967,7 +7967,9 @@
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
-                "ciGreenTitle": "#{number}: CI green again",
+                "openCard": "Show in Control room",
+                "prAside": " (PR #{number})",
+                "ciGreenTitle": "#{number}{pr}: CI green again",
                 "ciGreen": "{name}: {outcome}",
                 "ciGreenPlain": "{name} stopped and no check of #{number} fails on its head.",
                 "stillFailing": "Still failing on #{number}: {names}.",
@@ -7980,8 +7982,8 @@
                 "ciSlow": "The CI of #{number} is still running after 2 hours.",
                 "uncommitted": "{name} left uncommitted files in its copy of {branch} ({count}): {names}",
                 "rerun": {
-                    "passedTitle": "#{number}: the rerun jobs passed",
-                    "failedTitle": "#{number}: failed again after the rerun",
+                    "passedTitle": "#{number}{pr}: the rerun jobs passed",
+                    "failedTitle": "#{number}{pr}: failed again after the rerun",
                     "failed": "Still failing: {names}. Investigate and fix from the pull request's row in the Control room."
                 },
                 "batch": {
@@ -8049,13 +8051,13 @@
                 },
                 "queue": {
                     "investigate": "Analyze and resolve",
-                    "failedTitle": "#{number} validated but CI failed: {names}",
+                    "failedTitle": "#{number}{pr} validated but CI failed: {names}",
                     "failed": "It is not merged while a check fails. It merges once its checks pass on the same commit; a new push needs a new validation.",
-                    "stoppedTitle": "#{number} needs you: the merge queue stopped on it",
+                    "stoppedTitle": "#{number}{pr} needs you: the merge queue stopped on it",
                     "stopped": "Reason: {reason}. The other validated pull requests go on; validate it again once it is sorted out.",
-                    "voidedTitle": "#{number} changed after your validation",
+                    "voidedTitle": "#{number}{pr} changed after your validation",
                     "voided": "Someone pushed {head} on it: it left the merge queue and is back to review. Review the new commits and validate it again.",
-                    "mergedTitle": "#{number} merged (validated at {time})",
+                    "mergedTitle": "#{number}{pr} merged (validated at {time})",
                     "merged": "The merge queue merged it into {base}.",
                     "resumedTitle": "The merge queue of {base} resumed: {count} validated PRs"
                 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -132,6 +133,11 @@ func batchReasonText(it BatchItem, base string) (string, *uimsg.Text) {
 	return "not reached", uimsg.Make("notif.review.batch.why.notreached")
 }
 
+// itemCard names a queued PR as its Control room card does (#1130).
+func itemCard(it BatchItem) mission.PrCard {
+	return mission.MakePrCard(it.Number, it.Ticket)
+}
+
 // investigateAction: Investigate and fix (#896) on the PR whose checks failed, from the notification.
 func investigateAction(run BatchRun, it BatchItem) molten.NotificationAction {
 	return molten.NotificationAction{Id: "investigate", Label: "Analyze and resolve", LabelText: uimsg.Make("notif.review.queue.investigate"),
@@ -143,30 +149,30 @@ func investigateAction(run BatchRun, it BatchItem) molten.NotificationAction {
 // and fix; the PR stays watched on its head. Any other stop takes it out of the queue until a new validation.
 func (b *BatchRunner) notifyStop(run BatchRun, i int) {
 	it := run.Items[i]
-	number := strconv.Itoa(it.Number)
+	card := itemCard(it)
 	reason, reasonText := batchReasonText(it, run.Base)
 	input := molten.NotificationInput{
 		Key:         prNoticeKey(run, it.Number) + "stop:" + strconv.FormatInt(b.env.Now().UnixMilli(), 10),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       "#" + number + " needs you: the merge queue stopped on it",
-		TitleText:   uimsg.Make("notif.review.queue.stoppedTitle", "number", number),
+		Title:       card.English() + " needs you: the merge queue stopped on it",
+		TitleText:   card.Aside(uimsg.Make("notif.review.queue.stoppedTitle", "number", card.Number())),
 		Message:     "Reason: " + reason + ". The other validated PRs go on; validate it again once it is sorted out.",
 		MessageText: uimsg.Make("notif.review.queue.stopped").With("reason", reasonText),
 		WorkspaceId: run.WorkspaceId,
-		Actions:     []molten.NotificationAction{reviewsAction()},
+		Actions:     []molten.NotificationAction{card.Action(run.Dir)},
 	}
 	if it.State == BatchItemFailed {
 		names := strings.Join(it.Names, ", ")
 		input.Kind = "error"
-		input.Title = "#" + number + " validated but CI failed: " + names
-		input.TitleText = uimsg.Make("notif.review.queue.failedTitle", "number", number, "names", names)
+		input.Title = card.English() + " validated but CI failed: " + names
+		input.TitleText = card.Aside(uimsg.Make("notif.review.queue.failedTitle", "number", card.Number(), "names", names))
 		input.Message = "It is not merged while a check fails. It merges once its checks pass on the same head; a new push needs a new validation."
 		input.MessageText = uimsg.Make("notif.review.queue.failed")
-		input.Actions = []molten.NotificationAction{investigateAction(run, it), reviewsAction()}
+		input.Actions = []molten.NotificationAction{investigateAction(run, it), card.Action(run.Dir)}
 	} else if run.BlockId != "" && (it.Reason == BatchReasonAmbiguous || it.Reason == BatchReasonAgentExited || it.Reason == BatchReasonAgentTimeout) {
 		input.TabId, input.BlockId = run.TabId, run.BlockId
-		input.Actions = []molten.NotificationAction{terminalAction(run), reviewsAction()}
+		input.Actions = []molten.NotificationAction{terminalAction(run), card.Action(run.Dir)}
 	}
 	b.notify(input)
 }
@@ -174,36 +180,36 @@ func (b *BatchRunner) notifyStop(run BatchRun, i int) {
 // notifyVoided: a push the queue did not make changed the validated code (FR-REV-026 AC5).
 func (b *BatchRunner) notifyVoided(run BatchRun, i int) {
 	it := run.Items[i]
-	number := strconv.Itoa(it.Number)
+	card := itemCard(it)
 	b.notify(molten.NotificationInput{
 		Key:         prNoticeKey(run, it.Number) + "voided:" + strconv.FormatInt(b.env.Now().UnixMilli(), 10),
 		Source:      "agent",
 		Kind:        "warning",
-		Title:       "#" + number + " changed after your validation",
-		TitleText:   uimsg.Make("notif.review.queue.voidedTitle", "number", number),
+		Title:       card.English() + " changed after your validation",
+		TitleText:   card.Aside(uimsg.Make("notif.review.queue.voidedTitle", "number", card.Number())),
 		Message:     "Someone pushed " + shortHead(it.Head) + " on it: it left the merge queue and is back to review. Review the new commits and validate it again.",
 		MessageText: uimsg.Make("notif.review.queue.voided", "head", shortHead(it.Head)),
 		WorkspaceId: run.WorkspaceId,
-		Actions:     []molten.NotificationAction{reviewsAction()},
+		Actions:     []molten.NotificationAction{card.Action(run.Dir)},
 	})
 }
 
 // notifyMerged: "#N merged (validated at HH:MM)" (FR-REV-026 AC8).
 func (b *BatchRunner) notifyMerged(run BatchRun, i int) {
 	it := run.Items[i]
-	number := strconv.Itoa(it.Number)
+	card := itemCard(it)
 	at := time.UnixMilli(it.ValidatedAt).Format("15:04")
 	b.resolvePrNotice(run, it.Number)
 	b.notify(molten.NotificationInput{
 		Key:         prNoticeKey(run, it.Number) + "merged",
 		Source:      "agent",
 		Kind:        "success",
-		Title:       "#" + number + " merged (validated at " + at + ")",
-		TitleText:   uimsg.Make("notif.review.queue.mergedTitle", "number", number, "time", at),
+		Title:       card.English() + " merged (validated at " + at + ")",
+		TitleText:   card.Aside(uimsg.Make("notif.review.queue.mergedTitle", "number", card.Number(), "time", at)),
 		Message:     "The merge queue merged it into " + run.Base + ".",
 		MessageText: uimsg.Make("notif.review.queue.merged", "base", run.Base),
 		WorkspaceId: run.WorkspaceId,
-		Actions:     []molten.NotificationAction{reviewsAction()},
+		Actions:     []molten.NotificationAction{card.Action(run.Dir)},
 	})
 }
 
@@ -230,8 +236,8 @@ func batchSkippedList(items []BatchItem, base string) (string, *uimsg.Text) {
 	var text *uimsg.Text
 	for i := len(items) - 1; i >= 0; i-- {
 		reason, reasonText := batchReasonText(items[i], base)
-		english = append([]string{"#" + strconv.Itoa(items[i].Number) + " (" + reason + ")"}, english...)
-		number := strconv.Itoa(items[i].Number)
+		number := itemCard(items[i]).Number()
+		english = append([]string{"#" + number + " (" + reason + ")"}, english...)
 		node := uimsg.Make("notif.review.batch.skippedNext", "number", number)
 		if i == 0 {
 			node = uimsg.Make("notif.review.batch.skippedFirst", "number", number)
@@ -266,7 +272,7 @@ func keptText(kept string) *uimsg.Text {
 func numbersText(items []BatchItem) string {
 	var parts []string
 	for _, it := range items {
-		parts = append(parts, "#"+strconv.Itoa(it.Number))
+		parts = append(parts, "#"+itemCard(it).Number())
 	}
 	return strings.Join(parts, ", ")
 }

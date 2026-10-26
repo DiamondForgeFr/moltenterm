@@ -41,6 +41,7 @@ import { WorkspaceChip } from "./notification-workspace-chip";
 import {
     activeEntries,
     archivedEntries,
+    checkClickable,
     checkUnread,
     displayActions,
     formatAge,
@@ -123,7 +124,7 @@ function NotificationRow({
     const actions = displayActions(entry);
     const tone = toneOf(entry.kind);
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
-    const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid);
+    const hasOrigin = checkClickable(entry);
     const subject = subjectOf(entry.source);
     const t = useT();
     const rowRef = useRef<HTMLDivElement>(null);

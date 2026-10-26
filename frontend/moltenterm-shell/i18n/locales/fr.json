@@ -7956,10 +7956,10 @@
                 "silent": "{name} s'est arrêté sur {tag} sans dire ce qu'il a fait : son terminal le dit."
             },
             "review": {
-                "rebasedTitle": "#{number} rebasée sur {base} par {name}, prête pour la revue",
-                "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}, prête pour la revue",
-                "finishedTitle": "{name} a poussé ce qui restait sur #{number}, prête pour la revue",
-                "needsTitle": "{name} a besoin de vous sur #{number}",
+                "rebasedTitle": "#{number}{pr} rebasée sur {base} par {name}, prête pour la revue",
+                "reworkedTitle": "{name} a poussé les changements de la passe de revue {round} sur #{number}{pr}, prête pour la revue",
+                "finishedTitle": "{name} a poussé ce qui restait sur #{number}{pr}, prête pour la revue",
+                "needsTitle": "{name} a besoin de vous sur #{number}{pr}",
                 "stopped": "{name} s'est arrêté avant de pousser {branch} : son terminal dit ce qu'il attend.",
                 "exited": "La session de {name} s'est terminée avant que {branch} soit poussée.",
                 "midRebase": "{name} s'est arrêté au milieu du rebase de {branch} : son terminal dit ce qu'il attend.",
@@ -7967,7 +7967,9 @@
                 "commits": "Commits non poussés sur {branch} : {count}.",
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
-                "ciGreenTitle": "#{number} : la CI est de nouveau verte",
+                "openCard": "Voir dans Pilotage",
+                "prAside": " (PR #{number})",
+                "ciGreenTitle": "#{number}{pr} : la CI est de nouveau verte",
                 "ciGreen": "{name} : {outcome}",
                 "ciGreenPlain": "{name} s'est arrêté et aucun check de #{number} n'échoue sur sa tête.",
                 "stillFailing": "Toujours en échec sur #{number} : {names}.",
@@ -7980,8 +7982,8 @@
                 "ciSlow": "La CI de #{number} tourne encore après 2 heures.",
                 "uncommitted": "{name} a laissé des fichiers non commités dans sa copie de {branch} ({count}) : {names}",
                 "rerun": {
-                    "passedTitle": "#{number} : les jobs relancés ont réussi",
-                    "failedTitle": "#{number} : encore en échec après la relance",
+                    "passedTitle": "#{number}{pr} : les jobs relancés ont réussi",
+                    "failedTitle": "#{number}{pr} : encore en échec après la relance",
                     "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans Pilotage."
                 },
                 "batch": {
@@ -8049,13 +8051,13 @@
                 },
                 "queue": {
                     "investigate": "Analyser et résoudre",
-                    "failedTitle": "#{number} validée mais la CI a échoué : {names}",
+                    "failedTitle": "#{number}{pr} validée mais la CI a échoué : {names}",
                     "failed": "Elle n'est pas fusionnée tant qu'un check échoue. Elle fusionne dès que ses checks passent sur le même commit ; un nouveau push demande une nouvelle validation.",
-                    "stoppedTitle": "#{number} a besoin de vous : la file de fusion s'est arrêtée dessus",
+                    "stoppedTitle": "#{number}{pr} a besoin de vous : la file de fusion s'est arrêtée dessus",
                     "stopped": "Raison : {reason}. Les autres pull requests validées continuent ; validez-la de nouveau une fois le point réglé.",
-                    "voidedTitle": "#{number} a changé après votre validation",
+                    "voidedTitle": "#{number}{pr} a changé après votre validation",
                     "voided": "Quelqu'un a poussé {head} dessus : elle a quitté la file de fusion et revient à relire. Relisez les nouveaux commits et validez-la de nouveau.",
-                    "mergedTitle": "#{number} fusionnée (validée à {time})",
+                    "mergedTitle": "#{number}{pr} fusionnée (validée à {time})",
                     "merged": "La file de fusion l'a fusionnée dans {base}.",
                     "resumedTitle": "La file de fusion de {base} a repris : {count} PR validées"
                 }

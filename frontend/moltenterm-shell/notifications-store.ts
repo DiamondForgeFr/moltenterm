@@ -38,6 +38,7 @@ import {
     archiveUpdate,
     checkUnread,
     clearArchiveUpdate,
+    clickAction,
     makeNotificationId,
     MetaUpdate,
     MoltentermNotification,
@@ -235,9 +236,10 @@ export class MoltentermNotifications {
     // Goes to where the notification comes from.
     async open(entry: MoltentermNotification): Promise<void> {
         // A refused run's notification (#1017) opens its trust sheet, wherever the refused terminal is.
-        const review = trustReviewAction(entry);
-        if (review != null) {
-            await this.runAction(entry, review);
+        // A PR's notification (#1130) opens its card in the Control room, not the terminal it came from.
+        const onClick = trustReviewAction(entry) ?? clickAction(entry);
+        if (onClick != null) {
+            await this.runAction(entry, onClick);
             return;
         }
         // Switching workspace replaces this view: the read mark must reach wavesrv first.

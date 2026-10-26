@@ -195,6 +195,19 @@ export function visibleActions(entry: MoltentermNotification): NotificationActio
     return actions.filter((a) => a.lasting);
 }
 
+// The action a click on the notification itself runs instead of going to its origin: a PR's card (#1130). Must match
+// ReviewsCardActionId in pkg/molten/mission/reviews_card.go.
+export const ClickActionId = "card";
+
+export function clickAction(entry: MoltentermNotification): NotificationAction {
+    return entry?.actions?.find((a) => a.id === ClickActionId) ?? null;
+}
+
+// Whether a click on the notification leads somewhere: its origin, or its click action.
+export function checkClickable(entry: MoltentermNotification): boolean {
+    return !!(entry.workspaceid || entry.tabid || entry.blockid) || clickAction(entry) != null;
+}
+
 export const GoToTerminalActionId = "goto-terminal";
 // The English label; the action shows t("notif.goToTerminal").
 export const GoToTerminalLabel = "Go to the terminal";
