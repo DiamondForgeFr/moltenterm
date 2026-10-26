@@ -34,13 +34,13 @@
                 "id": "changelog-en",
                 "title": "Write the {version} section of docs/changelog.md",
                 "phase": "cut",
-                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. The cut commits it with the version."
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. Cover what changed since the previous release, candidate or public. The cut commits it with the version."
             },
             {
                 "id": "changelog-fr",
                 "title": "Write the {version} section of docs/fr/changelog.md",
                 "phase": "cut",
-                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. The cut commits it with the version."
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. Cover what changed since the previous release, candidate or public. The cut commits it with the version."
             },
             {
                 "id": "finalize",
@@ -73,13 +73,13 @@
                 "id": "changelog-en",
                 "title": "Write the {version} section of docs/changelog.md",
                 "phase": "cut",
-                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. The cut commits it with the version."
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/changelog.md. Cover everything that changed since the last public release, release candidates included: public users never saw them. The public notes draft has that scope. The cut commits it with the version."
             },
             {
                 "id": "changelog-fr",
                 "title": "Write the {version} section of docs/fr/changelog.md",
                 "phase": "cut",
-                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. The cut commits it with the version."
+                "manual": "In the release worktree (../app-release, prepared on master), write the {version} section of docs/fr/changelog.md. Cover everything that changed since the last public release, release candidates included: public users never saw them. The public notes draft has that scope. The cut commits it with the version."
             },
             {
                 "id": "finalize",

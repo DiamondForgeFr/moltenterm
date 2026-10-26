@@ -129,6 +129,17 @@ type ReleaseFacts struct {
 	Awaits *ReleaseCiAwait `json:"awaits,omitempty"`
 	// The last word of the release chain on formatting its files, while the tag is not pushed (#1095).
 	Format *ReleaseFormat `json:"format,omitempty"`
+	// What the changelog sections written by hand cover, while the tag is not pushed (#1142).
+	ChangelogScope *ReleaseChangelogScope `json:"changelogscope,omitempty"`
+}
+
+// The scope of the release's changelog sections (#1142): everything since the last public release, candidates
+// included, for a public version; since the previous release of either channel for a candidate.
+type ReleaseChangelogScope struct {
+	// "" for the first release.
+	Since string `json:"since"`
+	// The manual steps that write a changelog section.
+	Steps []string `json:"steps"`
 }
 
 // How the release's files last went through the project's formatter (#1095): formatted, none (no formatter found) or
@@ -465,6 +476,7 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	facts.Awaits = r.awaitedCi(dir, session.Tag, since)
 	if !facts.TagExists {
 		facts.Format = format
+		facts.ChangelogScope = r.changelogScope(ctx, dir, p, session)
 		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
 		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
 		if releasesByPr(p) {
@@ -484,6 +496,27 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 		r.readTagWorkflows(ctx, dir, &facts)
 	}
 	return facts, nil
+}
+
+// changelogScope reads where the release's changelog sections start, in the release worktree; nil when no manual step
+// of its channel writes one, or when it cannot be read.
+func (r *Runs) changelogScope(ctx context.Context, dir string, p *molten.Pipeline, session ReleaseSession) *ReleaseChangelogScope {
+	scope := &ReleaseChangelogScope{Steps: []string{}}
+	for _, step := range channelSteps(p, session.Channel) {
+		if molten.ChangelogOfStep(step, molten.DeclaredChangelogs(p)) != "" {
+			scope.Steps = append(scope.Steps, step.Id)
+		}
+	}
+	if len(scope.Steps) == 0 {
+		return nil
+	}
+	env := release.Env{Dir: r.manualCheckDir(dir), Run: release.Runner(r.git)}
+	since, err := env.ChangelogSince(ctx, session.Tag)
+	if err != nil {
+		return nil
+	}
+	scope.Since = since
+	return scope
 }
 
 // checkFollowed refuses an action on a release other than the one followed.
@@ -560,7 +593,7 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 			continue
 		}
 		if step.IsManual() {
-			unproved := r.checkManualStep(project, step, session)
+			unproved := r.checkManualStep(project, p, step, session)
 			if unproved != nil && !req.Force {
 				return RunResult{Unproved: unproved}, nil
 			}

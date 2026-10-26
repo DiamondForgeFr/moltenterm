@@ -118,10 +118,15 @@ func notesPrompt(f NotesFacts, record string) string {
 	if f.Repo != "" {
 		repoRule = fmt.Sprintf(" or a link into %s", f.Repo)
 	}
+	// A public user never saw the candidates (#1142): their notes cover everything since the last public release.
+	scope := fmt.Sprintf("It covers everything since %s, the previous release of either channel.", f.sinceLabel())
+	if f.Channel != versions.ChannelRc {
+		scope = fmt.Sprintf("It covers everything since %s, the last public release, release candidates included: a public user never saw them, so the notes say all of it, not only what changed since the last candidate.", f.sinceLabel())
+	}
 	return fmt.Sprintf(`You are writing the release notes of %[1]s for the version %[2]s, %[3]s.
 
 Below is the ENGINEERING RECORD of this release: every ticket, with what each commit said about it. It is the only
-source of facts. Never invent a change that is not in it, and never promise anything it does not show.
+source of facts. Never invent a change that is not in it, and never promise anything it does not show. %[7]s
 
 Write the PUBLIC notes: what this version brings to someone who USES %[1]s.
 
@@ -144,7 +149,7 @@ Rules, all of them hard:
 
 ENGINEERING RECORD
 ------------------
-%[6]s`, product, f.Tag, kind, repoRule, MaxPublicNoteLines, record)
+%[6]s`, product, f.Tag, kind, repoRule, MaxPublicNoteLines, record, scope)
 }
 
 func cleanAgentNotes(out []byte) string {

@@ -82,7 +82,15 @@ export type ReleaseFacts = {
     tagworkflows?: ReleaseTagWorkflows;
     // The release chain's last word on formatting the files it wrote, while the tag is not pushed (#1095).
     format?: ReleaseFormat;
+    // What the changelog sections written by hand cover, while the tag is not pushed (#1142).
+    changelogscope?: ReleaseChangelogScope;
 };
+
+// must match ReleaseChangelogScope in pkg/molten/mission/release_facts.go; since is "" for the first release.
+export type ReleaseChangelogScope = { since: string; steps: string[] };
+
+// What a changelog section covers (#1142): since the last public release, candidates included, for a public version.
+export type ChangelogScope = { since: string; public: boolean };
 
 // must match ReleaseFormat in pkg/molten/mission/release_facts.go
 export type ReleaseFormat = {
@@ -127,6 +135,8 @@ export type Phase = {
     failure?: PhaseFailure;
     // The instructions of the manual step the phase waits on (FR-MC-037).
     manual?: string;
+    // The manual step writes a changelog section: what it covers (#1142).
+    scope?: ChangelogScope;
     // An environment waiting for its approval on GitHub.
     approval?: ReleaseApproval;
 };
@@ -278,6 +288,14 @@ function manualOf(step: PipelineReleaseStep, facts: ReleaseFacts): string {
         .join(facts.version ?? "");
 }
 
+function scopeOf(step: PipelineReleaseStep, facts: ReleaseFacts): ChangelogScope {
+    const scope = facts.changelogscope;
+    if (scope == null || !(scope.steps ?? []).includes(step.id)) {
+        return undefined;
+    }
+    return { since: scope.since ?? "", public: facts.channel !== "rc" };
+}
+
 function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
     if (step.manual) {
         return {
@@ -341,6 +359,7 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
                 ? t("mc.releaseRun.manualNext", { step: stepTitle(seq.next) })
                 : t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
             manual: seq.next.manual ? manualOf(seq.next, facts) : undefined,
+            scope: seq.next.manual ? scopeOf(seq.next, facts) : undefined,
             action: runStep(seq.next, facts),
         };
     }
