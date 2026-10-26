@@ -49,6 +49,8 @@ var englishFields = map[string]string{
 	"review.BatchItem.Detail":              "gh's or git's raw error (tokens masked), the detail under Reason's code",
 	"review.DiscussRequest.Message":        "the developer's own message, typed for the agent",
 	"review.PublishNote.Note":              "a code (Note…) the Publish sheet words",
+	"review.LeftoverAsk.Why":               "a code (LeftoverWhy…) the leftover's card words (#1143)",
+	"review.LeftoverAsk.Reason":            "the owner agent's own outcome line, shown as it wrote it (#1143)",
 	"reviewsession.sourceInfo.Why":         "review_context output, agent-facing",
 	"reviewsession.ciInfo.Why":             "review_context output, agent-facing",
 	"reviewsession.untrustedText.Note":     "MCP tool output, agent-facing",
