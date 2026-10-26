@@ -49,3 +49,17 @@ func TestCommandPathPutsTheAppBinFirst(t *testing.T) {
 		t.Fatalf("PATH with no bin folder = %q", got)
 	}
 }
+
+// #1146: git's advice lines say nothing about the failure; the line before them does.
+func TestLastErrorLineSkipsGitHints(t *testing.T) {
+	stderr := "The following paths are ignored by one of your .gitignore files:\n.molten\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"\n"
+	if got := lastErrorLine(stderr); got != ".molten" {
+		t.Fatalf("got %q", got)
+	}
+	if got := lastErrorLine("hint: only advice\n"); got != "" {
+		t.Fatalf("got %q", got)
+	}
+	if got := lastErrorLine("fatal: one\nfatal: two\n"); got != "fatal: two" {
+		t.Fatalf("got %q", got)
+	}
+}

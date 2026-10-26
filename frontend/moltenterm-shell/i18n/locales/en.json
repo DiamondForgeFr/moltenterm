@@ -3916,6 +3916,10 @@
                     "failed": "The pull request could not be prepared. Your checkout did not change.",
                     "includeConflict": "Your uncommitted changes conflict with {ref}. Prepare again without them, or commit them first."
                 },
+                "ignored": {
+                    "local": "This computer's git settings ignore {pattern} ({source}); the pull request adds these files anyway: {files}. {source} is left as it is.",
+                    "shared": "The project's {source} ignores {pattern}; the pull request adds these files anyway: {files}. Everyone's clone ignores them the same way: a new file there needs git add -f. {source} is left as it is."
+                },
                 "conflict": "They change the same lines as {ref}: commit or rebase them first to include them.",
                 "includedAsChanges": "Your uncommitted edits are included as changes to check: each one is listed below, ticked, and you may leave any out. Your checkout keeps them as they are.",
                 "descNoRemote": "This repository has no origin remote: MoltenTerm makes the commit in a worktree of its own and copies it as a patch, to apply where your project takes its changes. Your working copy is not touched."

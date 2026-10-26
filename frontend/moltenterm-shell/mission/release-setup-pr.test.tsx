@@ -165,6 +165,54 @@ describe("the setup's pull request (#1098)", () => {
         expect(moved).toContain('data-testid="setup-pr-again"');
     });
 
+    it("names the ignore rules the commit went past (#1146)", () => {
+        const html = renderToStaticMarkup(
+            <PrPanel
+                dir="/p"
+                plan={plan}
+                choice={newTicket}
+                onChoice={() => {}}
+                job={job({
+                    ignored: [
+                        {
+                            source: ".git/info/exclude",
+                            pattern: ".molten/",
+                            shared: false,
+                            files: [".molten/project.json", ".molten/release-setup.json"],
+                        },
+                        {
+                            source: ".gitignore",
+                            pattern: "docs/engineering/",
+                            shared: true,
+                            files: ["docs/engineering/release-pipeline.md"],
+                        },
+                    ],
+                })}
+                busy={true}
+                error={null}
+                onAgain={() => {}}
+            />
+        );
+        expect(html).toContain(
+            "This computer&#x27;s git settings ignore .molten/ (.git/info/exclude); the pull request adds these files anyway: .molten/project.json, .molten/release-setup.json."
+        );
+        expect(html).toContain("The project&#x27;s .gitignore ignores docs/engineering/");
+        expect(html).toContain("a new file there needs git add -f");
+        const none = renderToStaticMarkup(
+            <PrPanel
+                dir="/p"
+                plan={plan}
+                choice={newTicket}
+                onChoice={() => {}}
+                job={job({})}
+                busy={true}
+                error={null}
+                onAgain={() => {}}
+            />
+        );
+        expect(none).not.toContain("setup-pr-ignored");
+    });
+
     it("links the opened pull request", () => {
         const html = renderToStaticMarkup(
             <PrPanel

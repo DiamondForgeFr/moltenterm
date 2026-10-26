@@ -149,8 +149,19 @@ type PrJob struct {
 	Files    []string   `json:"files"`
 	// The technical documentation's backend page, once written (FR-MC-043).
 	DocUrl string `json:"docurl,omitempty"`
+	// The ignore rules that matched written files; the commit adds those files anyway (#1146).
+	Ignored []PrIgnored `json:"ignored,omitempty"`
 
 	finishedAt time.Time
+}
+
+// An ignore rule matching files the setup wrote. Shared: a .gitignore of the project, so every clone ignores them;
+// otherwise this computer's own settings (.git/info/exclude, core.excludesFile).
+type PrIgnored struct {
+	Source  string   `json:"source"`
+	Pattern string   `json:"pattern"`
+	Shared  bool     `json:"shared"`
+	Files   []string `json:"files"`
 }
 
 type PrStateRequest struct {
@@ -341,6 +352,7 @@ func copyJob(j *PrJob) PrJob {
 	c := *j
 	c.Steps = append([]PrStep{}, j.Steps...)
 	c.Files = append([]string{}, j.Files...)
+	c.Ignored = append([]PrIgnored(nil), j.Ignored...)
 	if j.Failure != nil {
 		f := *j.Failure
 		c.Failure = &f
@@ -368,6 +380,9 @@ func (s *Setup) stepState(job *PrJob, id string, state string, info string) {
 }
 
 func (s *Setup) finishJob(job *PrJob, err error) {
+	if err == nil {
+		s.forgetTicket(job.Dir, job.Kind)
+	}
 	s.update(job, func(j *PrJob) {
 		j.Finished = true
 		j.finishedAt = time.Now()
@@ -540,11 +555,17 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 			title = ticketTitle(job.Kind)
 		}
 		s.stepState(job, PrStepTicket, PrStateRunning, "")
-		n, err := s.createTicket(ctx, dir, title, job.Kind)
-		if err != nil {
-			return err
+		n := s.createdTicket(dir, job.Kind)
+		if n == 0 {
+			created, err := s.createTicket(ctx, dir, title, job.Kind)
+			if err != nil {
+				return err
+			}
+			n = created
+			s.rememberTicket(dir, job.Kind, n)
 		}
 		ticket = n
+		s.update(job, func(j *PrJob) { j.Ticket = n })
 		s.stepState(job, PrStepTicket, PrStateDone, "#"+strconv.Itoa(n))
 	}
 	ticketText := ""
@@ -612,7 +633,12 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	}
 	s.stepState(job, PrStepWrite, PrStateDone, strconv.Itoa(len(files.order)))
 	s.stepState(job, PrStepCommit, PrStateRunning, "")
-	if out, err := git(append([]string{"add", "--"}, files.order...)...); err != nil {
+	// The developer approved exactly these files: an ignore rule (often .git/info/exclude, shared by the clone's
+	// worktrees) never keeps one out of the commit, and nothing else is added.
+	if ignored := s.ignoredBy(ctx, tree, files.order); len(ignored) > 0 {
+		s.update(job, func(j *PrJob) { j.Ignored = ignored })
+	}
+	if out, err := git(append([]string{"add", "-f", "--"}, files.order...)...); err != nil {
 		return fail(PrFailureCommit, errText(err, out))
 	}
 	if out, err := git("diff", "--cached", "--quiet"); err == nil {
@@ -712,4 +738,70 @@ func (s *Setup) removeTree(dir string, tree string) {
 	}
 	os.RemoveAll(tree)
 	s.git(ctx, dir, "worktree", "prune")
+}
+
+func ticketKey(dir string, kind string) string {
+	return dir + "\x00" + kind
+}
+
+func (s *Setup) createdTicket(dir string, kind string) int {
+	s.jobLock.Lock()
+	defer s.jobLock.Unlock()
+	return s.createdTickets[ticketKey(dir, kind)]
+}
+
+func (s *Setup) rememberTicket(dir string, kind string, n int) {
+	s.jobLock.Lock()
+	defer s.jobLock.Unlock()
+	if s.createdTickets == nil {
+		s.createdTickets = map[string]int{}
+	}
+	s.createdTickets[ticketKey(dir, kind)] = n
+}
+
+func (s *Setup) forgetTicket(dir string, kind string) {
+	s.jobLock.Lock()
+	defer s.jobLock.Unlock()
+	delete(s.createdTickets, ticketKey(dir, kind))
+}
+
+// check-ignore -v prints "<source>:<line>:<pattern>\t<path>"; the source is relative for a .gitignore of the tree.
+var ignoreLineRegex = regexp.MustCompile(`^(.+?):(\d+):(.*)\t(.+)$`)
+
+// ignoredBy names the ignore rules matching the files, tracked ones included (--no-index); a negated pattern
+// un-ignores, so it is left out. Best effort: none when git cannot say.
+func (s *Setup) ignoredBy(ctx context.Context, tree string, files []string) []PrIgnored {
+	out, _ := s.git(ctx, tree, append([]string{"check-ignore", "-v", "--no-index", "--"}, files...)...)
+	var rules []PrIgnored
+	index := map[string]int{}
+	for _, line := range strings.Split(string(out), "\n") {
+		m := ignoreLineRegex.FindStringSubmatch(strings.TrimRight(line, "\r"))
+		if m == nil || strings.HasPrefix(m[3], "!") {
+			continue
+		}
+		source, pattern, file := m[1], m[3], m[4]
+		key := source + "\x00" + pattern
+		i, ok := index[key]
+		if !ok {
+			i = len(rules)
+			index[key] = i
+			rules = append(rules, PrIgnored{Source: ignoreSourceName(source), Pattern: pattern, Shared: !filepath.IsAbs(source)})
+		}
+		rules[i].Files = append(rules[i].Files, file)
+	}
+	return rules
+}
+
+// ignoreSourceName shortens this computer's ignore files: the clone's exclude file, or a path under the home folder.
+func ignoreSourceName(source string) string {
+	if !filepath.IsAbs(source) {
+		return source
+	}
+	if strings.HasSuffix(filepath.ToSlash(source), "/info/exclude") {
+		return ".git/info/exclude"
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(source, home+string(filepath.Separator)) {
+		return "~" + source[len(home):]
+	}
+	return source
 }
