@@ -5439,8 +5439,20 @@
                 "remote": "{branch} on origin",
                 "lockEnded": "worktree {folder}, locked by an agent session that ended",
                 "lockHeld": "worktree {folder}, locked: kept by the cleanup",
+                "lockLive": "worktree {folder}, locked by {name}: Clean up asks {name} to remove it",
+                "lockParent": "worktree {folder}, locked by {name}'s session: Clean up asks {name} to remove it",
+                "lockProcess": "worktree {folder}, locked by {process} (pid {pid}), which MoltenTerm cannot reach",
+                "lockPid": "worktree {folder}, locked by process {pid}, which MoltenTerm cannot reach",
                 "reviewTree": "review worktree {folder}, left by a merge outside Validate",
                 "copy": "local copy {branch} of the pull request"
+            },
+            "owner": {
+                "asked": "Asked {name} · waiting",
+                "reason": "{reason}",
+                "question": "a question about the cleanup",
+                "stopped": "the worktree is still there",
+                "history": "Cleanup asked of {name} at {time}",
+                "goToFolder": "Show the folder its process runs in: MoltenTerm never unlocks it by force"
             },
             "agent": {
                 "idle": "{name} is inactive",

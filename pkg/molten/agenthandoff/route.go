@@ -111,6 +111,7 @@ var startOnce sync.Once
 func Start() {
 	startOnce.Do(func() {
 		link := &routeLink{manager: MakeManager(MakeWaveEnv())}
+		setShared(link.manager)
 		if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 			log.Printf("molten: agent handoff route not started: %v\n", err)
 		}

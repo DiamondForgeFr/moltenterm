@@ -48,9 +48,11 @@ type UpcomingLeftover struct {
 	State string `json:"state"`
 	Base  string `json:"base,omitempty"`
 	// Lock: the worktree is locked by a process that ended (LeftoverLockEnded, LockPid the pid it named) or by someone
-	// MoltenTerm cannot tell (LeftoverLockHeld): the cleanup keeps that one.
-	Lock    string `json:"lock,omitempty"`
-	LockPid int32  `json:"lockpid,omitempty"`
+	// MoltenTerm cannot tell (LeftoverLockHeld): the cleanup keeps that one. LeftoverLockLive (#1143): a running process
+	// holds it, Owner says who; only that owner removes it.
+	Lock    string         `json:"lock,omitempty"`
+	LockPid int32          `json:"lockpid,omitempty"`
+	Owner   *LeftoverOwner `json:"owner,omitempty"`
 	// ReviewTree: MoltenTerm's review worktree of the PR, left when it merged outside Validate.
 	ReviewTree string `json:"reviewtree,omitempty"`
 	// Copies: local copies of the PR's branch (pr<N>, or a branch whose upstream was the PR's branch) holding nothing new.

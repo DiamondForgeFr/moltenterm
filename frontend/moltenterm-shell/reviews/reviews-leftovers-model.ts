@@ -9,6 +9,7 @@
 import type { TFunction } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import type { ReviewCleanupResult, ReviewCleanupStepId, ReviewCleanupStepResult } from "../review/review-cleanup";
+import { ownerReachable } from "./reviews-leftover-owner-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import type { AgentBarFacts, UpcomingAnswer, UpcomingLeftover } from "./reviews-upcoming-model";
 
@@ -88,8 +89,28 @@ function worktreeText(t: TFunction, leftover: UpcomingLeftover): string {
             return t("reviewsAgents.leftovers.part.lockEnded", { folder });
         case "held":
             return t("reviewsAgents.leftovers.part.lockHeld", { folder });
+        case "live":
+            return liveLockText(t, leftover, folder);
     }
     return t("reviewsAgents.leftovers.part.worktree", { folder });
+}
+
+// liveLockText: who holds the worktree (#1143): an agent Clean up asks, or a process MoltenTerm cannot reach, by its name
+// and pid (its folder is where the card's Go there leads).
+function liveLockText(t: TFunction, leftover: UpcomingLeftover, folder: string): string {
+    const owner = leftover.owner;
+    if (owner == null) {
+        return t("reviewsAgents.leftovers.part.lockHeld", { folder });
+    }
+    if (ownerReachable(owner)) {
+        const name = owner.firstname || t("reviews.card.anAgent");
+        const key = owner.via === "parent" ? "lockParent" : "lockLive";
+        return t(`reviewsAgents.leftovers.part.${key}`, { folder, name });
+    }
+    if (owner.process) {
+        return t("reviewsAgents.leftovers.part.lockProcess", { folder, process: owner.process, pid: owner.pid });
+    }
+    return t("reviewsAgents.leftovers.part.lockPid", { folder, pid: owner.pid });
 }
 
 function folderName(path: string): string {

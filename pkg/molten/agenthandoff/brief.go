@@ -70,6 +70,8 @@ type Party struct {
 	Workspace   string
 	TabId       string
 	Tab         string
+	// App: MoltenTerm itself wrote the request, on the developer's click (#1143).
+	App bool
 }
 
 // label: "Camille (Claude Code)", "a terminal" for a pane without an agent.
@@ -406,7 +408,11 @@ func writeBrief(dataDir string, from Party, to Party, b Brief, now time.Time) (s
 	}
 	facts := gatherFiles(dir, to, b.Files)
 	path := filepath.Join(dir, BriefFileName)
-	if err := os.WriteFile(path, []byte(renderBrief(from, to, b, facts, now)), 0600); err != nil {
+	text := renderBrief(from, to, b, facts, now)
+	if from.App {
+		text = renderAppBrief(to, b, now, OutcomePathOf(path))
+	}
+	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		return "", err
 	}
 	return path, nil

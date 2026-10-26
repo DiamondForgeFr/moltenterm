@@ -45,6 +45,10 @@ import { EdgeWhere, ForecastLinks } from "./reviews-forecast";
 import { useForecastAnswer, useForecastWatch } from "./reviews-forecast-client";
 import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
 import { LaunchBar, LaunchDialogs } from "./reviews-launch";
+import { useLeftoverAsks } from "./reviews-leftover-asks";
+import { LeftoverOwnerCard } from "./reviews-leftover-owner";
+import { leftoverTurnRows } from "./reviews-leftover-owner-model";
+import { leftoverRows } from "./reviews-leftovers-model";
 import { MergedSection } from "./reviews-merged";
 import {
     MoltentermReviewsView,
@@ -77,6 +81,7 @@ import { SectionHeading } from "./reviews-section-heading";
 import { cardStates, sectionOf, sectionRows, sectionsByTurn, withTurnShown } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
+import { useUpcomingAnswer } from "./reviews-upcoming-client";
 
 export { MoltentermReviewsView, ReviewRow };
 
@@ -289,10 +294,18 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const batchVisible = batchShown(batchRun);
     // Hidden once ended, the queue keeps a pointer there while its agent's session is open (#1128).
     const batchPointer = batchPointerShown(batchRun, ctx.states);
-    const sections = useMemo(
-        () => withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible || batchPointer),
-        [listed, cards, sort, ranks, batchVisible, batchPointer]
+    // Leftovers whose owner was asked (#1143) join the section of whose turn it is, after its PRs.
+    const upcoming = useUpcomingAnswer(dir);
+    const leftoverAsks = useLeftoverAsks(dir);
+    const leftoverTurns = useMemo(
+        () => leftoverTurnRows(leftoverRows(upcoming, answer), leftoverAsks),
+        [upcoming, answer, leftoverAsks]
     );
+    const sections = useMemo(() => {
+        let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "agents", batchVisible || batchPointer);
+        rtn = withTurnShown(rtn, "agents", (leftoverTurns.agents?.length ?? 0) > 0);
+        return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
+    }, [listed, cards, sort, ranks, batchVisible, batchPointer, leftoverTurns]);
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
     for (const s of sections) {
@@ -551,6 +564,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                 {sections.map((section) => {
                     const text = TurnSectionText[section.turn];
                     const isOpen = turnOpen(section.turn);
+                    const turnLeftovers = leftoverTurns[section.turn] ?? [];
+                    const count = section.prs.length + turnLeftovers.length;
                     return (
                         <section
                             key={section.turn}
@@ -560,7 +575,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                         >
                             <SectionHeading
                                 title={t(text.title)}
-                                count={section.prs.length > 0 ? section.prs.length : undefined}
+                                count={count > 0 ? count : undefined}
                                 hint={text.hint ? t(text.hint) : undefined}
                                 open={isOpen}
                                 onToggle={() => ReviewsFolds.getInstance().set(dir, section.turn, !isOpen)}
@@ -581,7 +596,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                             {section.turn === "agents" && batchPointer ? (
                                 <BatchPointer run={batchRun} ids={shownIds} />
                             ) : null}
-                            {isOpen && section.prs.length > 0 ? (
+                            {isOpen && count > 0 ? (
                                 <div
                                     className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
                                     role="list"
@@ -589,6 +604,14 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                 >
                                     {section.prs.map((pr) => (
                                         <ReviewRow key={pr.number} {...rowProps(pr)} />
+                                    ))}
+                                    {turnLeftovers.map((row) => (
+                                        <LeftoverOwnerCard
+                                            key={`leftover:${row.leftover.branch}`}
+                                            dir={dir}
+                                            row={row}
+                                            repoUrl={answer.url}
+                                        />
                                     ))}
                                 </div>
                             ) : null}

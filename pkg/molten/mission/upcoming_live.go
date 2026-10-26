@@ -43,6 +43,7 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 		},
 		Agents:    liveAgentPlaces,
 		Subagents: liveSubagents,
+		Procs:     LiveProcFacts,
 		ReviewTreesDir: func(projectDir string) string {
 			return molten.ReviewTreesDir(wavebase.GetWaveDataDir(), projectDir)
 		},
@@ -84,7 +85,7 @@ func liveAgentPlaces(ctx context.Context) []AgentPlace {
 		if err != nil || block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
 			continue
 		}
-		place := AgentPlace{BlockId: run.BlockId, Agent: run.Agent, FirstName: run.FirstName, Started: run.Started}
+		place := AgentPlace{BlockId: run.BlockId, Agent: run.Agent, FirstName: run.FirstName, Started: run.Started, Pid: run.Pid}
 		if link := block.Meta.GetString(molten.WorktreeMetaKey, ""); link != "" {
 			place.Link = realPath(link)
 		}

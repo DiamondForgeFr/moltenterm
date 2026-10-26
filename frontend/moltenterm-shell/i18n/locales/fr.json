@@ -5439,8 +5439,20 @@
                 "remote": "{branch} sur origin",
                 "lockEnded": "worktree {folder}, verrouillé par une session d'agent terminée",
                 "lockHeld": "worktree {folder}, verrouillé : le nettoyage le conserve",
+                "lockLive": "worktree {folder}, verrouillé par {name} : Nettoyer demande à {name} de le supprimer",
+                "lockParent": "worktree {folder}, verrouillé par la session de {name} : Nettoyer demande à {name} de le supprimer",
+                "lockProcess": "worktree {folder}, verrouillé par {process} (pid {pid}), que MoltenTerm ne peut pas joindre",
+                "lockPid": "worktree {folder}, verrouillé par le processus {pid}, que MoltenTerm ne peut pas joindre",
                 "reviewTree": "worktree de revue {folder}, laissé par une fusion hors de Valider",
                 "copy": "copie locale {branch} de la pull request"
+            },
+            "owner": {
+                "asked": "Demandé à {name} · en attente",
+                "reason": "{reason}",
+                "question": "une question sur le nettoyage",
+                "stopped": "le worktree est toujours là",
+                "history": "Nettoyage demandé à {name} à {time}",
+                "goToFolder": "Afficher le dossier où tourne son processus : MoltenTerm ne le déverrouille jamais de force"
             },
             "agent": {
                 "idle": "{name} est inactif",

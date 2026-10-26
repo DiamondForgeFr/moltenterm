@@ -83,7 +83,7 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
     switch (action.id) {
         case "answer":
         case "follow":
-            return phrase(`reviews.card.actionTitle.${action.id}`, { name });
+            return agentActionTitle(action, name);
         case "relaunch":
             return phrase("reviews.card.actionTitle.relaunch", { name });
         case "start-agent":
@@ -421,35 +421,7 @@ export function ReviewRow({
                             </span>
                         ) : null}
                     </div>
-                    <div
-                        className={cn(
-                            "flex min-w-0 items-baseline gap-1.5 text-12 leading-4 font-medium",
-                            SentenceClasses[card.tone]
-                        )}
-                        data-testid="reviews-card-state"
-                    >
-                        {/* Something works and nothing is the developer's (#1085): the dominoes, unless an agent line
-                            of the card already shows them. */}
-                        {card.motion === "state" ? (
-                            <span
-                                className="-mx-1 inline-flex shrink-0 scale-75 self-center"
-                                data-testid="reviews-card-working"
-                            >
-                                <DominoLoader />
-                            </span>
-                        ) : (
-                            <span
-                                className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
-                                style={{ background: RailColours[card.tone] }}
-                                aria-hidden
-                                data-testid="reviews-card-dot"
-                            />
-                        )}
-                        <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
-                            {sentence}
-                            {why ? <span className="font-normal text-secondary"> · {why}</span> : null}
-                        </span>
-                    </div>
+                    <CardStateLine tone={card.tone} sentence={sentence} why={why} working={card.motion === "state"} />
                     <div
                         className="relative flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4"
                         data-testid="reviews-card-facts"
@@ -479,25 +451,13 @@ export function ReviewRow({
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                     {primary != null ? (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                run(primary);
-                            }}
-                            onKeyDown={stopRow}
-                            aria-disabled={primary.disabled != null ? true : undefined}
-                            aria-busy={primaryBusy || undefined}
-                            className={primary.disabled != null ? DisabledButton : molten ? MoltenButton : CalmButton}
-                            title={primaryTitle || undefined}
-                            data-testid="reviews-card-primary"
-                            data-action={primary.id}
-                            data-molten={molten || undefined}
-                        >
-                            {primaryBusy ? <DominoLoader /> : null}
-                            {word(primary.label)}
-                            {molten && primary.disabled == null ? <MoltenWave /> : null}
-                        </button>
+                        <CardPrimaryButton
+                            primary={primary}
+                            molten={molten}
+                            title={primaryTitle}
+                            busy={primaryBusy}
+                            onRun={() => run(primary)}
+                        />
                     ) : null}
                     <button
                         type="button"
@@ -589,6 +549,93 @@ export function ReviewRow({
             />
         </div>
     );
+}
+
+// The card's state line: its dot (or the dominoes while something works, #1085), its sentence and its reason. A
+// Leftovers card whose owner was asked draws the same (#1143).
+export function CardStateLine({
+    tone,
+    sentence,
+    why,
+    working,
+}: {
+    tone: CardTone;
+    sentence: string;
+    why: string;
+    working: boolean;
+}) {
+    return (
+        <div
+            className={cn("flex min-w-0 items-baseline gap-1.5 text-12 leading-4 font-medium", SentenceClasses[tone])}
+            data-testid="reviews-card-state"
+        >
+            {/* Something works and nothing is the developer's (#1085): the dominoes, unless an agent line of the card
+                already shows them. */}
+            {working ? (
+                <span className="-mx-1 inline-flex shrink-0 scale-75 self-center" data-testid="reviews-card-working">
+                    <DominoLoader />
+                </span>
+            ) : (
+                <span
+                    className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
+                    style={{ background: RailColours[tone] }}
+                    aria-hidden
+                    data-testid="reviews-card-dot"
+                />
+            )}
+            <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
+                {sentence}
+                {why ? <span className="font-normal text-secondary"> · {why}</span> : null}
+            </span>
+        </div>
+    );
+}
+
+// The card's one primary action: molten when it is the developer's move now, calm otherwise, the calm look with its
+// reason when refused. A Leftovers card whose owner was asked uses the same button (#1143): Answer {name}, Follow {name}.
+export function CardPrimaryButton({
+    primary,
+    molten,
+    title,
+    busy,
+    onRun,
+}: {
+    primary: CardAction;
+    molten: boolean;
+    title: string;
+    busy: boolean;
+    onRun: () => void;
+}) {
+    const word = useWordPhrase();
+    return (
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                onRun();
+            }}
+            onKeyDown={stopRow}
+            aria-disabled={primary.disabled != null ? true : undefined}
+            aria-busy={busy || undefined}
+            className={primary.disabled != null ? DisabledButton : molten ? MoltenButton : CalmButton}
+            title={title || undefined}
+            data-testid="reviews-card-primary"
+            data-action={primary.id}
+            data-molten={molten || undefined}
+        >
+            {busy ? <DominoLoader /> : null}
+            {word(primary.label)}
+            {molten && primary.disabled == null ? <MoltenWave /> : null}
+        </button>
+    );
+}
+
+// What an agent action's button names on hover (Answer, Follow), as the PR card says it.
+export function agentActionTitle(action: CardAction, name: Phrase): Phrase {
+    if (action.id !== "answer" && action.id !== "follow") {
+        return null;
+    }
+    return phrase(`reviews.card.actionTitle.${action.id}`, { name });
 }
 
 // One fact; the test report opens where it was posted.

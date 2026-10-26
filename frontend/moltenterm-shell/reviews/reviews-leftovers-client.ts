@@ -17,14 +17,16 @@ import {
     runReviewCleanup,
 } from "../review/review-cleanup";
 import { closePanels } from "../review/review-panels";
+import { LeftoverAsks } from "./reviews-leftover-asks";
+import { heldByLiveOwner, ownerReachable } from "./reviews-leftover-owner-model";
 import {
     busyAgents,
     cleanedUp,
     cleanupNotes,
     keptAgentStep,
-    leftoverSteps,
     leftoverKey,
     LeftoverRemoteStep,
+    leftoverSteps,
     panelsClosable,
 } from "./reviews-leftovers-model";
 import { upcomingGet } from "./reviews-upcoming-client";
@@ -91,11 +93,18 @@ export class LeftoversModel {
         };
     }
 
-    // cleanUp: Clean up on one card. busyConfirmed: the developer already chose to stop the agents at work.
+    // cleanUp: Clean up on one card. busyConfirmed: the developer already chose to stop the agents at work. A worktree a
+    // live agent holds is its owner's to remove (#1143): the owner is asked, and the rest goes now.
     async cleanUp(target: LeftoverTarget, busyConfirmed = false) {
         const { dir, leftover } = target;
         if (this.stateOf(dir, leftover.pr).busy) {
             return;
+        }
+        if (heldByLiveOwner(leftover) && ownerReachable(leftover.owner)) {
+            const asked = await this.askOwner(target);
+            if (asked) {
+                return;
+            }
         }
         const busy = busyAgents(target.agents);
         if (busy.length > 0 && !busyConfirmed) {
@@ -113,6 +122,40 @@ export class LeftoversModel {
             const again = await removeKeptWorktree(req, kept);
             return { result: mergeResults(result, again), kept: keptAgentStep(again), busyConfirmed };
         });
+    }
+
+    // askOwner asks the owner of the worktree, then cleans what no owner holds (the review worktree, the copies); origin's
+    // branch waits for the worktree to go. false: wavesrv found nobody to ask (the lock ended, or no terminal runs its
+    // holder), the usual cleanup applies.
+    async askOwner(target: LeftoverTarget): Promise<boolean> {
+        const { dir, repo, leftover } = target;
+        this.patch(dir, leftover.pr, { busy: true, error: null, notes: null, confirm: null });
+        try {
+            const ask = await LeftoverAsks.getInstance().ask({
+                dir,
+                repo,
+                number: leftover.pr,
+                url: leftover.url,
+                worktree: leftover.worktree,
+                closed: leftover.state === "closed" ? true : undefined,
+                base: leftover.base,
+                local: leftover.local ? true : undefined,
+            });
+            if (ask?.state !== "asked" && ask?.state !== "needsyou") {
+                return false;
+            }
+            const steps = leftoverSteps(leftover).filter((s) => s !== "agent-worktree" && s !== "local-branch");
+            if (steps.length > 0) {
+                const result = await runReviewCleanup({ ...this.request(target), steps });
+                this.patch(dir, leftover.pr, { notes: cleanupNotes(t, result, leftover) });
+            }
+            return true;
+        } catch (e) {
+            this.patch(dir, leftover.pr, { error: String(e?.message ?? e) });
+            return true;
+        } finally {
+            this.patch(dir, leftover.pr, { busy: false });
+        }
     }
 
     // confirm: the developer's yes to the open confirmation of the card.
