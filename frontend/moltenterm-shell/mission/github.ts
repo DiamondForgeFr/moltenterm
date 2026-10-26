@@ -6,6 +6,7 @@
 // with their next runs. The panel only looks: merging stays on GitHub, one click away.
 
 import { t } from "../i18n/i18n";
+import { parseReleaseNotes } from "../releases/release-notes-catalog";
 import { labelRecord } from "./mission-i18n";
 
 export type CheckState = "success" | "failure" | "pending" | "neutral";
@@ -211,6 +212,22 @@ export function plainText(markdown: string): string {
         .join("\n")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
+}
+
+function headingText(markdown: string): string {
+    return (markdown ?? "")
+        .split("\n")
+        .filter((l) => /^\s*#/.test(l))
+        .map((l) => plainText(l.replace(/^\s*#+\s*/, "")))
+        .filter(Boolean)
+        .join("\n");
+}
+
+// A release's notes as plain text, wherever an excerpt of them shows: the front matter (`date`, `draft`) is not part of
+// what one reads. Headings are skipped like plainText does, unless the notes hold nothing else.
+export function releaseNotesText(notes: string): string {
+    const { body } = parseReleaseNotes(notes ?? "");
+    return plainText(body) || headingText(body);
 }
 
 function section(markdown: string, headings: readonly string[]): string {

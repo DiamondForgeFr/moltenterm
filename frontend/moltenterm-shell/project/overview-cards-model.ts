@@ -9,7 +9,7 @@ import { CompanionView } from "../companion/companion-model";
 import { AgentRow, agentsView } from "../companion/companion-recap-model";
 import { getLocale, t, tCount } from "../i18n/i18n";
 import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
-import { Milestone, milestoneKey, plainText } from "../mission/github";
+import { Milestone, milestoneKey, releaseNotesText } from "../mission/github";
 import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
 import { ReleaseState } from "../mission/versions";
 
@@ -162,7 +162,7 @@ export function nextReleaseView(
 
 // The start of a release's notes as one reads them: no headings, no tables, the first lines up to a few sentences.
 export function notesExcerpt(notes: string, max = NotesExcerptChars): string {
-    const text = plainText(notes ?? "")
+    const text = releaseNotesText(notes)
         .replace(/\n{2,}/g, "\n")
         .trim();
     if (text.length <= max) {

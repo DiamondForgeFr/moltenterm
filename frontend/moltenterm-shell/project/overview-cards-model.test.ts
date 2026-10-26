@@ -202,6 +202,12 @@ describe("releases card", () => {
         expect(excerpt).not.toMatch(/ …$/);
         expect(notesExcerpt(null)).toBe("");
     });
+
+    it("starts the excerpt after the notes' front matter", () => {
+        const notes = "---\ndate: 2026-10-22\n---\n\n## What this version brings\n\nYou can validate a pull request.";
+        expect(notesExcerpt(notes)).toBe("You can validate a pull request.");
+        expect(notesExcerpt("---\ndate: 2026-10-22\n---\n")).toBe("");
+    });
 });
 
 describe("now card", () => {

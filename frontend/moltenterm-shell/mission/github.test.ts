@@ -8,6 +8,7 @@ import {
     nextRuns,
     parseCron,
     prSummary,
+    releaseNotesText,
     runState,
     scheduledWorkflows,
     summarizeChecks,
@@ -110,5 +111,28 @@ describe("prSummary", () => {
         expect(prSummary("## Summary\n\n- Adds **panels**\n\n## Tests\nall")).toBe("• Adds panels");
         expect(prSummary("Resolves #31\nShows the plan.")).toBe("Shows the plan.");
         expect(prSummary("")).toBeNull();
+    });
+});
+
+describe("releaseNotesText", () => {
+    it("leaves the front matter out", () => {
+        const notes = "---\ndate: 2026-10-22\n---\n\n## What this version brings\n\nYou can **validate** a pull request.\n";
+        expect(releaseNotesText(notes)).toBe("You can validate a pull request.");
+    });
+
+    it("reads notes without front matter as before", () => {
+        expect(releaseNotesText("First line.\n\n- an item")).toBe("First line.\n\n• an item");
+    });
+
+    it("has nothing to show for a front matter alone", () => {
+        expect(releaseNotesText("---\ndate: 2026-10-22\ndraft: true\n---\n")).toBe("");
+        expect(releaseNotesText(null)).toBe("");
+    });
+
+    it("skips a heading that comes first, and keeps it when it is all the notes say", () => {
+        expect(releaseNotesText("# v1.0.0-6\n\nThe first paragraph.")).toBe("The first paragraph.");
+        expect(releaseNotesText("---\ndate: 2026-10-22\n---\n## Fixes for the **Versions** card")).toBe(
+            "Fixes for the Versions card"
+        );
     });
 });
