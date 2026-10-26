@@ -198,6 +198,19 @@ describe("the setup's pull request (#1098)", () => {
         );
         expect(html).toContain("The project&#x27;s .gitignore ignores docs/engineering/");
         expect(html).toContain("a new file there needs git add -f");
+        const failed = renderToStaticMarkup(
+            <PrPanel
+                dir="/p"
+                plan={plan}
+                choice={newTicket}
+                onChoice={() => {}}
+                job={job({ finished: true, ticket: 1114, failure: { code: "push" } })}
+                busy={false}
+                error={null}
+                onAgain={() => {}}
+            />
+        );
+        expect(failed).toContain("feature/1114-release-pipeline");
         const none = renderToStaticMarkup(
             <PrPanel
                 dir="/p"
