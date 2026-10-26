@@ -153,6 +153,8 @@ type Setup struct {
 
 	jobLock sync.Mutex
 	jobs    map[string]*PrJob
+	// The ticket a job created, per project and kind, until its pull request is made: a retry reuses it (#1146).
+	createdTickets map[string]int
 }
 
 // MakeSetup: SaaSFoundryAI's CLI first, MoltenTerm's detection as the fallback.

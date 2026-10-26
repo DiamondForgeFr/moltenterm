@@ -3916,6 +3916,10 @@
                     "failed": "La pull request n’a pas pu être préparée. Votre copie n’a pas changé.",
                     "includeConflict": "Vos modifications non commitées sont en conflit avec {ref}. Préparez à nouveau sans elles, ou commitez-les d’abord."
                 },
+                "ignored": {
+                    "local": "Les réglages git de cet ordinateur ignorent {pattern} ({source}) ; la pull request ajoute quand même ces fichiers : {files}. {source} n’est pas modifié.",
+                    "shared": "Le {source} du projet ignore {pattern} ; la pull request ajoute quand même ces fichiers : {files}. Chaque clone les ignore de la même façon : un nouveau fichier à cet endroit demande git add -f. {source} n’est pas modifié."
+                },
                 "conflict": "Elles modifient les mêmes lignes que {ref} : commitez-les ou rebasez-les d’abord pour les inclure.",
                 "includedAsChanges": "Vos modifications non commitées sont incluses comme changements à vérifier : chacune est listée ci-dessous, cochée, et vous pouvez en laisser de côté. Votre copie les garde telles quelles.",
                 "descNoRemote": "Ce dépôt n’a pas de dépôt distant (origin) : MoltenTerm fait le commit dans un worktree à lui et le copie en patch, à appliquer là où votre projet reçoit les changements. Votre copie de travail n’est pas touchée."

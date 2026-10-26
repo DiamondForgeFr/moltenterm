@@ -13,7 +13,15 @@ import { openWebLink } from "../open-web-link";
 import { DominoLoader } from "../suite/suite";
 import { DiffView } from "./release-setup";
 import { setupPrState, setupTickets } from "./release-setup-client";
-import { prNamesOf, SetupPrJob, SetupPrPlan, SetupPrStep, SetupTicket, SetupTicketChoice } from "./release-setup-model";
+import {
+    prNamesOf,
+    SetupPrIgnored,
+    SetupPrJob,
+    SetupPrPlan,
+    SetupPrStep,
+    SetupTicket,
+    SetupTicketChoice,
+} from "./release-setup-model";
 
 const SectionClass = "flex flex-col gap-2 rounded-6 border border-border p-3";
 const SectionTitle = "text-12 font-medium text-primary";
@@ -352,6 +360,27 @@ function Outcome({ job, onAgain }: { job: SetupPrJob; onAgain: () => void }) {
     );
 }
 
+// An ignore rule matched files the setup wrote: they are committed anyway, and the rule's place is named (#1146).
+function IgnoredNote({ ignored }: { ignored: SetupPrIgnored[] }) {
+    const t = useT();
+    if (!ignored?.length) {
+        return null;
+    }
+    return (
+        <div className="flex flex-col gap-1 rounded-4 border border-border px-3 py-2 text-12" data-testid="setup-pr-ignored">
+            {ignored.map((rule) => (
+                <p key={rule.source + "\u0000" + rule.pattern} className="text-secondary">
+                    {t(rule.shared ? "mc.setup.pr.ignored.shared" : "mc.setup.pr.ignored.local", {
+                        pattern: rule.pattern,
+                        source: rule.source,
+                        files: rule.files.join(", "),
+                    })}
+                </p>
+            ))}
+        </div>
+    );
+}
+
 // The Validate block: the plan before the click, the job's progress and outcome after it.
 export function PrPanel({
     dir,
@@ -439,6 +468,7 @@ export function PrPanel({
             ) : (
                 <p className="text-11 text-muted">{t("mc.setup.pr.after", { target: plan.target })}</p>
             )}
+            {job != null ? <IgnoredNote ignored={job.ignored} /> : null}
             {job != null ? <Outcome job={job} onAgain={onAgain} /> : null}
             {error ? (
                 <p className="text-12 text-danger" role="alert">

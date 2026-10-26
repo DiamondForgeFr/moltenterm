@@ -255,7 +255,10 @@ export type SetupPrJob = {
     files: string[];
     // The technical documentation's backend page, once written (FR-MC-043).
     docurl?: string;
+    ignored?: SetupPrIgnored[];
 };
+// An ignore rule matching files the setup wrote; they are committed anyway (#1146). shared: a .gitignore of the project.
+export type SetupPrIgnored = { source: string; pattern: string; shared: boolean; files: string[] };
 
 // must match TechDocPlan and TechDocLink in pkg/molten/pipelinesetup/techdocplan.go (FR-MC-043)
 export type SetupTechDocPlan = {
