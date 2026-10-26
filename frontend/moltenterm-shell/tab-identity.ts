@@ -10,6 +10,7 @@ import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
 import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
+import { MoltentermPipelineView, PipelineTabIcon } from "./mission/pipeline-tab-model";
 import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
 import { readReviewDoneMeta, ReviewDoneMeta, ReviewDoneMetaKey } from "./review/review-done";
 import { MoltentermReviewAiView } from "./review/review-model";
@@ -40,6 +41,7 @@ const Views: Record<string, ViewFacts> = {
     [CicdView]: { icon: "list-check", title: "tabs.views.cicd" },
     [ReviewsView]: { icon: "code-pull-request", title: "tabs.views.reviews" },
     [ReviewView]: { icon: "code-compare", title: "tabs.views.review" },
+    [MoltentermPipelineView]: { icon: PipelineTabIcon, title: "tabs.views.pipeline" },
     [MoltentermCompanionView]: { icon: "book-open", title: "tabs.views.companion" },
     sysinfo: { icon: "chart-line", title: "tabs.views.system" },
     launcher: { icon: "shapes", title: "tabs.views.launcher" },

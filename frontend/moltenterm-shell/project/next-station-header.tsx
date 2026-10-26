@@ -287,10 +287,9 @@ export function NextStationHeader({
                                 showRuns();
                             }}
                             onShowRelease={showRuns}
-                            onSetUp={refresh}
                         />
                     ) : snapshot != null && !snapshot.pipeline?.present ? (
-                        <ReleaseSetupEntry dir={project.dir} projectName={projectName} onSetUp={refresh} />
+                        <ReleaseSetupEntry dir={project.dir} projectName={projectName} />
                     ) : null}
                     <DeployMenu
                         targets={deployTargets(pipeline, runs)}

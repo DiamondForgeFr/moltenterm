@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The deployment pipeline setup (FR-MC-036, FR-MC-038, DS-MC-030): a stepper over the window, like Validate's (#672).
+// The deployment pipeline setup (FR-MC-036, FR-MC-038, DS-MC-030): a stepper in the setup's own tab (#1150).
 // It drafts the missing release flow from the repository (SaaSFoundryAI's CLI when it offers one, else MoltenTerm's
 // detection), lets the developer confirm the app type, what to set up and each choice with a live diagram, then shows
 // the whole flow and the diff of .molten/project.json. The setup reads the committed pipeline and never writes the folder opened: the click
@@ -9,7 +9,6 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
@@ -707,13 +706,17 @@ export function ReleaseSetup({
     onClose,
     onWritten,
     openAt,
+    aside,
 }: {
     dir: string;
     projectName: string;
+    // Closes the setup's tab (#1150): the answers stay saved.
     onClose: () => void;
     onWritten: () => void;
     // The step to open at instead of the one saved: the Release menu's update opens at step 2 (#1102).
     openAt?: StepperStep;
+    // Shown under the title: the tab's "Start an agent here" (#1150).
+    aside?: React.ReactNode;
 }) {
     const t = useT();
     const [draft, setDraft] = useState<SetupDraft>(null);
@@ -973,7 +976,6 @@ export function ReleaseSetup({
     const openPipelineFile = () =>
         fireAndForget(async () => {
             const { createBlock } = await import("@/app/store/global");
-            onClose();
             await createBlock({ meta: { view: "preview", file: `${dir}/.molten/project.json` } });
         });
     const choosePath = (next: SetupPath) => {
@@ -1043,7 +1045,6 @@ export function ReleaseSetup({
     const openReviews = (prDir: string, number: number) =>
         fireAndForget(async () => {
             const { ReviewsModel } = await import("../reviews/reviews-store");
-            onClose();
             await ReviewsModel.getInstance().openReviews(prDir, number);
         });
     const again = () => {
@@ -1144,13 +1145,10 @@ export function ReleaseSetup({
             <UncommittedNotice plan={draft.pr} current={draft.current} onInclude={include} />
         ) : null;
     return (
-        <DialogFrame
-            role="mc-release-setup"
+        <SetupPanelFrame
             title={t("mc.setup.title", { project: projectName })}
             subtitle={t("mc.setup.subtitle")}
-            subtitleWraps
-            fill
-            onEscape={writing ? undefined : onClose}
+            aside={aside}
             buttons={
                 <>
                     <span className="mr-auto flex items-center gap-2 text-11 text-muted">
@@ -1478,6 +1476,39 @@ export function ReleaseSetup({
                     ) : null}
                 </div>
             )}
-        </DialogFrame>
+        </SetupPanelFrame>
+    );
+}
+
+// The setup's frame in its tab (#1150): the title and its subtitle, what the tab adds under them (the agent), the
+// step's content scrolling, and the buttons always in view.
+function SetupPanelFrame({
+    title,
+    subtitle,
+    aside,
+    children,
+    buttons,
+}: {
+    title: string;
+    subtitle: string;
+    aside?: React.ReactNode;
+    children: React.ReactNode;
+    buttons: React.ReactNode;
+}) {
+    return (
+        <div className="flex h-full min-h-0 w-full flex-col" data-role="mc-release-setup">
+            <div className="shrink-0 border-b border-border px-4 py-3">
+                <div className="text-13 leading-5 font-semibold">{title}</div>
+                <div className="mt-0.5 text-12 text-muted">{subtitle}</div>
+                {aside ? <div className="mt-2">{aside}</div> : null}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4 py-3 text-12">{children}</div>
+            <div
+                data-dialog-buttons
+                className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3"
+            >
+                {buttons}
+            </div>
+        </div>
     );
 }

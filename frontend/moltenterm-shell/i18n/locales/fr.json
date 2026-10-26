@@ -4964,6 +4964,7 @@
             "cicd": "CI/CD",
             "reviews": "Pilotage",
             "review": "Revue",
+            "pipeline": "Mise en place du pipeline",
             "companion": "Compagnon",
             "system": "Système",
             "launcher": "Lanceur",
@@ -8559,6 +8560,23 @@
             "none": "Aucune permission de site enregistrée.",
             "allowed": "Autorisé",
             "blocked": "Bloqué"
+        }
+    },
+    "pipelineTab": {
+        "name": "Pipeline · {project}",
+        "viewName": "Mise en place du pipeline",
+        "noProject": "Aucun projet à mettre en place",
+        "noProjectHint": "Rouvrez la mise en place depuis le menu Release du panneau Projet.",
+        "help": {
+            "ask": "Demander de l'aide",
+            "hint": "Votre agent de code répond dans un terminal qui s'ouvre à gauche. Rien ne démarre sans votre clic.",
+            "hintNamed": "{agent} répond dans un terminal qui s'ouvre à gauche. Rien ne démarre sans votre clic.",
+            "sent": "Question transmise à {agent}, dans le terminal de gauche.",
+            "none": "Aucun agent de code n'est installé : les étapes restent décrites, sans conversation.",
+            "missing": "{agent} est choisi pour ce projet mais n'est pas installé sur cet ordinateur.",
+            "choose": "Choisir un agent",
+            "busy": "Le terminal de gauche exécute déjà quelque chose : attendez qu'il ait fini, ou arrêtez-le, puis redemandez.",
+            "failed": "L'agent n'a pas pu être sollicité. Regardez le terminal de gauche, ou réessayez."
         }
     },
     "codingAgent": {

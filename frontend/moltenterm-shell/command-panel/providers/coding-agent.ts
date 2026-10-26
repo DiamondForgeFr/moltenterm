@@ -16,6 +16,7 @@ import {
     rememberProjectAgent,
 } from "../../coding-agent/coding-agent";
 import { t } from "../../i18n/i18n";
+import { MoltentermPipelineView, PipelinePanelMetaKey, readPipelineTarget } from "../../mission/pipeline-tab-model";
 import { ReviewPrMetaKey } from "../../review/review-client";
 import { readWorkspaceProject } from "../../workspace-project";
 import { readSettings, writeSettings } from "../bindings";
@@ -29,13 +30,18 @@ export const CodingAgentViews = new Set([
     "molten-project",
     "molten-timeline",
     "molten-companion",
+    MoltentermPipelineView,
 ]);
 
-// The project a panel works on: the Review tab's PR's, else the workspace's.
+// The project a panel works on: the Review tab's PR's, the pipeline setup's, else the workspace's.
 export function codingAgentDir(ctx: PanelContext): string {
     const pr = ctx.meta?.[ReviewPrMetaKey as keyof MetaType] as { dir?: string };
     if (typeof pr?.dir === "string" && pr.dir) {
         return pr.dir;
+    }
+    const pipeline = readPipelineTarget(ctx.meta?.[PipelinePanelMetaKey as keyof MetaType]);
+    if (pipeline != null) {
+        return pipeline.dir;
     }
     return readWorkspaceProject(globalStore.get(atoms.workspace)).dir;
 }

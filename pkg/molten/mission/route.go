@@ -305,6 +305,26 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return ensureProjectTab(req)
 	}
+	if command == PipelineTabCommand {
+		var req PipelineTabRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return openPipelineTab(req)
+	}
+	if command == PipelineAskCommand {
+		var req PipelineAskRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), pipelineAskWait+15*time.Second)
+		defer cancel()
+		answersDir := ""
+		if l.setup != nil {
+			answersDir = l.setup.AnswersDir
+		}
+		return askPipelineAgent(ctx, defaultPipelineAskEnv(pipelineBriefDir(answersDir)), req)
+	}
 	if command == ReviewsCommand {
 		var req ReviewsRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -441,6 +461,8 @@ var windowCommands = map[string]string{
 	JobDescribeCommand:     "an agent can only be asked to describe a job from a MoltenTerm window",
 	WorktreeRemoveCommand:  "a worktree can only be removed from a MoltenTerm window",
 	ProjectTabCommand:      "the Project tab can only be opened from a MoltenTerm window",
+	PipelineTabCommand:     "the pipeline setup's tab can only be opened from a MoltenTerm window",
+	PipelineAskCommand:     "the pipeline setup's agent is asked from a MoltenTerm window",
 	ReleaseStartCommand:    "a release is started from a MoltenTerm window",
 	ReleaseStepCommand:     "a release step is run from a MoltenTerm window",
 	ReleaseRerunCommand:    "a release's jobs are run again from a MoltenTerm window",
