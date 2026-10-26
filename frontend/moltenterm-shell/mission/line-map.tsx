@@ -23,7 +23,7 @@ import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
 import { filterBranches } from "../widget-options";
 import { CiBranch } from "./ci-model";
-import { plainText } from "./github";
+import { releaseNotesText } from "./github";
 import { BuildMarker } from "./line-map-builds";
 import { GeometryBranch, GeometryBuild, GeometryStation, layoutLineMap, LineMapGeometry } from "./line-map-geometry";
 import {
@@ -393,7 +393,7 @@ function Hint({ url, what }: { url: string; what: string }) {
 
 function StationDetail({ s }: { s: LineMapStation }) {
     const t = useT();
-    const notes = s.notes ? plainText(s.notes).trim() : "";
+    const notes = s.notes ? releaseNotesText(s.notes).trim() : "";
     return (
         <>
             <div className="font-semibold text-primary">
