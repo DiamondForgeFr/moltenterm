@@ -26,7 +26,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { currentEqualize } from "../equalize/equalize-actions";
@@ -42,6 +42,16 @@ import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView, toggleMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
+import { productKeysOf } from "../rail-groups";
+import { useRailGroups, useStoredLocalGroups, useWorkspaceLinksKey } from "../rail-groups-store";
+import {
+    effectiveLocalGroups,
+    groupWithChoices,
+    joinRailGroup,
+    leaveRailGroup,
+    localGroupOf,
+    LocalRailGroup,
+} from "../rail-local-groups";
 import { railCustomWidgets, railWidgetTooltip } from "../rail-tools-model";
 import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -64,6 +74,7 @@ import { View360ExitHost, view360MenuItems } from "../view360/view360-toggle";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
 import { openWorkspaceEditor } from "../workspace-edit";
+import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "../workspace-rail-model";
@@ -74,7 +85,10 @@ import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
+    dotDropSlot,
+    dotMoveKey,
     dropTargetAt,
+    groupWithJoin,
     moveTabBefore,
     readProjectType,
     SidebarDefaultWidth,
@@ -124,9 +138,105 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
     return makeWorkspaceRailEntries(sources, active);
 }
 
-// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, keep awake while working, reset, delete.
-// Grouping needs the rail's connect mode: `molten rail group` and the shell:workspacesidebar fallback keep it.
+// The workspaces the dots show, and what grouping needs: the saved ones in rail order, the project products and the
+// local groups (FR-MC-027, FR-MC-032), read as the rail reads them.
+type SidebarWorkspaces = {
+    entries: WorkspaceRailEntry[];
+    savedIds: string[];
+    productKeys: Map<string, string>;
+    localGroups: LocalRailGroup[];
+};
+
+function useSidebarWorkspaces(): SidebarWorkspaces {
+    const entries = useWorkspaceEntries();
+    const savedKey = entries
+        .filter((e) => e.saved)
+        .map((e) => e.id)
+        .join(" ");
+    const savedIds = useMemo(() => (savedKey ? savedKey.split(" ") : []), [savedKey]);
+    const groups = useRailGroups(useWorkspaceLinksKey(savedIds));
+    const productKeys = useMemo(() => productKeysOf(groups), [groups]);
+    const stored = useStoredLocalGroups();
+    const localGroups = useMemo(
+        () => effectiveLocalGroups(stored, savedIds, productKeys),
+        [stored, savedIds, productKeys]
+    );
+    return { entries, savedIds, productKeys, localGroups };
+}
+
+function runGroupCall(call: () => Promise<void>) {
+    fireAndForget(async () => {
+        try {
+            await call();
+        } catch (err) {
+            console.log("sidebar workspace groups:", err);
+        }
+    });
+}
+
+// "Group with…" and "Remove from group", as the rail offered them (FR-MC-032); a workspace of a project product is
+// grouped by its project. #1191's multi-project workspaces replace them.
+function groupMenuItems(
+    entry: WorkspaceRailEntry,
+    workspaces: SidebarWorkspaces,
+    t: (key: string, vars?: Record<string, any>) => string
+): ContextMenuItem[] {
+    if (!entry.saved || workspaces.productKeys.has(entry.id)) {
+        return [];
+    }
+    const names = new Map(workspaces.entries.map((e) => [e.id, e.name]));
+    const own = localGroupOf(workspaces.localGroups, entry.id);
+    const choices = groupWithChoices(
+        entry.id,
+        workspaces.savedIds,
+        workspaces.productKeys,
+        workspaces.localGroups,
+        (id) => names.get(id)
+    );
+    const section = t("rail.menu.groupSection");
+    const items: ContextMenuItem[] = [];
+    if (choices.length > 0) {
+        items.push({
+            label: t("rail.menu.groupWith"),
+            icon: "link",
+            section,
+            type: "submenu",
+            submenu: choices.map((choice) => ({
+                label: choice.label,
+                click: () => runGroupCall(() => joinRailGroup(groupWithJoin(entry.id, choice, own?.id))),
+            })),
+        });
+    }
+    if (own != null) {
+        items.push({
+            label: t("rail.menu.removeFromGroup"),
+            icon: "link-slash",
+            section,
+            click: () => runGroupCall(() => leaveRailGroup({ workspaceid: entry.id })),
+        });
+    }
+    return items;
+}
+
+// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, keep awake while working, grouping, reset,
+// delete.
 function workspaceMenuItems(
+    entry: WorkspaceRailEntry,
+    workspaces: SidebarWorkspaces,
+    anchor: HTMLElement,
+    platform: string,
+    t: (key: string, vars?: Record<string, any>) => string
+): ContextMenuItem[] {
+    const items = baseWorkspaceMenuItems(entry, workspaces.entries, anchor, platform, t);
+    const grouping = groupMenuItems(entry, workspaces, t);
+    const at = items.findIndex((item) => item.type === "separator");
+    if (grouping.length === 0 || at < 0) {
+        return items;
+    }
+    return [...items.slice(0, at), ...grouping, ...items.slice(at)];
+}
+
+function baseWorkspaceMenuItems(
     entry: WorkspaceRailEntry,
     entries: WorkspaceRailEntry[],
     anchor: HTMLElement,
@@ -253,13 +363,13 @@ export function SidebarContentStrip() {
     );
 }
 
-function WorkspaceHeader({ entries }: { entries: WorkspaceRailEntry[] }) {
+function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const platform = usePlatform();
     const ws = useAtomValue(atoms.workspace);
     const [menuOpen, setMenuOpen] = useState(false);
     const moreRef = useRef<HTMLButtonElement>(null);
-    const entry = entries.find((e) => e.id === ws?.oid);
+    const entry = workspaces.entries.find((e) => e.id === ws?.oid);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const type = readProjectType(ws);
     const openMenu = (anchor: HTMLElement) => {
@@ -268,7 +378,7 @@ function WorkspaceHeader({ entries }: { entries: WorkspaceRailEntry[] }) {
             return;
         }
         setMenuOpen(true);
-        showMenuUnder(anchor, workspaceMenuItems(entry, entries, anchor, platform, t), () => setMenuOpen(false));
+        showMenuUnder(anchor, workspaceMenuItems(entry, workspaces, anchor, platform, t), () => setMenuOpen(false));
     };
     return (
         <div
@@ -837,14 +947,24 @@ function BranchLine() {
     );
 }
 
+type DotDrag = {
+    // How far the dragged dot is drawn from its slot; null when it is not dragged.
+    offsetX: number;
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+    takeClick: () => boolean;
+    onMoveKey: (direction: -1 | 1) => void;
+};
+
 function WorkspaceDot({
     entry,
-    entries,
+    workspaces,
     unread,
+    drag,
 }: {
     entry: WorkspaceRailEntry;
-    entries: WorkspaceRailEntry[];
+    workspaces: SidebarWorkspaces;
     unread: number;
+    drag: DotDrag;
 }) {
     const t = useT();
     const tc = useTCount();
@@ -872,6 +992,9 @@ function WorkspaceDot({
     }
     const label = parts.join(" · ");
     const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (drag.takeClick()) {
+            return;
+        }
         if (!entry.active) {
             getApi().switchWorkspace(entry.id);
             return;
@@ -892,17 +1015,33 @@ function WorkspaceDot({
             className={cn(
                 "mt-sb-dot relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
                 entry.active && "is-on",
-                ring && "has-ring"
+                ring && "has-ring",
+                drag.offsetX != null && "z-10"
             )}
-            style={{ ["--mt-sb-dot-colour" as string]: ringColour } as React.CSSProperties}
+            style={
+                {
+                    ["--mt-sb-dot-colour" as string]: ringColour,
+                    transform: drag.offsetX != null ? `translateX(${drag.offsetX}px)` : undefined,
+                } as React.CSSProperties
+            }
             onClick={onClick}
+            onPointerDown={entry.saved ? drag.onPointerDown : undefined}
+            onKeyDown={(e) => {
+                const direction = dotMoveKey(e);
+                if (direction == null || !entry.saved) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                drag.onMoveKey(direction);
+            }}
             onContextMenu={(e) => {
                 e.preventDefault();
                 if (!entry.saved) {
                     return;
                 }
                 const anchor = e.currentTarget;
-                showMenuUnder(anchor, workspaceMenuItems(entry, entries, anchor, platform, t));
+                showMenuUnder(anchor, workspaceMenuItems(entry, workspaces, anchor, platform, t));
             }}
         >
             <i className="font-semibold" style={{ background: paint, color: letterColour }}>
@@ -912,19 +1051,101 @@ function WorkspaceDot({
     );
 }
 
-function WorkspaceDots({ entries }: { entries: WorkspaceRailEntry[] }) {
+function moveWorkspaceDot(move: RailMove, refocus: boolean) {
+    if (move == null) {
+        return;
+    }
+    fireAndForget(async () => {
+        try {
+            await moveWorkspace(move);
+        } catch (err) {
+            console.log("moving a workspace dot:", err);
+        }
+        if (refocus) {
+            requestAnimationFrame(() =>
+                document
+                    .querySelector<HTMLElement>(
+                        `[data-testid='sidebar-workspace-dot'][data-workspace-id="${CSS.escape(move.workspaceid)}"]`
+                    )
+                    ?.focus()
+            );
+        }
+    });
+}
+
+// The rail's reorder, on the dots (FR-MC-031): drag a dot sideways, or ⌥⇧ and an arrow on the focused one. wavesrv keeps
+// the order and sorts the list by it.
+function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const notifications = useAtomValue(MoltentermNotifications.getInstance().shownEntriesAtom);
     const unread = unreadByWorkspace(notifications);
+    const rowRef = useRef<HTMLDivElement>(null);
+    const [dragging, setDragging] = useState<{ id: string; offsetX: number }>(null);
+    const suppressClickRef = useRef<string>(null);
+    const savedIdsRef = useRef(workspaces.savedIds);
+    savedIdsRef.current = workspaces.savedIds;
+    const startDrag = (id: string) => (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (e.button !== 0) {
+            return;
+        }
+        const startX = e.clientX;
+        let started = false;
+        const centres = Array.from(
+            rowRef.current?.querySelectorAll<HTMLElement>("[data-testid='sidebar-workspace-dot']") ?? []
+        )
+            .filter((el) => savedIdsRef.current.includes(el.dataset.workspaceId))
+            .map((el) => {
+                const r = el.getBoundingClientRect();
+                return { id: el.dataset.workspaceId, x: r.left + r.width / 2 };
+            });
+        const onMove = (ev: PointerEvent) => {
+            if (!started && Math.abs(ev.clientX - startX) < DragThresholdPx) {
+                return;
+            }
+            started = true;
+            setDragging({ id, offsetX: ev.clientX - startX });
+        };
+        const onUp = (ev: PointerEvent) => {
+            document.removeEventListener("pointermove", onMove);
+            document.removeEventListener("pointerup", onUp);
+            setDragging(null);
+            if (!started) {
+                return;
+            }
+            suppressClickRef.current = id;
+            const own = centres.find((c) => c.id === id);
+            const slot = dotDropSlot(centres, id, (own?.x ?? startX) + ev.clientX - startX);
+            moveWorkspaceDot(slotMove(savedIdsRef.current, id, slot), false);
+        };
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onUp);
+    };
+    const dragOf = (id: string): DotDrag => ({
+        offsetX: dragging?.id === id ? dragging.offsetX : null,
+        onPointerDown: startDrag(id),
+        takeClick: () => {
+            const taken = suppressClickRef.current === id;
+            suppressClickRef.current = null;
+            return taken;
+        },
+        onMoveKey: (direction) => moveWorkspaceDot(neighbourMove(savedIdsRef.current, id, direction), true),
+    });
     return (
         <div
+            ref={rowRef}
             role="tablist"
             aria-label={t("rail.workspaces")}
             className="flex min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden"
             data-testid="sidebar-workspace-dots"
         >
-            {entries.map((entry) => (
-                <WorkspaceDot key={entry.id} entry={entry} entries={entries} unread={unread.get(entry.id) ?? 0} />
+            {workspaces.entries.map((entry) => (
+                <WorkspaceDot
+                    key={entry.id}
+                    entry={entry}
+                    workspaces={workspaces}
+                    unread={unread.get(entry.id) ?? 0}
+                    drag={dragOf(entry.id)}
+                />
             ))}
         </div>
     );
@@ -1179,7 +1400,7 @@ export function WorkspaceSidebar() {
     const peek = useAtomValue(model.peekAtom);
     const ws = useAtomValue(atoms.workspace);
     const activeTabId = useAtomValue(atoms.staticTabId);
-    const entries = useWorkspaceEntries();
+    const workspaces = useSidebarWorkspaces();
     const asideRef = useRef<HTMLElement>(null);
     const peekTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
     const split = useAtomValue(model.tabSplitAtom);
@@ -1222,7 +1443,7 @@ export function WorkspaceSidebar() {
             >
                 <WindowRow leftInset={hidden ? 18 : 8} />
                 <div className="mt-sb-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-                    <WorkspaceHeader entries={entries} />
+                    <WorkspaceHeader workspaces={workspaces} />
                     <TileGrid
                         tileIds={split.tiles}
                         activeTabId={activeTabId}
@@ -1233,12 +1454,12 @@ export function WorkspaceSidebar() {
                 <BranchLine />
                 <div className="flex shrink-0 items-center gap-1.5 border-t border-white/10 pt-1.5">
                     <LibraryButton />
-                    <WorkspaceDots entries={entries} />
+                    <WorkspaceDots workspaces={workspaces} />
                     <PlusButton />
                 </div>
             </aside>
             {hidden ? null : <WidthGrip width={width} />}
-            <SidebarHosts entries={entries} />
+            <SidebarHosts entries={workspaces.entries} />
         </>
     );
 }

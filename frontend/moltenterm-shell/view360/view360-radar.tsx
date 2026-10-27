@@ -12,6 +12,7 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useMemo, useRef, useState } from "react";
 import { useLocale } from "../i18n/i18n";
+import { SidebarModel } from "../sidebar/sidebar-store";
 import { suiteIcon } from "../suite/suite-icons";
 import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
 import {
@@ -25,6 +26,8 @@ import {
 } from "./radar-model";
 import { makeRadarFactsAtom, radarColumns } from "./radar-store";
 import "./radar.css";
+import type { View360Model } from "./view360-model";
+import { View360Text } from "./view360-text";
 
 const DragThresholdPx = 3;
 const EdgePadPx = 8;
@@ -72,6 +75,21 @@ function TickButton({
         >
             <span className="mt-radar-tick" />
         </button>
+    );
+}
+
+// The automatic-360 "A" beside the radar while the automatic decision holds the view (#1183): under the workspace
+// sidebar no tab bar toggle carries it.
+function RadarAutoMark({ view360 }: { view360: View360Model }) {
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
+    const decision = useAtomValue(view360.decisionAtom);
+    if (!sidebarOn || !decision.active || decision.source !== "auto") {
+        return null;
+    }
+    return (
+        <span className="mt-radar-auto" title={View360Text.heldAuto} data-testid="mt-carpet-radar-auto">
+            {View360Text.toggleAutoMark}
+        </span>
     );
 }
 
@@ -204,6 +222,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
             aria-label={RadarText.label}
             data-testid="mt-carpet-radar"
         >
+            <RadarAutoMark view360={view360} />
             <div className="mt-radar-ticks" onPointerLeave={() => setHover(null)}>
                 {first === -1 ? (
                     ticks.map(renderTick)

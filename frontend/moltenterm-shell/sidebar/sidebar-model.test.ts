@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 import {
     buildLetterKey,
     clampSidebarWidth,
+    dotDropSlot,
+    dotMoveKey,
     dropTargetAt,
+    groupWithJoin,
     moveTabBefore,
     readProjectType,
     readSidebarHidden,
@@ -147,5 +150,42 @@ describe("Cmd+S", () => {
             closest: (selector: string) => (selector.includes(".monaco-editor") ? {} : null),
         } as unknown as Element;
         expect(sidebarKeyYields(inEditor, "preview")).toBe(true);
+    });
+});
+
+describe("workspace grouping and order (FR-MC-031, FR-MC-032)", () => {
+    it("joins a local group, or takes another workspace in", () => {
+        expect(groupWithJoin("w1", { id: "g1", kind: "group" }, null)).toEqual({ workspaceid: "w1", targetid: "g1" });
+        expect(groupWithJoin("w1", { id: "w2", kind: "workspace" }, null)).toEqual({
+            workspaceid: "w2",
+            targetid: "w1",
+        });
+        expect(groupWithJoin("w1", { id: "w2", kind: "workspace" }, "g9")).toEqual({
+            workspaceid: "w2",
+            targetid: "g9",
+        });
+    });
+
+    it("moves a dot with Alt+Shift and an arrow only", () => {
+        const key = (k: string, mods: Partial<Record<"altKey" | "shiftKey" | "ctrlKey" | "metaKey", boolean>>) =>
+            dotMoveKey({ key: k, altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, ...mods });
+        expect(key("ArrowUp", { altKey: true, shiftKey: true })).toBe(-1);
+        expect(key("ArrowLeft", { altKey: true, shiftKey: true })).toBe(-1);
+        expect(key("ArrowDown", { altKey: true, shiftKey: true })).toBe(1);
+        expect(key("ArrowRight", { altKey: true, shiftKey: true })).toBe(1);
+        expect(key("ArrowRight", { altKey: true })).toBe(null);
+        expect(key("ArrowRight", { altKey: true, shiftKey: true, metaKey: true })).toBe(null);
+    });
+
+    it("finds the slot a dragged dot lands in", () => {
+        const centres = [
+            { id: "a", x: 10 },
+            { id: "b", x: 34 },
+            { id: "c", x: 58 },
+        ];
+        expect(dotDropSlot(centres, "a", 5)).toBe(0);
+        expect(dotDropSlot(centres, "a", 40)).toBe(1);
+        expect(dotDropSlot(centres, "a", 70)).toBe(2);
+        expect(dotDropSlot(centres, "c", 20)).toBe(1);
     });
 });
