@@ -77,6 +77,8 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return nil, err
 		}
 		return nil, l.manager.Forget(caller.Source, req)
+	case HistoryCommand:
+		return l.manager.History(caller.Source)
 	case ListCommand:
 		var req ListRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

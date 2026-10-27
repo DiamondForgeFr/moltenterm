@@ -15,6 +15,8 @@ export const AgentLinksEvent = "molten:agentlinks";
 export const HandoffRouteId = "molten:agenthandoff";
 export const HandoffPairsCommand = "moltenagenthandoffpairs";
 export const HandoffForgetCommand = "moltenagenthandoffforget";
+export const HandoffHistoryCommand = "moltenagenthandoffhistory";
+export const HandoffHistoryEvent = "molten:agenthandoffs";
 export const HandoffNotificationKeyPrefix = "agenthandoff:";
 export const AgentLinksGesture = "molten:agentlinks";
 
@@ -81,6 +83,16 @@ export type PendingEntry = {
 };
 
 export type PairsResult = { agents: PairEntry[]; pending: PendingEntry[] };
+
+// must match HistoryEntry in pkg/molten/handoffwire/handoffwire.go: a handoff passed on since MoltenTerm started.
+export type HandoffHistoryEntry = {
+    fromblockid: string;
+    toblockid: string;
+    from?: string;
+    to?: string;
+    goal?: string;
+    at: number;
+};
 
 export type HeaderBadge = "broken" | "waiting" | null;
 

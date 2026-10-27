@@ -8720,6 +8720,62 @@
         "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
         "showLog": "Afficher le journal"
     },
+    "agentInfo": {
+        "title": "Tout sur {name}",
+        "everything": "Tout sur {name}",
+        "plugTitle": "Tout sur {name} : outil, modèle, liens, serveurs MCP et connexions",
+        "subagents": "Sous-agents",
+        "linked": "Agents reliés",
+        "aTerminal": "un terminal",
+        "link": {
+            "out": "travail confié",
+            "in": "travail reçu",
+            "outTitle": "A confié du travail à {name}",
+            "inTitle": "A reçu du travail de {name}",
+            "goTo": "Aller à {name}",
+            "times": {
+                "one": "{count} fois",
+                "other": "{count} fois"
+            }
+        },
+        "subState": {
+            "working": "travaille",
+            "idle": "silencieux",
+            "done": "fini",
+            "error": "échec"
+        },
+        "fact": {
+            "tool": "Outil",
+            "model": "Modèle",
+            "effort": "Effort",
+            "workspace": "Espace de travail",
+            "branch": "Branche",
+            "worktree": "Worktree",
+            "started": "Démarré"
+        },
+        "mcp": "Serveurs MCP connectés",
+        "mcpState": {
+            "connected": "Connecté",
+            "reconnecting": "Reconnexion en cours",
+            "broken": "Rompu : son serveur MCP s'est arrêté",
+            "stopped": "Arrêté par vous",
+            "legacy": "Connecté, ancienne version"
+        },
+        "commands": "Commandes utilisées",
+        "pages": "Pages partagées avec {name}",
+        "pageShared": "partagée",
+        "pageOpened": "ouverte par l'agent",
+        "view": "Sa vue",
+        "panels": {
+            "one": "{count} panneau",
+            "other": "{count} panneaux"
+        },
+        "ended": "Cet agent s'est arrêté : ce que l'on savait de lui reste ici.",
+        "moreLater": "D'autres informations viendront ici : coût, contexte utilisé, historique des échanges.",
+        "connections": "Connexions",
+        "close": "Fermer",
+        "goToView": "Aller à sa vue"
+    },
     "sidebar": {
         "label": "Barre latérale de {name}",
         "hide": "Masquer la barre latérale ({keys})",
@@ -8784,7 +8840,22 @@
         "temporary": {
             "title": "Vues temporaires",
             "hint": "Une vue temporaire se ferme ; épinglez-la pour la garder",
-            "newView": "Nouvelle vue"
+            "newView": "Nouvelle vue",
+            "underAgents": {
+                "one": "+ {count} sous son agent",
+                "other": "+ {count} sous leurs agents"
+            }
+        },
+        "agents": {
+            "title": "Agents",
+            "active": {
+                "one": "{count} actif",
+                "other": "{count} actifs"
+            },
+            "resting": "au repos",
+            "goTo": "Aller à la vue de {name}",
+            "expand": "Afficher ce à quoi {name} est relié",
+            "collapse": "Masquer ce à quoi {name} est relié"
         },
         "view": {
             "equalize": "Égaliser la largeur des panneaux",

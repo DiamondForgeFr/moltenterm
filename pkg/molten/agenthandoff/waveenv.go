@@ -166,6 +166,8 @@ func (waveEnv) RecordHandoff(ctx context.Context, fromBlockId string, toBlockId 
 	if fromBlockId == "" || toBlockId == "" || fromBlockId == toBlockId {
 		return
 	}
+	// The windows read the history again (FR-SHELL-084): the event carries no data, History has it.
+	wps.Broker.Publish(wps.WaveEvent{Event: HistoryEvent})
 	block, err := wstore.DBGet[*waveobj.Block](ctx, toBlockId)
 	if err != nil || block == nil || block.Meta.GetString(molten.HandedByMetaKey, "") != "" {
 		return

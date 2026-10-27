@@ -455,6 +455,9 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			input := obj(block, "input")
 			s.AddToolCall(str(block, "id"), name, argsJSON(input), at)
 			s.NoteActivity(name, activityTarget(input), at)
+			if name == "Bash" {
+				s.NoteShellCommand(shellLine(input))
+			}
 			a.parseTasks(name, input, s)
 			a.parseSubagent(str(block, "id"), name, input, s, at)
 		}

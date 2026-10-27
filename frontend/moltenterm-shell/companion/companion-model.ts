@@ -172,6 +172,8 @@ export type CompanionView = {
     topics?: CompanionTopic[];
     subagents?: CompanionSubagent[];
     activity?: CompanionActivity;
+    // The programs the main agent ran in a shell, in the order it first ran them (FR-SHELL-084).
+    commands?: string[];
     // The terminal's earlier sessions, newest first, the one shown left out (#600).
     earlier?: CompanionEarlierSession[];
 };

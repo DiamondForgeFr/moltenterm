@@ -27,6 +27,7 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AgentInfoHost } from "../agent-info/agent-info-window";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";
@@ -86,6 +87,8 @@ import {
     ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
+import { AgentsSection, type OwnedViewProps } from "./sidebar-agents";
+import { agentOwnedViews, workspaceAgents } from "./sidebar-agents-model";
 import { CreateWorkspacePage } from "./sidebar-create";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import { SidebarGlyph } from "./sidebar-icons";
@@ -1016,16 +1019,45 @@ function afterLastTemporary(ws: Workspace, temporary: string[]): string {
     return at >= 0 && at + 1 < order.length ? order[at + 1] : null;
 }
 
+// The row of an agent owning a temporary view (FR-SHELL-084) keeps that view's menu and its close.
+function OwnedAgentView({
+    tabId,
+    active,
+    children,
+}: {
+    tabId: string;
+    active: boolean;
+    children: (owned: OwnedViewProps) => React.ReactNode;
+}) {
+    const { close, onContextMenu } = useViewActions(tabId, active);
+    return <>{children({ onContextMenu, close: <HoldCloseButton onClose={close} /> })}</>;
+}
+
+// The workspace's agents, and the temporary views they own: listed under their agent, not with the other views.
+function useSidebarAgents(temporaryIds: string[]) {
+    const ws = useAtomValue(atoms.workspace);
+    const data = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agents = useMemo(() => workspaceAgents(data, ws?.oid), [data, ws?.oid]);
+    const owned = useMemo(() => agentOwnedViews(temporaryIds, agents), [temporaryIds, agents]);
+    const byAgent = useMemo(() => new Map(Array.from(owned, ([tab, block]) => [block, tab])), [owned]);
+    const shown = useMemo(() => temporaryIds.filter((id) => !owned.has(id)), [temporaryIds, owned]);
+    return { agents, byAgent, shown };
+}
+
 function TemporaryViews({
     ids,
     activeTabId,
     asideRef,
+    underAgents,
 }: {
     ids: string[];
     activeTabId: string;
     asideRef: React.RefObject<HTMLElement>;
+    // The temporary views listed under their agents instead (FR-SHELL-084).
+    underAgents?: number;
 }) {
     const t = useT();
+    const tc = useTCount();
     const listRef = useRef<HTMLDivElement>(null);
     const { state, drag } = useRowDrag(listRef, asideRef, ids);
     const newViewKeys = formatShortcutById("new-tab");
@@ -1036,6 +1068,11 @@ function TemporaryViews({
                 title={t("sidebar.temporary.hint")}
             >
                 <span>{t("sidebar.temporary.title")}</span>
+                {underAgents > 0 ? (
+                    <span className="ml-auto tracking-normal normal-case" data-testid="sidebar-temporary-under-agents">
+                        {tc("sidebar.temporary.underAgents", underAgents)}
+                    </span>
+                ) : null}
             </div>
             <div ref={listRef} className="flex flex-col gap-px">
                 {ids.map((id) => (
@@ -2031,6 +2068,7 @@ function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
             <ReleaseNotesHost />
             <View360ExitHost />
             <ViewPopoverHost />
+            <AgentInfoHost />
         </>
     );
 }
@@ -2049,6 +2087,7 @@ export function WorkspaceSidebar() {
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
     const projectPage = useAtomValue(model.projectPageAtom);
+    const agents = useSidebarAgents(split.temporary);
     const draft = useAtomValue(model.createDraftAtom);
     const contentRef = useRef<HTMLDivElement>(null);
     const pullLeftRef = useRef<HTMLDivElement>(null);
@@ -2137,7 +2176,18 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     label={t("sidebar.tiles.label", { name })}
                                 />
-                                <TemporaryViews ids={split.temporary} activeTabId={activeTabId} asideRef={asideRef} />
+                                <AgentsSection
+                                    agents={agents.agents}
+                                    activeTabId={activeTabId}
+                                    ownedViews={agents.byAgent}
+                                    OwnedView={OwnedAgentView}
+                                />
+                                <TemporaryViews
+                                    ids={agents.shown}
+                                    activeTabId={activeTabId}
+                                    asideRef={asideRef}
+                                    underAgents={agents.byAgent.size}
+                                />
                             </>
                         )}
                     </div>

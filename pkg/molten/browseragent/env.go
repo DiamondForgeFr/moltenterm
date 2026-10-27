@@ -97,6 +97,8 @@ type ActionCue struct {
 type PanelAgentTab struct {
 	BrowserTabId string `json:"browsertabid"`
 	AgentName    string `json:"agentname"`
+	// AgentBlockId: the agent's terminal, which the agent window finds its pages by (FR-SHELL-084).
+	AgentBlockId string `json:"agentblockid,omitempty"`
 	Origin       string `json:"origin"`
 	State        string `json:"state"`
 	Action       string `json:"action,omitempty"`

@@ -8720,6 +8720,62 @@
         "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
         "showLog": "Show log"
     },
+    "agentInfo": {
+        "title": "Everything about {name}",
+        "everything": "Everything about {name}",
+        "plugTitle": "Everything about {name}: tool, model, links, MCP servers and connections",
+        "subagents": "Sub-agents",
+        "linked": "Linked agents",
+        "aTerminal": "a terminal",
+        "link": {
+            "out": "work handed over",
+            "in": "work received",
+            "outTitle": "Handed work to {name}",
+            "inTitle": "Got work from {name}",
+            "goTo": "Go to {name}",
+            "times": {
+                "one": "{count} time",
+                "other": "{count} times"
+            }
+        },
+        "subState": {
+            "working": "working",
+            "idle": "quiet",
+            "done": "finished",
+            "error": "failed"
+        },
+        "fact": {
+            "tool": "Tool",
+            "model": "Model",
+            "effort": "Effort",
+            "workspace": "Workspace",
+            "branch": "Branch",
+            "worktree": "Worktree",
+            "started": "Started"
+        },
+        "mcp": "Connected MCP servers",
+        "mcpState": {
+            "connected": "Connected",
+            "reconnecting": "Reconnecting",
+            "broken": "Broken: its MCP server stopped",
+            "stopped": "Stopped by you",
+            "legacy": "Connected, older version"
+        },
+        "commands": "Commands used",
+        "pages": "Pages shared with {name}",
+        "pageShared": "shared",
+        "pageOpened": "opened by the agent",
+        "view": "Its view",
+        "panels": {
+            "one": "{count} panel",
+            "other": "{count} panels"
+        },
+        "ended": "This agent has ended: what was known of it stays here.",
+        "moreLater": "More will come here: cost, context used, history of the exchanges.",
+        "connections": "Connections",
+        "close": "Close",
+        "goToView": "Go to its view"
+    },
     "sidebar": {
         "label": "Sidebar of {name}",
         "hide": "Hide the sidebar ({keys})",
@@ -8784,7 +8840,22 @@
         "temporary": {
             "title": "Temporary views",
             "hint": "A temporary view closes; pin it to keep it",
-            "newView": "New view"
+            "newView": "New view",
+            "underAgents": {
+                "one": "+ {count} under its agent",
+                "other": "+ {count} under their agents"
+            }
+        },
+        "agents": {
+            "title": "Agents",
+            "active": {
+                "one": "{count} active",
+                "other": "{count} active"
+            },
+            "resting": "at rest",
+            "goTo": "Go to {name}'s view",
+            "expand": "Show what {name} is linked to",
+            "collapse": "Hide what {name} is linked to"
         },
         "view": {
             "equalize": "Equalize panel widths",
