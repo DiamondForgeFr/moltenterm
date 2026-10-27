@@ -504,3 +504,112 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Many workspaces (FR-SHELL-082, #1186): past seven the slots shrink, the row scrolls under soft edges and keeps the
+   current square in the middle (sidebar-swipe.ts centredScroll). */
+.mt-sb-dots.is-many {
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 12px;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+    -webkit-mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+    mask: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+}
+
+.mt-sb-dots.is-many::-webkit-scrollbar {
+    display: none;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot {
+    width: 17px;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot > i {
+    width: 7px;
+    height: 7px;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-on {
+    width: 24px;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.is-on > i {
+    width: 18px;
+    height: 18px;
+}
+
+.mt-sb-dots.is-many .mt-sb-dot.has-ring::after {
+    inset: 5px 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dots.is-many {
+        scroll-behavior: auto;
+    }
+}
+
+/* The new workspace's pending dot pops into its slot. */
+.mt-sb-dot.is-new {
+    animation: mt-sb-dot-pop var(--mt-duration-flow) var(--mt-ease);
+}
+
+@keyframes mt-sb-dot-pop {
+    from {
+        transform: scale(0.4);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dot.is-new {
+        animation: mt-fade-in var(--mt-duration-fade) linear;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-dot.is-new {
+    animation: mt-fade-in var(--mt-duration-fade) linear;
+}
+
+/* Pulling past either end: the library comes from the left, a new workspace (+) from the right. The sidebar's page
+   follows the pull and springs back when it is let go early. */
+.mt-sb-page {
+    transition: transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb-pull {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #111;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-50%) scale(0.4);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.4);
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-pull.is-left {
+    left: 6px;
+    background: rgb(255 255 255 / 0.85);
+}
+
+.mt-sb-pull.is-right {
+    right: 6px;
+    background: var(--mt-accent);
+}
+
+.mt-sb-pull.is-ready {
+    box-shadow:
+        0 6px 18px rgb(0 0 0 / 0.4),
+        0 0 0 3px rgb(255 255 255 / 0.25);
+}

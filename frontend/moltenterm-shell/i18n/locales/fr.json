@@ -1739,6 +1739,7 @@
             "rename-tab": "Renommer l'onglet",
             "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
+            "workspace-jump": "Aller à un espace de travail de la barre du bas",
             "term-clear": "Effacer le terminal (barre latérale désactivée)",
             "term-copy-plain": "Copier la sélection en texte brut",
             "term-copy": "Copier la sélection",
@@ -8893,6 +8894,27 @@
                 "start": "Démarrer un agent",
                 "startTitle": "Démarrer ici l'agent de code de ce projet"
             }
+        },
+        "dots": {
+            "keyHint": "{name} ({keys})"
+        },
+        "create": {
+            "title": "Nouvel espace de travail",
+            "lede": "Un espace de travail par produit : ses projets, ses vues, ses agents et sa couleur.",
+            "name": "Nom du produit",
+            "namePlaceholder": "Notulia, MoltenTerm…",
+            "type": "Type du premier projet",
+            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
+            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Site web, API, Bibliothèque, Extension",
+            "folder": "Dossier du premier projet",
+            "chooseFolder": "Choisir un dossier…",
+            "folderDialog": "Dossier du premier projet",
+            "clearFolder": "Retirer le dossier",
+            "colour": "Couleur",
+            "create": "Créer l'espace de travail",
+            "cancel": "Annuler",
+            "pending": "Nouvel espace de travail (en création)",
+            "failed": "L'espace de travail n'a pas pu être créé : {error}"
         }
     },
     "topField": {

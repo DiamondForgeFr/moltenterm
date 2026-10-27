@@ -1739,6 +1739,7 @@
             "rename-tab": "Rename the tab",
             "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
+            "workspace-jump": "Jump to a workspace of the bottom bar",
             "term-clear": "Clear the terminal (sidebar off)",
             "term-copy-plain": "Copy the plain selection",
             "term-copy": "Copy the selection",
@@ -8893,6 +8894,27 @@
                 "start": "Start an agent",
                 "startTitle": "Start this project's coding agent here"
             }
+        },
+        "dots": {
+            "keyHint": "{name} ({keys})"
+        },
+        "create": {
+            "title": "New workspace",
+            "lede": "One workspace per product: its projects, views, agents and colour.",
+            "name": "Product name",
+            "namePlaceholder": "Notulia, MoltenTerm…",
+            "type": "First project's type",
+            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
+            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Website, API, Library, Extension",
+            "folder": "First project's folder",
+            "chooseFolder": "Choose a folder…",
+            "folderDialog": "Folder of the first project",
+            "clearFolder": "Remove the folder",
+            "colour": "Colour",
+            "create": "Create the workspace",
+            "cancel": "Cancel",
+            "pending": "New workspace (being created)",
+            "failed": "The workspace could not be created: {error}"
         }
     },
     "topField": {

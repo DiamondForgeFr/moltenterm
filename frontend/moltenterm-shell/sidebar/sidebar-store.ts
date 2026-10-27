@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { selectAtom } from "jotai/utils";
 import { ProjectTabMetaKey } from "../project/project-model";
+import { CreateDraft, makeCreateDraft } from "./sidebar-create-model";
 import {
     clampSidebarWidth,
     readSidebarHidden,
@@ -45,6 +46,10 @@ export class SidebarModel {
     peekAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     // The add-a-project page while it is open (FR-SHELL-087); with an id it edits that project.
     projectPageAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProjectPage>;
+    // The new-workspace page while it is open (FR-SHELL-082): the bottom row draws its pending dot from it.
+    createDraftAtom = jotai.atom(null) as jotai.PrimitiveAtom<CreateDraft>;
+    // Bumped to open the library from a pull past the first workspace.
+    libraryRequestAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
 
     enabledAtom!: jotai.Atom<boolean>;
     windowMetaAtom!: jotai.Atom<Record<string, any>>;
@@ -168,5 +173,28 @@ export class SidebarModel {
 
     closeProjectPage() {
         globalStore.set(this.projectPageAtom, null);
+    }
+
+    startCreate(colour: string) {
+        if (globalStore.get(this.createDraftAtom) != null) {
+            return;
+        }
+        globalStore.set(this.createDraftAtom, makeCreateDraft(colour));
+    }
+
+    updateDraft(change: Partial<CreateDraft>) {
+        const draft = globalStore.get(this.createDraftAtom);
+        if (draft == null) {
+            return;
+        }
+        globalStore.set(this.createDraftAtom, { ...draft, ...change });
+    }
+
+    cancelCreate() {
+        globalStore.set(this.createDraftAtom, null);
+    }
+
+    openLibrary() {
+        globalStore.set(this.libraryRequestAtom, globalStore.get(this.libraryRequestAtom) + 1);
     }
 }

@@ -26,7 +26,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";
@@ -36,6 +36,7 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
+import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
@@ -90,6 +91,8 @@ import {
     ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
+import { CreateWorkspacePage } from "./sidebar-create";
+import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -104,6 +107,16 @@ import {
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
+import {
+    centredScroll,
+    initialSwipeState,
+    manyDots,
+    pullLook,
+    PullSpringMs,
+    stepTarget,
+    swipeStep,
+} from "./sidebar-swipe";
+import { lastSwitchAt, switchDirection, switchFromSidebar, useSwitchArrival } from "./sidebar-switch";
 import "./sidebar.css";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
@@ -1393,11 +1406,17 @@ function WorkspaceDot({
     workspaces,
     unread,
     drag,
+    place,
+    current,
 }: {
     entry: WorkspaceRailEntry;
     workspaces: SidebarWorkspaces;
     unread: number;
     drag: DotDrag;
+    // Its place in the row (1 = first), for its ⌥N key.
+    place: number;
+    // Drawn as the current square: the workspace on screen, unless the new-workspace page holds the row's pending dot.
+    current: boolean;
 }) {
     const t = useT();
     const tc = useTCount();
@@ -1424,12 +1443,24 @@ function WorkspaceDot({
         parts.push(t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) }));
     }
     const label = parts.join(" · ");
+    const title = isMacOS() && place <= 9 ? t("sidebar.dots.keyHint", { name: label, keys: `⌥${place}` }) : label;
     const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
         if (drag.takeClick()) {
             return;
         }
         if (!entry.active) {
-            getApi().switchWorkspace(entry.id);
+            switchFromSidebar(
+                entry.id,
+                switchDirection(
+                    workspaces.entries.map((w) => w.id),
+                    workspaces.entries.find((w) => w.active)?.id,
+                    entry.id
+                )
+            );
+            return;
+        }
+        if (!current) {
+            SidebarModel.getInstance().cancelCreate();
             return;
         }
         if (!entry.saved) {
@@ -1442,12 +1473,12 @@ function WorkspaceDot({
             role="tab"
             aria-selected={entry.active}
             aria-label={label}
-            title={label}
+            title={title}
             data-testid="sidebar-workspace-dot"
             data-workspace-id={entry.id}
             className={cn(
                 "mt-sb-dot relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
-                entry.active && "is-on",
+                current && "is-on",
                 ring && "has-ring",
                 drag.offsetX != null && "z-10"
             )}
@@ -1478,7 +1509,7 @@ function WorkspaceDot({
             }}
         >
             <i className="font-semibold" style={{ background: paint, color: letterColour }}>
-                {entry.active ? letter : null}
+                {current ? letter : null}
             </i>
         </button>
     );
@@ -1510,6 +1541,7 @@ function moveWorkspaceDot(move: RailMove, refocus: boolean) {
 // the order and sorts the list by it.
 function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
+    const draft = useAtomValue(SidebarModel.getInstance().createDraftAtom);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().shownEntriesAtom);
     const unread = unreadByWorkspace(notifications);
     const rowRef = useRef<HTMLDivElement>(null);
@@ -1563,24 +1595,72 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
         },
         onMoveKey: (direction) => moveWorkspaceDot(neighbourMove(savedIdsRef.current, id, direction), true),
     });
+    const count = workspaces.entries.length + (draft != null ? 1 : 0);
+    const many = manyDots(count);
+    const activeId = workspaces.entries.find((e) => e.active)?.id;
+    // The current square (or the pending dot) stays in the middle of a row that scrolls.
+    useLayoutEffect(() => {
+        const row = rowRef.current;
+        if (row == null || !many) {
+            return;
+        }
+        const on = row.querySelector<HTMLElement>(".mt-sb-dot.is-on");
+        if (on == null) {
+            return;
+        }
+        row.scrollLeft = centredScroll(on.offsetLeft, on.offsetWidth, row.clientWidth, row.scrollWidth);
+    }, [many, activeId, count, draft != null]);
     return (
         <div
             ref={rowRef}
             role="tablist"
             aria-label={t("rail.workspaces")}
-            className="flex min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden"
+            className={cn(
+                "mt-sb-dots flex min-w-0 flex-1 items-center gap-0.5",
+                many ? "is-many" : "justify-center overflow-hidden"
+            )}
             data-testid="sidebar-workspace-dots"
+            data-many={many ? "true" : undefined}
         >
-            {workspaces.entries.map((entry) => (
+            {workspaces.entries.map((entry, i) => (
                 <WorkspaceDot
                     key={entry.id}
                     entry={entry}
                     workspaces={workspaces}
                     unread={unread.get(entry.id) ?? 0}
                     drag={dragOf(entry.id)}
+                    place={i + 1}
+                    current={entry.active && draft == null}
                 />
             ))}
+            {draft != null ? <PendingDot draft={draft} /> : null}
         </div>
+    );
+}
+
+// The workspace the new-workspace page is making: its slot at the end of the row, in the colour and with the letter
+// typed so far. A press brings the focus back to the form.
+function PendingDot({ draft }: { draft: CreateDraft }) {
+    const t = useT();
+    const label = t("sidebar.create.pending");
+    return (
+        <button
+            type="button"
+            role="tab"
+            aria-selected
+            aria-label={label}
+            title={label}
+            data-testid="sidebar-pending-dot"
+            className="mt-sb-dot is-on is-new relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+            onClick={() => document.querySelector<HTMLInputElement>("[data-testid='sidebar-create-name']")?.focus()}
+        >
+            <i
+                className="font-semibold"
+                style={{ background: colourChoiceCss(draft.colour), color: colourChoiceForeground(draft.colour) }}
+            >
+                {pendingLetter(draft.name)}
+            </i>
+        </button>
     );
 }
 
@@ -1684,6 +1764,20 @@ function LibraryButton() {
         setMenuOpen(true);
         showMenuUnder(buttonRef.current, items, () => setMenuOpen(false));
     };
+    // A pull past the first workspace opens the library (FR-SHELL-082).
+    const libraryRequest = useAtomValue(SidebarModel.getInstance().libraryRequestAtom);
+    const openMenuRef = useRef(openMenu);
+    openMenuRef.current = openMenu;
+    const seenRequestRef = useRef(libraryRequest);
+    useEffect(() => {
+        if (libraryRequest === seenRequestRef.current) {
+            return;
+        }
+        seenRequestRef.current = libraryRequest;
+        if (buttonRef.current != null) {
+            openMenuRef.current();
+        }
+    }, [libraryRequest]);
     return (
         <>
             <button
@@ -1719,8 +1813,15 @@ function LibraryButton() {
     );
 }
 
-// Today's create actions: a new view (the tab bar's +) and a new workspace (the rail's +).
-function PlusButton() {
+// The new-workspace page, in a colour no workspace of the row uses yet.
+function startCreateWorkspace(workspaces: SidebarWorkspaces) {
+    const used = workspaces.entries.map((e) => colourStops(e.color)[0] ?? "");
+    SidebarModel.getInstance().startCreate(freshColour(used, workspaces.entries.length));
+}
+
+// Today's create actions: a new view (the tab bar's +) and a new workspace (the rail's +, now the sidebar's
+// new-workspace page, FR-SHELL-082).
+function PlusButton({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const [open, setOpen] = useState(false);
@@ -1739,7 +1840,7 @@ function PlusButton() {
                 label: t("sidebar.plus.newWorkspace"),
                 icon: "layer-group",
                 section: t("sidebar.plus.everywhere"),
-                click: () => getApi().createWorkspace(),
+                click: () => startCreateWorkspace(workspaces),
             },
         ];
         setOpen(true);
@@ -1820,6 +1921,149 @@ function WidthGrip({ width }: { width: number }) {
     );
 }
 
+type PullRefs = {
+    content: React.RefObject<HTMLDivElement>;
+    left: React.RefObject<HTMLDivElement>;
+    right: React.RefObject<HTMLDivElement>;
+};
+
+function showPull(refs: PullRefs, side: -1 | 1, amount: number) {
+    const look = pullLook(side, amount);
+    const el = (side < 0 ? refs.left : refs.right).current;
+    if (el != null) {
+        el.style.transition = "none";
+        el.style.opacity = String(look.opacity);
+        el.style.transform = `translateY(-50%) translateX(${look.shiftX}px) scale(${look.scale})`;
+        el.classList.toggle("is-ready", look.ready);
+    }
+    const content = refs.content.current;
+    if (content != null) {
+        content.style.transition = "none";
+        content.style.transform = `translateX(${look.contentX}px)`;
+    }
+}
+
+// The pull springs back: the indicator fades, the content returns to its place.
+function resetPull(refs: PullRefs) {
+    for (const el of [refs.left.current, refs.right.current]) {
+        if (el == null) {
+            continue;
+        }
+        el.style.transition = "";
+        el.style.opacity = "";
+        el.style.transform = "";
+        el.classList.remove("is-ready");
+    }
+    const content = refs.content.current;
+    if (content != null && content.style.transform) {
+        content.style.transition = "";
+        content.style.transform = "";
+    }
+}
+
+// A horizontal swipe on the sidebar moves to the previous or next workspace; past either end it pulls, and a long
+// enough pull opens the library (left) or the new-workspace page (right) (FR-SHELL-082). The listener is not passive:
+// the sidebar takes the horizontal gesture from the page behind.
+function useSidebarSwipe(
+    asideRef: React.RefObject<HTMLElement>,
+    refs: PullRefs,
+    workspaces: SidebarWorkspaces,
+    creating: boolean
+) {
+    const latest = useRef({ workspaces, creating });
+    latest.current = { workspaces, creating };
+    useEffect(() => {
+        const aside = asideRef.current;
+        if (aside == null) {
+            return;
+        }
+        let state = initialSwipeState();
+        let springTimer: ReturnType<typeof setTimeout> = null;
+        const onWheel = (e: WheelEvent) => {
+            const { workspaces: ws, creating: busy } = latest.current;
+            if (busy || e.ctrlKey) {
+                return;
+            }
+            const ids = ws.entries.map((w) => w.id);
+            const activeId = ws.entries.find((w) => w.active)?.id;
+            const result = swipeStep(
+                state,
+                { dx: e.deltaX, dy: e.deltaY, at: e.timeStamp || performance.now() },
+                { index: ids.indexOf(activeId), count: ids.length },
+                switchedAtOnPageClock()
+            );
+            state = result.state;
+            if (!result.handled) {
+                return;
+            }
+            e.preventDefault();
+            clearTimeout(springTimer);
+            const action = result.action;
+            if (action.kind === "pull") {
+                showPull(refs, action.side, action.amount);
+                springTimer = setTimeout(() => {
+                    state = { ...state, acc: 0 };
+                    resetPull(refs);
+                }, PullSpringMs);
+                return;
+            }
+            if (action.kind === "pulled") {
+                showPull(refs, action.side, 1);
+                springTimer = setTimeout(() => {
+                    resetPull(refs);
+                    if (action.side < 0) {
+                        SidebarModel.getInstance().openLibrary();
+                    } else {
+                        startCreateWorkspace(latest.current.workspaces);
+                    }
+                }, 90);
+                return;
+            }
+            resetPull(refs);
+            if (action.kind === "switch") {
+                switchFromSidebar(stepTarget(ids, activeId, action.direction), action.direction);
+            }
+        };
+        aside.addEventListener("wheel", onWheel, { passive: false });
+        return () => {
+            aside.removeEventListener("wheel", onWheel);
+            clearTimeout(springTimer);
+        };
+    }, [asideRef, refs]);
+}
+
+// The last sidebar switch, on the wheel events' clock (performance.now), for the swipe's momentum lock.
+function switchedAtOnPageClock(): number {
+    const at = lastSwitchAt();
+    if (!at) {
+        return 0;
+    }
+    return at - Date.now() + performance.now();
+}
+
+// The sidebar's page slides when the new-workspace page opens (from the right) or closes (back from the left).
+function usePageSlide(contentRef: React.RefObject<HTMLDivElement>, creating: boolean) {
+    const firstRef = useRef(true);
+    useEffect(() => {
+        if (firstRef.current) {
+            firstRef.current = false;
+            return;
+        }
+        const el = contentRef.current;
+        if (el?.animate == null) {
+            return;
+        }
+        const direction = creating ? 1 : -1;
+        const frames = prefersReducedMotion()
+            ? [{ opacity: 0 }, { opacity: 1 }]
+            : [
+                  { transform: `translateX(${direction * 100}%)`, opacity: 0.2 },
+                  { transform: "translateX(0)", opacity: 1 },
+              ];
+        el.animate(frames, { duration: motionMs(), easing: "cubic-bezier(0.2, 0, 0, 1)" });
+    }, [creating, contentRef]);
+}
+
 // What lives once per window with the sidebar: the rail's dialogs and keepers, the release notes, 360 view's message.
 function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
     return (
@@ -1846,6 +2090,14 @@ export function WorkspaceSidebar() {
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
     const projectPage = useAtomValue(model.projectPageAtom);
+    const draft = useAtomValue(model.createDraftAtom);
+    const contentRef = useRef<HTMLDivElement>(null);
+    const pullLeftRef = useRef<HTMLDivElement>(null);
+    const pullRightRef = useRef<HTMLDivElement>(null);
+    const pullRefs = useMemo<PullRefs>(() => ({ content: contentRef, left: pullLeftRef, right: pullRightRef }), []);
+    useSidebarSwipe(asideRef, pullRefs, workspaces, draft != null);
+    usePageSlide(contentRef, draft != null);
+    useSwitchArrival(contentRef);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
     useEffect(() => {
         // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
@@ -1905,30 +2157,48 @@ export function WorkspaceSidebar() {
                 <WindowRow leftInset={hidden ? 18 : 8} />
                 <TopField />
                 <TopRow instances={split.everywhere ?? {}} activeTabId={activeTabId} />
-                <div className="mt-sb-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-                    {pinDraft != null ? (
-                        <PinPage draft={pinDraft} workspaces={workspaces} />
-                    ) : projectPage != null ? (
-                        <Suspense fallback={null}>
-                            <ProjectPageView page={projectPage} />
-                        </Suspense>
-                    ) : (
-                        <>
-                            <WorkspaceHeader workspaces={workspaces} />
-                            <TileGrid
-                                tileIds={split.tiles}
-                                activeTabId={activeTabId}
-                                label={t("sidebar.tiles.label", { name })}
-                            />
-                            <TemporaryViews ids={split.temporary} activeTabId={activeTabId} asideRef={asideRef} />
-                        </>
-                    )}
+                <div className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div
+                        ref={contentRef}
+                        className="mt-sb-scroll mt-sb-page flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+                    >
+                        {pinDraft != null ? (
+                            <PinPage draft={pinDraft} workspaces={workspaces} />
+                        ) : projectPage != null ? (
+                            <Suspense fallback={null}>
+                                <ProjectPageView page={projectPage} />
+                            </Suspense>
+                        ) : draft != null ? (
+                            <CreateWorkspacePage draft={draft} />
+                        ) : (
+                            <>
+                                <WorkspaceHeader workspaces={workspaces} />
+                                <TileGrid
+                                    tileIds={split.tiles}
+                                    activeTabId={activeTabId}
+                                    label={t("sidebar.tiles.label", { name })}
+                                />
+                                <TemporaryViews ids={split.temporary} activeTabId={activeTabId} asideRef={asideRef} />
+                            </>
+                        )}
+                    </div>
+                    <div ref={pullLeftRef} className="mt-sb-pull is-left" aria-hidden data-testid="sidebar-pull-left">
+                        <SidebarGlyph name="lib" size={18} />
+                    </div>
+                    <div
+                        ref={pullRightRef}
+                        className="mt-sb-pull is-right"
+                        aria-hidden
+                        data-testid="sidebar-pull-right"
+                    >
+                        <SidebarGlyph name="plus" size={18} />
+                    </div>
                 </div>
                 <BranchLine />
                 <div className="flex shrink-0 items-center gap-1.5 border-t border-white/10 pt-1.5">
                     <LibraryButton />
                     <WorkspaceDots workspaces={workspaces} />
-                    <PlusButton />
+                    <PlusButton workspaces={workspaces} />
                 </div>
             </aside>
             {hidden ? null : <WidthGrip width={width} />}
