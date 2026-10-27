@@ -24,6 +24,7 @@ import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-f
 import { MissionSnapshot } from "../mission/mission-model";
 import type { ReviewMergeMethod } from "../review/review-client";
 import { ValidateSheet } from "../review/review-validate";
+import { readProjects } from "../sidebar/workspace-projects";
 import { useCardContext } from "./reviews-agent-bar";
 import { ReviewsAskQueue } from "./reviews-ask-queue";
 import { BatchBanner, BatchConfirmDialog, BatchPointer } from "./reviews-batch";
@@ -62,11 +63,11 @@ import {
     splitReviews,
 } from "./reviews-model";
 import { CardMotion } from "./reviews-motion";
-import { AllProjectsList, ProjectChips, ProjectWithoutFolder } from "./reviews-projects";
-import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { AllProjectsList, ProjectChips, ProjectWithoutFolder } from "./reviews-projects";
+import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
 import { AfterMergeLine, MergeOrderNote, MergeQueueBlock } from "./reviews-queue";
 import {
     cardRelations,
@@ -83,7 +84,6 @@ import {
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
 import { cardStates, sectionOf, sectionRows, sectionsByTurn, withTurnShown } from "./reviews-sections-model";
-import { readProjects } from "../sidebar/workspace-projects";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";

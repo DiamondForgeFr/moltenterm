@@ -194,7 +194,11 @@ export function addProjectUpdate(
 }
 
 // The meta that changes a project's type, folder or branch; the current one's folder and type go to the live keys.
-export function editProjectUpdate(ws: { meta?: Record<string, any> }, id: string, draft: ProjectDraft): Record<string, any> {
+export function editProjectUpdate(
+    ws: { meta?: Record<string, any> },
+    id: string,
+    draft: ProjectDraft
+): Record<string, any> {
     const projects = readProjects(ws);
     const at = projects.findIndex((p) => p.id === id);
     if (at < 0) {

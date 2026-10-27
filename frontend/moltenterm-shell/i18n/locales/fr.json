@@ -8179,10 +8179,10 @@
             },
             "projects": {
                 "migratedTitle": "{workspace} regroupe désormais les projets de son groupe",
-                "migrated": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. {workspaces} restent avec leurs vues et leurs agents : supprimez-les quand vous n’en avez plus besoin.",
-                "migratedKept": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. {workspaces} restent avec leurs vues et leurs agents : supprimez-les quand vous n’en avez plus besoin. {kept} n’ont pas de dossier de projet : ils restent des espaces de travail à part.",
+                "migrated": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin.",
+                "migratedKept": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin. Les espaces de travail sans dossier de projet restent à part : {kept}.",
                 "keptTitle": "{group} reste un groupe",
-                "kept": "{workspaces} n’ont pas de dossier de projet : ils restent des espaces de travail à part dans le groupe {group}."
+                "kept": "Le groupe {group} reste tel quel : ses autres espaces de travail n’ont pas de dossier de projet à intégrer ({workspaces})."
             },
             "build": {
                 "builtTitle": "{name} est compilé",
@@ -8731,7 +8731,8 @@
         },
         "project": {
             "menuTitle": "Projets de {name}",
-            "menuNote": "Les nouveaux agents démarrent dans le projet courant. Pilotage montre tous les projets.",
+            "currentNote": "Les nouveaux agents démarrent ici",
+            "addNote": "Pilotage suit tous les projets",
             "addMenu": "Ajouter un projet…",
             "editMenu": "Modifier {project}…",
             "typeTitleOne": "Type du projet : {type} · ajouter un autre projet",
