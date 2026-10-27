@@ -95,6 +95,15 @@ async function goToView(workspaceId: string, tabId: string): Promise<void> {
     getApi().switchWorkspace(workspaceId);
 }
 
+// Goes to a panel. In another workspace its view becomes that workspace's active one first: the switch shows the
+// workspace's active view, which a notification's own way there leaves as it was.
+async function goToBlock(workspaceId: string, tabId: string, blockId: string): Promise<void> {
+    if (workspaceId && tabId && workspaceId !== globalStore.get(atoms.workspaceId)) {
+        await WorkspaceService.SetActiveTab(workspaceId, tabId);
+    }
+    await MoltentermNotifications.getInstance().goTo({ workspaceid: workspaceId, tabid: tabId, blockid: blockId });
+}
+
 function goToWorkspace(workspaceId: string) {
     close();
     if (workspaceId !== globalStore.get(atoms.workspaceId)) {
@@ -245,13 +254,7 @@ function WorkspaceColumn({ entry }: { entry: WorkspaceRailEntry }) {
                             onClick={(e) => {
                                 e.stopPropagation();
                                 close();
-                                fireAndForget(() =>
-                                    MoltentermNotifications.getInstance().goTo({
-                                        workspaceid: info.workspaceid,
-                                        tabid: info.tabid,
-                                        blockid: info.blockid,
-                                    })
-                                );
+                                fireAndForget(() => goToBlock(info.workspaceid, info.tabid, info.blockid));
                             }}
                         >
                             <span className={cn("mt-lib-av", `is-${info.state ?? "idle"}`)}>
@@ -312,6 +315,8 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
         [fullConfig?.widgets, workspaceId, dir]
     );
     const viewName = identity.name || t("library.panels.thisView");
+    const counts = reviewCounts(answer, readied);
+    const hasReviews = counts.toreview + counts.mergeable + counts.drafts > 0;
     const add = (blockdef: BlockDef) => {
         close();
         const view = blockdef?.meta?.view;
@@ -340,8 +345,8 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
                     const aboutKey = panelAboutKey(view);
                     const about = aboutKey ? t(aboutKey) : entry.detail;
                     const status =
-                        view === MoltentermReviewsView
-                            ? reviewsRailLabel(reviewCounts(answer, readied))
+                        view === MoltentermReviewsView && hasReviews
+                            ? reviewsRailLabel(counts)
                             : view === MoltentermSessionsView && sessions.count > 0
                               ? sessions.label
                               : null;
@@ -493,11 +498,7 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
                 oref: WOS.makeORef("block", row.panelBlockId),
                 meta: { [BrowserActiveMetaKey]: row.browserTabId } as MetaType,
             });
-            await MoltentermNotifications.getInstance().goTo({
-                workspaceid: row.workspaceId,
-                tabid: row.tabId,
-                blockid: row.panelBlockId,
-            });
+            await goToBlock(row.workspaceId, row.tabId, row.panelBlockId);
         });
     };
     return (
@@ -777,6 +778,17 @@ function Library({
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [suggest]);
+    // Each view of the window draws its own library: one left for another view (a workspace dot, a reopened view)
+    // must not wait open for the developer's return.
+    useEffect(() => {
+        const onVisibility = () => {
+            if (document.visibilityState === "hidden") {
+                close();
+            }
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, []);
     const sub =
         section === "putaway" && reopenKeys
             ? `${t(`library.sections.${info.key}.sub`)} ${t("library.putaway.lastKeys", { keys: reopenKeys })}`
