@@ -1,20 +1,22 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// "Ask for help" in the setup panel (FR-MC-038, #1150): the click opens the agent's terminal on the left, starts the
+// "Ask for help" in the setup panel (FR-MC-038, #1150; the screen's context, #1152): the click opens the agent's terminal on the left, starts the
 // agent when none runs there, and hands it the screen's context. With no coding agent installed, or the chosen one
 // missing, it says so before any click and offers "Choose an agent" (the panel's coding agent option) instead.
 
 import { atoms } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { openCommandPanelOn } from "../command-panel/command-panel-store";
-import { useT } from "../i18n/i18n";
+import { getLocale, useT } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
 import { pipelineAgentOf, PipelineAskResult } from "./pipeline-agent";
 import { usePipelineTab } from "./pipeline-tab-context";
+import { helpContextOf, SetupHelp } from "./release-setup-help-model";
 
 const HelpButton =
     "inline-flex cursor-pointer items-center gap-1.5 rounded-4 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
@@ -38,8 +40,12 @@ export function PipelineHelp() {
     const dir = tab?.dir ?? "";
     const choices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
-    const [busy, setBusy] = useState(false);
-    const [result, setResult] = useState<PipelineAskResult>(null);
+    // Shared with the steps' Question buttons (#1152): the screen shown, and what became of the last request.
+    const help = SetupHelp.getInstance(dir);
+    const status = useAtomValue(help.statusAtom, { store: globalStore });
+    const screen = useAtomValue(help.screenAtom, { store: globalStore });
+    const busy = status === "asking";
+    const result: PipelineAskResult = status === "idle" || status === "asking" ? null : status;
     // Read again when the tab comes back: an agent may have been installed meanwhile.
     useEffect(() => {
         if (!dir) {
@@ -57,7 +63,7 @@ export function PipelineHelp() {
     const choice = choices[dir]?.choice;
     const known = choice != null ? pipelineAgentOf(choice, fullConfig?.presets) : null;
     // A failed ask's words hold until the agent's availability changes (one installed or chosen since).
-    useEffect(() => setResult(null), [known?.state]);
+    useEffect(() => globalStore.set(help.statusAtom, "idle"), [help, known?.state]);
     if (tab == null) {
         return null;
     }
@@ -81,16 +87,13 @@ export function PipelineHelp() {
     }
     const ask = () =>
         fireAndForget(async () => {
-            setBusy(true);
-            setResult(null);
-            try {
-                const answer = await tab.askAgent({ context: panelHelpContext(tab.project) });
-                setResult(answer);
-                if (answer === "none" || answer === "missing") {
-                    CodingAgentModel.getInstance().refresh(dir);
-                }
-            } finally {
-                setBusy(false);
+            const context = screen
+                ? helpContextOf({ locale: getLocale(), screen: screen.screen, panel: screen.panel })
+                : panelHelpContext(tab.project);
+            await help.ask(tab.askAgent, context);
+            const answer = globalStore.get(help.statusAtom);
+            if (answer === "none" || answer === "missing") {
+                CodingAgentModel.getInstance().refresh(dir);
             }
         });
     const name = known?.state === "ready" ? known.agent.name : "";
