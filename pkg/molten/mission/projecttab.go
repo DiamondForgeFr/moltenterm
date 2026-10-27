@@ -25,6 +25,9 @@ const (
 	ProjectTabName = "Project"
 	// must match MoltentermProjectView in frontend/moltenterm-shell/project/project-model.ts
 	ProjectView = "molten-project"
+	// Pilotage, the Control room, opened on the right of a new Project tab (#1177). pkg/wcore cannot import
+	// pkg/molten/review, which imports it. must match ReviewsViewName in pkg/molten/review/batch_notify.go
+	PilotageView = "molten-reviews"
 )
 
 const (
