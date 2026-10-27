@@ -57,35 +57,53 @@ export function tilesPerRow(width: number, maxPerRow = TileMaxPerRow, minWidth =
     return 1;
 }
 
-// Wave removed its own pinned tabs; until #1184 the tiles are the tabs MoltenTerm pins (the Project tab).
+// The tabs MoltenTerm pins itself (the Project tab) and the views pinned in the workspace (FR-SHELL-080) are tiles.
 export function isPinnedTab(tab: { meta?: Record<string, any> }, pinnedMetaKeys: readonly string[]): boolean {
     return pinnedMetaKeys.some((key) => !!tab?.meta?.[key]);
 }
 
-export type SidebarTabSplit = { tiles: string[]; temporary: string[] };
+// everywhere: the workspace's own instance of each view pinned everywhere (FR-SHELL-080), by the pin's id; those
+// tabs show in the top row, neither as tiles nor as temporary views.
+export type SidebarTabSplit = { tiles: string[]; temporary: string[]; everywhere?: Record<string, string> };
 
 // The workspace's tabs the sidebar shows, in order: the pinned ones as tiles, the others as temporary views. A tab
 // whose object is not loaded yet counts as temporary.
 export function splitSidebarTabs(
     ws: { tabids?: string[]; meta?: Record<string, any> },
     tabOf: (tabId: string) => { meta?: Record<string, any> },
-    pinnedMetaKeys: readonly string[]
+    pinnedMetaKeys: readonly string[],
+    globalIds?: ReadonlySet<string>,
+    globalPinMetaKey?: string
 ): SidebarTabSplit {
     const tiles: string[] = [];
     const temporary: string[] = [];
+    const everywhere: Record<string, string> = {};
     for (const id of visibleTabIds(ws)) {
-        if (isPinnedTab(tabOf(id), pinnedMetaKeys)) {
+        const tab = tabOf(id);
+        const gid = globalPinMetaKey ? tab?.meta?.[globalPinMetaKey] : null;
+        if (typeof gid === "string" && globalIds?.has(gid) && everywhere[gid] == null) {
+            everywhere[gid] = id;
+        } else if (isPinnedTab(tab, pinnedMetaKeys)) {
             tiles.push(id);
         } else {
             temporary.push(id);
         }
     }
-    return { tiles, temporary };
+    return globalIds == null ? { tiles, temporary } : { tiles, temporary, everywhere };
 }
 
 export function sameTabSplit(a: SidebarTabSplit, b: SidebarTabSplit): boolean {
     const same = (x: string[], y: string[]) => x.length === y.length && x.every((id, i) => id === y[i]);
-    return same(a.tiles, b.tiles) && same(a.temporary, b.temporary);
+    const ea = Object.entries(a.everywhere ?? {}).sort();
+    const eb = Object.entries(b.everywhere ?? {}).sort();
+    return (
+        same(a.tiles, b.tiles) &&
+        same(a.temporary, b.temporary) &&
+        same(
+            ea.map((e) => e.join("=")),
+            eb.map((e) => e.join("="))
+        )
+    );
 }
 
 // The new full tab order once the dragged tab lands before (or, at the end, after) the target; hidden tabs keep their

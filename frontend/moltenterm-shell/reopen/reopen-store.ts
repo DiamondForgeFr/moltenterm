@@ -81,6 +81,15 @@ export function reopenKeys(): string[] {
 
 let reopening = false;
 
+// Brings the workspace's last close back without a toast of its own: an Undo of several closes says it once.
+export function reopenLastQuietly(): Promise<ReopenResult> {
+    return TabRpcClient.wshRpcCall(
+        ReopenLastCommand,
+        { workspaceid: globalStore.get(atoms.workspaceId), tabid: globalStore.get(atoms.staticTabId) },
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+}
+
 // Cmd+Shift+T: the workspace's last close comes back; pressed again, the one before.
 export async function reopenLastClosed(): Promise<void> {
     if (reopening) {

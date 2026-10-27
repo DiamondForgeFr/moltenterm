@@ -588,6 +588,7 @@ func main() {
 	wcore.StartWorkspaceOrderRoute()
 	wcore.StartPanelMoveRoute() // MOLTENTERM-PATCH (#414): a tab's panel dragged onto the tab shown
 	wcore.StartReopenRoute()    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back
+	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()

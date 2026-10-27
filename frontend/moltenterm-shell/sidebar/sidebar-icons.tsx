@@ -28,6 +28,14 @@ const Paths = {
         </>
     ),
     lib: <path d="M4 5h4v15H4zM10 5h4v15h-4zM16 6l3.5-1 3 14-3.5 1z" />,
+    x: <path d="M6 6l12 12M18 6 6 18" />,
+    pin: <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3zM12 14v6" />,
+    undo: (
+        <>
+            <path d="M9 14 4 9l5-5" />
+            <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        </>
+    ),
 };
 
 export type SidebarGlyphName = keyof typeof Paths;

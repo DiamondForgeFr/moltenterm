@@ -8735,6 +8735,68 @@
             "everywhere": "Everywhere",
             "newView": "New view",
             "newWorkspace": "New workspace"
+        },
+        "pins": {
+            "failed": "The view could not be pinned or opened",
+            "undo": "Undo",
+            "pinnedHere": "“{name}” pinned in {workspace}",
+            "pinnedEverywhere": "“{name}” pinned everywhere: the same configuration in every workspace, each on its own project",
+            "pinnedOnlyHere": "“{name}” pinned only in {workspace}",
+            "unpinned": "“{name}” unpinned: it is a temporary view again and can close",
+            "saved": "“{name}” keeps its current state",
+            "savedEverywhere": "“{name}” saved for every workspace",
+            "reverted": "“{name}” is back to its pinned state",
+            "closedFinished": {
+                "one": "1 finished view closed",
+                "other": "{count} finished views closed"
+            },
+            "closedFinishedHint": "Views whose agent still works stay open. Reopen closed brings them back.",
+            "noClose": "“{name}” is pinned and does not close",
+            "noCloseHint": "Unpin it first, from its menu.",
+            "noAgent": "No coding agent is set for this project",
+            "reopenClosed": "Reopen the last closed view",
+            "pinTitle": "Pin this view…",
+            "revertTitle": "Back to the pinned state",
+            "tileTitle": "{name} · pinned in {workspace}",
+            "tileModifiedTitle": "{name} · pinned in {workspace} · changed since pinned (right-click: save or go back)",
+            "topTitle": "{name} · pinned everywhere, opened on this workspace's project",
+            "topModifiedTitle": "{name} · pinned everywhere · changed since pinned (right-click: save or go back)",
+            "topRowLabel": "Views pinned everywhere",
+            "closeFinished": {
+                "one": "Close the finished view",
+                "other": "Close the {count} finished views"
+            },
+            "closeFinishedTitle": "Views whose agent still works stay open",
+            "menu": {
+                "state": {
+                    "temporary": "Temporary view",
+                    "workspace": "Pinned in {workspace}",
+                    "everywhere": "Pinned everywhere"
+                },
+                "save": "Save the current state",
+                "saveEverywhere": "Save for every workspace",
+                "revert": "Back to the pinned state",
+                "pinHere": "Pin in {workspace}…",
+                "pinEverywhere": "Pin everywhere…",
+                "pinOnlyHere": "Pin only in {workspace}",
+                "unpin": "Unpin (make it temporary)"
+            },
+            "page": {
+                "title": "Pin the view",
+                "cancel": "Cancel",
+                "name": "Name",
+                "scope": "Where to pin it",
+                "hereTitle": "Pinned in {workspace}",
+                "hereBody": "A tile in {workspace}. Its configuration (its panels and their layout) stays here; its content follows the active project. To close it, unpin it first.",
+                "everywhereTitle": "Pinned everywhere",
+                "everywhereBody": "In the top row of every workspace. The same configuration everywhere; each workspace opens it on its own project, with its own agent.",
+                "pin": "Pin"
+            },
+            "slot": {
+                "text": "An agent's place in this view",
+                "start": "Start an agent",
+                "startTitle": "Start this project's coding agent here"
+            }
         }
     }
 }

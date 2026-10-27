@@ -31,6 +31,7 @@ import { serverErrorText, serverText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import { recordingTabClose } from "./reopen/reopen-store";
+import { refusePinnedClose } from "./sidebar/view-pins-store";
 import {
     ClosePlanView,
     closePlanView,
@@ -212,7 +213,7 @@ export async function closeTabAskingFirst(
     tabId: string,
     confirmClose: boolean
 ): Promise<boolean> {
-    if (dialogOpen()) {
+    if (dialogOpen() || refusePinnedClose(tabId)) {
         return false;
     }
     // A tab that really closes can come back with Cmd+Shift+T (#512).
@@ -529,8 +530,13 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
         </>
     );
     return (
-        <DialogFrame role="molten-worktree-close" title={title} subtitle={request.path} buttons={buttons}
-            onEscape={step === "working" ? undefined : () => finish(step === "done")}>
+        <DialogFrame
+            role="molten-worktree-close"
+            title={title}
+            subtitle={request.path}
+            buttons={buttons}
+            onEscape={step === "working" ? undefined : () => finish(step === "done")}
+        >
             {standalone && step === "plan" ? <div className="text-muted">{t("worktree.close.standalone")}</div> : null}
             {step === "plan" || step === "working" ? (
                 <RunningList items={running} heading={t("worktree.close.stops")} />
@@ -756,7 +762,7 @@ export function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; 
     return (
         <DialogFrame
             role="molten-worktree-tab-close"
-            onEscape={step === "working" ? undefined : () => step === "confirm" ? setStep("plan") : answer("cancel")}
+            onEscape={step === "working" ? undefined : () => (step === "confirm" ? setStep("plan") : answer("cancel"))}
             title={title}
             subtitle={step === "confirm" ? null : t("worktree.tab.subtitle")}
             wide
