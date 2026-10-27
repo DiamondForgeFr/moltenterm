@@ -31,6 +31,7 @@ import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-a
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
+import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
@@ -803,6 +804,8 @@ function registerGlobalKeys() {
     registerCarpetKeys(globalKeyMap);
     // MOLTENTERM-PATCH (#825): equalize the tab's panel widths
     registerEqualizeKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#1183): Cmd+S hides or shows the workspace sidebar
+    registerSidebarKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");

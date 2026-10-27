@@ -1737,6 +1737,7 @@
             "previous-tab": "Onglet précédent",
             "tab-number": "Aller à un onglet par son numéro",
             "rename-tab": "Renommer l'onglet",
+            "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
             "term-clear": "Effacer le terminal",
             "term-copy-plain": "Copier la sélection en texte brut",
@@ -8674,5 +8675,51 @@
         "reloadedMessage": "Son processus d'affichage a été arrêté ({cause}). Vos sessions ont continué de tourner.",
         "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
         "showLog": "Afficher le journal"
+    },
+    "sidebar": {
+        "label": "Barre latérale de {name}",
+        "hide": "Masquer la barre latérale ({keys})",
+        "show": "Garder la barre latérale affichée ({keys})",
+        "appMenu": "Menu",
+        "grip": "Largeur de la barre latérale",
+        "gripTitle": "Glisser pour élargir ou réduire la barre (double-clic : {width} px)",
+        "header": {
+            "menu": "Options de {name}",
+            "typeTitle": "Type du projet : {type}"
+        },
+        "tiles": {
+            "label": "Vues épinglées dans {name}"
+        },
+        "temporary": {
+            "title": "Vues temporaires",
+            "hint": "Une vue temporaire se ferme ; épinglez-la pour la garder",
+            "newView": "Nouvelle vue"
+        },
+        "view": {
+            "equalize": "Égaliser la largeur des panneaux",
+            "equalizeAuto": "Égaliser automatiquement",
+            "view360": "Vue 360"
+        },
+        "build": {
+            "letter": {
+                "dev": "D",
+                "local": "L",
+                "gold": "G",
+                "rc": "V",
+                "public": "V"
+            }
+        },
+        "library": {
+            "label": "Bibliothèque : sessions, Pilotage, widgets, astuces et réglages",
+            "tools": "Outils",
+            "widgets": "Widgets"
+        },
+        "plus": {
+            "label": "Créer",
+            "inWorkspace": "Dans {name}",
+            "everywhere": "Partout",
+            "newView": "Nouvelle vue",
+            "newWorkspace": "Nouvel espace de travail"
+        }
     }
 }

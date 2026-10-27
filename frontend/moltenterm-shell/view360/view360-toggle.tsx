@@ -8,7 +8,7 @@
 // it. Its menu sets this screen's column threshold (#1083).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { atoms, WOS } from "@/app/store/global";
+import { atoms, globalStore, WOS } from "@/app/store/global";
 import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -44,8 +44,7 @@ function toggleTitle(decision: View360Decision, single: boolean, threshold: numb
                   : View360Text.heldSetting;
         return `${View360Text.tooltipOn}\n${held}\n${View360Text.clickOff}`;
     }
-    const off =
-        decision.source === "manual" ? View360Text.offManual : t("view360.ui.offColumns", { count: threshold });
+    const off = decision.source === "manual" ? View360Text.offManual : t("view360.ui.offColumns", { count: threshold });
     return `${View360Text.tooltipOff}\n${off}\n${View360Text.clickOn}`;
 }
 
@@ -89,6 +88,38 @@ function ExitDialog({ view360, exit }: { view360: View360Model; exit: View360Exi
     );
 }
 
+// The toggle's menu, also the 360 part of a view's menu in the workspace sidebar (#1183), which has no toggle.
+export function view360MenuItems(view360: View360Model): ContextMenuItem[] {
+    const on = globalStore.get(view360.decisionAtom).active;
+    const single = globalStore.get(view360.columnCountAtom) < 2;
+    const threshold = globalStore.get(view360.thresholdAtom);
+    const menu: ContextMenuItem[] = [];
+    if (!single) {
+        menu.push(
+            {
+                label: on ? View360Text.menuLeave : View360Text.menuOn,
+                click: () => view360.setActive(!on),
+            },
+            { type: "separator" }
+        );
+    }
+    // The screen's column threshold (#1083), the current value marked.
+    for (const count of ThresholdChoices) {
+        menu.push({
+            label: t("view360.ui.menuThreshold", { count }),
+            type: "checkbox",
+            checked: count === threshold,
+            click: () => ScreenModel.getInstance().setThreshold(count),
+        });
+    }
+    menu.push({ type: "separator" });
+    menu.push({
+        label: View360Text.menuSettings,
+        click: () => fireAndForget(() => openSettingsSection("appearance")),
+    });
+    return menu;
+}
+
 function ToggleButton({ view360 }: { view360: View360Model }) {
     useLocale();
     const decision = useAtomValue(view360.decisionAtom);
@@ -111,31 +142,7 @@ function ToggleButton({ view360 }: { view360: View360Model }) {
     const onContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const menu: ContextMenuItem[] = [];
-        if (!single) {
-            menu.push(
-                {
-                    label: on ? View360Text.menuLeave : View360Text.menuOn,
-                    click: () => view360.setActive(!on),
-                },
-                { type: "separator" }
-            );
-        }
-        // The screen's column threshold (#1083), the current value marked.
-        for (const count of ThresholdChoices) {
-            menu.push({
-                label: t("view360.ui.menuThreshold", { count }),
-                type: "checkbox",
-                checked: count === threshold,
-                click: () => ScreenModel.getInstance().setThreshold(count),
-            });
-        }
-        menu.push({ type: "separator" });
-        menu.push({
-            label: View360Text.menuSettings,
-            click: () => fireAndForget(() => openSettingsSection("appearance")),
-        });
-        ContextMenuModel.getInstance().showContextMenu(menu, e);
+        ContextMenuModel.getInstance().showContextMenu(view360MenuItems(view360), e);
     };
 
     return (
@@ -173,6 +180,31 @@ function ToggleForTab({ tabId }: { tabId: string }) {
     }
     return <ToggleButton view360={view360} />;
 }
+
+function ExitAskForTab({ tabId }: { tabId: string }) {
+    const tab = useAtomValue(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
+    const view360 = tab != null ? getLayoutModelForStaticTab()?.moltenView360 : null;
+    if (view360 == null) {
+        return null;
+    }
+    return <ExitAsk view360={view360} />;
+}
+
+function ExitAsk({ view360 }: { view360: View360Model }) {
+    const exitAsk = useAtomValue(view360.exitAskAtom);
+    return exitAsk != null ? <ExitDialog view360={view360} exit={exitAsk} /> : null;
+}
+
+// The "close panels first" message where no toggle is drawn: the workspace sidebar (#1183) leaves 360 view from the
+// view's menu.
+export const View360ExitHost = memo(() => {
+    const staticTabId = useAtomValue(atoms.staticTabId);
+    if (!staticTabId) {
+        return null;
+    }
+    return <ExitAskForTab tabId={staticTabId} />;
+});
+View360ExitHost.displayName = "View360ExitHost";
 
 export const View360Toggle = memo(() => {
     const staticTabId = useAtomValue(atoms.staticTabId);

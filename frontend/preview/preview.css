@@ -6,3 +6,5 @@
    so the automatic scan would otherwise miss frontend/app/**). */
 @import "../tailwindsetup.css";
 @source "../app";
+/* MOLTENTERM-PATCH (#1183): MoltenTerm's shell components, previewed too (the workspace sidebar) */
+@source "../moltenterm-shell";

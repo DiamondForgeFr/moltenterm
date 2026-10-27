@@ -261,6 +261,8 @@ var settings = []Setting{
 	hidden("telemetry:enabled"),
 	hidden("widget:showhelp"),
 	hidden("app:dismissarchitecturewarning"),
+	// The workspace sidebar's fallback (#1183): false brings back the tab bar, the rail and the status bar.
+	hidden("shell:workspacesidebar"),
 }
 
 func init() {

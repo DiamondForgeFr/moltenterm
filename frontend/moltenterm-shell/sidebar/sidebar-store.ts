@@ -1,0 +1,138 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The workspace sidebar's state (FR-SHELL-079): its width and whether it is hidden live in the window's meta, so every
+// tab view of the window draws the same sidebar and a relaunch keeps them; the peek (the sidebar shown over the content
+// from the left edge) and a width being dragged stay in this view.
+
+import { atoms, getSettingsKeyAtom, globalStore, WOS } from "@/app/store/global";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { fireAndForget } from "@/util/util";
+import * as jotai from "jotai";
+import { selectAtom } from "jotai/utils";
+import { ProjectTabMetaKey } from "../project/project-model";
+import {
+    clampSidebarWidth,
+    readSidebarHidden,
+    readSidebarWidth,
+    sameTabSplit,
+    SidebarDefaultWidth,
+    sidebarEnabled,
+    SidebarHiddenMetaKey,
+    SidebarSettingKey,
+    SidebarTabSplit,
+    SidebarWidthMetaKey,
+    splitSidebarTabs,
+} from "./sidebar-model";
+
+// The tabs MoltenTerm pins: the Project tab (#410). #1184 brings pinning to every view.
+const PinnedTabMetaKeys = [ProjectTabMetaKey];
+
+export class SidebarModel {
+    private static instance: SidebarModel = null;
+
+    // A width being dragged, drawn at once and written to the window when the drag ends.
+    draggingWidthAtom = jotai.atom(null) as jotai.PrimitiveAtom<number>;
+    // Set until the window's meta echoes the change, so a toggle shows at once.
+    pendingHiddenAtom = jotai.atom(null) as jotai.PrimitiveAtom<boolean>;
+    peekAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+
+    enabledAtom!: jotai.Atom<boolean>;
+    windowMetaAtom!: jotai.Atom<Record<string, any>>;
+    widthAtom!: jotai.Atom<number>;
+    hiddenAtom!: jotai.Atom<boolean>;
+    // The workspace's tabs as tiles and temporary views; a new value only when the lists change.
+    tabSplitAtom!: jotai.Atom<SidebarTabSplit>;
+
+    private constructor() {
+        this.tabSplitAtom = selectAtom(
+            jotai.atom((get) =>
+                splitSidebarTabs(
+                    get(atoms.workspace),
+                    (id) => get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", id))),
+                    PinnedTabMetaKeys
+                )
+            ),
+            (split) => split,
+            sameTabSplit
+        );
+        this.enabledAtom = jotai.atom((get) =>
+            sidebarEnabled(get(getSettingsKeyAtom(SidebarSettingKey as keyof SettingsType)) as boolean)
+        );
+        this.windowMetaAtom = jotai.atom((get) => {
+            const windowId = get(atoms.uiContext)?.windowid;
+            if (!windowId) {
+                return null;
+            }
+            return WOS.getObjectValue<WaveWindow>(WOS.makeORef("window", windowId), get)?.meta ?? null;
+        });
+        this.widthAtom = jotai.atom((get) => get(this.draggingWidthAtom) ?? readSidebarWidth(get(this.windowMetaAtom)));
+        this.hiddenAtom = jotai.atom(
+            (get) => get(this.pendingHiddenAtom) ?? readSidebarHidden(get(this.windowMetaAtom))
+        );
+    }
+
+    static getInstance(): SidebarModel {
+        if (SidebarModel.instance == null) {
+            SidebarModel.instance = new SidebarModel();
+        }
+        return SidebarModel.instance;
+    }
+
+    isEnabled(): boolean {
+        return globalStore.get(this.enabledAtom);
+    }
+
+    isHidden(): boolean {
+        return globalStore.get(this.hiddenAtom);
+    }
+
+    private writeWindowMeta(meta: Record<string, any>): Promise<void> {
+        const windowId = globalStore.get(atoms.uiContext)?.windowid;
+        if (!windowId) {
+            return Promise.resolve();
+        }
+        return RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("window", windowId), meta: meta as MetaType });
+    }
+
+    dragWidth(width: number) {
+        globalStore.set(this.draggingWidthAtom, clampSidebarWidth(width));
+    }
+
+    commitWidth(width: number) {
+        const value = clampSidebarWidth(width);
+        globalStore.set(this.draggingWidthAtom, value);
+        fireAndForget(async () => {
+            try {
+                await this.writeWindowMeta({ [SidebarWidthMetaKey]: value });
+            } finally {
+                globalStore.set(this.draggingWidthAtom, null);
+            }
+        });
+    }
+
+    resetWidth() {
+        this.commitWidth(SidebarDefaultWidth);
+    }
+
+    setHidden(hidden: boolean) {
+        globalStore.set(this.pendingHiddenAtom, hidden);
+        globalStore.set(this.peekAtom, false);
+        fireAndForget(async () => {
+            try {
+                await this.writeWindowMeta({ [SidebarHiddenMetaKey]: hidden });
+            } finally {
+                globalStore.set(this.pendingHiddenAtom, null);
+            }
+        });
+    }
+
+    toggleHidden() {
+        this.setHidden(!this.isHidden());
+    }
+
+    setPeek(peek: boolean) {
+        globalStore.set(this.peekAtom, peek);
+    }
+}

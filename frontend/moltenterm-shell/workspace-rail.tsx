@@ -403,8 +403,6 @@ export function WorkspaceRail() {
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
     // A workspace switch folds the tray (FR-SHELL-045-AC4).
     useEffect(() => RailTrayModel.getInstance().closeAll(), [active?.oid]);
-    // `molten review open|publish|merge` in a terminal of this workspace (FR-REV-014); the rail lives once per window.
-    useEffect(() => installReviewHandoff(active?.oid), [active?.oid]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
     const navRef = useRef<HTMLElement>(null);
@@ -814,6 +812,19 @@ export function WorkspaceRail() {
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
             <RailConnectBanner navRef={navRef} name={connectName} />
+            <WorkspaceRailHosts entries={entries} />
+        </nav>
+    );
+}
+
+// What lives once per window with the rail: the project link offer, the Project tab and pane focus keepers, the close,
+// agent choice, reset and edit dialogs, and the review handoff. The workspace sidebar (#1183) mounts them in its place.
+export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
+    const active = useAtomValue(atoms.workspace);
+    // `molten review open|publish|merge` in a terminal of this workspace (FR-REV-014).
+    useEffect(() => installReviewHandoff(active?.oid), [active?.oid]);
+    return (
+        <>
             <ProjectLinkDetector />
             <ProjectTabKeeper />
             <PaneFocusKeeper />
@@ -821,6 +832,6 @@ export function WorkspaceRail() {
             <AgentChoiceHost />
             <WorkspaceResetHost />
             <WorkspaceEditHost entries={entries} />
-        </nav>
+        </>
     );
 }

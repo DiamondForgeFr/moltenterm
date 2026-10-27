@@ -186,6 +186,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#276, #493): whether terminals may keep the computer awake (FR-SHELL-023, pkg/molten/keepawake); unset asks once.
 	PowerSleepPolicy string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input with nothing running is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."`
 
+	// MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar, the rail and the status bar (FR-SHELL-079, frontend/moltenterm-shell/sidebar).
+	ShellWorkspaceSidebar *bool `json:"shell:workspacesidebar,omitempty" jsonschema_description:"Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back"`
+
 	// MOLTENTERM-PATCH (#450): tab views about to be shown and the hot spare load at the foreground priority (FR-PERF-004, emain/moltenterm-tabview-priority.ts).
 	MoltentermTabViewPriority *bool `json:"moltenterm:tabviewpriority,omitempty" jsonschema_description:"Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)"`
 

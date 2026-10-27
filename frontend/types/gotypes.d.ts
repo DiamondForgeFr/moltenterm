@@ -1469,6 +1469,7 @@ declare global {
         "tab:holdtoclose"?: boolean;
         "tab:holdtoclosems"?: number;
         "power:sleeppolicy"?: string;
+        "shell:workspacesidebar"?: boolean;
         "moltenterm:tabviewpriority"?: boolean;
         "moltenterm:tabviewbudget"?: boolean;
         "moltenterm:hiddentabviews"?: number;

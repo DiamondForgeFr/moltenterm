@@ -475,7 +475,11 @@ export function NotificationCenter() {
     const placePanel = () => {
         const rect = bellRef.current?.getBoundingClientRect();
         if (rect != null) {
-            setAnchor({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+            // The 380 px panel stays inside the window when the bell sits on its left, in the sidebar (#1183).
+            setAnchor({
+                top: rect.bottom + 4,
+                right: Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - 388)),
+            });
         }
     };
 
