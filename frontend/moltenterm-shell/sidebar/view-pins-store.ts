@@ -20,9 +20,10 @@ import { pipelineAgentOf } from "../mission/pipeline-agent";
 import { typeCommandWhenReady } from "../palette/palette-actions";
 import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
 import { showToast } from "../toast-store";
+import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
 import { showUndoToast } from "./sidebar-undo";
-import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey } from "./view-menu-model";
+import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
 import {
     agentBlocksOf,
     AgentSlotMetaKey,
@@ -198,8 +199,10 @@ export class ViewPins {
         return RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("tab", tabId), meta: meta as MetaType });
     }
 
-    // The view's layout as the window shows it: the live tree for the tab on screen (the stored one lags behind).
-    private treeOf(tabId: string): PinNode {
+    // The view's layout as the window shows it: the live tree for the tab on screen (the stored one lags behind). Another
+    // tab's stored layout is read from wavesrv: this window may never have loaded it (FR-SHELL-081, a view pinned or
+    // duplicated from its menu while another is on screen).
+    private async treeOf(tabId: string): Promise<PinNode> {
         if (tabId === globalStore.get(atoms.staticTabId)) {
             const live = getLayoutModelForStaticTab()?.treeState?.rootNode;
             if (live != null) {
@@ -207,8 +210,13 @@ export class ViewPins {
             }
         }
         const tab = globalStore.get(tabAtom(tabId));
-        const layout = globalStore.get(WOS.getWaveObjectAtom<LayoutState>(WOS.makeORef("layout", tab?.layoutstate)));
-        return layoutTree(layout?.rootnode);
+        if (!tab?.layoutstate) {
+            return null;
+        }
+        const layout = await WOS.reloadWaveObject<LayoutState>(WOS.makeORef("layout", tab.layoutstate));
+        // A view not shown since panels were added keeps them in its pending layout actions, out of the stored tree:
+        // they go on its right, as the window would place them.
+        return withMissingPanels(layoutTree(layout?.rootnode), tab.blockids ?? []);
     }
 
     async capture(tabId: string): Promise<PinConfig> {
@@ -219,7 +227,7 @@ export class ViewPins {
             {
                 workspaceid: globalStore.get(atoms.workspaceId),
                 tabid: tabId,
-                tree: this.treeOf(tabId),
+                tree: await this.treeOf(tabId),
                 agentblocks: agentBlocksOf(data, tab?.blockids ?? []),
             },
             { route: ViewPinRoute, timeout: CaptureTimeoutMs }
@@ -274,7 +282,8 @@ export class ViewPins {
                 [PinMetaKey]: PinWorkspace,
                 [PinConfigMetaKey]: config,
             });
-            const workspace = globalStore.get(atoms.workspace)?.name ?? "";
+            const workspace =
+                workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
             showUndoToast(t("sidebar.pins.pinnedHere", { name, workspace }), () =>
                 this.setTabMeta(tabId, UnpinnedTabMeta)
             );
@@ -330,7 +339,8 @@ export class ViewPins {
                 await this.build({ name: pin.name, tabmeta: meta, config: pin.config, background: true });
             }
             await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
-            const workspace = globalStore.get(atoms.workspace)?.name ?? "";
+            const workspace =
+                workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
             showToast({ title: t("sidebar.pins.pinnedOnlyHere", { name: pin.name, workspace }) });
         } catch (e) {
             pinError(e);

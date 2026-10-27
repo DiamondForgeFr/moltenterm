@@ -78,6 +78,41 @@ export function configPaneIcons(config: PinConfig): string[] {
     return treePanes(config.tree).map((i) => paneIcon(config.panes[i]));
 }
 
+// A stored layout and the tab's panels: the panels the tree lacks (added while the view was not on screen, or a view
+// never shown, such as a duplicate made in the background) join it on the right. Panels the tab no longer has leave.
+export function withMissingPanels(tree: PinNode, blockIds: string[]): PinNode {
+    const ids = new Set(blockIds ?? []);
+    const prune = (node: PinNode): PinNode => {
+        if (node == null) {
+            return null;
+        }
+        if (node.children?.length) {
+            const children = node.children.map(prune).filter((c) => c != null);
+            if (children.length === 0) {
+                return null;
+            }
+            return children.length === 1 ? children[0] : { ...node, children };
+        }
+        return node.blockid && ids.has(node.blockid) ? node : null;
+    };
+    const kept = prune(tree);
+    const present = new Set<string>();
+    const walk = (node: PinNode) => {
+        if (node?.children?.length) {
+            node.children.forEach(walk);
+        } else if (node?.blockid) {
+            present.add(node.blockid);
+        }
+    };
+    walk(kept);
+    const missing = (blockIds ?? []).filter((id) => !present.has(id)).map((blockid) => ({ blockid }));
+    const all = kept != null ? [kept, ...missing] : missing;
+    if (all.length === 0) {
+        return null;
+    }
+    return all.length === 1 ? all[0] : { dir: "row", children: all };
+}
+
 // What the view menu offers (FR-SHELL-081): never an action the state forbids. pinPage: the temporary view's pin
 // actions open the pin page (#1184).
 export type ViewMenuPlan = {

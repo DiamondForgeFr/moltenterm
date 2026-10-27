@@ -549,7 +549,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
     const { env, onContextMenu } = useViewActions(tabId, active, pin, startRename, projectTab);
     useRenameCallback(tabId, env, startRename);
     const modified = pin.state === "workspace" && pin.modified;
-    const workspace = ws?.name ?? "";
+    const workspace = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const title = renaming
         ? undefined
         : modified
