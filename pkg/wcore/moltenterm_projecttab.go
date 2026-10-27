@@ -27,6 +27,15 @@ func projectTabBlockDef() *waveobj.BlockDef {
 	return &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: mission.ProjectView}}
 }
 
+// projectTabLayout: the project view on the left, focused, and Pilotage on its right at the same size (#1177).
+// Pilotage carries no project of its own: it shows the workspace's project, as when a notification or the rail opens it.
+func projectTabLayout() PortableLayout {
+	return PortableLayout{
+		{IndexArr: []int{0}, BlockDef: projectTabBlockDef(), Focused: true},
+		{IndexArr: []int{1}, BlockDef: &waveobj.BlockDef{Meta: waveobj.MetaMapType{waveobj.MetaKey_View: mission.PilotageView}}},
+	}
+}
+
 // readProjectTabFacts reads the workspace's link and record, then finds its marked tab and whether it still holds a
 // project view. A workspace with neither link nor record and no request has nothing to decide: its tabs are not read.
 func readProjectTabFacts(ctx context.Context, ws *waveobj.Workspace, open bool) mission.ProjectTabFacts {
@@ -83,8 +92,7 @@ func createProjectTab(ctx context.Context, wsId string, dir string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("creating the Project tab: %w", err)
 	}
-	layout := PortableLayout{{IndexArr: []int{0}, BlockDef: projectTabBlockDef(), Focused: true}}
-	if err := ApplyPortableLayout(ctx, tabId, layout, false); err != nil {
+	if err := ApplyPortableLayout(ctx, tabId, projectTabLayout(), false); err != nil {
 		if _, delErr := DeleteTab(ctx, wsId, tabId, false); delErr != nil {
 			log.Printf("molten: removing the unfinished Project tab %s: %v\n", tabId, delErr)
 		}
@@ -94,6 +102,7 @@ func createProjectTab(ctx context.Context, wsId string, dir string) (string, err
 }
 
 // restoreProjectView puts a project view back in a marked tab whose pane was replaced, when the user asks for it.
+// It never adds Pilotage back: a closed Pilotage pane was the user's choice (#1177).
 func restoreProjectView(ctx context.Context, tabId string) error {
 	block, err := CreateBlockWithTelemetry(ctx, tabId, projectTabBlockDef(), &waveobj.RuntimeOpts{}, false)
 	if err != nil {
