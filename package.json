@@ -143,7 +143,11 @@
         "monaco-editor@0.55.1": {
             "dompurify": "3.4.17"
         },
-        "postcss-selector-parser": "7.1.6"
+        "postcss-selector-parser": "7.1.6",
+        "satori": {
+            ".": "0.33.5",
+            "fflate": "0.7.5"
+        }
     },
     "packageManager": "npm@10.9.2",
     "workspaces": [
