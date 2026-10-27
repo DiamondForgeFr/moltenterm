@@ -101,6 +101,11 @@
     /* The longest loop cycle (the working segment of a panel header, FR-SHELL-052): NFR-SHELL-027's 1.6 s. A loop has
        no reduced-motion duration: it stops, its rule says how it stands still. */
     --mt-duration-loop: 1600ms;
+    /* A change made before the developer's eyes (molten-motion.css, #1163): an element flows in, melts out or travels
+       to its new place, and the molten glow passes over it, under 400 ms. */
+    --mt-duration-flow: 320ms;
+    /* The reduced-motion form of a flow: opacity only, so a change still reads without anything moving. */
+    --mt-duration-fade: 120ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -158,6 +163,7 @@
         --mt-duration-base: 0ms;
         --mt-duration-slow: 0ms;
         --mt-duration-glow: 0ms;
+        --mt-duration-flow: 0ms;
     }
 }
 
@@ -166,6 +172,7 @@
     --mt-duration-base: 0ms;
     --mt-duration-slow: 0ms;
     --mt-duration-glow: 0ms;
+    --mt-duration-flow: 0ms;
 }
 
 /* A workspace's glyph in its own colour, pulled towards the main text colour so it reads at 4.5:1 on every surface

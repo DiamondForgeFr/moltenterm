@@ -24,8 +24,9 @@ import "embed"
 // review.md is the guide a review session's agent gets as its system prompt (FR-REV-004, DS-REV-006).
 // pr-signature.md tells agents how to sign their commits and pull requests (#847).
 // pipeline-writing-guide.md is how the AI speaks in the pipeline setup, and the brief of the setup tab's agent (#1152).
+// pipeline-setup-agent.md teaches the pipeline tab's agent the `molten pipeline setup` commands (FR-MC-045, #1163).
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"

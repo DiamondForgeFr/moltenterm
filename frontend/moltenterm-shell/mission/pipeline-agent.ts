@@ -11,7 +11,7 @@
 // MoltenTerm's own request way (wavesrv, agenthandoff #1143): a brief in MoltenTerm's data folder and a short prompt
 // typed when the agent's prompt is idle, whatever its CLI. The brief names the pipeline writing guide.
 
-import { atoms } from "@/app/store/global";
+import { atoms, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { ObjectService } from "@/app/store/services";
 import { makeORef } from "@/app/store/wos";
@@ -85,6 +85,8 @@ export type PipelineAgentDeps = {
     newTerminal: (dir: string, panelBlockId: string) => Promise<string>;
     type: (blockId: string, command: string) => Promise<boolean>;
     ask: (data: Record<string, unknown>) => Promise<AskAnswer>;
+    // Gives the terminal the keyboard: every ask ends there, so the developer can type right away (#1163).
+    focus: (blockId: string) => void;
 };
 
 async function readAtPrompt(blockId: string): Promise<boolean> {
@@ -125,6 +127,7 @@ const DefaultDeps: PipelineAgentDeps = {
     newTerminal: openTerminalLeft,
     type: typeCommandWhenReady,
     ask: (data) => TabRpcClient.wshRpcCall(PipelineAskCommand, data, { route: MissionRouteId, timeout: AskTimeoutMs }),
+    focus: (blockId) => requestAnimationFrame(() => refocusNode(blockId)),
 };
 
 // Asks the tab's agent for help with the screen's context: opens or reuses the terminal on the left, starts the agent
@@ -138,29 +141,35 @@ export async function askPipelineAgent(
 ): Promise<PipelineAskResult> {
     const data = { dir, project, context: req?.context ?? "" };
     let terminal = pipelineTerminalOf(deps.blocks(), dir);
+    const focused = (result: PipelineAskResult): PipelineAskResult => {
+        if (terminal) {
+            deps.focus(terminal);
+        }
+        return result;
+    };
     try {
         if (terminal) {
             const answer = await deps.ask({ ...data, blockid: terminal });
             if (answer?.status === "sent") {
-                return "sent";
+                return focused("sent");
             }
         }
         const agent = pipelineAgentOf(await deps.choice(dir), deps.presets());
         if (agent.state !== "ready") {
-            return agent.state;
+            return focused(agent.state);
         }
         if (terminal && !(await deps.atPrompt(terminal))) {
-            return "busy";
+            return focused("busy");
         }
         if (!terminal) {
             terminal = await deps.newTerminal(dir, panelBlockId);
         }
         if (!(await deps.type(terminal, agent.agent.command))) {
-            return "failed";
+            return focused("failed");
         }
         const answer = await deps.ask({ ...data, blockid: terminal, wait: true });
-        return answer?.status === "sent" ? "sent" : "failed";
+        return focused(answer?.status === "sent" ? "sent" : "failed");
     } catch {
-        return "failed";
+        return focused("failed");
     }
 }

@@ -64,6 +64,35 @@ so a future light theme only has to map the same slots.
   surfaces (palette, command panel) keep their own look with 4 px corners and no light. `dialog-suite-frame.test.tsx`
   fails on a dialog without the frame and on an overlay with the 6 or 10 px radius.
 
+## Molten motion
+
+When MoltenTerm changes something before the developer's eyes (an agent adds a step, a card arrives, a list
+reorders), the change flows like molten metal instead of cutting. One vocabulary serves the whole app:
+`molten-motion.ts` (class names, timer values, hooks) and `molten-motion.css` (the look). It was introduced by the
+pipeline setup's agent board (#1163); later screens adopt the same module, never a local copy.
+
+- **Tokens** (`tokens.css`): `--mt-duration-flow` (320 ms, every change stays under 400 ms), `--mt-duration-fade`
+  (120 ms, the reduced-motion form) and the one curve `--mt-ease`. The glow is the accent `--mt-accent`, the colour
+  of the molten button's wave.
+- **Classes**: `mt-flow-in` (an element grows into place and pushes its neighbours; an SVG node rises from
+  `--mt-from-x` / `--mt-from-y` and swells into shape), `mt-arrive` (a whole screen replacing another, such as a
+  stepper's next step: keyed by the screen, it rises into place without clipping anything), `mt-melt-out` (the reverse: it cools, blurs and drips away
+  while the space closes), `mt-move` (positions and SVG path shapes travel rather than jump), `mt-glow-pass` (one
+  pass of the molten glow over what changed) and `mt-glow` (a steady glow on what is pointed at, such as the step
+  an agent explains; never a blink).
+- **Hooks**: `useFlowList(items, keyOf)` returns entries with a phase (`enter`, `stay`, `exit`), keeping a leaving
+  item one flow so it melts out where it was, and `flowClass(phase)` gives its class. A list row is wrapped in an
+  element with that class, and the row's own box sits inside it. `useGlowPass(signature)` returns `mt-glow-pass`
+  for one flow after the signature changes. `useFlipMove(ref, deps)` makes the `[data-motion-key]` elements under
+  `ref` travel from their old place to the new one. Never put that attribute on an SVG element whose own `transform`
+  attribute positions it, because the style would replace the attribute.
+- **Reduced motion**: the system's preference and MoltenTerm's setting (the app root's `.prefers-reduced-motion`)
+  turn every flow into a short fade (`--mt-duration-fade`, opacity only), stop transitions and leave a steady glow
+  standing still. `prefersReducedMotion()` and `motionMs()` read the same two signals for timers.
+- **Rules**: motion follows a change, never decorates a screen at rest. The first render of a list shows it as it
+  is. Keep the terminal side free of layout work, and animate only `transform`, `opacity`, `filter`, `box-shadow`,
+  the row's own `grid-template-rows` and an SVG path's `d`.
+
 ## Extraction plan
 
 1. **Moves to the kit as is:** `suite.css`, `suite.tsx`, `suite-icons.ts` and this document. They import only React,

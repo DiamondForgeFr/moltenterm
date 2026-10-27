@@ -15,7 +15,8 @@ func TestPipelineWritingGuideSaysWhatTheMockupsDecided(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"marquer la version", "étiquette de version", "demande de validation", "five sentences",
-		"Never name an operating system", "What it never asks", "I don't know, choose for me"} {
+		"Never name an operating system", "What it never asks", "I don't know, choose for me",
+		"molten pipeline setup propose", "pipeline-setup-agent.md"} {
 		if !strings.Contains(string(guide), want) {
 			t.Errorf("the guide lacks %q", want)
 		}

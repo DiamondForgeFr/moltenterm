@@ -590,6 +590,9 @@ export type FlowNode = {
     // Step 2a for a project already set up (#1102): the badge's change, coloured by its kind, dimmed when not taken.
     change?: SetupChangeKind;
     untaken?: boolean;
+    // The setup agent's open proposal on this step (FR-MC-045), and the step it is explaining.
+    proposed?: "add" | "change" | "remove";
+    explained?: boolean;
 };
 
 export type FlowModel = {

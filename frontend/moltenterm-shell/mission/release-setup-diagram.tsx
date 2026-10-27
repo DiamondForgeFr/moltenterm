@@ -6,7 +6,9 @@
 // steps hollow, the workflows GitHub runs on a lane of their own with their environment approvals.
 
 import { cn } from "@/util/util";
+import { CSSProperties, useRef } from "react";
 import { useT } from "../i18n/i18n";
+import { flowClass, MotionClass, MotionKeyAttr, useFlipMove, useFlowList } from "../molten-motion";
 import { PhaseTitles } from "./release-run";
 import { FlowModel, FlowNode, FlowPhases } from "./release-setup-model";
 
@@ -23,6 +25,14 @@ function shorten(text: string): string {
 }
 
 type Placed = FlowNode & { x: number; y: number };
+
+const placedKey = (node: Placed) => node.key;
+
+// A link's path as a style too, so it reflows (molten motion) when the layout changes instead of jumping; the attribute
+// stays for what reads the markup.
+function flowPath(d: string, style: CSSProperties): CSSProperties {
+    return { ...style, d: `path("${d}")` } as CSSProperties;
+}
 
 // The badge of a change the update proposes (#1102), as the legend and the change list colour it.
 const ChangeColors: Record<NonNullable<FlowNode["change"]>, string> = {
@@ -217,12 +227,30 @@ export function FlowDiagram({
     const branchAt = model.viaPr ? placed.find((n) => n.lane === "rc") : undefined;
     const mergeAt = model.viaPr ? placed.find((n) => n.key.endsWith("/merge-pr")) : undefined;
     const syncAt = placed.find((n) => n.key.endsWith("/sync-back"));
+    // Molten motion (#1163): a node that appears flows in along its branch, one that goes melts out where it was, and
+    // the others travel to their new place.
+    const shownNodes = useFlowList(placed, placedKey);
+    const svgRef = useRef<SVGSVGElement>(null);
+    useFlipMove(svgRef, [placed.map((n) => `${n.key}@${n.x},${n.y}`).join("|")]);
+    const promoteD = promoteAt
+        ? `M ${promoteAt.x} ${laneY("trunk")} C ${promoteAt.x + 30} ${laneY("trunk")}, ${promoteAt.x + 18} ${laneY("release")}, ${promoteAt.x + 48} ${laneY("release")}`
+        : "";
+    const branchD = branchAt
+        ? `M ${branchAt.x - 48} ${laneY("trunk")} C ${branchAt.x - 18} ${laneY("trunk")}, ${branchAt.x - 30} ${laneY("rc")}, ${branchAt.x} ${laneY("rc")}`
+        : "";
+    const mergeD = mergeAt
+        ? `M ${mergeAt.x - 48} ${laneY("rc")} C ${mergeAt.x - 18} ${laneY("rc")}, ${mergeAt.x - 30} ${laneY("release")}, ${mergeAt.x} ${laneY("release")}`
+        : "";
+    const syncD = syncAt
+        ? `M ${syncAt.x - 48} ${laneY("release")} C ${syncAt.x - 18} ${laneY("release")}, ${syncAt.x - 30} ${laneY("trunk")}, ${syncAt.x} ${laneY("trunk")}`
+        : "";
     return (
         <div
             className={cn("overflow-x-auto rounded-6 border border-border bg-black/20", className)}
             data-testid="setup-diagram"
         >
             <svg
+                ref={svgRef}
                 viewBox={`0 0 ${width} ${height}`}
                 width={width}
                 height={height}
@@ -251,12 +279,11 @@ export function FlowDiagram({
                         <text x={8} y={laneY(lane) + 4} className="text-11" style={{ fill: "var(--color-secondary)" }}>
                             {shorten(laneName(lane))}
                         </text>
-                        <line
-                            x1={LeftW - 6}
-                            x2={width - 4}
-                            y1={laneY(lane)}
-                            y2={laneY(lane)}
-                            style={
+                        <path
+                            d={`M ${LeftW - 6} ${laneY(lane)} H ${width - 4}`}
+                            className={MotionClass.move}
+                            style={flowPath(
+                                `M ${LeftW - 6} ${laneY(lane)} H ${width - 4}`,
                                 lane === "github" || lane === "targets"
                                     ? { stroke: "var(--color-border)", strokeWidth: 1.5, strokeDasharray: "4 5" }
                                     : lane === "trunk" || model.single
@@ -267,51 +294,68 @@ export function FlowDiagram({
                                             strokeWidth: 4,
                                             strokeLinecap: "round",
                                         }
-                            }
+                            )}
                         />
                     </g>
                 ))}
                 {promoteAt && !model.single ? (
                     <path
-                        d={`M ${promoteAt.x} ${laneY("trunk")} C ${promoteAt.x + 30} ${laneY("trunk")}, ${promoteAt.x + 18} ${laneY("release")}, ${promoteAt.x + 48} ${laneY("release")}`}
-                        style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                        d={promoteD}
+                        className={MotionClass.move}
+                        style={flowPath(promoteD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
                     />
                 ) : null}
                 {branchAt ? (
                     <path
-                        d={`M ${branchAt.x - 48} ${laneY("trunk")} C ${branchAt.x - 18} ${laneY("trunk")}, ${branchAt.x - 30} ${laneY("rc")}, ${branchAt.x} ${laneY("rc")}`}
-                        style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                        d={branchD}
+                        className={MotionClass.move}
+                        style={flowPath(branchD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
                         data-testid="setup-diagram-branch"
                     />
                 ) : null}
                 {mergeAt ? (
                     <path
-                        d={`M ${mergeAt.x - 48} ${laneY("rc")} C ${mergeAt.x - 18} ${laneY("rc")}, ${mergeAt.x - 30} ${laneY("release")}, ${mergeAt.x} ${laneY("release")}`}
-                        style={{ fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 }}
+                        d={mergeD}
+                        className={MotionClass.move}
+                        style={flowPath(mergeD, { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2.5 })}
                         data-testid="setup-diagram-pr"
                     />
                 ) : null}
                 {syncAt && !model.single ? (
                     <path
-                        d={`M ${syncAt.x - 48} ${laneY("release")} C ${syncAt.x - 18} ${laneY("release")}, ${syncAt.x - 30} ${laneY("trunk")}, ${syncAt.x} ${laneY("trunk")}`}
-                        style={{
+                        d={syncD}
+                        className={MotionClass.move}
+                        style={flowPath(syncD, {
                             fill: "none",
                             stroke: "var(--color-primary)",
                             strokeOpacity: 0.5,
                             strokeWidth: 2,
                             strokeDasharray: "5 4",
-                        }}
+                        })}
                     />
                 ) : null}
-                {placed.map((node) => (
+                {shownNodes.map(({ item: node, phase }) => (
                     <g
                         key={node.key}
+                        {...{ [MotionKeyAttr]: node.key }}
                         data-kind={node.kind}
                         data-point={node.point}
-                        onClick={node.point && onSelect ? () => onSelect(node.point) : undefined}
+                        data-phase={phase}
+                        data-proposed={node.proposed}
+                        onClick={node.point && onSelect && phase !== "exit" ? () => onSelect(node.point) : undefined}
                         onMouseEnter={node.point && onHover ? () => onHover(node.point) : undefined}
                         onMouseLeave={node.point && onHover ? () => onHover(null) : undefined}
-                        className={node.point && (onSelect || onHover) ? "cursor-pointer" : undefined}
+                        className={cn(
+                            node.point && (onSelect || onHover) ? "cursor-pointer" : undefined,
+                            flowClass(phase),
+                            node.explained ? MotionClass.glow : undefined
+                        )}
+                        style={
+                            {
+                                "--mt-from-x": `${-SlotW / 2}px`,
+                                opacity: node.proposed === "remove" ? 0.5 : undefined,
+                            } as CSSProperties
+                        }
                     >
                         <title>
                             {[
@@ -337,6 +381,20 @@ export function FlowDiagram({
                                     strokeWidth: 1.5,
                                 }}
                                 data-testid="setup-diagram-selected"
+                            />
+                        ) : null}
+                        {node.proposed ? (
+                            <circle
+                                cx={node.x}
+                                cy={node.y}
+                                r={15}
+                                style={{
+                                    fill: "none",
+                                    stroke: node.proposed === "remove" ? "var(--color-error)" : "var(--color-accent)",
+                                    strokeWidth: 1.5,
+                                    strokeDasharray: "3 3",
+                                }}
+                                data-testid={`setup-diagram-proposed-${node.proposed}`}
                             />
                         ) : null}
                         <NodeMark node={node} plain={plain} />
