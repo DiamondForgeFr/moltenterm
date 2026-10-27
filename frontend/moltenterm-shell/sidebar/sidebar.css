@@ -343,8 +343,8 @@
     height: 14px;
     padding: 0 5px;
     box-sizing: border-box;
-    border-radius: 7px;
-    font-size: 10px;
+    border-radius: 9999px;
+    font-size: var(--mt-text-11);
     font-weight: 600;
     line-height: 14px;
     text-align: center;
@@ -359,8 +359,6 @@
     min-width: 14px;
     height: 12px;
     padding: 0 4px;
-    border-radius: 6px;
-    font-size: 9px;
     line-height: 12px;
 }
 
