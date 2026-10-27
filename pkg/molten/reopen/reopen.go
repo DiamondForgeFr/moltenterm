@@ -8,6 +8,7 @@
 package reopen
 
 import (
+	"sort"
 	"strings"
 	"sync"
 
@@ -21,9 +22,18 @@ const (
 	ReopenCommand = "moltenreopenlast"
 	// The close recorded did not happen (a confirmation was declined): its entry goes.
 	DropCommand = "moltenreopendrop"
+	// The library's put-away views (FR-SHELL-088): the closed views of every workspace, and one of them back.
+	ListCommand     = "moltenreopenlist"
+	ReopenIdCommand = "moltenreopenid"
 
-	// How many closes each workspace keeps.
+	// How many pane closes each workspace keeps.
 	StackSize = 10
+	// How many closed views (tabs) each workspace keeps: the library lists them, so pane closes never push them out.
+	PutAwaySize = 30
+
+	// ResumeAgentMetaKey: a closed terminal held an agent; the reopened terminal starts it again on its session. The
+	// terminal's window types the command once and clears the key (frontend/moltenterm-shell/sidebar/agent-slot.tsx).
+	ResumeAgentMetaKey = "molten:reopenagent"
 
 	ActorUser   = "user"
 	ActionClose = "close"
@@ -68,6 +78,126 @@ type ReopenResult struct {
 	Cwd        string `json:"cwd,omitempty"`
 	TabId      string `json:"tabid,omitempty"`
 	BlockId    string `json:"blockid,omitempty"`
+}
+
+// ReopenIdRequest: a closed view the library reopens, in its own workspace.
+type ReopenIdRequest struct {
+	WorkspaceId string `json:"workspaceid"`
+	Id          string `json:"id"`
+	TabId       string `json:"tabid,omitempty"`
+}
+
+// ResumeAgent is the agent a closed terminal held, and the command line that starts it again on its session.
+type ResumeAgent struct {
+	Agent   string `json:"agent"`
+	Name    string `json:"name,omitempty"`
+	Command string `json:"command"`
+	// Guessed: the session was not known for sure; the command resumes the agent's last session in the folder.
+	Guessed bool `json:"guessed,omitempty"`
+}
+
+// PutAway is one closed view as the library lists it. Panels: the meta its panels' names and icons are read from.
+type PutAway struct {
+	Id          string                `json:"id"`
+	At          int64                 `json:"at"`
+	WorkspaceId string                `json:"workspaceid"`
+	Name        string                `json:"name"`
+	Meta        waveobj.MetaMapType   `json:"meta,omitempty"`
+	Panels      []waveobj.MetaMapType `json:"panels"`
+	Agents      []ResumeAgent         `json:"agents,omitempty"`
+}
+
+type ListResult struct {
+	Views []PutAway `json:"views"`
+}
+
+// The panel meta the library reads a closed view's names and icons from; the rest of the state stays in wavesrv.
+var listedPanelKeys = []string{waveobj.MetaKey_View, waveobj.MetaKey_File, waveobj.MetaKey_Url, waveobj.MetaKey_CmdCwd,
+	waveobj.MetaKey_Connection, waveobj.MetaKey_FrameTitle, "display:icon"}
+
+// The tab meta the library shows of a closed view.
+var listedTabKeys = []string{waveobj.MetaKey_TabFlagColor}
+
+func pickKeys(meta waveobj.MetaMapType, keys []string) waveobj.MetaMapType {
+	rtn := waveobj.MetaMapType{}
+	for _, k := range keys {
+		if v, ok := meta[k]; ok && v != nil {
+			rtn[k] = v
+		}
+	}
+	return rtn
+}
+
+// ReadResumeAgent reads the agent a closed panel held, from its meta.
+func ReadResumeAgent(meta waveobj.MetaMapType) (ResumeAgent, bool) {
+	raw, ok := meta[ResumeAgentMetaKey]
+	if !ok || raw == nil {
+		return ResumeAgent{}, false
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return ResumeAgent{}, false
+	}
+	a := ResumeAgent{}
+	a.Agent, _ = m["agent"].(string)
+	a.Name, _ = m["name"].(string)
+	a.Command, _ = m["command"].(string)
+	a.Guessed, _ = m["guessed"].(bool)
+	return a, a.Command != ""
+}
+
+// ResumeAgentMeta is the meta value that carries a ResumeAgent into the reopened block.
+func ResumeAgentMeta(a ResumeAgent) map[string]any {
+	rtn := map[string]any{"agent": a.Agent, "command": a.Command}
+	if a.Name != "" {
+		rtn["name"] = a.Name
+	}
+	if a.Guessed {
+		rtn["guessed"] = true
+	}
+	return rtn
+}
+
+// Summary is how the library shows a closed view.
+func (e Entry) Summary() PutAway {
+	rtn := PutAway{Id: e.Id, At: e.At, WorkspaceId: e.Target.WorkspaceId, Name: e.Target.Name, Panels: []waveobj.MetaMapType{}}
+	if e.Tab == nil {
+		return rtn
+	}
+	rtn.Meta = pickKeys(e.Tab.Meta, listedTabKeys)
+	for _, leaf := range e.Tab.Leaves {
+		rtn.Panels = append(rtn.Panels, pickKeys(leaf.Meta, listedPanelKeys))
+		if a, ok := ReadResumeAgent(leaf.Meta); ok {
+			rtn.Agents = append(rtn.Agents, a)
+		}
+	}
+	return rtn
+}
+
+var agentResumeLock sync.Mutex
+var agentResume func(blockId string) (ResumeAgent, bool)
+
+// SetAgentResume installs how a terminal's agent is read before it closes; wavesrv sets it once at start, from the
+// package that knows the agents (termupdate), which this one cannot import.
+func SetAgentResume(fn func(blockId string) (ResumeAgent, bool)) {
+	agentResumeLock.Lock()
+	defer agentResumeLock.Unlock()
+	agentResume = fn
+}
+
+func getAgentResume() func(blockId string) (ResumeAgent, bool) {
+	agentResumeLock.Lock()
+	defer agentResumeLock.Unlock()
+	return agentResume
+}
+
+// AgentOf reads the agent a terminal runs, with the command that resumes it; false when none runs or none is known.
+func AgentOf(blockId string) (ResumeAgent, bool) {
+	fn := getAgentResume()
+	if fn == nil || blockId == "" {
+		return ResumeAgent{}, false
+	}
+	return fn(blockId)
 }
 
 // Target is what was closed.
@@ -151,15 +281,72 @@ func (s *Stacks) CurrentId(id string) string {
 	return id
 }
 
+func keepOf(kind string) int {
+	if kind == KindTab {
+		return PutAwaySize
+	}
+	return StackSize
+}
+
+// Push keeps the workspace's last StackSize pane closes and its last PutAwaySize closed views: the oldest entry of the
+// kind just pushed goes.
 func (s *Stacks) Push(e Entry) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	ws := e.Target.WorkspaceId
 	list := append(s.entries[ws], e)
-	if len(list) > StackSize {
-		list = list[len(list)-StackSize:]
+	kind := e.Target.Kind
+	count := 0
+	for _, x := range list {
+		if x.Target.Kind == kind {
+			count++
+		}
+	}
+	for i := 0; i < len(list) && count > keepOf(kind); {
+		if list[i].Target.Kind != kind {
+			i++
+			continue
+		}
+		list = append(list[:i:i], list[i+1:]...)
+		count--
 	}
 	s.entries[ws] = list
+}
+
+// PutAway lists the closed views of every workspace, the most recent first.
+func (s *Stacks) PutAway() []PutAway {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	rtn := []PutAway{}
+	for _, list := range s.entries {
+		for _, e := range list {
+			if e.Tab != nil {
+				rtn = append(rtn, e.Summary())
+			}
+		}
+	}
+	sort.SliceStable(rtn, func(i, j int) bool {
+		if rtn[i].At != rtn[j].At {
+			return rtn[i].At > rtn[j].At
+		}
+		return rtn[i].Id < rtn[j].Id
+	})
+	return rtn
+}
+
+// Take removes one entry of a workspace and returns it.
+func (s *Stacks) Take(workspaceId string, id string) (Entry, bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	list := s.entries[workspaceId]
+	for i := len(list) - 1; i >= 0; i-- {
+		if list[i].Id == id {
+			e := list[i]
+			s.entries[workspaceId] = append(list[:i:i], list[i+1:]...)
+			return e, true
+		}
+	}
+	return Entry{}, false
 }
 
 // Pop takes the most recent close of a workspace.

@@ -79,6 +79,8 @@ export type AgentTab = {
     viewport?: AgentViewport;
     // A tab the user shared shows its badge alone until the agent acts on it (FR-BRW-011).
     engaged?: boolean;
+    // When the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
+    since?: number;
 };
 
 // must match ShareResult, ShareTellResult and SessionEntry in pkg/molten/browseragent/share.go

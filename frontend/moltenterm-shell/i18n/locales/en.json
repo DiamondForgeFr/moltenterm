@@ -8801,9 +8801,7 @@
             }
         },
         "library": {
-            "label": "Library: sessions, Pilotage, widgets, tips and settings",
-            "tools": "Tools",
-            "widgets": "Widgets"
+            "label": "Library: workspaces, panels, sent to AI, put-away views and settings"
         },
         "plus": {
             "label": "Create",
@@ -8846,11 +8844,10 @@
                 "one": "1 finished view closed",
                 "other": "{count} finished views closed"
             },
-            "closedFinishedHint": "Views whose agent still works stay open. Reopen closed brings them back.",
+            "closedFinishedHint": "Views whose agent still works stay open. The library's put-away views bring them back.",
             "noClose": "“{name}” is pinned and does not close",
             "noCloseHint": "Unpin it first, from its menu.",
             "noAgent": "No coding agent is set for this project",
-            "reopenClosed": "Reopen the last closed view",
             "pinTitle": "Pin this view…",
             "revertTitle": "Back to the pinned state",
             "tileTitle": "{name} · pinned in {workspace}",
@@ -8964,6 +8961,100 @@
         "actions": {
             "toggleSidebar": "Hide or show the sidebar",
             "clearTerminal": "Clear the terminal"
+        }
+    },
+    "library": {
+        "label": "Library",
+        "navLabel": "Library sections",
+        "back": "Close the library",
+        "backTitle": "Back (Esc)",
+        "search": "Search",
+        "nothingFound": "Nothing found",
+        "sections": {
+            "workspaces": {
+                "label": "Workspaces",
+                "title": "All workspaces",
+                "sub": "Your products side by side: their views, their agents, what is going on."
+            },
+            "panels": {
+                "label": "Panels",
+                "title": "Panels",
+                "sub": "What each panel does, and adding it to the current view."
+            },
+            "ai": {
+                "label": "Sent to AI",
+                "title": "Sent to AI",
+                "sub": "The pages agents hold right now: the ones you shared and the ones they opened."
+            },
+            "putaway": {
+                "label": "Put-away views",
+                "title": "Put-away views",
+                "sub": "The views you closed, with their agent and its history, until you quit MoltenTerm."
+            },
+            "settings": {
+                "label": "Settings",
+                "title": "Settings",
+                "sub": "What applies to all of MoltenTerm."
+            }
+        },
+        "workspaces": {
+            "goTo": "Go to {name}",
+            "agents": "Agents",
+            "live": {
+                "one": "{count} active",
+                "other": "{count} active"
+            },
+            "resting": "resting",
+            "openViews": "Open views"
+        },
+        "panels": {
+            "addTo": "Add to “{view}”",
+            "show": "Show it",
+            "thisView": "this view",
+            "about": {
+                "terminal": "A shell in the current project's folder.",
+                "files": "Browse the project's files and open one to read or edit it.",
+                "browser": "A web page, like a small app. Share it with an agent so it can read it or act on it.",
+                "cicd": "The project's pipeline runs: what passed, what failed, and why.",
+                "pilotage": "The pull requests waiting for you and what the agents are doing. What needs you is at the top.",
+                "sysinfo": "This computer's processor and memory use, live.",
+                "processes": "The programs running on this computer, and stopping one.",
+                "project": "The project's dashboard: pull requests, agents, services and branch, with the CI/CD.",
+                "linemap": "The project's branches and commits drawn as a line map.",
+                "sessions": "The terminals and agents that keep running in the background, and resuming one."
+            }
+        },
+        "ai": {
+            "now": "Now",
+            "since": "since {when}",
+            "shared": "shared",
+            "opened": "opened by the agent",
+            "emptyTitle": "Nothing shared right now",
+            "empty": "A page you share with an agent from a browser panel shows here while the agent holds it."
+        },
+        "putaway": {
+            "reopen": "Reopen",
+            "unnamed": "View",
+            "panels": {
+                "one": "{count} panel",
+                "other": "{count} panels"
+            },
+            "withAgent": "with {agents}",
+            "withAgentTitle": "The agent starts again on its own conversation when the view reopens",
+            "lastKeys": "{keys} reopens the last one.",
+            "gone": "This view is no longer put away",
+            "emptyTitle": "Nothing put away",
+            "empty": "The views you close stay here, with their agent and its history."
+        },
+        "settings": {
+            "tipsSub": "Short tips on what MoltenTerm can do"
+        },
+        "suggest": {
+            "title": "Suggest MoltenTerm",
+            "text": "Copy the download link to send to a colleague or a friend. Nothing from your workspaces is shared.",
+            "copy": "Copy the download link",
+            "copied": "Download link copied",
+            "failed": "The link could not be copied"
         }
     }
 }

@@ -111,6 +111,8 @@ type PanelAgentTab struct {
 	Viewport *Viewport `json:"viewport,omitempty"`
 	// Engaged: the agent acts on the tab. A tab the user shared shows its badge alone until then (FR-BRW-011).
 	Engaged bool `json:"engaged,omitempty"`
+	// Since: when the agent got the tab (Unix ms), for the library's Sent to AI (FR-SHELL-088).
+	Since int64 `json:"since,omitempty"`
 }
 
 type Viewport struct {

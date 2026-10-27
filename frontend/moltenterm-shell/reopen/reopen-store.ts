@@ -11,8 +11,11 @@ import { isMacOS } from "@/util/platformutil";
 import { t } from "../i18n/i18n";
 import { showToast } from "../toast-store";
 import {
+    PutAwayView,
     ReopenDropCommand,
+    ReopenIdCommand,
     ReopenLastCommand,
+    ReopenListCommand,
     ReopenRecordCommand,
     ReopenResult,
     ReopenRoute,
@@ -88,6 +91,35 @@ export function reopenLastQuietly(): Promise<ReopenResult> {
         { workspaceid: globalStore.get(atoms.workspaceId), tabid: globalStore.get(atoms.staticTabId) },
         { route: ReopenRoute, timeout: ReopenTimeoutMs }
     );
+}
+
+// The closed views of every workspace, the most recent first (FR-SHELL-088).
+export async function listPutAwayViews(): Promise<PutAwayView[]> {
+    const res: { views: PutAwayView[] } = await TabRpcClient.wshRpcCall(
+        ReopenListCommand,
+        {},
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+    return res?.views ?? [];
+}
+
+// Brings one closed view back in its own workspace, then shows that workspace. An agent that ran in it starts again
+// once its terminal shows (agent-slot.tsx).
+export async function reopenPutAwayView(view: PutAwayView): Promise<ReopenResult> {
+    const here = globalStore.get(atoms.workspaceId);
+    const res: ReopenResult = await TabRpcClient.wshRpcCall(
+        ReopenIdCommand,
+        {
+            workspaceid: view.workspaceid,
+            id: view.id,
+            tabid: view.workspaceid === here ? globalStore.get(atoms.staticTabId) : "",
+        },
+        { route: ReopenRoute, timeout: ReopenTimeoutMs }
+    );
+    if (res?.reopened && view.workspaceid !== here) {
+        getApi().switchWorkspace(view.workspaceid);
+    }
+    return res;
 }
 
 // Cmd+Shift+T: the workspace's last close comes back; pressed again, the one before.

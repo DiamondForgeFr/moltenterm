@@ -1,0 +1,564 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The library (FR-SHELL-088), from the #1181 prototype (.libx, .lnav, .lcont): over the window, its own navigation on
+   the left, a wide page on the right. Under the dialogs (--zindex-modal-wrapper), so a sheet it opens stays on top. */
+
+.mt-lib {
+    --mt-lib-fg-3: color-mix(in srgb, var(--color-secondary) 70%, transparent);
+    position: fixed;
+    z-index: 400;
+    inset: 8px;
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-tint) 18%, rgb(20 17 16)) 94%, black);
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px rgb(255 255 255 / 0.08);
+    color: var(--color-primary);
+    font-size: 13px;
+    animation: mt-lib-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-lib-in {
+    from {
+        opacity: 0;
+        transform: translateX(-18px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-lib {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-lib {
+    animation: none;
+}
+
+.mt-lib :focus-visible {
+    outline: 1px solid rgb(255 255 255 / 0.55);
+    outline-offset: -1px;
+}
+
+@media (max-width: 760px) {
+    .mt-lib {
+        grid-template-columns: 76px minmax(0, 1fr);
+    }
+    .mt-lib-ni {
+        font-size: 10px;
+        padding: 9px 2px;
+    }
+}
+
+.mt-lib-nav {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+}
+
+/* Room for the window's own buttons, and a place to drag the window by. */
+.mt-lib-navtop {
+    height: 24px;
+    flex: none;
+    -webkit-app-region: drag;
+}
+
+.mt-lib-items {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.mt-lib-ni {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-lib-ni:hover {
+    background: rgb(255 255 255 / 0.07);
+    color: var(--color-primary);
+}
+
+.mt-lib-ni.is-on {
+    background: rgb(255 255 255 / 0.12);
+    color: var(--color-primary);
+}
+
+.mt-lib-bot {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+}
+
+.mt-lib-icon {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-secondary);
+    cursor: pointer;
+}
+
+.mt-lib-icon:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--color-primary);
+}
+
+.mt-lib-pop {
+    position: absolute;
+    z-index: 2;
+    left: 0;
+    bottom: 36px;
+    display: flex;
+    width: 260px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, rgb(20 17 16) 92%, white);
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+
+.mt-lib-pop p {
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+.mt-lib-cont {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    background: rgb(0 0 0 / 0.18);
+}
+
+.mt-lib-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mt-lib-head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.mt-lib-head p {
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: 12px;
+}
+
+.mt-lib-search {
+    width: min(260px, 45%);
+    margin-left: auto;
+    padding: 5px 9px;
+    border: 0;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.06);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    color: var(--color-primary);
+    font-size: 12px;
+    outline: none;
+}
+
+.mt-lib-search:focus {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+}
+
+.mt-lib-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* Workspaces: one column each, side by side. */
+.mt-lib-wscols {
+    display: flex;
+    gap: 10px;
+    height: 100%;
+    min-height: 360px;
+}
+
+.mt-lib-wscol {
+    display: flex;
+    flex: 0 0 236px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    overflow-y: auto;
+    border-radius: 6px;
+    background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-c) 18%, rgb(20 17 16)) 70%, black);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    cursor: pointer;
+    transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-lib-wscol:hover {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-lib-c) 70%, transparent);
+}
+
+.mt-lib-wscol.is-cur {
+    box-shadow: inset 0 0 0 1.5px var(--mt-lib-c);
+}
+
+.mt-lib-lg {
+    display: flex;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.mt-lib-tile {
+    position: relative;
+    display: flex;
+    height: 46px;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.09);
+    color: var(--color-primary);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.mt-lib-tile:hover {
+    background: rgb(255 255 255 / 0.15);
+}
+
+.mt-lib-tile.is-on {
+    background: rgb(255 255 255 / 0.2);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+}
+
+.mt-lib-sect {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+    color: var(--mt-lib-fg-3);
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.mt-lib-mrow {
+    display: flex;
+    min-height: 26px;
+    width: 100%;
+    align-items: center;
+    gap: 7px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-mrow:hover,
+.mt-lib-mrow.is-on {
+    background: rgb(255 255 255 / 0.07);
+    color: var(--color-primary);
+}
+
+.mt-lib-mrow .t {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-av {
+    display: flex;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: var(--color-primary);
+    font-size: 9.5px;
+    font-weight: 700;
+}
+
+.mt-lib-av.is-working {
+    background: color-mix(in srgb, var(--mt-state-working) 45%, transparent);
+}
+
+.mt-lib-av.is-waiting {
+    background: color-mix(in srgb, var(--mt-state-waiting) 55%, transparent);
+}
+
+.mt-lib-av.is-error {
+    background: color-mix(in srgb, var(--mt-state-error) 55%, transparent);
+}
+
+.mt-lib-av.is-done {
+    background: color-mix(in srgb, var(--mt-state-done) 40%, transparent);
+}
+
+/* Panels: a card per kind. */
+.mt-lib-pcards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.mt-lib-pcard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.05);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.mt-lib-pcard p {
+    flex: 1;
+    margin: 0;
+    color: var(--mt-lib-fg-3);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.mt-lib-pic {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgb(255 255 255 / 0.08);
+    font-style: normal;
+}
+
+/* A calm secondary button: the library's actions are many and none is the page's single call to action. */
+.mt-lib-btn {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.08);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    color: var(--color-primary);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.mt-lib-btn:hover {
+    background: rgb(255 255 255 / 0.14);
+}
+
+.mt-lib-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.mt-lib-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.mt-lib-link:hover {
+    background: rgb(255 255 255 / 0.07);
+    color: var(--color-primary);
+}
+
+/* Sent to AI. */
+.mt-lib-day {
+    padding: 10px 10px 4px;
+    color: var(--mt-lib-fg-3);
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.mt-lib-airow {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-secondary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-airow:hover {
+    background: rgb(255 255 255 / 0.06);
+    color: var(--color-primary);
+}
+
+.mt-lib-airow .t {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-lib-airow .t b {
+    overflow: hidden;
+    color: var(--color-primary);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-airow .t span {
+    color: var(--mt-lib-fg-3);
+    font-size: 11px;
+}
+
+.mt-lib-state {
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.07);
+    color: var(--mt-lib-fg-3);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.mt-lib-state.is-live {
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+}
+
+/* Put-away views. */
+.mt-lib-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: rgb(255 255 255 / 0.04);
+}
+
+.mt-lib-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 30px;
+    color: var(--mt-lib-fg-3);
+    font-size: 12px;
+    text-align: center;
+}
+
+.mt-lib-empty b {
+    color: var(--color-primary);
+    font-size: 13px;
+}
+
+/* Settings. */
+.mt-lib-setgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.mt-lib-set {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 0;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.05);
+    color: var(--color-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-set:hover {
+    background: rgb(255 255 255 / 0.1);
+}
+
+.mt-lib-set > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-lib-set small {
+    color: var(--mt-lib-fg-3);
+    font-size: 11px;
+}
+
+.mt-lib-set.is-error {
+    color: var(--color-error);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-error) 50%, transparent);
+}

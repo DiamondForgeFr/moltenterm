@@ -59,6 +59,14 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			return nil, err
 		}
 		return ReopenLast(ctx, l.store, l.stacks, req)
+	case ListCommand:
+		return ListResult{Views: l.stacks.PutAway()}, nil
+	case ReopenIdCommand:
+		var req ReopenIdRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReopenId(ctx, l.store, l.stacks, req)
 	}
 	return nil, fmt.Errorf("unknown reopen command %q", command)
 }
@@ -88,6 +96,20 @@ func ReopenLast(ctx context.Context, store Store, stacks *Stacks, req ReopenRequ
 	if !ok {
 		return ReopenResult{}, nil
 	}
+	return restoreEntry(ctx, store, stacks, e, req)
+}
+
+// ReopenId brings one closed view of the library back, in its own workspace. Reopened false: it is gone (reopened
+// from another window, or pushed out).
+func ReopenId(ctx context.Context, store Store, stacks *Stacks, req ReopenIdRequest) (ReopenResult, error) {
+	e, ok := stacks.Take(req.WorkspaceId, req.Id)
+	if !ok {
+		return ReopenResult{}, nil
+	}
+	return restoreEntry(ctx, store, stacks, e, ReopenRequest{WorkspaceId: req.WorkspaceId, TabId: req.TabId})
+}
+
+func restoreEntry(ctx context.Context, store Store, stacks *Stacks, e Entry, req ReopenRequest) (ReopenResult, error) {
 	restored := e
 	if e.Pane != nil {
 		pane := *e.Pane
