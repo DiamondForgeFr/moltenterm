@@ -14,13 +14,13 @@
     gap: 8px;
     padding: 8px;
     box-sizing: border-box;
-    border-radius: 10px;
+    border-radius: var(--mt-radius-4);
     background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-tint) 18%, rgb(20 17 16)) 94%, black);
     box-shadow:
         var(--mt-shadow-command),
         inset 0 0 0 1px rgb(255 255 255 / 0.08);
     color: var(--color-primary);
-    font-size: 13px;
+    font-size: var(--mt-text-13);
     animation: mt-lib-in var(--mt-duration-base) var(--mt-ease);
 }
 
@@ -51,7 +51,7 @@
         grid-template-columns: 76px minmax(0, 1fr);
     }
     .mt-lib-ni {
-        font-size: 10px;
+        font-size: var(--mt-text-11);
         padding: 9px 2px;
     }
 }
@@ -86,11 +86,11 @@
     gap: 6px;
     padding: 12px 4px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: var(--color-secondary);
-    font-size: 11.5px;
-    font-weight: 600;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-semibold);
     text-align: center;
     cursor: pointer;
     transition:
@@ -122,7 +122,7 @@
     align-items: center;
     justify-content: center;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: var(--color-secondary);
     cursor: pointer;
@@ -143,7 +143,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 10px;
-    border-radius: 8px;
+    border-radius: var(--mt-radius-6);
     background: color-mix(in srgb, rgb(20 17 16) 92%, white);
     box-shadow:
         var(--mt-shadow-command),
@@ -153,7 +153,7 @@
 .mt-lib-pop p {
     margin: 0;
     color: var(--mt-lib-fg-3);
-    font-size: 11.5px;
+    font-size: var(--mt-text-12);
     line-height: 1.5;
 }
 
@@ -165,7 +165,7 @@
     gap: 10px;
     padding: 12px;
     box-sizing: border-box;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(0 0 0 / 0.18);
 }
 
@@ -177,14 +177,14 @@
 
 .mt-lib-head h3 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
 }
 
 .mt-lib-head p {
     margin: 0;
     color: var(--mt-lib-fg-3);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
 }
 
 .mt-lib-search {
@@ -192,11 +192,11 @@
     margin-left: auto;
     padding: 5px 9px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.06);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
     color: var(--color-primary);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     outline: none;
 }
 
@@ -225,7 +225,7 @@
     gap: 8px;
     padding: 10px;
     overflow-y: auto;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-c) 18%, rgb(20 17 16)) 70%, black);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
     cursor: pointer;
@@ -247,9 +247,9 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 800;
+    border-radius: var(--mt-radius-6);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
 }
 
 .mt-lib-tile {
@@ -263,10 +263,10 @@
     gap: 4px;
     padding: 0 4px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.09);
     color: var(--color-primary);
-    font-size: 11px;
+    font-size: var(--mt-text-11);
     cursor: pointer;
 }
 
@@ -284,7 +284,7 @@
     justify-content: space-between;
     padding: 4px 2px 0;
     color: var(--mt-lib-fg-3);
-    font-size: 10.5px;
+    font-size: var(--mt-text-11);
     letter-spacing: 0.07em;
     text-transform: uppercase;
 }
@@ -297,10 +297,10 @@
     gap: 7px;
     padding: 0 6px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: var(--color-secondary);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     text-align: left;
     cursor: pointer;
 }
@@ -329,8 +329,8 @@
     border-radius: 50%;
     background: rgb(255 255 255 / 0.14);
     color: var(--color-primary);
-    font-size: 9.5px;
-    font-weight: 700;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
 }
 
 .mt-lib-av.is-working {
@@ -361,7 +361,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 12px;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.05);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
 }
@@ -370,7 +370,7 @@
     flex: 1;
     margin: 0;
     color: var(--mt-lib-fg-3);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     line-height: 1.5;
 }
 
@@ -381,7 +381,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.08);
     font-style: normal;
 }
@@ -395,11 +395,11 @@
     max-width: 100%;
     padding: 4px 10px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.08);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
     color: var(--color-primary);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -421,10 +421,10 @@
     gap: 6px;
     padding: 4px 8px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: var(--color-secondary);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     cursor: pointer;
 }
 
@@ -437,7 +437,7 @@
 .mt-lib-day {
     padding: 10px 10px 4px;
     color: var(--mt-lib-fg-3);
-    font-size: 10.5px;
+    font-size: var(--mt-text-11);
     letter-spacing: 0.07em;
     text-transform: uppercase;
 }
@@ -449,7 +449,7 @@
     gap: 10px;
     padding: 9px 10px;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: var(--color-secondary);
     text-align: left;
@@ -472,22 +472,22 @@
 .mt-lib-airow .t b {
     overflow: hidden;
     color: var(--color-primary);
-    font-weight: 600;
+    font-weight: var(--mt-weight-semibold);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .mt-lib-airow .t span {
     color: var(--mt-lib-fg-3);
-    font-size: 11px;
+    font-size: var(--mt-text-11);
 }
 
 .mt-lib-state {
     padding: 2px 7px;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.07);
     color: var(--mt-lib-fg-3);
-    font-size: 11px;
+    font-size: var(--mt-text-11);
     white-space: nowrap;
 }
 
@@ -502,7 +502,7 @@
     align-items: center;
     gap: 10px;
     padding: 9px 10px;
-    border-radius: 8px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.04);
 }
 
@@ -513,13 +513,13 @@
     gap: 4px;
     margin-top: 30px;
     color: var(--mt-lib-fg-3);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     text-align: center;
 }
 
 .mt-lib-empty b {
     color: var(--color-primary);
-    font-size: 13px;
+    font-size: var(--mt-text-13);
 }
 
 /* Settings. */
@@ -535,7 +535,7 @@
     gap: 10px;
     padding: 12px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--mt-radius-6);
     background: rgb(255 255 255 / 0.05);
     color: var(--color-primary);
     text-align: left;
@@ -555,7 +555,7 @@
 
 .mt-lib-set small {
     color: var(--mt-lib-fg-3);
-    font-size: 11px;
+    font-size: var(--mt-text-11);
 }
 
 .mt-lib-set.is-error {
