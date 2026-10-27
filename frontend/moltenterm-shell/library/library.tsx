@@ -798,7 +798,6 @@ function Library({
             ref={rootRef}
             className="mt-lib"
             role="dialog"
-            aria-modal="true"
             aria-label={t("library.label")}
             data-testid="library"
             data-section={section}
