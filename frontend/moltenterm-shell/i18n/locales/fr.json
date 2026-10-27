@@ -8801,9 +8801,7 @@
             }
         },
         "library": {
-            "label": "Bibliothèque : sessions, Pilotage, widgets, astuces et réglages",
-            "tools": "Outils",
-            "widgets": "Widgets"
+            "label": "Bibliothèque : workspaces, panneaux, envoyé à l'IA, vues rangées et réglages"
         },
         "plus": {
             "label": "Créer",
@@ -8846,11 +8844,10 @@
                 "one": "1 vue terminée fermée",
                 "other": "{count} vues terminées fermées"
             },
-            "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. « Rouvrir » les ramène.",
+            "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. Les vues rangées de la bibliothèque les ramènent.",
             "noClose": "« {name} » est épinglée et ne se ferme pas",
             "noCloseHint": "Désépinglez-la d'abord, depuis son menu.",
             "noAgent": "Aucun agent de code n'est choisi pour ce projet",
-            "reopenClosed": "Rouvrir la dernière vue fermée",
             "pinTitle": "Épingler cette vue…",
             "revertTitle": "Revenir à l'état épinglé",
             "tileTitle": "{name} · épinglée dans {workspace}",
@@ -8964,6 +8961,100 @@
         "actions": {
             "toggleSidebar": "Masquer ou afficher la barre latérale",
             "clearTerminal": "Effacer le terminal"
+        }
+    },
+    "library": {
+        "label": "Bibliothèque",
+        "navLabel": "Sections de la bibliothèque",
+        "back": "Fermer la bibliothèque",
+        "backTitle": "Revenir (Échap)",
+        "search": "Chercher",
+        "nothingFound": "Rien trouvé",
+        "sections": {
+            "workspaces": {
+                "label": "Workspaces",
+                "title": "Tous les workspaces",
+                "sub": "Vos produits côte à côte : leurs vues, leurs agents, ce qui s'y passe."
+            },
+            "panels": {
+                "label": "Panneaux",
+                "title": "Les panneaux",
+                "sub": "Ce que chaque panneau fait, et l'ajouter à la vue en cours."
+            },
+            "ai": {
+                "label": "Envoyé à l'IA",
+                "title": "Envoyé à l'IA",
+                "sub": "Les pages que les agents tiennent en ce moment : celles que vous avez partagées et celles qu'ils ont ouvertes."
+            },
+            "putaway": {
+                "label": "Vues rangées",
+                "title": "Vues rangées",
+                "sub": "Les vues que vous avez fermées, avec leur agent et son historique, jusqu'à ce que vous quittiez MoltenTerm."
+            },
+            "settings": {
+                "label": "Réglages",
+                "title": "Réglages",
+                "sub": "Ce qui vaut pour tout MoltenTerm."
+            }
+        },
+        "workspaces": {
+            "goTo": "Aller à {name}",
+            "agents": "Agents",
+            "live": {
+                "one": "{count} actif",
+                "other": "{count} actifs"
+            },
+            "resting": "au repos",
+            "openViews": "Vues ouvertes"
+        },
+        "panels": {
+            "addTo": "Ajouter à « {view} »",
+            "show": "L'afficher",
+            "thisView": "cette vue",
+            "about": {
+                "terminal": "Un shell dans le dossier du projet courant.",
+                "files": "Parcourir les fichiers du projet et en ouvrir un pour le lire ou le modifier.",
+                "browser": "Une page web, comme une petite app. Partagez-la avec un agent pour qu'il la lise ou agisse dessus.",
+                "cicd": "Les exécutions du pipeline du projet : ce qui est passé, ce qui a échoué, et pourquoi.",
+                "pilotage": "Les pull requests qui vous attendent et ce que font les agents. Ce qui vous attend est en haut.",
+                "sysinfo": "Le processeur et la mémoire de cet ordinateur, en direct.",
+                "processes": "Les programmes qui tournent sur cet ordinateur, et en arrêter un.",
+                "project": "Le tableau de bord du projet : pull requests, agents, services et branche, avec la CI/CD.",
+                "linemap": "Les branches et les commits du projet, dessinés comme un plan de lignes.",
+                "sessions": "Les terminaux et les agents qui continuent en arrière-plan, et en reprendre un."
+            }
+        },
+        "ai": {
+            "now": "En ce moment",
+            "since": "depuis {when}",
+            "shared": "partagée",
+            "opened": "ouverte par l'agent",
+            "emptyTitle": "Rien de partagé en ce moment",
+            "empty": "Une page que vous partagez avec un agent depuis un panneau navigateur s'affiche ici tant que l'agent la tient."
+        },
+        "putaway": {
+            "reopen": "Rouvrir",
+            "unnamed": "Vue",
+            "panels": {
+                "one": "{count} panneau",
+                "other": "{count} panneaux"
+            },
+            "withAgent": "avec {agents}",
+            "withAgentTitle": "L'agent reprend sa propre conversation quand la vue se rouvre",
+            "lastKeys": "{keys} rouvre la dernière.",
+            "gone": "Cette vue n'est plus rangée",
+            "emptyTitle": "Rien de rangé",
+            "empty": "Les vues que vous fermez restent ici, avec leur agent et son historique."
+        },
+        "settings": {
+            "tipsSub": "De courtes astuces sur ce que MoltenTerm sait faire"
+        },
+        "suggest": {
+            "title": "Proposer MoltenTerm",
+            "text": "Copiez le lien de téléchargement pour l'envoyer à un collègue ou un ami. Rien n'est partagé de vos workspaces.",
+            "copy": "Copier le lien de téléchargement",
+            "copied": "Lien de téléchargement copié",
+            "failed": "Le lien n'a pas pu être copié"
         }
     }
 }

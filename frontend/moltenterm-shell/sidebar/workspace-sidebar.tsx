@@ -34,25 +34,21 @@ import { useT, useTCount } from "../i18n/i18n";
 import { coffeeCondition, coffeeSupported } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
+import { LibraryHost } from "../library/library";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
-import { openMoltentermView, toggleMoltentermView } from "../open-view";
+import { openMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
-import { railCustomWidgets, railWidgetTooltip } from "../rail-tools-model";
 import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
-import { reopenLastClosed } from "../reopen/reopen-store";
-import { useListedReviewsAnswer, useReviewsRailWatch } from "../reviews/reviews-client";
-import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../reviews/reviews-model";
-import { ReviewsModel } from "../reviews/reviews-store";
-import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { useReviewsRailWatch } from "../reviews/reviews-client";
 import { DurableSessions } from "../sessions/sessions-store";
 import { acceleratorById, formatShortcutById } from "../shortcuts/format";
 import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
@@ -60,7 +56,6 @@ import { ChannelClasses, ItemButton, useFocusedPane, useStatusBarView } from "..
 import { DominoLoader } from "../suite/suite";
 import "../tab-bar.css";
 import { TabAgentMark, TabAgentName, TabReviewMark, useTabIdentity, useTabTooltip } from "../tab-identity-ui";
-import { MoltentermTipsView } from "../tips/tips-view";
 import { ReleaseUpdateButton } from "../update/release-update-ui";
 import { GoldUpdateButton } from "../update/update-dialog";
 import { View360ExitHost } from "../view360/view360-toggle";
@@ -1710,120 +1705,22 @@ function PendingDot({ draft }: { draft: CreateDraft }) {
     );
 }
 
-const SettingsView = "waveconfig";
-
-// Today's equivalent of the library (#1192 builds it): the tools of the rail, Sessions, Pilotage, the widgets, apps,
-// tips and settings.
+// The library (FR-SHELL-088): the button opens it over the window. The button stays mounted with the sidebar, so it
+// keeps the Pilotage refresh the PR counts rely on (#1189), and anchors the apps window the library's Panels opens.
 function LibraryButton() {
     const t = useT();
     const env = useWaveEnv<SidebarEnv>();
+    const model = SidebarModel.getInstance();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const hasConfigErrors = useAtomValue(env.atoms.hasConfigErrors);
-    const workspaceId = useAtomValue(env.atoms.workspaceId);
     const workspace = useAtomValue(atoms.workspace);
     const sessions = useAtomValue(DurableSessions.getInstance().badgeAtom);
-    const dir = readWorkspaceProject(workspace).dir;
-    useReviewsRailWatch(dir);
-    const answer = useListedReviewsAnswer(dir);
-    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [appsOpen, setAppsOpen] = useState(false);
+    const open = useAtomValue(model.libraryAtom) != null;
+    const appsOpen = useAtomValue(model.appsOpenAtom);
+    useReviewsRailWatch(readWorkspaceProject(workspace).dir);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const showApps = env.isDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
     const label = t("sidebar.library.label");
-    const createBlock = (blockdef: BlockDef, magnified = false, ephemeral = false) =>
-        fireAndForget(() => env.createBlock(blockdef, magnified, ephemeral));
-    const openMenu = () => {
-        const widgets = railCustomWidgets(fullConfig?.widgets, workspaceId);
-        const tools = t("sidebar.library.tools");
-        const items: ContextMenuItem[] = [
-            {
-                label: sessions.label,
-                icon: "layer-group",
-                section: tools,
-                click: () => fireAndForget(() => toggleMoltentermView(MoltentermSessionsView)),
-            },
-            {
-                label: reviewsRailLabel(reviewCounts(answer, readied)),
-                icon: "code-pull-request",
-                section: tools,
-                click: () =>
-                    fireAndForget(() =>
-                        toggleMoltentermView(MoltentermReviewsView, async () => {
-                            await ReviewsModel.getInstance().openReviews();
-                        })
-                    ),
-            },
-        ];
-        const widgetSection = t("sidebar.library.widgets");
-        for (const widget of widgets) {
-            items.push({
-                label: widget.label || railWidgetTooltip(widget),
-                icon: widget.icon || "browser",
-                section: widgetSection,
-                click: () => createBlock(widget.blockdef, widget.magnified),
-            });
-        }
-        items.push({
-            label: t("rail.tools.editWidgets"),
-            icon: "pen",
-            section: widgetSection,
-            click: () => createBlock({ meta: { view: "waveconfig", file: "widgets.json" } }, false, true),
-        });
-        if (showApps) {
-            items.push({
-                label: t("rail.tools.apps"),
-                icon: "cube",
-                section: widgetSection,
-                click: () => setAppsOpen(true),
-            });
-        }
-        items.push(
-            { type: "separator" },
-            {
-                label: t("sidebar.pins.reopenClosed"),
-                icon: "rotate-left",
-                accelerator: acceleratorById("reopen-closed"),
-                click: () => fireAndForget(reopenLastClosed),
-            },
-            {
-                label: t("rail.tools.tips"),
-                icon: "lightbulb",
-                click: () =>
-                    fireAndForget(() =>
-                        toggleMoltentermView(MoltentermTipsView, async () => {
-                            await env.createBlock({ meta: { view: MoltentermTipsView } }, false, true);
-                        })
-                    ),
-            },
-            {
-                label: t(hasConfigErrors ? "rail.tools.settingsErrors" : "rail.tools.settings"),
-                icon: "gear",
-                click: () =>
-                    fireAndForget(() =>
-                        toggleMoltentermView(SettingsView, async () => {
-                            await env.createBlock({ meta: { view: SettingsView } }, false, true);
-                        })
-                    ),
-            }
-        );
-        setMenuOpen(true);
-        showMenuUnder(buttonRef.current, items, () => setMenuOpen(false));
-    };
-    // A pull past the first workspace opens the library (FR-SHELL-082).
-    const libraryRequest = useAtomValue(SidebarModel.getInstance().libraryRequestAtom);
-    const openMenuRef = useRef(openMenu);
-    openMenuRef.current = openMenu;
-    const seenRequestRef = useRef(libraryRequest);
-    useEffect(() => {
-        if (libraryRequest === seenRequestRef.current) {
-            return;
-        }
-        seenRequestRef.current = libraryRequest;
-        if (buttonRef.current != null) {
-            openMenuRef.current();
-        }
-    }, [libraryRequest]);
     return (
         <>
             <button
@@ -1832,9 +1729,10 @@ function LibraryButton() {
                 className={IconButton}
                 aria-label={label}
                 title={label}
-                aria-expanded={menuOpen}
+                aria-haspopup="dialog"
+                aria-expanded={open}
                 data-testid="sidebar-library"
-                onClick={openMenu}
+                onClick={() => (open ? model.closeLibrary() : model.openLibrary())}
             >
                 <SidebarGlyph name="lib" />
                 {sessions.count > 0 || hasConfigErrors ? (
@@ -1850,7 +1748,7 @@ function LibraryButton() {
             {showApps && buttonRef.current != null ? (
                 <AppsFloatingWindow
                     isOpen={appsOpen}
-                    onClose={() => setAppsOpen(false)}
+                    onClose={() => globalStore.set(model.appsOpenAtom, false)}
                     referenceElement={buttonRef.current}
                     placement="right-end"
                 />
@@ -2117,11 +2015,19 @@ function usePageSlide(contentRef: React.RefObject<HTMLDivElement>, creating: boo
     }, [creating, contentRef]);
 }
 
-// What lives once per window with the sidebar: the rail's dialogs and keepers, the release notes, 360 view's message.
+// What lives once per window with the sidebar: the rail's dialogs and keepers, the library, the release notes, 360
+// view's message.
 function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
     return (
         <>
             <WorkspaceRailHosts entries={entries} />
+            <LibraryHost
+                entries={entries}
+                onApps={() => {
+                    SidebarModel.getInstance().closeLibrary();
+                    globalStore.set(SidebarModel.getInstance().appsOpenAtom, true);
+                }}
+            />
             <ReleaseNotesHost />
             <View360ExitHost />
             <ViewPopoverHost />

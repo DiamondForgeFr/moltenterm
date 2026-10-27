@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -47,7 +48,7 @@ func captureReopen(ctx context.Context, req reopen.RecordRequest) (reopen.Entry,
 		if err != nil {
 			return reopen.Entry{}, err
 		}
-		meta := reopen.CleanMeta(block.Meta)
+		meta := withResumeAgent(req.BlockId, reopen.CleanMeta(block.Meta))
 		e.Target.Name = reopen.PaneName(meta)
 		place, indexArr := reopen.PanePlacement(root, req.BlockId)
 		e.Pane = &reopen.Pane{Meta: meta, PanePlacement: place, IndexArr: indexArr}
@@ -65,7 +66,7 @@ func captureReopen(ctx context.Context, req reopen.RecordRequest) (reopen.Entry,
 		if block == nil {
 			return nil, false
 		}
-		return reopen.CleanMeta(block.Meta), true
+		return withResumeAgent(blockId, reopen.CleanMeta(block.Meta)), true
 	}
 	e.Target.Name = tab.Name
 	e.Tab = &reopen.Tab{
@@ -75,6 +76,19 @@ func captureReopen(ctx context.Context, req reopen.RecordRequest) (reopen.Entry,
 		Leaves: reopen.LayoutLeaves(root, focused, metaOf),
 	}
 	return e, nil
+}
+
+// withResumeAgent notes the agent a closing terminal runs, so the terminal reopened from the library starts it again
+// on its session (FR-SHELL-088).
+func withResumeAgent(blockId string, meta waveobj.MetaMapType) waveobj.MetaMapType {
+	if meta.GetString(waveobj.MetaKey_View, "") != "term" {
+		return meta
+	}
+	delete(meta, reopen.ResumeAgentMetaKey)
+	if agent, ok := reopen.AgentOf(blockId); ok {
+		meta[reopen.ResumeAgentMetaKey] = reopen.ResumeAgentMeta(agent)
+	}
+	return meta
 }
 
 func restoreReopen(ctx context.Context, e reopen.Entry, req reopen.ReopenRequest) (reopen.ReopenResult, error) {
@@ -213,5 +227,6 @@ func tabLeafAction(leaf reopen.Leaf, blockId string, placed []string) waveobj.La
 
 // StartReopenRoute lets the windows record their closes and reopen the last one; wavesrv calls it once.
 func StartReopenRoute() {
+	termupdate.StartReopenAgents()
 	reopen.StartRoute(reopen.Store{Capture: captureReopen, Restore: restoreReopen})
 }

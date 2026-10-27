@@ -42,6 +42,59 @@ const Paths = {
             <path d="m20 20-3.5-3.5" />
         </>
     ),
+    // The library's navigation (FR-SHELL-088).
+    spaces: (
+        <>
+            <rect x="3" y="5" width="5" height="14" rx="1.5" />
+            <rect x="10" y="5" width="5" height="14" rx="1.5" />
+            <rect x="17" y="5" width="4" height="14" rx="1.5" />
+        </>
+    ),
+    panels: (
+        <>
+            <rect x="3" y="4" width="8" height="7" rx="1.5" />
+            <rect x="13" y="4" width="8" height="7" rx="1.5" />
+            <rect x="3" y="13" width="8" height="7" rx="1.5" />
+            <rect x="13" y="13" width="8" height="7" rx="1.5" />
+        </>
+    ),
+    ai: (
+        <>
+            <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
+            <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />
+        </>
+    ),
+    archive: (
+        <>
+            <rect x="3" y="4" width="18" height="5" rx="1.5" />
+            <path d="M5 9v10h14V9M10 13h4" />
+        </>
+    ),
+    gear: (
+        <>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2.5v3M12 18.5v3M4.2 6.5l2.6 1.5M17.2 16l2.6 1.5M4.2 17.5 6.8 16M17.2 8l2.6-1.5" />
+        </>
+    ),
+    back: <path d="m14 6-6 6 6 6" />,
+    share: (
+        <>
+            <path d="M12 4v11M8 8l4-4 4 4" />
+            <path d="M5 13v6h14v-6" />
+        </>
+    ),
+    link: (
+        <>
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+        </>
+    ),
+    doc: (
+        <>
+            <path d="M5 4h10l4 4v12H5z" />
+            <path d="M9 12h6M9 16h6" />
+        </>
+    ),
     globe: (
         <>
             <circle cx="12" cy="12" r="9" />

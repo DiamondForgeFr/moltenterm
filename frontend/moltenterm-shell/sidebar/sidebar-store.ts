@@ -11,6 +11,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { selectAtom } from "jotai/utils";
+import { DefaultLibrarySection, LibrarySection } from "../library/library-model";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { CreateDraft, makeCreateDraft } from "./sidebar-create-model";
 import {
@@ -36,6 +37,9 @@ export type ProjectPage = { id?: string; workspaceId: string; draft: ProjectDraf
 // The tiles: the Project tab (#410) and the views pinned in the workspace (FR-SHELL-080).
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 
+// The library opens again on the section it was closed on, as the prototype does.
+let lastLibrarySection: LibrarySection = DefaultLibrarySection;
+
 export class SidebarModel {
     private static instance: SidebarModel = null;
 
@@ -48,8 +52,10 @@ export class SidebarModel {
     projectPageAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProjectPage>;
     // The new-workspace page while it is open (FR-SHELL-082): the bottom row draws its pending dot from it.
     createDraftAtom = jotai.atom(null) as jotai.PrimitiveAtom<CreateDraft>;
-    // Bumped to open the library from a pull past the first workspace.
-    libraryRequestAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
+    // The library open in this view, on its section (FR-SHELL-088); null when closed.
+    libraryAtom = jotai.atom(null) as jotai.PrimitiveAtom<LibrarySection>;
+    // The apps window, opened from the library's Panels and anchored on the library button.
+    appsOpenAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
 
     enabledAtom!: jotai.Atom<boolean>;
     windowMetaAtom!: jotai.Atom<Record<string, any>>;
@@ -194,7 +200,17 @@ export class SidebarModel {
         globalStore.set(this.createDraftAtom, null);
     }
 
-    openLibrary() {
-        globalStore.set(this.libraryRequestAtom, globalStore.get(this.libraryRequestAtom) + 1);
+    // The one way to open the library: the bottom-left button, and the pull past the first workspace (FR-SHELL-082).
+    openLibrary(section?: LibrarySection) {
+        globalStore.set(this.peekAtom, false);
+        globalStore.set(this.libraryAtom, section ?? globalStore.get(this.libraryAtom) ?? lastLibrarySection);
+    }
+
+    closeLibrary() {
+        const open = globalStore.get(this.libraryAtom);
+        if (open != null) {
+            lastLibrarySection = open;
+        }
+        globalStore.set(this.libraryAtom, null);
     }
 }

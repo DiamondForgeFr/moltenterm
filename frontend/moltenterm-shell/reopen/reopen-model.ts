@@ -49,3 +49,37 @@ export function reopenToast(result: ReopenResult, home?: string): ReopenToast {
             : t("reopen.freshShell"),
     };
 }
+
+// The library's put-away views (FR-SHELL-088), as pkg/molten/reopen lists them.
+export const ReopenListCommand = "moltenreopenlist";
+export const ReopenIdCommand = "moltenreopenid";
+// must match ResumeAgentMetaKey in pkg/molten/reopen/reopen.go
+export const ResumeAgentMetaKey = "molten:reopenagent";
+
+export type ResumeAgent = { agent: string; name?: string; command: string; guessed?: boolean };
+
+export type PutAwayView = {
+    id: string;
+    at: number;
+    workspaceid: string;
+    name: string;
+    meta?: Record<string, any>;
+    panels: Record<string, any>[];
+    agents?: ResumeAgent[];
+};
+
+export function readResumeAgent(value: unknown): ResumeAgent {
+    if (value == null || typeof value !== "object") {
+        return null;
+    }
+    const v = value as Record<string, unknown>;
+    if (typeof v.command !== "string" || v.command.trim() === "") {
+        return null;
+    }
+    return {
+        agent: typeof v.agent === "string" ? v.agent : "",
+        name: typeof v.name === "string" ? v.name : undefined,
+        command: v.command,
+        guessed: v.guessed === true,
+    };
+}

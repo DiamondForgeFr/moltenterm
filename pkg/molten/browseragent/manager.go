@@ -398,6 +398,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			Permission:   m.pendingPromptLocked(key),
 			Viewport:     t.viewport,
 			Engaged:      t.engaged,
+			Since:        t.createdAt.UnixMilli(),
 		})
 	}
 	sort.Slice(rtn.Tabs, func(i, j int) bool { return rtn.Tabs[i].BrowserTabId < rtn.Tabs[j].BrowserTabId })
