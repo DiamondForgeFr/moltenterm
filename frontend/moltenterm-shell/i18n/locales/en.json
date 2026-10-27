@@ -8764,6 +8764,7 @@
                 "revert": "Back to the pinned state",
                 "pinHere": "Pin in {workspace}…",
                 "pinEverywhere": "Pin everywhere…",
+                "pinEverywhereNow": "Pin everywhere",
                 "pinOnlyHere": "Pin only in {workspace}",
                 "unpin": "Unpin (make it temporary)"
             },

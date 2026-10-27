@@ -40,7 +40,8 @@ func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Co
 	for _, id := range req.AgentBlocks {
 		agents[id] = true
 	}
-	repoUrl := viewpin.RepoWebUrl(workspaceProjectDir(ctx, req.WorkspaceId))
+	dir := workspaceProjectDir(ctx, req.WorkspaceId)
+	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
 	metaOf := func(blockId string) (waveobj.MetaMapType, bool) {
 		if !slices.Contains(tab.BlockIds, blockId) {
 			return nil, false
@@ -51,7 +52,7 @@ func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Co
 		}
 		return block.Meta, true
 	}
-	cfg := viewpin.Capture(req.Tree, agents, repoUrl, metaOf)
+	cfg := viewpin.Capture(req.Tree, agents, project, metaOf)
 	if len(cfg.Panes) == 0 {
 		return viewpin.Config{}, fmt.Errorf("the view has no panel to pin")
 	}
@@ -73,14 +74,14 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 		}()
 	}()
 	dir := workspaceProjectDir(ctx, req.WorkspaceId)
-	repoUrl := viewpin.RepoWebUrl(dir)
+	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
 	panes := req.Config.Panes
 	metaOf := func(blockId string) (map[string]any, bool) {
 		idx, err := strconv.Atoi(strings.TrimPrefix(blockId, "p"))
 		if err != nil || idx < 0 || idx >= len(panes) {
 			return nil, false
 		}
-		return viewpin.ResolvePane(panes[idx], dir, repoUrl), true
+		return viewpin.ResolvePane(panes[idx], project), true
 	}
 	leaves := reopen.LayoutLeaves(viewpin.LayoutRoot(req.Config.Tree), "", metaOf)
 	if len(leaves) == 0 {

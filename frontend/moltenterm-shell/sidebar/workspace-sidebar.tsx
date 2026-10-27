@@ -478,7 +478,7 @@ function pinMenuItems(
         );
     } else if (pin.state === "workspace") {
         items.push({
-            label: t("sidebar.pins.menu.pinEverywhere"),
+            label: t("sidebar.pins.menu.pinEverywhereNow"),
             icon: "layer-group",
             section,
             click: () => fireAndForget(() => pins.pinEverywhere(tabId, pin.name, pin.icon)),
@@ -1132,7 +1132,8 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
     }, [draft.tabId]);
     const workspace = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const panels = tab?.blockids?.length ?? 0;
-    const setDraft = (next: Partial<PinDraft>) => globalStore.set(pins.draftAtom, { ...draft, ...next });
+    const setDraft = (next: Partial<PinDraft>) =>
+        globalStore.set(pins.draftAtom, { ...globalStore.get(pins.draftAtom), ...next });
     const cancel = () => pins.closePinPage();
     const submit = () => fireAndForget(() => pins.finishPinPage());
     const scope = (value: PinScope, titleKey: string, bodyKey: string, extra?: React.ReactNode) => (
@@ -1225,7 +1226,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
             <div className="mt-1 flex flex-col gap-1.5">
                 <button
                     type="submit"
-                    className="molten-btn cursor-pointer rounded px-3 py-1.5 text-12"
+                    className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
                     data-testid="sidebar-pin-submit"
                 >
                     {t("sidebar.pins.page.pin")}
@@ -1233,7 +1234,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
                 </button>
                 <button
                     type="button"
-                    className="cursor-pointer rounded border border-white/[0.12] px-3 py-1.5 text-12 text-secondary hover:text-primary"
+                    className="cursor-pointer rounded-4 border border-white/[0.12] px-3 py-1.5 text-12 text-secondary hover:text-primary"
                     onClick={cancel}
                 >
                     {t("sidebar.pins.page.cancel")}
@@ -1793,6 +1794,10 @@ export function WorkspaceSidebar() {
     useEffect(() => {
         ViewPins.getInstance().closePinPage();
     }, [ws?.oid]);
+    const closedFinished = (ws?.meta as Record<string, any>)?.["molten:closedfinished"];
+    useEffect(() => {
+        ViewPins.getInstance().showClosedFinished(closedFinished);
+    }, [closedFinished, activeTabId, ws?.activetabid]);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const keepPeek = () => clearTimeout(peekTimerRef.current);
     const endPeek = () => {

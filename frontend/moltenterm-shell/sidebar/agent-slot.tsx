@@ -29,7 +29,7 @@ export function AgentSlotBanner({ blockId, meta }: { blockId: string; meta: Reco
             <span className="min-w-0 flex-1 truncate">{t("sidebar.pins.slot.text")}</span>
             <button
                 type="button"
-                className="molten-btn cursor-pointer rounded px-2 py-0.5 text-11"
+                className="molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11"
                 title={t("sidebar.pins.slot.startTitle")}
                 disabled={starting}
                 data-testid="agent-slot-start"

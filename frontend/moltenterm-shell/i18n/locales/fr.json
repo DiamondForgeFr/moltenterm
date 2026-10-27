@@ -8764,6 +8764,7 @@
                 "revert": "Revenir à l'état épinglé",
                 "pinHere": "Épingler dans {workspace}…",
                 "pinEverywhere": "Épingler partout…",
+                "pinEverywhereNow": "Épingler partout",
                 "pinOnlyHere": "Épingler seulement dans {workspace}",
                 "unpin": "Désépingler (rendre temporaire)"
             },
