@@ -62,6 +62,8 @@ import {
     splitReviews,
 } from "./reviews-model";
 import { CardMotion } from "./reviews-motion";
+import { AllProjectsList, ProjectChips, ProjectWithoutFolder } from "./reviews-projects";
+import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
@@ -81,6 +83,7 @@ import {
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
 import { cardStates, sectionOf, sectionRows, sectionsByTurn, withTurnShown } from "./reviews-sections-model";
+import { readProjects } from "../sidebar/workspace-projects";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
@@ -114,13 +117,43 @@ export class ReviewsViewModel implements ViewModel {
 
 function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const t = useT();
+    const workspace = useAtomValue(atoms.workspace);
+    const filters = useAtomValue(ReviewsProjectFilter.getInstance().filtersAtom);
+    const focus = useAtomValue(ReviewsModel.getInstance().focusAtom);
+    const projects = useMemo(() => readProjects(workspace), [workspace]);
+    const filter = resolveProjectFilter(filters[workspace?.oid], projects);
+    const several = projects.length > 1;
+    // A PR another surface asked for (a notification, the review tab) opens on its project's chip.
+    useEffect(() => {
+        const project = several ? projectOfDir(projects, focus?.dir) : null;
+        if (project != null) {
+            ReviewsProjectFilter.getInstance().set(workspace?.oid, project.id);
+        }
+    }, [focus, several, projects, workspace?.oid]);
+    const shown = several && filter !== AllProjects ? projects.find((p) => p.id === filter) : null;
+    const frame = (
+        <MissionFrame title={t("reviews.viewName")} projectDir={shown?.dir}>
+            {({ project, snapshot }) => (
+                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
+            )}
+        </MissionFrame>
+    );
     return (
         <>
-            <MissionFrame title={t("reviews.viewName")}>
-                {({ project, snapshot }) => (
-                    <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
-                )}
-            </MissionFrame>
+            {several ? (
+                <div className="flex h-full w-full flex-col overflow-hidden" data-testid="reviews-projects">
+                    <ProjectChips workspaceId={workspace?.oid} projects={projects} filter={filter} />
+                    {shown == null ? (
+                        <AllProjectsList workspace={workspace} projects={projects} />
+                    ) : shown.dir === "" ? (
+                        <ProjectWithoutFolder project={shown} />
+                    ) : (
+                        <div className="flex min-h-0 flex-1 flex-col">{frame}</div>
+                    )}
+                </div>
+            ) : (
+                frame
+            )}
             <RowValidateSheet blockId={model.blockId} />
         </>
     );

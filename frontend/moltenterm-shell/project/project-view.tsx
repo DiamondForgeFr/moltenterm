@@ -28,6 +28,7 @@ import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../m
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
 import { openMoltentermView } from "../open-view";
+import { ProjectSwitchChips } from "../sidebar/project-chips";
 import { pathBaseName } from "../workspace-project";
 import { BuiltinProjectCards } from "./project-builtin-cards";
 import { layoutProjectCards, ProjectCard } from "./project-cards";
@@ -223,6 +224,7 @@ function ProjectContent({
                     CI/CD
                 </button>
             </MissionHeader>
+            <ProjectSwitchChips workspace={project.workspace} />
             <div ref={rootRef} className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="project-view">
                 {regions.header.length > 0 ? (
                     <section

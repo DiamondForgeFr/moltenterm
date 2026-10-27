@@ -28,9 +28,10 @@ import { useMissionScope } from "./mission-scope";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
-export function useActiveProject(): ActiveProject {
+// With a folder, that project of the workspace (Pilotage's project filter, FR-SHELL-087) instead of the current one.
+export function useActiveProject(projectDir?: string): ActiveProject {
     const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).dir;
+    const dir = projectDir ?? readWorkspaceProject(workspace).dir;
     const { value: facts, setValue: setFacts } = useMissionScope<ProjectFacts>(dir, null);
     useEffect(() => {
         setFacts(null);
@@ -201,13 +202,15 @@ export function MissionHeader({
 // Renders the panel once a project is linked and readable; otherwise the state that explains why, with its fix.
 export function MissionFrame({
     title,
+    projectDir,
     children,
 }: {
     title: string;
+    projectDir?: string;
     children: (props: { project: ActiveProject; snapshot: MissionSnapshot; refresh: () => void }) => React.ReactNode;
 }) {
     const t = useT();
-    const project = useActiveProject();
+    const project = useActiveProject(projectDir);
     const { snapshot, error, refresh } = useMissionSnapshot(project.dir);
     if (project.workspace == null) {
         return null;

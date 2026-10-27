@@ -8,7 +8,6 @@ import {
     dotDropSlot,
     dotMoveKey,
     dropTargetAt,
-    groupWithJoin,
     moveTabBefore,
     readProjectType,
     readSidebarHidden,
@@ -153,19 +152,7 @@ describe("Cmd+S", () => {
     });
 });
 
-describe("workspace grouping and order (FR-MC-031, FR-MC-032)", () => {
-    it("joins a local group, or takes another workspace in", () => {
-        expect(groupWithJoin("w1", { id: "g1", kind: "group" }, null)).toEqual({ workspaceid: "w1", targetid: "g1" });
-        expect(groupWithJoin("w1", { id: "w2", kind: "workspace" }, null)).toEqual({
-            workspaceid: "w2",
-            targetid: "w1",
-        });
-        expect(groupWithJoin("w1", { id: "w2", kind: "workspace" }, "g9")).toEqual({
-            workspaceid: "w2",
-            targetid: "g9",
-        });
-    });
-
+describe("workspace order (FR-MC-031)", () => {
     it("moves a dot with Alt+Shift and an arrow only", () => {
         const key = (k: string, mods: Partial<Record<"altKey" | "shiftKey" | "ctrlKey" | "metaKey", boolean>>) =>
             dotMoveKey({ key: k, altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, ...mods });

@@ -27,6 +27,10 @@ import {
 } from "./sidebar-model";
 import { GlobalPinMetaKey, PinMetaKey } from "./view-pins-model";
 import { ViewPins } from "./view-pins-store";
+import type { ProjectDraft, WorkspaceProjectEntry } from "./workspace-projects";
+
+// The page belongs to the workspace it was opened in: switching workspaces leaves it.
+export type ProjectPage = { id?: string; workspaceId: string; draft: ProjectDraft };
 
 // The tiles: the Project tab (#410) and the views pinned in the workspace (FR-SHELL-080).
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
@@ -39,6 +43,8 @@ export class SidebarModel {
     // Set until the window's meta echoes the change, so a toggle shows at once.
     pendingHiddenAtom = jotai.atom(null) as jotai.PrimitiveAtom<boolean>;
     peekAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+    // The add-a-project page while it is open (FR-SHELL-087); with an id it edits that project.
+    projectPageAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProjectPage>;
 
     enabledAtom!: jotai.Atom<boolean>;
     windowMetaAtom!: jotai.Atom<Record<string, any>>;
@@ -138,5 +144,25 @@ export class SidebarModel {
 
     setPeek(peek: boolean) {
         globalStore.set(this.peekAtom, peek);
+    }
+
+    openProjectPage(project?: WorkspaceProjectEntry) {
+        const draft: ProjectDraft =
+            project == null
+                ? { type: "", dir: "", branch: "" }
+                : { type: project.type, dir: project.dir, branch: project.branch };
+        globalStore.set(this.projectPageAtom, { id: project?.id, workspaceId: globalStore.get(atoms.workspace)?.oid, draft });
+    }
+
+    updateProjectDraft(change: Partial<ProjectDraft>) {
+        const page = globalStore.get(this.projectPageAtom);
+        if (page == null) {
+            return;
+        }
+        globalStore.set(this.projectPageAtom, { ...page, draft: { ...page.draft, ...change } });
+    }
+
+    closeProjectPage() {
+        globalStore.set(this.projectPageAtom, null);
     }
 }

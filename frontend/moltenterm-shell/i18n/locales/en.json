@@ -5087,6 +5087,10 @@
         }
     },
     "project": {
+        "projects": {
+            "currentTitle": "{project} is the current project: new agents start in its folder",
+            "switchTitle": "Make {project} the current project: new agents start in its folder"
+        },
         "viewName": "Project",
         "tabName": "Project",
         "frameTitle": "The Project tab",
@@ -5744,6 +5748,16 @@
         "trustReviewTitle": "{name} was refused a run: review and trust {project}'s commands"
     },
     "reviews": {
+        "projects": {
+            "filter": "Filter by project",
+            "all": "All projects",
+            "count": "{count} projects",
+            "none": "No pull request open",
+            "noneHint": "Nothing waits for you on {name}.",
+            "openTitle": "Open #{number} in {project}'s Pilotage",
+            "noFolderTitle": "{project} has no folder yet",
+            "noFolder": "Give it a folder to follow its pull requests."
+        },
         "launch": {
             "button": "Launch",
             "buttonTitle": "Launch {target} on this computer and open it in the browser",
@@ -8163,6 +8177,13 @@
                 "movedTitle": "{workspace} moved to {product}",
                 "moved": "{workspace} now belongs to {product}, declared in its project files, so it left the group {group}. Project groups come first."
             },
+            "projects": {
+                "migratedTitle": "{workspace} now holds its group's projects",
+                "migrated": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. {workspaces} stay with their views and agents: delete them when you no longer need them.",
+                "migratedKept": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. {workspaces} stay with their views and agents: delete them when you no longer need them. {kept} have no project folder, so they stay workspaces of their own.",
+                "keptTitle": "{group} stays a group",
+                "kept": "{workspaces} have no project folder, so they stay workspaces of their own in the group {group}."
+            },
             "build": {
                 "builtTitle": "{name} is built",
                 "finished": "Build {sha} finished.",
@@ -8706,8 +8727,40 @@
         "grip": "Sidebar width",
         "gripTitle": "Drag to widen or narrow the sidebar (double-click: {width} px)",
         "header": {
-            "menu": "Options of {name}",
-            "typeTitle": "Project type: {type}"
+            "menu": "Options of {name}"
+        },
+        "project": {
+            "menuTitle": "Projects of {name}",
+            "menuNote": "New agents start in the current project. Pilotage shows every project.",
+            "addMenu": "Add a project…",
+            "editMenu": "Edit {project}…",
+            "typeTitleOne": "Project type: {type} · add another project",
+            "typeTitleMany": "Current project: {type} · {count} projects in this workspace",
+            "switched": "Current project: {project}",
+            "switchedHint": "New agents start in its folder.",
+            "added": "{project} added",
+            "addedHint": "Pilotage follows its pull requests. Choose it in the header to work in it.",
+            "addTitle": "Add a project to {name}",
+            "editTitle": "Edit {project}",
+            "lede": "A workspace is a product. Its projects are its targets: app, mobile, website… Pilotage follows the pull requests of all of them.",
+            "type": "Type",
+            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
+            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Website, API, Library, Extension",
+            "folder": "Folder",
+            "folderPlaceholder": "/path/to/the/repository",
+            "chooseFolder": "Choose a folder…",
+            "folderDialog": "Folder of the project",
+            "branch": "Branch followed",
+            "branchPlaceholder": "main",
+            "add": "Add the project",
+            "save": "Save",
+            "cancel": "Cancel",
+            "remove": "Remove from the workspace",
+            "removeTitle": "Takes the project out of this workspace; nothing changes in its folder",
+            "needTypeOrFolder": "Give the project a type or a folder.",
+            "typeTooLong": "A type holds 40 characters at most.",
+            "folderTaken": "This folder is already a project of this workspace.",
+            "failed": "The project could not be saved: {error}"
         },
         "tiles": {
             "label": "Views pinned in {name}"

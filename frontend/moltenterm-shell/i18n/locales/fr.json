@@ -5087,6 +5087,10 @@
         }
     },
     "project": {
+        "projects": {
+            "currentTitle": "{project} est le projet courant : les nouveaux agents démarrent dans son dossier",
+            "switchTitle": "Faire de {project} le projet courant : les nouveaux agents démarrent dans son dossier"
+        },
         "viewName": "Projet",
         "tabName": "Projet",
         "frameTitle": "L'onglet Projet",
@@ -5744,6 +5748,16 @@
         "trustReviewTitle": "Un lancement de {name} a été refusé : examinez les commandes de {project} et faites-leur confiance"
     },
     "reviews": {
+        "projects": {
+            "filter": "Filtrer par projet",
+            "all": "Tous les projets",
+            "count": "{count} projets",
+            "none": "Aucune pull request ouverte",
+            "noneHint": "Rien ne vous attend sur {name}.",
+            "openTitle": "Ouvrir #{number} dans le Pilotage de {project}",
+            "noFolderTitle": "{project} n’a pas encore de dossier",
+            "noFolder": "Donnez-lui un dossier pour suivre ses pull requests."
+        },
         "launch": {
             "button": "Lancer",
             "buttonTitle": "Lancer {target} sur cet ordinateur et l'ouvrir dans le navigateur",
@@ -8163,6 +8177,13 @@
                 "movedTitle": "{workspace} a rejoint {product}",
                 "moved": "{workspace} appartient désormais à {product}, déclaré dans ses fichiers de projet : il a donc quitté le groupe {group}. Les groupes de projet passent en premier."
             },
+            "projects": {
+                "migratedTitle": "{workspace} regroupe désormais les projets de son groupe",
+                "migrated": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. {workspaces} restent avec leurs vues et leurs agents : supprimez-les quand vous n’en avez plus besoin.",
+                "migratedKept": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. {workspaces} restent avec leurs vues et leurs agents : supprimez-les quand vous n’en avez plus besoin. {kept} n’ont pas de dossier de projet : ils restent des espaces de travail à part.",
+                "keptTitle": "{group} reste un groupe",
+                "kept": "{workspaces} n’ont pas de dossier de projet : ils restent des espaces de travail à part dans le groupe {group}."
+            },
             "build": {
                 "builtTitle": "{name} est compilé",
                 "finished": "Le build {sha} est terminé.",
@@ -8706,8 +8727,40 @@
         "grip": "Largeur de la barre latérale",
         "gripTitle": "Glisser pour élargir ou réduire la barre (double-clic : {width} px)",
         "header": {
-            "menu": "Options de {name}",
-            "typeTitle": "Type du projet : {type}"
+            "menu": "Options de {name}"
+        },
+        "project": {
+            "menuTitle": "Projets de {name}",
+            "menuNote": "Les nouveaux agents démarrent dans le projet courant. Pilotage montre tous les projets.",
+            "addMenu": "Ajouter un projet…",
+            "editMenu": "Modifier {project}…",
+            "typeTitleOne": "Type du projet : {type} · ajouter un autre projet",
+            "typeTitleMany": "Projet courant : {type} · {count} projets dans cet espace de travail",
+            "switched": "Projet courant : {project}",
+            "switchedHint": "Les nouveaux agents démarrent dans son dossier.",
+            "added": "{project} ajouté",
+            "addedHint": "Pilotage suit ses pull requests. Choisissez-le dans l’en-tête pour y travailler.",
+            "addTitle": "Ajouter un projet à {name}",
+            "editTitle": "Modifier {project}",
+            "lede": "Un espace de travail, c’est un produit. Ses projets sont ses cibles : application, mobile, site… Pilotage suit les pull requests de tous ses projets.",
+            "type": "Type",
+            "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
+            "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Site web, API, Bibliothèque, Extension",
+            "folder": "Dossier",
+            "folderPlaceholder": "/chemin/du/dépôt",
+            "chooseFolder": "Choisir un dossier…",
+            "folderDialog": "Dossier du projet",
+            "branch": "Branche suivie",
+            "branchPlaceholder": "main",
+            "add": "Ajouter le projet",
+            "save": "Enregistrer",
+            "cancel": "Annuler",
+            "remove": "Retirer de l’espace de travail",
+            "removeTitle": "Retire le projet de cet espace de travail ; rien ne change dans son dossier",
+            "needTypeOrFolder": "Donnez un type ou un dossier au projet.",
+            "typeTooLong": "Un type compte 40 caractères au plus.",
+            "folderTaken": "Ce dossier est déjà un projet de cet espace de travail.",
+            "failed": "Le projet n’a pas pu être enregistré : {error}"
         },
         "tiles": {
             "label": "Vues épinglées dans {name}"

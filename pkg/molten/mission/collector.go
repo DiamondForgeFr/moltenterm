@@ -695,6 +695,8 @@ func Start() {
 	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Reordered() }, func(displaced []railorder.Displaced) {
 		go notifyRailGroups(displaced)
 	})
+	// The groups become workspaces of several projects, once (FR-SHELL-087).
+	startProjectsMigration()
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
 	reviews = MakeReviews(collector, ExecRunner, publishReviews)

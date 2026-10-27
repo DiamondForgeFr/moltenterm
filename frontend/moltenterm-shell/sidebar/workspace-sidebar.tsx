@@ -43,16 +43,6 @@ import { openMoltentermView, toggleMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
-import { productKeysOf } from "../rail-groups";
-import { useRailGroups, useStoredLocalGroups, useWorkspaceLinksKey } from "../rail-groups-store";
-import {
-    effectiveLocalGroups,
-    groupWithChoices,
-    joinRailGroup,
-    leaveRailGroup,
-    localGroupOf,
-    LocalRailGroup,
-} from "../rail-local-groups";
 import { railCustomWidgets, railWidgetTooltip } from "../rail-tools-model";
 import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -106,16 +96,17 @@ import {
     dotDropSlot,
     dotMoveKey,
     dropTargetAt,
-    groupWithJoin,
     moveTabBefore,
-    readProjectType,
     SidebarDefaultWidth,
     SidebarMaxWidth,
     SidebarMinWidth,
     TileGridColumns,
 } from "./sidebar-model";
+import { ProjectPageView } from "./sidebar-project-page";
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
+import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
+import { switchWorkspaceProject } from "./workspace-projects-store";
 import "./sidebar.css";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
@@ -165,13 +156,10 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
     return makeWorkspaceRailEntries(sources, active);
 }
 
-// The workspaces the dots show, and what grouping needs: the saved ones in rail order, the project products and the
-// local groups (FR-MC-027, FR-MC-032), read as the rail reads them.
+// The workspaces the dots show: the saved ones in rail order.
 type SidebarWorkspaces = {
     entries: WorkspaceRailEntry[];
     savedIds: string[];
-    productKeys: Map<string, string>;
-    localGroups: LocalRailGroup[];
 };
 
 function useSidebarWorkspaces(): SidebarWorkspaces {
@@ -181,72 +169,53 @@ function useSidebarWorkspaces(): SidebarWorkspaces {
         .map((e) => e.id)
         .join(" ");
     const savedIds = useMemo(() => (savedKey ? savedKey.split(" ") : []), [savedKey]);
-    const groups = useRailGroups(useWorkspaceLinksKey(savedIds));
-    const productKeys = useMemo(() => productKeysOf(groups), [groups]);
-    const stored = useStoredLocalGroups();
-    const localGroups = useMemo(
-        () => effectiveLocalGroups(stored, savedIds, productKeys),
-        [stored, savedIds, productKeys]
-    );
-    return { entries, savedIds, productKeys, localGroups };
+    return { entries, savedIds };
 }
 
-function runGroupCall(call: () => Promise<void>) {
+function runProjectCall(call: () => Promise<void>) {
     fireAndForget(async () => {
         try {
             await call();
         } catch (err) {
-            console.log("sidebar workspace groups:", err);
+            console.log("sidebar workspace projects:", err);
         }
     });
 }
 
-// "Group with…" and "Remove from group", as the rail offered them (FR-MC-032); a workspace of a project product is
-// grouped by its project. #1191's multi-project workspaces replace them.
-function groupMenuItems(
-    entry: WorkspaceRailEntry,
-    workspaces: SidebarWorkspaces,
-    t: (key: string, vars?: Record<string, any>) => string
-): ContextMenuItem[] {
-    if (!entry.saved || workspaces.productKeys.has(entry.id)) {
-        return [];
-    }
-    const names = new Map(workspaces.entries.map((e) => [e.id, e.name]));
-    const own = localGroupOf(workspaces.localGroups, entry.id);
-    const choices = groupWithChoices(
-        entry.id,
-        workspaces.savedIds,
-        workspaces.productKeys,
-        workspaces.localGroups,
-        (id) => names.get(id)
-    );
-    const section = t("rail.menu.groupSection");
-    const items: ContextMenuItem[] = [];
-    if (choices.length > 0) {
+// The project menu of the header (FR-SHELL-087): switch the current project, add one, and what the current one means.
+// It replaces the rail's visual-only "Group with…" (FR-MC-032).
+function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, any>) => string): ContextMenuItem[] {
+    const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
+    const projects = readProjects(ws);
+    const current = currentProjectId(ws);
+    const items: ContextMenuItem[] = [{ label: t("sidebar.project.menuTitle", { name }), type: "header" }];
+    for (const project of projects) {
         items.push({
-            label: t("rail.menu.groupWith"),
-            icon: "link",
-            section,
-            type: "submenu",
-            submenu: choices.map((choice) => ({
-                label: choice.label,
-                click: () => runGroupCall(() => joinRailGroup(groupWithJoin(entry.id, choice, own?.id))),
-            })),
+            label: projectChipLabel(project),
+            type: "checkbox",
+            checked: project.id === current,
+            click: () => runProjectCall(() => switchWorkspaceProject(project.id)),
         });
     }
+    items.push({ type: "separator" });
+    items.push({
+        label: t("sidebar.project.addMenu"),
+        click: () => SidebarModel.getInstance().openProjectPage(),
+    });
+    const own = projects.find((p) => p.id === current);
     if (own != null) {
         items.push({
-            label: t("rail.menu.removeFromGroup"),
-            icon: "link-slash",
-            section,
-            click: () => runGroupCall(() => leaveRailGroup({ workspaceid: entry.id })),
+            label: t("sidebar.project.editMenu", { project: projectLabel(own) }),
+            click: () => SidebarModel.getInstance().openProjectPage(own),
         });
     }
+    items.push({ type: "separator" });
+    items.push({ label: t("sidebar.project.menuNote"), type: "header" });
     return items;
 }
 
-// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, keep awake while working, grouping, reset,
-// delete.
+// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, keep awake while working, add a project,
+// reset, delete.
 function workspaceMenuItems(
     entry: WorkspaceRailEntry,
     workspaces: SidebarWorkspaces,
@@ -255,12 +224,16 @@ function workspaceMenuItems(
     t: (key: string, vars?: Record<string, any>) => string
 ): ContextMenuItem[] {
     const items = baseWorkspaceMenuItems(entry, workspaces.entries, anchor, platform, t);
-    const grouping = groupMenuItems(entry, workspaces, t);
     const at = items.findIndex((item) => item.type === "separator");
-    if (grouping.length === 0 || at < 0) {
+    if (!entry.active || at < 0) {
         return items;
     }
-    return [...items.slice(0, at), ...grouping, ...items.slice(at)];
+    const add: ContextMenuItem = {
+        label: t("sidebar.project.addMenu"),
+        icon: "folder-plus",
+        click: () => SidebarModel.getInstance().openProjectPage(),
+    };
+    return [...items.slice(0, at), add, ...items.slice(at)];
 }
 
 function baseWorkspaceMenuItems(
@@ -398,7 +371,15 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const moreRef = useRef<HTMLButtonElement>(null);
     const entry = workspaces.entries.find((e) => e.id === ws?.oid);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
-    const type = readProjectType(ws);
+    const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+    // A lone project without a type shows nothing: its folder's name would mostly repeat the product's.
+    const projects = readProjects(ws);
+    const current = currentProject(ws);
+    const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
+    const openProjectMenu = (anchor: HTMLElement) => {
+        setProjectMenuOpen(true);
+        showMenuUnder(anchor, projectMenuItems(ws, t), () => setProjectMenuOpen(false));
+    };
     const openMenu = (anchor: HTMLElement) => {
         if (entry == null || !entry.saved) {
             openWorkspaceEditor(ws?.oid, anchor);
@@ -428,9 +409,15 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
                 <button
                     type="button"
                     className="mt-sb-type inline-flex h-[22px] min-w-0 shrink cursor-pointer items-center gap-[3px] overflow-hidden rounded-6 px-1.5 text-12 whitespace-nowrap text-muted transition-colors duration-120 ease-mt"
-                    title={t("sidebar.header.typeTitle", { type })}
+                    title={
+                        projects.length > 1
+                            ? t("sidebar.project.typeTitleMany", { type, count: projects.length })
+                            : t("sidebar.project.typeTitleOne", { type })
+                    }
+                    aria-haspopup="menu"
+                    aria-expanded={projectMenuOpen}
                     data-testid="sidebar-project-type"
-                    onClick={(e) => openMenu(e.currentTarget)}
+                    onClick={(e) => openProjectMenu(e.currentTarget)}
                 >
                     <span className="truncate">{type}</span>
                     <SidebarGlyph name="chev" size={11} />
@@ -1854,6 +1841,7 @@ export function WorkspaceSidebar() {
     const peekTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
+    const projectPage = useAtomValue(model.projectPageAtom);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
     useEffect(() => {
         // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
@@ -1916,6 +1904,8 @@ export function WorkspaceSidebar() {
                 <div className="mt-sb-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                     {pinDraft != null ? (
                         <PinPage draft={pinDraft} workspaces={workspaces} />
+                    ) : projectPage != null ? (
+                        <ProjectPageView page={projectPage} />
                     ) : (
                         <>
                             <WorkspaceHeader workspaces={workspaces} />
