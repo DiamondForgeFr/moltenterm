@@ -8179,10 +8179,10 @@
             },
             "projects": {
                 "migratedTitle": "{workspace} now holds its group's projects",
-                "migrated": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. {workspaces} stay with their views and agents: delete them when you no longer need them.",
-                "migratedKept": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. {workspaces} stay with their views and agents: delete them when you no longer need them. {kept} have no project folder, so they stay workspaces of their own.",
+                "migrated": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them.",
+                "migratedKept": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them. Workspaces without a project folder stay on their own: {kept}.",
                 "keptTitle": "{group} stays a group",
-                "kept": "{workspaces} have no project folder, so they stay workspaces of their own in the group {group}."
+                "kept": "The group {group} stays as it was: its other workspaces have no project folder to bring in ({workspaces})."
             },
             "build": {
                 "builtTitle": "{name} is built",
@@ -8731,7 +8731,8 @@
         },
         "project": {
             "menuTitle": "Projects of {name}",
-            "menuNote": "New agents start in the current project. Pilotage shows every project.",
+            "currentNote": "New agents start here",
+            "addNote": "Pilotage follows every project",
             "addMenu": "Add a project…",
             "editMenu": "Edit {project}…",
             "typeTitleOne": "Project type: {type} · add another project",

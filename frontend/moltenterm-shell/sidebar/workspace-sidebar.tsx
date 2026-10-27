@@ -105,9 +105,9 @@ import {
 import { ProjectPageView } from "./sidebar-project-page";
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
+import "./sidebar.css";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
-import "./sidebar.css";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
 import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
@@ -194,12 +194,15 @@ function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, 
             label: projectChipLabel(project),
             type: "checkbox",
             checked: project.id === current,
+            // The menu's note, where it applies: the current project is where new agents start.
+            sublabel: project.id === current ? t("sidebar.project.currentNote") : undefined,
             click: () => runProjectCall(() => switchWorkspaceProject(project.id)),
         });
     }
     items.push({ type: "separator" });
     items.push({
         label: t("sidebar.project.addMenu"),
+        sublabel: t("sidebar.project.addNote"),
         click: () => SidebarModel.getInstance().openProjectPage(),
     });
     const own = projects.find((p) => p.id === current);
@@ -209,8 +212,6 @@ function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, 
             click: () => SidebarModel.getInstance().openProjectPage(own),
         });
     }
-    items.push({ type: "separator" });
-    items.push({ label: t("sidebar.project.menuNote"), type: "header" });
     return items;
 }
 

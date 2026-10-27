@@ -191,18 +191,18 @@ func projectsMigrationNotice(plan MigratePlan) molten.NotificationInput {
 	if len(plan.Moved) == 0 {
 		input.Title = fmt.Sprintf("%s stays a group", plan.GroupName)
 		input.TitleText = uimsg.Make("notif.projects.keptTitle", "group", plan.GroupName)
-		input.Message = fmt.Sprintf("%s have no project folder, so they stay workspaces of their own in the group %s.", kept, plan.GroupName)
+		input.Message = fmt.Sprintf("The group %[2]s stays as it was: its other workspaces have no project folder to bring in (%[1]s).", kept, plan.GroupName)
 		input.MessageText = uimsg.Make("notif.projects.kept", "workspaces", kept, "group", plan.GroupName)
 		return input
 	}
 	input.Title = fmt.Sprintf("%s now holds its group's projects", plan.HostName)
 	input.TitleText = uimsg.Make("notif.projects.migratedTitle", "workspace", plan.HostName)
 	if len(plan.Kept) == 0 {
-		input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. %s stay with their views and agents: delete them when you no longer need them.", plan.HostName, projects, moved)
+		input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them.", plan.HostName, projects, moved)
 		input.MessageText = uimsg.Make("notif.projects.migrated", "workspace", plan.HostName, "projects", projects, "workspaces", moved)
 		return input
 	}
-	input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. %s stay with their views and agents: delete them when you no longer need them. %s have no project folder, so they stay workspaces of their own.", plan.HostName, projects, moved, kept)
+	input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them. Workspaces without a project folder stay on their own: %s.", plan.HostName, projects, moved, kept)
 	input.MessageText = uimsg.Make("notif.projects.migratedKept", "workspace", plan.HostName, "projects", projects, "workspaces", moved,
 		"kept", kept)
 	return input

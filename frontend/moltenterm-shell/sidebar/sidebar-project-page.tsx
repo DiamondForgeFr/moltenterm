@@ -14,7 +14,13 @@ import { MoltenWave } from "../molten-button";
 import { workspaceShownName } from "../workspace-default-name";
 import { chooseMoltentermPath } from "../workspace-project-store";
 import { ProjectPage, SidebarModel } from "./sidebar-store";
-import { projectDraftProblem, projectLabel, projectTypeSuggestions, readProjects } from "./workspace-projects";
+import {
+    ProjectDraft,
+    projectDraftProblem,
+    projectLabel,
+    projectTypeSuggestions,
+    readProjects,
+} from "./workspace-projects";
 import { addWorkspaceProject, editWorkspaceProject, removeWorkspaceProject } from "./workspace-projects-store";
 
 const FieldClass =
@@ -49,6 +55,10 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
     const edited = editing ? projects.find((p) => p.id === page.id) : null;
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const draft = page.draft;
+    const change = (next: Partial<ProjectDraft>) => {
+        setError(null);
+        model.updateProjectDraft(next);
+    };
     const chooseFolder = () =>
         fireAndForget(async () => {
             const folder = await chooseMoltentermPath({
@@ -57,7 +67,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                 defaultPath: draft.dir || undefined,
             });
             if (folder) {
-                model.updateProjectDraft({ dir: folder });
+                change({ dir: folder });
             }
         });
     const run = (action: () => Promise<void>) => {
@@ -129,7 +139,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                     list={listId}
                     placeholder={t("sidebar.project.typePlaceholder")}
                     data-testid="sidebar-project-type-input"
-                    onChange={(e) => model.updateProjectDraft({ type: e.target.value })}
+                    onChange={(e) => change({ type: e.target.value })}
                 />
                 <datalist id={listId}>
                     {projectTypeSuggestions(t("sidebar.project.typeSuggestions")).map((s) => (
@@ -146,7 +156,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                         placeholder={t("sidebar.project.folderPlaceholder")}
                         spellCheck={false}
                         data-testid="sidebar-project-folder"
-                        onChange={(e) => model.updateProjectDraft({ dir: e.target.value })}
+                        onChange={(e) => change({ dir: e.target.value })}
                     />
                     <button
                         type="button"
@@ -167,7 +177,7 @@ export function ProjectPageView({ page }: { page: ProjectPage }) {
                     placeholder={t("sidebar.project.branchPlaceholder")}
                     spellCheck={false}
                     data-testid="sidebar-project-branch"
-                    onChange={(e) => model.updateProjectDraft({ branch: e.target.value })}
+                    onChange={(e) => change({ branch: e.target.value })}
                 />
             </label>
             {error ? (

@@ -151,7 +151,11 @@ export class SidebarModel {
             project == null
                 ? { type: "", dir: "", branch: "" }
                 : { type: project.type, dir: project.dir, branch: project.branch };
-        globalStore.set(this.projectPageAtom, { id: project?.id, workspaceId: globalStore.get(atoms.workspace)?.oid, draft });
+        globalStore.set(this.projectPageAtom, {
+            id: project?.id,
+            workspaceId: globalStore.get(atoms.workspace)?.oid,
+            draft,
+        });
     }
 
     updateProjectDraft(change: Partial<ProjectDraft>) {

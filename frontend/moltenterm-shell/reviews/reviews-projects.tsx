@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
+import { useMissionSnapshot } from "../mission/mission-client";
 import { ProjectChip } from "../sidebar/project-chips";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { projectLabel, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
@@ -20,7 +21,7 @@ import { workspaceShownName } from "../workspace-default-name";
 import { useCardContext } from "./reviews-agent-bar";
 import { useReviews } from "./reviews-client";
 import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
-import { AllProjects, ProjectPrRow, projectLanes, ReviewsProjectFilter } from "./reviews-projects-model";
+import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 
@@ -70,7 +71,9 @@ function ProjectProbe({
     refreshKey: number;
     onReport: (id: string, report: ProjectReport) => void;
 }) {
-    const { answer, error, refresh } = useReviews(project.dir, null);
+    // The collector's snapshot drives the asks, as in the full list: its GitHub read lands there first.
+    const { snapshot } = useMissionSnapshot(project.dir);
+    const { answer, error, refresh } = useReviews(project.dir, snapshot);
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
     const ctx = useCardContext(project.dir);
@@ -106,13 +109,7 @@ const TurnTitle: Record<string, string> = {
     waiting: "reviews.sections.waiting",
 };
 
-export function AllProjectsList({
-    workspace,
-    projects,
-}: {
-    workspace: Workspace;
-    projects: WorkspaceProjectEntry[];
-}) {
+export function AllProjectsList({ workspace, projects }: { workspace: Workspace; projects: WorkspaceProjectEntry[] }) {
     const t = useT();
     const word = useWordPhrase();
     const [reports, setReports] = useState<Record<string, ProjectReport>>({});
@@ -145,7 +142,9 @@ export function AllProjectsList({
                 <ProjectProbe key={`${p.id}:${p.dir}`} project={p} refreshKey={refreshKey} onReport={onReport} />
             ))}
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                <span className="text-12 text-secondary">{t("reviews.projects.count", { count: projects.length })}</span>
+                <span className="text-12 text-secondary">
+                    {t("reviews.projects.count", { count: projects.length })}
+                </span>
                 <button
                     type="button"
                     aria-label={t("mc.frame.refresh")}
