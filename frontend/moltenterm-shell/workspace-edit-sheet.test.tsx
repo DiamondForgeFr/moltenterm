@@ -19,6 +19,11 @@ vi.mock("./workspace-edit", () => ({
     pickUpWorkspaceEdit: () => false,
 }));
 vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {} }));
+vi.mock("./sidebar/sidebar-store", async () => {
+    const { atom } = await import("jotai");
+    const enabledAtom = atom(false);
+    return { SidebarModel: { getInstance: () => ({ enabledAtom }) } };
+});
 vi.mock("./workspace-project-store", () => ({
     chooseMoltentermPath: async () => null,
     findProjectLogos: async () => [],
@@ -43,6 +48,8 @@ vi.mock("./dialog-frame", () => ({
     ),
 }));
 
+import { getDefaultStore, PrimitiveAtom } from "jotai";
+import { SidebarModel } from "./sidebar/sidebar-store";
 import {
     ColourChoices,
     ColourField,
@@ -91,6 +98,19 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).toContain('aria-invalid="false"');
         expect(html).toMatch(/data-role="rail-preview" class="[^"]*\bh-9 w-9\b[^"]*text-icon-16/);
         expect(html).toContain('aria-label="Rail badge: Rocket, Blue"');
+        expect(html).toContain("In the rail");
+    });
+
+    it("names the sidebar under the badge preview when the workspace sidebar is on (#1183)", () => {
+        const enabledAtom = SidebarModel.getInstance().enabledAtom as PrimitiveAtom<boolean>;
+        getDefaultStore().set(enabledAtom, true);
+        try {
+            const html = sheet(true);
+            expect(html).toContain("In the sidebar");
+            expect(html).not.toContain("In the rail");
+        } finally {
+            getDefaultStore().set(enabledAtom, false);
+        }
     });
 
     it("offers Delete, or Reset with #222's reason on the last workspace", () => {
