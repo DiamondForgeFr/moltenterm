@@ -109,8 +109,9 @@ were running (load average 4 to 6). A second full run of the same build is compa
 #452. Local metrics are only comparable to it on that machine; on another machine, take your own "before" report and
 pass it with `--baseline`. `baselines/fdc30e40.json` kept those machine-dependent values and replaced the bundle
 scenario with a run on origin/develop fdc30e40 (#1050), once the features merged since had used the raw bundle's whole
-tolerance. The current baseline, `baselines/96cfeb72.json`, does the same on origin/develop 96cfeb72 (#1105), once they
-had used the up-front JavaScript's whole 2 % tolerance.
+tolerance. `baselines/96cfeb72.json` did the same on origin/develop 96cfeb72 (#1105), once they had used the up-front
+JavaScript's whole 2 % tolerance. The current baseline, `baselines/0215ba07.json`, does it again on origin/develop
+0215ba07 (#1184), for the same reason.
 
 ## CI
 
