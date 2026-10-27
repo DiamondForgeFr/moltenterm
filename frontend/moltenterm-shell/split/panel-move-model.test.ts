@@ -4,7 +4,15 @@
 import { deleteNode, splitHorizontal, splitVertical } from "@/layout/lib/layoutTree";
 import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
-import { columnIndexOfNode, effectiveSide, equalSizes, nearestSide, panelPlace, placeSizes } from "./panel-move-model";
+import {
+    chipName,
+    columnIndexOfNode,
+    effectiveSide,
+    equalSizes,
+    nearestSide,
+    panelPlace,
+    placeSizes,
+} from "./panel-move-model";
 
 function leaf(id: string, size = 10): LayoutNode {
     return { id, flexDirection: FlexDirection.Row, size, data: { blockId: `b-${id}` } } as LayoutNode;
@@ -158,6 +166,14 @@ describe("the 360 view's fixed column", () => {
         expect(columnIndexOfNode(root, "term")).toBe(0);
         expect(columnIndexOfNode(root, "pilotage")).toBe(1);
         expect(columnIndexOfNode(root, "nope")).toBe(-1);
+    });
+});
+
+describe("chipName", () => {
+    it("keeps an agent's first name and a view's title", () => {
+        expect(chipName("Valentin · Claude Code")).toBe("Valentin");
+        expect(chipName("Projet")).toBe("Projet");
+        expect(chipName(null)).toBe("");
     });
 });
 

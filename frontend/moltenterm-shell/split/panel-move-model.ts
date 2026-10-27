@@ -113,6 +113,12 @@ export function placeSizes(place: PanelPlace, root: LayoutNode): { added: number
     return { added: half, target: half };
 }
 
+// The chip names a panel as a person would: an agent's header reads "Valentin · Claude Code", the chip "Right of
+// Valentin".
+export function chipName(title: string): string {
+    return (title ?? "").split(" · ")[0].trim();
+}
+
 // The sizes of the children of a row or a column made equal (a double-click on the gutter between two of them).
 export function equalSizes(count: number): number[] {
     if (!(count > 0)) {
