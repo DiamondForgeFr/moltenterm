@@ -389,6 +389,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 		rtn.Tabs = append(rtn.Tabs, PanelAgentTab{
 			BrowserTabId: key.BrowserTabId,
 			AgentName:    s.agentName,
+			AgentBlockId: s.blockId,
 			Origin:       t.origin,
 			State:        t.state,
 			Action:       t.action,

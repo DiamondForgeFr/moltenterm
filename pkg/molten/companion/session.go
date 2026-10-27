@@ -160,6 +160,8 @@ type Session struct {
 	branchPRs map[string][]PRLink
 	subagents []*subagent
 	activity  *ActivityInfo
+	// commands: the programs the main agent ran in a shell (commands.go, FR-SHELL-084).
+	commands []string
 	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
 	// tickets.go).
 	model  string

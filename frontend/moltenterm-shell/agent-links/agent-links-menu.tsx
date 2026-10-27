@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { answerAgentHandoff } from "../agent-handoff";
+import { AgentInfoModel } from "../agent-info/agent-info-store";
 import { AgentStates } from "../agent-state-store";
 import { setAgentSite } from "../browser/browser-agent";
 import { AgentInputs } from "../command-panel/agent-input-store";
@@ -19,6 +20,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MenuPopover } from "../mission/menu-popover";
 import { MoltenWave } from "../molten-button";
 import { MoltentermNotifications } from "../notifications-store";
+import { SidebarModel } from "../sidebar/sidebar-store";
 import { TabActivity, whileShown } from "../tab-activity";
 import { termupdateMessage } from "../termupdate/termupdate-text";
 import {
@@ -482,8 +484,8 @@ function LinksMenuBody(props: MenuProps) {
     );
 }
 
-function LinksMenu({ blockId, anchor, onClose }: { blockId: string; anchor: Element; onClose: () => void }) {
-    const t = useT();
+// The menu's state and actions, shared by the header's popover and the agent window's Connections (FR-SHELL-084).
+function useLinksMenuProps(blockId: string): MenuProps {
     const links = useAtomValue(AgentLinks.getInstance().blockAtom(blockId));
     const sites = useAtomValue(getSettingsKeyAtom("browser:agentsites")) as Record<string, string>;
     const [pairs, setPairs] = useState<PairsResult>(null);
@@ -532,6 +534,29 @@ function LinksMenu({ blockId, anchor, onClose }: { blockId: string; anchor: Elem
         });
     };
 
+    return {
+        blockId,
+        links,
+        pairs,
+        sites,
+        now,
+        confirm,
+        busy,
+        error,
+        note: "",
+        ask: (c) => {
+            setError("");
+            setConfirm(c);
+        },
+        run,
+        onCancel: () => setConfirm(null),
+        onConfirm: () => confirm && run(confirm.run),
+    };
+}
+
+function LinksMenu({ blockId, anchor, onClose }: { blockId: string; anchor: Element; onClose: () => void }) {
+    const t = useT();
+    const props = useLinksMenuProps(blockId);
     return (
         <MenuPopover
             anchor={anchor}
@@ -540,26 +565,15 @@ function LinksMenu({ blockId, anchor, onClose }: { blockId: string; anchor: Elem
             role="dialog"
             ariaLabel={t("agentLinks.title")}
         >
-            <LinksMenuBody
-                blockId={blockId}
-                links={links}
-                pairs={pairs}
-                sites={sites}
-                now={now}
-                confirm={confirm}
-                busy={busy}
-                error={error}
-                note=""
-                ask={(c) => {
-                    setError("");
-                    setConfirm(c);
-                }}
-                run={run}
-                onCancel={() => setConfirm(null)}
-                onConfirm={() => confirm && run(confirm.run)}
-            />
+            <LinksMenuBody {...props} />
         </MenuPopover>
     );
+}
+
+// The same connections, shown in the agent window (FR-SHELL-084): its MCP links, handoff decisions and sites.
+export function AgentLinksPanel({ blockId }: { blockId: string }) {
+    const props = useLinksMenuProps(blockId);
+    return <LinksMenuBody {...props} />;
 }
 
 // The 4th header icon (beside the command panel trigger, magnify and close): on a terminal holding an agent or a
@@ -571,6 +585,7 @@ export const AgentLinksHeaderButton = memo(({ blockId, termHeader }: { blockId: 
     const agent = useAtomValue(AgentStates.getInstance().blockAtom(termHeader ? blockId : null));
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
     const openRequest = useAtomValue(store.openRequestAtom);
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const [open, setOpen] = useState(false);
     const visible = termHeader && showLinksIcon(agent != null, links);
@@ -587,7 +602,11 @@ export const AgentLinksHeaderButton = memo(({ blockId, termHeader }: { blockId: 
         return null;
     }
     const badge = headerBadge(links, waitingHandoffs(notifications, blockId));
-    const title = t(badge ? `agentLinks.icon.${badge}` : "agentLinks.icon.ok");
+    const status = t(badge ? `agentLinks.icon.${badge}` : "agentLinks.icon.ok");
+    const title =
+        agent != null && sidebarOn
+            ? `${t("agentInfo.plugTitle", { name: agent.firstname || agent.agentname || agent.agent })}\n${status}`
+            : status;
     return (
         <>
             <button
@@ -601,6 +620,12 @@ export const AgentLinksHeaderButton = memo(({ blockId, termHeader }: { blockId: 
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                     e.stopPropagation();
+                    // Under the workspace sidebar the plug opens everything about the agent (FR-SHELL-084), whose
+                    // Connections keep this menu; a terminal without a detected agent keeps the menu itself.
+                    if (agent != null && sidebarOn) {
+                        AgentInfoModel.getInstance().open(blockId);
+                        return;
+                    }
                     setOpen(!open);
                 }}
                 data-testid="agent-links-button"

@@ -1,0 +1,272 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The sidebar's agents (FR-SHELL-084), sized as the #1181 prototype's agentBlock and agentTree. States use
+   MoltenTerm's fixed palette: waiting amber, done green, error red; working is the white dominoes alone. */
+
+.mt-sb-agent {
+    display: flex;
+    flex-direction: column;
+}
+
+.mt-sb-arow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 6px 0 2px;
+    border-radius: var(--mt-radius-6);
+    cursor: pointer;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-arow:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--color-primary);
+}
+
+.mt-sb-arow.is-on {
+    background: rgb(255 255 255 / 0.15);
+    color: var(--color-primary);
+}
+
+.mt-sb-arow.is-done {
+    opacity: 0.62;
+}
+
+.mt-sb-tw {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-4);
+    background: transparent;
+    color: var(--mt-sb-fg-3);
+    cursor: pointer;
+}
+
+.mt-sb-tw:hover {
+    color: var(--color-primary);
+    background: rgb(255 255 255 / 0.1);
+}
+
+.mt-sb-tw > svg,
+.mt-sb-tl > svg {
+    transition: transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb-agent.is-closed .mt-sb-tw > svg,
+.mt-sb-tl.is-shut > svg {
+    transform: rotate(-90deg);
+}
+
+.mt-sb-av {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 40%, #2a2623);
+    color: var(--color-primary);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.mt-sb-av.is-large {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+}
+
+.mt-sb-av.is-waiting::after,
+.mt-sb-av.is-done::after,
+.mt-sb-av.is-error::after {
+    content: "";
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-accent, black) 18%, rgb(20 17 16));
+}
+
+.mt-sb-av.is-waiting::after {
+    background: var(--mt-state-waiting);
+}
+
+.mt-sb-av.is-done::after {
+    background: var(--mt-state-done);
+}
+
+.mt-sb-av.is-error::after {
+    background: var(--mt-state-error);
+}
+
+.mt-sb-agent-tx {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.mt-sb-agent-nm {
+    overflow: hidden;
+    color: var(--color-primary);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-agent-ss {
+    overflow: hidden;
+    color: var(--mt-sb-fg-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-arow.is-waiting .mt-sb-agent-ss {
+    color: var(--mt-state-waiting);
+}
+
+.mt-sb-arow.is-error .mt-sb-agent-ss {
+    color: var(--mt-state-error);
+}
+
+/* The suite's dominoes, in white at about 60 %: the working state, on the right of the row. */
+.mt-sb-agent-dom {
+    flex: none;
+    color: rgb(255 255 255 / 0.62);
+}
+
+.mt-sb-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0 0 6px 18px;
+    padding-left: 9px;
+    overflow: hidden;
+    border-left: 1px solid rgb(255 255 255 / 0.12);
+    animation: mt-sb-tree-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-sb-tree-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-tree {
+        animation: none;
+    }
+}
+
+.mt-sb-tl {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 5px 4px 2px;
+    border: 0;
+    border-radius: var(--mt-radius-4);
+    background: transparent;
+    color: var(--mt-sb-fg-3);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-align: left;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.mt-sb-tl:hover {
+    color: var(--color-secondary);
+}
+
+.mt-sb-tl-n {
+    margin-left: auto;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.mt-sb-leaf {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-height: 26px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-sb-leaf:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--color-primary);
+}
+
+.mt-sb-leaf.is-static {
+    cursor: default;
+}
+
+.mt-sb-leaf.is-static:hover {
+    background: transparent;
+    color: var(--color-secondary);
+}
+
+.mt-sb-leaf-t {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sb-leaf-what,
+.mt-sb-leaf-s {
+    color: var(--mt-sb-fg-3);
+}
+
+.mt-sb-leaf-s {
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+/* The link to everything about the agent: a clean text link in the workspace's accent. */
+.mt-sb-cta {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 5px;
+    margin: 4px 0 2px 4px;
+    padding: 3px 8px;
+    border: 0;
+    border-radius: var(--mt-radius-6);
+    background: transparent;
+    color: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 75%, white);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mt-sb-cta:hover {
+    background: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 16%, transparent);
+}

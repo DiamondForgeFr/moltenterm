@@ -31,6 +31,8 @@ type (
 	PairEntry         = handoffwire.PairEntry
 	PendingEntry      = handoffwire.PendingEntry
 	ForgetRequest     = handoffwire.ForgetRequest
+	HistoryEntry      = handoffwire.HistoryEntry
+	HistoryResult     = handoffwire.HistoryResult
 )
 
 const (
@@ -42,6 +44,8 @@ const (
 	LinkNoticeKeyPrefix   = handoffwire.LinkNoticeKeyPrefix
 	PairsCommand          = handoffwire.PairsCommand
 	ForgetCommand         = handoffwire.ForgetCommand
+	HistoryCommand        = handoffwire.HistoryCommand
+	HistoryEvent          = handoffwire.HistoryEvent
 	LinksGesture          = handoffwire.LinksGesture
 	AnswerGesture         = handoffwire.AnswerGesture
 	NotificationKeyPrefix = handoffwire.NotificationKeyPrefix

@@ -125,6 +125,8 @@ type Manager struct {
 	pending map[string]*pendingAnswer
 	// queues: the handoffs waiting for a receiver's idle prompt, oldest first; a receiver with a queue has one loop.
 	queues map[string][]*delivery
+	// history: the handoffs passed on since MoltenTerm started, oldest first, at most maxHistory (FR-SHELL-084).
+	history []HistoryEntry
 }
 
 func MakeManager(env Env) *Manager {
@@ -419,6 +421,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 		return SendResult{}, fmt.Errorf("MoltenTerm could not write the brief: %v", err)
 	}
 	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now()}
+	m.addHistory(from, to, brief)
 	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
 	return m.deliver(ctx, d)
 }

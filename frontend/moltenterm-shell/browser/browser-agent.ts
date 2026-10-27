@@ -69,6 +69,8 @@ export type AgentActionCue = { kind: string; x?: number; y?: number; width?: num
 export type AgentTab = {
     browsertabid: string;
     agentname: string;
+    // The agent's terminal (FR-SHELL-084): the agent window finds the pages shared with an agent by it.
+    agentblockid?: string;
     origin: string;
     state: string;
     action?: string;

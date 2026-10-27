@@ -355,6 +355,9 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 		}
 		s.AddToolCall(codexCallId(item), name, args, at)
 		s.NoteActivity(name, activityTarget(parsed), at)
+		if codexShellTools[name] {
+			s.NoteShellCommand(shellLine(parsed))
+		}
 		if name == "update_plan" {
 			var input map[string]any
 			if json.Unmarshal([]byte(args), &input) == nil {
@@ -367,6 +370,7 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 	case "local_shell_call":
 		s.AddToolCall(codexCallId(item), "shell", argsJSON(item["action"]), at)
 		s.NoteActivity("shell", activityTarget(obj(item, "action")), at)
+		s.NoteShellCommand(shellLine(obj(item, "action")))
 	case "function_call_output", "custom_tool_call_output":
 		s.ResolveTool(codexCallId(item))
 		if output, ok := item["output"].(string); ok && strings.HasPrefix(output, `{"task_name"`) {

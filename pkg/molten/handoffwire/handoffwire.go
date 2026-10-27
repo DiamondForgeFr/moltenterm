@@ -20,6 +20,10 @@ const (
 	// forgets a decision; windows only.
 	PairsCommand  = "moltenagenthandoffpairs"
 	ForgetCommand = "moltenagenthandoffforget"
+	// The sidebar's agent trees and the agent window (FR-SHELL-084, #1188) read the handoffs sent since MoltenTerm
+	// started; HistoryEvent tells the windows a new one was added. Windows only.
+	HistoryCommand = "moltenagenthandoffhistory"
+	HistoryEvent   = "molten:agenthandoffs"
 	// The link notice's action opens that menu on the agent's terminal.
 	LinksGesture = "molten:agentlinks"
 
@@ -176,6 +180,21 @@ type PendingEntry struct {
 type PairsResult struct {
 	Agents  []PairEntry    `json:"agents"`
 	Pending []PendingEntry `json:"pending"`
+}
+
+// HistoryEntry is one handoff MoltenTerm passed on (its brief written, its prompt typed or queued), from one pane to
+// another. From and To are the first names at the time, for an agent that has since ended.
+type HistoryEntry struct {
+	FromBlockId string `json:"fromblockid"`
+	ToBlockId   string `json:"toblockid"`
+	From        string `json:"from,omitempty"`
+	To          string `json:"to,omitempty"`
+	Goal        string `json:"goal,omitempty"`
+	At          int64  `json:"at"`
+}
+
+type HistoryResult struct {
+	Entries []HistoryEntry `json:"entries"`
 }
 
 // ForgetRequest forgets the decision of the pair of two panes: the next send between them asks again.
