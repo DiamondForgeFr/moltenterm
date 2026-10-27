@@ -13,6 +13,52 @@
     border-width: 1px !important;
 }
 
+/* A view is columns of panels (FR-SHELL-086): flat panels set into the window, not sheets laid on it. 6 px corners
+   (a token, so the build's radius cap leaves it), no drop shadow, a faint inner hairline; the focused panel carries a
+   calm accent hairline (60 %), drawn by the mask over the content, so it shows on every panel type, pages included,
+   and also when the panel is alone in its tab. */
+:root {
+    --block-border-radius: var(--mt-radius-6);
+}
+
+.block.block-frame-default .block-mask,
+.block.block-frame-default.block-focused.block-preview .block-mask {
+    border-color: rgb(255 255 255 / 0.07) !important;
+    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.block.block-frame-default.block-focused:not(.block-preview) .block-mask,
+.block.block-frame-default.block-focused.block-no-highlight:not(.block-preview) .block-mask {
+    border-color: color-mix(in srgb, var(--mt-accent) 60%, transparent) !important;
+}
+
+/* Only the focused panel shows its whole header (FR-SHELL-086): the others keep their glyph, their name, their state
+   (the pill, the working segment) and close. The context, the view's own header text and the other end buttons fade
+   and ignore the pointer until the panel is focused; nothing leaves the row, so the title never moves. A view with a
+   header of its own marks such parts mt-focus-only. */
+.block.block-frame-default .block-frame-default-header .molten-header-context,
+.block.block-frame-default .block-frame-default-header .block-frame-textelems-wrapper,
+.block.block-frame-default .block-frame-default-header .block-frame-end-icons button,
+.block.block-frame-default .mt-focus-only {
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* The end buttons sit in wrappers (some display: contents, which opacity skips): every button but close fades. */
+.block.block-frame-default:not(.block-focused) .block-frame-default-header .molten-header-context,
+.block.block-frame-default:not(.block-focused) .block-frame-default-header .block-frame-textelems-wrapper,
+.block.block-frame-default:not(.block-focused)
+    .block-frame-default-header
+    .block-frame-end-icons
+    :is(button, .wave-iconbutton, .iconbutton):not(.block-frame-default-close),
+.block.block-frame-default:not(.block-focused) .mt-focus-only {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.block.block-frame-default:not(.block-focused) .block-frame-default-header .molten-header-title {
+    color: var(--mt-text-secondary);
+}
+
 /* Workspace accent (FR-SHELL-004). accent.ts sets --mt-accent from the active workspace's colour and --mt-accent-fg
    for text drawn on it; every accent token of Wave's theme and Tailwind derives from them, so no component needs a
    change. Unlayered, these win over Tailwind's @layer theme and come after Wave's theme.scss. */
@@ -368,7 +414,7 @@
     content: "";
     position: absolute;
     inset: 1px;
-    border-radius: calc(var(--block-border-radius) - 1px);
+    border-radius: var(--mt-radius-6);
     pointer-events: none;
     z-index: var(--zindex-block-mask-inner);
     box-shadow: inset 0 0 24px -2px color-mix(in srgb, var(--mt-heat) 45%, transparent);

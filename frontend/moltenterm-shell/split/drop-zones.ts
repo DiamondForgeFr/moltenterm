@@ -19,7 +19,7 @@ import { t } from "../i18n/i18n";
 import { DurableSessions } from "../sessions/sessions-store";
 import { DragItem, DropAction, DropTarget, halfSizes, SessionDragType, tabDraggedOut } from "./drop-model";
 import { DropSession, DropState } from "./drop-session";
-import { insertBlockBeside } from "./split";
+import { insertBlockAtZone } from "./panel-move";
 
 // pkg/molten/panelmove: the route that moves a tab's main panel into the tab shown.
 const PanelMoveRoute = "molten:panelmove";
@@ -85,7 +85,7 @@ async function moveTabPanel(action: Extract<DropAction, { type: "move-tab-panel"
     if (!res?.blockid) {
         return;
     }
-    insertBlockBeside(action.targetBlockId, action.direction, res.blockid);
+    insertBlockAtZone(action.targetBlockId, action.direction, res.blockid);
     if (res.sourceempty && res.workspaceid) {
         // The block left the tab first, so closing the empty tab deletes nothing.
         const closed = await getApi().closeTab(res.workspaceid, action.tabId, false);
@@ -97,7 +97,7 @@ async function moveTabPanel(action: Extract<DropAction, { type: "move-tab-panel"
 
 async function openFile(action: Extract<DropAction, { type: "open-file" }>) {
     const blockId = await ObjectService.CreateBlock(action.blockDef, { termsize: { rows: 25, cols: 80 } });
-    if (!insertBlockBeside(action.targetBlockId, action.direction, blockId)) {
+    if (!insertBlockAtZone(action.targetBlockId, action.direction, blockId)) {
         await ObjectService.DeleteBlock(blockId);
     }
 }

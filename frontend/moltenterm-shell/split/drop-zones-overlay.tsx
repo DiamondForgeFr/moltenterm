@@ -6,12 +6,20 @@
 // itself: react-dnd's file drags (Wave's file browser) and the Sessions rows' HTML5 drags. Mounted once, inside
 // react-dnd's provider (app.tsx).
 
+import { getLayoutModelForStaticTab } from "@/layout/index";
+import type { LayoutNode } from "@/layout/lib/types";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef } from "react";
+import { CSSProperties, ReactNode, useEffect, useRef } from "react";
 import { useDragLayer, useDrop } from "react-dnd";
-import { fileItemFromDragged, SessionDragType, zoneGhostRect } from "./drop-model";
+import { t, useLocale } from "../i18n/i18n";
+import { DropZone, fileItemFromDragged, Rect, SessionDragType, zoneGhostRect } from "./drop-model";
+import type { DropState } from "./drop-session";
 import { panelDrop, panelDropStateAtom } from "./drop-zones";
 import "./drop-zones.css";
+import { landingSide, PanelMoveTarget, panelMoveTargetAt, panelName, zoneLabel } from "./panel-move";
+
+// Wave's tile drag (TileLayout.tsx).
+const TileItemType = "TILE_ITEM";
 
 // Wave's file browser rows (preview-directory.tsx).
 const FileItemType = "FILE_ITEM";
@@ -99,25 +107,61 @@ function useSessionDrags() {
     }, []);
 }
 
-export function PanelDropZones() {
-    const state = useAtomValue(panelDropStateAtom);
-    const fileDrop = useFileDrags();
-    useSessionDrags();
-    if (state == null) {
+// A panel dragged by its header (Wave's tile drag, FR-SHELL-086): the same ring, ghost and chip as the other drags,
+// on the nearest of the four zones of the panel under the pointer. TileLayout.tsx carries the drop out.
+function usePanelMoveTarget(): PanelMoveTarget {
+    const { tileDragging, item, offset } = useDragLayer((monitor) => ({
+        tileDragging: monitor.isDragging() && monitor.getItemType() === TileItemType,
+        item: monitor.getItem<LayoutNode>(),
+        offset: monitor.getClientOffset(),
+    }));
+    useLocale();
+    if (!tileDragging || offset == null) {
         return null;
     }
-    const { item, target, zone, x, y } = state;
-    const rect = target?.rect;
+    return panelMoveTargetAt(item?.data?.blockId, offset.x, offset.y);
+}
+
+function ghostStyleFor(rect: Rect, zone: DropZone): CSSProperties {
     const ghost = rect != null && zone != null ? zoneGhostRect(zone, rect.width, rect.height) : null;
-    const ghostStyle =
-        ghost == null
-            ? null
-            : {
-                  left: rect.left + ghost.left + GhostInsetPx,
-                  top: rect.top + ghost.top + GhostInsetPx,
-                  width: Math.max(0, ghost.width - 2 * GhostInsetPx),
-                  height: Math.max(0, ghost.height - 2 * GhostInsetPx),
-              };
+    if (ghost == null) {
+        return null;
+    }
+    return {
+        left: rect.left + ghost.left + GhostInsetPx,
+        top: rect.top + ghost.top + GhostInsetPx,
+        width: Math.max(0, ghost.width - 2 * GhostInsetPx),
+        height: Math.max(0, ghost.height - 2 * GhostInsetPx),
+    };
+}
+
+// The zone a tab or file drop shows: where it lands once the 360 view's rule applies, and the chip that says so.
+function dropZoneShown(state: DropState): { zone: DropZone; label: string } {
+    const { target, zone } = state;
+    if (target == null || zone == null) {
+        return { zone: null, label: null };
+    }
+    if (zone === "center") {
+        return { zone, label: t("split.zone.here", { name: panelName(target.blockId) }) };
+    }
+    const layoutModel = getLayoutModelForStaticTab();
+    const node = layoutModel?.getNodeByBlockId(target.blockId);
+    const side = node == null ? zone : landingSide(layoutModel, node.id, zone);
+    return { zone: side, label: zoneLabel(side, panelName(target.blockId)) };
+}
+
+function DropFrame({
+    rect,
+    zone,
+    label,
+    children,
+}: {
+    rect: Rect;
+    zone: DropZone;
+    label: string;
+    children?: ReactNode;
+}) {
+    const ghostStyle = ghostStyleFor(rect, zone);
     return (
         <div className="molten-drop-layer" data-testid="molten-drop-layer" aria-hidden="true">
             {rect != null ? (
@@ -126,7 +170,37 @@ export function PanelDropZones() {
                     style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
                 />
             ) : null}
-            {ghostStyle != null ? <div className="molten-drop-ghost" data-zone={zone} style={ghostStyle} /> : null}
+            {ghostStyle != null ? (
+                <div className="molten-drop-ghost" data-zone={zone} style={ghostStyle}>
+                    {label ? (
+                        <span className="molten-drop-zone-chip" data-testid="molten-drop-zone-chip">
+                            {label}
+                        </span>
+                    ) : null}
+                </div>
+            ) : null}
+            {children}
+        </div>
+    );
+}
+
+export function PanelDropZones() {
+    const state = useAtomValue(panelDropStateAtom);
+    const fileDrop = useFileDrags();
+    useSessionDrags();
+    const panelMove = usePanelMoveTarget();
+    if (state == null) {
+        if (panelMove == null) {
+            return null;
+        }
+        return <DropFrame rect={panelMove.target.rect} zone={panelMove.side} label={panelMove.label} />;
+    }
+    const { item, target, x, y } = state;
+    const rect = target?.rect;
+    const shown = dropZoneShown(state);
+    const ghostStyle = ghostStyleFor(rect, state.zone);
+    return (
+        <DropFrame rect={rect} zone={shown.zone} label={shown.label}>
             {item.kind === "file" && ghostStyle != null ? (
                 <div ref={fileDrop as any} className="molten-drop-catcher" style={ghostStyle} />
             ) : null}
@@ -135,6 +209,6 @@ export function PanelDropZones() {
                     {item.name}
                 </div>
             ) : null}
-        </div>
+        </DropFrame>
     );
 }

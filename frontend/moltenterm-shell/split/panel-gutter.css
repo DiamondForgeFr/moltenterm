@@ -1,0 +1,63 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The gutter between panels (FR-SHELL-086): an Arc-like pill centred in the gap, vertical between columns and
+   horizontal between stacked panels; brighter and taller on hover and while dragged. Wave's accent line, shown on hover
+   after a delay, gives way to it. */
+.tile-layout .resize-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tile-layout .resize-handle .line {
+    display: none;
+}
+
+.tile-layout .resize-handle .mt-gutter-pill {
+    flex: none;
+    border-radius: var(--mt-radius-2);
+    background: rgb(255 255 255 / 0.16);
+    pointer-events: none;
+    transition:
+        width var(--mt-duration-fast) var(--mt-ease),
+        height var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.tile-layout .resize-handle.flex-row .mt-gutter-pill {
+    width: 3px;
+    height: 26px;
+}
+
+.tile-layout .resize-handle.flex-column .mt-gutter-pill {
+    width: 26px;
+    height: 3px;
+}
+
+.tile-layout .resize-handle:hover .mt-gutter-pill,
+.tile-layout .resize-handle.mt-gutter-active .mt-gutter-pill {
+    background: rgb(255 255 255 / 0.55);
+}
+
+.tile-layout .resize-handle.flex-row:hover .mt-gutter-pill,
+.tile-layout .resize-handle.flex-row.mt-gutter-active .mt-gutter-pill {
+    height: 44px;
+}
+
+.tile-layout .resize-handle.flex-column:hover .mt-gutter-pill,
+.tile-layout .resize-handle.flex-column.mt-gutter-active .mt-gutter-pill {
+    width: 44px;
+}
+
+/* A handle that cannot move (#829) keeps a calm pill and no hover. */
+.tile-layout .resize-handle.mt-handle-stuck .mt-gutter-pill,
+.tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
+    height: 26px;
+    background: rgb(255 255 255 / 0.08);
+}
+
+.tile-layout .resize-handle.flex-column.mt-handle-stuck .mt-gutter-pill {
+    width: 26px;
+    height: 3px;
+}

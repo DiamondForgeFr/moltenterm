@@ -337,6 +337,17 @@ export function toBrowserUrl(input: string, searchTemplate = "https://duckduckgo
     return searchTemplate.replace("%s", encodeURIComponent(text));
 }
 
+// The address as the bar shows it at rest (FR-SHELL-086): without the web scheme and a lone trailing slash; other
+// schemes (file:, about:) stay whole.
+export function shownAddress(url: string): string {
+    const text = (url ?? "").trim();
+    const bare = text.replace(/^https?:\/\//i, "");
+    if (bare === text) {
+        return text;
+    }
+    return bare.replace(/^([^/?#]+)\/$/, "$1");
+}
+
 // A tab names its page: its title, or its host while the title is unknown.
 export function browserTabTitle(tab: BrowserTab): string {
     const title = tab?.title?.trim();

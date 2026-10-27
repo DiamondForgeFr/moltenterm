@@ -27,7 +27,7 @@ import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
-import { agentStatesOfWorkspace } from "../agent-state-model";
+import { agentCallName, agentStatesOfWorkspace } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
@@ -113,6 +113,7 @@ import {
     readCloseRequests,
     readOpenRequests,
     setTabEngine,
+    shownAddress,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -1458,7 +1459,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                 aria-label={t("browser.tabs.newTab")}
                 title={t("browser.tabs.newTabTitle", { shortcut: "Cmd+T" })}
                 onClick={() => model.newTab()}
-                className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                className="mt-focus-only ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-plus text-12" />
             </button>
@@ -1589,21 +1590,24 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         title: t("browser.panel.commands", { shortcut: formatShortcutById("command-panel") }),
         click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
     };
+    // A panel that is not focused keeps only close (FR-SHELL-086): the other buttons fade (moltenterm-shell.css).
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
-            <PinHeaderButton blockId={model.blockId} />
-            <span data-role="command-panel-trigger" className="flex">
-                <IconButton decl={commands} />
+            <span className="mt-focus-only flex items-center gap-0.5">
+                <PinHeaderButton blockId={model.blockId} />
+                <span data-role="command-panel-trigger" className="flex">
+                    <IconButton decl={commands} />
+                </span>
+                {ephemeral ? (
+                    <IconButton decl={addToLayout} />
+                ) : (
+                    <OptMagnifyButton
+                        magnified={magnified}
+                        toggleMagnify={() => model.toggleMagnify()}
+                        disabled={numLeafs <= 1}
+                    />
+                )}
             </span>
-            {ephemeral ? (
-                <IconButton decl={addToLayout} />
-            ) : (
-                <OptMagnifyButton
-                    magnified={magnified}
-                    toggleMagnify={() => model.toggleMagnify()}
-                    disabled={numLeafs <= 1}
-                />
-            )}
             <HeaderCloseButton magnified={magnified} onClose={() => uxCloseBlock(model.blockId)} />
         </div>
     );
@@ -1621,14 +1625,23 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             setDraft(active?.url ?? "");
         }
     }, [active?.url, active?.id, editing]);
-    const navButton = (icon: string, label: string, run: (e: React.MouseEvent) => void, title = label) => (
+    const navButton = (
+        icon: string,
+        label: string,
+        run: (e: React.MouseEvent) => void,
+        title = label,
+        className: string = null
+    ) => (
         <button
             type="button"
             aria-label={label}
             title={title}
             onClick={run}
             disabled={!!active?.engine}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40"
+            className={cn(
+                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40",
+                className
+            )}
         >
             <i className={`fa fa-solid fa-${icon} text-12`} />
         </button>
@@ -1646,43 +1659,70 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward()
             )}
             {loading
-                ? navButton("xmark", t("browser.nav.stop"), () => model.reloadActive(false), t("browser.nav.stopTitle"))
+                ? navButton(
+                      "xmark",
+                      t("browser.nav.stop"),
+                      () => model.reloadActive(false),
+                      t("browser.nav.stopTitle"),
+                      "mt-focus-only"
+                  )
                 : navButton(
                       "rotate-right",
                       t("browser.nav.reload"),
                       (e) => model.reloadActive(e.shiftKey),
-                      t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" })
+                      t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" }),
+                      "mt-focus-only"
                   )}
-            <TestContextChip url={active?.url ?? ""} />
-            <input
-                ref={model.urlInputRef}
-                value={draft}
-                spellCheck={false}
-                onFocus={() => setEditing(true)}
-                onBlur={() => setEditing(false)}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                        setDraft(active?.url ?? "");
+            <span className="mt-focus-only flex shrink-0 items-center">
+                <TestContextChip url={active?.url ?? ""} />
+            </span>
+            {/* FR-SHELL-086: at rest the address reads centred after a link icon; editing it shows the input as is */}
+            <div className="relative flex h-6 min-w-24 flex-1">
+                <input
+                    ref={model.urlInputRef}
+                    value={draft}
+                    spellCheck={false}
+                    onFocus={() => setEditing(true)}
+                    onBlur={() => setEditing(false)}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                            setDraft(active?.url ?? "");
+                            e.currentTarget.blur();
+                            return;
+                        }
+                        if (e.key !== "Enter") {
+                            return;
+                        }
+                        const url = toBrowserUrl(draft);
+                        if (url != null && active?.engine) {
+                            model.reopenInBrowser(active.id, url);
+                        } else if (url != null) {
+                            model.activeWebview()?.loadURL(url);
+                            model.setState(updateTab(model.state(), state.activeId, { url }));
+                        }
                         e.currentTarget.blur();
-                        return;
-                    }
-                    if (e.key !== "Enter") {
-                        return;
-                    }
-                    const url = toBrowserUrl(draft);
-                    if (url != null && active?.engine) {
-                        model.reopenInBrowser(active.id, url);
-                    } else if (url != null) {
-                        model.activeWebview()?.loadURL(url);
-                        model.setState(updateTab(model.state(), state.activeId, { url }));
-                    }
-                    e.currentTarget.blur();
-                }}
-                className="h-6 min-w-24 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
-            />
-            <ShareButton model={model} tab={active} />
-            <EngineButton model={model} tab={active} />
+                    }}
+                    className={cn(
+                        "h-6 w-full min-w-0 cursor-text rounded-4 border border-transparent bg-transparent px-2 text-12 text-primary outline-none hover:border-border focus:border-accent",
+                        !editing && draft && "text-transparent"
+                    )}
+                />
+                {!editing && draft ? (
+                    <span
+                        aria-hidden
+                        data-testid="browser-address-shown"
+                        className="pointer-events-none absolute inset-0 flex min-w-0 items-center justify-center gap-1.5 px-2 text-12 text-primary"
+                    >
+                        <i className="fa fa-solid fa-link shrink-0 text-11 text-muted" />
+                        <span className="truncate">{shownAddress(draft)}</span>
+                    </span>
+                ) : null}
+            </div>
+            <span className="mt-focus-only flex shrink-0 items-center gap-1">
+                <ShareButton model={model} tab={active} />
+                <EngineButton model={model} tab={active} />
+            </span>
             {loading ? (
                 <div
                     role="progressbar"
@@ -1721,12 +1761,15 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
         : running.length === 0 && ofTab(sessions, tabBlockIds).length === 0
           ? noAgentReason()
           : "";
+    // FR-SHELL-086: with one agent in the tab and the page not shared yet, the button names it ("Share with Valentin").
+    const named = !reason && agentTabs[tab.id] == null && running.length === 1 ? agentCallName(running[0], "") : "";
+    const label = named ? t("browser.share.shareWith", { name: named }) : shareLabel();
     return (
         <button
             type="button"
-            aria-label={shareLabel()}
+            aria-label={label}
             aria-disabled={reason ? true : undefined}
-            title={t("browser.share.buttonTitle", { action: reason || shareLabel(), state })}
+            title={t("browser.share.buttonTitle", { action: reason || label, state })}
             onMouseEnter={() => model.agents.refreshSessions()}
             onClick={(e) => {
                 if (!reason) {
@@ -1735,11 +1778,13 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
             }}
             data-testid="browser-share-button"
             className={cn(
-                "flex h-6 w-6 shrink-0 items-center justify-center rounded-6 text-secondary",
+                "flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-6 text-secondary",
+                named ? "bg-hover px-2 text-12" : "w-6",
                 reason ? "opacity-40" : "cursor-pointer hover:bg-hover hover:text-primary"
             )}
         >
             <i className="fa fa-solid fa-share-nodes text-12" />
+            {named ? <span className="truncate">{label}</span> : null}
         </button>
     );
 }

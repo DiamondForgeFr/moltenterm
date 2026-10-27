@@ -1966,6 +1966,7 @@
         "share": {
             "noAgent": "Aucun agent ne tourne dans cet onglet",
             "share": "Partager avec…",
+            "shareWith": "Partager avec {name}",
             "andTell": "Partager et prévenir {name}",
             "stateShared": "Partagé avec {name}",
             "stateOpened": "Ouvert par {name}",
@@ -5402,6 +5403,18 @@
         "beside": {
             "left": "Ajouter un panneau à gauche",
             "right": "Ajouter un panneau à droite"
+        },
+        "zone": {
+            "left": "À gauche de {name}",
+            "right": "À droite de {name}",
+            "up": "Au-dessus de {name}",
+            "down": "En dessous de {name}",
+            "here": "Ouvrir dans {name}",
+            "panel": "ce panneau"
+        },
+        "gutter": {
+            "columns": "Glisser pour redimensionner les colonnes · double-clic pour les égaliser",
+            "rows": "Glisser pour redimensionner les panneaux · double-clic pour les égaliser"
         }
     },
     "reopen": {

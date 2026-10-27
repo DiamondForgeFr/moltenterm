@@ -20,7 +20,7 @@
     "web:defaulturl": "https://github.com/DiamondForgeFr/moltenterm",
     "web:defaultsearch": "https://www.google.com/search?q={query}",
     "web:openlinksinternally": true,
-    "window:tilegapsize": 3,
+    "window:tilegapsize": 8,
     "window:maxtabcachesize": 10,
     "window:nativetitlebar": true,
     "window:magnifiedblockopacity": 0.6,
