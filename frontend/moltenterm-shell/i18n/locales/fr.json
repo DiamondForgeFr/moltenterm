@@ -4485,6 +4485,10 @@
                     "failed": "gh indique : {error}",
                     "goOn": "Continuer"
                 }
+            },
+            "help": {
+                "question": "Question",
+                "questionTitle": "Interroger votre agent de code sur cette étape, dans le terminal de l'onglet"
             }
         }
     },

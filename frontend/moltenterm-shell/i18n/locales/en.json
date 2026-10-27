@@ -4485,6 +4485,10 @@
                     "failed": "gh says: {error}",
                     "goOn": "Go on"
                 }
+            },
+            "help": {
+                "question": "Question",
+                "questionTitle": "Ask your coding agent about this step, in the tab's terminal"
             }
         }
     },

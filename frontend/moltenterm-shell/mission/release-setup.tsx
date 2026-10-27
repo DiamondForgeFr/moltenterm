@@ -28,6 +28,8 @@ import { DescribeStep } from "./release-setup-describe";
 import { describeDefaults, DescribeFrom, describes, SetupModel, undescribed } from "./release-setup-describe-model";
 import { DetectStep } from "./release-setup-detect";
 import { FlowDiagram } from "./release-setup-diagram";
+import { QuestionButton, useHelpScreenInfo } from "./release-setup-help";
+import { HelpScreen, pipelineContextOf, plainContextOf } from "./release-setup-help-model";
 import {
     addManual,
     canOpenPr,
@@ -47,6 +49,7 @@ import {
     validTagPrefix,
 } from "./release-setup-model";
 import { PlainFlowScreen } from "./release-setup-plain";
+import { plainChannels, stepText } from "./release-setup-plain-model";
 import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { PreparedStep } from "./release-setup-prepared";
 import { proposedFiles, updateDraftOf } from "./release-setup-prepared-model";
@@ -1108,6 +1111,32 @@ export function ReleaseSetup({
     const at = stepIndex(step);
     // "Your way of publishing" (FR-MC-044) replaces step 2a's screens, with its own footer.
     const plainShown = step === "understand" && path === "analyse" && draft != null && options != null;
+    // What the steps' Question and the panel's "Ask for help" tell the agent about this screen (#1152).
+    const helpScreen: HelpScreen =
+        step === "detect"
+            ? "start"
+            : step === "understand"
+              ? plainShown
+                  ? "flow"
+                  : describing
+                    ? "describe"
+                    : "adjust"
+              : step === "prepare"
+                ? "validate"
+                : "template";
+    const helpContext = useMemo(
+        () =>
+            plainShown
+                ? plainContextOf(
+                      plainChannels(survey, draft).map((c) => ({
+                          name: t(`mc.setup.flow.${c.channel}`),
+                          steps: c.steps.map((s) => ({ number: s.n, text: stepText(t, s) })),
+                      }))
+                  )
+                : pipelineContextOf(text),
+        [plainShown, survey, draft, text, t]
+    );
+    useHelpScreenInfo(dir, helpScreen, helpContext);
     const nothing = options != null && options.kind !== "saas" && options.channels.length === 0;
     const canWrite =
         draft != null &&
@@ -1340,6 +1369,9 @@ export function ReleaseSetup({
                             survey={survey}
                             draft={draft}
                             check={check}
+                            question={(s) => (
+                                <QuestionButton step={s} dir={dir} screen={helpScreen} context={helpContext} />
+                            )}
                             projectName={projectName}
                             busy={writing}
                             canConfirm={
