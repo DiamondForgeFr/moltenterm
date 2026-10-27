@@ -8750,6 +8750,25 @@
             "newView": "New view",
             "newWorkspace": "New workspace"
         },
+        "undoKeys": "Undo ({keys})",
+        "views": {
+            "rename": "Rename…",
+            "changeIcon": "Change icon…",
+            "duplicate": "Duplicate",
+            "closeNote": "Pinned: unpin it to close it",
+            "renameTitle": "Rename",
+            "iconTitle": "Icon of “{name}”",
+            "iconChoice": "Icon {icon}",
+            "panelIcons": "Panels' icons",
+            "copyName": "{name} (copy)",
+            "duplicated": "“{name}” created: the same configuration",
+            "reordered": "Order changed",
+            "captionHere": "Keep in {workspace}",
+            "captionEverywhere": "Everywhere · every workspace",
+            "emptyTitle": "This pinned view has no panel",
+            "emptyHint": "A pinned view stays until you unpin it. Add a panel, or unpin it to close it.",
+            "emptyAdd": "Add a panel"
+        },
         "pins": {
             "failed": "The view could not be pinned or opened",
             "undo": "Undo",

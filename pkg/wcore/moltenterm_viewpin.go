@@ -122,19 +122,23 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 			log.Printf("molten: removing a panel replaced by the pinned state: %v\n", err)
 		}
 	}
-	if req.TabId == "" {
+	if req.TabId == "" && !req.Background {
 		SendActiveTabUpdate(ctx, req.WorkspaceId, tabId)
 	}
 	return viewpin.BuildResult{TabId: tabId}, nil
 }
 
-// makePinnedTab adds the view's tab at the end of the workspace's tabs and makes it the active one.
+// makePinnedTab adds the view's tab at the end of the workspace's tabs and makes it the active one, unless it is made
+// in the background.
 func makePinnedTab(ctx context.Context, req viewpin.BuildRequest) (string, error) {
 	return wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) (string, error) {
 		tctx := tx.Context()
 		tab, err := createTabObj(tctx, req.WorkspaceId, req.Name, req.TabMeta)
 		if err != nil {
 			return "", err
+		}
+		if req.Background {
+			return tab.OID, nil
 		}
 		ws, err := GetWorkspace(tctx, req.WorkspaceId)
 		if err != nil {
@@ -146,6 +150,19 @@ func makePinnedTab(ctx context.Context, req viewpin.BuildRequest) (string, error
 		}
 		return tab.OID, nil
 	})
+}
+
+// pinnedViewTab: the tab is a pinned view, which stays when its last panel closes (FR-SHELL-081).
+func pinnedViewTab(ctx context.Context, tabId string) bool {
+	tab, _ := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if tab == nil {
+		return false
+	}
+	var clientMeta waveobj.MetaMapType
+	if client, err := wstore.DBGetSingleton[*waveobj.Client](ctx); err == nil && client != nil {
+		clientMeta = client.Meta
+	}
+	return viewpin.Pinned(tab.Meta, clientMeta)
 }
 
 // StartViewPinRoute lets the windows pin views and open them; wavesrv calls it once.

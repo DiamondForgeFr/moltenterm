@@ -8750,6 +8750,25 @@
             "newView": "Nouvelle vue",
             "newWorkspace": "Nouvel espace de travail"
         },
+        "undoKeys": "Annuler ({keys})",
+        "views": {
+            "rename": "Renommer…",
+            "changeIcon": "Changer l'icône…",
+            "duplicate": "Dupliquer",
+            "closeNote": "Épinglée : désépinglez-la pour la fermer",
+            "renameTitle": "Renommer",
+            "iconTitle": "Icône de « {name} »",
+            "iconChoice": "Icône {icon}",
+            "panelIcons": "Icônes des panneaux",
+            "copyName": "{name} (copie)",
+            "duplicated": "« {name} » créée : même configuration",
+            "reordered": "Ordre modifié",
+            "captionHere": "Garder dans {workspace}",
+            "captionEverywhere": "Partout · tous les workspaces",
+            "emptyTitle": "Cette vue épinglée n'a plus de panneau",
+            "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
+            "emptyAdd": "Ajouter un panneau"
+        },
         "pins": {
             "failed": "La vue n'a pas pu être épinglée ou ouverte",
             "undo": "Annuler",

@@ -175,7 +175,8 @@ func DeleteBlock(ctx context.Context, blockId string, recursive bool) error {
 	log.Printf("DeleteBlock: parentBlockCount: %d", parentBlockCount)
 	parentORef := waveobj.ParseORefNoErr(block.ParentORef)
 
-	if recursive && parentORef.OType == waveobj.OType_Tab && parentBlockCount == 0 {
+	// MOLTENTERM-PATCH (#1185): a pinned view stays, empty, when its last panel closes (FR-SHELL-081)
+	if recursive && parentORef.OType == waveobj.OType_Tab && parentBlockCount == 0 && !pinnedViewTab(ctx, parentORef.OID) {
 		// if parent tab has no blocks, delete the tab
 		log.Printf("DeleteBlock: parent tab has no blocks, deleting tab %s", parentORef.OID)
 		parentWorkspaceId, err := wstore.DBFindWorkspaceForTabId(ctx, parentORef.OID)

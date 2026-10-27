@@ -17,19 +17,17 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TabEnv } from "@/app/tab/tab";
 import { TabBadges } from "@/app/tab/tabbadges";
-import { buildTabContextMenu } from "@/app/tab/tabcontextmenu";
 import { UpdateStatusBanner } from "@/app/tab/updatebanner";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, type WidgetsEnv } from "@/app/workspace/widgets";
-import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/index";
+import { deleteLayoutModelForTab } from "@/layout/index";
 import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
-import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { currentEqualize } from "../equalize/equalize-actions";
 import { HoldToCloseButton } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
 import { coffeeCondition, coffeeSupported } from "../keepawake-model";
@@ -73,7 +71,7 @@ import { TabAgentMark, TabAgentName, TabReviewMark, useTabIdentity, useTabToolti
 import { MoltentermTipsView } from "../tips/tips-view";
 import { ReleaseUpdateButton } from "../update/release-update-ui";
 import { GoldUpdateButton } from "../update/update-dialog";
-import { View360ExitHost, view360MenuItems } from "../view360/view360-toggle";
+import { View360ExitHost } from "../view360/view360-toggle";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
 import { openWorkspaceEditor } from "../workspace-edit";
@@ -87,6 +85,20 @@ import { closeTabAskingFirst } from "../worktree-close";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
 import { PrPips, useCountsMotion, usePilotageBlock, useWorkspacePrCounts } from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
+import {
+    finishDrop,
+    keyProps,
+    setDrag,
+    SidebarDrag,
+    sidebarDragAtom,
+    startBlockDrag,
+    takeDragClick,
+    usableHit,
+    useGlide,
+    zoneAt,
+    ZoneHit,
+    zoneProps,
+} from "./sidebar-drag";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -102,9 +114,14 @@ import {
     TileGridColumns,
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
+import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
-import { GlobalPin, PinScope, ViewState } from "./view-pins-model";
+import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
+import { viewMenuItems, ViewMenuTarget } from "./view-menu";
+import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
+import { GlobalPin, GlobalPinMetaKey, PinScope, ViewState } from "./view-pins-model";
 import { PinDraft, ViewPins } from "./view-pins-store";
+import { ViewPopoverHost } from "./view-popover";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
 
@@ -432,129 +449,6 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     );
 }
 
-// The tab's menu (rename, flag, backgrounds, copy id, reopen, close) without the tab bar position, which the sidebar
-// replaces; the view on screen adds equalize and 360 view, whose buttons sat in the tab bar.
-type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: string };
-
-// What the view's state allows (FR-SHELL-080): pin a temporary view (through the pin page), pin a tile everywhere,
-// pin a view pinned everywhere only here, unpin; and, once a pinned view changed, save or go back.
-function pinMenuItems(
-    tabId: string,
-    pin: ViewPinFacts,
-    t: (key: string, vars?: Record<string, any>) => string
-): ContextMenuItem[] {
-    const pins = ViewPins.getInstance();
-    const workspace = globalStore.get(atoms.workspace)?.name ?? "";
-    const section = t(`sidebar.pins.menu.state.${pin.state}`, { workspace });
-    const items: ContextMenuItem[] = [];
-    if (pin.modified && pin.state !== "temporary") {
-        items.push(
-            {
-                label: t(pin.state === "everywhere" ? "sidebar.pins.menu.saveEverywhere" : "sidebar.pins.menu.save"),
-                icon: "check",
-                section,
-                click: () => fireAndForget(() => pins.saveState(tabId)),
-            },
-            {
-                label: t("sidebar.pins.menu.revert"),
-                icon: "rotate-left",
-                section,
-                click: () => fireAndForget(() => pins.revert(tabId)),
-            }
-        );
-    }
-    if (pin.state === "temporary") {
-        items.push(
-            {
-                label: t("sidebar.pins.menu.pinHere", { workspace }),
-                icon: "thumbtack",
-                section,
-                click: () => pins.openPinPage(tabId, pin.name, pin.icon, "here"),
-            },
-            {
-                label: t("sidebar.pins.menu.pinEverywhere"),
-                icon: "layer-group",
-                section,
-                click: () => pins.openPinPage(tabId, pin.name, pin.icon, "everywhere"),
-            }
-        );
-    } else if (pin.state === "workspace") {
-        items.push({
-            label: t("sidebar.pins.menu.pinEverywhereNow"),
-            icon: "layer-group",
-            section,
-            click: () => fireAndForget(() => pins.pinEverywhere(tabId, pin.name, pin.icon)),
-        });
-    } else {
-        items.push({
-            label: t("sidebar.pins.menu.pinOnlyHere", { workspace }),
-            icon: "thumbtack",
-            section,
-            click: () => fireAndForget(() => pins.pinOnlyHere(tabId)),
-        });
-    }
-    if (pin.state !== "temporary") {
-        items.push({
-            label: t("sidebar.pins.menu.unpin"),
-            icon: "thumbtack-slash",
-            section,
-            click: () => fireAndForget(() => pins.unpin(tabId)),
-        });
-    }
-    return items;
-}
-
-function viewMenuItems(
-    tabId: string,
-    active: boolean,
-    renameRef: React.RefObject<() => void>,
-    onClose: () => void,
-    env: SidebarEnv,
-    t: (key: string, vars?: Record<string, any>) => string,
-    pin?: ViewPinFacts
-): ContextMenuItem[] {
-    const tabBarPosition = t("wave.tab.tabBarPosition");
-    // A pinned view does not close: unpin it first (FR-SHELL-080).
-    const close = pin != null && pin.state !== "temporary" ? t("wave.tab.close") : null;
-    const tabItems = buildTabContextMenu(tabId, renameRef, () => onClose(), env).filter(
-        (item) => item.label !== tabBarPosition && (close == null || item.label !== close)
-    );
-    const pinned = pin == null ? [] : pinMenuItems(tabId, pin, t);
-    const items = pinned.length > 0 ? [...pinned, { type: "separator" } as ContextMenuItem, ...tabItems] : tabItems;
-    if (!active) {
-        return items;
-    }
-    const layout: ContextMenuItem[] = [];
-    const equalize = currentEqualize();
-    if (equalize != null) {
-        const auto = equalize.auto;
-        layout.push(
-            {
-                label: t("sidebar.view.equalize"),
-                icon: "table-columns",
-                enabled: globalStore.get(equalize.canEqualizeAtom) && !auto,
-                accelerator: acceleratorById("equalize-panels"),
-                click: () => equalize.equalize(),
-            },
-            {
-                label: t("sidebar.view.equalizeAuto"),
-                type: "checkbox",
-                checked: auto,
-                click: () => equalize.setAuto(!auto),
-            }
-        );
-    }
-    const view360 = getLayoutModelForStaticTab()?.moltenView360;
-    if (view360 != null) {
-        layout.push({ label: t("sidebar.view.view360"), type: "submenu", submenu: view360MenuItems(view360) });
-    }
-    if (layout.length === 0) {
-        return items;
-    }
-    const at = items.length - tabItems.length;
-    return [...items.slice(0, at + 1), ...layout, { type: "separator" }, ...items.slice(at + 1)];
-}
-
 function useFlagColor(tab: Tab): string {
     const raw = tab?.meta?.["tab:flagcolor"];
     if (!raw) {
@@ -568,19 +462,33 @@ function useFlagColor(tab: Tab): string {
     }
 }
 
-function useViewPin(tabId: string, name: string, icon: string): ViewPinFacts {
+// What the view menu needs of a view (FR-SHELL-080, FR-SHELL-081): its state, whether it changed since pinned, its
+// shown name and the icon the developer chose (its pin's for a view pinned everywhere).
+type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: string };
+
+function useViewPin(tabId: string, tab: Tab, name: string): ViewPinFacts {
     const pins = ViewPins.getInstance();
     const state = useAtomValue(pins.stateAtom(tabId));
     const modified = useAtomValue(pins.modifiedAtom(tabId));
-    return { state, modified, name, icon };
+    const globalPins = useAtomValue(pins.globalPinsAtom);
+    const meta = (tab?.meta ?? {}) as Record<string, any>;
+    const pin = state === "everywhere" ? globalPins.find((p) => p.id === meta[GlobalPinMetaKey]) : null;
+    const icon = readViewIcon(pin != null ? pin.icon : meta[ViewIconMetaKey]);
+    return { state, modified, name: pin?.name ?? name, icon };
 }
 
-function useViewActions(tabId: string, active: boolean, pin?: ViewPinFacts) {
+// The view's menu (FR-SHELL-081) and its close. startRename: the view's own field (a row's or a tile's).
+function useViewActions(
+    tabId: string,
+    active: boolean,
+    pin: ViewPinFacts,
+    startRename: () => void,
+    projectTab?: boolean
+) {
     const env = useWaveEnv<SidebarEnv>();
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const confirmClose = useAtomValue(env.getSettingsKeyAtom("tab:confirmclose")) ?? false;
-    const renameRef = useRef<() => void>(null);
     const close = useCallback(() => {
         closeTabAskingFirst(getApi().closeTab, ws?.oid, tabId, confirmClose)
             .then((closed) => {
@@ -593,9 +501,36 @@ function useViewActions(tabId: string, active: boolean, pin?: ViewPinFacts) {
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        env.showContextMenu(viewMenuItems(tabId, active, renameRef, close, env, t, pin), e);
+        const target: ViewMenuTarget = { ref: { tabId }, ...pin, active, projectTab };
+        env.showContextMenu(
+            viewMenuItems(target, { startRename, onClose: close, env, at: { x: e.clientX, y: e.clientY } }, t),
+            e
+        );
     };
-    return { env, renameRef, close, onContextMenu };
+    return { env, close, onContextMenu };
+}
+
+// The rename-tab shortcut (and the tab model's rename) opens the view's own field.
+function useRenameCallback(tabId: string, env: SidebarEnv, start: () => void) {
+    const tabModel = getTabModelByTabId(tabId, env);
+    useEffect(() => {
+        tabModel.startRenameCallback = start;
+        return () => {
+            if (tabModel.startRenameCallback === start) {
+                tabModel.startRenameCallback = null;
+            }
+        };
+    }, [tabModel, start]);
+}
+
+function dropSideClass(drag: SidebarDrag, zone: DropZone, key: string): string {
+    if (drag == null || drag.zone !== zone || drag.key !== key || drag.id === key) {
+        return null;
+    }
+    if (dropAction(drag.kind, zone) !== (zone === "tiles" ? "reorder-tiles" : "reorder-top")) {
+        return null;
+    }
+    return drag.after ? "mt-sb-dropa" : "mt-sb-dropb";
 }
 
 function Tile({ tabId, active, counts }: { tabId: string; active: boolean; counts?: PrCounts }) {
@@ -605,16 +540,35 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
-    const pin = useViewPin(tabId, identity.name, identity.icon);
+    const drag = useAtomValue(sidebarDragAtom);
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
+    const pin = useViewPin(tabId, tab, identity.name);
+    const [renaming, setRenaming] = useState(false);
+    const startRename = useCallback(() => setRenaming(true), []);
     const projectTab = !!(tab?.meta as Record<string, any>)?.[ProjectTabMetaKey];
-    const { onContextMenu } = useViewActions(tabId, active, projectTab ? undefined : pin);
+    const { env, onContextMenu } = useViewActions(tabId, active, pin, startRename, projectTab);
+    useRenameCallback(tabId, env, startRename);
     const modified = pin.state === "workspace" && pin.modified;
     const workspace = ws?.name ?? "";
-    const title = modified
-        ? t("sidebar.pins.tileModifiedTitle", { name: identity.name, workspace })
-        : pin.state === "workspace"
-          ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
-          : identity.name;
+    const title = renaming
+        ? undefined
+        : modified
+          ? t("sidebar.pins.tileModifiedTitle", { name: identity.name, workspace })
+          : pin.state === "workspace"
+            ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
+            : identity.name;
+    const rename = (name: string) => {
+        setRenaming(false);
+        if (name !== identity.name) {
+            fireAndForget(() => ViewPins.getInstance().rename({ tabId }, name));
+        }
+    };
+    const activate = () => {
+        if (takeDragClick(tabId) || renaming) {
+            return;
+        }
+        getApi().setActiveTab(tabId);
+    };
     return (
         <div
             role="button"
@@ -625,27 +579,46 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.09] hover:bg-white/15",
                 hasCounts && "mt-sb-hp",
-                hasCounts && grow && "mt-sb-grow"
+                hasCounts && grow && "mt-sb-grow",
+                drag?.kind === "tile" && drag.id === tabId && "mt-sb-dragged",
+                dropSideClass(drag, "tiles", tabId)
             )}
             aria-current={active ? "page" : undefined}
             title={title}
             data-testid="sidebar-tile"
             data-tab-id={tabId}
             data-modified={modified ? "true" : undefined}
-            onClick={() => getApi().setActiveTab(tabId)}
+            {...keyProps(tabId)}
+            onClick={activate}
+            onMouseDown={(e) => {
+                if (!renaming) {
+                    startBlockDrag(e, "tile", tabId, identity.name, !projectTab);
+                }
+            }}
             onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (!renaming && (e.key === "Enter" || e.key === " ")) {
                     e.preventDefault();
                     getApi().setActiveTab(tabId);
                 }
             }}
             onContextMenu={onContextMenu}
         >
-            <i
-                className={cn(makeIconClass(identity.icon, true, { defaultIcon: "square" }), "text-icon-16")}
-                aria-hidden
-            />
-            <span className="name max-w-full truncate">{identity.name}</span>
+            <ViewGlyph icons={glyph} />
+            {renaming ? (
+                <span className="flex w-full px-0.5">
+                    <RenameInput initial={identity.name} onDone={rename} />
+                </span>
+            ) : (
+                <span
+                    className="name max-w-full truncate"
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setRenaming(true);
+                    }}
+                >
+                    {identity.name}
+                </span>
+            )}
             {hasCounts ? <PrPips counts={counts} motionKey={`tile:${tabId}`} calm={!grow} /> : null}
             {modified ? null : (
                 <span className="absolute top-1.5 right-1.5 flex">
@@ -662,6 +635,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                         title={t("sidebar.pins.revertTitle")}
                         aria-label={t("sidebar.pins.revertTitle")}
                         data-testid="sidebar-revert"
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                             e.stopPropagation();
                             fireAndForget(() => ViewPins.getInstance().revert(tabId));
@@ -682,18 +656,40 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
     );
 }
 
+// A row of the sidebar that a drag can land on (FR-SHELL-081): its scope caption shows while the drop would pin the
+// dragged view there; the row being reordered keeps it hidden.
+function useZone(zone: DropZone): { drag: SidebarDrag; target: boolean; over: boolean } {
+    const drag = useAtomValue(sidebarDragAtom);
+    const target = drag != null && drag.pinnable && zoneCaptionShown(drag.kind, zone);
+    return { drag, target, over: target && drag.zone === zone };
+}
+
 function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTabId: string; label: string }) {
     const counts = useWorkspacePrCounts();
     const pilotageTile = usePilotageBlock(tileIds.map((id) => ({ key: id, tabId: id })));
-    if (tileIds.length === 0) {
+    const t = useT();
+    const ws = useAtomValue(atoms.workspace);
+    const ref = useRef<HTMLDivElement>(null);
+    const { target, over } = useZone("tiles");
+    useGlide(ref, tileIds.join(" "));
+    if (tileIds.length === 0 && !target) {
         return null;
     }
+    const caption = t("sidebar.views.captionHere", { workspace: workspaceShownName(ws?.name, t) });
     return (
         <div
-            className="grid shrink-0 gap-1.5 px-1 pt-[7px] pb-0.5"
+            ref={ref}
+            className={cn(
+                "mt-sb-zone grid shrink-0 gap-1.5 px-1 pt-[7px] pb-0.5",
+                target && "is-target",
+                over && "is-over",
+                tileIds.length === 0 && "mt-sb-zone-empty"
+            )}
             style={{ gridTemplateColumns: TileGridColumns }}
             aria-label={label}
             data-testid="sidebar-tiles"
+            data-cap={caption}
+            {...zoneProps("tiles")}
         >
             {tileIds.map((id) => (
                 <Tile
@@ -759,29 +755,21 @@ function ViewRow({
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const t = useT();
-    const pin = useViewPin(tabId, identity.name, identity.icon);
-    const { env, renameRef, close, onContextMenu } = useViewActions(tabId, active, pin);
+    const pin = useViewPin(tabId, tab, identity.name);
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
+    const [renaming, setRenaming] = useState(false);
+    const startRename = useCallback(() => setRenaming(true), []);
+    const { env, close, onContextMenu } = useViewActions(tabId, active, pin, startRename);
+    useRenameCallback(tabId, env, startRename);
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const trees = useTabTreesTooltip(tabId);
     const [hoverNow, setHoverNow] = useState(() => Date.now());
     const title = useTabTooltip(identity, trees.title, hoverNow);
     const flagColor = useFlagColor(tab);
-    const [renaming, setRenaming] = useState(false);
-    renameRef.current = () => setRenaming(true);
-    const tabModel = getTabModelByTabId(tabId, env);
-    useEffect(() => {
-        const cb = () => setRenaming(true);
-        tabModel.startRenameCallback = cb;
-        return () => {
-            if (tabModel.startRenameCallback === cb) {
-                tabModel.startRenameCallback = null;
-            }
-        };
-    }, [tabModel]);
     const rename = (name: string) => {
         setRenaming(false);
         if (name !== identity.name) {
-            fireAndForget(() => env.rpc.UpdateTabNameCommand(TabRpcClient, tabId, name));
+            fireAndForget(() => ViewPins.getInstance().rename({ tabId }, name));
         }
     };
     const activate = () => {
@@ -797,7 +785,7 @@ function ViewRow({
             className={cn(
                 "mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 transition-colors duration-120 ease-mt",
                 active ? "bg-white/15 text-primary" : "text-secondary hover:bg-white/[0.08] hover:text-primary",
-                dragging && "opacity-60"
+                dragging && "mt-sb-dragged"
             )}
             aria-current={active ? "page" : undefined}
             title={renaming ? undefined : title || undefined}
@@ -832,13 +820,7 @@ function ViewRow({
             {dropBefore ? (
                 <span className="pointer-events-none absolute -top-px right-1 left-1 h-[2px] rounded-full bg-accent" />
             ) : null}
-            <i
-                className={cn(
-                    makeIconClass(identity.icon, true, { defaultIcon: "square" }),
-                    "w-4 shrink-0 text-center text-icon-14"
-                )}
-                aria-hidden
-            />
+            <ViewGlyph icons={glyph} small className="min-w-4 justify-center" />
             {renaming ? (
                 <RenameInput initial={identity.name} onDone={rename} />
             ) : (
@@ -867,7 +849,7 @@ function ViewRow({
                     data-testid="sidebar-pin-view"
                     onClick={(e) => {
                         e.stopPropagation();
-                        ViewPins.getInstance().openPinPage(tabId, identity.name, identity.icon);
+                        ViewPins.getInstance().openPinPage(tabId, identity.name);
                     }}
                 >
                     <SidebarGlyph name="pin" size={12} />
@@ -907,6 +889,7 @@ function useRowDrag(listRef: React.RefObject<HTMLDivElement>, asideRef: React.Re
         let started = false;
         let before: string = null;
         let out = false;
+        let hit: ZoneHit = null;
         const rowsOf = () =>
             Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-testid='sidebar-view-row']") ?? []).map(
                 (el) => {
@@ -929,18 +912,33 @@ function useRowDrag(listRef: React.RefObject<HTMLDivElement>, asideRef: React.Re
                 () => {},
                 (p) => p.clientX > right
             );
-            before = out ? null : dropTargetAt(ev.clientY, rowsOf());
-            setState({ id: tabId, before, out });
+            // Over the tiles or the top row, the view would be pinned there (FR-SHELL-081).
+            hit = out ? null : usableHit("row", zoneAt(ev.clientX, ev.clientY), true);
+            before = out || hit != null ? null : dropTargetAt(ev.clientY, rowsOf());
+            setState({ id: tabId, before, out: out || hit != null });
+            setDrag({
+                kind: "row",
+                id: tabId,
+                zone: hit?.zone ?? null,
+                key: hit?.key ?? null,
+                after: hit?.after ?? false,
+                pinnable: true,
+            });
         };
         const onUp = (ev: MouseEvent) => {
             document.removeEventListener("mousemove", onMove);
             document.removeEventListener("mouseup", onUp);
             setState(null);
+            setDrag(null);
             if (!started) {
                 return;
             }
             suppressClickRef.current = true;
             if (finishTabPanelDrag(ev) || out) {
+                return;
+            }
+            if (hit != null) {
+                finishDrop("row", tabId, hit, rowName(listRef.current, tabId));
                 return;
             }
             const current = idsRef.current;
@@ -961,6 +959,12 @@ function useRowDrag(listRef: React.RefObject<HTMLDivElement>, asideRef: React.Re
         return taken;
     };
     return { state, drag: { onMouseDown, takeClick } as RowDrag };
+}
+
+// The name a row shows (its tab's name, or its first panel's title), for the toast of a pin by drag.
+function rowName(list: HTMLElement, tabId: string): string {
+    const row = list?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(tabId)}"] .name`);
+    return row?.textContent ?? "";
 }
 
 function visibleOrder(ws: Workspace): string[] {
@@ -1055,7 +1059,8 @@ function CloseFinishedButton() {
 }
 
 // The top row (FR-SHELL-080): the views pinned everywhere, the same blocks in every workspace; each opens this
-// workspace's own instance, on its project. Nothing pinned everywhere: the row takes no room.
+// workspace's own instance, on its project. Nothing pinned everywhere: the row takes no room, except as a drop target
+// while a view is dragged (FR-SHELL-081). Its blocks reorder by drag, the same in every workspace.
 function TopRow({ instances, activeTabId }: { instances: Record<string, string>; activeTabId: string }) {
     const t = useT();
     const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom);
@@ -1069,15 +1074,26 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
             configViews: (pin.config?.panes ?? []).map((pane) => (pane?.view as string) ?? ""),
         }))
     );
-    if (pins.length === 0) {
+    const ref = useRef<HTMLDivElement>(null);
+    const { target, over } = useZone("top");
+    useGlide(ref, pins.map((p) => p.id).join(" "));
+    if (pins.length === 0 && !target) {
         return null;
     }
     return (
         <div
-            className="grid shrink-0 gap-1.5"
+            ref={ref}
+            className={cn(
+                "mt-sb-zone grid shrink-0 gap-1.5",
+                target && "is-target",
+                over && "is-over",
+                pins.length === 0 && "mt-sb-zone-empty"
+            )}
             style={{ gridTemplateColumns: "repeat(auto-fill, minmax(max(40px, calc((100% - 18px) / 4)), 1fr))" }}
             aria-label={t("sidebar.pins.topRowLabel")}
             data-testid="sidebar-top-row"
+            data-cap={t("sidebar.views.captionEverywhere")}
+            {...zoneProps("top")}
         >
             {pins.map((pin) => (
                 <TopRowBlock
@@ -1111,39 +1127,35 @@ function TopRowBlock({
     const { grow } = useCountsMotion(motionKey, hasCounts);
     const env = useWaveEnv<SidebarEnv>();
     const pins = ViewPins.getInstance();
+    const drag = useAtomValue(sidebarDragAtom);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
+    const glyph = useTopGlyph(pin, tabId);
     const title = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", { name: pin.name });
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const facts: ViewPinFacts = {
+        const target: ViewMenuTarget = {
+            ref: { tabId: tabId || undefined, pinId: pin.id },
             state: "everywhere",
             modified: !!tabId && modified,
             name: pin.name,
-            icon: pin.icon,
+            icon: readViewIcon(pin.icon),
+            active,
         };
-        const items = tabId
-            ? pinMenuItems(tabId, facts, t)
-            : [
-                  {
-                      label: t("sidebar.pins.menu.unpin"),
-                      icon: "thumbtack-slash",
-                      section: t("sidebar.pins.menu.state.everywhere"),
-                      click: () => fireAndForget(() => pins.unpinGlobal(pin.id)),
-                  },
-              ];
-        env.showContextMenu(items, e);
+        env.showContextMenu(viewMenuItems(target, { env, at: { x: e.clientX, y: e.clientY } }, t), e);
     };
     return (
         <button
             type="button"
             className={cn(
-                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center rounded-6 text-primary transition-colors duration-120 ease-mt",
+                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.07] hover:bg-white/[0.14]",
                 hasCounts && "mt-sb-hp",
-                hasCounts && grow && "mt-sb-grow"
+                hasCounts && grow && "mt-sb-grow",
+                drag?.kind === "top" && drag.id === pin.id && "mt-sb-dragged",
+                dropSideClass(drag, "top", pin.id)
             )}
             aria-label={pin.name}
             aria-current={active ? "page" : undefined}
@@ -1151,10 +1163,17 @@ function TopRowBlock({
             data-testid="sidebar-top-block"
             data-pin-id={pin.id}
             data-tab-id={tabId || undefined}
-            onClick={() => fireAndForget(() => pins.openGlobalPin(pin.id, tabId))}
+            {...keyProps(pin.id)}
+            onMouseDown={(e) => startBlockDrag(e, "top", pin.id, pin.name)}
+            onClick={() => {
+                if (takeDragClick(pin.id)) {
+                    return;
+                }
+                fireAndForget(() => pins.openGlobalPin(pin.id, tabId));
+            }}
             onContextMenu={onContextMenu}
         >
-            <i className={cn(makeIconClass(pin.icon, true, { defaultIcon: "square" }), "text-icon-16")} aria-hidden />
+            <ViewGlyph icons={glyph} small={glyph.length > 1} />
             {hasCounts ? <PrPips counts={counts} motionKey={motionKey} calm={!grow} small /> : null}
             {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
         </button>
@@ -1168,6 +1187,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
     const pins = ViewPins.getInstance();
     const ws = useAtomValue(atoms.workspace);
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", draft.tabId));
+    const glyph = useAtomValue(viewGlyphAtom(draft.tabId));
     const inputRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
         inputRef.current?.focus();
@@ -1229,10 +1249,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
                 </button>
             </div>
             <div className="flex h-[52px] w-24 flex-col items-center justify-center gap-[5px] self-center rounded-6 bg-white/20 px-1 text-11 text-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
-                <i
-                    className={cn(makeIconClass(draft.icon, true, { defaultIcon: "square" }), "text-icon-16")}
-                    aria-hidden
-                />
+                <ViewGlyph icons={glyph} />
                 <span className="max-w-full truncate">{draft.name || tab?.name}</span>
             </div>
             <label className="flex flex-col gap-[5px] text-12 text-muted">
@@ -1816,6 +1833,7 @@ function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
             <WorkspaceRailHosts entries={entries} />
             <ReleaseNotesHost />
             <View360ExitHost />
+            <ViewPopoverHost />
         </>
     );
 }
@@ -1834,6 +1852,17 @@ export function WorkspaceSidebar() {
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
+    useEffect(() => {
+        // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
+        const onKey = (e: KeyboardEvent) => {
+            if (undoFromKey(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        window.addEventListener("keydown", onKey, true);
+        return () => window.removeEventListener("keydown", onKey, true);
+    }, []);
     useEffect(() => {
         ViewPins.getInstance().closePinPage();
     }, [ws?.oid]);

@@ -32,6 +32,7 @@ import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTER
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
+import { pinnedViewKeepsTab } from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
@@ -178,7 +179,8 @@ function uxCloseBlock(blockId: string) {
 
     // If this is the last block, closing it will close the tab — route through simpleCloseStaticTab
     // so the tab:confirmclose setting is respected.
-    if (getStaticTabBlockCount() === 1) {
+    // MOLTENTERM-PATCH (#1185): a pinned view keeps its tab, empty (FR-SHELL-081)
+    if (getStaticTabBlockCount() === 1 && !pinnedViewKeepsTab(globalStore.get(atoms.staticTabId))) {
         simpleCloseStaticTab();
         return;
     }
@@ -233,7 +235,8 @@ function genericClose() {
 
     // If this is the last block, closing it will close the tab — route through simpleCloseStaticTab
     // so the tab:confirmclose setting is respected.
-    if (blockCount === 1) {
+    // MOLTENTERM-PATCH (#1185): a pinned view keeps its tab, empty (FR-SHELL-081)
+    if (blockCount === 1 && !pinnedViewKeepsTab(globalStore.get(atoms.staticTabId))) {
         simpleCloseStaticTab();
         return;
     }
