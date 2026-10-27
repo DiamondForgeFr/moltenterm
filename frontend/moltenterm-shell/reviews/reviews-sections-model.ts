@@ -61,8 +61,11 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
     let boardTurn = null;
     let boardStatus = "";
     const draft = pr.draft && ctx.upcoming != null ? ctx.upcoming.drafts?.find((d) => d.branch === pr.branch) : null;
-    if (pr.draft && ctx.upcoming != null && (draft != null || agents.length > 0)) {
-        const turn = draftTurn(agents[0] ?? null, draft, ctx.now);
+    // A draft the upcoming answer does not list still gets its workflow's turn (#1172): in a workflow without Human
+    // Testing it is the agent's.
+    const workflowTurn = ctx.upcoming?.humantesting === "no";
+    if (pr.draft && ctx.upcoming != null && (draft != null || agents.length > 0 || workflowTurn)) {
+        const turn = draftTurn(agents[0] ?? null, draft, ctx.now, ctx.upcoming.humantesting);
         boardTurn = agents.length === 0 ? turn : null;
         boardStatus = turn.status ? ctx.boardText(turn.status) : "";
     }

@@ -634,9 +634,9 @@ export function useDraftTurn(dir: string, pr: ReviewPr, agents: AgentBarFacts[])
         return { turn: null, status: "" };
     }
     const draft = upcoming.drafts?.find((d) => d.branch === pr.branch);
-    if (draft == null && agents.length === 0) {
+    if (draft == null && agents.length === 0 && upcoming.humantesting !== "no") {
         return { turn: null, status: "" };
     }
-    const turn = draftTurn(agents[0] ?? null, draft, now);
+    const turn = draftTurn(agents[0] ?? null, draft, now, upcoming.humantesting);
     return { turn, status: turn.status ? boardStatusText(t, turn.status) : "" };
 }

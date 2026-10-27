@@ -136,11 +136,14 @@ type UpcomingAnswer struct {
 	// Leftovers: the branches of merged PRs that hold nothing new (#1088), with what is left of them.
 	Leftovers []UpcomingLeftover `json:"leftovers"`
 	// PrBranches: the other branches of the tickets that have an open PR, listed on its card, never Upcoming (#1172).
-	PrBranches   []UpcomingPrBranch `json:"prbranches,omitempty"`
-	Error        string             `json:"error,omitempty"`
-	ErrorText    *uimsg.Text        `json:"errortext,omitempty"`
-	TicketsError string             `json:"ticketserror,omitempty"`
-	At           int64              `json:"at"`
+	PrBranches []UpcomingPrBranch `json:"prbranches,omitempty"`
+	// HumanTesting: whether the project's workflow has a Human Testing column (UpcomingHumanTestingYes, …No), ""
+	// when it declares none (#1172).
+	HumanTesting string      `json:"humantesting,omitempty"`
+	Error        string      `json:"error,omitempty"`
+	ErrorText    *uimsg.Text `json:"errortext,omitempty"`
+	TicketsError string      `json:"ticketserror,omitempty"`
+	At           int64       `json:"at"`
 }
 
 // AgentPlace is a running agent terminal and where it works.
@@ -323,6 +326,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		snap = Snapshot{Dir: dir}
 	}
 	answer.Target, _ = reviewTarget(snap)
+	answer.HumanTesting = readHumanTesting(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), upcomingGitTimeout)
 	defer cancel()
 	g := &gitReader{ctx: ctx, run: u.env.Run, dir: dir}

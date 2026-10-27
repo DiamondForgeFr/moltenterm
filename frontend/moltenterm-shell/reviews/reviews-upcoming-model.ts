@@ -101,6 +101,8 @@ export type UpcomingAnswer = {
     drafts?: UpcomingDraft[];
     leftovers?: UpcomingLeftover[];
     prbranches?: UpcomingPrBranch[];
+    // Whether the project's workflow has a Human Testing column (#1172); unset when it declares no statuses.
+    humantesting?: "yes" | "no";
     error?: string;
     errortext?: ServerText;
     ticketserror?: string;
@@ -332,10 +334,21 @@ const ReviewTurnStatuses = new Set(["human review", "in review"]);
 export const DraftActiveMs = 30 * 60_000;
 
 // What a draft expects of the developer, for its row's chip: the agent's turn, a test, marking it ready, or theirs to
-// finish when nothing says an agent is on it.
-export type DraftTurn = { owner: "agent" | "developer"; kind: "agent" | "test" | "ready" | "yours"; status?: string };
+// finish when nothing says an agent is on it. workflow: the agent's only because the workflow has no Human Testing
+// (#1172), nothing else saying so.
+export type DraftTurn = {
+    owner: "agent" | "developer";
+    kind: "agent" | "test" | "ready" | "yours";
+    status?: string;
+    workflow?: boolean;
+};
 
-export function draftTurn(agent: AgentBarFacts, draft: UpcomingDraft, now: number): DraftTurn {
+export function draftTurn(
+    agent: AgentBarFacts,
+    draft: UpcomingDraft,
+    now: number,
+    humanTesting?: UpcomingAnswer["humantesting"]
+): DraftTurn {
     const status = (draft?.status ?? "").trim().replace(/\s+/g, " ").toLowerCase();
     if (agent != null || AgentTurnStatuses.has(status)) {
         return { owner: "agent", kind: "agent", status: draft?.status };
@@ -348,6 +361,11 @@ export function draftTurn(agent: AgentBarFacts, draft: UpcomingDraft, now: numbe
     }
     if (draft?.commitat && now - draft.commitat < DraftActiveMs) {
         return { owner: "agent", kind: "agent" };
+    }
+    // #1172: in a workflow without Human Testing (SaaSFoundry Solo) a draft is the agent's until In Review; an unknown
+    // column (a token without the board's scope, a ticket off the board) does not make it the developer's.
+    if (humanTesting === "no") {
+        return { owner: "agent", kind: "agent", status: draft?.status, workflow: true };
     }
     return { owner: "developer", kind: "yours", status: draft?.status };
 }

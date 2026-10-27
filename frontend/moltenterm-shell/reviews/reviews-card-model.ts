@@ -466,6 +466,8 @@ export function cardState(input: CardInput): CardState {
             } else if (input.boardStatus) {
                 why = phrase("reviews.card.why.board", { status: input.boardStatus });
                 said.add("board");
+            } else if (working == null && input.boardTurn?.workflow) {
+                why = phrase("reviews.card.why.workflowDraft");
             } else if (working == null) {
                 why = phrase("reviews.card.why.recentCommit");
             }

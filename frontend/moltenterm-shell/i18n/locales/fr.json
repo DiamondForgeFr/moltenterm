@@ -6431,6 +6431,7 @@
                 "ciFailing": "CI en échec : {names}",
                 "board": "colonne {status}",
                 "recentCommit": "un commit vient d'arriver",
+                "workflowDraft": "votre workflow laisse les brouillons aux agents jusqu'à la revue",
                 "interrupted": "{name} s'est arrêté avant de finir {what}",
                 "interruptedGone": "la session de {name} s'est terminée avant de finir {what}",
                 "nobody": "personne dessus",
