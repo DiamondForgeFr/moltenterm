@@ -293,3 +293,112 @@
     border-radius: var(--mt-radius-2);
     background: rgb(0 0 0 / 0.45);
 }
+
+/* Pull request counts under the block that shows Pilotage (FR-SHELL-085): soft tinted pills centred just under the
+   block, outside it. The block keeps its height and takes room below it, so only its row grows and the gutter stays
+   the same both ways. Every animation runs once. The pills fade without clipping, so a bump's ring is never cut. */
+.mt-sb-hp {
+    margin-bottom: 17px;
+}
+
+.mt-sb-hp.mt-sb-grow {
+    animation: mt-sb-hp-grow 380ms var(--mt-ease) both;
+}
+
+@keyframes mt-sb-hp-grow {
+    from {
+        margin-bottom: 0;
+    }
+}
+
+.mt-sb-pips {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 3px);
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    white-space: nowrap;
+    animation: mt-sb-pips-in 320ms var(--mt-ease) both;
+}
+
+.mt-sb-grow .mt-sb-pips {
+    animation-delay: 220ms;
+}
+
+.mt-sb-pips.is-calm {
+    animation: none;
+}
+
+@keyframes mt-sb-pips-in {
+    from {
+        opacity: 0;
+        translate: 0 -3px;
+    }
+}
+
+.mt-sb-pip {
+    min-width: 16px;
+    height: 14px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.mt-sb-pips.is-small {
+    gap: 2px;
+}
+
+.mt-sb-pips.is-small .mt-sb-pip {
+    min-width: 14px;
+    height: 12px;
+    padding: 0 4px;
+    border-radius: 6px;
+    font-size: 9px;
+    line-height: 12px;
+}
+
+.mt-sb-pip.is-ready {
+    background: color-mix(in srgb, #6fc38a 22%, transparent);
+    color: #a6e3b8;
+}
+
+.mt-sb-pip.is-ci {
+    background: color-mix(in srgb, #f0a24a 24%, transparent);
+    color: #f6c895;
+}
+
+.mt-sb-pip.is-draft {
+    background: rgb(255 255 255 / 0.1);
+    color: var(--color-secondary);
+}
+
+.mt-sb-pip.is-bump {
+    animation: mt-sb-pip-bump 700ms var(--mt-ease);
+}
+
+@keyframes mt-sb-pip-bump {
+    0% {
+        box-shadow: 0 0 0 0 currentColor;
+    }
+    40% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 35%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-hp.mt-sb-grow,
+    .mt-sb-pips,
+    .mt-sb-pip.is-bump {
+        animation: none;
+    }
+}

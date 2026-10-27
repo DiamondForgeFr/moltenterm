@@ -85,6 +85,8 @@ import { askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { closeTabAskingFirst } from "../worktree-close";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
+import { PrPips, useCountsMotion, usePilotageBlock, useWorkspacePrCounts } from "./pr-counts";
+import { hasPrCounts, PrCounts } from "./pr-counts-model";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -596,8 +598,10 @@ function useViewActions(tabId: string, active: boolean, pin?: ViewPinFacts) {
     return { env, renameRef, close, onContextMenu };
 }
 
-function Tile({ tabId, active }: { tabId: string; active: boolean }) {
+function Tile({ tabId, active, counts }: { tabId: string; active: boolean; counts?: PrCounts }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
+    const hasCounts = hasPrCounts(counts);
+    const { grow } = useCountsMotion(`tile:${tabId}`, hasCounts);
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
@@ -619,7 +623,9 @@ function Tile({ tabId, active }: { tabId: string; active: boolean }) {
                 "mt-sb-tile relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 px-1 text-11 text-primary transition-colors duration-120 ease-mt",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.09] hover:bg-white/15"
+                    : "bg-white/[0.09] hover:bg-white/15",
+                hasCounts && "mt-sb-hp",
+                hasCounts && grow && "mt-sb-grow"
             )}
             aria-current={active ? "page" : undefined}
             title={title}
@@ -640,6 +646,7 @@ function Tile({ tabId, active }: { tabId: string; active: boolean }) {
                 aria-hidden
             />
             <span className="name max-w-full truncate">{identity.name}</span>
+            {hasCounts ? <PrPips counts={counts} motionKey={`tile:${tabId}`} calm={!grow} /> : null}
             {modified ? null : (
                 <span className="absolute top-1.5 right-1.5 flex">
                     <TabAgentMark info={identity.agent} />
@@ -676,6 +683,8 @@ function Tile({ tabId, active }: { tabId: string; active: boolean }) {
 }
 
 function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTabId: string; label: string }) {
+    const counts = useWorkspacePrCounts();
+    const pilotageTile = usePilotageBlock(tileIds.map((id) => ({ key: id, tabId: id })));
     if (tileIds.length === 0) {
         return null;
     }
@@ -687,7 +696,12 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
             data-testid="sidebar-tiles"
         >
             {tileIds.map((id) => (
-                <Tile key={id} tabId={id} active={id === activeTabId} />
+                <Tile
+                    key={id}
+                    tabId={id}
+                    active={id === activeTabId}
+                    counts={id === pilotageTile ? counts : undefined}
+                />
             ))}
         </div>
     );
@@ -1045,6 +1059,16 @@ function CloseFinishedButton() {
 function TopRow({ instances, activeTabId }: { instances: Record<string, string>; activeTabId: string }) {
     const t = useT();
     const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom);
+    const workspaceId = useAtomValue(atoms.workspace)?.oid ?? "";
+    const counts = useWorkspacePrCounts();
+    // A view not yet opened in this workspace shows what its configuration names, as it will open.
+    const pilotagePin = usePilotageBlock(
+        pins.map((pin) => ({
+            key: pin.id,
+            tabId: instances[pin.id] ?? "",
+            configViews: (pin.config?.panes ?? []).map((pane) => (pane?.view as string) ?? ""),
+        }))
+    );
     if (pins.length === 0) {
         return null;
     }
@@ -1061,14 +1085,30 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
                     pin={pin}
                     tabId={instances[pin.id] ?? ""}
                     active={!!instances[pin.id] && instances[pin.id] === activeTabId}
+                    counts={pin.id === pilotagePin ? counts : undefined}
+                    motionKey={`top:${pin.id}:${workspaceId}`}
                 />
             ))}
         </div>
     );
 }
 
-function TopRowBlock({ pin, tabId, active }: { pin: GlobalPin; tabId: string; active: boolean }) {
+function TopRowBlock({
+    pin,
+    tabId,
+    active,
+    counts,
+    motionKey,
+}: {
+    pin: GlobalPin;
+    tabId: string;
+    active: boolean;
+    counts?: PrCounts;
+    motionKey: string;
+}) {
     const t = useT();
+    const hasCounts = hasPrCounts(counts);
+    const { grow } = useCountsMotion(motionKey, hasCounts);
     const env = useWaveEnv<SidebarEnv>();
     const pins = ViewPins.getInstance();
     const modified = useAtomValue(pins.modifiedAtom(tabId));
@@ -1101,7 +1141,9 @@ function TopRowBlock({ pin, tabId, active }: { pin: GlobalPin; tabId: string; ac
                 "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center rounded-6 text-primary transition-colors duration-120 ease-mt",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.07] hover:bg-white/[0.14]"
+                    : "bg-white/[0.07] hover:bg-white/[0.14]",
+                hasCounts && "mt-sb-hp",
+                hasCounts && grow && "mt-sb-grow"
             )}
             aria-label={pin.name}
             aria-current={active ? "page" : undefined}
@@ -1113,6 +1155,7 @@ function TopRowBlock({ pin, tabId, active }: { pin: GlobalPin; tabId: string; ac
             onContextMenu={onContextMenu}
         >
             <i className={cn(makeIconClass(pin.icon, true, { defaultIcon: "square" }), "text-icon-16")} aria-hidden />
+            {hasCounts ? <PrPips counts={counts} motionKey={motionKey} calm={!grow} small /> : null}
             {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
         </button>
     );
