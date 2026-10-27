@@ -26,7 +26,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";
@@ -102,7 +102,6 @@ import {
     SidebarMinWidth,
     TileGridColumns,
 } from "./sidebar-model";
-import { ProjectPageView } from "./sidebar-project-page";
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
@@ -123,6 +122,10 @@ const MacTrafficLightsWidth = 74;
 const MacTahoeTrafficLightsWidth = 80;
 const WindowRowHeight = "max(33px, calc(33px * var(--zoomfactor-inv)))";
 const DragThresholdPx = 4;
+
+// Loaded on demand: the project page only shows while a project is added or edited, so its code stays out of the JS
+// every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
+const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => ({ default: m.ProjectPageView })));
 
 const IconButton =
     "relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
@@ -1906,7 +1909,9 @@ export function WorkspaceSidebar() {
                     {pinDraft != null ? (
                         <PinPage draft={pinDraft} workspaces={workspaces} />
                     ) : projectPage != null ? (
-                        <ProjectPageView page={projectPage} />
+                        <Suspense fallback={null}>
+                            <ProjectPageView page={projectPage} />
+                        </Suspense>
                     ) : (
                         <>
                             <WorkspaceHeader workspaces={workspaces} />
