@@ -12,7 +12,7 @@ export const SidebarSettingKey = "shell:workspacesidebar";
 // The window's meta: the sidebar's width and whether it is hidden, shared by every tab view of the window.
 export const SidebarWidthMetaKey = "molten:sidebarwidth";
 export const SidebarHiddenMetaKey = "molten:sidebarhidden";
-// The workspace's project type (SaaS, Desktop, CLI…); #1191 lets the user set it.
+// The current project's type (SaaS, Desktop, CLI…); the workspace's other projects are in workspace-projects.ts.
 export const ProjectTypeMetaKey = "molten:projecttype";
 
 export const SidebarMinWidth = 220;
@@ -128,19 +128,6 @@ export function dropTargetAt(clientY: number, rows: { id: string; top: number; h
         }
     }
     return null;
-}
-
-// "Group with…" from a workspace's menu (FR-MC-032, kept by the sidebar until #1191): a local group takes this
-// workspace in; another workspace joins this one, or the group this one is in.
-export function groupWithJoin(
-    workspaceId: string,
-    choice: { id: string; kind: "workspace" | "group" },
-    ownGroupId: string
-): { workspaceid: string; targetid: string } {
-    if (choice.kind === "group") {
-        return { workspaceid: workspaceId, targetid: choice.id };
-    }
-    return { workspaceid: choice.id, targetid: ownGroupId || workspaceId };
 }
 
 // ⌥⇧ and an arrow move the focused workspace dot one place (FR-MC-031, as in the rail): left or up earlier.
