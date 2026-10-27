@@ -142,10 +142,12 @@ describe("a pinned view's changes (FR-SHELL-080)", () => {
 });
 
 describe("finished views (FR-SHELL-080)", () => {
-    it("is finished when its agents are done, and only then", () => {
+    it("is finished when its agents are done or idle, and only then", () => {
         expect(viewFinished(states({ a: "done" }), ["a", "t"])).toBe(true);
         expect(viewFinished(states({ a: "done", b: "working" }), ["a", "b"])).toBe(false);
         expect(viewFinished(states({ a: "waiting" }), ["a"])).toBe(false);
+        expect(viewFinished(states({ a: "idle", b: "done" }), ["a", "b"])).toBe(true);
+        expect(viewFinished(states({ a: "error" }), ["a"])).toBe(false);
         expect(viewFinished(states({}), ["t"])).toBe(false);
     });
 

@@ -6,7 +6,7 @@
 // by each workspace on its own project). A view is a tab and its layout. Kept apart from the components so the rules
 // can be tested without the app; pkg/molten/viewpin reads and makes the configurations.
 
-import { AgentStatesData, agentStatesOfBlocks, mostUrgentAgentState } from "../agent-state-model";
+import { AgentStatesData, agentStatesOfBlocks } from "../agent-state-model";
 
 // must match pkg/molten/viewpin/viewpin.go
 export const ViewPinRoute = "molten:viewpin";
@@ -161,10 +161,11 @@ export function viewModified(
     return liveSignature(tree, metaOf) !== configSignature(config);
 }
 
-// A finished view: an agent ran in it and none works or waits any more. A view without an agent is not finished.
+// A finished view: an agent is in it and none works, waits or reports an error. A done agent the developer has seen
+// turns idle, so idle counts as finished too. A view without an agent is not finished.
 export function viewFinished(data: AgentStatesData, blockIds: string[]): boolean {
-    const top = mostUrgentAgentState(agentStatesOfBlocks(data, blockIds ?? []));
-    return top?.state === "done";
+    const states = agentStatesOfBlocks(data, blockIds ?? []);
+    return states.length > 0 && states.every((s) => s.state === "done" || s.state === "idle");
 }
 
 // An agent works or waits in the view: opening the pin's newer configuration would take its panel away.

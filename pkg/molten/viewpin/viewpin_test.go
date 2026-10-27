@@ -16,11 +16,11 @@ import (
 const repo = "https://github.com/DiamondForgeFr/moltenterm"
 
 func TestPaneConfigKeepsWhatItShows(t *testing.T) {
-	term := PaneConfig(waveobj.MetaMapType{"view": "term", "controller": "shell", "cmd:cwd": "/p", "molten:origin": "x"}, false, repo)
+	term := PaneConfig(waveobj.MetaMapType{"view": "term", "controller": "shell", "cmd:cwd": "/p", "molten:origin": "x"}, false, Project{RepoUrl: repo})
 	if !reflect.DeepEqual(term, waveobj.MetaMapType{"view": "term", "controller": "shell"}) {
 		t.Fatalf("terminal: %v", term)
 	}
-	agent := PaneConfig(waveobj.MetaMapType{"view": "term", "controller": "shell", "cmd:cwd": "/p", "connection": "box"}, true, repo)
+	agent := PaneConfig(waveobj.MetaMapType{"view": "term", "controller": "shell", "cmd:cwd": "/p", "connection": "box"}, true, Project{RepoUrl: repo})
 	if agent[AgentSlotMetaKey] != true || agent["connection"] != "box" || agent["cmd:cwd"] != nil {
 		t.Fatalf("agent slot: %v", agent)
 	}
@@ -28,7 +28,7 @@ func TestPaneConfigKeepsWhatItShows(t *testing.T) {
 		"view": "molten-browser", "url": repo + "/pulls",
 		"molten:browser:tabs":    []any{map[string]any{"id": "a", "url": repo}, map[string]any{"id": "b", "url": "https://npmjs.com"}},
 		"molten:browser:open:01": "x",
-	}, false, repo)
+	}, false, Project{RepoUrl: repo})
 	if page["url"] != RepoToken+"/pulls" || page["molten:browser:open:01"] != nil {
 		t.Fatalf("page: %v", page)
 	}
@@ -36,7 +36,7 @@ func TestPaneConfigKeepsWhatItShows(t *testing.T) {
 	if tabs[0].(map[string]any)["url"] != RepoToken || tabs[1].(map[string]any)["url"] != "https://npmjs.com" {
 		t.Fatalf("page tabs: %v", tabs)
 	}
-	other := PaneConfig(waveobj.MetaMapType{"view": "molten-browser", "url": repo + "-docs"}, false, repo)
+	other := PaneConfig(waveobj.MetaMapType{"view": "molten-browser", "url": repo + "-docs"}, false, Project{RepoUrl: repo})
 	if other["url"] != repo+"-docs" {
 		t.Fatalf("another repository stays: %v", other)
 	}
@@ -44,15 +44,15 @@ func TestPaneConfigKeepsWhatItShows(t *testing.T) {
 
 func TestResolvePaneOnAnotherProject(t *testing.T) {
 	other := "https://github.com/DiamondForgeFr/saasfoundry"
-	page := ResolvePane(waveobj.MetaMapType{"view": "molten-browser", "url": RepoToken + "/pulls"}, "/sf", other)
+	page := ResolvePane(waveobj.MetaMapType{"view": "molten-browser", "url": RepoToken + "/pulls"}, Project{Dir: "/sf", RepoUrl: other})
 	if page["url"] != other+"/pulls" || page["cmd:cwd"] != nil {
 		t.Fatalf("page: %v", page)
 	}
-	term := ResolvePane(waveobj.MetaMapType{"view": "term", "controller": "shell"}, "/sf", other)
+	term := ResolvePane(waveobj.MetaMapType{"view": "term", "controller": "shell"}, Project{Dir: "/sf", RepoUrl: other})
 	if term["cmd:cwd"] != "/sf" {
 		t.Fatalf("terminal: %v", term)
 	}
-	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, "", "")["url"] != "https://github.com" {
+	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, Project{})["url"] != "https://github.com" {
 		t.Fatal("a project without a repository opens GitHub")
 	}
 }
@@ -68,7 +68,7 @@ func TestCaptureFoldsAndRebuilds(t *testing.T) {
 		"b": {"view": "molten-project"},
 		"c": {"view": "molten-browser", "url": repo},
 	}
-	cfg := Capture(tree, map[string]bool{"a": true}, repo, func(id string) (waveobj.MetaMapType, bool) {
+	cfg := Capture(tree, map[string]bool{"a": true}, Project{RepoUrl: repo}, func(id string) (waveobj.MetaMapType, bool) {
 		m, ok := metas[id]
 		return m, ok
 	})
@@ -115,5 +115,30 @@ func TestRepoWebUrl(t *testing.T) {
 	}
 	if RepoWebUrl(t.TempDir()) != "" {
 		t.Fatal("no clone")
+	}
+}
+
+func TestFileViewFollowsTheProject(t *testing.T) {
+	cfg := PaneConfig(waveobj.MetaMapType{"view": "preview", "file": "/a/proj/docs"}, false, Project{Dir: "/a/proj/"})
+	if cfg["file"] != ProjectToken+"/docs" {
+		t.Fatalf("config: %v", cfg)
+	}
+	if PaneConfig(waveobj.MetaMapType{"view": "preview", "file": "/a/project2"}, false, Project{Dir: "/a/proj"})["file"] != "/a/project2" {
+		t.Fatal("a sibling folder stays")
+	}
+	if ResolvePane(cfg, Project{Dir: "/b/other"})["file"] != "/b/other/docs" {
+		t.Fatal("resolved on another project")
+	}
+	if ResolvePane(waveobj.MetaMapType{"view": "preview", "file": ProjectToken}, Project{})["file"] != "~" {
+		t.Fatal("no project: home")
+	}
+}
+
+func TestPageTitleGoesWithItsAddress(t *testing.T) {
+	tabs := []any{map[string]any{"url": repo, "title": "old"}}
+	cfg := PaneConfig(waveobj.MetaMapType{"view": "molten-browser", "molten:browser:tabs": tabs}, false, Project{RepoUrl: repo})
+	tab := cfg["molten:browser:tabs"].([]any)[0].(map[string]any)
+	if tab["title"] != nil || tab["url"] != RepoToken {
+		t.Fatalf("tab: %v", tab)
 	}
 }

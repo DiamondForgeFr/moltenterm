@@ -11,6 +11,7 @@ import { atoms, getApi, globalStore, WOS } from "@/app/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
+import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
@@ -53,6 +54,11 @@ import {
 
 const CaptureTimeoutMs = 10000;
 const BuildTimeoutMs = 15000;
+// The workspace's meta: the last Close the finished views, for the view on screen to show its toast.
+const ClosedFinishedMetaKey = "molten:closedfinished";
+const ClosedToastMs = 15000;
+const WaitSteps = 50;
+const WaitStepMs = 100;
 
 // The pin page: the view being pinned, its name and the scope chosen.
 export type PinDraft = { tabId: string; name: string; scope: PinScope; icon?: string };
@@ -79,6 +85,7 @@ export class ViewPins {
     stateAtoms = new Map<string, jotai.Atom<ViewState>>();
     modifiedAtoms = new Map<string, jotai.Atom<boolean>>();
     finishedAtom!: jotai.Atom<string[]>;
+    closedShown = new Set<string>();
 
     private constructor() {
         this.globalPinsAtom = jotai.atom((get) => {
@@ -152,8 +159,16 @@ export class ViewPins {
                 if (config == null) {
                     return false;
                 }
+                const metaOf = (id: string) => blockMetaOf(get, id);
+                // The tab on screen: its layout model's live tree. The stored layout is written in place by this
+                // window, so it never signals a change here; the model's leaves do.
+                const live = tabId === get(atoms.staticTabId) ? getLayoutModelForStaticTab() : null;
+                if (live != null) {
+                    get(live.leafs);
+                    return viewModified(config, layoutTree(live.treeState?.rootNode), metaOf);
+                }
                 const layout = get(WOS.getWaveObjectAtom<LayoutState>(WOS.makeORef("layout", tab.layoutstate)));
-                return viewModified(config, layoutTree(layout?.rootnode), (id) => blockMetaOf(get, id));
+                return viewModified(config, layoutTree(layout?.rootnode), metaOf);
             });
             this.modifiedAtoms.set(tabId, rtn);
         }
@@ -467,15 +482,26 @@ export class ViewPins {
     // stays. Each close is recorded, so Undo (and Reopen closed) brings them back.
     async closeFinished(): Promise<void> {
         const ids = globalStore.get(this.finishedAtom);
-        const workspaceId = globalStore.get(atoms.workspaceId);
-        if (ids.length === 0 || !workspaceId) {
+        const ws = globalStore.get(atoms.workspace);
+        if (ids.length === 0 || ws == null) {
             return;
         }
+        const own = globalStore.get(atoms.staticTabId);
+        const closingOwn = ids.includes(own);
+        if (closingOwn) {
+            // This window's view closes with the others, and its toasts with it: a view that stays comes on screen
+            // first, and shows the toast once the closes are done (showClosedFinished).
+            const survivor = (ws.tabids ?? []).find((id) => !ids.includes(id));
+            if (survivor != null) {
+                getApi().setActiveTab(survivor);
+                await waitFor(() => globalStore.get(atoms.workspace)?.activetabid === survivor);
+            }
+        }
         const close = recordingTabClose(getApi().closeTab);
-        let closed = 0;
-        for (const id of ids) {
+        let closed = closingOwn ? 1 : 0;
+        for (const id of ids.filter((id) => id !== own)) {
             try {
-                if (await close(workspaceId, id, false)) {
+                if (await close(ws.oid, id, false)) {
                     closed++;
                 }
             } catch (e) {
@@ -485,21 +511,59 @@ export class ViewPins {
         if (closed === 0) {
             return;
         }
+        await RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: WOS.makeORef("workspace", ws.oid),
+            meta: {
+                [ClosedFinishedMetaKey]: {
+                    count: closed,
+                    at: Date.now(),
+                    id: makeGlobalPinId(Date.now(), Math.random()),
+                },
+            } as MetaType,
+        });
+        if (closingOwn) {
+            await close(ws.oid, own, false);
+        }
+    }
+
+    // The toast of Close the finished views, with its Undo, shown by the view on screen once the closes are done.
+    showClosedFinished(value: any) {
+        const ws = globalStore.get(atoms.workspace);
+        if (value == null || typeof value.count !== "number" || ws == null || this.closedShown.has(value.id)) {
+            return;
+        }
+        if (globalStore.get(atoms.staticTabId) !== ws.activetabid || Date.now() - (value.at ?? 0) > ClosedToastMs) {
+            return;
+        }
+        this.closedShown.add(value.id);
+        const count = value.count as number;
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("workspace", ws.oid),
+                meta: { [ClosedFinishedMetaKey]: null } as MetaType,
+            })
+        );
         showToast({
-            title: tCount("sidebar.pins.closedFinished", closed),
+            title: tCount("sidebar.pins.closedFinished", count),
             message: t("sidebar.pins.closedFinishedHint"),
             actions: [
                 {
                     id: "undo",
                     label: t("sidebar.pins.undo"),
                     run: async () => {
-                        for (let i = 0; i < closed; i++) {
+                        for (let i = 0; i < count; i++) {
                             await reopenLastQuietly();
                         }
                     },
                 },
             ],
         });
+    }
+}
+
+async function waitFor(cond: () => boolean): Promise<void> {
+    for (let i = 0; i < WaitSteps && !cond(); i++) {
+        await new Promise((r) => setTimeout(r, WaitStepMs));
     }
 }
 
@@ -510,7 +574,11 @@ export function refusePinnedClose(tabId: string): boolean {
     if (tab == null || globalStore.get(ViewPins.getInstance().stateAtom(tabId)) === "temporary") {
         return false;
     }
-    showToast({ title: t("sidebar.pins.noClose", { name: tab.name ?? "" }), message: t("sidebar.pins.noCloseHint") });
+    showToast({
+        id: `pinned-close:${tabId}`,
+        title: t("sidebar.pins.noClose", { name: tab.name ?? "" }),
+        message: t("sidebar.pins.noCloseHint"),
+    });
     return true;
 }
 

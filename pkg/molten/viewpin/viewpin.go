@@ -25,6 +25,8 @@ const (
 
 	// RepoToken stands for the project's repository web address (https://github.com/owner/name) in a pinned page.
 	RepoToken = "molten:repo"
+	// ProjectToken stands for the project's folder in a pinned file view.
+	ProjectToken = "molten:projectdir"
 	// AgentSlotMetaKey: a terminal that held an agent when the view was pinned; it offers to start one.
 	AgentSlotMetaKey = "molten:agentslot"
 	// ProjectMetaKey: the workspace's project folder, as frontend/moltenterm-shell/workspace-project.ts names it.
@@ -128,7 +130,8 @@ func isTerm(meta waveobj.MetaMapType) bool {
 
 // PaneConfig is what a panel keeps in a configuration. An agent's terminal becomes an agent slot; a page of the
 // project's repository names it by RepoToken, so another project opens its own.
-func PaneConfig(meta waveobj.MetaMapType, agent bool, repoUrl string) waveobj.MetaMapType {
+func PaneConfig(meta waveobj.MetaMapType, agent bool, p Project) waveobj.MetaMapType {
+	repoUrl := p.RepoUrl
 	if agent && isTerm(meta) {
 		rtn := waveobj.MetaMapType{waveobj.MetaKey_View: "term", waveobj.MetaKey_Controller: "shell", AgentSlotMetaKey: true}
 		if conn := meta.GetString(waveobj.MetaKey_Connection, ""); conn != "" {
@@ -149,6 +152,9 @@ func PaneConfig(meta waveobj.MetaMapType, agent bool, repoUrl string) waveobj.Me
 	if tabs, ok := rtn[browserTabsMetaKey].([]any); ok {
 		rtn[browserTabsMetaKey] = mapTabUrls(tabs, func(url string) string { return tokenizeUrl(url, repoUrl) })
 	}
+	if file, ok := rtn[waveobj.MetaKey_File].(string); ok {
+		rtn[waveobj.MetaKey_File] = tokenizePath(file, p.Dir)
+	}
 	return rtn
 }
 
@@ -161,6 +167,38 @@ func tokenizeUrl(url string, repoUrl string) string {
 		return url
 	}
 	return RepoToken + rest
+}
+
+// Project is what a view opens on: the workspace's project folder and its repository's web address.
+type Project struct {
+	Dir     string
+	RepoUrl string
+}
+
+// tokenizePath names a file in the project's folder by ProjectToken, so another project opens its own.
+func tokenizePath(path string, dir string) string {
+	dir = strings.TrimRight(dir, "/")
+	if dir == "" {
+		return path
+	}
+	if path == dir {
+		return ProjectToken
+	}
+	if strings.HasPrefix(path, dir+"/") {
+		return ProjectToken + path[len(dir):]
+	}
+	return path
+}
+
+// resolvePath gives a pinned file on a project; on a workspace without a project, the home folder.
+func resolvePath(path string, dir string) string {
+	if !strings.HasPrefix(path, ProjectToken) {
+		return path
+	}
+	if dir == "" {
+		dir = "~"
+	}
+	return strings.TrimRight(dir, "/") + strings.TrimPrefix(path, ProjectToken)
 }
 
 // resolveUrl gives a pinned page's address on a project; a repository page on a project without one opens the
@@ -189,6 +227,9 @@ func mapTabUrls(tabs []any, fn func(string) string) []any {
 		}
 		if url, ok := copied["url"].(string); ok {
 			copied["url"] = fn(url)
+			if copied["url"] != url {
+				delete(copied, "title")
+			}
 		}
 		rtn = append(rtn, copied)
 	}
@@ -197,7 +238,8 @@ func mapTabUrls(tabs []any, fn func(string) string) []any {
 
 // ResolvePane gives a configured panel's meta on a project: its terminal in the project's folder, its repository
 // page on the project's repository.
-func ResolvePane(meta waveobj.MetaMapType, dir string, repoUrl string) waveobj.MetaMapType {
+func ResolvePane(meta waveobj.MetaMapType, p Project) waveobj.MetaMapType {
+	dir, repoUrl := p.Dir, p.RepoUrl
 	rtn := waveobj.MetaMapType{}
 	for k, v := range meta {
 		rtn[k] = v
@@ -211,11 +253,14 @@ func ResolvePane(meta waveobj.MetaMapType, dir string, repoUrl string) waveobj.M
 	if tabs, ok := rtn[browserTabsMetaKey].([]any); ok {
 		rtn[browserTabsMetaKey] = mapTabUrls(tabs, func(url string) string { return resolveUrl(url, repoUrl) })
 	}
+	if file, ok := rtn[waveobj.MetaKey_File].(string); ok {
+		rtn[waveobj.MetaKey_File] = resolvePath(file, dir)
+	}
 	return rtn
 }
 
 // Capture turns a view's layout into a configuration; meta reads a panel's block (false: gone, left out).
-func Capture(tree Node, agents map[string]bool, repoUrl string, meta func(blockId string) (waveobj.MetaMapType, bool)) Config {
+func Capture(tree Node, agents map[string]bool, p Project, meta func(blockId string) (waveobj.MetaMapType, bool)) Config {
 	cfg := Config{Panes: []waveobj.MetaMapType{}}
 	var walk func(n Node) (Node, bool)
 	walk = func(n Node) (Node, bool) {
@@ -225,7 +270,7 @@ func Capture(tree Node, agents map[string]bool, repoUrl string, meta func(blockI
 				return Node{}, false
 			}
 			idx := len(cfg.Panes)
-			cfg.Panes = append(cfg.Panes, PaneConfig(m, agents[n.BlockId], repoUrl))
+			cfg.Panes = append(cfg.Panes, PaneConfig(m, agents[n.BlockId], p))
 			return Node{Pane: &idx}, true
 		}
 		out := Node{Dir: splitDir(n.Dir)}
