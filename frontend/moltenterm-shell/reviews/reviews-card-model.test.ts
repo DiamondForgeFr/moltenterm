@@ -451,7 +451,7 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("never two animations on one card", () => {
-        const inputs = [
+        const inputs: (Partial<CardInput> & { pr: ReviewPr })[] = [
             ...Cases.map((c) => c.input),
             { pr: pr({ draft: true }, Running), agents: [Nathan], ...InProgress },
             { pr: pr({}, Running), agents: [Nathan, Background] },
@@ -507,6 +507,12 @@ describe("the other branches of the PR's ticket (#1172)", () => {
             "also on this ticket: the branches test/1101-a, test/1101-b"
         );
         expect(words({ pr: pr(), others: [] }).facts.some((f) => f.startsWith("also on"))).toBe(false);
+    });
+
+    it("says a draft is the agents' by the workflow, not by a commit, when nothing else says so", () => {
+        const w = words({ pr: pr({ draft: true }), boardTurn: { owner: "agent", kind: "agent", workflow: true } });
+        expect(w.kind).toBe("agent-working");
+        expect(w.why).toBe("your workflow leaves drafts to the agents until review");
     });
 });
 

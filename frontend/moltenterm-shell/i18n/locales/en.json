@@ -6487,6 +6487,7 @@
                 "ciFailing": "CI failing: {names}",
                 "board": "column {status}",
                 "recentCommit": "a commit landed lately",
+                "workflowDraft": "your workflow leaves drafts to the agents until review",
                 "interrupted": "{name} stopped before finishing {what}",
                 "interruptedGone": "{name}'s session ended before finishing {what}",
                 "nobody": "nobody on it",

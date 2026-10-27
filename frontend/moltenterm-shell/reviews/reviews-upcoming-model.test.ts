@@ -291,6 +291,23 @@ describe("draftTurn (#712 AC3, #954)", () => {
         });
         expect(draftTurn(null, null, Now).kind).toBe("yours");
     });
+
+    // #1172: the gold showed the drafts #1169 (AI Testing) and #1161 (In Progress) in Yours; a Solo board has no
+    // Human Testing, so a draft whose column is unknown is still the agent's.
+    it("keeps a draft whose column is unknown out of the developer's turn in a workflow without Human Testing", () => {
+        expect(draftTurn(null, { branch: "b", commitat: old }, Now, "no")).toMatchObject({
+            owner: "agent",
+            kind: "agent",
+        });
+        expect(draftTurn(null, null, Now, "no").owner).toBe("agent");
+        expect(draftTurn(null, { branch: "b", status: "In Review", commitat: old }, Now, "no").kind).toBe("ready");
+    });
+
+    it("leaves an unknown column to the developer in a workflow with Human Testing, or none declared", () => {
+        expect(draftTurn(null, { branch: "b", commitat: old }, Now, "yes").kind).toBe("yours");
+        expect(draftTurn(null, { branch: "b", status: "Human Testing", commitat: old }, Now, "yes").kind).toBe("test");
+        expect(draftTurn(null, { branch: "b", commitat: old }, Now).kind).toBe("yours");
+    });
 });
 
 describe("the bar's time line", () => {

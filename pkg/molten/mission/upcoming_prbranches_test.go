@@ -68,4 +68,32 @@ func TestUpcomingTicketWithAnOpenPrIsNeverUpcoming(t *testing.T) {
 	if len(answer.PrBranches) != 2 {
 		t.Fatalf("only the other branches: %+v", answer.PrBranches)
 	}
+	if answer.HumanTesting != "" {
+		t.Fatalf("no workflow statuses declared: %q", answer.HumanTesting)
+	}
+}
+
+// #1172: whose turn a draft is depends on the project's workflow: a Solo board has no Human Testing column.
+func TestReadHumanTesting(t *testing.T) {
+	dir := t.TempDir()
+	write := func(sf string) {
+		if err := os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(sf), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := readHumanTesting(dir); got != "" {
+		t.Fatalf("no manifest: %q", got)
+	}
+	write(`{"workflow":{"statuses":[{"name":"In Progress"},{"name":"AI Testing"},{"name":"In Review"},{"name":"Done"}]}}`)
+	if got := readHumanTesting(dir); got != UpcomingHumanTestingNo {
+		t.Fatalf("Solo: %q", got)
+	}
+	write(`{"workflow":{"statuses":[{"name":"AI Testing"},{"name":"Human  testing"},{"name":"In Review"}]}}`)
+	if got := readHumanTesting(dir); got != UpcomingHumanTestingYes {
+		t.Fatalf("with Human Testing: %q", got)
+	}
+	write(`{"workflow":{"branchNaming":{"feature":"feature/{N}-{description}"}}}`)
+	if got := readHumanTesting(dir); got != "" {
+		t.Fatalf("no statuses: %q", got)
+	}
 }

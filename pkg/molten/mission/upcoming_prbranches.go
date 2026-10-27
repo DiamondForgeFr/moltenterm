@@ -5,7 +5,19 @@ package mission
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
+)
+
+const (
+	UpcomingHumanTestingYes = "yes"
+	UpcomingHumanTestingNo  = "no"
+
+	humanTestingStatus = "human testing"
 )
 
 // One card per ticket (#1172, FR-REV-022 AC11): a ticket branch whose ticket already has an open PR from another
@@ -51,6 +63,29 @@ func openPrTickets(snap Snapshot, ticketRes []*regexp.Regexp) map[int]int {
 		}
 	}
 	return rtn
+}
+
+// readHumanTesting says whether the project's workflow (.saasfoundry.json workflow.statuses) has a Human Testing
+// column (#1172): without one (SaaSFoundry Solo) a draft is the agent's until In Review, even when its ticket's board
+// column cannot be read. "" when the project declares no workflow statuses.
+func readHumanTesting(dir string) string {
+	var sf struct {
+		Workflow struct {
+			Statuses []struct {
+				Name string `json:"name"`
+			} `json:"statuses"`
+		} `json:"workflow"`
+	}
+	data, err := os.ReadFile(filepath.Join(dir, molten.ProjectSaaSFoundryFile))
+	if err != nil || json.Unmarshal(data, &sf) != nil || len(sf.Workflow.Statuses) == 0 {
+		return ""
+	}
+	for _, s := range sf.Workflow.Statuses {
+		if strings.EqualFold(strings.Join(strings.Fields(s.Name), " "), humanTestingStatus) {
+			return UpcomingHumanTestingYes
+		}
+	}
+	return UpcomingHumanTestingNo
 }
 
 // prBranchOf: the candidate as a branch of its ticket's open PR; false when its ticket has no open PR.

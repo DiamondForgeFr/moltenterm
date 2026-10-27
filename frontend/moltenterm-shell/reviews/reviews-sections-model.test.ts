@@ -177,6 +177,46 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
             true
         );
     });
+
+    // #1172: on a Solo board (no Human Testing) a draft is the agents' turn, its column known or not; with Human
+    // Testing, the human gates make it the developer's.
+    it("puts a draft in Agents on it in a workflow without Human Testing, whatever its column says", () => {
+        const drafts = [pr(1169, { draft: true }), pr(1161, { draft: true }), pr(1170, { draft: true })];
+        const solo: CardContext = {
+            ...Ctx,
+            upcoming: {
+                ...Upcoming,
+                humantesting: "no",
+                drafts: [
+                    { branch: "feature/1169-x", ticket: 1163, status: "AI Testing" },
+                    { branch: "feature/1161-x", ticket: 1152 },
+                ],
+            },
+        };
+        const sections = (ctx: CardContext) =>
+            sectionsByTurn(
+                drafts,
+                cardStates(drafts, {}, (n) => `/p#${n}`, ctx),
+                "state"
+            ).map((s) => [s.turn, s.prs.map((p) => p.number)]);
+        expect(sections(solo)).toEqual([["agents", [1169, 1161, 1170]]]);
+        const gated: CardContext = {
+            ...Ctx,
+            upcoming: {
+                ...Upcoming,
+                humantesting: "yes",
+                drafts: [
+                    { branch: "feature/1169-x", ticket: 1163, status: "Human Testing" },
+                    { branch: "feature/1161-x", ticket: 1152, status: "AI Testing" },
+                    { branch: "feature/1170-x", ticket: 1170 },
+                ],
+            },
+        };
+        expect(sections(gated)).toEqual([
+            ["yours", [1169, 1170]],
+            ["agents", [1161]],
+        ]);
+    });
 });
 
 function branch(ticket: number): UpcomingBranch {
