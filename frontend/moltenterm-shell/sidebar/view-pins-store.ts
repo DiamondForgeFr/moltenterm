@@ -21,6 +21,8 @@ import { typeCommandWhenReady } from "../palette/palette-actions";
 import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
 import { showToast } from "../toast-store";
 import { readWorkspaceProject } from "../workspace-project";
+import { showUndoToast } from "./sidebar-undo";
+import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey } from "./view-menu-model";
 import {
     agentBlocksOf,
     AgentSlotMetaKey,
@@ -61,7 +63,11 @@ const WaitSteps = 50;
 const WaitStepMs = 100;
 
 // The pin page: the view being pinned, its name and the scope chosen.
-export type PinDraft = { tabId: string; name: string; scope: PinScope; icon?: string };
+export type PinDraft = { tabId: string; name: string; scope: PinScope };
+
+// A view the menu acts on: its tab, and the pin of a view pinned everywhere (a top-row block this workspace never
+// opened has no tab).
+export type ViewRef = { tabId?: string; pinId?: string };
 
 function tabAtom(tabId: string): jotai.Atom<Tab> {
     return WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId));
@@ -225,6 +231,7 @@ export class ViewPins {
         name?: string;
         tabmeta?: Record<string, any>;
         config: PinConfig;
+        background?: boolean;
     }): Promise<{ tabid: string }> {
         return TabRpcClient.wshRpcCall(
             ViewPinBuildCommand,
@@ -233,8 +240,8 @@ export class ViewPins {
         );
     }
 
-    openPinPage(tabId: string, name: string, icon: string, scope: PinScope = "here") {
-        globalStore.set(this.draftAtom, { tabId, name, scope, icon });
+    openPinPage(tabId: string, name: string, scope: PinScope = "here") {
+        globalStore.set(this.draftAtom, { tabId, name, scope });
     }
 
     closePinPage() {
@@ -253,7 +260,7 @@ export class ViewPins {
             await RpcApi.UpdateTabNameCommand(TabRpcClient, draft.tabId, name);
         }
         if (draft.scope === "everywhere") {
-            await this.pinEverywhere(draft.tabId, name, draft.icon);
+            await this.pinEverywhere(draft.tabId, name);
             return;
         }
         await this.pinHere(draft.tabId, name);
@@ -268,18 +275,16 @@ export class ViewPins {
                 [PinConfigMetaKey]: config,
             });
             const workspace = globalStore.get(atoms.workspace)?.name ?? "";
-            showToast({
-                title: t("sidebar.pins.pinnedHere", { name, workspace }),
-                actions: [
-                    { id: "undo", label: t("sidebar.pins.undo"), run: () => this.setTabMeta(tabId, UnpinnedTabMeta) },
-                ],
-            });
+            showUndoToast(t("sidebar.pins.pinnedHere", { name, workspace }), () =>
+                this.setTabMeta(tabId, UnpinnedTabMeta)
+            );
         } catch (e) {
             pinError(e);
         }
     }
 
-    async pinEverywhere(tabId: string, name: string, icon?: string): Promise<void> {
+    // The pin keeps the icon the developer chose for the view, never one picked for it (FR-SHELL-081).
+    async pinEverywhere(tabId: string, name: string): Promise<void> {
         try {
             const config = await this.capture(tabId);
             const tab = globalStore.get(tabAtom(tabId));
@@ -287,24 +292,15 @@ export class ViewPins {
             const pin: GlobalPin = {
                 id: makeGlobalPinId(Date.now(), Math.random()),
                 name,
-                icon: icon ?? (tab?.meta?.["tab:icon"] as string) ?? undefined,
+                icon: readViewIcon(tab?.meta?.[ViewIconMetaKey]) ?? undefined,
                 rev: 1,
                 config,
             };
             await this.writeGlobalPins([...before, pin]);
             await this.setTabMeta(tabId, { ...UnpinnedTabMeta, [GlobalPinMetaKey]: pin.id, [GlobalPinRevMetaKey]: 1 });
-            showToast({
-                title: t("sidebar.pins.pinnedEverywhere", { name }),
-                actions: [
-                    {
-                        id: "undo",
-                        label: t("sidebar.pins.undo"),
-                        run: async () => {
-                            await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
-                            await this.setTabMeta(tabId, UnpinnedTabMeta);
-                        },
-                    },
-                ],
+            showUndoToast(t("sidebar.pins.pinnedEverywhere", { name }), async () => {
+                await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
+                await this.setTabMeta(tabId, UnpinnedTabMeta);
             });
         } catch (e) {
             pinError(e);
@@ -312,22 +308,197 @@ export class ViewPins {
     }
 
     // A view pinned everywhere becomes pinned only in this workspace: its configuration stays with this instance, the
-    // other workspaces keep theirs as temporary views.
-    async pinOnlyHere(tabId: string): Promise<void> {
-        const tab = globalStore.get(tabAtom(tabId));
-        const pin = this.globalPins().find((p) => p.id === tab?.meta?.[GlobalPinMetaKey]);
+    // other workspaces keep theirs as temporary views. A block this workspace never opened gets its instance now.
+    async pinOnlyHere(tabId: string, pinId?: string): Promise<void> {
+        const tab = tabId ? globalStore.get(tabAtom(tabId)) : null;
+        const id = pinId ?? tab?.meta?.[GlobalPinMetaKey];
+        const pins = this.globalPins();
+        const pin = pins.find((p) => p.id === id);
         if (pin == null) {
             return;
         }
+        const meta = {
+            ...UnpinnedTabMeta,
+            [PinMetaKey]: PinWorkspace,
+            [PinConfigMetaKey]: pin.config,
+            [ViewIconMetaKey]: pin.icon ?? null,
+        };
         try {
-            await this.setTabMeta(tabId, {
-                ...UnpinnedTabMeta,
-                [PinMetaKey]: PinWorkspace,
-                [PinConfigMetaKey]: pin.config,
-            });
+            if (tab != null) {
+                await this.setTabMeta(tabId, meta);
+            } else {
+                await this.build({ name: pin.name, tabmeta: meta, config: pin.config, background: true });
+            }
             await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
             const workspace = globalStore.get(atoms.workspace)?.name ?? "";
             showToast({ title: t("sidebar.pins.pinnedOnlyHere", { name: pin.name, workspace }) });
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // Rename (FR-SHELL-081): a view pinned everywhere is renamed in every workspace, through its pin.
+    async rename(ref: ViewRef, name: string): Promise<void> {
+        const value = name.trim();
+        if (!value) {
+            return;
+        }
+        try {
+            const pin = this.pinOf(ref);
+            if (pin != null && pin.name !== value) {
+                await this.writeGlobalPins(replacePin(this.globalPins(), { ...pin, name: value }));
+            }
+            const tab = ref.tabId ? globalStore.get(tabAtom(ref.tabId)) : null;
+            if (tab != null && tab.name !== value) {
+                await RpcApi.UpdateTabNameCommand(TabRpcClient, ref.tabId, value);
+            }
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // Change icon (FR-SHELL-081): a chosen glyph replaces the panels' icons; null goes back to them. A view pinned
+    // everywhere keeps it in its pin, so every workspace shows it.
+    async setIcon(ref: ViewRef, icon: string): Promise<void> {
+        const value = readViewIcon(icon);
+        try {
+            const pin = this.pinOf(ref);
+            if (pin != null) {
+                const next: GlobalPin = { ...pin, icon: value ?? undefined };
+                if (value == null) {
+                    delete next.icon;
+                }
+                await this.writeGlobalPins(replacePin(this.globalPins(), next));
+                return;
+            }
+            if (ref.tabId) {
+                await this.setTabMeta(ref.tabId, { [ViewIconMetaKey]: value });
+            }
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // The pin of a view pinned everywhere: named by the ref, or by its instance's tab.
+    pinOf(ref: ViewRef): GlobalPin {
+        const pins = this.globalPins();
+        if (ref.pinId) {
+            return pins.find((p) => p.id === ref.pinId) ?? null;
+        }
+        const tab = ref.tabId ? globalStore.get(tabAtom(ref.tabId)) : null;
+        const gid = tab?.meta?.[GlobalPinMetaKey];
+        return typeof gid === "string" ? (pins.find((p) => p.id === gid) ?? null) : null;
+    }
+
+    // Duplicate (FR-SHELL-081): the same configuration under "<name> (copy)", in the same state, placed right after the
+    // view; a view pinned everywhere duplicates as another view pinned everywhere. The duplicate opens in the
+    // background, so the view on screen stays.
+    async duplicate(ref: ViewRef): Promise<void> {
+        const pin = this.pinOf(ref);
+        const tab = ref.tabId ? globalStore.get(tabAtom(ref.tabId)) : null;
+        const state: ViewState = pin != null ? "everywhere" : tab != null ? viewStateOf(tab, new Set()) : null;
+        if (state == null) {
+            return;
+        }
+        const name = t("sidebar.views.copyName", { name: pin?.name ?? tab?.name ?? "" });
+        try {
+            const config = tab != null ? await this.capture(ref.tabId) : pin.config;
+            let newPin: GlobalPin = null;
+            if (pin != null) {
+                newPin = { ...pin, id: makeGlobalPinId(Date.now(), Math.random()), name, rev: 1, config };
+                const pins = this.globalPins();
+                const at = pins.findIndex((p) => p.id === pin.id) + 1;
+                await this.writeGlobalPins([...pins.slice(0, at), newPin, ...pins.slice(at)]);
+            }
+            let newTabId: string = null;
+            if (tab != null) {
+                const tabmeta: Record<string, any> =
+                    newPin != null
+                        ? { [GlobalPinMetaKey]: newPin.id, [GlobalPinRevMetaKey]: 1 }
+                        : state === "workspace"
+                          ? { [PinMetaKey]: PinWorkspace, [PinConfigMetaKey]: config }
+                          : {};
+                const icon = readViewIcon(tab.meta?.[ViewIconMetaKey]);
+                if (icon != null && newPin == null) {
+                    tabmeta[ViewIconMetaKey] = icon;
+                }
+                newTabId = (await this.build({ name, tabmeta, config, background: true }))?.tabid ?? null;
+                if (newTabId) {
+                    await this.placeAfter(newTabId, ref.tabId);
+                }
+            }
+            showUndoToast(t("sidebar.views.duplicated", { name }), async () => {
+                if (newPin != null) {
+                    await this.writeGlobalPins(withoutPin(this.globalPins(), newPin.id));
+                }
+                const ws = globalStore.get(atoms.workspace);
+                if (newTabId && ws != null) {
+                    await getApi().closeTab(ws.oid, newTabId, false);
+                }
+            });
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // Moves a new tab right after another in the workspace's order.
+    private async placeAfter(tabId: string, afterId: string): Promise<void> {
+        await waitFor(() => (globalStore.get(atoms.workspace)?.tabids ?? []).includes(tabId));
+        const ws = globalStore.get(atoms.workspace);
+        const ids = ws?.tabids ?? [];
+        if (!ids.includes(tabId) || !ids.includes(afterId)) {
+            return;
+        }
+        const next = moveBeside(ids, tabId, afterId, true);
+        if (!sameOrder(next, ids)) {
+            await RpcApi.UpdateWorkspaceTabIdsCommand(TabRpcClient, ws.oid, next);
+        }
+    }
+
+    // Reorders the tiles (FR-SHELL-081): the dragged tile lands before or after the target, in the workspace's tab
+    // order; Undo (⌘Z) brings the order back.
+    async reorderTiles(dragged: string, target: string, after: boolean): Promise<void> {
+        const ws = globalStore.get(atoms.workspace);
+        const before = [...(ws?.tabids ?? [])];
+        const next = moveBeside(before, dragged, target, after);
+        if (ws == null || sameOrder(next, before)) {
+            return;
+        }
+        try {
+            await RpcApi.UpdateWorkspaceTabIdsCommand(TabRpcClient, ws.oid, next);
+            showUndoToast(t("sidebar.views.reordered"), async () => {
+                const restored = undoOrder(before, globalStore.get(atoms.workspace)?.tabids ?? []);
+                if (restored != null) {
+                    await RpcApi.UpdateWorkspaceTabIdsCommand(TabRpcClient, ws.oid, restored);
+                }
+            });
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // Reorders the top row, the same in every workspace.
+    async reorderTop(dragged: string, target: string, after: boolean): Promise<void> {
+        const pins = this.globalPins();
+        const before = pins.map((p) => p.id);
+        const order = moveBeside(before, dragged, target, after);
+        if (sameOrder(order, before)) {
+            return;
+        }
+        const byId = new Map(pins.map((p) => [p.id, p]));
+        try {
+            await this.writeGlobalPins(order.map((id) => byId.get(id)));
+            showUndoToast(t("sidebar.views.reordered"), async () => {
+                const now = this.globalPins();
+                const restored = undoOrder(
+                    before,
+                    now.map((p) => p.id)
+                );
+                if (restored != null) {
+                    const current = new Map(now.map((p) => [p.id, p]));
+                    await this.writeGlobalPins(restored.map((id) => current.get(id)));
+                }
+            });
         } catch (e) {
             pinError(e);
         }
@@ -345,28 +516,24 @@ export class ViewPins {
             [PinConfigMetaKey]: tab.meta?.[PinConfigMetaKey] ?? null,
             [GlobalPinMetaKey]: tab.meta?.[GlobalPinMetaKey] ?? null,
             [GlobalPinRevMetaKey]: tab.meta?.[GlobalPinRevMetaKey] ?? null,
+            [ViewIconMetaKey]: tab.meta?.[ViewIconMetaKey] ?? null,
         };
         try {
-            await this.setTabMeta(tabId, UnpinnedTabMeta);
+            // A view pinned everywhere keeps the icon its pin had.
+            await this.setTabMeta(
+                tabId,
+                pin != null ? { ...UnpinnedTabMeta, [ViewIconMetaKey]: pin.icon ?? null } : UnpinnedTabMeta
+            );
             if (pin != null) {
                 await this.writeGlobalPins(withoutPin(pins, pin.id));
             }
-            showToast({
-                title: t("sidebar.pins.unpinned", { name: pin?.name ?? tab.name }),
-                actions: [
-                    {
-                        id: "undo",
-                        label: t("sidebar.pins.undo"),
-                        run: async () => {
-                            if (pin != null) {
-                                const at = pins.findIndex((p) => p.id === pin.id);
-                                const now = withoutPin(this.globalPins(), pin.id);
-                                await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
-                            }
-                            await this.setTabMeta(tabId, before);
-                        },
-                    },
-                ],
+            showUndoToast(t("sidebar.pins.unpinned", { name: pin?.name ?? tab.name }), async () => {
+                if (pin != null) {
+                    const at = pins.findIndex((p) => p.id === pin.id);
+                    const now = withoutPin(this.globalPins(), pin.id);
+                    await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
+                }
+                await this.setTabMeta(tabId, before);
             });
         } catch (e) {
             pinError(e);
@@ -382,19 +549,10 @@ export class ViewPins {
         }
         try {
             await this.writeGlobalPins(withoutPin(pins, pinId));
-            showToast({
-                title: t("sidebar.pins.unpinned", { name: pin.name }),
-                actions: [
-                    {
-                        id: "undo",
-                        label: t("sidebar.pins.undo"),
-                        run: async () => {
-                            const at = pins.findIndex((p) => p.id === pinId);
-                            const now = withoutPin(this.globalPins(), pinId);
-                            await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
-                        },
-                    },
-                ],
+            showUndoToast(t("sidebar.pins.unpinned", { name: pin.name }), async () => {
+                const at = pins.findIndex((p) => p.id === pinId);
+                const now = withoutPin(this.globalPins(), pinId);
+                await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
             });
         } catch (e) {
             pinError(e);
@@ -461,16 +619,16 @@ export class ViewPins {
                     await this.build({ tabid: instanceTabId, config: pin.config });
                     await this.setTabMeta(instanceTabId, { [GlobalPinRevMetaKey]: pin.rev });
                 }
+                // A rename from another workspace reaches this instance's tab.
+                if (tab != null && pin.name && tab.name !== pin.name) {
+                    await RpcApi.UpdateTabNameCommand(TabRpcClient, instanceTabId, pin.name);
+                }
                 getApi().setActiveTab(instanceTabId);
                 return;
             }
             await this.build({
                 name: pin.name,
-                tabmeta: {
-                    [GlobalPinMetaKey]: pin.id,
-                    [GlobalPinRevMetaKey]: pin.rev,
-                    ...(pin.icon ? { "tab:icon": pin.icon } : {}),
-                },
+                tabmeta: { [GlobalPinMetaKey]: pin.id, [GlobalPinRevMetaKey]: pin.rev },
                 config: pin.config,
             });
         } catch (e) {
@@ -565,6 +723,15 @@ async function waitFor(cond: () => boolean): Promise<void> {
     for (let i = 0; i < WaitSteps && !cond(); i++) {
         await new Promise((r) => setTimeout(r, WaitStepMs));
     }
+}
+
+// Closing the last panel of a pinned view leaves the view, empty (FR-SHELL-081): wavesrv keeps its tab too
+// (viewpin.Pinned).
+export function pinnedViewKeepsTab(tabId: string): boolean {
+    if (!tabId || globalStore.get(tabAtom(tabId)) == null) {
+        return false;
+    }
+    return globalStore.get(ViewPins.getInstance().stateAtom(tabId)) !== "temporary";
 }
 
 // A pinned view does not close (FR-SHELL-080): its tab stays and the toast says to unpin it first. True when the

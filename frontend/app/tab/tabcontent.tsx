@@ -11,6 +11,7 @@ import * as WOS from "@/store/wos";
 import { atom, useAtomValue } from "jotai";
 import * as React from "react";
 import { useMemo } from "react";
+import { PinnedEmptyView } from "../../moltenterm-shell/sidebar/pinned-empty-view"; // MOLTENTERM-PATCH (#1185)
 
 const tileGapSizeAtom = atom((get) => {
     const settings = get(atoms.settingsAtom);
@@ -54,7 +55,8 @@ const TabContent = React.memo(({ tabId, noTopPadding }: { tabId: string; noTopPa
     } else if (!tabData) {
         innerContent = <CenteredDiv>Tab Not Found</CenteredDiv>;
     } else if (tabData?.blockids?.length == 0) {
-        innerContent = null;
+        // MOLTENTERM-PATCH (#1185): a pinned view left without a panel says how to go on (FR-SHELL-081)
+        innerContent = <PinnedEmptyView tabId={tabId} />;
     } else {
         innerContent = (
             <TileLayout

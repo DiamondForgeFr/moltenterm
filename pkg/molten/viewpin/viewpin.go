@@ -33,6 +33,13 @@ const (
 	ProjectMetaKey = "molten:project"
 
 	browserTabsMetaKey = "molten:browser:tabs"
+
+	// A pinned view's tab and the client, as frontend/moltenterm-shell/sidebar/view-pins-model.ts names them.
+	PinMetaKey        = "molten:pin"
+	PinWorkspace      = "workspace"
+	PinConfigMetaKey  = "molten:pinconfig"
+	GlobalPinMetaKey  = "molten:globalpin"
+	GlobalPinsMetaKey = "molten:globalpins"
 )
 
 // Node is a view's layout: a split (Dir "row" puts its children side by side, "column" stacks them) or a panel.
@@ -66,6 +73,8 @@ type BuildRequest struct {
 	Name        string              `json:"name,omitempty"`
 	TabMeta     waveobj.MetaMapType `json:"tabmeta,omitempty"`
 	Config      Config              `json:"config"`
+	// Background: a new tab (a duplicate, FR-SHELL-081) does not take the screen from the view the developer is on.
+	Background bool `json:"background,omitempty"`
 }
 
 type BuildResult struct {
@@ -401,4 +410,25 @@ func githubWebUrl(remote string) string {
 		return remote
 	}
 	return ""
+}
+
+// Pinned says whether a tab is a pinned view (FR-SHELL-080): pinned in its workspace with a configuration, or the
+// instance of a view still pinned everywhere (clientMeta's list). A pinned view closes only once unpinned, so closing
+// its last panel leaves it empty instead of closing it (FR-SHELL-081).
+func Pinned(tabMeta waveobj.MetaMapType, clientMeta waveobj.MetaMapType) bool {
+	if tabMeta.GetString(PinMetaKey, "") == PinWorkspace && tabMeta[PinConfigMetaKey] != nil {
+		return true
+	}
+	gid := tabMeta.GetString(GlobalPinMetaKey, "")
+	if gid == "" {
+		return false
+	}
+	pins, _ := clientMeta[GlobalPinsMetaKey].([]any)
+	for _, p := range pins {
+		pin, _ := p.(map[string]any)
+		if id, _ := pin["id"].(string); id == gid {
+			return true
+		}
+	}
+	return false
 }
