@@ -9,6 +9,12 @@
     padding: 0 2px;
     font-weight: var(--mt-weight-medium);
     transition: width var(--mt-duration-base) var(--mt-ease);
+    cursor: pointer;
+}
+
+/* #1178: a name being renamed is text to edit, not a tab to click. */
+.tab.molten-tab .name.focused {
+    cursor: text;
 }
 
 .tab.molten-tab .tab-divider {
