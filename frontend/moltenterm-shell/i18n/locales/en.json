@@ -4574,6 +4574,7 @@
             "railBadge": "Rail badge: {icon}, {colour}",
             "railBadgeKind": "Rail badge: {icon}, {colour}, {kind}",
             "inTheRail": "In the rail",
+            "inTheSidebar": "In the sidebar",
             "symbol": "Symbol",
             "image": "Image",
             "imported": "Imported {name}",

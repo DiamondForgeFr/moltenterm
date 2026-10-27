@@ -54,6 +54,7 @@ const WorkspaceElem = memo(() => {
     const tabBarPosition = useAtomValue(getSettingsKeyAtom("app:tabbar")) ?? "top";
     // MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar (top or left), the rail and the status bar
     const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
+    const sidebarHidden = useAtomValue(SidebarModel.getInstance().hiddenAtom);
     const showLeftTabBar = !sidebarOn && tabBarPosition === "left";
     const aiPanelVisible = useAtomValue(workspaceLayoutModel.panelVisibleAtom);
     const widgetsSidebarVisible = useAtomValue(workspaceLayoutModel.widgetsSidebarVisibleAtom);
@@ -128,7 +129,7 @@ const WorkspaceElem = memo(() => {
             <div className={`relative flex flex-row flex-grow overflow-hidden ${sidebarOn ? "mt-sb-frame" : ""}`}>
             {sidebarOn ? <WorkspaceSidebar /> : MoltentermWorkspaceRail && <WorkspaceRail />}
             {/* MOLTENTERM-PATCH (#1183): under the sidebar the content keeps a margin, and room for the window's controls */}
-            <div className={`flex min-w-0 flex-grow flex-col overflow-hidden ${sidebarOn ? "pr-[5px] pb-2" : ""}`}>
+            <div className={`flex min-w-0 flex-grow flex-col overflow-hidden ${sidebarOn ? "pr-[5px] pb-2" : ""} ${sidebarOn && sidebarHidden ? "pl-1" : ""}`}>
             {sidebarOn && <SidebarContentStrip />}
             {/* MOLTENTERM-PATCH (#450): relative, for the pending state drawn over the panels */}
             <div ref={panelContainerRef} className="relative flex min-h-0 flex-row flex-grow overflow-hidden">
@@ -155,7 +156,8 @@ const WorkspaceElem = memo(() => {
                                         {showLeftTabBar && <VTabBar workspace={ws} />}
                                     </div>
                                 </Panel>
-                                <PanelResizeHandle className={innerHandleClass} />
+                                {/* MOLTENTERM-PATCH (#1183): a hidden handle is disabled, or its hit area takes the sidebar grip's presses */}
+                                <PanelResizeHandle className={innerHandleClass} disabled={!innerHandleVisible} />
                                 <Panel
                                     ref={aiPanelRef}
                                     collapsible
@@ -173,7 +175,7 @@ const WorkspaceElem = memo(() => {
                                 </Panel>
                             </PanelGroup>
                         </Panel>
-                        <PanelResizeHandle className={outerHandleClass} />
+                        <PanelResizeHandle className={outerHandleClass} disabled={!outerHandleVisible} />
                         <Panel order={1} defaultSize={100 - leftGroupInitialPct}>
                             {tabId === "" ? (
                                 <CenteredDiv>No Active Tab</CenteredDiv>

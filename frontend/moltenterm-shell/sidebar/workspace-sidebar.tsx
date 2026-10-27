@@ -532,7 +532,7 @@ function Tile({ tabId, active }: { tabId: string; active: boolean }) {
                 className={cn(makeIconClass(identity.icon, true, { defaultIcon: "square" }), "text-icon-16")}
                 aria-hidden
             />
-            <span className="max-w-full truncate">{identity.name}</span>
+            <span className="name max-w-full truncate">{identity.name}</span>
             <span className="absolute top-1.5 right-1.5 flex">
                 <TabAgentMark info={identity.agent} />
             </span>
@@ -691,8 +691,9 @@ function ViewRow({
             {renaming ? (
                 <RenameInput initial={identity.name} onDone={rename} />
             ) : (
+                // "name": the chip of a drag onto the panels reads the shown name there (tabName in drop-zones.ts).
                 <span
-                    className="min-w-0 shrink truncate"
+                    className="name min-w-0 shrink truncate"
                     onDoubleClick={(e) => {
                         e.stopPropagation();
                         setRenaming(true);

@@ -27,6 +27,13 @@
     transition: background-color var(--mt-duration-fade) linear;
 }
 
+/* The keyboard focus reads as the active tile's white hairline: an accent frame would look like the selection the
+   design rules out (DS-SHELL-124). A menu closed by Escape puts the focus back on its row, so this shows often. */
+.mt-sb :focus-visible {
+    outline: 1px solid rgb(255 255 255 / 0.55);
+    outline-offset: -1px;
+}
+
 .mt-sb-scroll {
     scrollbar-width: none;
 }
@@ -44,7 +51,7 @@
     left: 8px;
     padding: 0 10px 10px;
     border-radius: var(--mt-radius-6);
-    background: color-mix(in srgb, var(--mt-surface-1) 92%, black);
+    background: color-mix(in srgb, color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16)) 88%, black);
     box-shadow:
         var(--mt-shadow-command),
         inset 0 0 0 1px rgb(255 255 255 / 0.12);

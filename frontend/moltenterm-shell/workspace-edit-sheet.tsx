@@ -50,6 +50,7 @@ import {
     setWorkspaceGradient,
     setWorkspaceLogo,
 } from "./workspace-project-store";
+import { SidebarModel } from "./sidebar/sidebar-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
@@ -364,6 +365,7 @@ function RailBadgePreview({
     const t = useT();
     const source = workspaceIconSource(ws);
     const kind = iconKindLabel(source.image ? "imported" : source.logo ? "logo" : "builtin");
+    const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
     return (
         <div className="flex shrink-0 flex-col items-center gap-1" {...dropHandlers}>
             <div
@@ -383,7 +385,7 @@ function RailBadgePreview({
                 <WorkspaceIcon source={source} />
             </div>
             <div className="text-11 text-muted" aria-hidden>
-                {t("workspace.edit.inTheRail")}
+                {t(sidebarOn ? "workspace.edit.inTheSidebar" : "workspace.edit.inTheRail")}
             </div>
         </div>
     );
