@@ -50,9 +50,6 @@ prototype-pollution input, or run in a credential-bearing deploy pipeline, reass
 | Locked dependency / advisory | Concrete condition and current caller | Disposition / owned action |
 | --- | --- | --- |
 | braces 3.0.3; [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | Docusaurus globby/fast-glob processes repository/config glob patterns. Deep attacker-provided brace patterns can exhaust the stack; no product/user pattern reaches this docs graph. | Low-impact docs follow-up: update the Docusaurus/glob chain; reassess if patterns come from requests or untrusted configuration. |
-| qs 6.14.2; [GHSA-q8mj-m7cp-5q26](https://github.com/advisories/GHSA-q8mj-m7cp-5q26) | Requires stringify with both comma array format and encodeValuesOnly on null/undefined elements. Express's docs dev-server path parses query strings; no such stringify options/round-trip are configured here. | Condition nonapplicable; update docs server's qs chain to >=6.16.0 on the owned review date. |
-| qs 6.14.2; [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) | Requires parse with comma=true and reliance on array limits. The docs dev-server uses Express query parsing without that option. | Condition nonapplicable; retain the same qs update follow-up. |
-| qs 6.14.2; [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Express allows prototype-named own query properties, so their presence is not claimed safe. This advisory additionally requires passing those attacker-created objects to stringify. No docs request parse→stringify round-trip is configured. | Condition nonapplicable to current callers; recheck any future query serialization and update qs. |
 | serialize-javascript 6.0.2; [GHSA-5c6j-r48x-rmvq](https://github.com/advisories/GHSA-5c6j-r48x-rmvq) | Resolved through copy-webpack-plugin 11. Docusaurus's StaticDirectoriesCopyPlugin supplies only owned from/to/info patterns, with no transform/cache callback. Vulnerable spoofed RegExp/Date serialization plus later evaluation is not this path; serialized cache keys elsewhere are strings, not evaluated JavaScript. | Condition nonapplicable; update the docs copy-plugin/serializer chain to >=7.0.5. |
 | serialize-javascript 6.0.2; [GHSA-qj8w-gfj5-8c6v](https://github.com/advisories/GHSA-qj8w-gfj5-8c6v) | Crafted array-like objects/prototypes can exhaust CPU during serialization. There is no anonymous object input to the docs build configuration/cache options. | Low-impact docs follow-up: qualify the same serializer update; reassess any external object/config source. |
 | serialize-javascript 6.0.2; [GHSA-m5mm-p8h7-m29v](https://github.com/advisories/GHSA-m5mm-p8h7-m29v) | XSS needs attacker-controlled function source text (a spoofed `toString()` ending in `</script`) whose serialized output is then embedded in an HTML `<script>` element. copy-webpack-plugin 11 hashes serialized owned options into cache keys; css-minimizer-webpack-plugin 5 passes owned minimizer options to its workers. Neither embeds the output in page markup. The fix exists only in 7.1.3, a major bump behind @docusaurus/core's ranges. | Condition nonapplicable; update the same docs serializer chain to >=7.1.3 on the owned review date. |
@@ -76,3 +73,14 @@ must reassess those source/deployment changes even when scanner metadata remains
   already used, so the lockfile holds a single 7.1.6 copy. The Docusaurus cssnano preset still minifies selectors,
   `calc()`, duplicate rules and unused keyframes, and Infima's stylesheet, with the override. Drop the override once
   Docusaurus moves to cssnano 7.
+- qs 6.14.2; [GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw), and the reviewed
+  GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g (#1196, 2026-10-27). The new advisory (fixed in
+  6.16.1) had no review and blocked every pull request. The lockfile moves webpack-dev-server's express from 4.22.1 to
+  4.22.3, inside its `^4.22.1` range, which asks for `qs ~6.16.0`: the docs graph now holds a single qs 6.16.2 and the
+  three dated qs reviews are removed. No override.
+- satori 0.1.2; [GHSA-wx4j-mvgx-mqwp](https://github.com/advisories/GHSA-wx4j-mvgx-mqwp) (#1196, 2026-10-27).
+  `@waveterm/docusaurus-og` (Wave's fork, fetched by commit) asks for `satori ^0.1.2`; the fix is in 0.33.5. The root
+  `package.json` overrides `satori` to 0.33.5, whose default `satori(element, options)` export the plugin calls
+  unchanged. Every satori release pins `fflate` 0.7.3 (GHSA-px8p-9vwx-vf98, fixed in 0.7.5), so the same override
+  moves satori's fflate to 0.7.5, the copy `@shuding/opentype.js` already used. The docs build still generates the
+  Open Graph images under `build/preview-images/`. Drop the override once the plugin asks for a fixed satori.
