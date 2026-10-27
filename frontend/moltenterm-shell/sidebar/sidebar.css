@@ -238,3 +238,58 @@
 .mt-sb-plus[aria-expanded="true"] > svg {
     transform: rotate(45deg);
 }
+
+/* A pinned view changed since it was pinned (FR-SHELL-080): an amber pip in its top-right corner, and a revert
+   button that shows under the pointer. */
+.mt-sb-modpip {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--mt-state-waiting);
+    pointer-events: none;
+}
+
+.mt-sb-revert {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--mt-radius-6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-secondary);
+    background: rgb(0 0 0 / 0.25);
+    cursor: pointer;
+}
+
+.mt-sb-tile:hover .mt-sb-revert,
+.mt-sb-tile:focus-within .mt-sb-revert {
+    display: flex;
+}
+
+.mt-sb-revert:hover {
+    color: var(--color-primary);
+    background: rgb(0 0 0 / 0.45);
+}
+
+/* The pin page's two scopes, a radio each. */
+.mt-sb-scope .mt-sb-radio {
+    box-shadow: inset 0 0 0 1.5px var(--mt-sb-fg-3);
+}
+
+.mt-sb-scope[aria-checked="true"] .mt-sb-radio {
+    box-shadow: inset 0 0 0 4px var(--mt-accent);
+}
+
+.mt-sb-mini > i.is-other::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 2px;
+    background: rgb(0 0 0 / 0.45);
+}

@@ -25,9 +25,11 @@ import {
     SidebarWidthMetaKey,
     splitSidebarTabs,
 } from "./sidebar-model";
+import { GlobalPinMetaKey, PinMetaKey } from "./view-pins-model";
+import { ViewPins } from "./view-pins-store";
 
-// The tabs MoltenTerm pins: the Project tab (#410). #1184 brings pinning to every view.
-const PinnedTabMetaKeys = [ProjectTabMetaKey];
+// The tiles: the Project tab (#410) and the views pinned in the workspace (FR-SHELL-080).
+const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 
 export class SidebarModel {
     private static instance: SidebarModel = null;
@@ -51,7 +53,9 @@ export class SidebarModel {
                 splitSidebarTabs(
                     get(atoms.workspace),
                     (id) => get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", id))),
-                    PinnedTabMetaKeys
+                    PinnedTabMetaKeys,
+                    new Set(get(ViewPins.getInstance().globalPinsAtom).map((p) => p.id)),
+                    GlobalPinMetaKey
                 )
             ),
             (split) => split,

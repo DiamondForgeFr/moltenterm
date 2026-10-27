@@ -36,11 +36,13 @@ import { coffeeCondition, coffeeSupported } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
 import { MoltentermCicdView } from "../mission/cicd-view";
+import { MoltenWave } from "../molten-button";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView, toggleMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
+import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { productKeysOf } from "../rail-groups";
 import { useRailGroups, useStoredLocalGroups, useWorkspaceLinksKey } from "../rail-groups-store";
@@ -56,6 +58,7 @@ import { railCustomWidgets, railWidgetTooltip } from "../rail-tools-model";
 import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
+import { reopenLastClosed } from "../reopen/reopen-store";
 import { useListedReviewsAnswer, useReviewsRailWatch } from "../reviews/reviews-client";
 import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -98,6 +101,8 @@ import {
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import "./sidebar.css";
+import { GlobalPin, PinScope, ViewState } from "./view-pins-model";
+import { PinDraft, ViewPins } from "./view-pins-store";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
 
@@ -427,18 +432,93 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
 
 // The tab's menu (rename, flag, backgrounds, copy id, reopen, close) without the tab bar position, which the sidebar
 // replaces; the view on screen adds equalize and 360 view, whose buttons sat in the tab bar.
+type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: string };
+
+// What the view's state allows (FR-SHELL-080): pin a temporary view (through the pin page), pin a tile everywhere,
+// pin a view pinned everywhere only here, unpin; and, once a pinned view changed, save or go back.
+function pinMenuItems(
+    tabId: string,
+    pin: ViewPinFacts,
+    t: (key: string, vars?: Record<string, any>) => string
+): ContextMenuItem[] {
+    const pins = ViewPins.getInstance();
+    const workspace = globalStore.get(atoms.workspace)?.name ?? "";
+    const section = t(`sidebar.pins.menu.state.${pin.state}`, { workspace });
+    const items: ContextMenuItem[] = [];
+    if (pin.modified && pin.state !== "temporary") {
+        items.push(
+            {
+                label: t(pin.state === "everywhere" ? "sidebar.pins.menu.saveEverywhere" : "sidebar.pins.menu.save"),
+                icon: "check",
+                section,
+                click: () => fireAndForget(() => pins.saveState(tabId)),
+            },
+            {
+                label: t("sidebar.pins.menu.revert"),
+                icon: "rotate-left",
+                section,
+                click: () => fireAndForget(() => pins.revert(tabId)),
+            }
+        );
+    }
+    if (pin.state === "temporary") {
+        items.push(
+            {
+                label: t("sidebar.pins.menu.pinHere", { workspace }),
+                icon: "thumbtack",
+                section,
+                click: () => pins.openPinPage(tabId, pin.name, pin.icon, "here"),
+            },
+            {
+                label: t("sidebar.pins.menu.pinEverywhere"),
+                icon: "layer-group",
+                section,
+                click: () => pins.openPinPage(tabId, pin.name, pin.icon, "everywhere"),
+            }
+        );
+    } else if (pin.state === "workspace") {
+        items.push({
+            label: t("sidebar.pins.menu.pinEverywhere"),
+            icon: "layer-group",
+            section,
+            click: () => fireAndForget(() => pins.pinEverywhere(tabId, pin.name, pin.icon)),
+        });
+    } else {
+        items.push({
+            label: t("sidebar.pins.menu.pinOnlyHere", { workspace }),
+            icon: "thumbtack",
+            section,
+            click: () => fireAndForget(() => pins.pinOnlyHere(tabId)),
+        });
+    }
+    if (pin.state !== "temporary") {
+        items.push({
+            label: t("sidebar.pins.menu.unpin"),
+            icon: "thumbtack-slash",
+            section,
+            click: () => fireAndForget(() => pins.unpin(tabId)),
+        });
+    }
+    return items;
+}
+
 function viewMenuItems(
     tabId: string,
     active: boolean,
     renameRef: React.RefObject<() => void>,
     onClose: () => void,
     env: SidebarEnv,
-    t: (key: string, vars?: Record<string, any>) => string
+    t: (key: string, vars?: Record<string, any>) => string,
+    pin?: ViewPinFacts
 ): ContextMenuItem[] {
     const tabBarPosition = t("wave.tab.tabBarPosition");
-    const items = buildTabContextMenu(tabId, renameRef, () => onClose(), env).filter(
-        (item) => item.label !== tabBarPosition
+    // A pinned view does not close: unpin it first (FR-SHELL-080).
+    const close = pin != null && pin.state !== "temporary" ? t("wave.tab.close") : null;
+    const tabItems = buildTabContextMenu(tabId, renameRef, () => onClose(), env).filter(
+        (item) => item.label !== tabBarPosition && (close == null || item.label !== close)
     );
+    const pinned = pin == null ? [] : pinMenuItems(tabId, pin, t);
+    const items = pinned.length > 0 ? [...pinned, { type: "separator" } as ContextMenuItem, ...tabItems] : tabItems;
     if (!active) {
         return items;
     }
@@ -469,7 +549,8 @@ function viewMenuItems(
     if (layout.length === 0) {
         return items;
     }
-    return [items[0], ...layout, { type: "separator" }, ...items.slice(1)];
+    const at = items.length - tabItems.length;
+    return [...items.slice(0, at + 1), ...layout, { type: "separator" }, ...items.slice(at + 1)];
 }
 
 function useFlagColor(tab: Tab): string {
@@ -485,7 +566,14 @@ function useFlagColor(tab: Tab): string {
     }
 }
 
-function useViewActions(tabId: string, active: boolean) {
+function useViewPin(tabId: string, name: string, icon: string): ViewPinFacts {
+    const pins = ViewPins.getInstance();
+    const state = useAtomValue(pins.stateAtom(tabId));
+    const modified = useAtomValue(pins.modifiedAtom(tabId));
+    return { state, modified, name, icon };
+}
+
+function useViewActions(tabId: string, active: boolean, pin?: ViewPinFacts) {
     const env = useWaveEnv<SidebarEnv>();
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
@@ -503,7 +591,7 @@ function useViewActions(tabId: string, active: boolean) {
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        env.showContextMenu(viewMenuItems(tabId, active, renameRef, close, env, t), e);
+        env.showContextMenu(viewMenuItems(tabId, active, renameRef, close, env, t, pin), e);
     };
     return { env, renameRef, close, onContextMenu };
 }
@@ -511,21 +599,40 @@ function useViewActions(tabId: string, active: boolean) {
 function Tile({ tabId, active }: { tabId: string; active: boolean }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
-    const { onContextMenu } = useViewActions(tabId, active);
+    const t = useT();
+    const ws = useAtomValue(atoms.workspace);
+    const pin = useViewPin(tabId, identity.name, identity.icon);
+    const projectTab = !!(tab?.meta as Record<string, any>)?.[ProjectTabMetaKey];
+    const { onContextMenu } = useViewActions(tabId, active, projectTab ? undefined : pin);
+    const modified = pin.state === "workspace" && pin.modified;
+    const workspace = ws?.name ?? "";
+    const title = modified
+        ? t("sidebar.pins.tileModifiedTitle", { name: identity.name, workspace })
+        : pin.state === "workspace"
+          ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
+          : identity.name;
     return (
-        <button
-            type="button"
+        <div
+            role="button"
+            tabIndex={0}
             className={cn(
-                "relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 px-1 text-11 text-primary transition-colors duration-120 ease-mt",
+                "mt-sb-tile relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 px-1 text-11 text-primary transition-colors duration-120 ease-mt",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.09] hover:bg-white/15"
             )}
             aria-current={active ? "page" : undefined}
-            title={identity.name}
+            title={title}
             data-testid="sidebar-tile"
             data-tab-id={tabId}
+            data-modified={modified ? "true" : undefined}
             onClick={() => getApi().setActiveTab(tabId)}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    getApi().setActiveTab(tabId);
+                }
+            }}
             onContextMenu={onContextMenu}
         >
             <i
@@ -533,10 +640,38 @@ function Tile({ tabId, active }: { tabId: string; active: boolean }) {
                 aria-hidden
             />
             <span className="name max-w-full truncate">{identity.name}</span>
-            <span className="absolute top-1.5 right-1.5 flex">
-                <TabAgentMark info={identity.agent} />
-            </span>
-        </button>
+            {modified ? null : (
+                <span className="absolute top-1.5 right-1.5 flex">
+                    <TabAgentMark info={identity.agent} />
+                </span>
+            )}
+            {modified ? (
+                <>
+                    <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden />
+                    <span
+                        role="button"
+                        tabIndex={0}
+                        className="mt-sb-revert"
+                        title={t("sidebar.pins.revertTitle")}
+                        aria-label={t("sidebar.pins.revertTitle")}
+                        data-testid="sidebar-revert"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            fireAndForget(() => ViewPins.getInstance().revert(tabId));
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                fireAndForget(() => ViewPins.getInstance().revert(tabId));
+                            }
+                        }}
+                    >
+                        <SidebarGlyph name="undo" size={12} />
+                    </span>
+                </>
+            ) : null}
+        </div>
     );
 }
 
@@ -609,7 +744,9 @@ function ViewRow({
 }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
-    const { env, renameRef, close, onContextMenu } = useViewActions(tabId, active);
+    const t = useT();
+    const pin = useViewPin(tabId, identity.name, identity.icon);
+    const { env, renameRef, close, onContextMenu } = useViewActions(tabId, active, pin);
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const trees = useTabTreesTooltip(tabId);
     const [hoverNow, setHoverNow] = useState(() => Date.now());
@@ -708,6 +845,19 @@ function ViewRow({
             <TabAgentMark info={identity.agent} />
             <TabBadges badges={badges} flagColor={flagColor} className="static w-auto translate-y-0" />
             <span className="mt-sb-hover-ctl flex shrink-0 items-center" onMouseDown={(e) => e.stopPropagation()}>
+                <button
+                    type="button"
+                    className="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-4 text-secondary hover:bg-white/[0.12] hover:text-primary"
+                    title={t("sidebar.pins.pinTitle")}
+                    aria-label={t("sidebar.pins.pinTitle")}
+                    data-testid="sidebar-pin-view"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        ViewPins.getInstance().openPinPage(tabId, identity.name, identity.icon);
+                    }}
+                >
+                    <SidebarGlyph name="pin" size={12} />
+                </button>
                 <HoldCloseButton onClose={close} />
             </span>
         </div>
@@ -861,8 +1011,235 @@ function TemporaryViews({
                         <span className="mt-sb-row-hint font-mono text-11 text-muted">{newViewKeys}</span>
                     ) : null}
                 </button>
+                <CloseFinishedButton />
             </div>
         </div>
+    );
+}
+
+// "Close the N finished views" (FR-SHELL-080): only while a temporary view's agents have all finished; a view whose
+// agent works or waits stays open.
+function CloseFinishedButton() {
+    const t = useT();
+    const tc = useTCount();
+    const finished = useAtomValue(ViewPins.getInstance().finishedAtom);
+    if (finished.length === 0) {
+        return null;
+    }
+    return (
+        <button
+            type="button"
+            className="mt-0.5 flex cursor-pointer items-center gap-1.5 rounded-6 border border-dashed border-white/[0.18] px-2 py-1.5 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:border-accent hover:text-primary"
+            title={t("sidebar.pins.closeFinishedTitle")}
+            data-testid="sidebar-close-finished"
+            onClick={() => fireAndForget(() => ViewPins.getInstance().closeFinished())}
+        >
+            <SidebarGlyph name="x" size={14} />
+            <span className="min-w-0 truncate">{tc("sidebar.pins.closeFinished", finished.length)}</span>
+        </button>
+    );
+}
+
+// The top row (FR-SHELL-080): the views pinned everywhere, the same blocks in every workspace; each opens this
+// workspace's own instance, on its project. Nothing pinned everywhere: the row takes no room.
+function TopRow({ instances, activeTabId }: { instances: Record<string, string>; activeTabId: string }) {
+    const t = useT();
+    const pins = useAtomValue(ViewPins.getInstance().globalPinsAtom);
+    if (pins.length === 0) {
+        return null;
+    }
+    return (
+        <div
+            className="grid shrink-0 gap-1.5"
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(max(40px, calc((100% - 18px) / 4)), 1fr))" }}
+            aria-label={t("sidebar.pins.topRowLabel")}
+            data-testid="sidebar-top-row"
+        >
+            {pins.map((pin) => (
+                <TopRowBlock
+                    key={pin.id}
+                    pin={pin}
+                    tabId={instances[pin.id] ?? ""}
+                    active={!!instances[pin.id] && instances[pin.id] === activeTabId}
+                />
+            ))}
+        </div>
+    );
+}
+
+function TopRowBlock({ pin, tabId, active }: { pin: GlobalPin; tabId: string; active: boolean }) {
+    const t = useT();
+    const env = useWaveEnv<SidebarEnv>();
+    const pins = ViewPins.getInstance();
+    const modified = useAtomValue(pins.modifiedAtom(tabId));
+    const title = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", { name: pin.name });
+    const onContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const facts: ViewPinFacts = {
+            state: "everywhere",
+            modified: !!tabId && modified,
+            name: pin.name,
+            icon: pin.icon,
+        };
+        const items = tabId
+            ? pinMenuItems(tabId, facts, t)
+            : [
+                  {
+                      label: t("sidebar.pins.menu.unpin"),
+                      icon: "thumbtack-slash",
+                      section: t("sidebar.pins.menu.state.everywhere"),
+                      click: () => fireAndForget(() => pins.unpinGlobal(pin.id)),
+                  },
+              ];
+        env.showContextMenu(items, e);
+    };
+    return (
+        <button
+            type="button"
+            className={cn(
+                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center rounded-6 text-primary transition-colors duration-120 ease-mt",
+                active
+                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
+                    : "bg-white/[0.07] hover:bg-white/[0.14]"
+            )}
+            aria-label={pin.name}
+            aria-current={active ? "page" : undefined}
+            title={title}
+            data-testid="sidebar-top-block"
+            data-pin-id={pin.id}
+            data-tab-id={tabId || undefined}
+            onClick={() => fireAndForget(() => pins.openGlobalPin(pin.id, tabId))}
+            onContextMenu={onContextMenu}
+        >
+            <i className={cn(makeIconClass(pin.icon, true, { defaultIcon: "square" }), "text-icon-16")} aria-hidden />
+            {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
+        </button>
+    );
+}
+
+// The pin page (FR-SHELL-080): the view's name, and the two scopes in plain words. It takes the place of the
+// workspace's lists until the view is pinned or the page cancelled.
+function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWorkspaces }) {
+    const t = useT();
+    const pins = ViewPins.getInstance();
+    const ws = useAtomValue(atoms.workspace);
+    const [tab] = useWaveObjectValue<Tab>(makeORef("tab", draft.tabId));
+    const inputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [draft.tabId]);
+    const workspace = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
+    const panels = tab?.blockids?.length ?? 0;
+    const setDraft = (next: Partial<PinDraft>) => globalStore.set(pins.draftAtom, { ...draft, ...next });
+    const cancel = () => pins.closePinPage();
+    const submit = () => fireAndForget(() => pins.finishPinPage());
+    const scope = (value: PinScope, titleKey: string, bodyKey: string, extra?: React.ReactNode) => (
+        <button
+            type="button"
+            role="radio"
+            aria-checked={draft.scope === value}
+            className={cn(
+                "mt-sb-scope flex w-full cursor-pointer items-start gap-2.5 rounded-8 border p-2.5 text-left text-secondary transition-colors duration-120 ease-mt",
+                draft.scope === value
+                    ? "border-accent bg-[color-mix(in_srgb,var(--mt-accent)_12%,rgb(0_0_0/0.18))] text-primary"
+                    : "border-white/[0.12] bg-black/[0.18] hover:border-white/25"
+            )}
+            data-testid={`sidebar-pin-scope-${value}`}
+            onClick={() => setDraft({ scope: value })}
+        >
+            <span className="mt-sb-radio mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full" aria-hidden />
+            <span className="text-12 leading-[1.5]">
+                <b className="mb-[3px] block text-primary">{t(titleKey, { workspace })}</b>
+                {t(bodyKey, { workspace, count: panels })}
+                {extra}
+            </span>
+        </button>
+    );
+    return (
+        <form
+            className="flex shrink-0 flex-col gap-3 px-0.5 py-1"
+            data-testid="sidebar-pin-page"
+            onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancel();
+                }
+            }}
+        >
+            <div className="flex items-center gap-1.5 border-t border-white/10 pt-1.5">
+                <b className="text-13 text-primary">{t("sidebar.pins.page.title")}</b>
+                <button
+                    type="button"
+                    className="ml-auto flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                    aria-label={t("sidebar.pins.page.cancel")}
+                    title={t("sidebar.pins.page.cancel")}
+                    onClick={cancel}
+                >
+                    <SidebarGlyph name="x" size={14} />
+                </button>
+            </div>
+            <div className="flex h-[52px] w-24 flex-col items-center justify-center gap-[5px] self-center rounded-6 bg-white/20 px-1 text-11 text-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
+                <i
+                    className={cn(makeIconClass(draft.icon, true, { defaultIcon: "square" }), "text-icon-16")}
+                    aria-hidden
+                />
+                <span className="max-w-full truncate">{draft.name || tab?.name}</span>
+            </div>
+            <label className="flex flex-col gap-[5px] text-12 text-muted">
+                {t("sidebar.pins.page.name")}
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={draft.name}
+                    data-testid="sidebar-pin-name"
+                    className="h-8 rounded-6 border border-white/[0.12] bg-black/25 px-2 text-13 text-primary outline-none focus:border-accent"
+                    onChange={(e) => setDraft({ name: e.target.value })}
+                />
+            </label>
+            <div role="radiogroup" aria-label={t("sidebar.pins.page.scope")} className="flex flex-col gap-2">
+                {scope("here", "sidebar.pins.page.hereTitle", "sidebar.pins.page.hereBody")}
+                {scope(
+                    "everywhere",
+                    "sidebar.pins.page.everywhereTitle",
+                    "sidebar.pins.page.everywhereBody",
+                    <span className="mt-sb-mini mt-[7px] flex gap-1" aria-hidden>
+                        {workspaces.entries.map((entry) => (
+                            <i
+                                key={entry.id}
+                                className={cn(
+                                    "relative inline-block h-4 w-4 rounded-4 opacity-90",
+                                    !entry.active && "is-other"
+                                )}
+                                style={{ background: colourStops(entry.color)[0] ?? "var(--color-secondary)" }}
+                            />
+                        ))}
+                    </span>
+                )}
+            </div>
+            <div className="mt-1 flex flex-col gap-1.5">
+                <button
+                    type="submit"
+                    className="molten-btn cursor-pointer rounded px-3 py-1.5 text-12"
+                    data-testid="sidebar-pin-submit"
+                >
+                    {t("sidebar.pins.page.pin")}
+                    <MoltenWave />
+                </button>
+                <button
+                    type="button"
+                    className="cursor-pointer rounded border border-white/[0.12] px-3 py-1.5 text-12 text-secondary hover:text-primary"
+                    onClick={cancel}
+                >
+                    {t("sidebar.pins.page.cancel")}
+                </button>
+            </div>
+        </form>
     );
 }
 
@@ -1223,6 +1600,12 @@ function LibraryButton() {
         items.push(
             { type: "separator" },
             {
+                label: t("sidebar.pins.reopenClosed"),
+                icon: "rotate-left",
+                accelerator: acceleratorById("reopen-closed"),
+                click: () => fireAndForget(reopenLastClosed),
+            },
+            {
                 label: t("rail.tools.tips"),
                 icon: "lightbulb",
                 click: () =>
@@ -1405,7 +1788,11 @@ export function WorkspaceSidebar() {
     const asideRef = useRef<HTMLElement>(null);
     const peekTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
     const split = useAtomValue(model.tabSplitAtom);
+    const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
+    useEffect(() => {
+        ViewPins.getInstance().closePinPage();
+    }, [ws?.oid]);
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const keepPeek = () => clearTimeout(peekTimerRef.current);
     const endPeek = () => {
@@ -1443,14 +1830,21 @@ export function WorkspaceSidebar() {
                 onMouseLeave={endPeek}
             >
                 <WindowRow leftInset={hidden ? 18 : 8} />
+                <TopRow instances={split.everywhere ?? {}} activeTabId={activeTabId} />
                 <div className="mt-sb-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-                    <WorkspaceHeader workspaces={workspaces} />
-                    <TileGrid
-                        tileIds={split.tiles}
-                        activeTabId={activeTabId}
-                        label={t("sidebar.tiles.label", { name })}
-                    />
-                    <TemporaryViews ids={split.temporary} activeTabId={activeTabId} asideRef={asideRef} />
+                    {pinDraft != null ? (
+                        <PinPage draft={pinDraft} workspaces={workspaces} />
+                    ) : (
+                        <>
+                            <WorkspaceHeader workspaces={workspaces} />
+                            <TileGrid
+                                tileIds={split.tiles}
+                                activeTabId={activeTabId}
+                                label={t("sidebar.tiles.label", { name })}
+                            />
+                            <TemporaryViews ids={split.temporary} activeTabId={activeTabId} asideRef={asideRef} />
+                        </>
+                    )}
                 </div>
                 <BranchLine />
                 <div className="flex shrink-0 items-center gap-1.5 border-t border-white/10 pt-1.5">
