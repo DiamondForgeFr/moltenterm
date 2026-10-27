@@ -367,6 +367,9 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 	case "custom_tool_call":
 		s.AddToolCall(codexCallId(item), str(item, "name"), compactJSON(item["input"]), at)
 		s.NoteActivity(str(item, "name"), "", at)
+		if input, ok := item["input"].(string); ok && (codexShellTools[str(item, "name")] || str(item, "name") == "exec") {
+			s.NoteShellCommand(input)
+		}
 	case "local_shell_call":
 		s.AddToolCall(codexCallId(item), "shell", argsJSON(item["action"]), at)
 		s.NoteActivity("shell", activityTarget(obj(item, "action")), at)

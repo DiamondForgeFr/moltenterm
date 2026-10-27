@@ -60,6 +60,16 @@ export class AgentInfoModel {
             return;
         }
         this.started = true;
+        // Each view of the window is its own page: a tree opened in one shows opened in the others.
+        try {
+            window.addEventListener("storage", (e) => {
+                if (e.key === TreesStorageKey) {
+                    globalStore.set(this.treesAtom, readStoredTrees());
+                }
+            });
+        } catch {
+            // No window in unit tests.
+        }
         try {
             waveEventSubscribeSingle({
                 eventType: HandoffHistoryEvent as WaveEventName,
