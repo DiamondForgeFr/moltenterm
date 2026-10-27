@@ -137,6 +137,21 @@ function formatSince(since: number, now: number): string {
     return formatClock(since);
 }
 
+const KeepAwakePanelWidth = 320;
+
+// Above the status bar's item; below the sidebar's (#1183), which sits at the top of the window. Always inside it.
+export function keepAwakePanelPlace(
+    rect: { top: number; bottom: number; right: number },
+    width: number,
+    height: number
+): React.CSSProperties {
+    const right = Math.max(8, Math.min(width - rect.right, width - KeepAwakePanelWidth - 8));
+    if (rect.top < height / 2) {
+        return { top: rect.bottom + 6, right };
+    }
+    return { bottom: height - rect.top + 6, right };
+}
+
 function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () => void }) {
     const t = useT();
     const model = KeepAwakeModel.getInstance();
@@ -175,7 +190,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             aria-label={t("keepawake.panelLabel")}
             data-testid="keepawake-panel"
             className="fixed z-[9600] flex max-h-[70vh] w-[320px] flex-col overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 text-12 text-secondary shadow-command"
-            style={{ bottom: window.innerHeight - rect.top + 6, right: Math.max(8, window.innerWidth - rect.right) }}
+            style={keepAwakePanelPlace(rect, window.innerWidth, window.innerHeight)}
         >
             <SleepPolicyControl
                 platform={platform}
@@ -338,8 +353,9 @@ export function SleepPolicyControl({
 }
 
 // The status bar's sleep item: lit in the awake colour while MoltenTerm keeps the computer awake, with the count of
-// what blocks sleep (MoltenTerm once, plus each session whose block went through).
-export function KeepAwakeStatusItem() {
+// what blocks sleep (MoltenTerm once, plus each session whose block went through). The workspace sidebar (#1183) draws
+// it as a 28 px icon button with the count as a calm badge.
+export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status" | "sidebar" }) {
     const t = useT();
     const platform = usePlatform();
     const model = KeepAwakeModel.getInstance();
@@ -355,6 +371,7 @@ export function KeepAwakeStatusItem() {
         count > 0
             ? t(state.hold ? "keepawake.statusCountIncluded" : "keepawake.statusCount", { count })
             : t("keepawake.statusNone");
+    const sidebar = variant === "sidebar";
     return (
         <>
             <button
@@ -363,14 +380,31 @@ export function KeepAwakeStatusItem() {
                 aria-label={title}
                 aria-expanded={open}
                 title={title}
+                data-testid="keepawake-item"
                 onClick={() => setOpen(!open)}
+                style={sidebar ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined}
                 className={cn(
-                    "flex cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary",
+                    "flex cursor-pointer items-center gap-1 rounded-6 hover:bg-hover hover:text-primary",
+                    sidebar
+                        ? "relative h-7 w-7 shrink-0 justify-center text-secondary transition-colors duration-120 ease-mt"
+                        : "px-1",
                     state.hold && "text-[var(--color-awake)]"
                 )}
             >
-                <i className={cn("fa fa-solid text-11", state.hold ? "fa-mug-hot" : "fa-moon")} aria-hidden />
-                {count > 0 ? <span>{count}</span> : null}
+                <i
+                    className={cn(
+                        "fa fa-solid",
+                        sidebar ? "text-icon-14" : "text-11",
+                        state.hold ? "fa-mug-hot" : "fa-moon"
+                    )}
+                    aria-hidden
+                />
+                {count > 0 && !sidebar ? <span>{count}</span> : null}
+                {count > 0 && sidebar ? (
+                    <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary/85 px-[3px] text-11 leading-none font-semibold text-black tabular-nums">
+                        {count}
+                    </span>
+                ) : null}
             </button>
             {open && buttonRef.current != null ? <KeepAwakePanel anchor={buttonRef.current} onClose={close} /> : null}
         </>

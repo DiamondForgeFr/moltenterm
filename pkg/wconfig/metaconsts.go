@@ -119,6 +119,8 @@ const (
 
 	ConfigKey_PowerSleepPolicy               = "power:sleeppolicy"
 
+	ConfigKey_ShellWorkspaceSidebar          = "shell:workspacesidebar"
+
 	ConfigKey_MoltentermTabViewPriority      = "moltenterm:tabviewpriority"
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
 	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"

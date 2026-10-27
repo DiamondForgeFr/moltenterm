@@ -1737,6 +1737,7 @@
             "previous-tab": "Previous tab",
             "tab-number": "Go to tab by number",
             "rename-tab": "Rename the tab",
+            "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
             "term-clear": "Clear the terminal",
             "term-copy-plain": "Copy the plain selection",
@@ -8674,5 +8675,51 @@
         "reloadedMessage": "Its display process was ended ({cause}). Your sessions kept running.",
         "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
         "showLog": "Show log"
+    },
+    "sidebar": {
+        "label": "Sidebar of {name}",
+        "hide": "Hide the sidebar ({keys})",
+        "show": "Keep the sidebar shown ({keys})",
+        "appMenu": "Menu",
+        "grip": "Sidebar width",
+        "gripTitle": "Drag to widen or narrow the sidebar (double-click: {width} px)",
+        "header": {
+            "menu": "Options of {name}",
+            "typeTitle": "Project type: {type}"
+        },
+        "tiles": {
+            "label": "Views pinned in {name}"
+        },
+        "temporary": {
+            "title": "Temporary views",
+            "hint": "A temporary view closes; pin it to keep it",
+            "newView": "New view"
+        },
+        "view": {
+            "equalize": "Equalize panel widths",
+            "equalizeAuto": "Equalize automatically",
+            "view360": "360 view"
+        },
+        "build": {
+            "letter": {
+                "dev": "D",
+                "local": "L",
+                "gold": "G",
+                "rc": "V",
+                "public": "V"
+            }
+        },
+        "library": {
+            "label": "Library: sessions, Pilotage, widgets, tips and settings",
+            "tools": "Tools",
+            "widgets": "Widgets"
+        },
+        "plus": {
+            "label": "Create",
+            "inWorkspace": "In {name}",
+            "everywhere": "Everywhere",
+            "newView": "New view",
+            "newWorkspace": "New workspace"
+        }
     }
 }

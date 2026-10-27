@@ -1,0 +1,215 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The workspace sidebar (FR-SHELL-079, DS-SHELL-123, DS-SHELL-124): flat surfaces set into the window, controls that
+   act (menus, chevrons, close) shown only under the pointer, the hidden sidebar shown over the content from the left
+   edge. Sizes follow the #1181 prototype. */
+
+.mt-sb {
+    --mt-sb-fg-3: color-mix(in srgb, var(--color-secondary) 70%, transparent);
+}
+
+.mt-sb-scroll {
+    scrollbar-width: none;
+}
+
+.mt-sb-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hidden: the sidebar waits off the window's left edge and slides over the content while the pointer stays. */
+.mt-sb.is-hidden {
+    position: absolute;
+    z-index: 30;
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    padding: 0 10px 10px;
+    border-radius: var(--mt-radius-6);
+    background: color-mix(in srgb, var(--mt-surface-1) 92%, black);
+    box-shadow:
+        var(--mt-shadow-command),
+        inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    transform: translateX(calc(-100% - 24px));
+    transition: transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb.is-hidden.is-peek {
+    transform: translateX(0);
+}
+
+.mt-sb-edge {
+    position: absolute;
+    z-index: 25;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 14px;
+}
+
+/* The width grip, in the gap between the sidebar and the content. */
+.mt-sb-grip {
+    position: relative;
+    width: 8px;
+    flex: none;
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mt-sb-grip::before {
+    content: "";
+    width: 3px;
+    height: 26px;
+    border-radius: var(--mt-radius-2);
+    background: transparent;
+    transition:
+        height var(--mt-duration-fast) var(--mt-ease),
+        background var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-grip:hover::before,
+.mt-sb-grip.is-on::before {
+    height: 44px;
+    background: rgb(255 255 255 / 0.45);
+}
+
+/* The project type reads as plain text; it shows it is a menu only under the pointer. */
+.mt-sb-type > svg {
+    opacity: 0;
+    width: 0;
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        width var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-type:hover,
+.mt-sb-type:focus-visible {
+    background: rgb(255 255 255 / 0.1);
+    color: var(--color-primary);
+}
+
+.mt-sb-type:hover > svg,
+.mt-sb-type:focus-visible > svg {
+    opacity: 1;
+    width: 11px;
+}
+
+.mt-sb-hover-ctl {
+    opacity: 0;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-hdr:hover .mt-sb-hover-ctl,
+.mt-sb-hdr:focus-within .mt-sb-hover-ctl,
+.mt-sb-row:hover .mt-sb-hover-ctl,
+.mt-sb-row:focus-within .mt-sb-hover-ctl,
+.mt-sb-hover-ctl[aria-expanded="true"] {
+    opacity: 1;
+}
+
+/* A row's hidden close never catches a press meant for the row. */
+.mt-sb-row .mt-sb-hover-ctl {
+    pointer-events: none;
+}
+
+.mt-sb-row:hover .mt-sb-hover-ctl,
+.mt-sb-row:focus-within .mt-sb-hover-ctl {
+    pointer-events: auto;
+}
+
+.mt-sb-row:hover .mt-sb-row-hint {
+    display: none;
+}
+
+/* A row's agent name, as in the top tab (tab-bar.css). */
+.mt-sb-row .molten-tab-agent {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-secondary);
+    white-space: nowrap;
+}
+
+.mt-sb-row .molten-tab-agent-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mt-sb-row .molten-tab-agent-sep,
+.mt-sb-row .molten-tab-agent-more {
+    color: var(--mt-sb-fg-3);
+}
+
+/* Each workspace owns a fixed 24 px slot: the dot, its ring and the current square never reach a neighbour. */
+.mt-sb-dot > i {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 9px;
+    height: 9px;
+    border-radius: 9999px;
+    opacity: 0.55;
+    font-style: normal;
+    font-size: var(--mt-text-11);
+    transition:
+        width var(--mt-duration-base) var(--mt-ease),
+        height var(--mt-duration-base) var(--mt-ease),
+        border-radius var(--mt-duration-base) var(--mt-ease),
+        opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-dot:hover > i {
+    opacity: 1;
+}
+
+.mt-sb-dot.is-on > i {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--mt-radius-6);
+    opacity: 1;
+}
+
+.mt-sb-dot.has-ring::after {
+    content: "";
+    position: absolute;
+    inset: 4.5px;
+    border-radius: 9999px;
+    pointer-events: none;
+    box-shadow: 0 0 0 1.5px var(--mt-sb-dot-colour);
+    animation: mt-sb-ring var(--mt-duration-loop) ease-in-out infinite;
+}
+
+@keyframes mt-sb-ring {
+    50% {
+        opacity: 0.25;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-dot.has-ring::after {
+        animation: none;
+    }
+}
+
+/* The build badge rests dimmed beside the branch, and lights under the pointer. */
+.mt-sb-build {
+    opacity: 0.45;
+    transform: scale(0.9);
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb-build:hover,
+.mt-sb-build:focus-visible {
+    opacity: 1;
+}
+
+.mt-sb-plus > svg {
+    transition: transform var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb-plus[aria-expanded="true"] > svg {
+    transform: rotate(45deg);
+}

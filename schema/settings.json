@@ -1146,6 +1146,14 @@
             "order": 12
           }
         },
+        "shell:workspacesidebar": {
+          "type": "boolean",
+          "description": "Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 127
+          }
+        },
         "moltenterm:tabviewpriority": {
           "type": "boolean",
           "description": "Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)",

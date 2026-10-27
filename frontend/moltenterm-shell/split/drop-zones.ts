@@ -219,7 +219,9 @@ export function trackTabPanelDrag(
     event: Pick<MouseEvent, "clientX" | "clientY">,
     tabId: string,
     strip: HTMLElement,
-    keepTabInSlot: () => void
+    keepTabInSlot: () => void,
+    // Below the strip by default; the workspace sidebar (#1183) hands over past its right edge.
+    outside?: (event: Pick<MouseEvent, "clientX" | "clientY">) => boolean
 ): boolean {
     // The tab shown has no other panels to land on.
     if (!tabId || strip == null || tabId === globalStore.get(atoms.staticTabId)) {
@@ -231,7 +233,7 @@ export function trackTabPanelDrag(
     if (tabHandover.cancelled) {
         return true;
     }
-    const out = tabDraggedOut(event.clientY, strip.getBoundingClientRect().bottom);
+    const out = outside != null ? outside(event) : tabDraggedOut(event.clientY, strip.getBoundingClientRect().bottom);
     if (!out) {
         if (tabHandover.out) {
             tabHandover.out = false;

@@ -30,6 +30,7 @@ import {
     PaneView,
     StatusBarChannel,
     statusBarFolder,
+    StatusBarView,
 } from "./status-bar-model";
 import { DominoLoader } from "./suite/suite";
 import { ReleaseUpdateButton } from "./update/release-update-ui";
@@ -44,7 +45,7 @@ const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 
 // Badges keep a fixed colour per channel, apart from the workspace accent: a gold or dev build must be recognisable
 // in any workspace. A dev build is the everyday case of whoever works on MoltenTerm: a neutral pill (FR-SHELL-055).
-const ChannelClasses: Record<StatusBarChannel, string> = {
+export const ChannelClasses: Record<StatusBarChannel, string> = {
     dev: cn("border-line-strong bg-surface-3", MoltentermDevChannelText),
     local: "border-amber-500/60 text-amber-400",
     gold: "border-yellow-400/70 text-yellow-300",
@@ -52,7 +53,8 @@ const ChannelClasses: Record<StatusBarChannel, string> = {
     public: "border-border text-secondary",
 };
 
-const ItemButton = "flex min-w-0 cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary";
+export const ItemButton =
+    "flex min-w-0 cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary";
 
 function FocusedBlockMeta({ blockId, onMeta }: { blockId: string; onMeta: (meta: PaneBlockMeta) => void }) {
     const [block] = useWaveObjectValue<Block>(makeORef("block", blockId));
@@ -128,10 +130,10 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
     );
 }
 
-export function StatusBar() {
-    const t = useT();
+// The build that runs, as the status bar and the workspace sidebar (#1183) show it.
+export function useStatusBarView(): StatusBarView {
     const locale = useLocale();
-    const view = useMemo(() => {
+    return useMemo(() => {
         const api = getApi();
         return makeStatusBarView(readBuildInfo(), {
             isDev: api.getIsDev(),
@@ -139,6 +141,19 @@ export function StatusBar() {
             version: api.getAboutModalDetails()?.version ?? "",
         });
     }, [locale]);
+}
+
+export type FocusedPane = {
+    ws: Workspace;
+    pane: PaneView;
+    tree: TreeMarker;
+    // Rendered by the caller: it reads the focused block's meta.
+    probe: React.ReactNode;
+};
+
+// The focused pane's project, branch, CI and pull request (FR-SHELL-010), for the status bar and the sidebar's branch
+// line (#1183).
+export function useFocusedPane(): FocusedPane {
     const ws = useAtomValue(atoms.workspace);
     const focusedAtom = useMemo(() => getLayoutModelForStaticTab()?.focusedNode ?? NoFocusedNode, []);
     const focused = useAtomValue(focusedAtom);
@@ -153,11 +168,22 @@ export function StatusBar() {
     const link = fromPane ? (meta?.["molten:worktree"] ?? "") : "";
     const state = usePaneStatus(folder, fromPane ? blockId : null, link);
     useWarmLinkedProject(readWorkspaceProject(ws).dir);
-    const pane = folder ? makePaneView(folder, state, ws) : null;
+    return {
+        ws,
+        pane: folder ? makePaneView(folder, state, ws) : null,
+        tree: fromPane ? treeMarker(state, link) : null,
+        probe: blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null,
+    };
+}
+
+export function StatusBar() {
+    const t = useT();
+    const view = useStatusBarView();
+    const { ws, pane, tree, probe } = useFocusedPane();
     return (
         <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-12 text-secondary tabular-nums select-none">
-            {blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null}
-            {pane ? <PaneSection pane={pane} ws={ws} tree={fromPane ? treeMarker(state, link) : null} /> : null}
+            {probe}
+            {pane ? <PaneSection pane={pane} ws={ws} tree={tree} /> : null}
             <span className="ml-auto flex shrink-0 items-center gap-3">
                 <KeepAwakeStatusItem />
                 <GoldUpdateButton />
