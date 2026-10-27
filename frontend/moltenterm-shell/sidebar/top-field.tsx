@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import { agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { browserBlockDef, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
+import { blockIdOfORef, focusWhenPlaced } from "../browser/focus-placed";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { usePaletteEntries } from "../palette/command-palette";
@@ -326,13 +327,14 @@ async function openAddress(url: string, mode: AddressMode, focus: FocusFactsValu
         }
     }
     if (mode === "beside" && focus.blockId) {
-        await RpcApi.CreateBlockCommand(TabRpcClient, {
+        const oref = await RpcApi.CreateBlockCommand(TabRpcClient, {
             tabid: focus.tabId,
             blockdef: browserBlockDef(url),
             targetblockid: focus.blockId,
             targetaction: "splitright",
             focused: true,
         });
+        focusWhenPlaced(blockIdOfORef(oref));
         return;
     }
     if (mode === "beside") {
@@ -386,7 +388,7 @@ async function runField(run: FieldRun, alt: boolean, focus: FocusFactsValue): Pr
 function RowLetter({ letter }: { letter: FieldRow["letter"] }) {
     return (
         <span
-            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-4 text-[9.5px] font-extrabold"
+            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-4 text-11 font-semibold"
             style={{ background: letter.paint, color: letter.ink }}
             aria-hidden
         >
@@ -419,7 +421,7 @@ function ResultRow({
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => onRun(row, e)}
             className={cn(
-                "flex min-h-[34px] w-full cursor-pointer items-center gap-[9px] rounded-[5px] px-[9px] py-1 text-left text-12 text-primary",
+                "flex min-h-[34px] w-full cursor-pointer items-center gap-[9px] rounded-4 px-[9px] py-1 text-left text-12 text-primary",
                 selected && "bg-[color-mix(in_srgb,var(--mt-accent)_32%,transparent)]"
             )}
         >
@@ -539,8 +541,8 @@ function OpenField({ focus, onClose }: { focus: FocusFactsValue; onClose: () => 
             ...agentRows(agentData?.states, ws?.oid, names, t),
             ...loaded.workspaces,
             ...prs,
-            ...paletteRows([...entries, ...panelCommands], t),
             ...extraRows(focus, t),
+            ...paletteRows([...entries, ...panelCommands], t),
         ];
     }, [loaded, agentData, ws?.oid, names, reviews, dir, entries, panelCommands, focus, t]);
     const wsName = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
@@ -621,7 +623,7 @@ function OpenField({ focus, onClose }: { focus: FocusFactsValue; onClose: () => 
                           {res.sections.map((section, si) => (
                               <div key={si}>
                                   {section.title ? (
-                                      <div className="px-[9px] pt-1.5 pb-[3px] text-[10.5px] tracking-[0.07em] text-muted uppercase">
+                                      <div className="px-[9px] pt-1.5 pb-[3px] text-11 tracking-[0.07em] text-muted uppercase">
                                           {section.title}
                                       </div>
                                   ) : null}
@@ -729,7 +731,7 @@ export function TopField() {
             <span
                 className={cn(
                     "min-w-0 flex-1 truncate",
-                    ctx.url && "font-mono text-[11.5px] text-primary",
+                    ctx.url && "font-mono text-11 text-primary",
                     !ctx.text && "text-muted"
                 )}
                 data-testid="top-field-context"
