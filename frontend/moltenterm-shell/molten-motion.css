@@ -1,0 +1,250 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Molten motion (#1163): how an interface changes before the developer's eyes, liquid rather than a jump cut. One
+   vocabulary for the whole app, read through molten-motion.ts (the class names, the hooks) and documented in
+   suite/suite-language.md ("Molten motion"):
+   - mt-flow-in: an element grows into place and pushes its neighbours (a list row: its height opens from nothing);
+     inside an SVG a node rises from its origin (--mt-from-x / --mt-from-y, "from its branch") and swells into shape;
+   - mt-melt-out: the reverse, the element cools and drips away while the space closes;
+   - mt-move: positions travel instead of jumping (transform, and the `d` of an SVG path, so links reflow);
+   - mt-glow-pass: one pass of the molten glow over what changed (the accent, as the wave of a molten button);
+   - mt-glow: a steady molten glow on what is being pointed at (an explained step), never a blink.
+   Every duration is a token: --mt-duration-flow (under 400 ms) and, under reduced motion (the system's preference or
+   MoltenTerm's own setting, the app root's .prefers-reduced-motion), only a short fade of --mt-duration-fade. */
+
+.mt-flow-in {
+    display: grid;
+    animation: mt-flow-in var(--mt-duration-flow) var(--mt-ease) both;
+}
+
+.mt-flow-in > *,
+.mt-melt-out > * {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.mt-melt-out {
+    display: grid;
+    pointer-events: none;
+    animation: mt-melt-out var(--mt-duration-flow) var(--mt-ease) both;
+}
+
+@keyframes mt-flow-in {
+    from {
+        grid-template-rows: 0fr;
+        opacity: 0;
+        translate: 0 -4px;
+        box-shadow:
+            0 0 0 1px var(--mt-accent),
+            0 0 18px -2px color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    }
+    60% {
+        opacity: 1;
+        box-shadow:
+            0 0 0 1px var(--mt-accent),
+            0 0 14px -4px color-mix(in srgb, var(--mt-accent) 50%, transparent);
+    }
+    to {
+        grid-template-rows: 1fr;
+        opacity: 1;
+        translate: 0 0;
+        box-shadow: none;
+    }
+}
+
+@keyframes mt-melt-out {
+    from {
+        grid-template-rows: 1fr;
+        opacity: 1;
+        filter: none;
+        translate: 0 0;
+    }
+    to {
+        grid-template-rows: 0fr;
+        opacity: 0;
+        filter: blur(1.5px) saturate(1.6);
+        translate: 0 4px;
+    }
+}
+
+/* SVG: a node has no height to open; it rises from its origin and swells, or sinks and melts. transform-box keeps the
+   scale on the node itself. */
+svg .mt-flow-in,
+svg .mt-melt-out {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+svg .mt-flow-in {
+    animation-name: mt-flow-in-node;
+}
+
+svg .mt-melt-out {
+    animation-name: mt-melt-out-node;
+}
+
+@keyframes mt-flow-in-node {
+    from {
+        opacity: 0;
+        transform: translate(var(--mt-from-x, 0), var(--mt-from-y, 0)) scale(0.4);
+        filter: drop-shadow(0 0 6px var(--mt-accent));
+    }
+    70% {
+        opacity: 1;
+        transform: scale(1.12);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+
+@keyframes mt-melt-out-node {
+    from {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+    to {
+        opacity: 0;
+        transform: translate(0, 6px) scale(0.7, 0.4);
+        filter: blur(1.5px) drop-shadow(0 0 4px var(--mt-accent));
+    }
+}
+
+/* A whole screen taking the place of another (a stepper's next step): it rises into place, nothing clipped. */
+.mt-arrive {
+    animation: mt-arrive var(--mt-duration-flow) var(--mt-ease) both;
+}
+
+@keyframes mt-arrive {
+    from {
+        opacity: 0;
+        translate: 0 6px;
+    }
+    to {
+        opacity: 1;
+        translate: 0 0;
+    }
+}
+
+.mt-move {
+    transition:
+        transform var(--mt-duration-flow) var(--mt-ease),
+        translate var(--mt-duration-flow) var(--mt-ease),
+        d var(--mt-duration-flow) var(--mt-ease);
+}
+
+.mt-glow-pass {
+    animation: mt-glow-pass var(--mt-duration-flow) var(--mt-ease) both;
+}
+
+@keyframes mt-glow-pass {
+    from {
+        box-shadow:
+            0 0 0 1px var(--mt-accent),
+            0 0 18px -2px color-mix(in srgb, var(--mt-accent) 70%, transparent);
+        background-color: color-mix(in srgb, var(--mt-accent) 14%, transparent);
+    }
+    to {
+        box-shadow: 0 0 0 0 transparent;
+        background-color: transparent;
+    }
+}
+
+svg .mt-glow-pass {
+    animation-name: mt-glow-pass-node;
+}
+
+@keyframes mt-glow-pass-node {
+    from {
+        filter: drop-shadow(0 0 6px var(--mt-accent)) drop-shadow(0 0 2px var(--mt-accent));
+    }
+    to {
+        filter: none;
+    }
+}
+
+.mt-glow {
+    box-shadow:
+        0 0 0 1px var(--mt-accent),
+        0 0 16px -4px color-mix(in srgb, var(--mt-accent) 60%, transparent);
+    background-color: color-mix(in srgb, var(--mt-accent) 8%, transparent);
+    transition:
+        box-shadow var(--mt-duration-flow) var(--mt-ease),
+        background-color var(--mt-duration-flow) var(--mt-ease);
+}
+
+svg .mt-glow {
+    box-shadow: none;
+    background-color: transparent;
+    filter: drop-shadow(0 0 5px var(--mt-accent));
+    transition: filter var(--mt-duration-flow) var(--mt-ease);
+}
+
+/* Reduced motion: nothing moves, grows or blurs; the change still reads through a short fade. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-flow-in,
+    .mt-arrive,
+    svg .mt-flow-in {
+        animation: mt-fade-in var(--mt-duration-fade) linear both;
+    }
+
+    .mt-melt-out,
+    svg .mt-melt-out {
+        animation: mt-fade-out var(--mt-duration-fade) linear both;
+    }
+
+    .mt-glow-pass,
+    svg .mt-glow-pass {
+        animation-duration: var(--mt-duration-fade);
+        animation-timing-function: linear;
+    }
+
+    .mt-move,
+    .mt-glow {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-flow-in,
+.prefers-reduced-motion .mt-arrive,
+.prefers-reduced-motion svg .mt-flow-in {
+    animation: mt-fade-in var(--mt-duration-fade) linear both;
+}
+
+.prefers-reduced-motion .mt-glow-pass,
+.prefers-reduced-motion svg .mt-glow-pass {
+    animation-duration: var(--mt-duration-fade);
+    animation-timing-function: linear;
+}
+
+.prefers-reduced-motion .mt-melt-out,
+.prefers-reduced-motion svg .mt-melt-out {
+    animation: mt-fade-out var(--mt-duration-fade) linear both;
+}
+
+.prefers-reduced-motion .mt-move,
+.prefers-reduced-motion .mt-glow {
+    transition: none;
+}
+
+@keyframes mt-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}

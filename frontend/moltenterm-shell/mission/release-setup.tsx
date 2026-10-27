@@ -9,11 +9,14 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useT, useTCount } from "../i18n/i18n";
+import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { MotionClass } from "../molten-motion";
 import { DominoLoader } from "../suite/suite";
 import { analysePipeline, optionsOfAnswers, PointAnswers, sameOptions } from "./release-setup-analyse-model";
+import { BoardSection, useBoardText, useSetupBoard } from "./release-setup-board";
+import { acceptedBy, acceptedKeys, boardSteps, openItems, previewDraft } from "./release-setup-board-model";
 import {
     setupDeleteTemplate,
     setupDraft,
@@ -53,6 +56,7 @@ import { plainChannels, stepText } from "./release-setup-plain-model";
 import { PrFooterButtons, UncommittedNotice, useCopyPatch, useSetupPr } from "./release-setup-pr";
 import { PreparedStep } from "./release-setup-prepared";
 import { proposedFiles, updateDraftOf } from "./release-setup-prepared-model";
+import { setupProgress, SetupProgression } from "./release-setup-progression";
 import { AgentAvailability } from "./release-setup-proposal";
 import { FlowReasons, LabelsSection, ReconcileCheck } from "./release-setup-reasons";
 import { SurveyStates } from "./release-setup-states";
@@ -66,7 +70,6 @@ import {
     stepIndex,
     StepperStep,
     StepperSteps,
-    stepReachable,
 } from "./release-setup-stepper";
 import { TemplateStep, useDefaultTemplateName, useTemplateSave } from "./release-setup-template";
 import { canSaveTemplate, SetupTemplateFit } from "./release-setup-template-model";
@@ -578,127 +581,6 @@ export function DiffView({ before, after }: { before: string; after: string }) {
     );
 }
 
-function StepBar({
-    step,
-    survey,
-    appType,
-    path,
-    ready,
-    locked,
-    templateSaved,
-    onStep,
-    update,
-}: {
-    step: StepperStep;
-    survey: SetupSurvey;
-    appType: SetupAppType;
-    path: SetupPath;
-    ready: boolean;
-    locked: boolean;
-    templateSaved?: boolean;
-    onStep: (s: StepperStep) => void;
-    // Step 2a of a project already set up (#1102): how many changes the update proposes; null otherwise.
-    update?: { changes: number };
-}) {
-    const t = useT();
-    const tCount = useTCount();
-    const at = stepIndex(step);
-    const sub = (s: StepperStep, i: number): string => {
-        if (s === "detect") {
-            if (survey == null || appType == null) {
-                return t("mc.setup.stepper.reading");
-            }
-            const type = t(`mc.setup.appType.${appType}Short`);
-            return survey.ships
-                ? t("mc.setup.stepper.detectShips", { type })
-                : t("mc.setup.stepper.detectNoShips", { type });
-        }
-        if (s === "template") {
-            return templateSaved ? t("mc.setup.template.savedSub") : t("mc.setup.stepper.optional");
-        }
-        if (i > at) {
-            return "—";
-        }
-        if (s === "understand" && update != null && path === "analyse") {
-            return update.changes > 0
-                ? tCount("mc.setup.stepper.updateSub", update.changes)
-                : t("mc.setup.stepper.upToDateSub");
-        }
-        if (s === "understand") {
-            return path === "describe" ? t("mc.setup.stepper.describeSub") : t("mc.setup.stepper.analyseSub");
-        }
-        return t("mc.setup.stepper.prepareSub");
-    };
-    return (
-        <div className="@container">
-            <ol className="mb-1 grid grid-cols-2 gap-1.5 @min-[44rem]:grid-cols-4" data-testid="setup-steps">
-                {StepperSteps.map((s, i) => {
-                    const reachable = !locked && stepReachable(s, step, ready);
-                    return (
-                        <li key={s} className="min-w-0">
-                            <button
-                                type="button"
-                                disabled={!reachable || s === step}
-                                onClick={() => onStep(s)}
-                                aria-current={s === step ? "step" : undefined}
-                                className={cn(
-                                    "flex w-full cursor-pointer items-start gap-2 rounded-6 border px-2.5 py-1.5 text-left disabled:cursor-default",
-                                    s === step
-                                        ? "border-accent/70 bg-accent/10"
-                                        : i < at
-                                          ? "border-success/40 hover:border-success/70"
-                                          : "border-border opacity-80"
-                                )}
-                                data-testid={`setup-step-${s}`}
-                            >
-                                <span
-                                    className={cn(
-                                        "mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border font-mono text-11",
-                                        s === step
-                                            ? "border-accent text-accent"
-                                            : i < at
-                                              ? "border-success text-success"
-                                              : "border-border text-muted"
-                                    )}
-                                >
-                                    {i < at ? "✓" : i + 1}
-                                </span>
-                                <span className="flex min-w-0 flex-col">
-                                    <span className="text-12 font-medium text-primary">
-                                        {t(`mc.setup.stepper.step.${s}`)}
-                                    </span>
-                                    <span className="truncate text-11 text-muted">{sub(s, i)}</span>
-                                    {s === "understand" ? (
-                                        <span className="mt-0.5 flex gap-1 text-10">
-                                            {(["analyse", "describe"] as SetupPath[]).map((p) => (
-                                                <span
-                                                    key={p}
-                                                    className={cn(
-                                                        "rounded-4 border px-1",
-                                                        p === path
-                                                            ? "border-accent/60 text-accent"
-                                                            : "border-border text-muted"
-                                                    )}
-                                                >
-                                                    {t(
-                                                        p === "analyse" && update != null
-                                                            ? "mc.setup.stepper.fork.update"
-                                                            : `mc.setup.stepper.fork.${p}`
-                                                    )}
-                                                </span>
-                                            ))}
-                                        </span>
-                                    ) : null}
-                                </span>
-                            </button>
-                        </li>
-                    );
-                })}
-            </ol>
-        </div>
-    );
-}
-
 // The deployment pipeline setup (FR-MC-038): Detect, Understand (2a / 2b), Prepare and validate, Template (FR-MC-042).
 // Step 3 is the prepared pipeline with its exact changes and its pull request (#1104, release-setup-prepared.tsx). The
 // answers are kept per project between openings. A project already set up takes path 2a through the update check
@@ -1025,8 +907,46 @@ export function ReleaseSetup({
             chooseKind(kind);
         }
     };
-    const text = refined?.proposed ?? draft?.proposed ?? "";
-    const errors = refined?.errors ?? draft?.errors ?? [];
+    // Path 2a of a project already set up (#1102): the update check, not the analysis points.
+    const updating = survey?.pipeline === "complete" && path === "analyse" && upd.check?.state !== "missing";
+    const check = updating ? upd.check : null;
+    const updateDraft = useMemo(
+        () => (check != null && draft != null ? updateDraftOf(draft, check) : null),
+        [check, draft]
+    );
+    // The terminal agent's board (FR-MC-045, #1163): its accepted changes join the draft the pull request writes,
+    // on whatever base the developer is on (going back or changing a choice keeps them).
+    const board = useSetupBoard(dir);
+    const baseText = refined?.proposed ?? (updating ? updateDraft?.proposed : draft?.proposed) ?? "";
+    const boardText = useBoardText(dir, baseText, board.state);
+    const agentProposed = boardText?.proposed ?? refined?.proposed;
+    // Step 3 shows the accepted changes like an agent's proposal (#1099): in the diff, the choices locked.
+    const shownRefined = useMemo<SetupProposalResult>(
+        () =>
+            boardText == null
+                ? refined
+                : {
+                      proposed: boardText.proposed,
+                      errors: boardText.errors ?? [],
+                      validatewarnings: boardText.validatewarnings ?? [],
+                      agentname: refined?.agentname || acceptedBy(board.state),
+                  },
+        [boardText, refined, board.state]
+    );
+    const text = boardText?.proposed ?? refined?.proposed ?? draft?.proposed ?? "";
+    const errors = boardText?.errors ?? refined?.errors ?? draft?.errors ?? [];
+    const boardScreen = step === "understand" && path === "describe" ? "describe" : step;
+    const boardStepList = useMemo(
+        () =>
+            draft == null ? [] : boardSteps(plainChannels(survey, previewDraft(draft, board.state)), t, board.state),
+        [survey, draft, board.state, t]
+    );
+    useEffect(() => {
+        if (!dir || draft == null || !(boardText?.proposed ?? baseText)) {
+            return;
+        }
+        board.publish({ dir, screen: boardScreen, text: boardText?.proposed ?? baseText, steps: boardStepList });
+    });
     const write = (mode: "pr" | "patch") =>
         pr.start(async () => {
             const job = await setupWrite(
@@ -1055,9 +975,6 @@ export function ReleaseSetup({
         load(touched ? options : null, touched ? undefined : options?.kind);
     };
 
-    // Path 2a of a project already set up (#1102): the update check, not the analysis points.
-    const updating = survey?.pipeline === "complete" && path === "analyse" && upd.check?.state !== "missing";
-    const check = updating ? upd.check : null;
     const update = (mode: "pr" | "patch") =>
         pr.start(async () => {
             const job = await setupUpdate(
@@ -1068,7 +985,7 @@ export function ReleaseSetup({
                 prRequestOf(check.pr, ticket, mode),
                 upd.options ?? undefined,
                 true,
-                refined?.proposed
+                agentProposed
             );
             onWritten();
             return job;
@@ -1079,19 +996,16 @@ export function ReleaseSetup({
         upd.reload();
     };
     // The agent's ticked changes (#1106) make an update of their own, even on an up-to-date pipeline.
-    const refinedUpdate = refined != null && refined.errors.length === 0 && refined.proposed !== check?.current;
+    const agentErrors = boardText?.errors ?? refined?.errors ?? [];
+    const refinedUpdate = agentProposed != null && agentErrors.length === 0 && agentProposed !== check?.current;
     const canUpdate = (mode: "pr" | "patch") =>
         check != null &&
         (updateReady(check) || refinedUpdate) &&
-        (refined == null || refined.errors.length === 0) &&
+        agentErrors.length === 0 &&
         !upd.loading &&
         !refining &&
         !done &&
         canOpenPr(check.pr, ticket, mode);
-    const updateDraft = useMemo(
-        () => (check != null && draft != null ? updateDraftOf(draft, check) : null),
-        [check, draft]
-    );
     const agent: AgentAvailability =
         survey?.agent == null ? undefined : { name: survey.agentname ?? "", missing: survey.agentmissing };
     const analysing = step === "understand" && path === "analyse" && !updating;
@@ -1167,6 +1081,38 @@ export function ReleaseSetup({
                   : !nothing
               : step === "prepare" && !loading && !refining && !nothing && canSaveTemplate(draft, options));
     const next = StepperSteps[at + 1];
+    const locked = draft == null || writing || done || templateForm.saving;
+    const progress = setupProgress({
+        step,
+        path,
+        open: openItems(board.state).length,
+        accepted: acceptedKeys(board.state).length,
+        prOpened: done,
+        templateSaved: templateForm.saved != null,
+    });
+    const progression = (
+        <SetupProgression
+            current={progress.current}
+            markers={progress.markers.map((m) => ({
+                ...m,
+                onClick: locked
+                    ? undefined
+                    : m.id === "understand"
+                      ? () => {
+                            if (path !== "analyse") {
+                                choosePath("analyse");
+                            }
+                            goTo("understand");
+                        }
+                      : m.id === "adjust"
+                        ? () => {
+                              choosePath("describe");
+                              goTo("understand");
+                          }
+                        : undefined,
+            }))}
+        />
+    );
     const uncommitted =
         check != null ? (
             <UncommittedNotice plan={check.pr} current={check.current} onInclude={upd.include} asChanges />
@@ -1178,6 +1124,8 @@ export function ReleaseSetup({
             title={t("mc.setup.title", { project: projectName })}
             subtitle={t("mc.setup.subtitle")}
             aside={aside}
+            progress={progression}
+            screenKey={`${step}/${path}`}
             buttons={
                 <>
                     <span className="mr-auto flex items-center gap-2 text-11 text-muted">
@@ -1287,19 +1235,6 @@ export function ReleaseSetup({
                 </>
             }
         >
-            {plainShown ? null : (
-                <StepBar
-                    step={step}
-                    survey={survey}
-                    appType={appType}
-                    path={path}
-                    ready={ready}
-                    locked={draft == null || writing || done || templateForm.saving}
-                    templateSaved={templateForm.saved != null}
-                    onStep={goNext}
-                    update={check != null ? { changes: check.changes.length } : undefined}
-                />
-            )}
             {(error && !(step === "detect" && survey?.pipeline === "invalid")) || (updating && upd.error) ? (
                 <p
                     className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-danger"
@@ -1357,6 +1292,7 @@ export function ReleaseSetup({
                         <p className="text-11 text-muted">{t("mc.setup.choicesReplace")}</p>
                     ) : null}
                     {writing || done ? null : uncommitted}
+                    {plainShown ? null : <BoardSection board={board} items={openItems(board.state)} />}
                     {step === "understand" && updating && check == null ? (
                         upd.error ? null : (
                             <div className="flex items-center gap-2 py-6 text-12 text-muted">
@@ -1382,6 +1318,8 @@ export function ReleaseSetup({
                             onDescribe={() => choosePath("describe")}
                             onAdjust={() => choosePath("describe")}
                             onConfirm={() => goNext("prepare")}
+                            board={board}
+                            progress={null}
                             allChoices={
                                 <fieldset disabled className="flex flex-col gap-3" data-testid="setup-all-choices">
                                     <legend className="mb-2 text-11 font-medium text-secondary uppercase">
@@ -1458,12 +1396,12 @@ export function ReleaseSetup({
                     ) : null}
                     {step === "prepare" && check != null && updateDraft != null ? (
                         <>
-                            {refined == null ? <UpdateFilesNote check={check} /> : null}
+                            {shownRefined == null ? <UpdateFilesNote check={check} /> : null}
                             <PreparedStep
                                 dir={dir}
                                 draft={updateDraft}
                                 options={updateDraft.options}
-                                refined={refined}
+                                refined={shownRefined}
                                 onRefined={setRefined}
                                 onRefining={setRefining}
                                 update={{ template: check.template }}
@@ -1485,7 +1423,7 @@ export function ReleaseSetup({
                             dir={dir}
                             draft={draft}
                             options={options}
-                            refined={refined}
+                            refined={shownRefined}
                             onRefined={setRefined}
                             onRefining={setRefining}
                             onOptions={loading ? undefined : change}
@@ -1518,26 +1456,40 @@ function SetupPanelFrame({
     title,
     subtitle,
     aside,
+    progress,
+    screenKey,
     children,
     buttons,
 }: {
     title: string;
     subtitle: string;
     aside?: React.ReactNode;
+    // The progression stays put while the screens under it change (molten motion: the next one arrives).
+    progress?: React.ReactNode;
+    screenKey?: string;
     children: React.ReactNode;
     buttons: React.ReactNode;
 }) {
     return (
-        <div className="flex h-full min-h-0 w-full flex-col" data-role="mc-release-setup">
-            <div className="shrink-0 border-b border-border px-4 py-3">
+        <div className="@container/setup flex h-full min-h-0 w-full flex-col" data-role="mc-release-setup">
+            {/* The header stays above the scrolling blocks: a chip or an icon tile rising above a block's border
+                slides under it, never over it (#1163). */}
+            <div className="relative z-10 shrink-0 border-b border-border bg-background px-8 py-3 shadow-[0_8px_12px_-10px_rgb(0_0_0/0.7)] @max-w600/setup:px-5">
                 <div className="text-13 leading-5 font-semibold">{title}</div>
                 <div className="mt-0.5 text-12 text-muted">{subtitle}</div>
                 {aside ? <div className="mt-2">{aside}</div> : null}
             </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4 py-3 text-12">{children}</div>
+            {/* The Settings page's frame (settings-page.tsx): the suite's page colour, 32 px each side so a block's icon
+                tile, 16 px outside its border, keeps a margin, 20 px on a narrow panel. */}
+            <div className="isolate flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-(--df-page) px-8 pt-4 pb-10 text-12 @max-w600/setup:px-5">
+                {progress}
+                <div key={screenKey} className={cn("flex flex-col gap-3", MotionClass.arrive)}>
+                    {children}
+                </div>
+            </div>
             <div
                 data-dialog-buttons
-                className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3"
+                className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-8 py-3 @max-w600/setup:px-5"
             >
                 {buttons}
             </div>

@@ -37,6 +37,11 @@ var textFieldNames = map[string]bool{
 var englishFields = map[string]string{
 	"mission.BranchCiBranch.Error":         "gh's raw error reading a branch's runs, data shown as gh said it (#836)",
 	"pipelinesetup.SurveyReleases.Error":   "gh's raw error, the detail under mc.setup.detect.releasesUnread (#1100)",
+	"pipelinesetup.BoardItem.Why":          "the setup agent's own one-line reason, shown on its card as it wrote it (#1163)",
+	"pipelinesetup.BoardExplain.Note":      "the setup agent's own words beside the highlighted step (#1163)",
+	"pipelinesetup.BoardRefusal.Detail":    "`molten pipeline setup` output, agent-facing (#1163)",
+	"mission.SetupAgentRequest.Why":        "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
+	"mission.SetupAgentRequest.Note":       "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
 	"review.MergePlan.Warnings":            "check ids (MergeCheck codes), worded by the Validate sheet",
 	"review.MergeRecord.Error":             "gh's raw error (tokens masked), the detail under Code, which the sheet words",
 	"review.Forecast.Error":                "a code (ForecastError…) the Reviews list words under reviews.forecast.error.*",

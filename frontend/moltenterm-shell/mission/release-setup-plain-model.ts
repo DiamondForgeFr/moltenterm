@@ -43,7 +43,8 @@ export type PlainKind =
 
 // Who does the step: MoltenTerm alone, the developer by hand, MoltenTerm once the developer confirmed, or a platform
 // approval the developer gives.
-export type PlainWho = "molten" | "you" | "confirm" | "approve";
+// validate: the developer reviews and validates what MoltenTerm prepared; only the setup agent's words use it (#1163).
+export type PlainWho = "molten" | "you" | "confirm" | "approve" | "validate";
 
 // A value of a sentence: as is, or a list joined in the interface language (keys translated first).
 export type PlainVar = string | number | { keys?: string[]; names?: string[] };

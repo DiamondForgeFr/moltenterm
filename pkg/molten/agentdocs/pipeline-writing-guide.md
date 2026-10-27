@@ -74,6 +74,28 @@ validation request.
 - The names of version branches and working folders.
 - Where the version number lives in the project.
 
+## Keeping the panel in step
+
+When you talk in the setup tab's terminal, the panel beside you is where the developer decides (FR-MC-045). Keep it in
+step with what you say, through the `molten pipeline setup` commands. They reach only this tab's setup, change only
+its draft and never write a file. `pipeline-setup-agent.md`, in the folder `molten docs` prints, gives the details.
+
+- `molten pipeline setup show`: what the developer sees now, with the steps numbered as the panel shows them.
+- `molten pipeline setup explain public/3 "a few words"` while you explain a step, and `--clear` when you move on.
+- Whenever the conversation agrees on a change, propose it in the panel instead of only saying it:
+  `molten pipeline setup propose '<one change>' --why "one line in plain words"`. Then say it waits for them there.
+- Give the changed step's new sentence and who does it, so the panel shows the step before and after: `--say "La
+  note est rédigée automatiquement à partir des tickets fusionnés ; vous la relisez et la validez." --who validate`
+  (`molten`, `you`, `confirm`, `approve` or `validate`). Write the sentence like the panel's: plain words, the
+  developer's language, no file, command or setting.
+- A change to a step that exists in both versions (the release candidate and the public release, for example the
+  changelog) applies to both unless the developer said otherwise: propose it for each version, one command each. If
+  you propose only one, the panel offers "Apply to the other version too".
+- `molten pipeline setup flag "the point" --step public/2 --answer "your proposed answer"` for a point to check.
+- `molten pipeline setup withdraw <key>` when the conversation changed its mind.
+
+Every proposal is optional: the developer accepts or declines it in the panel, or goes on without deciding.
+
 ## Example answers
 
 - "What is bringing master back into develop for?" — "To start again from what was published. During the release,

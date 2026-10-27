@@ -434,13 +434,17 @@ export function UpdateStep({
 // Step 3 of the update, above the prepared pipeline (#1106): what the pull request writes, in one line.
 export function UpdateFilesNote({ check }: { check: SetupCheck }) {
     const t = useT();
+    // Which blocks of which files change is a technical detail (#1163): it waits behind the details, closed.
     return (
-        <p className="text-11 text-muted" data-testid="update-files">
-            {check.state !== "update"
-                ? t("mc.setup.update.nothing")
-                : check.proposed === check.current
-                  ? t("mc.setup.update.keepAll")
-                  : t("mc.setup.update.filesHint")}
-        </p>
+        <details className="text-11 text-muted" data-testid="update-files">
+            <summary className="cursor-pointer">{t("mc.setup.plain.technical.show")}</summary>
+            <p className="mt-1">
+                {check.state !== "update"
+                    ? t("mc.setup.update.nothing")
+                    : check.proposed === check.current
+                      ? t("mc.setup.update.keepAll")
+                      : t("mc.setup.update.filesHint")}
+            </p>
+        </details>
     );
 }

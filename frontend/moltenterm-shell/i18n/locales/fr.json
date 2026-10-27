@@ -3537,6 +3537,61 @@
             "title": "Pipeline de déploiement · {project}",
             "subtitle": "Comprendre, ajuster et valider comment ce projet est livré. Rien n’est écrit avant votre pull request.",
             "reading": "Lecture du dépôt…",
+            "progress": {
+                "understand": "Comprendre",
+                "understandSub": "Ce que fait votre projet aujourd’hui",
+                "adjust": "Ajuster",
+                "adjustSub": "Ce que vous voulez changer",
+                "validate": "Valider",
+                "validateSub": "La demande de validation à relire",
+                "openCount": "{count} proposition(s) en attente",
+                "acceptedCount": "{count} changement(s) accepté(s)",
+                "part": {
+                    "read": "Lecture du dépôt",
+                    "flow": "Votre façon de publier",
+                    "describe": "Votre description",
+                    "proposals": "Les propositions de l’agent",
+                    "request": "La demande de validation",
+                    "template": "Le modèle (facultatif)"
+                }
+            },
+            "board": {
+                "title": "Propositions du terminal",
+                "hint": "L’agent à vos côtés propose ; rien ne change tant que vous n’acceptez pas, et vous pouvez continuer.",
+                "proposedBy": "Proposé par {name}",
+                "proposedByAgent": "Proposé par l’agent",
+                "op": {
+                    "add": "Ajouter une étape : {title}",
+                    "change": "Modifier l’étape : {title}",
+                    "remove": "Retirer l’étape : {title}",
+                    "versions": "Changer les réglages de version"
+                },
+                "details": "Voir le changement",
+                "before": "Avant",
+                "after": "Après",
+                "accept": "Accepter",
+                "acceptRemove": "Retirer l’étape",
+                "decline": "Refuser",
+                "copyTo": {
+                    "rc": "Appliquer aussi à la version candidate",
+                    "public": "Appliquer aussi à la version publique"
+                },
+                "stepRef": "Étape {n}",
+                "flag": {
+                    "title": "À vérifier",
+                    "answer": "Réponse proposée : {answer}",
+                    "keep": "Garder cette réponse",
+                    "noted": "Noté",
+                    "dismiss": "Écarter"
+                },
+                "explaining": "{name} explique cette étape",
+                "explainingAgent": "L’agent explique cette étape",
+                "mark": {
+                    "add": "proposée",
+                    "change": "modification proposée",
+                    "remove": "retrait proposé"
+                }
+            },
             "plain": {
                 "title": "Votre façon de publier",
                 "headline": "Voici comment ce projet publie une version.",
@@ -3558,7 +3613,8 @@
                     "molten": "MoltenTerm s’en charge",
                     "you": "Vous, à la main",
                     "confirm": "Votre confirmation",
-                    "approve": "Votre approbation"
+                    "approve": "Votre approbation",
+                    "validate": "Vous validez"
                 },
                 "ifNeeded": "seulement si besoin",
                 "yours": "votre étape",
@@ -8051,6 +8107,9 @@
                 "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
                 "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
                 "agentNoChanges": "{agent} a répondu sans liste de changements.",
+                "boardGone": "Cette proposition a été retirée.",
+                "boardCopied": "L’autre version a déjà cette proposition.",
+                "boardStale": "Cette proposition ne correspond plus au brouillon, qui a changé depuis : redemandez à l’agent.",
                 "agentWholeFile": "{agent} a répondu par un fichier de pipeline entier au lieu de changements d’étapes : rien n’en est repris. Redemandez.",
                 "pastedNoChanges": "La réponse collée ne contient pas de liste de changements.",
                 "pastedWholeFile": "La réponse collée est un fichier de pipeline entier, pas des changements d’étapes : rien n’en est repris.",
@@ -8580,7 +8639,11 @@
             "missing": "{agent} est choisi pour ce projet mais n'est pas installé sur cet ordinateur.",
             "choose": "Choisir un agent",
             "busy": "Le terminal de gauche exécute déjà quelque chose : attendez qu'il ait fini, ou arrêtez-le, puis redemandez.",
-            "failed": "L'agent n'a pas pu être sollicité. Regardez le terminal de gauche, ou réessayez."
+            "failed": "L'agent n'a pas pu être sollicité. Regardez le terminal de gauche, ou réessayez.",
+            "linkedAgent": "{agent}, à gauche",
+            "linkedTerminal": "Le terminal du projet est ouvert à gauche.",
+            "linkedTerminalNamed": "Le terminal du projet est ouvert à gauche ; {agent} y démarre à votre demande.",
+            "goto": "Y aller"
         }
     },
     "codingAgent": {

@@ -3537,6 +3537,61 @@
             "title": "Deployment pipeline · {project}",
             "subtitle": "Understand, adjust and validate how this project ships. Nothing is written before your pull request.",
             "reading": "Reading the repository…",
+            "progress": {
+                "understand": "Understand",
+                "understandSub": "What your project does today",
+                "adjust": "Adjust",
+                "adjustSub": "What you want to change",
+                "validate": "Validate",
+                "validateSub": "The validation request to review",
+                "openCount": "{count} proposal(s) waiting",
+                "acceptedCount": "{count} change(s) accepted",
+                "part": {
+                    "read": "Reading the repository",
+                    "flow": "Your way of publishing",
+                    "describe": "Your description",
+                    "proposals": "The agent's proposals",
+                    "request": "The validation request",
+                    "template": "The template (optional)"
+                }
+            },
+            "board": {
+                "title": "Proposals from the terminal",
+                "hint": "The agent beside you proposes; nothing changes until you accept, and you can keep going.",
+                "proposedBy": "Proposed by {name}",
+                "proposedByAgent": "Proposed by the agent",
+                "op": {
+                    "add": "Add a step: {title}",
+                    "change": "Change the step: {title}",
+                    "remove": "Remove the step: {title}",
+                    "versions": "Change the version settings"
+                },
+                "details": "See the change",
+                "before": "Before",
+                "after": "After",
+                "accept": "Accept",
+                "acceptRemove": "Remove the step",
+                "decline": "Decline",
+                "copyTo": {
+                    "rc": "Apply to the release candidate too",
+                    "public": "Apply to the public release too"
+                },
+                "stepRef": "Step {n}",
+                "flag": {
+                    "title": "To check",
+                    "answer": "Proposed answer: {answer}",
+                    "keep": "Keep this answer",
+                    "noted": "Noted",
+                    "dismiss": "Dismiss"
+                },
+                "explaining": "{name} is explaining this step",
+                "explainingAgent": "The agent is explaining this step",
+                "mark": {
+                    "add": "proposed",
+                    "change": "change proposed",
+                    "remove": "removal proposed"
+                }
+            },
             "plain": {
                 "title": "Your way of publishing",
                 "headline": "Here is how this project publishes a version.",
@@ -3558,7 +3613,8 @@
                     "molten": "MoltenTerm does it",
                     "you": "You, by hand",
                     "confirm": "Your confirmation",
-                    "approve": "Your approval"
+                    "approve": "Your approval",
+                    "validate": "You validate"
                 },
                 "ifNeeded": "only if needed",
                 "yours": "your step",
@@ -8051,6 +8107,9 @@
                 "noAgent": "No supported coding agent (Claude Code or Codex) is installed on this computer.",
                 "agentFailed": "{agent} could not refine the draft: {detail}",
                 "agentNoChanges": "{agent} answered without a list of changes.",
+                "boardGone": "This proposal was withdrawn.",
+                "boardCopied": "The other version already has this proposal.",
+                "boardStale": "This proposal no longer fits the draft, which changed since: ask the agent again.",
                 "agentWholeFile": "{agent} answered with a whole pipeline file instead of step changes: nothing of it is taken. Ask again.",
                 "pastedNoChanges": "The pasted answer holds no list of changes.",
                 "pastedWholeFile": "The pasted answer is a whole pipeline file, not step changes: nothing of it is taken.",
@@ -8580,7 +8639,11 @@
             "missing": "{agent} is chosen for this project but is not installed on this computer.",
             "choose": "Choose an agent",
             "busy": "The terminal on the left is running something: wait for it to finish, or stop it, then ask again.",
-            "failed": "The agent could not be asked. Look at the terminal on the left, or try again."
+            "failed": "The agent could not be asked. Look at the terminal on the left, or try again.",
+            "linkedAgent": "{agent}, on the left",
+            "linkedTerminal": "The project's terminal is open on the left.",
+            "linkedTerminalNamed": "The project's terminal is open on the left; {agent} starts there when you ask.",
+            "goto": "Go there"
         }
     },
     "codingAgent": {

@@ -38,6 +38,7 @@ function deps(choice: CodingAgentChoice, blocks: Block[], over: Partial<Pipeline
             asks.push(data);
             return { status: running.has(data.blockid as string) ? "sent" : "noagent" } as const;
         }),
+        focus: vi.fn(),
         ...over,
     };
     return { d, asks, running };
@@ -65,6 +66,16 @@ describe("askPipelineAgent", () => {
         expect(d.newTerminal).not.toHaveBeenCalled();
         expect(d.type).not.toHaveBeenCalled();
         expect(asks).toEqual([{ dir: Dir, project: "App", context: Req.context, blockid: "term" }]);
+        expect(d.focus).toHaveBeenCalledWith("term");
+    });
+
+    it("gives the terminal the keyboard after every ask, a new one included (#1163)", async () => {
+        const { d } = deps(fake, [panel]);
+        await askPipelineAgent(Dir, "App", "panel", Req, d);
+        expect(d.focus).toHaveBeenCalledWith("new-term");
+        const busy = deps(fake, [panel, tabTerm], { atPrompt: async () => false });
+        await askPipelineAgent(Dir, "App", "panel", Req, busy.d);
+        expect(busy.d.focus).toHaveBeenCalledWith("term");
     });
 
     it("starts the agent in the tab's terminal when none runs there", async () => {

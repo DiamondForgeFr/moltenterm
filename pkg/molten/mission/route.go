@@ -34,6 +34,7 @@ type routeLink struct {
 	launches  *Launches
 	asks      *TrustAsks
 	setup     *pipelinesetup.Setup
+	board     *SetupBoardRoute
 }
 
 type ciLogRequest struct {
@@ -538,10 +539,18 @@ func (l *routeLink) route() localroute.Route {
 		policy.Commands[command] = localroute.AllowWindow
 		policy.Refusals[command] = refusal
 	}
+	// The setup's agent board (FR-MC-045): local terminals for the agent, windows for the panel.
+	addSetupBoardPolicy(policy)
 	return localroute.Route{
 		Id:     RouteId,
 		Policy: policy,
-		Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
+		Handler: func(ctx context.Context, command string, caller localroute.Caller, data any) (any, error) {
+			if IsSetupBoardCommand(command) {
+				if l.board == nil {
+					return nil, fmt.Errorf("the pipeline setup's agent board is not available")
+				}
+				return l.board.Handle(ctx, command, caller, data)
+			}
 			answer, err := l.handle(command, data)
 			if err != nil {
 				return answer, err
@@ -569,7 +578,7 @@ func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, workt
 	setup.ProjectDirs = linkedProjectDirs
 	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews,
 		branchCi: MakeBranchCi(collector, runs, ExecRunner), treePrs: MakeTreePrs(ExecRunner),
-		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup}
+		testCtx: MakeTestContexts(panes, collector), launches: launches, asks: asks, setup: setup, board: MakeSetupBoardRoute()}
 	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }
