@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
-// functions: the view applies them and writes the result.
+// functions: the view applies them and writes the result. Since #1187 (FR-SHELL-083) a panel shows one page: what
+// opened a tab opens a panel beside it, and the list holds that one page.
 
 // must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenKeyPrefix and BrowserRecentMetaKey in
 // pkg/molten/browser.go
@@ -106,6 +107,50 @@ export function browserBlockDef(url: string, notice?: string, askEngine?: boolea
         meta[BrowserAskMetaKey] = true;
     }
     return { meta: meta as MetaType };
+}
+
+export type BesideOpts = { notice?: string; ask?: boolean; keepFocus?: boolean };
+
+// A browser panel shows one page (FR-SHELL-083, #1187): a page opened "in a new tab" becomes a panel of its own. Its
+// block starts with that page as its single tab, keeping the tab's id when it has one (an agent's tab, a tab split out
+// of an older panel), so the agents' and the panel's references to it stay valid.
+export function besideBlockDef(tab: Partial<BrowserTab> & { url: string }, opts?: BesideOpts): BlockDef {
+    const def = browserBlockDef(tab.url, opts?.notice, opts?.ask);
+    const meta = def.meta as Record<string, any>;
+    if (opts?.ask && opts?.keepFocus) {
+        meta[BrowserKeepFocusMetaKey] = true;
+    }
+    if (tab.id) {
+        const saved: Record<string, string> = { id: tab.id, url: tab.url };
+        if (tab.title) {
+            saved.title = tab.title;
+        }
+        if (tab.engine) {
+            saved.engine = tab.engine;
+        }
+        meta[BrowserTabsMetaKey] = [saved];
+        meta[BrowserActiveMetaKey] = tab.id;
+    }
+    return def;
+}
+
+// A panel saved with several tabs, from before panels showed one page (#1187): it keeps its shown tab, the others
+// leave in their order, each to become a panel of its own. Null when the panel has one tab.
+export function splitOutTabs(state: BrowserState): { kept: BrowserState; moved: BrowserTab[] } {
+    if (state == null || state.tabs.length <= 1) {
+        return null;
+    }
+    const shown = state.tabs.find((t) => t.id === state.activeId) ?? state.tabs[0];
+    return {
+        kept: { tabs: [shown], activeId: shown.id },
+        moved: state.tabs.filter((t) => t.id !== shown.id),
+    };
+}
+
+// An empty page a new page may replace instead of opening beside it.
+export function isBlankPage(url: string): boolean {
+    const text = (url ?? "").trim();
+    return text === "" || text === "about:blank";
 }
 
 // Where a link opened inside Moltenterm goes (#140): the most recently focused browser panel of the tab that still

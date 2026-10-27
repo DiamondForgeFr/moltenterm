@@ -393,10 +393,32 @@
     }
 }
 
+/* The top field's results (FR-SHELL-083, #1187), as the prototype's .omni-pop: a raised warm surface under the field.
+   It lives in a portal, outside .mt-sb, so it carries its own colours. */
+.mt-sb-omni-pop {
+    background: #26221f;
+    box-shadow:
+        0 18px 44px rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    animation: mt-sb-omni-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-sb-omni-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .mt-sb-hp.mt-sb-grow,
     .mt-sb-pips,
-    .mt-sb-pip.is-bump {
+    .mt-sb-pip.is-bump,
+    .mt-sb-omni-pop {
         animation: none;
     }
 }

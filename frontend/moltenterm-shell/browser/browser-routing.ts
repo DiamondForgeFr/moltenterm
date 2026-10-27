@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it becomes a new tab of the
-// browser panel the user last focused in the current tab, and only gets a panel of its own when the tab has none.
+// Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it opens beside the browser
+// panel the user last focused in the current tab (a panel of its own since #1187), or in a new panel when the tab has
+// none.
 // wsh does the same from the backend (cmd/wsh/cmd/wshcmd-molten-browser.go) through a queue in the block meta (BrowserOpenKeyPrefix).
 // Interface links reach it through Wave's openLink (FR-BRW-006, DS-BRW-006); the routing never activates another tab or
 // workspace. The first link to a site without an engine opens here at once and asks (DS-BRW-007); `molten open` never
@@ -32,9 +33,7 @@ import { choiceSite } from "./link-choice";
 type BrowserPanelModel = ViewModel & {
     state: () => BrowserState;
     showUrlInTab: (id: string, url: string) => void;
-    openUrlInNewTab: (url: string, askSite?: string) => void;
-    addHandoffEntry: (url: string, engine: string) => void;
-    showNotice: (text: string) => void;
+    openUrlInNewTab: (url: string, askSite?: string, notice?: string) => void;
 };
 
 function currentTab(): Tab {
@@ -82,17 +81,13 @@ async function openInBrowserPanelNow(url: string): Promise<void> {
     const model = targetId ? browserPanelModel(targetId) : null;
     const { route, notice } = await routeToInstalledBrowser(url);
     if (route != null && route.engine !== EngineApp) {
-        // The handed-off entry goes to the tab's panel; no panel opens just for it.
-        model?.addHandoffEntry(url, route.engine);
+        // The page is in the installed browser; no panel opens just for it.
         return;
     }
     // A page sent back by a browser that could not take it had an engine already: it never asks.
     const askSite = route == null ? linkChoiceSite(url) : null;
     if (model != null) {
-        model.openUrlInNewTab(url, askSite);
-        if (notice) {
-            model.showNotice(notice);
-        }
+        model.openUrlInNewTab(url, askSite, notice);
         return;
     }
     await createBlock(browserBlockDef(url, notice, askSite != null));

@@ -262,6 +262,16 @@ export const Shortcuts: Shortcut[] = [
         keys: "Cmd:s",
         keywords: ["sidebar", "hide", "show", "workspace"],
     },
+    // #1187: the sidebar's top field (FR-SHELL-083); with the sidebar off the keys keep their panel roles.
+    {
+        id: "top-field",
+        label: "Search, go to, open an address",
+        category: "Workspaces",
+        scope: "global",
+        keys: "Cmd:l",
+        alt: ["Cmd:k"],
+        keywords: ["top field", "search", "address", "url", "omnibox", "go to", "palette"],
+    },
     {
         id: "workspace-number",
         label: "Switch to workspace by number",

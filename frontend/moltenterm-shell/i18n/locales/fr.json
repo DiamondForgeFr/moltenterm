@@ -1739,7 +1739,7 @@
             "rename-tab": "Renommer l'onglet",
             "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
-            "term-clear": "Effacer le terminal",
+            "term-clear": "Effacer le terminal (barre latérale désactivée)",
             "term-copy-plain": "Copier la sélection en texte brut",
             "term-copy": "Copier la sélection",
             "term-paste": "Coller",
@@ -1752,7 +1752,7 @@
             "browser-close-tab": "Fermer l'onglet de navigateur",
             "browser-reload": "Recharger la page",
             "browser-hard-reload": "Recharger sans le cache",
-            "browser-address": "Aller à la barre d'adresse",
+            "browser-address": "Aller à la barre d'adresse (barre latérale désactivée)",
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
@@ -1762,7 +1762,8 @@
             "carpet-previous": "Panneau précédent sur le tapis (vue 360)",
             "carpet-next": "Panneau suivant sur le tapis (vue 360)",
             "pin-panel": "Épingler le panneau dans la zone fixe, ou le désépingler",
-            "equalize-panels": "Égaliser la largeur des panneaux"
+            "equalize-panels": "Égaliser la largeur des panneaux",
+            "top-field": "Chercher, aller à, ouvrir une adresse"
         }
     },
     "tips": {
@@ -2074,6 +2075,10 @@
                 "noFolder": "le dossier de {process} ne peut pas être lu.",
                 "noRepo": "{folder} n'est pas dans un dépôt git."
             }
+        },
+        "address": {
+            "title": "Son adresse complète s'affiche dans le champ du haut quand le panneau est actif ({keys})",
+            "label": "Adresse de la page : {address}"
         }
     },
     "cmdpanel": {
@@ -2256,7 +2261,9 @@
             "tabs": "Onglets",
             "thisSite": "Ce site",
             "links": "Liens",
-            "inspect": "Inspecter la page"
+            "inspect": "Inspecter la page",
+            "newPageBeside": "Nouvelle page à droite",
+            "duplicateBeside": "Dupliquer à droite"
         },
         "linemap": {
             "timeWindow": "Période",
@@ -8832,6 +8839,55 @@
                 "start": "Démarrer un agent",
                 "startTitle": "Démarrer ici l'agent de code de ce projet"
             }
+        }
+    },
+    "topField": {
+        "placeholder": "Vue, agent, panneau ou adresse…",
+        "inputLabel": "Chercher, ouvrir ou aller à une adresse",
+        "buttonLabel": "Champ du haut : chercher, ouvrir, aller à une adresse ({keys})",
+        "resultsLabel": "Résultats",
+        "noMatch": "Rien ne correspond.",
+        "searchWeb": "Chercher sur le web",
+        "searchQuery": "« {query} »",
+        "start": "Démarrer",
+        "add": "Ajouter",
+        "groups": {
+            "views": "Vues de {name}",
+            "agents": "Agents",
+            "workspaces": "Workspaces"
+        },
+        "address": {
+            "goTo": "Aller à",
+            "inPanel": "dans le panneau {host}",
+            "beside": "Ouvrir à côté",
+            "inThisView": "dans cette vue",
+            "newView": "Nouvelle vue",
+            "temporary": "temporaire",
+            "addToView": "Ajouter à cette vue"
+        },
+        "hint": {
+            "anAddress": "Une adresse :",
+            "thisPanel": "ce panneau",
+            "beside": "à côté",
+            "newView": "nouvelle vue",
+            "inThisView": "dans cette vue"
+        },
+        "where": {
+            "workspace": "aller au workspace",
+            "agent": "agent",
+            "pinnedView": "vue épinglée",
+            "openView": "vue ouverte",
+            "pr": "pull request",
+            "draftPr": "pull request en brouillon",
+            "agentPreset": "nouvel agent dans un panneau",
+            "panelHere": "panneau · dans cette vue",
+            "folder": "dossier",
+            "panelCommand": "ce panneau",
+            "action": "action"
+        },
+        "actions": {
+            "toggleSidebar": "Masquer ou afficher la barre latérale",
+            "clearTerminal": "Effacer le terminal"
         }
     }
 }

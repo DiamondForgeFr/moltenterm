@@ -3,8 +3,9 @@
 
 // The workspace sidebar (FR-SHELL-079, DS-SHELL-123, DS-SHELL-124): each workspace's own column on the left, in place
 // of the tab bar, the workspace rail and the status bar. Top to bottom: the window row (sidebar toggle; keep-awake and
-// notifications), the workspace header (name, project type, its menu on hover), the tiles (pinned tabs), the temporary
-// views (the other tabs, New view), the branch and build line, and the bottom bar (library, workspace dots, +).
+// notifications), the top field (FR-SHELL-083, top-field.tsx), the top row (views pinned everywhere, FR-SHELL-080),
+// the workspace header (name, project type, its menu on hover), the tiles (pinned tabs), the temporary views (the
+// other tabs, New view), the branch and build line, and the bottom bar (library, workspace dots, +).
 // Everything the replaced bars offered keeps a home here or in these menus (see the PR of #1183 for the mapping).
 
 import { getTabBadgeAtom } from "@/app/store/badge";
@@ -116,6 +117,8 @@ import {
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
+import { TopField } from "./top-field";
+import { TopFieldModel } from "./top-field-store";
 import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
@@ -1873,7 +1876,8 @@ export function WorkspaceSidebar() {
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
     const keepPeek = () => clearTimeout(peekTimerRef.current);
     const endPeek = () => {
-        if (!hidden) {
+        // The open top field keeps the peeked sidebar; closing it ends the peek.
+        if (!hidden || TopFieldModel.getInstance().isOpen()) {
             return;
         }
         clearTimeout(peekTimerRef.current);
@@ -1907,6 +1911,7 @@ export function WorkspaceSidebar() {
                 onMouseLeave={endPeek}
             >
                 <WindowRow leftInset={hidden ? 18 : 8} />
+                <TopField />
                 <TopRow instances={split.everywhere ?? {}} activeTabId={activeTabId} />
                 <div className="mt-sb-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                     {pinDraft != null ? (

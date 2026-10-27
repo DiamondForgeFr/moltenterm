@@ -36,6 +36,18 @@ const Paths = {
             <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
         </>
     ),
+    search: (
+        <>
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+        </>
+    ),
+    globe: (
+        <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+        </>
+    ),
 };
 
 export type SidebarGlyphName = keyof typeof Paths;

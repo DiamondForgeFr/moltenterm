@@ -5,15 +5,21 @@ import { describe, expect, it } from "vitest";
 import {
     activateTab,
     addTab,
+    besideBlockDef,
+    BrowserActiveMetaKey,
+    BrowserKeepFocusMetaKey,
     browserMeta,
     BrowserState,
+    BrowserTabsMetaKey,
     browserTabTitle,
     closeTab,
+    isBlankPage,
     moveTab,
     PanelTabs,
     readBrowserState,
     servingTabOf,
     shownAddress,
+    splitOutTabs,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -180,5 +186,31 @@ describe("servingTabOf (#1005)", () => {
         expect(servingTabOf(panels, ["p2", "p1"], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
         // Without a focus history, the last panel is the one links go to.
         expect(servingTabOf(panels, [], servesApp)).toEqual({ blockId: "p2", tabId: "y1" });
+    });
+});
+
+describe("one page per panel (#1187)", () => {
+    it("a page beside starts as its own panel, keeping a given tab id", () => {
+        const meta = besideBlockDef({ id: "agent-1", url: "https://x.dev", engine: "chrome" }).meta as any;
+        expect(meta.view).toBe("molten-browser");
+        expect(meta.url).toBe("https://x.dev");
+        expect(meta[BrowserTabsMetaKey]).toEqual([{ id: "agent-1", url: "https://x.dev", engine: "chrome" }]);
+        expect(meta[BrowserActiveMetaKey]).toBe("agent-1");
+        const plain = besideBlockDef({ url: "https://y.dev" }, { ask: true, keepFocus: true }).meta as any;
+        expect(plain[BrowserTabsMetaKey]).toBeUndefined();
+        expect(plain[BrowserKeepFocusMetaKey]).toBe(true);
+    });
+
+    it("a panel saved with several tabs keeps its shown one and splits the others out in order", () => {
+        const split = splitOutTabs({ ...three, activeId: "b" });
+        expect(split.kept).toEqual({ tabs: [three.tabs[1]], activeId: "b" });
+        expect(split.moved.map((t) => t.id)).toEqual(["a", "c"]);
+        expect(splitOutTabs({ tabs: [three.tabs[0]], activeId: "a" })).toBeNull();
+    });
+
+    it("only an empty page is replaced in place", () => {
+        expect(isBlankPage("about:blank")).toBe(true);
+        expect(isBlankPage("")).toBe(true);
+        expect(isBlankPage("https://a.dev")).toBe(false);
     });
 });

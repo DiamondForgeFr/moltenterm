@@ -1739,7 +1739,7 @@
             "rename-tab": "Rename the tab",
             "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
-            "term-clear": "Clear the terminal",
+            "term-clear": "Clear the terminal (sidebar off)",
             "term-copy-plain": "Copy the plain selection",
             "term-copy": "Copy the selection",
             "term-paste": "Paste",
@@ -1752,7 +1752,7 @@
             "browser-close-tab": "Close the browser tab",
             "browser-reload": "Reload the page",
             "browser-hard-reload": "Reload ignoring the cache",
-            "browser-address": "Go to the address bar",
+            "browser-address": "Go to the address bar (sidebar off)",
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
@@ -1762,7 +1762,8 @@
             "carpet-previous": "Previous panel on the carpet (360 view)",
             "carpet-next": "Next panel on the carpet (360 view)",
             "pin-panel": "Pin the panel to the fixed zone, or unpin it",
-            "equalize-panels": "Equalize panel widths"
+            "equalize-panels": "Equalize panel widths",
+            "top-field": "Search, go to, open an address"
         }
     },
     "tips": {
@@ -2074,6 +2075,10 @@
                 "noFolder": "the folder of {process} cannot be read.",
                 "noRepo": "{folder} is not in a git repository."
             }
+        },
+        "address": {
+            "title": "Its full address shows in the top field while the panel is active ({keys})",
+            "label": "Page address: {address}"
         }
     },
     "cmdpanel": {
@@ -2256,7 +2261,9 @@
             "tabs": "Tabs",
             "thisSite": "This site",
             "links": "Links",
-            "inspect": "Inspect the page"
+            "inspect": "Inspect the page",
+            "newPageBeside": "New page to the right",
+            "duplicateBeside": "Duplicate to the right"
         },
         "linemap": {
             "timeWindow": "Time window",
@@ -8832,6 +8839,55 @@
                 "start": "Start an agent",
                 "startTitle": "Start this project's coding agent here"
             }
+        }
+    },
+    "topField": {
+        "placeholder": "View, agent, panel or address…",
+        "inputLabel": "Search, open or go to an address",
+        "buttonLabel": "Top field: search, open, go to an address ({keys})",
+        "resultsLabel": "Results",
+        "noMatch": "Nothing matches.",
+        "searchWeb": "Search the web",
+        "searchQuery": "“{query}”",
+        "start": "Start",
+        "add": "Add",
+        "groups": {
+            "views": "Views of {name}",
+            "agents": "Agents",
+            "workspaces": "Workspaces"
+        },
+        "address": {
+            "goTo": "Go to",
+            "inPanel": "in the panel {host}",
+            "beside": "Open beside",
+            "inThisView": "in this view",
+            "newView": "New view",
+            "temporary": "temporary",
+            "addToView": "Add to this view"
+        },
+        "hint": {
+            "anAddress": "An address:",
+            "thisPanel": "this panel",
+            "beside": "beside",
+            "newView": "new view",
+            "inThisView": "in this view"
+        },
+        "where": {
+            "workspace": "go to the workspace",
+            "agent": "agent",
+            "pinnedView": "pinned view",
+            "openView": "open view",
+            "pr": "pull request",
+            "draftPr": "draft pull request",
+            "agentPreset": "new agent in a panel",
+            "panelHere": "panel · in this view",
+            "folder": "folder",
+            "panelCommand": "this panel",
+            "action": "action"
+        },
+        "actions": {
+            "toggleSidebar": "Hide or show the sidebar",
+            "clearTerminal": "Clear the terminal"
         }
     }
 }

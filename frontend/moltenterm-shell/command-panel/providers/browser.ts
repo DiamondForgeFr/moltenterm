@@ -152,7 +152,7 @@ function tabItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         {
             id: "browser:newtab",
             type: "action",
-            label: t("browser.tabs.newTab"),
+            label: t("cmdpanel.browser.newPageBeside"),
             icon: "plus",
             shortcut: "⌘T",
             run: () => bt.newTab(),
@@ -160,7 +160,7 @@ function tabItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         {
             id: "browser:duplicatetab",
             type: "action",
-            label: t("cmdpanel.browser.duplicateTab"),
+            label: t("cmdpanel.browser.duplicateBeside"),
             icon: "clone",
             run: () => bt.duplicateTab(tab.id),
         },

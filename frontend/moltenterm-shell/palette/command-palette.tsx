@@ -131,7 +131,8 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
     }, [sourceId, view, cwd, connection]);
 }
 
-function usePaletteEntries(picker: PickerSource) {
+// Also the sidebar's top field (#1187): every palette command stays reachable from it.
+export function usePaletteEntries(picker: PickerSource) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const ws = useAtomValue(atoms.workspace);
     const [others, setOthers] = useState<OtherWorkspaces>({ list: [], folders: [] });
