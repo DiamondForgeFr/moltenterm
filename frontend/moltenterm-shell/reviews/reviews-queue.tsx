@@ -22,11 +22,14 @@ import {
     AfterMerge,
     afterMergeText,
     MergeQueue,
+    OrderNote,
+    orderNoteText,
     queueChosen,
     queueCost,
     queueLegend,
     QueueMinSteps,
     shownNumber,
+    ShownNumbers,
 } from "./reviews-queue-model";
 
 const SmallButton =
@@ -237,6 +240,122 @@ export function MergeQueueBlock({
                 <div className="text-right text-11 text-muted" data-testid="reviews-queue-choose">
                     {chosen === 0 ? t("reviews.queue.chooseNone") : t("reviews.queue.chooseOne")}
                 </div>
+            ) : null}
+        </div>
+    );
+}
+
+// The merge-order view with fewer than two steps (#1172, FR-REV-026): why there is no order to suggest, the one step
+// numbered, and each draft greyed at its place after the steps it conflicts with.
+export function MergeOrderNote({
+    note,
+    prs,
+    ids,
+    status,
+    onStep,
+}: {
+    note: OrderNote;
+    prs: readonly ReviewPr[];
+    ids: ShownNumbers;
+    status: ForecastStatus;
+    onStep: (number: number) => void;
+}) {
+    const t = useT();
+    const word = useWordPhrase();
+    if (note == null) {
+        return null;
+    }
+    const titleOf = (n: number) =>
+        prs.find((pr) => pr.number === n)?.tickettitle ?? prs.find((pr) => pr.number === n)?.title ?? "";
+    const id = (n: number) => shownNumber(ids, n);
+    const afterText = (after: number[]) => after.map((n) => `#${id(n)}`).join(", ");
+    const placed = note.steps.length + note.out.length + note.drafts.length > 0;
+    return (
+        <div
+            role="group"
+            aria-label={t("reviews.queue.aria")}
+            className="grid gap-1.5 rounded-4 border border-[var(--mt-line-2)] bg-[var(--mt-surface-2)] px-2.5 py-2"
+            onKeyDown={stop}
+            data-testid="reviews-order-note"
+        >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-12">
+                <b className="font-semibold">{t("reviews.queue.title")}</b>
+                {status != null && status.kind !== "ready" ? <ForecastStatusLine status={status} /> : null}
+            </div>
+            <p className="text-11 leading-4 text-muted" data-testid="reviews-order-note-text">
+                {word(orderNoteText(note))}
+            </p>
+            {placed ? (
+                <ol className="flex flex-wrap items-center gap-1 text-11" data-testid="reviews-order-note-steps">
+                    {note.steps.map((s) => {
+                        const title = t("reviews.queue.stepTitle", {
+                            rank: s.rank,
+                            number: id(s.number),
+                            title: titleOf(s.number),
+                        });
+                        return (
+                            <li key={s.number} className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => onStep(s.number)}
+                                    title={title}
+                                    aria-label={title}
+                                    className="inline-flex cursor-pointer items-center gap-1 rounded-3 border border-[var(--mt-line-2)] px-1.5 leading-4 whitespace-nowrap text-secondary hover:text-primary"
+                                    data-testid="reviews-order-note-step"
+                                    data-step={s.number}
+                                >
+                                    <span className="font-semibold text-accent tabular-nums">{s.rank}</span>#
+                                    {id(s.number)}
+                                </button>
+                            </li>
+                        );
+                    })}
+                    {note.out.map((n) => {
+                        const title = t("reviews.queue.stepOutTitle", { number: id(n), title: titleOf(n) });
+                        return (
+                            <li key={n} className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => onStep(n)}
+                                    title={title}
+                                    aria-label={title}
+                                    className="inline-flex cursor-pointer items-center rounded-3 border border-dashed border-[var(--mt-line-2)] px-1.5 leading-4 whitespace-nowrap text-muted hover:text-primary"
+                                    data-testid="reviews-order-note-step"
+                                    data-step={n}
+                                    data-out
+                                >
+                                    #{id(n)}
+                                </button>
+                            </li>
+                        );
+                    })}
+                    {note.drafts.map((d) => {
+                        const after = afterText(d.after);
+                        const title = t("reviews.queue.note.draftTitle", {
+                            number: id(d.number),
+                            title: titleOf(d.number),
+                            after,
+                        });
+                        return (
+                            <li key={d.number} className="flex items-center gap-1">
+                                <span className="text-10 text-muted" aria-hidden>
+                                    →
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => onStep(d.number)}
+                                    title={title}
+                                    aria-label={title}
+                                    className="inline-flex cursor-pointer items-center rounded-3 border border-dashed border-[var(--mt-line-2)] px-1.5 leading-4 whitespace-nowrap text-muted opacity-70 hover:text-primary hover:opacity-100"
+                                    data-testid="reviews-order-note-draft"
+                                    data-step={d.number}
+                                >
+                                    {t("reviews.queue.note.draftAfter", { number: id(d.number), after })}
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ol>
             ) : null}
         </div>
     );

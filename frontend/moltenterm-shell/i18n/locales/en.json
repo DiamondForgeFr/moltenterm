@@ -6084,6 +6084,13 @@
             "mergeCount": "Merge these {count} in this order…",
             "chooseOne": "One pull request chosen: its card's Validate merges it.",
             "chooseNone": "No pull request chosen for the group merge.",
+            "note": {
+                "none": "No pull request can merge yet: no order to suggest.",
+                "one": "Only one pull request can merge: no order to suggest.",
+                "drafts": "Drafts join the order once ready for review.",
+                "draftAfter": "#{number} draft · after {after}",
+                "draftTitle": "The draft #{number} {title} joins the order once ready for review, after {after}: they conflict. Shows its card."
+            },
             "cost": {
                 "saved": {
                     "one": "{count} rebase instead of {list} in list order",
@@ -6471,6 +6478,8 @@
                 "unpublished": "{count} unpublished comments",
                 "unpublishedOne": "1 unpublished comment",
                 "rank": "#{rank} in the merge order",
+                "otherBranch": "also on this ticket: the branch {branches}",
+                "otherBranches": "also on this ticket: the branches {branches}",
                 "board": "column {status}"
             },
             "history": {

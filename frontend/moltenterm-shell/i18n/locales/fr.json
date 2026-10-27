@@ -6084,6 +6084,13 @@
             "mergeCount": "Fusionner ces {count} dans cet ordre…",
             "chooseOne": "Une seule pull request choisie : le Valider de sa carte la fusionne.",
             "chooseNone": "Aucune pull request choisie pour la fusion groupée.",
+            "note": {
+                "none": "Aucune pull request prête à fusionner : pas d'ordre à proposer.",
+                "one": "Une seule pull request prête à fusionner : pas d'ordre à proposer.",
+                "drafts": "Les brouillons entrent dans l'ordre une fois prêts pour la revue.",
+                "draftAfter": "#{number} brouillon · après {after}",
+                "draftTitle": "Le brouillon #{number} {title} entrera dans l'ordre une fois prêt pour la revue, après {after} : ils sont en conflit. Montre sa carte."
+            },
             "cost": {
                 "saved": {
                     "one": "{count} rebase au lieu de {list} dans l'ordre de la liste",
@@ -6471,6 +6478,8 @@
                 "unpublished": "{count} commentaires non publiés",
                 "unpublishedOne": "1 commentaire non publié",
                 "rank": "n° {rank} dans l'ordre de fusion",
+                "otherBranch": "aussi sur ce ticket : la branche {branches}",
+                "otherBranches": "aussi sur ce ticket : les branches {branches}",
                 "board": "colonne {status}"
             },
             "history": {

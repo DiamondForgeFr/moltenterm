@@ -152,6 +152,53 @@ export function queueShown(queue: MergeQueue): boolean {
     return queue != null && queueChosen(queue).length + (queue.out?.length ?? 0) >= QueueMinSteps;
 }
 
+// A draft's place after the steps it conflicts with (#1172): it joins the order once ready for review.
+export type DraftPlace = { number: number; after: number[] };
+
+// The merge-order view with too few steps for the queue's block (#1172, FR-REV-026): why there is no order, the one
+// step there is, and the drafts that will follow it.
+export type OrderNote = {
+    count: number;
+    steps: QueueStep[];
+    out: number[];
+    drafts: DraftPlace[];
+    // Drafts are listed: the note says when they join the order.
+    hasDrafts: boolean;
+};
+
+// orderNote: what the merge-order view shows instead of the queue's block; null while the block shows. A draft is
+// placed after the steps it conflicts with, either way: it cannot merge before them while it is a draft.
+export function orderNote(queue: MergeQueue, forecast: Forecast, listed: readonly ReviewPr[]): OrderNote {
+    if (queue == null || queueShown(queue)) {
+        return null;
+    }
+    const steps = queue.steps.filter((s) => !s.merged);
+    const out = queue.out ?? [];
+    const stepNumbers = new Set([...steps.map((s) => s.number), ...out]);
+    const rankOf = (n: number) => steps.find((s) => s.number === n)?.rank ?? Infinity;
+    const drafts = (listed ?? []).filter((pr) => pr.draft);
+    const places: DraftPlace[] = [];
+    for (const draft of drafts) {
+        const after = conflictPartners(forecast, draft, listed)
+            .map((p) => p.number)
+            .filter((n) => stepNumbers.has(n))
+            .sort((a, b) => rankOf(a) - rankOf(b));
+        if (after.length > 0) {
+            places.push({ number: draft.number, after });
+        }
+    }
+    return { count: steps.length + out.length, steps, out, drafts: places, hasDrafts: drafts.length > 0 };
+}
+
+// orderNoteText: "Only one pull request can merge: no order to suggest." and, with drafts listed, when they join it.
+export function orderNoteText(note: OrderNote): Phrase {
+    if (note == null) {
+        return null;
+    }
+    const why = phrase(note.count === 0 ? "reviews.queue.note.none" : "reviews.queue.note.one");
+    return note.hasDrafts ? joinPhrases([why, phrase("reviews.queue.note.drafts")], " ") : why;
+}
+
 // queueChosen: the steps going into the group merge, in the queue's order.
 export function queueChosen(queue: MergeQueue): number[] {
     return (queue?.steps ?? []).filter((s) => !s.merged).map((s) => s.number);

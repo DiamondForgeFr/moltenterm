@@ -6,7 +6,8 @@
 // collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
 // is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
 // sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
-// Yours (#1062), and a hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
+// Yours (#1062); sorted by merge order with fewer than two steps, a note says why there is no order and places the
+// drafts (#1172). A hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
 // when they arrive, leave, reorder or change section (#1063, reviews-motion.tsx). A card opens the PR's assisted review; the keyboard walks the cards of the
 // open sections (arrows, Home, End) and Enter opens one.
 
@@ -64,11 +65,12 @@ import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
-import { AfterMergeLine, MergeQueueBlock } from "./reviews-queue";
+import { AfterMergeLine, MergeOrderNote, MergeQueueBlock } from "./reviews-queue";
 import {
     cardRelations,
     edgeLine,
     mergeQueue,
+    orderNote,
     queueCanMerge,
     queueChoice,
     queueRanks,
@@ -284,7 +286,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // The number each card shows (#1108), merged PRs included for the banner of the running merge queue.
     const shownIds = useMemo(() => shownNumbersOf(answer.merged ?? [], listed), [answer.merged, listed]);
     const shown = forecastReq != null && queueShown(queue);
-    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
+    // The merge-order view always says the order (#1172): with too few steps for the block, why, and the one step's
+    // number on its card.
+    const ordering = sort === "merge" && listed.length > 0;
+    const ranks = useMemo(() => (shown || ordering ? queueRanks(queue) : {}), [queue, shown, ordering]);
     // Each card's one state (#1060), computed here once so its section and the card itself agree.
     const ctx = useCardContext(dir);
     const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
@@ -323,6 +328,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const hot =
         active == null || relations.partners.length === 0 ? [] : [active, ...relations.partners.map((p) => p.number)];
     const status = forecastStatus(forecast, forecastReq);
+    const note = useMemo(
+        () => (ordering && !shown ? orderNote(queue, forecast, listed) : null),
+        [ordering, shown, queue, forecast, listed]
+    );
     const [confirming, setConfirming] = useState(false);
     const queuePrs = useMemo(() => {
         const numbers = new Set(queue.steps.filter((s) => !s.merged).map((s) => s.number));
@@ -510,6 +519,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     onMerge={() => setConfirming(true)}
                 />
             ) : null}
+            <MergeOrderNote note={note} prs={listed} ids={queue.ids} status={status} onStep={goToCard} />
             {confirming && plannedBatch != null ? (
                 <BatchConfirmDialog
                     plan={plannedBatch}
@@ -527,6 +537,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         afterMerge?.merged.join(" ") ?? "",
         batchVisible ? "batch" : "",
         shown ? queue.steps.map((s) => `${s.number}${s.merged ? "m" : ""}`).join(" ") : "",
+        note != null ? `note:${note.count}:${note.drafts.length}` : "",
     ].join("|");
     return (
         <div

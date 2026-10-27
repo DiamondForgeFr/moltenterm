@@ -15,6 +15,7 @@ import {
     DraftActiveMs,
     draftTurn,
     durationText,
+    prOtherBranches,
     subagentDetails,
     UpcomingAnswer,
     upcomingFocusBranch,
@@ -47,6 +48,36 @@ describe("upcomingRows (#712 AC1)", () => {
         const reviews = { dir: "/p", ready: [], drafts: [{ branch: "feature/2-b" } as ReviewPr] } as ReviewsAnswer;
         expect(upcomingRows(upcoming, reviews).map((b) => b.branch)).toEqual(["feature/1-a"]);
         expect(upcomingRows(null, reviews)).toEqual([]);
+    });
+
+    // #1172: the gold showed #1163 twice, its draft PR #1169 in Yours and its local test copy test/1163-local in
+    // Upcoming.
+    it("shows one card per ticket: another branch of a listed PR's ticket is on that PR's card", () => {
+        const draft = { number: 1169, branch: "feature/1163-pipeline-setup-agent", ticket: 1163 } as ReviewPr;
+        const upcoming = answer({
+            branches: [
+                { branch: "test/1163-local", ticket: 1163, ahead: 11 },
+                { branch: "feature/1170-next", ticket: 1170, ahead: 1 },
+            ],
+            prbranches: [
+                {
+                    branch: "test/1163-copy",
+                    ticket: 1163,
+                    pr: 1169,
+                    ahead: 2,
+                    worktree: "/p/.claude/worktrees/agent-1",
+                },
+                { branch: "fix/12-other", ticket: 12, pr: 13, ahead: 1 },
+            ],
+        });
+        const reviews = { dir: "/p", ready: [], drafts: [draft] } as ReviewsAnswer;
+        expect(upcomingRows(upcoming, reviews).map((b) => b.branch)).toEqual(["feature/1170-next"]);
+        expect(prOtherBranches(upcoming, draft).map((b) => [b.branch, b.pr, b.ahead])).toEqual([
+            ["test/1163-copy", 1169, 2],
+            ["test/1163-local", 1169, 11],
+        ]);
+        expect(prOtherBranches(upcoming, { number: 7, branch: "feature/7-x" })).toEqual([]);
+        expect(prOtherBranches(null, draft)).toEqual([]);
     });
 });
 

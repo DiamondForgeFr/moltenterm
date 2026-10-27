@@ -108,6 +108,8 @@ export type CardInput = {
     rerunnable?: boolean;
     // Its rank in the suggested merge order.
     rank?: number;
+    // The other branches of its ticket (#1172), local copies or agent worktrees: listed here, never as upcoming.
+    others?: { branch: string; worktree?: string }[];
     // The merge queue's step while the queue works on the PR (#1128); its agent is in agents (withBatchAgent).
     batch?: { run: BatchRun; item: BatchItem };
 };
@@ -315,6 +317,18 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
     }
     if (input.rank != null) {
         facts.push({ id: "rank", text: phrase("reviews.card.fact.rank", { rank: input.rank }), tone: "muted" });
+    }
+    if ((input.others?.length ?? 0) > 0) {
+        facts.push({
+            id: "others",
+            text: phrase(
+                input.others.length === 1 ? "reviews.card.fact.otherBranch" : "reviews.card.fact.otherBranches",
+                {
+                    branches: input.others.map((o) => o.branch).join(", "),
+                }
+            ),
+            tone: "muted",
+        });
     }
     if (input.boardStatus && !said.has("board")) {
         facts.push({

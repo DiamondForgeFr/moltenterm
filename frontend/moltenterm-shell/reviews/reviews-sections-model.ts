@@ -14,7 +14,14 @@ import { CardInput, CardState, cardState, CardStateKinds, CardTurn } from "./rev
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
 import { headStillFails, PrTask, prTaskState, taskAgent, taskAgentLive } from "./reviews-task-model";
-import { AgentBarFacts, branchAgents, draftTurn, UpcomingAnswer, UpcomingBranch } from "./reviews-upcoming-model";
+import {
+    AgentBarFacts,
+    branchAgents,
+    draftTurn,
+    prOtherBranches,
+    UpcomingAnswer,
+    UpcomingBranch,
+} from "./reviews-upcoming-model";
 
 // The PR sections, in the order the panel shows them.
 export const TurnOrder: CardTurn[] = ["yours", "agents", "blocked", "waiting"];
@@ -70,6 +77,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         boardStatus,
         headFails: headStillFails(pr, agents[0] ?? null, taskState),
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),
+        others: prOtherBranches(ctx.upcoming, pr),
         batch: batchItem != null ? { run, item: batchItem } : undefined,
     };
 }
