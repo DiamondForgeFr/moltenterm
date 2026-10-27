@@ -17,6 +17,7 @@ import {
     viewGlyphIcons,
     ViewIconChoices,
     viewMenuPlan,
+    withMissingPanels,
     zoneCaptionShown,
 } from "./view-menu-model";
 import { AgentSlotMetaKey, PinConfig } from "./view-pins-model";
@@ -87,6 +88,22 @@ describe("the view menu (FR-SHELL-081)", () => {
     it("offers Save and Back only once a pinned view changed", () => {
         expect(viewMenuPlan("workspace", true).saveOrRevert).toBe(true);
         expect(viewMenuPlan("everywhere", false).saveOrRevert).toBe(false);
+    });
+});
+
+describe("the layout of a view not on screen", () => {
+    it("adds the panels its stored tree lacks on the right, and drops those gone", () => {
+        expect(withMissingPanels({ blockid: "a" }, ["a", "b"])).toEqual({
+            dir: "row",
+            children: [{ blockid: "a" }, { blockid: "b" }],
+        });
+        expect(withMissingPanels({ dir: "column", children: [{ blockid: "a" }, { blockid: "x" }] }, ["a"])).toEqual({
+            blockid: "a",
+        });
+        expect(withMissingPanels(null, ["a"])).toEqual({ blockid: "a" });
+        expect(withMissingPanels(null, [])).toBeNull();
+        const tree = { dir: "row", children: [{ blockid: "a" }, { blockid: "b" }] };
+        expect(withMissingPanels(tree, ["b", "a"])).toEqual(tree);
     });
 });
 

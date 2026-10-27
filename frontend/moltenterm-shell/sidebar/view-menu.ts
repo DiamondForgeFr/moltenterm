@@ -13,6 +13,7 @@ import { fireAndForget } from "@/util/util";
 import { currentEqualize } from "../equalize/equalize-actions";
 import { acceleratorById } from "../shortcuts/format";
 import { view360MenuItems } from "../view360/view360-toggle";
+import { workspaceShownName } from "../workspace-default-name";
 import { viewMenuPlan } from "./view-menu-model";
 import { ViewState } from "./view-pins-model";
 import { ViewPins, ViewRef } from "./view-pins-store";
@@ -41,6 +42,11 @@ export type ViewMenuHooks = {
     // Where the menu was opened, for its Rename and Change icon pages.
     at: { x: number; y: number };
 };
+
+// The workspace as the sidebar names it.
+function shownWorkspace(t: TFn): string {
+    return workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
+}
 
 function layoutItems(t: TFn): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
@@ -73,7 +79,7 @@ function layoutItems(t: TFn): ContextMenuItem[] {
 function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
     const pins = ViewPins.getInstance();
     const plan = viewMenuPlan(target.state, target.modified);
-    const workspace = globalStore.get(atoms.workspace)?.name ?? "";
+    const workspace = shownWorkspace(t);
     const tabId = target.ref.tabId;
     const items: ContextMenuItem[] = [];
     if (target.projectTab) {
@@ -122,7 +128,7 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
     const pins = ViewPins.getInstance();
     const plan = viewMenuPlan(target.state, target.modified);
     const tabId = target.ref.tabId;
-    const workspace = globalStore.get(atoms.workspace)?.name ?? "";
+    const workspace = shownWorkspace(t);
     const stateLabel = t(`sidebar.pins.menu.state.${target.state}`, { workspace });
     const items: ContextMenuItem[] = [{ type: "header", label: `${target.name} · ${stateLabel}` }];
     if (plan.saveOrRevert && tabId) {
@@ -178,7 +184,13 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
             drop.add(t("wave.tab.close"));
         }
         const tabItems = buildTabContextMenu(tabId, { current: hooks.startRename }, () => hooks.onClose?.(), hooks.env);
-        items.push({ type: "separator" }, ...tabItems.filter((item) => !drop.has(item.label)));
+        const close = t("wave.tab.close");
+        items.push(
+            { type: "separator" },
+            ...tabItems
+                .filter((item) => !drop.has(item.label))
+                .map((item) => (item.label === close ? { ...item, label: t("sidebar.views.close") } : item))
+        );
     }
     if (plan.closeNote && !target.projectTab) {
         items.push({ label: t("sidebar.views.closeNote"), icon: "lock", enabled: false });
