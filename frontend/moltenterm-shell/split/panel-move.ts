@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A view is columns of panels (FR-SHELL-086), wired to the layout: a panel dragged by its header lands on one of the
-// four zones of the panel under the pointer; a tab or a file dropped on a panel lands the same way. Left or right
-// makes a new top-level column, above or below stacks the panel in the column (panel-move-model.ts).
+// four edge zones of the panel under the pointer, or on its centre, which swaps the two panels (Wave's drop, kept); a
+// tab or a file dropped on a panel lands the same way on the edges. Left or right makes a new top-level column, above
+// or below stacks the panel in the column (panel-move-model.ts).
 
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
@@ -14,23 +15,27 @@ import type {
     LayoutTreeResizeNodeAction,
     LayoutTreeSplitHorizontalAction,
     LayoutTreeSplitVerticalAction,
+    LayoutTreeSwapNodeAction,
 } from "@/layout/lib/types";
 import { t } from "../i18n/i18n";
 import type { DropTarget } from "./drop-model";
 import { hitTestPanels } from "./drop-zones";
 import {
+    canSwap,
     chipName,
     columnIndexOfNode,
     effectiveSide,
-    nearestSide,
     PanelPlace,
     panelPlace,
+    PanelZone,
+    panelZoneAt,
     placeSizes,
 } from "./panel-move-model";
 import { insertBlockBeside } from "./split";
 import type { SplitDirection } from "./split-model";
 
-export type PanelMoveTarget = { target: DropTarget; nodeId: string; side: SplitDirection; label: string };
+// side "center": the dragged panel and the target swap places.
+export type PanelMoveTarget = { target: DropTarget; nodeId: string; side: PanelZone; label: string };
 
 // The name the target panel shows in its header (an agent's first name, a view's title), for the zone's chip.
 export function panelName(blockId: string): string {
@@ -70,11 +75,20 @@ export function panelMoveTargetAt(movedBlockId: string, x: number, y: number): P
     if (node == null) {
         return null;
     }
-    const side = landingSide(layoutModel, node.id, nearestSide(x, y, target.rect));
-    if (side == null) {
+    const zone = panelZoneAt(x, y, target.rect);
+    if (zone == null) {
         return null;
     }
-    return { target, nodeId: node.id, side, label: zoneLabel(side, panelName(target.blockId)) };
+    const name = panelName(target.blockId);
+    if (zone === "center") {
+        const movedNode = layoutModel.getNodeByBlockId(movedBlockId);
+        if (!canSwap(layoutModel.treeState?.rootNode, node.id, movedNode?.id)) {
+            return null;
+        }
+        return { target, nodeId: node.id, side: zone, label: t("split.zone.swap", { name }) };
+    }
+    const side = landingSide(layoutModel, node.id, zone);
+    return { target, nodeId: node.id, side, label: zoneLabel(side, name) };
 }
 
 function placeNode(layoutModel: LayoutModel, place: PanelPlace, node: LayoutNode): boolean {
@@ -130,6 +144,15 @@ export function dropPanelAt(layoutModel: LayoutModel, movedNode: LayoutNode, x: 
     const at = panelMoveTargetAt(movedBlockId, x, y);
     if (at == null) {
         return false;
+    }
+    // Wave's centre drop, kept (FR-SHELL-086): the two panels trade places.
+    if (at.side === "center") {
+        layoutModel.treeReducer({
+            type: LayoutTreeActionType.Swap,
+            node1Id: at.nodeId,
+            node2Id: movedNode.id,
+        } as LayoutTreeSwapNodeAction);
+        return true;
     }
     return movePanel(layoutModel, movedNode.id, at.nodeId, at.side);
 }

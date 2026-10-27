@@ -1,16 +1,18 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { deleteNode, splitHorizontal, splitVertical } from "@/layout/lib/layoutTree";
+import { deleteNode, splitHorizontal, splitVertical, swapNode } from "@/layout/lib/layoutTree";
 import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
 import {
+    canSwap,
     chipName,
     columnIndexOfNode,
     effectiveSide,
     equalSizes,
     nearestSide,
     panelPlace,
+    panelZoneAt,
     placeSizes,
 } from "./panel-move-model";
 
@@ -166,6 +168,41 @@ describe("the 360 view's fixed column", () => {
         expect(columnIndexOfNode(root, "term")).toBe(0);
         expect(columnIndexOfNode(root, "pilotage")).toBe(1);
         expect(columnIndexOfNode(root, "nope")).toBe(-1);
+    });
+});
+
+describe("panelZoneAt (four edges and Wave's centre swap)", () => {
+    const rect = { left: 100, top: 100, width: 400, height: 200 };
+
+    it.each([
+        [300, 200, "center"],
+        [270, 190, "center"],
+        [250, 200, "left"],
+        [300, 175, "up"],
+        [110, 200, "left"],
+        [300, 295, "down"],
+    ])("(%i, %i) is the %s zone", (x, y, zone) => {
+        expect(panelZoneAt(x, y, rect)).toBe(zone);
+    });
+
+    it("gives no zone outside the panel", () => {
+        expect(panelZoneAt(50, 200, rect)).toBeNull();
+    });
+});
+
+describe("canSwap", () => {
+    it("swaps two distinct panels of the tree", () => {
+        const root = twoColumns();
+        expect(canSwap(root, "term", "pilotage")).toBe(true);
+        expect(canSwap(root, "term", "term")).toBe(false);
+        expect(canSwap(root, "term", "nope")).toBe(false);
+        expect(canSwap(root, "root", "term")).toBe(false);
+    });
+
+    it("the swap trades the two panels' places", () => {
+        const state = { rootNode: twoColumns() } as LayoutTreeState;
+        swapNode(state, { type: LayoutTreeActionType.Swap, node1Id: "term", node2Id: "pilotage" });
+        expect(shape(state.rootNode)).toBe("row(pilotage,col(project,term))");
     });
 });
 

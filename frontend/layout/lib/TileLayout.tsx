@@ -380,7 +380,8 @@ const OverlayNode = memo(({ node, layoutModel }: OverlayNodeProps) => {
             },
             drop: (_, monitor) => {
                 if (!monitor.didDrop()) {
-                    // MOLTENTERM-PATCH (#1190): four zones, left or right a new column, above or below a stack; the
+                    // MOLTENTERM-PATCH (#1190): four edges (left or right a new column, above or below a stack) and the
+                    // centre (a swap); the
                     // drop-zones layer draws them in place of Wave's placeholder and its nine-zone move
                     const at = monitor.getClientOffset();
                     dropPanelAt(layoutModel, monitor.getItem<LayoutNode>(), at?.x, at?.y);
