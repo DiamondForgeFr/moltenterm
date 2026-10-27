@@ -8691,6 +8691,20 @@
         "tiles": {
             "label": "Vues épinglées dans {name}"
         },
+        "prCounts": {
+            "ready": {
+                "one": "{count} PR prête",
+                "other": "{count} PR prêtes"
+            },
+            "ci": {
+                "one": "{count} PR avec la CI en cours ou en échec",
+                "other": "{count} PR avec la CI en cours ou en échec"
+            },
+            "draft": {
+                "one": "{count} PR en brouillon",
+                "other": "{count} PR en brouillon"
+            }
+        },
         "temporary": {
             "title": "Vues temporaires",
             "hint": "Une vue temporaire se ferme ; épinglez-la pour la garder",
