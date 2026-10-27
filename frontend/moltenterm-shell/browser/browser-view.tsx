@@ -139,6 +139,7 @@ import {
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
+import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
@@ -252,7 +253,11 @@ export class BrowserViewModel implements ViewModel {
                 targetaction: "splitright",
                 focused,
             });
-            return oref ? oref.split(":")[1] : null;
+            const created = blockIdOfORef(oref);
+            if (focused) {
+                focusWhenPlaced(created);
+            }
+            return created;
         } catch (e) {
             console.log("molten browser: no panel beside", e);
             return null;
@@ -1557,7 +1562,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     return (
         <button
             type="button"
-            className="flex h-6 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
+            className="flex h-6 min-w-12 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
             title={`${tab.url}\n${t("browser.address.title", { keys })}`}
             aria-label={t("browser.address.label", { address: tab.url })}
             data-testid="browser-address"
@@ -1619,7 +1624,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
         </button>
     );
     return (
-        <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1">
+        <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1 overflow-hidden">
             {navButton(
                 "arrow-left",
                 t("browser.nav.back"),
@@ -1788,7 +1793,7 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
     const always = routed.engine !== "" && routed.engine !== EngineApp;
     const label = tab.engine ? t("browser.menu.openHere") : t("browser.choice.openIn", { browser: chosen.name });
     return (
-        <div className="molten-browser-engine flex h-6 shrink-0 items-center rounded-4 border border-border text-12 text-secondary">
+        <div className="molten-browser-engine flex h-6 min-w-0 shrink items-center rounded-4 border border-border text-12 text-secondary">
             <button
                 type="button"
                 title={
@@ -1797,7 +1802,7 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                         : t("browser.choice.handOffTitle", { browser: chosen.name })
                 }
                 onClick={() => (tab.engine ? model.openHere(tab.id) : fireAndForget(() => model.handOffTab(tab.id)))}
-                className="flex h-full cursor-pointer items-center gap-1.5 rounded-l-6 px-2 hover:bg-hover hover:text-primary"
+                className="flex h-full min-w-0 cursor-pointer items-center gap-1.5 rounded-l-6 px-2 hover:bg-hover hover:text-primary"
             >
                 <i
                     className={cn(
@@ -1806,7 +1811,7 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                         always && !tab.engine && "text-accent"
                     )}
                 />
-                <span className="whitespace-nowrap">{label}</span>
+                <span className="min-w-0 truncate whitespace-nowrap">{label}</span>
             </button>
             <button
                 type="button"
