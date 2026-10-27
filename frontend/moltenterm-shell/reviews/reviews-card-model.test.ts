@@ -498,9 +498,27 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 });
 
+describe("the other branches of the PR's ticket (#1172)", () => {
+    it("lists them on the card, never as upcoming", () => {
+        expect(words({ pr: pr(), others: [{ branch: "test/1101-local" }] }).facts).toContain(
+            "also on this ticket: the branch test/1101-local"
+        );
+        expect(words({ pr: pr(), others: [{ branch: "test/1101-a" }, { branch: "test/1101-b" }] }).facts).toContain(
+            "also on this ticket: the branches test/1101-a, test/1101-b"
+        );
+        expect(words({ pr: pr(), others: [] }).facts.some((f) => f.startsWith("also on"))).toBe(false);
+    });
+});
+
 describe("in French", () => {
     beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    it("names the ticket's other branches (#1172)", () => {
+        expect(words({ pr: pr(), others: [{ branch: "test/1101-local" }] }).facts).toContain(
+            "aussi sur ce ticket : la branche test/1101-local"
+        );
+    });
 
     it("words the states as the mockup does", () => {
         expect(words({ pr: pr({ merge: "conflicts", draft: true }), agents: [Nathan] }).sentence).toBe(

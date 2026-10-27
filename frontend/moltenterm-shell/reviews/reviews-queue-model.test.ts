@@ -15,6 +15,8 @@ import {
     joinAfterMerge,
     keptOut,
     mergeQueue,
+    orderNote,
+    orderNoteText,
     queueCanMerge,
     queueChoice,
     queueChosen,
@@ -304,6 +306,75 @@ describe("merge queue (#1062)", () => {
             expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("à rebaser après #1203 et #1205");
             expect(wordPhrase(rel.cards[1201].fact)).toBe(
                 "mêmes lignes que #1202 et le brouillon #1208 : src/theme.ts"
+            );
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
+    });
+});
+
+// #1172: the gold's case, three PRs in Yours: #1169 (ticket #1163, draft), #1161 (#1152, draft) and #1162 (#1150,
+// ready, in conflict with #1152). One PR can merge: the merge-order view says why there is no order and places the
+// conflicting draft after it.
+describe("merge order with fewer than two steps (#1172)", () => {
+    const ready1162 = pr(1162, { ticket: 1150 });
+    const draft1161 = pr(1161, { ticket: 1152, draft: true });
+    const draft1169 = pr(1169, { ticket: 1163, draft: true });
+    const listed = [ready1162, draft1161, draft1169];
+    const gold: Forecast = {
+        ...Shop,
+        rows: [row(1162, [impact(1161, ["pkg/a.go"])]), row(1161, []), row(1169, [])],
+    };
+    let locale: string;
+    beforeAll(() => {
+        locale = I18nModel.getInstance().getLocale();
+        I18nModel.getInstance().setLanguageSetting("en");
+    });
+    afterAll(() => I18nModel.getInstance().setLanguageSetting(locale));
+
+    it("says there is one step, numbers it and places the conflicting draft after it", () => {
+        const queue = mergeQueue(gold, [ready1162], listed);
+        expect(queueShown(queue)).toBe(false);
+        const note = orderNote(queue, gold, listed);
+        expect(note.count).toBe(1);
+        expect(note.steps.map((s) => [s.rank, s.number])).toEqual([[1, 1162]]);
+        expect(note.drafts).toEqual([{ number: 1161, after: [1162] }]);
+        expect(wordPhrase(orderNoteText(note))).toBe(
+            "Only one pull request can merge: no order to suggest. Drafts join the order once ready for review."
+        );
+        expect(queueRanks(queue)).toEqual({ 1162: 1 });
+    });
+
+    it("says there is nothing to order with drafts only, and without drafts no word about them", () => {
+        const none = orderNote(mergeQueue(gold, [], listed), gold, listed);
+        expect(none.count).toBe(0);
+        expect(none.drafts).toEqual([]);
+        expect(wordPhrase(orderNoteText(none))).toBe(
+            "No pull request can merge yet: no order to suggest. Drafts join the order once ready for review."
+        );
+        const alone = orderNote(mergeQueue(gold, [ready1162], [ready1162]), gold, [ready1162]);
+        expect(wordPhrase(orderNoteText(alone))).toBe("Only one pull request can merge: no order to suggest.");
+    });
+
+    it("leaves two steps or more to the numbered block", () => {
+        const queue = mergeQueue(Shop, Ready, Listed);
+        expect(orderNote(queue, Shop, Listed)).toBeNull();
+    });
+
+    it("keeps a step taken out of the group merge in the note", () => {
+        const queue = mergeQueue(gold, [ready1162], listed, [1162]);
+        const note = orderNote(queue, gold, listed);
+        expect(note.count).toBe(1);
+        expect(note.out).toEqual([1162]);
+        expect(note.drafts).toEqual([{ number: 1161, after: [1162] }]);
+    });
+
+    it("reads in French", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const note = orderNote(mergeQueue(gold, [ready1162], listed), gold, listed);
+            expect(wordPhrase(orderNoteText(note))).toBe(
+                "Une seule pull request prête à fusionner : pas d'ordre à proposer. Les brouillons entrent dans l'ordre une fois prêts pour la revue."
             );
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");

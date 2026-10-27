@@ -134,7 +134,9 @@ type UpcomingAnswer struct {
 	Agents   []BranchAgent    `json:"agents"`
 	Drafts   []UpcomingDraft  `json:"drafts,omitempty"`
 	// Leftovers: the branches of merged PRs that hold nothing new (#1088), with what is left of them.
-	Leftovers    []UpcomingLeftover `json:"leftovers"`
+	Leftovers []UpcomingLeftover `json:"leftovers"`
+	// PrBranches: the other branches of the tickets that have an open PR, listed on its card, never Upcoming (#1172).
+	PrBranches   []UpcomingPrBranch `json:"prbranches,omitempty"`
 	Error        string             `json:"error,omitempty"`
 	ErrorText    *uimsg.Text        `json:"errortext,omitempty"`
 	TicketsError string             `json:"ticketserror,omitempty"`
@@ -350,6 +352,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	ownerOf := u.lockOwners(places, answer.Agents)
 	closed := closedPrsByBranch(snap)
 	remotes := remoteBranches(refs)
+	prTickets := openPrTickets(snap, ticketRes)
 	branches := make([]UpcomingBranch, 0, len(candidates))
 	for _, c := range candidates {
 		ref := "refs/heads/" + c.Branch
@@ -371,6 +374,10 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		}
 		c.Ahead, _ = strconv.Atoi(strings.TrimSpace(out))
 		if c.Ahead == 0 && !agentBranches(answer.Agents)[c.Branch] {
+			continue
+		}
+		if other, ok := prBranchOf(c, prTickets); ok {
+			answer.PrBranches = append(answer.PrBranches, other)
 			continue
 		}
 		branches = append(branches, c)

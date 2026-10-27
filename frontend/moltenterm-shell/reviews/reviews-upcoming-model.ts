@@ -82,6 +82,16 @@ export type SubagentState = "running" | "quiet" | "done";
 // must match UpcomingDraft in pkg/molten/mission/upcoming.go
 export type UpcomingDraft = { branch: string; ticket?: number; status?: string; commitat?: number };
 
+// must match UpcomingPrBranch in pkg/molten/mission/upcoming_prbranches.go: another branch of an open PR's ticket.
+export type UpcomingPrBranch = {
+    branch: string;
+    ticket: number;
+    pr: number;
+    ahead: number;
+    remote?: boolean;
+    worktree?: string;
+};
+
 // must match UpcomingAnswer in pkg/molten/mission/upcoming.go
 export type UpcomingAnswer = {
     dir: string;
@@ -90,6 +100,7 @@ export type UpcomingAnswer = {
     agents: BranchAgent[];
     drafts?: UpcomingDraft[];
     leftovers?: UpcomingLeftover[];
+    prbranches?: UpcomingPrBranch[];
     error?: string;
     errortext?: ServerText;
     ticketserror?: string;
@@ -127,16 +138,50 @@ export type AgentBarFacts = {
     work?: Phrase;
 };
 
-// The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv.
+// The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
+// any branch of a ticket the list shows a PR for (#1172: one card per ticket, the PR's).
 export function upcomingRows(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): UpcomingBranch[] {
     if (upcoming?.branches == null) {
         return [];
     }
     const withPr = new Set<string>();
+    const tickets = new Set<number>();
     for (const pr of [...(reviews?.ready ?? []), ...(reviews?.drafts ?? [])]) {
         withPr.add(pr.branch);
+        if (pr.ticket > 0) {
+            tickets.add(pr.ticket);
+        }
     }
-    return upcoming.branches.filter((b) => !withPr.has(b.branch));
+    return upcoming.branches.filter((b) => !withPr.has(b.branch) && !(b.ticket > 0 && tickets.has(b.ticket)));
+}
+
+// prOtherBranches (#1172): the other branches of a PR's ticket, listed on its card: those wavesrv placed on the PR,
+// and those it still read as upcoming before the list showed the PR.
+export function prOtherBranches(
+    upcoming: UpcomingAnswer,
+    pr: { number: number; branch: string; ticket?: number }
+): UpcomingPrBranch[] {
+    if (upcoming == null || pr == null) {
+        return [];
+    }
+    const rtn: UpcomingPrBranch[] = (upcoming.prbranches ?? []).filter(
+        (b) => b.pr === pr.number && b.branch !== pr.branch
+    );
+    if (pr.ticket > 0) {
+        for (const b of upcoming.branches ?? []) {
+            if (b.ticket === pr.ticket && b.branch !== pr.branch && !rtn.some((o) => o.branch === b.branch)) {
+                rtn.push({
+                    branch: b.branch,
+                    ticket: b.ticket,
+                    pr: pr.number,
+                    ahead: b.ahead,
+                    remote: b.remote,
+                    worktree: b.worktree,
+                });
+            }
+        }
+    }
+    return rtn;
 }
 
 // How long a future PR's entry asked by another surface stays marked (the PR rows' mark lasts as long).
