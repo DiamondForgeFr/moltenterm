@@ -45,6 +45,20 @@ func TestNoteShellCommandKeepsFirstUseOrderAndCap(t *testing.T) {
 	}
 }
 
+// Claude Code's Bash and Codex's shell calls feed the same list (FR-SHELL-084: Claude Code and Codex alike).
+func TestAdaptersNoteShellCommands(t *testing.T) {
+	claude := MakeSession()
+	parseFile(t, MakeClaudeAdapter([]string{"/nowhere"}), claude, "claude-session.jsonl")
+	if got := strings.Join(claude.Commands(), ","); got != "rm" {
+		t.Errorf("claude: %q", got)
+	}
+	codex := MakeSession()
+	parseFile(t, MakeCodexAdapter([]string{"/nowhere"}), codex, "codex-session.jsonl")
+	if got := codex.Commands(); len(got) == 0 || got[0] != "sed" {
+		t.Errorf("codex: %q", got)
+	}
+}
+
 func TestShellLineReadsStringsAndArgv(t *testing.T) {
 	if got := shellLine(map[string]any{"command": "gh pr view"}); got != "gh pr view" {
 		t.Fatalf("string: %q", got)

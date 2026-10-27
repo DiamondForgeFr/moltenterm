@@ -44,7 +44,7 @@ import { AgentInfoModel } from "./agent-info-store";
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
-const SectionTitle = "mt-3.5 mb-1.5 text-[10.5px] font-semibold tracking-[0.07em] text-muted uppercase";
+const SectionTitle = "mt-3.5 mb-1.5 text-11 font-semibold tracking-[0.07em] text-muted uppercase";
 const Line = "flex w-full items-center gap-2 rounded-6 px-2 py-1.5 text-left text-12 text-secondary";
 const LineButton = cn(Line, "cursor-pointer hover:bg-white/[0.06] hover:text-primary");
 const Chip =
@@ -394,7 +394,7 @@ function AgentHead({ info }: { info: AgentStateInfo }) {
                 <div
                     className={cn(
                         "truncate text-12",
-                        look === "waiting" ? "text-warning" : look === "error" ? "text-error" : "text-muted"
+                        look === "waiting" ? "text-warning" : look === "error" ? "text-danger" : "text-muted"
                     )}
                 >
                     {[agentStateLabel(info.state), agentDoing(info)]
@@ -489,7 +489,7 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
                         <AgentLinksPanel blockId={blockId} />
                     </section>
                 ) : null}
-                <div className="mt-3.5 text-[11.5px] text-muted">{t("agentInfo.moreLater")}</div>
+                <div className="mt-3.5 text-11 text-muted">{t("agentInfo.moreLater")}</div>
             </div>
         </DialogFrame>
     );
