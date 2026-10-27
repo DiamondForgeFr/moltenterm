@@ -396,6 +396,27 @@
             "owner": "AGachet",
             "action": "Rerun both Go graphs/target matrix on dependency/import changes; keep SSH handshake/key-policy regression.",
             "reviewBy": "2026-11-17"
+        },
+        {
+            "ecosystem": "npm",
+            "id": "GHSA-gcqx-w48m-w2h4",
+            "package": "deepmerge",
+            "version": "4.3.1",
+            "occurrence": "node_modules/deepmerge",
+            "affectedRange": ">=4.2.0 <=4.3.1",
+            "surface": "developer-build-install",
+            "reachability": "locked",
+            "severity": "low",
+            "advisoryFingerprint": "05faf63d586f5d93649bedd9a3a5894cf4c49788479f391e310fac6d09180932",
+            "targets": ["npm"],
+            "applicability": "not-applicable",
+            "impact": "low",
+            "input": "@rollup/plugin-node-resolve's own frozen defaults; @svgr/plugin-svgo declares the package but never imports it",
+            "reason": "Prototype poisoning needs an attacker-supplied source object in a merge. The only call, deepMerge({}, defaults) in plugin-node-resolve, merges its hardcoded defaults; no build configuration, docs content or user input reaches it.",
+            "evidence": ["security/TRIAGE.md", "https://github.com/advisories/GHSA-gcqx-w48m-w2h4"],
+            "owner": "AGachet",
+            "action": "No fixed version exists; move to a fixed release when one ships, reassess if a caller merges external objects.",
+            "reviewBy": "2026-11-17"
         }
     ],
     "exceptions": []
