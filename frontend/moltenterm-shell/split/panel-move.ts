@@ -18,7 +18,15 @@ import type {
 import { t } from "../i18n/i18n";
 import type { DropTarget } from "./drop-model";
 import { hitTestPanels } from "./drop-zones";
-import { columnIndexOfNode, effectiveSide, nearestSide, PanelPlace, panelPlace, placeSizes } from "./panel-move-model";
+import {
+    chipName,
+    columnIndexOfNode,
+    effectiveSide,
+    nearestSide,
+    PanelPlace,
+    panelPlace,
+    placeSizes,
+} from "./panel-move-model";
 import { insertBlockBeside } from "./split";
 import type { SplitDirection } from "./split-model";
 
@@ -30,7 +38,7 @@ export function panelName(blockId: string): string {
     const title =
         elem?.querySelector(".molten-header-title")?.textContent?.trim() ||
         elem?.querySelector(".molten-browser-tab.active .molten-browser-tab-name")?.textContent?.trim();
-    return title || t("split.zone.panel");
+    return chipName(title) || t("split.zone.panel");
 }
 
 export function zoneLabel(side: SplitDirection, name: string): string {
