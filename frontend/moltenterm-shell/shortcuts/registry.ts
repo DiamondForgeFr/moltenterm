@@ -279,6 +279,17 @@ export const Shortcuts: Shortcut[] = [
         scope: "app",
         keys: "Ctrl:Cmd:{1-9}",
     },
+    // #1186: ⌥1…⌥9 from the sidebar's bottom bar (FR-SHELL-082); off macOS Alt+digit is the tab's.
+    {
+        id: "workspace-jump",
+        label: "Jump to a workspace of the bottom bar",
+        category: "Workspaces",
+        scope: "global",
+        keys: "Alt:{1-9}",
+        bindings: digits((n) => [`Alt:c{Digit${n}}`]),
+        keywords: ["workspace", "switch", "dots", "sidebar"],
+        macOnly: true,
+    },
     // Terminal
     { id: "term-clear", label: "Clear the terminal", category: "Terminal", scope: "terminal", keys: "Cmd:k" },
     {
