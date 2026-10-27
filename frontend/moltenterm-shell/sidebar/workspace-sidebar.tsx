@@ -158,11 +158,45 @@ function showMenuUnder(anchor: HTMLElement, items: ContextMenuItem[], onClose?: 
     ContextMenuModel.getInstance().showContextMenu(items, event, { onClose });
 }
 
+// The last list read, shared by the window's tab views: a tab view that opens on a switch draws the whole row at once
+// instead of its own dot alone until wavesrv answers (FR-SHELL-082).
+const DotsCacheKey = "moltenterm:sidebar-dots";
+
+function readCachedSources(): WorkspaceRailSource[] {
+    try {
+        const list = JSON.parse(window.localStorage.getItem(DotsCacheKey) ?? "[]");
+        return Array.isArray(list) ? list : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeCachedSources(sources: WorkspaceRailSource[]) {
+    const slim = sources.map((s) => ({
+        windowId: s.windowId,
+        workspace: {
+            oid: s.workspace?.oid,
+            name: s.workspace?.name,
+            icon: s.workspace?.icon,
+            color: s.workspace?.color,
+        },
+    }));
+    try {
+        window.localStorage.setItem(DotsCacheKey, JSON.stringify(slim));
+    } catch {
+        // Without storage a new tab view fills its row once wavesrv answers.
+    }
+}
+
 function useWorkspaceEntries(): WorkspaceRailEntry[] {
     const active = useAtomValue(atoms.workspace);
-    const [sources, setSources] = useState<WorkspaceRailSource[]>([]);
+    const [sources, setSources] = useState<WorkspaceRailSource[]>(readCachedSources);
     const refresh = useCallback(() => {
-        fireAndForget(async () => setSources(await loadWorkspaceSources()));
+        fireAndForget(async () => {
+            const loaded = await loadWorkspaceSources();
+            writeCachedSources(loaded);
+            setSources(loaded);
+        });
     }, []);
     useEffect(() => {
         refresh();
@@ -1598,6 +1632,7 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const count = workspaces.entries.length + (draft != null ? 1 : 0);
     const many = manyDots(count);
     const activeId = workspaces.entries.find((e) => e.active)?.id;
+    const centredOnceRef = useRef(false);
     // The current square (or the pending dot) stays in the middle of a row that scrolls.
     useLayoutEffect(() => {
         const row = rowRef.current;
@@ -1608,7 +1643,18 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
         if (on == null) {
             return;
         }
-        row.scrollLeft = centredScroll(on.offsetLeft, on.offsetWidth, row.clientWidth, row.scrollWidth);
+        const rowRect = row.getBoundingClientRect();
+        const onRect = on.getBoundingClientRect();
+        const left = centredScroll(
+            onRect.left - rowRect.left + row.scrollLeft,
+            onRect.width,
+            row.clientWidth,
+            row.scrollWidth
+        );
+        // A tab view opens on its workspace already centred; the row glides only for a change made here (the pending
+        // dot).
+        row.scrollTo({ left, behavior: centredOnceRef.current ? "smooth" : "instant" });
+        centredOnceRef.current = true;
     }, [many, activeId, count, draft != null]);
     return (
         <div
@@ -1979,6 +2025,7 @@ function useSidebarSwipe(
         }
         let state = initialSwipeState();
         let springTimer: ReturnType<typeof setTimeout> = null;
+        let openTimer: ReturnType<typeof setTimeout> = null;
         const onWheel = (e: WheelEvent) => {
             const { workspaces: ws, creating: busy } = latest.current;
             if (busy || e.ctrlKey) {
@@ -2009,7 +2056,9 @@ function useSidebarSwipe(
             }
             if (action.kind === "pulled") {
                 showPull(refs, action.side, 1);
-                springTimer = setTimeout(() => {
+                // Its own timer: the rest of the gesture keeps sending (locked) events, which must not cancel it.
+                clearTimeout(openTimer);
+                openTimer = setTimeout(() => {
                     resetPull(refs);
                     if (action.side < 0) {
                         SidebarModel.getInstance().openLibrary();
@@ -2017,6 +2066,9 @@ function useSidebarSwipe(
                         startCreateWorkspace(latest.current.workspaces);
                     }
                 }, 90);
+                return;
+            }
+            if (state.locked && action.kind === "none") {
                 return;
             }
             resetPull(refs);
@@ -2028,6 +2080,7 @@ function useSidebarSwipe(
         return () => {
             aside.removeEventListener("wheel", onWheel);
             clearTimeout(springTimer);
+            clearTimeout(openTimer);
         };
     }, [asideRef, refs]);
 }

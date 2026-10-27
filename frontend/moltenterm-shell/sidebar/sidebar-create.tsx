@@ -149,7 +149,10 @@ export function CreateWorkspacePage({ draft }: { draft: CreateDraft }) {
                 <div className="mt-1 flex min-w-0 items-center gap-1">
                     <button
                         type="button"
-                        className="min-w-0 flex-1 cursor-pointer truncate rounded-4 border border-white/15 bg-black/25 px-2 py-1.5 text-left font-mono text-11 text-secondary hover:border-white/40 hover:text-primary"
+                        className={cn(
+                            "min-w-0 flex-1 cursor-pointer truncate rounded-4 border border-white/15 bg-black/25 px-2 py-1.5 text-left text-12 text-secondary hover:border-white/40 hover:text-primary",
+                            draft.folder && "font-mono text-11"
+                        )}
                         title={draft.folder || t("sidebar.create.chooseFolder")}
                         data-testid="sidebar-create-folder"
                         onClick={chooseFolder}
@@ -171,7 +174,7 @@ export function CreateWorkspacePage({ draft }: { draft: CreateDraft }) {
             </div>
             <div role="radiogroup" aria-label={t("sidebar.create.colour")} className={LabelClass}>
                 {t("sidebar.create.colour")}
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <div className="mt-1.5 flex flex-wrap gap-1">
                     {CreateColours.map((c) => {
                         const on = c === draft.colour;
                         return (
