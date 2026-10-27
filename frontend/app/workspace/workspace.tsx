@@ -125,7 +125,7 @@ const WorkspaceElem = memo(() => {
             )}
             {showLeftTabBar && isMacOS() && <MacOSTabBarSpacer />}
             {/* MOLTENTERM-PATCH (#44, #1183): the workspace rail, or the workspace sidebar, on the left of the content row */}
-            <div className="relative flex flex-row flex-grow overflow-hidden">
+            <div className={`relative flex flex-row flex-grow overflow-hidden ${sidebarOn ? "mt-sb-frame" : ""}`}>
             {sidebarOn ? <WorkspaceSidebar /> : MoltentermWorkspaceRail && <WorkspaceRail />}
             {/* MOLTENTERM-PATCH (#1183): under the sidebar the content keeps a margin, and room for the window's controls */}
             <div className={`flex min-w-0 flex-grow flex-col overflow-hidden ${sidebarOn ? "pr-[5px] pb-2" : ""}`}>

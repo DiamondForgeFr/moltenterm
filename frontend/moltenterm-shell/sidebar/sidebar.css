@@ -9,6 +9,24 @@
     --mt-sb-fg-3: color-mix(in srgb, var(--color-secondary) 70%, transparent);
 }
 
+/* The window around the sidebar and the panels takes a subtle tint of the workspace's colour (--mt-accent, set from
+   the workspace by accent.ts), as the prototype's --tint: dark enough for the sidebar's text. A colour change fades;
+   under reduced motion the duration tokens are 0. */
+.mt-sb-frame {
+    background-color: color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16));
+    transition: background-color var(--mt-duration-slow) var(--mt-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-frame {
+        transition: background-color var(--mt-duration-fade) linear;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-frame {
+    transition: background-color var(--mt-duration-fade) linear;
+}
+
 .mt-sb-scroll {
     scrollbar-width: none;
 }

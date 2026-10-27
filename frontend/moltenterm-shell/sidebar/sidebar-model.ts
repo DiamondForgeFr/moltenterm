@@ -112,6 +112,51 @@ export function dropTargetAt(clientY: number, rows: { id: string; top: number; h
     return null;
 }
 
+// "Group with…" from a workspace's menu (FR-MC-032, kept by the sidebar until #1191): a local group takes this
+// workspace in; another workspace joins this one, or the group this one is in.
+export function groupWithJoin(
+    workspaceId: string,
+    choice: { id: string; kind: "workspace" | "group" },
+    ownGroupId: string
+): { workspaceid: string; targetid: string } {
+    if (choice.kind === "group") {
+        return { workspaceid: workspaceId, targetid: choice.id };
+    }
+    return { workspaceid: choice.id, targetid: ownGroupId || workspaceId };
+}
+
+// ⌥⇧ and an arrow move the focused workspace dot one place (FR-MC-031, as in the rail): left or up earlier.
+export function dotMoveKey(e: {
+    key: string;
+    altKey: boolean;
+    shiftKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+}): -1 | 1 {
+    if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) {
+        return null;
+    }
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        return -1;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        return 1;
+    }
+    return null;
+}
+
+// The slot a dragged dot lands in among the others, from their centres (0 = before all of them).
+export function dotDropSlot(centres: { id: string; x: number }[], draggedId: string, x: number): number {
+    const others = centres.filter((c) => c.id !== draggedId);
+    let slot = 0;
+    for (const c of others) {
+        if (x > c.x) {
+            slot++;
+        }
+    }
+    return slot;
+}
+
 export function readProjectType(ws: { meta?: Record<string, any> }): string {
     const value = ws?.meta?.[ProjectTypeMetaKey];
     return typeof value === "string" ? value.trim() : "";

@@ -29,6 +29,16 @@
     pointer-events: auto;
 }
 
+/* #1183: the automatic-360 mark, discreet, left of the strip. */
+.mt-radar-auto {
+    margin-right: 6px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    color: var(--mt-text-muted);
+    opacity: 0.75;
+    pointer-events: auto;
+}
+
 .mt-radar-window {
     position: relative;
     display: flex;
