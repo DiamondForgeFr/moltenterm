@@ -32,6 +32,7 @@ import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTER
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
+import { registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187)
 import { pinnedViewKeepsTab } from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
@@ -809,6 +810,8 @@ function registerGlobalKeys() {
     registerEqualizeKeys(globalKeyMap);
     // MOLTENTERM-PATCH (#1183): Cmd+S hides or shows the workspace sidebar
     registerSidebarKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
+    registerTopFieldKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");

@@ -71,7 +71,8 @@ func (p Panel) findTab(browserTabId string) (molten.BrowserPanelTab, bool) {
 type OpenTabRequest struct {
 	TermBlockId string
 	TabId       string
-	// PanelId is the panel to open the tab in; "" creates a panel next to the terminal.
+	// PanelId is the tab's browser panel the new tab opens beside, as a panel of its own (#1187); "" opens it next to
+	// the terminal. OpenTab returns the panel that holds the tab.
 	PanelId      string
 	BrowserTabId string
 	Url          string

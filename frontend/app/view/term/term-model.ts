@@ -43,6 +43,7 @@ import { terminalBodyMenuTail } from "../../../moltenterm-shell/command-panel/bl
 import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { acceleratorById } from "../../../moltenterm-shell/shortcuts/format";
 import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
+import { topFieldTakesKey } from "../../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187)
 import {
     copyText,
     plainSelectionText,
@@ -769,7 +770,8 @@ export class TermViewModel implements ViewModel {
             }
             navigator.clipboard.writeText(sel);
             return false;
-        } else if (keyutil.checkKeyPressed(waveEvent, "Cmd:k")) {
+        } else if (keyutil.checkKeyPressed(waveEvent, "Cmd:k") && !topFieldTakesKey()) {
+            // MOLTENTERM-PATCH (#1187): with the sidebar on, Cmd+K opens its top field (the clear is one of its actions)
             event.preventDefault();
             event.stopPropagation();
             this.termRef.current?.terminal?.clear();
