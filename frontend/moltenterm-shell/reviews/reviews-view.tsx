@@ -16,7 +16,7 @@ import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
@@ -66,7 +66,6 @@ import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
-import { AllProjectsList, ProjectChips, ProjectWithoutFolder } from "./reviews-projects";
 import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
 import { AfterMergeLine, MergeOrderNote, MergeQueueBlock } from "./reviews-queue";
 import {
@@ -93,6 +92,14 @@ export { MoltentermReviewsView, ReviewRow };
 // How long a PR another surface asked for stays marked.
 const FocusMarkMs = 4000;
 const RowKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
+
+// Loaded on demand: the project chips and lists only show in a workspace of several projects, so their code stays out
+// of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
+const ProjectChips = lazy(() => import("./reviews-projects").then((m) => ({ default: m.ProjectChips })));
+const AllProjectsList = lazy(() => import("./reviews-projects").then((m) => ({ default: m.AllProjectsList })));
+const ProjectWithoutFolder = lazy(() =>
+    import("./reviews-projects").then((m) => ({ default: m.ProjectWithoutFolder }))
+);
 
 export class ReviewsViewModel implements ViewModel {
     viewType = MoltentermReviewsView;
@@ -142,11 +149,17 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
         <>
             {several ? (
                 <div className="flex h-full w-full flex-col overflow-hidden" data-testid="reviews-projects">
-                    <ProjectChips workspaceId={workspace?.oid} projects={projects} filter={filter} />
+                    <Suspense fallback={null}>
+                        <ProjectChips workspaceId={workspace?.oid} projects={projects} filter={filter} />
+                    </Suspense>
                     {shown == null ? (
-                        <AllProjectsList workspace={workspace} projects={projects} />
+                        <Suspense fallback={null}>
+                            <AllProjectsList workspace={workspace} projects={projects} />
+                        </Suspense>
                     ) : shown.dir === "" ? (
-                        <ProjectWithoutFolder project={shown} />
+                        <Suspense fallback={null}>
+                            <ProjectWithoutFolder project={shown} />
+                        </Suspense>
                     ) : (
                         <div className="flex min-h-0 flex-1 flex-col">{frame}</div>
                     )}

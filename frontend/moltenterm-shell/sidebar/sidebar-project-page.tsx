@@ -14,14 +14,9 @@ import { MoltenWave } from "../molten-button";
 import { workspaceShownName } from "../workspace-default-name";
 import { chooseMoltentermPath } from "../workspace-project-store";
 import { ProjectPage, SidebarModel } from "./sidebar-store";
-import {
-    ProjectDraft,
-    projectDraftProblem,
-    projectLabel,
-    projectTypeSuggestions,
-    readProjects,
-} from "./workspace-projects";
-import { addWorkspaceProject, editWorkspaceProject, removeWorkspaceProject } from "./workspace-projects-store";
+import { ProjectDraft, projectLabel, readProjects } from "./workspace-projects";
+import { projectDraftProblem, projectTypeSuggestions } from "./workspace-projects-edit";
+import { addWorkspaceProject, editWorkspaceProject, removeWorkspaceProject } from "./workspace-projects-edit-store";
 
 const FieldClass =
     "mt-1 w-full min-w-0 rounded-4 border border-white/15 bg-black/25 px-2 py-1.5 text-12 text-primary outline-none placeholder:text-muted focus:border-white/40";

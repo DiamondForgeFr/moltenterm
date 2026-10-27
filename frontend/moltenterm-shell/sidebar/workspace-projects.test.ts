@@ -3,16 +3,18 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    addProjectUpdate,
     currentProject,
-    editProjectUpdate,
     projectChipLabel,
-    projectDraftProblem,
     projectLabel,
     readProjects,
-    removeProjectUpdate,
     switchProjectUpdate,
 } from "./workspace-projects";
+import {
+    addProjectUpdate,
+    editProjectUpdate,
+    projectDraftProblem,
+    removeProjectUpdate,
+} from "./workspace-projects-edit";
 
 function apply(meta: Record<string, any>, update: Record<string, any>): { meta: Record<string, any> } {
     const next = { ...meta };
