@@ -2,7 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* 360 view (FR-SHELL-065, DS-SHELL-115): the carpet is a recessed surface beside the fixed zone, so a tab in 360 view
-   reads at a glance. Panels laid on it carry a drop shadow; scrolling only moves the --mt-carpet-scroll variable. */
+   reads at a glance. Panels laid on it are flat like the others (FR-SHELL-086); scrolling only moves the
+   --mt-carpet-scroll variable. */
 
 .tile-layout {
     --mt-carpet-bg: color-mix(in srgb, var(--mt-accent) 3%, rgb(14, 14, 14));
@@ -101,10 +102,9 @@
     overflow: visible;
 }
 
+/* Carpet panels are flat like the others (FR-SHELL-086): no drop shadow, the recessed carpet sets them apart. */
 .tile-layout .tile-node.mt-carpet-node .block-frame-default {
-    box-shadow:
-        0 10px 24px -6px rgb(0 0 0 / 0.6),
-        0 2px 6px rgb(0 0 0 / 0.35);
+    box-shadow: none;
 }
 
 /* While the carpet scrolls, panels follow it at once instead of easing towards each step. */

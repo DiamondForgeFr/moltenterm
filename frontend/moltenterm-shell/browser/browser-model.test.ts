@@ -13,9 +13,24 @@ import {
     PanelTabs,
     readBrowserState,
     servingTabOf,
+    shownAddress,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
+
+describe("shownAddress (FR-SHELL-086)", () => {
+    it.each([
+        ["https://github.com/", "github.com"],
+        ["https://github.com/org/repo/issues/12", "github.com/org/repo/issues/12"],
+        ["http://localhost:5173/", "localhost:5173"],
+        ["https://a.dev/?q=1", "a.dev/?q=1"],
+        ["file:///tmp/x.html", "file:///tmp/x.html"],
+        ["about:blank", "about:blank"],
+        ["", ""],
+    ])("%s reads %s", (url, shown) => {
+        expect(shownAddress(url)).toBe(shown);
+    });
+});
 
 function ids() {
     let n = 0;

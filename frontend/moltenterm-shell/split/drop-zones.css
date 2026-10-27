@@ -21,6 +21,10 @@
 /* The ghost of the new panel (DS-SHELL-083): dashed accent, a light fill, on the zone's half. */
 .molten-drop-ghost {
     position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     border: 1px dashed color-mix(in srgb, var(--mt-accent) 70%, transparent);
     border-radius: var(--mt-radius-6);
     background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
@@ -46,6 +50,21 @@
 
 .molten-drop-ghost[data-zone="up"] {
     border-bottom: 2px solid var(--mt-accent);
+}
+
+/* Where the panel lands, said in the ghost (FR-SHELL-086): "Right of Valentin", "Below Project". */
+.molten-drop-zone-chip {
+    max-width: calc(100% - 16px);
+    padding: 3px 9px;
+    overflow: hidden;
+    border-radius: var(--mt-radius-6);
+    background: color-mix(in srgb, var(--mt-accent) 85%, black);
+    color: var(--mt-accent-fg);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-semibold);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    box-shadow: var(--mt-shadow-e2);
 }
 
 .molten-drop-catcher {

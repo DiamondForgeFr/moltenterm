@@ -16,23 +16,19 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { DropTargetMonitor, XYCoord, useDrag, useDragLayer, useDrop } from "react-dnd";
+import { XYCoord, useDrag, useDragLayer, useDrop } from "react-dnd"; // MOLTENTERM-PATCH (#1190)
 import { debounce, throttle } from "throttle-debounce";
 import { useDevicePixelRatio } from "use-device-pixel-ratio";
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#829)
+import { gutterTitleKey, resetGutterSizes } from "../../moltenterm-shell/split/panel-gutter"; // MOLTENTERM-PATCH (#1190)
+import { dropPanelAt } from "../../moltenterm-shell/split/panel-move"; // MOLTENTERM-PATCH (#1190)
 import { View360Overlay, View360Underlay } from "../../moltenterm-shell/view360/view360-carpet"; // MOLTENTERM-PATCH (#614)
 import { interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { LayoutModel } from "./layoutModel";
 import { useNodeModel, useTileLayout } from "./layoutModelHooks";
 import "./tilelayout.scss";
-import {
-    LayoutNode,
-    LayoutTreeActionType,
-    LayoutTreeComputeMoveNodeAction,
-    ResizeHandleProps,
-    TileLayoutContents,
-} from "./types";
-import { determineDropDirection } from "./utils";
+// MOLTENTERM-PATCH (#1190): the nine-zone move (determineDropDirection, ComputeMove) is no longer computed here
+import { LayoutNode, LayoutTreeActionType, ResizeHandleProps, TileLayoutContents } from "./types";
 
 const tileItemType = "TILE_ITEM";
 
@@ -378,41 +374,18 @@ const OverlayNode = memo(({ node, layoutModel }: OverlayNodeProps) => {
         () => ({
             accept: tileItemType,
             canDrop: (_, monitor) => {
-                const dragItem = monitor.getItem<LayoutNode>();
-                if (monitor.isOver({ shallow: true }) && dragItem.id !== node.id) {
-                    return true;
-                }
-                return false;
+                // MOLTENTERM-PATCH (#1190): the drop hit-tests the panels as drawn (the 360 carpet scrolls them off
+                // their overlay node), so any overlay node takes it; a drop on the dragged panel itself does nothing
+                return monitor.isOver({ shallow: true });
             },
             drop: (_, monitor) => {
                 if (!monitor.didDrop()) {
-                    layoutModel.onDrop();
+                    // MOLTENTERM-PATCH (#1190): four zones, left or right a new column, above or below a stack; the
+                    // drop-zones layer draws them in place of Wave's placeholder and its nine-zone move
+                    const at = monitor.getClientOffset();
+                    dropPanelAt(layoutModel, monitor.getItem<LayoutNode>(), at?.x, at?.y);
                 }
             },
-            hover: throttle(50, (_, monitor: DropTargetMonitor<unknown, unknown>) => {
-                if (monitor.isOver({ shallow: true })) {
-                    if (monitor.canDrop() && layoutModel.displayContainerRef?.current && additionalProps?.rect) {
-                        const dragItem = monitor.getItem<LayoutNode>();
-                        // console.log("computing operation", layoutNode, dragItem, additionalProps.rect);
-                        const offset = monitor.getClientOffset();
-                        const containerRect = layoutModel.displayContainerRef.current.getBoundingClientRect();
-                        offset.x -= containerRect.x;
-                        offset.y -= containerRect.y;
-                        // MOLTENTERM-PATCH (#617): a panel on the scrolled carpet is drawn shifted from its rect
-                        offset.x += layoutModel.moltenView360?.pointerScrollFor(node.id) ?? 0;
-                        layoutModel.treeReducer({
-                            type: LayoutTreeActionType.ComputeMove,
-                            nodeId: node.id,
-                            nodeToMoveId: dragItem.id,
-                            direction: determineDropDirection(additionalProps.rect, offset),
-                        } as LayoutTreeComputeMoveNodeAction);
-                    } else {
-                        layoutModel.treeReducer({
-                            type: LayoutTreeActionType.ClearPendingAction,
-                        });
-                    }
-                }
-            }),
         }),
         [node.id, additionalProps?.rect, layoutModel.displayContainerRef, layoutModel.onDrop, layoutModel.treeReducer]
     );
@@ -486,8 +459,11 @@ const ResizeHandle = memo(({ resizeHandleAtom, layoutModel }: ResizeHandleCompon
             ref={resizeHandleRef}
             className={clsx("resize-handle", `flex-${resizeHandleProps.flexDirection}`, {
                 "mt-handle-stuck": stuckTitleKey != null, // MOLTENTERM-PATCH (#829): it cannot move, its title says why
+                "mt-gutter-active": trackingPointer != null, // MOLTENTERM-PATCH (#1190)
             })}
-            title={stuckTitleKey != null ? t(stuckTitleKey) : undefined}
+            // MOLTENTERM-PATCH (#1190): the gutter says what it does; a double-click gives the panels equal sizes
+            title={stuckTitleKey != null ? t(stuckTitleKey) : t(gutterTitleKey(resizeHandleProps.flexDirection))}
+            onDoubleClick={() => resetGutterSizes(layoutModel, resizeHandleProps)}
             onPointerDown={onPointerDown}
             onGotPointerCapture={onPointerCapture}
             onLostPointerCapture={onPointerRelease}
@@ -495,6 +471,7 @@ const ResizeHandle = memo(({ resizeHandleAtom, layoutModel }: ResizeHandleCompon
             onPointerMove={handlePointerMove}
         >
             <div className="line" />
+            <div className="mt-gutter-pill" /* MOLTENTERM-PATCH (#1190): Arc-like pill in the gutter */ />
         </div>
     );
 });

@@ -1966,6 +1966,7 @@
         "share": {
             "noAgent": "No agent is running in this tab",
             "share": "Share with…",
+            "shareWith": "Share with {name}",
             "andTell": "Share and tell {name}",
             "stateShared": "Shared with {name}",
             "stateOpened": "Opened by {name}",
@@ -5402,6 +5403,18 @@
         "beside": {
             "left": "Add a panel on the left",
             "right": "Add a panel on the right"
+        },
+        "zone": {
+            "left": "Left of {name}",
+            "right": "Right of {name}",
+            "up": "Above {name}",
+            "down": "Below {name}",
+            "here": "Open in {name}",
+            "panel": "this panel"
+        },
+        "gutter": {
+            "columns": "Drag to resize the columns · double-click to give them equal widths",
+            "rows": "Drag to resize the panels · double-click to give them equal heights"
         }
     },
     "reopen": {
