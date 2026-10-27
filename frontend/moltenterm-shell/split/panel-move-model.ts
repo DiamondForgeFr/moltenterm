@@ -55,6 +55,38 @@ export function nearestSide(x: number, y: number, rect: Rect): SplitDirection {
     return sides.reduce((best, side) => (side[1] < best[1] ? side : best))[0];
 }
 
+// A panel dragged by its header: the four edge zones, plus Wave's centre zone, which swaps the two panels.
+export type PanelZone = SplitDirection | "center";
+
+// The centre zone is Wave's (determineDropDirection): the middle fifth of the panel, both ways.
+export const SwapZoneLow = 2 / 5;
+export const SwapZoneHigh = 3 / 5;
+
+// The zone of a panel under the point for a panel drag: the centre swaps, anywhere else the nearest side.
+export function panelZoneAt(x: number, y: number, rect: Rect): PanelZone {
+    const side = nearestSide(x, y, rect);
+    if (side == null) {
+        return null;
+    }
+    const fx = (x - rect.left) / rect.width;
+    const fy = (y - rect.top) / rect.height;
+    if (fx > SwapZoneLow && fx < SwapZoneHigh && fy > SwapZoneLow && fy < SwapZoneHigh) {
+        return "center";
+    }
+    return side;
+}
+
+// Whether two panels can swap: both in the tree, distinct, and neither the root (a lone panel).
+export function canSwap(root: LayoutNode, targetNodeId: string, movedNodeId: string): boolean {
+    if (root == null || !targetNodeId || !movedNodeId || targetNodeId === movedNodeId) {
+        return false;
+    }
+    if (root.id === targetNodeId || root.id === movedNodeId) {
+        return false;
+    }
+    return findIn(root, targetNodeId) != null && findIn(root, movedNodeId) != null;
+}
+
 // The index of the top-level column holding the node, -1 when it is not in the tree.
 export function columnIndexOfNode(root: LayoutNode, nodeId: string): number {
     if (!nodeId) {

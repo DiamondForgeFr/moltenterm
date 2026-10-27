@@ -5410,6 +5410,7 @@
             "up": "Above {name}",
             "down": "Below {name}",
             "here": "Open in {name}",
+            "swap": "Swap with {name}",
             "panel": "this panel"
         },
         "gutter": {
