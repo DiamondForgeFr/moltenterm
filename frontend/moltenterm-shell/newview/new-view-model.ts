@@ -6,7 +6,7 @@
 // view starts with, the keys of the chooser) as pure functions, tested without the app; new-view.ts carries them out.
 
 import { fillsPanel, PaletteEntry, PaletteKey, PaletteRun } from "../palette/palette-model";
-import { actionEntries, agentEntries, panelEntries } from "../palette/palette-sources";
+import { actionEntries, agentEntries, pickerPanelEntries } from "../palette/palette-sources";
 
 export const NewViewOpenKey = "app:newviewopen";
 export const NewViewFavoritesKey = "app:newviewfavorites";
@@ -24,7 +24,14 @@ export const MinFavorites = 2;
 export const MaxFavorites = 4;
 
 // Actions a new view may hold or run besides the panels and the agents (FR-SHELL-089).
-const ChoiceActionIds = ["action:sessions", "action:projecttab"];
+const ChoiceActionIds = ["action:projecttab"];
+
+// Sessions was an action before it joined the panels (#1273): a choice saved on it finds the panel.
+const RenamedChoiceIds: Record<string, string> = { "action:sessions": "panel:sessions" };
+
+function currentChoiceId(id: string): string {
+    return RenamedChoiceIds[id] ?? id;
+}
 
 export type NewViewChoiceInput = {
     presets: { [key: string]: MetaType };
@@ -34,10 +41,14 @@ export type NewViewChoiceInput = {
 };
 
 // The launcher entries a new view can open: every panel, every agent preset MoltenTerm knows (never a hard-coded
-// provider), Sessions and the Project tab.
+// provider) and the Project tab. The panels are the split picker's, MoltenTerm's own included (#1273).
 export function newViewChoices(input: NewViewChoiceInput): PaletteEntry[] {
     const actions = actionEntries([], input.projectLinked ?? false).filter((e) => ChoiceActionIds.includes(e.id));
-    return [...panelEntries(input.widgets, input.workspaceId), ...agentEntries(input.presets), ...actions];
+    return [
+        ...pickerPanelEntries(input.widgets, input.workspaceId, null, input.projectLinked ?? false),
+        ...agentEntries(input.presets),
+        ...actions,
+    ];
 }
 
 // The chooser already is a new view: its list leaves out "New tab", which only opened yet another one (#1238).
@@ -109,7 +120,7 @@ export function addFavorite(ids: string[], id: string): string[] {
 export function resolveFavorites(setting: unknown, choices: PaletteEntry[]): PaletteEntry[] {
     const byId = new Map((choices ?? []).map((c) => [c.id, c]));
     const rtn = idList(setting)
-        .map((id) => byId.get(id))
+        .map((id) => byId.get(currentChoiceId(id)))
         .filter((c) => c != null)
         .slice(0, MaxFavorites);
     for (const id of DefaultFavoriteIds) {
@@ -129,7 +140,8 @@ export function resolveDirect(setting: unknown, choices: PaletteEntry[]): Palett
     if (typeof setting !== "string" || setting.trim() === "") {
         return null;
     }
-    return (choices ?? []).find((c) => c.id === setting.trim()) ?? null;
+    const id = currentChoiceId(setting.trim());
+    return (choices ?? []).find((c) => c.id === id) ?? null;
 }
 
 export const ChooserBlockDef: BlockDef = { meta: { view: "launcher", [NewViewMetaKey]: true } as MetaType };

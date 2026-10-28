@@ -410,7 +410,7 @@
             "updateTerminals": "Update outdated terminals"
         },
         "panels": {
-            "missionControl": "Mission Control",
+            "missionControl": "Project",
             "missionControlDetail": "the project overview",
             "noProject": "no project linked yet",
             "lineMap": "Line map",

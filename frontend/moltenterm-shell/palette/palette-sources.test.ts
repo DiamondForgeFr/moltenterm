@@ -269,6 +269,25 @@ describe("helpers", () => {
         const groups = new Set(entries.map((e) => e.group));
         expect([...groups]).toEqual(["agents", "panels", "folders", "actions"]);
     });
+
+    it("lists MoltenTerm's panels in the launcher as the split picker does, Sessions once (#1273)", () => {
+        const entries = buildPaletteEntries({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            folder: "/p",
+            recentFolders: [],
+            otherFolders: [],
+            workspaces: [],
+            home: "",
+        });
+        const panels = entries.filter((e) => e.group === "panels");
+        expect(panels.map((e) => e.id)).toEqual(
+            expect.arrayContaining(["panel:missioncontrol", "panel:linemap", "panel:sessions"])
+        );
+        expect(panels.find((e) => e.id === "panel:missioncontrol").label).toBe("Project");
+        expect(entries.filter((e) => e.label === "Sessions")).toHaveLength(1);
+    });
 });
 
 describe("browserEntries (FR-BRW-002)", () => {

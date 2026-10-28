@@ -140,16 +140,31 @@ describe("opening one type directly (FR-SHELL-089, TC-SHELL-167)", () => {
     });
 
     it("runs an action that holds no panel without a tab", () => {
-        expect(newViewStart(resolveDirect("action:sessions", choices))).toEqual({
+        const linked = newViewChoices({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            projectLinked: true,
+        });
+        expect(newViewStart(resolveDirect("action:projecttab", linked))).toEqual({
             kind: "run",
-            run: { kind: "sessions" },
+            run: { kind: "projecttab" },
         });
     });
 
-    it("offers every panel, every registered agent and Sessions, never the launcher itself", () => {
+    it("opens the Sessions panel for a choice saved when Sessions was an action (#1273)", () => {
+        const start = newViewStart(resolveDirect("action:sessions", choices));
+        expect(start.kind).toBe("tab");
+        expect((start as { blockdef: BlockDef }).blockdef.meta.view).toBe("molten-sessions");
+        expect(resolveFavorites(["action:sessions"], choices)[0].id).toBe("panel:sessions");
+    });
+
+    it("offers every panel, MoltenTerm's own included, every registered agent, never the launcher itself", () => {
         const ids = choices.map((c) => c.id);
         expect(ids).toEqual(expect.arrayContaining(["panel:defwidget@terminal", "panel:defwidget@web"]));
-        expect(ids).toEqual(expect.arrayContaining(["agent:claude", "agent:codex", "action:sessions"]));
+        expect(ids).toEqual(expect.arrayContaining(["panel:missioncontrol", "panel:linemap", "panel:sessions"]));
+        expect(ids).not.toContain("action:sessions");
+        expect(ids).toEqual(expect.arrayContaining(["agent:claude", "agent:codex"]));
         const custom = newViewChoices({
             presets: { "agent@aider": { "agent:command": "aider" } } as any,
             widgets: DefaultWidgets,
