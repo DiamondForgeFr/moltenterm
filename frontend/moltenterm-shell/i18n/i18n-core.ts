@@ -19,29 +19,123 @@ export const SystemLanguage = "system";
 
 export type LanguageInfo = { code: string; name: string };
 
-type LanguageEntry = LanguageInfo & { dict: Dictionary; overrides: Dictionary[] };
+type DictionaryLoader = () => Promise<Dictionary>;
 
-const LocaleFiles = import.meta.glob("./locales/*.json", { eager: true, import: "default" }) as unknown as Record<
-    string,
-    Dictionary
->;
+// A shipped dictionary is either loaded or a loader: the renderer loads only the active language at startup (#1213,
+// NFR-PERF-003), Electron main and the tests take every dictionary up front (i18n-locales-eager.ts).
+export type ShippedLocaleFiles = Record<string, Dictionary | DictionaryLoader>;
 
-function shippedLanguages(): LanguageEntry[] {
-    const entries = Object.entries(LocaleFiles).map(([path, dict]) => {
-        const code = path
-            .replace(/^.*\//, "")
-            .replace(/\.json$/, "")
-            .toLowerCase();
-        return { code, name: resolveKey(dict, "language.name") ?? code, dict, overrides: [] as Dictionary[] };
-    });
-    // English first: it is the reference and the fallback.
-    return entries.sort((a, b) => (a.code === FallbackLanguage ? -1 : b.code === FallbackLanguage ? 1 : 0));
+type LanguageEntry = LanguageInfo & {
+    dict: Dictionary;
+    overrides: Dictionary[];
+    shipped: boolean;
+    load?: DictionaryLoader;
+};
+
+const languages = new Map<string, LanguageEntry>();
+const listeners = new Set<() => void>();
+const pendingLoads = new Map<string, Promise<void>>();
+
+function localeFileCode(path: string): string {
+    return path
+        .replace(/^.*\//, "")
+        .replace(/\.json$/, "")
+        .toLowerCase();
 }
 
-const ShippedLanguages: LanguageEntry[] = shippedLanguages();
+// The language's own name before its dictionary is loaded ("Français"); its `language.name` replaces it once loaded.
+function nativeLanguageName(code: string): string {
+    try {
+        const name = new Intl.DisplayNames([code], { type: "language" }).of(code);
+        if (!name || name === code) return code;
+        return name.charAt(0).toLocaleUpperCase(code) + name.slice(1);
+    } catch {
+        return code;
+    }
+}
 
-const languages = new Map<string, LanguageEntry>(ShippedLanguages.map((l) => [l.code, { ...l, overrides: [] }]));
-const listeners = new Set<() => void>();
+function setShippedDictionary(entry: LanguageEntry, dict: Dictionary) {
+    entry.dict = dict;
+    entry.load = undefined;
+    entry.name = resolveKey(dict, "language.name") ?? entry.name;
+}
+
+// Declares the shipped languages (the files of locales/, by path). A dictionary already loaded is kept.
+export function provideShippedLanguages(files: ShippedLocaleFiles) {
+    // English first: it is the reference and the fallback.
+    const codes = Object.keys(files).sort((a, b) => {
+        const ca = localeFileCode(a);
+        const cb = localeFileCode(b);
+        return ca === FallbackLanguage ? -1 : cb === FallbackLanguage ? 1 : ca.localeCompare(cb);
+    });
+    let changed = false;
+    for (const path of codes) {
+        const code = localeFileCode(path);
+        const value = files[path];
+        let entry = languages.get(code);
+        if (entry == null) {
+            entry = { code, name: nativeLanguageName(code), dict: undefined, overrides: [], shipped: true };
+            languages.set(code, entry);
+            changed = true;
+        }
+        entry.shipped = true;
+        if (entry.dict != null && entry.load == null) continue;
+        if (typeof value === "function") {
+            entry.load = value as DictionaryLoader;
+            continue;
+        }
+        setShippedDictionary(entry, value);
+        changed = true;
+    }
+    if (changed) notify();
+}
+
+export function isLanguageLoaded(code: string): boolean {
+    return languages.get(code)?.dict != null;
+}
+
+// Whether `code` can be shown without raw keys: its dictionary is loaded and, for a language a pack adds (which falls
+// back to English for the keys it lacks), English is too.
+export function isLanguageReady(code: string): boolean {
+    const entry = languages.get(code);
+    if (entry?.dict == null) return false;
+    return entry.shipped || isLanguageLoaded(FallbackLanguage);
+}
+
+function loadShipped(code: string): Promise<void> {
+    const entry = languages.get(code);
+    if (entry == null || entry.dict != null || entry.load == null) return Promise.resolve();
+    let pending = pendingLoads.get(code);
+    if (pending != null) return pending;
+    const load = entry.load;
+    pending = load()
+        .then((dict) => {
+            if (entry.load !== load) return;
+            setShippedDictionary(entry, dict);
+            notify();
+        })
+        .finally(() => pendingLoads.delete(code));
+    pendingLoads.set(code, pending);
+    return pending;
+}
+
+// Loads what `code` needs to show (isLanguageReady): its shipped dictionary, and English for a pack's language.
+export async function loadLanguage(code: string): Promise<void> {
+    const entry = languages.get(code);
+    const loads = [loadShipped(code)];
+    if (entry != null && !entry.shipped) loads.push(loadShipped(FallbackLanguage));
+    await Promise.all(loads);
+}
+
+export async function loadShippedLanguages(): Promise<void> {
+    await Promise.all([...languages.values()].filter((l) => l.shipped).map((l) => loadShipped(l.code)));
+}
+
+// The shipped dictionary of a language, loaded first when it is not yet.
+export async function loadShippedDictionary(code: string): Promise<Dictionary> {
+    await loadShipped(code);
+    return shippedDictionary(code);
+}
 
 // Resolves a dotted key (`a.b.c`) against a nested dictionary; undefined when absent or empty (an empty string counts
 // as missing, so the English text shows instead: no visible string is ever empty, NFR-I18N-003).
@@ -144,7 +238,7 @@ export function registerLanguage(info: LanguageInfo, dict: Dictionary): () => vo
             notify();
         };
     }
-    const entry: LanguageEntry = { code, name: info.name || code, dict, overrides: [] };
+    const entry: LanguageEntry = { code, name: info.name || code, dict, overrides: [], shipped: false };
     languages.set(code, entry);
     notify();
     return () => {
@@ -243,14 +337,18 @@ export function languageText(code: string, key: string): string | undefined {
 }
 
 export function isShippedLanguage(code: string): boolean {
-    return ShippedLanguages.some((l) => l.code === code);
+    return languages.get(code)?.shipped === true;
 }
 
+// Whether the shipped dictionaries have `key`: English's when loaded, else any loaded one (they all hold every key of
+// en.json, TC-I18N-005).
 export function hasKey(key: string): boolean {
-    return lookup(FallbackLanguage, key) != null;
+    if (isLanguageLoaded(FallbackLanguage)) return lookup(FallbackLanguage, key) != null;
+    return [...languages.values()].some((l) => l.shipped && resolveKey(l.dict, key) != null);
 }
 
-// The shipped dictionary of a language (tests and tools; packs are not merged in).
+// The shipped dictionary of a language when it is loaded (tests and tools; packs are not merged in).
 export function shippedDictionary(code: string): Dictionary {
-    return ShippedLanguages.find((l) => l.code === code)?.dict;
+    const entry = languages.get(code);
+    return entry?.shipped ? entry.dict : undefined;
 }

@@ -39,7 +39,7 @@ import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { startHangReport } from "./moltenterm-shell/hang-report"; // MOLTENTERM-PATCH (#849)
-import { startMoltentermI18n } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623)
+import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
@@ -222,7 +222,7 @@ async function initWave(initOpts: WaveInitOpts) {
         firstRenderResolveFn = resolve;
     });
     startMoltentermAccent(atoms.workspace); // MOLTENTERM-PATCH (#47): before the first render, so no green flash
-    startMoltentermI18n(); // MOLTENTERM-PATCH (#623): the interface language, before the first render
+    await startMoltentermI18n(); // MOLTENTERM-PATCH (#623, #1213): the interface language, loaded before the first render
     const reactElem = createElement(App, { onFirstRender: firstRenderResolveFn }, null);
     const elem = document.getElementById("main");
     const root = createRoot(elem);
@@ -291,6 +291,7 @@ async function initBuilder(initOpts: BuilderInitOpts) {
     const waveaiModeConfig = await RpcApi.GetWaveAIModeConfigCommand(TabRpcClient);
     globalStore.set(atoms.waveaiModeConfigAtom, waveaiModeConfig.configs);
 
+    await whenMoltentermI18nReady(); // MOLTENTERM-PATCH (#1213): the language's texts load on demand
     console.log("Tsunami Builder First Render");
     let firstRenderResolveFn: () => void = null;
     const firstRenderPromise = new Promise<void>((resolve) => {
