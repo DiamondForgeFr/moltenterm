@@ -43,29 +43,26 @@
     background-color: var(--mt-toast-edge);
 }
 
-/* The bell's unread count (#429): a small pill at the bell's top-right corner, cut out of the icon by a ring in the
-   tab bar's colour (the window background under the bar's 35 % black). */
-.molten-notification-count {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black);
-}
+/* The bell's unread count (#429) is a flat accent pill at the bell's top-right corner, inside the button's box: the
+   Spaces frame (#1216) puts the bell at the window's top edge, and a dark ring read as a stray border (#1235). */
 
 /* A rise of the count pulses the pill a few times, so a new notification is noticed without looking for the bell
    (#790). Reduced motion keeps the bigger pill, without the pulse. */
 .molten-notification-count-arrive {
     animation: molten-count-arrive 0.9s var(--mt-ease) 3;
+    /* Grows down and left, so the pulse never crosses the window's top edge either. */
+    transform-origin: 70% 0%;
 }
 
 @keyframes molten-count-arrive {
     0%,
     100% {
         transform: scale(1);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black);
+        box-shadow: 0 0 0 0 transparent;
     }
     40% {
         transform: scale(1.3);
-        box-shadow:
-            0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black),
-            0 0 0 6px color-mix(in srgb, var(--color-accent) 35%, transparent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 35%, transparent);
     }
 }
 

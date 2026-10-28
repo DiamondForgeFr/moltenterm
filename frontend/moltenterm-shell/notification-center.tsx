@@ -629,11 +629,11 @@ export function NotificationCenter() {
                         key={pulse}
                         data-testid="notification-count"
                         className={cn(
-                            "molten-notification-count pointer-events-none absolute flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
+                            "molten-notification-count pointer-events-none absolute flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-accent px-1 text-12 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
                             pulse > 0 && "molten-notification-count-arrive",
-                            // The wider "9+" pill sits further right so it only overlaps the bell's corner; higher,
-                            // the window's top edge would cut its ring.
-                            count > 9 ? "-top-1 -right-3" : "-top-1 -right-2"
+                            // The wider "9+" pill sits further right so it only overlaps the bell's corner. Never
+                            // above the button's top (#1235): the Spaces frame puts the bell at the window's edge.
+                            count > 9 ? "top-0 -right-2.5" : "top-0 -right-1"
                         )}
                     >
                         {badgeCount(count)}
