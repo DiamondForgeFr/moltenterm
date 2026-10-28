@@ -10,6 +10,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { makeMoltentermBuildChanges, makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55, #187)
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 import { moltentermEntryGuard } from "./frontend/moltenterm-shell/build/entry-guard"; // MOLTENTERM-PATCH (#453)
+import { ignoredDevJson, moltentermLocalesHot } from "./frontend/moltenterm-shell/build/locales-hot"; // MOLTENTERM-PATCH (#1215)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -160,7 +161,7 @@ export default defineConfig({
                     "**/go.sum",
                     "**/*.md",
                     "**/*.mdx",
-                    "**/*.json",
+                    ignoredDevJson, // MOLTENTERM-PATCH (#1215): every JSON file but the interface dictionaries
                     "**/emain/**",
                     "**/*.txt",
                     "**/*.log",
@@ -186,6 +187,7 @@ export default defineConfig({
             react({}),
             tailwindcss(),
             moltentermEntryGuard(), // MOLTENTERM-PATCH (#453): fails the build when the entry pulls a heavy library
+            moltentermLocalesHot(), // MOLTENTERM-PATCH (#1215): a dictionary changed under `task dev` reaches the views
         ],
     },
 });

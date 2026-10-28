@@ -18,6 +18,7 @@ import {
     I18nVars,
     isLanguageReady,
     LanguageInfo,
+    loadFallbackLanguage,
     loadLanguage,
     onLanguagesChange,
     resolveLanguage,
@@ -91,6 +92,9 @@ export class I18nModel {
     // key ever shows.
     async whenReady(): Promise<void> {
         await loadLanguage(globalStore.get(this.resolutionAtom).locale);
+        // English follows without delaying the first render: a key the active language lacks shows its English
+        // text rather than the raw key (#1215).
+        loadFallbackLanguage().catch((e) => console.error("loading the fallback language", e));
     }
 
     static getInstance(): I18nModel {
