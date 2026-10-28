@@ -28,8 +28,13 @@ const CardTopPx = 40;
 function capPlacement(rect: OverlayRect): React.CSSProperties {
     const cx = rect.left + rect.width / 2;
     if (rect.width < NarrowPx) {
+        // Near the window's top edge there is no room above: beside it, on the right.
         if (rect.top < 24) {
-            return { left: cx, top: rect.top + rect.height + 2, transform: "translate(-50%, 0)" };
+            return {
+                left: rect.left + rect.width + 2,
+                top: rect.top + rect.height / 2,
+                transform: "translate(0, -50%)",
+            };
         }
         return { left: cx, top: rect.top - 2, transform: "translate(-50%, -100%)" };
     }
