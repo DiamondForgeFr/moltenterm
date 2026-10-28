@@ -8877,11 +8877,7 @@
         "temporary": {
             "title": "Vues temporaires",
             "hint": "Une vue temporaire se ferme ; épinglez-la pour la garder",
-            "newView": "Nouvelle vue",
-            "underAgents": {
-                "one": "+ {count} sous son agent",
-                "other": "+ {count} sous leurs agents"
-            }
+            "newView": "Nouvelle vue"
         },
         "agents": {
             "title": "Agents",

@@ -4,10 +4,11 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import {
-    agentOwnedViews,
     agentRowLook,
+    agentRowTarget,
     MaxKeptTrees,
     readTreeStates,
+    sidebarSections,
     toggleSection,
     toggleTree,
     workspaceAgents,
@@ -61,16 +62,45 @@ describe("agentRowLook", () => {
     });
 });
 
-describe("agentOwnedViews", () => {
-    it("gives a temporary view to its only agent, never a pinned one or a view of two agents", () => {
-        const agents = [
-            info("a", "working", { tabid: "t1" }),
-            info("b", "working", { tabid: "t2" }),
-            info("c", "working", { tabid: "t2" }),
-            info("d", "working", { tabid: "pinned" }),
-        ];
-        const owned = agentOwnedViews(["t1", "t2", "t3"], agents);
-        expect(Array.from(owned)).toEqual([["t1", "a"]]);
+// A view stays a view whatever it holds (#1246): the agent rows sit beside the views, never in their place.
+describe("sidebarSections", () => {
+    const split = { tiles: ["tile"], temporary: ["t1", "t2", "t3"], everywhere: { pin1: "top" } };
+
+    it("keeps a temporary view that starts an agent in the temporary list", () => {
+        const agents = [info("a", "working", { tabid: "t1" })];
+        const s = sidebarSections(split, agents);
+        expect(s.temporary).toEqual(["t1", "t2", "t3"]);
+        expect(s.agents.map((a) => a.blockid)).toEqual(["a"]);
+    });
+
+    it("keeps a view of two agents, and each of its agents, listed", () => {
+        const agents = [info("b", "working", { tabid: "t2" }), info("c", "waiting", { tabid: "t2" })];
+        const s = sidebarSections(split, agents);
+        expect(s.temporary).toEqual(["t1", "t2", "t3"]);
+        expect(s.agents.map((a) => a.blockid)).toEqual(["b", "c"]);
+    });
+
+    it("keeps a pinned view with an agent pinned, as a tile or in the top row", () => {
+        const agents = [info("d", "working", { tabid: "tile" }), info("e", "idle", { tabid: "top" })];
+        const s = sidebarSections(split, agents);
+        expect(s.tiles).toEqual(["tile"]);
+        expect(s.everywhere).toEqual({ pin1: "top" });
+        expect(s.temporary).toEqual(["t1", "t2", "t3"]);
+        expect(s.agents).toHaveLength(2);
+    });
+
+    it("lists no agent when the workspace has none", () => {
+        expect(sidebarSections(split, null).agents).toEqual([]);
+    });
+});
+
+describe("agentRowTarget", () => {
+    it("goes to the view and the panel the agent runs in", () => {
+        expect(agentRowTarget(info("blk", "working", { tabid: "t1", workspaceid: "ws1" }))).toEqual({
+            workspaceid: "ws1",
+            tabid: "t1",
+            blockid: "blk",
+        });
     });
 });
 
