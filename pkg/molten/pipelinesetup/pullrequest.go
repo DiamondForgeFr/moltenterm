@@ -188,6 +188,10 @@ type prFiles struct {
 	// request is open (the page's address back).
 	techDoc func(ctx context.Context, branch string, files *prFiles) error
 	afterPr func(ctx context.Context, prUrl string) (string, error)
+	// The repository document rebuilt with the pull request's address once it is open (#1226).
+	docWithPr func(prUrl string) (string, []byte)
+	// Files the commit removes: the document moved from its former path.
+	remove []string
 }
 
 func (p *prFiles) add(rel string, data []byte) {
@@ -641,6 +645,11 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	if out, err := git(append([]string{"add", "-f", "--"}, files.order...)...); err != nil {
 		return fail(PrFailureCommit, errText(err, out))
 	}
+	if len(files.remove) > 0 {
+		if out, err := git(append([]string{"rm", "--quiet", "-f", "--ignore-unmatch", "--"}, files.remove...)...); err != nil {
+			return fail(PrFailureCommit, errText(err, out))
+		}
+	}
 	if out, err := git("diff", "--cached", "--quiet"); err == nil {
 		return fail(PrFailureNothing, "")
 	} else if len(out) > 0 {
@@ -690,8 +699,35 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 	n := numberOfUrl(url)
 	s.update(job, func(j *PrJob) { j.PrUrl, j.PrNumber = url, n })
 	s.stepState(job, PrStepPr, PrStateDone, "#"+strconv.Itoa(n))
+	s.linkDocToPr(job, files, git, tree, branch, commit, url)
 	s.writeTechDoc(ctx, job, files, url)
 	return nil
+}
+
+// linkDocToPr rewrites the repository document's history row with the pull request's address, in the same commit
+// (amended and pushed with a lease on the commit just pushed). A failure leaves the pull request with the row linking
+// the branch: the document is still right.
+func (s *Setup) linkDocToPr(job *PrJob, files prFiles, git func(args ...string) ([]byte, error), tree string, branch string, pushed string, prUrl string) {
+	if files.docWithPr == nil || prUrl == "" {
+		return
+	}
+	rel, data := files.docWithPr(prUrl)
+	if _, err := writeProjectFile(tree, rel, data); err != nil {
+		return
+	}
+	if _, err := git("add", "-f", "--", rel); err != nil {
+		return
+	}
+	if _, err := git("commit", "--quiet", "--amend", "--no-edit", "--no-verify"); err != nil {
+		return
+	}
+	if _, err := git("push", "--quiet", "--force-with-lease=refs/heads/"+branch+":"+pushed, "origin", "HEAD:refs/heads/"+branch); err != nil {
+		return
+	}
+	if out, err := git("rev-parse", "HEAD"); err == nil {
+		commit := strings.TrimSpace(string(out))
+		s.update(job, func(j *PrJob) { j.Commit = commit })
+	}
 }
 
 // writeTechDoc writes the document to its backend once the pull request is open; a failure is the step's, the pull
@@ -721,6 +757,9 @@ func prBody(job *PrJob, b *baseFiles, files prFiles, ticket int, required bool) 
 	out.WriteString("Files:\n")
 	for _, rel := range files.order {
 		out.WriteString("- `" + rel + "`\n")
+	}
+	for _, rel := range files.remove {
+		out.WriteString("- `" + rel + "` (moved: the technical documentation now lives at its configured path)\n")
 	}
 	fmt.Fprintf(&out, "\nBuilt on %s at %s. Only the release, versions, branches and steps blocks change; every other key of the file stays as it is. The Release menu uses the pipeline once this pull request is merged; its commands then ask for your trust.\n", b.Ref, shortSha(b.Commit))
 	if required && ticket > 0 {

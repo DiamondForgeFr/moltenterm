@@ -191,7 +191,7 @@ func TestWriteAddsTheProposedWorkflowToThePullRequest(t *testing.T) {
 	}
 	gitIn(t, dir, "fetch", "--quiet", "origin")
 	files := gitOut(t, dir, "diff", "--name-only", "origin/develop", "origin/"+job.Branch)
-	if files != ".github/workflows/molten-publish.yml\n.molten/project.json\n.molten/release-setup.json\n"+TechDocPath+"\n" {
+	if files != ".github/workflows/molten-publish.yml\n.molten/project.json\n"+TechDocPath+"\n.molten/release-setup.json\n" {
 		t.Fatalf("files: %q", files)
 	}
 	if pushed := gitOut(t, dir, "show", "origin/"+job.Branch+":.github/workflows/molten-publish.yml"); pushed != draft.Files[0].Content {

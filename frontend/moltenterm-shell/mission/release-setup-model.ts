@@ -267,6 +267,8 @@ export type SetupTechDocPlan = {
     title: string;
     path?: string;
     url?: string;
+    // The former default path of a generated document the pull request moves to path (#1226).
+    movedfrom?: string;
     current: string;
     proposed: string;
     warnings: string[];

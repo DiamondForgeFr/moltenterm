@@ -4042,6 +4042,7 @@
                 "building": "building the documentation from the pipeline",
                 "error": "The documentation could not be built: {error}",
                 "whereRepository": "Written to {path} in the same pull request.",
+                "whereMoved": "Moved from {from} to {path} in the same pull request.",
                 "whereBackend": "Written to the project's documentation page (Technical documentation, Release pipeline) once the pull request is open.",
                 "why": "It describes how the project is built and shipped, from the pipeline above.",
                 "whyUpdate": "It is rewritten from the updated pipeline; its history keeps the earlier changes.",

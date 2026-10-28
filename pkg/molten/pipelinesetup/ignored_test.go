@@ -24,12 +24,12 @@ func TestIgnoredFilesAreCommittedAndARetryReusesTheTicket(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(exclude), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(exclude, []byte("# local\n.molten/\n"), 0644); err != nil {
+	if err := os.WriteFile(exclude, []byte("# local\n.molten/*.json\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	writeFiles(t, dir, map[string]string{".gitignore": "docs/engineering/\n!docs/engineering/keep.md\n"})
+	writeFiles(t, dir, map[string]string{".gitignore": ".molten/release-pipeline.md\n"})
 	gitIn(t, dir, "add", ".gitignore")
-	gitIn(t, dir, "commit", "--quiet", "-m", "chore(#4): ignore the engineering docs")
+	gitIn(t, dir, "commit", "--quiet", "-m", "chore(#4): ignore the pipeline doc")
 	gitIn(t, dir, "push", "--quiet", "origin", "develop")
 
 	forge := &fakeForge{issueNum: "1114"}
@@ -66,11 +66,11 @@ func TestIgnoredFilesAreCommittedAndARetryReusesTheTicket(t *testing.T) {
 		t.Fatalf("the commit was not made: %+v", failed.Steps)
 	}
 	local, shared := ruleOf(failed, ".git/info/exclude"), ruleOf(failed, ".gitignore")
-	if local == nil || local.Pattern != ".molten/" || local.Shared ||
+	if local == nil || local.Pattern != ".molten/*.json" || local.Shared ||
 		strings.Join(local.Files, ",") != molten.ProjectPipelineFile+",.molten/release-setup.json" {
 		t.Fatalf("the exclude rule: %+v", failed.Ignored)
 	}
-	if shared == nil || shared.Pattern != "docs/engineering/" || !shared.Shared || strings.Join(shared.Files, ",") != TechDocPath {
+	if shared == nil || shared.Pattern != ".molten/release-pipeline.md" || !shared.Shared || strings.Join(shared.Files, ",") != TechDocPath {
 		t.Fatalf("the .gitignore rule: %+v", failed.Ignored)
 	}
 
@@ -89,10 +89,10 @@ func TestIgnoredFilesAreCommittedAndARetryReusesTheTicket(t *testing.T) {
 	}
 	gitIn(t, dir, "fetch", "--quiet", "origin")
 	files := gitOut(t, dir, "diff", "--name-only", "origin/develop", "origin/feature/1114-release-pipeline")
-	if files != ".molten/project.json\n.molten/release-setup.json\n"+TechDocPath+"\n" {
+	if files != ".molten/project.json\n"+TechDocPath+"\n.molten/release-setup.json\n" {
 		t.Fatalf("files: %q", files)
 	}
-	if got, _ := os.ReadFile(exclude); string(got) != "# local\n.molten/\n" {
+	if got, _ := os.ReadFile(exclude); string(got) != "# local\n.molten/*.json\n" {
 		t.Fatalf("the exclude file changed: %q", got)
 	}
 

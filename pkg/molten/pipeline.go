@@ -186,7 +186,10 @@ type Pipeline struct {
 	Group     string               `json:"group,omitempty"`
 	DependsOn []PipelineDependency `json:"dependson,omitempty"`
 	// The project's own icon, relative to the project folder; offered before any guessed image (#189).
-	Icon     string                `json:"icon,omitempty"`
+	Icon string `json:"icon,omitempty"`
+	// Where the pipeline setup writes the technical documentation, relative to the project and outside any docs site
+	// (#1226); empty: DefaultTechDocPath.
+	TechDoc  string                `json:"techdoc,omitempty"`
 	Branches *PipelineBranches     `json:"branches,omitempty"`
 	Versions *PipelineVersions     `json:"versions,omitempty"`
 	Ci       *PipelineCi           `json:"ci,omitempty"`
@@ -477,6 +480,15 @@ func ReleasePreparation(steps []PipelineStep) []PipelineStep {
 	return rtn
 }
 
+func (c *pipelineChecker) checkTechDoc(path string) {
+	if path == "" {
+		return
+	}
+	if !strings.HasSuffix(strings.ToLower(path), ".md") || strings.Contains(path, "\\") || !insideProject(c.dir, path) || strings.HasPrefix(filepath.ToSlash(filepath.Clean(path)), ".git/") {
+		c.errorf("techdoc: %q must be a relative path to a .md file inside the project", path)
+	}
+}
+
 func (c *pipelineChecker) checkIcon(icon string) {
 	if icon == "" {
 		return
@@ -627,6 +639,7 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.errorf("name is required")
 	}
 	c.checkIcon(p.Icon)
+	c.checkTechDoc(p.TechDoc)
 	if c.groupSet {
 		if _, err := GroupName(p.Group); err != nil {
 			c.errorf("group: %v", err)
