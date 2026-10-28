@@ -9,6 +9,8 @@ import { atoms, WOS } from "@/app/store/global";
 import { initGlobalAtoms } from "@/app/store/global-atoms";
 import { WaveEnvContext } from "@/app/waveenv/waveenv";
 import { atom } from "jotai";
+import fs from "node:fs";
+import path from "node:path";
 import { createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -92,6 +94,32 @@ describe("the temporary section's layout (#1253)", () => {
             expect(dict.shell.busy.clear.title).toBeTruthy();
         }
         expect(fr.sidebar.temporary.clear).toBe("Effacer");
+    });
+});
+
+// Away from the sidebar the line runs the full width; on hover it gives up Clear's measured width (#1268).
+describe("the separator's line (#1268)", () => {
+    const css = fs.readFileSync(path.join(__dirname, "temporary-views.css"), "utf8");
+    const rule = (selector: string) => {
+        const at = css.indexOf(`${selector} {`);
+        expect(at, selector).toBeGreaterThanOrEqual(0);
+        return css.slice(at, css.indexOf("}", at));
+    };
+
+    it("spans the whole separator, and Clear takes no room in the flow", () => {
+        const line = rule(".mt-sb-tv-line");
+        expect(line).toContain("left: 6px");
+        expect(line).toContain("right: 2px");
+        expect(line).toContain("clip-path: inset(0 0 0 0)");
+        expect(rule(".mt-sb-tv-clear")).toContain("position: absolute");
+    });
+
+    it("shortens by Clear's width only on hover", () => {
+        expect(
+            rule(
+                '.mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-line,\n.mt-sb-tv-sep[data-shown="true"]:focus-within .mt-sb-tv-line'
+            )
+        ).toContain("clip-path: inset(0 calc(var(--tv-clear-w, 0px) + 6px) 0 0)");
     });
 });
 

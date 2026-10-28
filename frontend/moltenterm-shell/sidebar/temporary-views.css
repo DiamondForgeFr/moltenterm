@@ -6,12 +6,12 @@
    fades), so showing it moves nothing. Only transform and opacity animate (150 to 250 ms, --mt-ease); under reduced
    motion every change is immediate. */
 
+/* Away from the sidebar the line runs the full width; on hover it is clipped from the right by the label's width
+   (--tv-clear-w, measured) while "↓ Clear" slides into the freed room (#1268). Clear is out of the flow so its room
+   is only taken on hover. */
 .mt-sb-tv-sep {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    position: relative;
     height: 16px;
-    padding: 0 2px 0 6px;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--mt-duration-base) var(--mt-ease);
@@ -25,20 +25,37 @@
 }
 
 .mt-sb-tv-line {
-    flex: 1;
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    right: 2px;
     height: 1px;
     background: rgb(255 255 255 / 0.1);
+    clip-path: inset(0 0 0 0);
+    transition: clip-path var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-line,
+.mt-sb-tv-sep[data-shown="true"]:focus-within .mt-sb-tv-line {
+    clip-path: inset(0 calc(var(--tv-clear-w, 0px) + 6px) 0 0);
 }
 
 /* Small and dimmed, only while the pointer is over the sidebar. */
 .mt-sb-tv-clear {
+    position: absolute;
+    top: 50%;
+    right: 2px;
     opacity: 0;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+    transform: translate(6px, -50%);
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        transform var(--mt-duration-fast) var(--mt-ease);
 }
 
 .mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear,
 .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:focus-visible {
     opacity: 0.6;
+    transform: translate(0, -50%);
 }
 
 .mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:hover {
@@ -80,6 +97,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .mt-sb-tv-sep,
+    .mt-sb-tv-line,
     .mt-sb-tv-clear {
         transition: none;
     }
@@ -94,6 +112,7 @@
 }
 
 .prefers-reduced-motion .mt-sb-tv-sep,
+.prefers-reduced-motion .mt-sb-tv-line,
 .prefers-reduced-motion .mt-sb-tv-clear {
     transition: none;
 }
