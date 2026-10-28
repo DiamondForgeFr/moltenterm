@@ -102,13 +102,29 @@ export function isLanguageReady(code: string): boolean {
     return entry.shipped || isLanguageLoaded(FallbackLanguage);
 }
 
+// A dictionary chunk that fails to arrive (a busy dev server, a slow disk) is fetched again before giving up: the
+// interface would otherwise show raw keys until the next language change (#1215).
+const LoadAttempts = 3;
+const LoadRetryMs = 250;
+
+async function loadWithRetry(load: DictionaryLoader): Promise<Dictionary> {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await load();
+        } catch (e) {
+            if (attempt >= LoadAttempts) throw e;
+            await new Promise((resolve) => setTimeout(resolve, LoadRetryMs * attempt));
+        }
+    }
+}
+
 function loadShipped(code: string): Promise<void> {
     const entry = languages.get(code);
     if (entry == null || entry.dict != null || entry.load == null) return Promise.resolve();
     let pending = pendingLoads.get(code);
     if (pending != null) return pending;
     const load = entry.load;
-    pending = load()
+    pending = loadWithRetry(load)
         .then((dict) => {
             if (entry.load !== load) return;
             setShippedDictionary(entry, dict);
@@ -125,6 +141,20 @@ export async function loadLanguage(code: string): Promise<void> {
     const loads = [loadShipped(code)];
     if (entry != null && !entry.shipped) loads.push(loadShipped(FallbackLanguage));
     await Promise.all(loads);
+}
+
+// English, the fallback of a key the active language lacks, without delaying the active language (#1215).
+export function loadFallbackLanguage(): Promise<void> {
+    return loadShipped(FallbackLanguage);
+}
+
+// New texts for a shipped language whose file changed while the app runs (the dev server, #1215). A language not
+// loaded yet needs nothing: its next load reads the new file.
+export function replaceShippedDictionary(code: string, dict: Dictionary) {
+    const entry = languages.get(code);
+    if (entry == null || !entry.shipped || entry.dict == null || dict == null) return;
+    setShippedDictionary(entry, dict);
+    notify();
 }
 
 export async function loadShippedLanguages(): Promise<void> {

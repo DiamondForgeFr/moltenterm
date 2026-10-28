@@ -1114,7 +1114,7 @@ function useSidebarAgents(temporaryIds: string[]) {
     return { agents, byAgent, shown };
 }
 
-function TemporaryViews({
+export function TemporaryViews({
     ids,
     activeTabId,
     asideRef,
