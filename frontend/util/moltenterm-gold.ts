@@ -50,7 +50,12 @@ export type GoldApplyWhen = "now" | "quit";
 export type GoldApplyResult = { ok: boolean; error?: string };
 
 // The outcome of the last swap, read once at the next launch.
-export type GoldSwapStatus = { state: "installed" | "rolledback" | "failed"; buildId?: number; detail?: string };
+export type GoldSwapStatus = {
+    state: "installed" | "rolledback" | "failed";
+    buildId?: number;
+    detail?: string;
+    unchecked?: boolean;
+};
 
 export function checkGoldManifest(manifest: any, ownBuildId: number): GoldCheck {
     if (manifest == null || typeof manifest !== "object") {
@@ -77,9 +82,10 @@ export function checkGoldManifest(manifest: any, ownBuildId: number): GoldCheck 
 
 export function parseSwapStatus(text: string): GoldSwapStatus {
     const line = (text ?? "").trim();
-    const installed = /^installed (\d+)$/.exec(line);
+    // "unchecked": the swap could not check that the new build stayed open, and kept it (#1193).
+    const installed = /^installed (\d+)( unchecked)?$/.exec(line);
     if (installed) {
-        return { state: "installed", buildId: Number(installed[1]) };
+        return { state: "installed", buildId: Number(installed[1]), unchecked: installed[2] != null };
     }
     const rolled = /^rolledback (\d+)$/.exec(line);
     if (rolled) {

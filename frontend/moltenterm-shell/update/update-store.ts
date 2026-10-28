@@ -24,6 +24,7 @@ import { TabActivity, whileShown } from "../tab-activity";
 import { workspaceShownName } from "../workspace-default-name";
 import {
     installedSince,
+    retryOffer,
     shouldOffer,
     summarizeTerminals,
     TerminalSummary,
@@ -66,6 +67,8 @@ function setClientMeta(meta: Record<string, any>) {
 // The notification's "Update…" button opens the update dialog (FR-MC-010). A waiting gold is a situation, keyed and
 // resolved once installed or skipped; what happened during an update is a moment, told once.
 const UpdateReviewGesture = "update:review";
+// "Try again" on a rolled-back build (#1193): a rollback can be wrong, so the build it skipped can be offered again.
+const UpdateRetryGesture = "update:retry";
 
 function updateAvailableKey(buildId: number): string {
     return `update:available:${buildId}`;
@@ -106,6 +109,9 @@ export class GoldUpdateModel {
             globalStore.set(this.dialogOpenAtom, true);
             return { ok: true };
         });
+        const unregisterRetry = registerNotificationGesture(UpdateRetryGesture, (args) =>
+            this.retry(Number(args?.build))
+        );
         this.announceInstalled();
         this.check();
         const stop = TabActivity.getInstance().every(
@@ -119,6 +125,7 @@ export class GoldUpdateModel {
             stop();
             window.removeEventListener("focus", onFocus);
             unregister();
+            unregisterRetry();
             this.started = false;
         };
     }
@@ -193,6 +200,15 @@ export class GoldUpdateModel {
                 kind: "warning",
                 title: t("update.notify.rolledBackTitle"),
                 message: t("update.notify.rolledBackMessage", { build: status.buildId }),
+                actions: [
+                    {
+                        id: "retry",
+                        label: t("update.notify.retry"),
+                        kind: "gesture",
+                        gesture: UpdateRetryGesture,
+                        args: { build: status.buildId },
+                    },
+                ],
             });
         } else {
             addMoltentermNotification({
@@ -203,6 +219,24 @@ export class GoldUpdateModel {
                 message: status.detail,
             });
         }
+    }
+
+    async retry(buildId: number): Promise<{ ok: boolean; error?: string }> {
+        const result = await updateApi().moltentermUpdateCheck(readBuild().buildId);
+        const offer = retryOffer(result?.available ? result.manifest : null, buildId);
+        if (offer == null) {
+            return { ok: false, error: t("update.notify.retryGone", { build: buildId }) };
+        }
+        const clientId = ClientModel.getInstance().clientId;
+        if (clientId != null) {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("client", clientId),
+                meta: { [UpdateSkippedMetaKey]: 0 } as MetaType,
+            });
+        }
+        globalStore.set(this.offerAtom, offer);
+        globalStore.set(this.dialogOpenAtom, true);
+        return { ok: true };
     }
 
     skip(manifest: GoldManifest) {

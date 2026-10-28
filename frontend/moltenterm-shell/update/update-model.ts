@@ -39,6 +39,14 @@ export function shouldOffer(manifest: GoldManifest, skipped: number): boolean {
     return manifest != null && !(skipped >= manifest.buildId);
 }
 
+// "Try again" on a rolled-back build (#1193): the delivered gold, when it is still that build or a newer one.
+export function retryOffer(manifest: GoldManifest, rolledBackBuildId: number): GoldManifest {
+    if (manifest == null || !(rolledBackBuildId > 0) || manifest.buildId < rolledBackBuildId) {
+        return null;
+    }
+    return manifest;
+}
+
 export function updateLabel(manifest: GoldManifest): string {
     return t("update.label", { commit: manifest.commit?.slice(0, 7) ?? "?", build: manifest.buildId });
 }
