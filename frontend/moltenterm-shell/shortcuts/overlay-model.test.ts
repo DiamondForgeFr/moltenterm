@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// What the shortcut overlay shows for a screen (FR-SHELL-090, TC-SHELL-170).
+// What the shortcut overlay shows for a screen (FR-SHELL-090, TC-SHELL-173).
 
 import { describe, expect, it } from "vitest";
 import { modifierLabel } from "./format";
