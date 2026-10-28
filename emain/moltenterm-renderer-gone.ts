@@ -133,7 +133,7 @@ function recoverTabView(tabView: WaveTabView, notice: WindowReloaded, record: Re
     const win = windowOf(tabView);
     const wasActive = win != null && win.activeTabView === tabView;
     const tabId = tabView.waveTabId;
-    destroyTabView(tabView, `its renderer is gone (${notice.reason}, #973)`);
+    destroyTabView(tabView, `its renderer is gone (${notice.reason}, #973)`, wasActive);
     if (!wasActive) {
         return;
     }
