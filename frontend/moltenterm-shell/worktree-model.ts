@@ -155,6 +155,11 @@ export function treeMarker(state: PaneState, link: string): TreeMarker {
     return null;
 }
 
+// The status bar's chip: the main tree says nothing the branch beside it does not (#1262).
+export function statusBarMarker(marker: TreeMarker): TreeMarker {
+    return marker?.kind === "main" ? null : marker;
+}
+
 // The link is offered when the terminal's folder is in a worktree it is not linked to, and the user did not answer
 // "Not now" for that worktree in this terminal. The main tree never gets an offer.
 export function worktreeOffer(state: PaneState, link: string, dismissed: readonly string[]): string {
