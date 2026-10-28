@@ -144,12 +144,21 @@ export function closeFinishedItems(target: ViewMenuTarget): ContextMenuItem[] {
 
 export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: TFn): ContextMenuItem[] {
     const pins = ViewPins.getInstance();
-    const plan = viewMenuPlan(target.state, target.modified, target.projectTab);
     const tabId = target.ref.tabId;
+    // A missed fork toast is not final (#1272): the view's menu keeps Update the pinned view while its pin exists.
+    const origin = tabId && target.state === "temporary" ? pins.forkOriginOf(tabId) : null;
+    const plan = viewMenuPlan(target.state, target.modified, target.projectTab, origin != null);
     const workspace = shownWorkspace(t);
     const items: ContextMenuItem[] = [
         { type: "header", label: viewMenuHeader(target.name, target.state, workspace, t) },
     ];
+    if (plan.updatePinned) {
+        items.push({
+            label: t("sidebar.pins.menu.updatePinned", { name: origin.name }),
+            icon: "layer-group",
+            click: () => fireAndForget(() => pins.updatePinned(tabId)),
+        });
+    }
     if (plan.saveOrRevert && tabId) {
         items.push(
             {

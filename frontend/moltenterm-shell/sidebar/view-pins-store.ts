@@ -19,7 +19,7 @@ import { t, tCount } from "../i18n/i18n";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
 import { typeCommandWhenReady } from "../palette/palette-actions";
 import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
-import { showToast } from "../toast-store";
+import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
 import { showUndoToast } from "./sidebar-undo";
@@ -27,6 +27,8 @@ import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMi
 import {
     agentBlocksOf,
     AgentSlotMetaKey,
+    forkDue,
+    forkOrigin,
     GlobalPin,
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
@@ -42,13 +44,17 @@ import {
     PinNode,
     PinScope,
     PinWorkspace,
+    planPinUpdate,
+    planViewFork,
     planViewMove,
     readGlobalPins,
     readPinConfig,
     replacePin,
     undoPins,
+    undoPinUpdate,
     viewBusy,
     viewFinished,
+    viewForked,
     viewModified,
     ViewPinBuildCommand,
     ViewPinCaptureCommand,
@@ -65,6 +71,9 @@ const ClosedFinishedMetaKey = "molten:closedfinished";
 const ClosedToastMs = 15000;
 const WaitSteps = 50;
 const WaitStepMs = 100;
+// A change of an instance pinned everywhere must hold this long before it forks (#1272): a rebuild from the pin's
+// configuration passes through partial layouts, a split by the developer stays.
+const ForkSettleMs = 600;
 
 // The pin page: the view being pinned, its name and the scope chosen.
 export type PinDraft = { tabId: string; name: string; scope: PinScope };
@@ -96,6 +105,7 @@ export class ViewPins {
     modifiedAtoms = new Map<string, jotai.Atom<boolean>>();
     finishedAtom!: jotai.Atom<string[]>;
     closedShown = new Set<string>();
+    forking = new Set<string>();
 
     private constructor() {
         this.globalPinsAtom = jotai.atom((get) => {
@@ -183,6 +193,141 @@ export class ViewPins {
             this.modifiedAtoms.set(tabId, rtn);
         }
         return rtn;
+    }
+
+    // This window's view leaves its pin everywhere once its panels changed (#1272, forkDue). Only the tab this window
+    // shows has a live layout, so each window watches its own.
+    private forkDueAtom(tabId: string, dragging: jotai.Atom<boolean>): jotai.Atom<boolean> {
+        return jotai.atom((get) => {
+            const tab = get(tabAtom(tabId));
+            if (tab == null) {
+                return false;
+            }
+            const pins = get(this.globalPinsAtom);
+            const state = viewStateOf(tab, new Set(pins.map((p) => p.id)));
+            if (state !== "everywhere") {
+                return false;
+            }
+            const pin = pins.find((p) => p.id === tab.meta?.[GlobalPinMetaKey]);
+            const live = getLayoutModelForStaticTab();
+            if (pin == null || live == null) {
+                return false;
+            }
+            get(live.leafs);
+            const layout = tab.layoutstate
+                ? get(WOS.getWaveObjectAtom<LayoutState>(WOS.makeORef("layout", tab.layoutstate)))
+                : null;
+            return forkDue({
+                state,
+                changed: viewForked(pin.config, layoutTree(live.treeState?.rootNode), (id) => blockMetaOf(get, id)),
+                projectTab: isProjectTab(tab),
+                onScreen: get(atoms.workspace)?.activetabid === tabId,
+                dragging: get(dragging) || get(live.activeDrag),
+                pending: (layout?.pendingbackendactions?.length ?? 0) > 0,
+                stale: instanceStale(tab, pin),
+            });
+        });
+    }
+
+    // Watches the view this window shows (dragging: the sidebar's drag); returns the stop.
+    watchFork(tabId: string, dragging: jotai.Atom<boolean>): () => void {
+        if (!tabId) {
+            return () => {};
+        }
+        const due = this.forkDueAtom(tabId, dragging);
+        let timer: ReturnType<typeof setTimeout> = null;
+        const check = () => {
+            clearTimeout(timer);
+            timer = null;
+            if (!globalStore.get(due)) {
+                return;
+            }
+            timer = setTimeout(() => {
+                timer = null;
+                if (globalStore.get(due)) {
+                    fireAndForget(() => this.fork(tabId));
+                }
+            }, ForkSettleMs);
+        };
+        const unsub = globalStore.sub(due, check);
+        check();
+        return () => {
+            unsub();
+            clearTimeout(timer);
+        };
+    }
+
+    // The changed view leaves its pin and becomes a temporary view here (#1272): same tab, panels, sessions and name,
+    // nothing moves on screen; the pin and the other workspaces keep the configuration.
+    async fork(tabId: string): Promise<void> {
+        const tab = globalStore.get(tabAtom(tabId));
+        const pin = this.pinOf({ tabId });
+        if (tab == null || pin == null || this.forking.has(tabId)) {
+            return;
+        }
+        this.forking.add(tabId);
+        try {
+            await this.setTabMeta(tabId, planViewFork(pin));
+            showToast({
+                id: forkToastId(tabId),
+                title: t("sidebar.pins.forked", { name: tab.name || pin.name }),
+                message: t("sidebar.pins.forkedHint"),
+                actions: [{ id: "update", label: t("sidebar.pins.updatePinned"), run: () => this.updatePinned(tabId) }],
+            });
+        } catch (e) {
+            pinError(e);
+        } finally {
+            this.forking.delete(tabId);
+        }
+    }
+
+    // The pin a temporary view came from, for its menu's Update the pinned view.
+    forkOriginOf(tabId: string): GlobalPin {
+        return forkOrigin(globalStore.get(tabAtom(tabId)), this.globalPins());
+    }
+
+    // Update the pinned view (#1272): the view's layout becomes the pin's configuration for every workspace, the view
+    // this workspace's instance again. Undo (⌘Z) brings back the previous configuration and the temporary view.
+    async updatePinned(tabId: string): Promise<void> {
+        const tab = globalStore.get(tabAtom(tabId));
+        const before = this.forkOriginOf(tabId);
+        if (tab == null || before == null) {
+            return;
+        }
+        try {
+            const update = planPinUpdate(this.globalPins(), before.id, await this.capture(tabId));
+            if (update == null) {
+                return;
+            }
+            const others = this.instancesOf(before.id).filter((id) => id !== tabId);
+            const metaBefore = pinMetaOf(tab.meta);
+            const othersBefore = others.map((id) => ({ id, meta: pinMetaOf(globalStore.get(tabAtom(id))?.meta) }));
+            await this.writeGlobalPins(update.pins);
+            for (const id of others) {
+                await this.setTabMeta(id, update.othersMeta);
+            }
+            await this.setTabMeta(tabId, update.tabMeta);
+            dismissToast(forkToastId(tabId));
+            showUndoToast(
+                t("sidebar.pins.updatedPinned", { name: before.name }),
+                async () => {
+                    await this.writeGlobalPins(undoPinUpdate(this.globalPins(), before));
+                    await this.setTabMeta(tabId, metaBefore);
+                    for (const other of othersBefore) {
+                        await this.setTabMeta(other.id, other.meta);
+                    }
+                },
+                t("sidebar.pins.updatedPinnedHint")
+            );
+        } catch (e) {
+            pinError(e);
+        }
+    }
+
+    // Every instance of a pin in this workspace: one after a fork whose block was opened again.
+    private instancesOf(pinId: string): string[] {
+        const ids = globalStore.get(atoms.workspace)?.tabids ?? [];
+        return ids.filter((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId);
     }
 
     private writeGlobalPins(pins: GlobalPin[]): Promise<void> {
@@ -686,6 +831,10 @@ export class ViewPins {
         );
         showClosedViewsToast(count, value.kind);
     }
+}
+
+function forkToastId(tabId: string): string {
+    return `view-fork:${tabId}`;
 }
 
 export const ClosedKindCleared = "cleared";

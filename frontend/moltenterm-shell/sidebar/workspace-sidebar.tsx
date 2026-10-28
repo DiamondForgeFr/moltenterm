@@ -25,7 +25,7 @@ import { deleteLayoutModelForTab } from "@/layout/index";
 import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MoltentermDefaultAccent } from "../accent";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
@@ -2198,6 +2198,9 @@ function useWorkspaceMenu(workspaces: SidebarWorkspaces) {
     };
 }
 
+// A view pinned everywhere forks only once a drag of the sidebar ends (#1272): the drop may move it elsewhere.
+const SidebarDraggingAtom = atom((get) => get(sidebarDragAtom) != null);
+
 export function WorkspaceSidebar() {
     const t = useT();
     const model = SidebarModel.getInstance();
@@ -2255,6 +2258,7 @@ export function WorkspaceSidebar() {
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, []);
+    useEffect(() => ViewPins.getInstance().watchFork(activeTabId, SidebarDraggingAtom), [activeTabId]);
     useEffect(() => {
         ViewPins.getInstance().closePinPage();
     }, [ws?.oid]);
