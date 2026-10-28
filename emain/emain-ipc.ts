@@ -38,6 +38,7 @@ import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH 
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
 import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MOLTENTERM-PATCH (#1216)
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
+import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
 
 const electronApp = electron.app;
 
@@ -318,6 +319,7 @@ export function initIpcHandlers() {
                 if (webviewFocusId != focusedId) {
                     return;
                 }
+                sendKeyNotice(parentWc, waveEvent); // MOLTENTERM-PATCH (#1242): the shortcut overlay's hold and close
                 if (input.type != "keyDown") {
                     return;
                 }

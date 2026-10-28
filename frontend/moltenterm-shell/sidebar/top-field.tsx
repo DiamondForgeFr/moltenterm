@@ -221,6 +221,7 @@ export function TopField() {
             aria-label={t("topField.buttonLabel", { keys })}
             title={ctx.url ? ctx.text : undefined}
             data-testid="top-field"
+            data-mt-shortcut="top-field"
             onClick={() => model.open()}
         >
             <span className="flex shrink-0">

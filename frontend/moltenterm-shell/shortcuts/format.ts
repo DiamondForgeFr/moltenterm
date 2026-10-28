@@ -113,6 +113,11 @@ export function keyCaps(keys: string, mac = isMacOS()): string[] {
     return [...modCaps, keyLabel(key, mac)];
 }
 
+// A modifier on its own, as held (the shortcut overlay's hold, FR-SHELL-090): "⌘" on macOS, "Alt" elsewhere for Cmd.
+export function modifierLabel(mod: string, mac = isMacOS()): string {
+    return (mac ? MacModifierGlyphs[mod] : OtherModifierWords[mod]) ?? mod;
+}
+
 // "⇧⌘D" on macOS, "Alt+Shift+D" elsewhere.
 export function formatKeys(keys: string, mac = isMacOS()): string {
     return keyCaps(keys, mac).join(mac ? "" : "+");

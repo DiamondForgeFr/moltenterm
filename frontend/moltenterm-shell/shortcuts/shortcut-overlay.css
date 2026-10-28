@@ -1,0 +1,147 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0
+
+   The shortcut overlay (DS-SHELL-129): flat caps, 6 px corners, no shadow, readable over terminals and web pages
+   (solid surface behind every cap); the focused panel's keys in the accent. Each part fades and scales in from 0.92
+   after its stagger delay; under reduced motion nothing moves. */
+
+.mt-sco {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    pointer-events: none;
+}
+
+/* Shown by ⌘/: the transparent layer takes the click that closes it, over web pages too. */
+.mt-sco.is-pinned {
+    pointer-events: auto;
+}
+
+.mt-sco-place {
+    position: fixed;
+    pointer-events: none;
+}
+
+.mt-sco-more-place {
+    left: 50%;
+    bottom: 16px;
+    transform: translate(-50%, 0);
+}
+
+.mt-sco-in {
+    animation: mt-sco-in var(--mt-duration-fade) var(--mt-ease, ease-out) both;
+}
+
+.mt-sco.is-reduced .mt-sco-in,
+.prefers-reduced-motion .mt-sco-in {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sco-in {
+        animation: none;
+    }
+}
+
+@keyframes mt-sco-in {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.mt-sco-key {
+    min-width: 18px;
+    padding: 0 4px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-2);
+    color: var(--color-primary);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    line-height: 18px;
+    text-align: center;
+}
+
+.mt-sco-key.is-accent {
+    border-color: var(--mt-accent);
+    background: var(--mt-accent);
+    color: var(--mt-accent-fg);
+}
+
+.mt-sco-cap {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-3);
+    pointer-events: auto;
+}
+
+.mt-sco-cap:hover {
+    border-color: var(--mt-accent);
+}
+
+.mt-sco-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+    max-height: inherit;
+    overflow: hidden;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-3);
+}
+
+.mt-sco-card.is-focused {
+    border-color: var(--mt-accent);
+}
+
+.mt-sco-card-title {
+    margin-bottom: 2px;
+    color: var(--color-muted);
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.mt-sco-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 20px;
+}
+
+.mt-sco-row > :first-child {
+    flex: 0 0 auto;
+    min-width: 56px;
+}
+
+.mt-sco-label {
+    overflow: hidden;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-sco-more {
+    padding: 4px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-3);
+    color: var(--color-secondary);
+    font-size: var(--mt-text-12);
+    pointer-events: auto;
+}
+
+.mt-sco-more:hover {
+    border-color: var(--mt-accent);
+    color: var(--color-primary);
+}

@@ -139,6 +139,7 @@ declare global {
         setWebviewFocus: (focusedId: number) => void; // webview-focus, focusedId is the getWebContentsId of the webview
         registerGlobalWebviewKeys: (keys: string[]) => void; // register-global-webview-keys
         onControlShiftStateUpdate: (callback: (state: boolean) => void) => void; // control-shift-state-update
+        onMoltentermKeyNotice?: (callback: (waveEvent: WaveKeyboardEvent) => void) => void; // moltenterm-key-notice (MOLTENTERM-PATCH #1242)
         createWorkspace: () => void; // create-workspace
         switchWorkspace: (workspaceId: string) => void; // switch-workspace
         deleteWorkspace: (workspaceId: string) => void; // delete-workspace

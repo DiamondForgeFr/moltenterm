@@ -1338,6 +1338,10 @@
                 "privacy": {
                     "title": "Ni télémétrie, ni compte.",
                     "text": "MoltenTerm n'envoie aucune donnée d'usage et ne se connecte que pour ce que vous demandez."
+                },
+                "shortcuts": {
+                    "title": "Les raccourcis à l'écran.",
+                    "text": "Maintenez {hold} ou appuyez sur {press} pour voir les raccourcis de ce qui est à l'écran."
                 }
             }
         },
@@ -1720,6 +1724,18 @@
             "review": "Revue",
             "paletteandmenus": "Palette et menus"
         },
+        "overlay": {
+            "title": "Raccourcis à l'écran",
+            "more": "Tous les raccourcis",
+            "sidebar": "Barre latérale",
+            "showSidebar": "Afficher la barre latérale",
+            "focusThis": "Activer ce panneau",
+            "types": {
+                "terminal": "Terminal",
+                "web": "Page web",
+                "panel": "Panneau"
+            }
+        },
         "items": {
             "split-right": "Diviser à droite",
             "split-down": "Diviser en bas",
@@ -1765,8 +1781,8 @@
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
-            "shortcuts": "Raccourcis clavier",
-            "escape": "Fermer une boîte de dialogue ou la recherche",
+            "shortcuts": "Afficher les raccourcis à l'écran",
+            "escape":"Fermer une boîte de dialogue ou la recherche",
             "palette-right": "Ouvrir l'entrée de la palette à droite",
             "carpet-previous": "Panneau précédent sur le tapis (vue 360)",
             "carpet-next": "Panneau suivant sur le tapis (vue 360)",

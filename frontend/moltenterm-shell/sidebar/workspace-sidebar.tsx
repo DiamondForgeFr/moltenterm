@@ -366,6 +366,7 @@ function ToggleButton() {
             aria-label={label}
             title={label}
             data-testid="sidebar-toggle"
+            data-mt-shortcut="toggle-sidebar"
             onClick={() => SidebarModel.getInstance().toggleHidden()}
         >
             <SidebarGlyph name="sidebar" />
@@ -1160,6 +1161,7 @@ export function TemporaryViews({
                     type="button"
                     className="mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-white/[0.08] hover:text-primary"
                     data-testid="sidebar-new-view"
+                    data-mt-shortcut="new-tab"
                     onClick={() => openNewView()}
                 >
                     {state != null && !state.out && state.before == null && state.id !== ids[ids.length - 1] ? (
@@ -1613,6 +1615,8 @@ function WorkspaceDot({
             title={title}
             data-testid="sidebar-workspace-dot"
             data-workspace-id={entry.id}
+            data-mt-shortcut={place <= 9 ? "workspace-jump" : undefined}
+            data-mt-shortcut-n={place <= 9 ? place : undefined}
             className={cn(
                 "mt-sb-dot relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0",
                 current && "is-on",
