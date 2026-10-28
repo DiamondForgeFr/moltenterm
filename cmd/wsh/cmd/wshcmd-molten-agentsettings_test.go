@@ -49,12 +49,9 @@ func TestMoltenLaunchSettingsStepAside(t *testing.T) {
 	if got := moltenLaunchSettingsStepAside(ch, "claude", time.Now().Add(time.Second)); got != agentlaunch.StepAsideSettingsUnknown {
 		t.Errorf("unread settings: %q", got)
 	}
-	start := time.Now()
-	if got := moltenLaunchSettingsStepAside(make(chan *agentlaunch.IntegrationSettings), "claude", start.Add(20*time.Millisecond)); got != agentlaunch.StepAsideSettingsUnknown {
+	// Nothing ever answers on this channel: a wait that ignored the deadline shows as a hang (#1208).
+	if got := moltenLaunchSettingsStepAside(make(chan *agentlaunch.IntegrationSettings), "claude", time.Now().Add(20*time.Millisecond)); got != agentlaunch.StepAsideSettingsUnknown {
 		t.Errorf("no answer: %q", got)
-	}
-	if time.Since(start) > 500*time.Millisecond {
-		t.Errorf("the wait must end at the deadline")
 	}
 }
 

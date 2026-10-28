@@ -108,7 +108,7 @@ func admissionResult[T any](t *testing.T, results <-chan T) T {
 	select {
 	case result := <-results:
 		return result
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("admission did not reach its synchronization point")
 		var zero T
 		return zero

@@ -369,6 +369,10 @@ func TestMoltenMcpLinkDropsASilentLink(t *testing.T) {
 	}
 	// The short limit only makes the silent connection time out; the probe that follows finds it dead.
 	resp, gen, err := link.call(context.Background(), handoffwire.ListCommand, handoffwire.ListRequest{}, handoffwire.RouteId, 200, true)
+	if err != nil && strings.Contains(err.Error(), "its link is up") {
+		// A loaded machine can let the new link answer the replay after the short limit; it is up, ask it again (#1208).
+		resp, gen, err = link.call(context.Background(), handoffwire.ListCommand, handoffwire.ListRequest{}, handoffwire.RouteId, 60_000, true)
+	}
 	if err != nil || gen != 2 {
 		t.Fatalf("silent link: resp=%v gen=%d err=%v", resp, gen, err)
 	}

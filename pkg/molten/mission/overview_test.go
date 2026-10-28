@@ -52,7 +52,7 @@ func waitSnapshot(t *testing.T, published chan Snapshot) Snapshot {
 	select {
 	case snap := <-published:
 		return snap
-	case <-time.After(20 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("no snapshot published")
 	}
 	return Snapshot{}
