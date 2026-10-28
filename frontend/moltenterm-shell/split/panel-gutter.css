@@ -50,14 +50,20 @@
         background-color var(--mt-duration-fast) var(--mt-ease);
 }
 
+/* The pill's thickness has the parity of the gap (4 px in an even gap, 3 px in an odd one) so the room left on each
+   side is a whole number of device pixels (#1240): a 3 px pill in an 8 px gap left 2.5 px on each side. */
+.tile-layout .resize-handle {
+    --mt-grip-w: calc(4px - mod(var(--gap-size-px), 2px));
+}
+
 .tile-layout .resize-handle.flex-row .mt-gutter-pill {
-    width: 3px;
+    width: var(--mt-grip-w);
     height: 26px;
 }
 
 .tile-layout .resize-handle.flex-column .mt-gutter-pill {
     width: 26px;
-    height: 3px;
+    height: var(--mt-grip-w);
 }
 
 .tile-layout .resize-handle:hover .mt-gutter-pill,
@@ -88,5 +94,5 @@
 
 .tile-layout .resize-handle.flex-column.mt-handle-stuck .mt-gutter-pill {
     width: 26px;
-    height: 3px;
+    height: var(--mt-grip-w);
 }

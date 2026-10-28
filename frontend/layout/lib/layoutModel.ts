@@ -56,7 +56,12 @@ import {
     ResizeHandleProps,
     TileLayoutContents,
 } from "./types";
-import { getCenter, navigateDirectionToOffset, setTransform } from "./utils";
+import {
+    getCenter,
+    resizeHandleDimensions as moltenResizeHandleDimensions,
+    navigateDirectionToOffset,
+    setTransform,
+} from "./utils";
 // MOLTENTERM-PATCH (#606): side panels remember the size they were dragged to and reopen at it
 import {
     addedBlockId,
@@ -947,16 +952,12 @@ export class LayoutModel {
             if (lastChildRect) {
                 const resizeHandleIndex = resizeHandles.length;
                 const halfResizeHandleSizePx = resizeHandleSizePx / 2;
-                const resizeHandleDimensions: Dimensions = {
-                    top: nodeIsRow
-                        ? lastChildRect.top
-                        : lastChildRect.top + lastChildRect.height - halfResizeHandleSizePx,
-                    left: nodeIsRow
-                        ? lastChildRect.left + lastChildRect.width - halfResizeHandleSizePx
-                        : lastChildRect.left,
-                    width: nodeIsRow ? resizeHandleSizePx : lastChildRect.width,
-                    height: nodeIsRow ? lastChildRect.height : resizeHandleSizePx,
-                };
+                // MOLTENTERM-PATCH (#1240): centred on the rounded edge the tiles share
+                const resizeHandleDimensions = moltenResizeHandleDimensions(
+                    lastChildRect,
+                    nodeIsRow,
+                    resizeHandleSizePx
+                );
                 const moltenHandleTransform = setTransform(resizeHandleDimensions, true, false);
                 resizeHandles.push({
                     id: `${node.id}-${resizeHandleIndex}`,

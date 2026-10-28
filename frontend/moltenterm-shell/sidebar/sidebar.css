@@ -145,7 +145,8 @@
 
 .mt-sb-grip::before {
     content: "";
-    width: 3px;
+    /* The parity of the gap, so the room on each side is whole pixels (#1240). */
+    width: calc(4px - mod(var(--mt-frame-gap), 2px));
     height: 26px;
     border-radius: var(--mt-radius-2);
     background: transparent;
