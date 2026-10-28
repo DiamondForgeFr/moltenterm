@@ -11,9 +11,12 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { useAtomValue } from "jotai";
-import { memo } from "react";
+import { lazy, memo, Suspense } from "react";
 import { useT } from "../i18n/i18n";
-import { SettingsScreen } from "./settings-screen";
+
+// The screen loads when a settings block first opens, out of the JS every tab view loads up front (NFR-PERF-003,
+// bundle.initialJsMB).
+const SettingsScreen = lazy(() => import("./settings-screen").then((m) => ({ default: m.SettingsScreen })));
 
 // Back to the screen: the editor's unsaved changes are confirmed first, then the block forgets its file.
 export function closeConfigFile(model: WaveConfigViewModel) {
@@ -45,13 +48,15 @@ export const MoltentermSettingsView = memo((props: ViewComponentProps<WaveConfig
     if ((selectedFile == null && !metaFile) || secretsFile) {
         const files = model.getConfigFiles().map((f) => ({ path: f.path, name: f.name, description: f.description }));
         return (
-            <SettingsScreen
-                blockId={blockId}
-                files={files}
-                model={model}
-                initialSection={secretsFile ? "secrets" : undefined}
-                onOpenFile={(path) => openConfigFile(model, path)}
-            />
+            <Suspense fallback={null}>
+                <SettingsScreen
+                    blockId={blockId}
+                    files={files}
+                    model={model}
+                    initialSection={secretsFile ? "secrets" : undefined}
+                    onOpenFile={(path) => openConfigFile(model, path)}
+                />
+            </Suspense>
         );
     }
     return (
