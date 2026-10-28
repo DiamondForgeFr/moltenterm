@@ -149,7 +149,7 @@ func (s *reexecServer) recv(n int) map[float64]map[string]any {
 		select {
 		case line, ok := <-s.lines:
 			if !ok {
-				s.t.Fatalf("the server ended; stderr:\n%s", s.stderr.String())
+				s.t.Fatalf("the server ended (%v); stderr:\n%s", s.cmd.Wait(), s.stderr.String())
 			}
 			var msg map[string]any
 			if err := json.Unmarshal([]byte(line), &msg); err != nil {
