@@ -634,10 +634,7 @@
 }
 
 /* Pulling past either end: the library comes from the left, a new workspace (+) from the right. The sidebar's page
-   follows the pull and springs back when it is let go early. */
-.mt-sb-page {
-    transition: transform var(--mt-duration-base) var(--mt-ease);
-}
+   follows the pull and springs back when it is let go early (the swipe drives it, #1248). */
 
 .mt-sb-pull {
     position: absolute;
@@ -673,4 +670,115 @@
     box-shadow:
         0 6px 18px rgb(0 0 0 / 0.4),
         0 0 0 3px rgb(255 255 255 / 0.25);
+}
+
+/* The swipe (DS-SHELL-130, #1248): sidebar-swipe-view.ts moves these layers with transform and opacity only, from one
+   requestAnimationFrame per frame. They are composited up front, so a gesture neither promotes nor repaints them
+   (the sidebar's page is promoted only while it moves: a permanent will-change would trap its fixed popovers). */
+.mt-sb-pull,
+.mt-sb-ring-half > i,
+.mt-sb-ghost {
+    will-change: transform;
+}
+
+.mt-sb-pull-shadow,
+.mt-sb-swipe-tint {
+    will-change: opacity;
+}
+
+/* The ring around the pull's glyph fills with the pull: each half shows a semicircle arc turned into it (the right
+   half fills the first half of the progress, the left one the second). */
+.mt-sb-ring {
+    position: absolute;
+    inset: -4px;
+    pointer-events: none;
+}
+
+.mt-sb-ring-half {
+    position: absolute;
+    inset: 0;
+}
+
+.mt-sb-ring-half.is-r {
+    clip-path: inset(0 0 0 50%);
+}
+
+.mt-sb-ring-half.is-l {
+    clip-path: inset(0 50% 0 0);
+}
+
+.mt-sb-ring-half > i {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2.5px solid rgb(255 255 255 / 0.9);
+    transform: rotate(0deg);
+}
+
+.mt-sb-ring-half.is-r > i {
+    clip-path: inset(0 50% 0 0);
+}
+
+.mt-sb-ring-half.is-l > i {
+    clip-path: inset(0 0 0 50%);
+}
+
+.mt-sb-pull.is-left .mt-sb-ring-half > i {
+    border-color: var(--mt-accent);
+}
+
+/* The shadow on the edge the page is pulled away from. */
+.mt-sb-pull-shadow {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.mt-sb-pull-shadow.is-left {
+    left: 0;
+    background: linear-gradient(to right, rgb(0 0 0 / 0.35), transparent);
+}
+
+.mt-sb-pull-shadow.is-right {
+    right: 0;
+    background: linear-gradient(to left, rgb(0 0 0 / 0.35), transparent);
+}
+
+/* The neighbour's likeness waits beside the page, outside the clipped viewport. */
+.mt-sb-ghost {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.mt-sb-ghost.is-prev {
+    transform: translateX(-100%);
+}
+
+.mt-sb-ghost.is-next {
+    transform: translateX(100%);
+}
+
+.mt-sb-ghost-name {
+    color: color-mix(in srgb, var(--color-primary) 82%, var(--mt-ghost-accent));
+}
+
+/* The neighbour's frame colour over the frame and the content, faded in with the drag: the content shows only the
+   target's tint until the commit (DS-SHELL-130). The sidebar stays above it. */
+.mt-sb-swipe-tint {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.mt-sb-frame > .mt-sb:not(.is-hidden) {
+    position: relative;
+    z-index: 1;
 }

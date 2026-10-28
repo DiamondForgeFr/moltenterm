@@ -27,6 +27,7 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { MoltentermDefaultAccent } from "../accent";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
@@ -92,6 +93,7 @@ import {
     ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
+import { SidebarGhost } from "./sidebar-ghost";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -106,16 +108,9 @@ import {
     type SidebarTabSplit,
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
-import {
-    centredScroll,
-    initialSwipeState,
-    manyDots,
-    pullLook,
-    PullSpringMs,
-    stepTarget,
-    swipeStep,
-} from "./sidebar-swipe";
-import { lastSwitchAt, switchDirection, switchFromSidebar, useSwitchArrival } from "./sidebar-switch";
+import { centredScroll, manyDots } from "./sidebar-swipe";
+import { SidebarSwipeController, setCurrentSwipe } from "./sidebar-swipe-view";
+import { SwitchIntent, switchDirection, switchFromSidebar, useSwitchArrival } from "./sidebar-switch";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -1958,131 +1953,138 @@ function WidthGrip({ width }: { width: number }) {
     );
 }
 
-type PullRefs = {
+// The layers the swipe moves (DS-SHELL-130), held by ref so a gesture never renders React.
+type SwipeRefs = {
+    aside: React.RefObject<HTMLElement>;
     content: React.RefObject<HTMLDivElement>;
-    left: React.RefObject<HTMLDivElement>;
-    right: React.RefObject<HTMLDivElement>;
+    ghostPrev: React.RefObject<HTMLDivElement>;
+    ghostNext: React.RefObject<HTMLDivElement>;
+    tint: React.RefObject<HTMLDivElement>;
+    pullLeft: React.RefObject<HTMLDivElement>;
+    pullRight: React.RefObject<HTMLDivElement>;
+    shadowLeft: React.RefObject<HTMLDivElement>;
+    shadowRight: React.RefObject<HTMLDivElement>;
 };
 
-function showPull(refs: PullRefs, side: -1 | 1, amount: number) {
-    const look = pullLook(side, amount);
-    const el = (side < 0 ? refs.left : refs.right).current;
-    if (el != null) {
-        el.style.transition = "none";
-        el.style.opacity = String(look.opacity);
-        el.style.transform = `translateY(-50%) translateX(${look.shiftX}px) scale(${look.scale})`;
-        el.classList.toggle("is-ready", look.ready);
-    }
-    const content = refs.content.current;
-    if (content != null) {
-        content.style.transition = "none";
-        content.style.transform = `translateX(${look.contentX}px)`;
-    }
+// A workspace's frame colour (sidebar.css .mt-sb-frame), for the tint that fades in during a swipe toward it.
+function frameTint(color: string): string {
+    const accent = colourStops(color)[0] ?? MoltentermDefaultAccent;
+    return `color-mix(in srgb, ${accent} 18%, rgb(20 17 16))`;
 }
 
-// The pull springs back: the indicator fades, the content returns to its place.
-function resetPull(refs: PullRefs) {
-    for (const el of [refs.left.current, refs.right.current]) {
-        if (el == null) {
-            continue;
-        }
-        el.style.transition = "";
-        el.style.opacity = "";
-        el.style.transform = "";
-        el.classList.remove("is-ready");
-    }
-    const content = refs.content.current;
-    if (content != null && content.style.transform) {
-        content.style.transition = "";
-        content.style.transform = "";
-    }
+// The new-workspace page left by a swipe already stands in place: it does not slide in again.
+let skipNextPageSlide = false;
+
+// The pull indicator at mid-height on its side: its glyph inside a ring that fills with the pull (two halves turned
+// by transform only).
+function PullBadge({ side, pullRef }: { side: -1 | 1; pullRef: React.RefObject<HTMLDivElement> }) {
+    return (
+        <div
+            ref={pullRef}
+            className={cn("mt-sb-pull", side < 0 ? "is-left" : "is-right")}
+            aria-hidden
+            data-testid={side < 0 ? "sidebar-pull-left" : "sidebar-pull-right"}
+        >
+            <span className="mt-sb-ring">
+                <span className="mt-sb-ring-half is-r">
+                    <i />
+                </span>
+                <span className="mt-sb-ring-half is-l">
+                    <i />
+                </span>
+            </span>
+            <SidebarGlyph name={side < 0 ? "lib" : "plus"} size={18} />
+        </div>
+    );
 }
 
 // A horizontal swipe on the sidebar moves to the previous or next workspace; past either end it pulls, and a long
 // enough pull opens the library (left) or the new-workspace page (right) (FR-SHELL-082). The listener is not passive:
 // the sidebar takes the horizontal gesture from the page behind.
-function useSidebarSwipe(
-    asideRef: React.RefObject<HTMLElement>,
-    refs: PullRefs,
-    workspaces: SidebarWorkspaces,
-    creating: boolean
-) {
-    const latest = useRef({ workspaces, creating });
-    latest.current = { workspaces, creating };
+function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): SidebarSwipeController {
+    const latest = useRef(workspaces);
+    latest.current = workspaces;
+    const controller = useMemo(() => {
+        const model = SidebarModel.getInstance();
+        return new SidebarSwipeController(
+            {
+                page: () => refs.content.current,
+                ghost: (side) => (side < 0 ? refs.ghostPrev : refs.ghostNext).current,
+                tint: () => refs.tint.current,
+                pull: (side) => (side < 0 ? refs.pullLeft : refs.pullRight).current,
+                shadow: (side) => (side < 0 ? refs.shadowLeft : refs.shadowRight).current,
+                library: () => document.querySelector<HTMLElement>(".mt-lib"),
+                aside: () => refs.aside.current,
+                position: () => {
+                    const entries = latest.current.entries;
+                    return {
+                        ids: entries.map((w) => w.id),
+                        activeId: entries.find((w) => w.active)?.id,
+                        creating: globalStore.get(model.createDraftAtom) != null,
+                        otherPage:
+                            globalStore.get(ViewPins.getInstance().draftAtom) != null ||
+                            globalStore.get(model.projectPageAtom) != null,
+                    };
+                },
+                tintColour: (id) => {
+                    const entry = latest.current.entries.find((w) => w.id === id);
+                    return entry == null ? null : frameTint(entry.color);
+                },
+                reduced: () => prefersReducedMotion(),
+            },
+            {
+                switchTo: (id, side, swipe) => switchFromSidebar(id, side, swipe),
+                openLibrary: () => model.openLibrary(),
+                closeLibrary: () => model.closeLibrary(),
+                startCreate: () => startCreateWorkspace(latest.current),
+                leaveCreate: () => {
+                    skipNextPageSlide = true;
+                    model.cancelCreate();
+                },
+            }
+        );
+    }, [refs]);
     useEffect(() => {
-        const aside = asideRef.current;
-        if (aside == null) {
-            return;
-        }
-        let state = initialSwipeState();
-        let springTimer: ReturnType<typeof setTimeout> = null;
-        let openTimer: ReturnType<typeof setTimeout> = null;
-        const onWheel = (e: WheelEvent) => {
-            const { workspaces: ws, creating: busy } = latest.current;
-            if (busy || e.ctrlKey) {
-                return;
-            }
-            const ids = ws.entries.map((w) => w.id);
-            const activeId = ws.entries.find((w) => w.active)?.id;
-            const result = swipeStep(
-                state,
-                { dx: e.deltaX, dy: e.deltaY, at: e.timeStamp || performance.now() },
-                { index: ids.indexOf(activeId), count: ids.length },
-                switchedAtOnPageClock()
-            );
-            state = result.state;
-            if (!result.handled) {
-                return;
-            }
-            e.preventDefault();
-            clearTimeout(springTimer);
-            const action = result.action;
-            if (action.kind === "pull") {
-                showPull(refs, action.side, action.amount);
-                springTimer = setTimeout(() => {
-                    state = { ...state, acc: 0 };
-                    resetPull(refs);
-                }, PullSpringMs);
-                return;
-            }
-            if (action.kind === "pulled") {
-                showPull(refs, action.side, 1);
-                // Its own timer: the rest of the gesture keeps sending (locked) events, which must not cancel it.
-                clearTimeout(openTimer);
-                openTimer = setTimeout(() => {
-                    resetPull(refs);
-                    if (action.side < 0) {
-                        SidebarModel.getInstance().openLibrary();
-                    } else {
-                        startCreateWorkspace(latest.current.workspaces);
-                    }
-                }, 90);
-                return;
-            }
-            if (state.locked && action.kind === "none") {
-                return;
-            }
-            resetPull(refs);
-            if (action.kind === "switch") {
-                switchFromSidebar(stepTarget(ids, activeId, action.direction), action.direction);
+        const aside = refs.aside.current;
+        aside?.addEventListener("wheel", controller.onAsideWheel, { passive: false });
+        window.addEventListener("wheel", controller.onWindowWheel, { passive: true });
+        const onVisibility = () => {
+            if (document.visibilityState === "hidden") {
+                controller.reset();
             }
         };
-        aside.addEventListener("wheel", onWheel, { passive: false });
+        document.addEventListener("visibilitychange", onVisibility);
+        setCurrentSwipe(controller);
         return () => {
-            aside.removeEventListener("wheel", onWheel);
-            clearTimeout(springTimer);
-            clearTimeout(openTimer);
+            aside?.removeEventListener("wheel", controller.onAsideWheel);
+            window.removeEventListener("wheel", controller.onWindowWheel);
+            document.removeEventListener("visibilitychange", onVisibility);
+            setCurrentSwipe(null);
+            controller.reset();
         };
-    }, [asideRef, refs]);
+    }, [controller, refs]);
+    return controller;
 }
 
-// The last sidebar switch, on the wheel events' clock (performance.now), for the swipe's momentum lock.
-function switchedAtOnPageClock(): number {
-    const at = lastSwitchAt();
-    if (!at) {
-        return 0;
+// The neighbours a swipe brings in: the workspaces on each side, or, from the new-workspace page, its own workspace on
+// the left. Mounted once the sidebar is idle, so the first paint does not draw them.
+function useSwipeNeighbours(workspaces: SidebarWorkspaces, creating: boolean): { prev: WorkspaceRailEntry; next: WorkspaceRailEntry } {
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+        const cancel = window.cancelIdleCallback ?? clearTimeout;
+        const handle = idle(() => setReady(true));
+        return () => cancel(handle as any);
+    }, []);
+    if (!ready) {
+        return { prev: null, next: null };
     }
-    return at - Date.now() + performance.now();
+    const entries = workspaces.entries;
+    const at = entries.findIndex((w) => w.active);
+    if (creating) {
+        return { prev: entries[at] ?? null, next: null };
+    }
+    return { prev: at > 0 ? entries[at - 1] : null, next: at >= 0 ? (entries[at + 1] ?? null) : null };
 }
 
 // The sidebar's page slides when the new-workspace page opens (from the right) or closes (back from the left).
@@ -2094,6 +2096,10 @@ function usePageSlide(contentRef: React.RefObject<HTMLDivElement>, creating: boo
             return;
         }
         const el = contentRef.current;
+        if (skipNextPageSlide) {
+            skipNextPageSlide = false;
+            return;
+        }
         if (el?.animate == null) {
             return;
         }
@@ -2146,12 +2152,32 @@ export function WorkspaceSidebar() {
     const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);
     const contentRef = useRef<HTMLDivElement>(null);
+    const ghostPrevRef = useRef<HTMLDivElement>(null);
+    const ghostNextRef = useRef<HTMLDivElement>(null);
+    const tintRef = useRef<HTMLDivElement>(null);
     const pullLeftRef = useRef<HTMLDivElement>(null);
     const pullRightRef = useRef<HTMLDivElement>(null);
-    const pullRefs = useMemo<PullRefs>(() => ({ content: contentRef, left: pullLeftRef, right: pullRightRef }), []);
-    useSidebarSwipe(asideRef, pullRefs, workspaces, draft != null);
+    const shadowLeftRef = useRef<HTMLDivElement>(null);
+    const shadowRightRef = useRef<HTMLDivElement>(null);
+    const swipeRefs = useMemo<SwipeRefs>(
+        () => ({
+            aside: asideRef,
+            content: contentRef,
+            ghostPrev: ghostPrevRef,
+            ghostNext: ghostNextRef,
+            tint: tintRef,
+            pullLeft: pullLeftRef,
+            pullRight: pullRightRef,
+            shadowLeft: shadowLeftRef,
+            shadowRight: shadowRightRef,
+        }),
+        []
+    );
+    const swipe = useSidebarSwipe(swipeRefs, workspaces);
+    const neighbours = useSwipeNeighbours(workspaces, draft != null);
+    const onArrive = useCallback((intent: SwitchIntent) => swipe.arrived(intent), [swipe]);
     usePageSlide(contentRef, draft != null);
-    useSwitchArrival(contentRef);
+    useSwitchArrival(contentRef, onArrive);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
     useWindowButtons(hidden, peek);
     useEffect(() => {
@@ -2195,6 +2221,7 @@ export function WorkspaceSidebar() {
                     onClick={() => model.setPeek(true)}
                 />
             ) : null}
+            <div ref={tintRef} className="mt-sb-swipe-tint" aria-hidden data-testid="sidebar-swipe-tint" />
             <aside
                 ref={asideRef}
                 aria-label={t("sidebar.label", { name })}
@@ -2242,17 +2269,26 @@ export function WorkspaceSidebar() {
                             </>
                         )}
                     </div>
-                    <div ref={pullLeftRef} className="mt-sb-pull is-left" aria-hidden data-testid="sidebar-pull-left">
-                        <SidebarGlyph name="lib" size={18} />
-                    </div>
-                    <div
-                        ref={pullRightRef}
-                        className="mt-sb-pull is-right"
-                        aria-hidden
-                        data-testid="sidebar-pull-right"
-                    >
-                        <SidebarGlyph name="plus" size={18} />
-                    </div>
+                    {neighbours.prev != null ? (
+                        <SidebarGhost
+                            workspaceId={neighbours.prev.id}
+                            side={-1}
+                            ghostRef={ghostPrevRef}
+                            accent={colourStops(neighbours.prev.color)[0] ?? ""}
+                        />
+                    ) : null}
+                    {neighbours.next != null ? (
+                        <SidebarGhost
+                            workspaceId={neighbours.next.id}
+                            side={1}
+                            ghostRef={ghostNextRef}
+                            accent={colourStops(neighbours.next.color)[0] ?? ""}
+                        />
+                    ) : null}
+                    <div ref={shadowLeftRef} className="mt-sb-pull-shadow is-left" aria-hidden />
+                    <div ref={shadowRightRef} className="mt-sb-pull-shadow is-right" aria-hidden />
+                    <PullBadge side={-1} pullRef={pullLeftRef} />
+                    <PullBadge side={1} pullRef={pullRightRef} />
                 </div>
                 <BranchLine />
                 <div className="flex shrink-0 items-center gap-1.5 border-t border-white/10 pt-1.5">
