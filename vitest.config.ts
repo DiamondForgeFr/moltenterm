@@ -8,7 +8,7 @@ export default mergeConfig(
         test: {
             exclude: [...configDefaults.exclude, ".claude/worktrees/**"],
             // MOLTENTERM-PATCH (#1213): the shipped dictionaries, loaded up front as in Electron main
-            setupFiles: ["frontend/moltenterm-shell/i18n/i18n-test-setup.ts"],
+            setupFiles: ["frontend/moltenterm-shell/i18n/i18n-test-setup.js"],
             reporters: ["verbose", "junit"],
             outputFile: {
                 junit: "test-results.xml",

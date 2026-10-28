@@ -30,6 +30,8 @@ test("validation ignores nested worktrees but validates a checkout inside worktr
     write("package.json", '{"type":"module"}\n');
     // Exercise the production discovery configuration without loading the app's build plugins.
     write("electron.vite.config.ts", "export default { renderer: {} };\n");
+    // vitest.config.ts names the app's dictionary setup file (#1213); discovery does not need the dictionaries.
+    write("frontend/moltenterm-shell/i18n/i18n-test-setup.js", "export {};\n");
     const passing = 'import { test, expect } from "vitest"; test("included", () => expect(true).toBe(true));\n';
     const failing = 'import { test, expect } from "vitest"; test("included", () => expect(true).toBe(false));\n';
     write("scripts/included.test.js", passing);
