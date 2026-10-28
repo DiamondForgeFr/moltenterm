@@ -153,3 +153,11 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     max-width: 96px;
     height: 18px;
 }
+
+/* The page takes the panel's bottom corners (DS-SHELL-124, #1216): a web page is drawn by its own process, which the
+   panel's rounded overflow does not always cut, so the page box and the webview carry the radius themselves. */
+.molten-browser-pages,
+.molten-browser-page {
+    overflow: hidden;
+    border-radius: 0 0 var(--mt-panel-radius) var(--mt-panel-radius);
+}

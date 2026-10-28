@@ -1403,7 +1403,7 @@ function TabWebview({
             preload={webviewPreloadUrl()}
             // @ts-expect-error React types allowpopups as a boolean, Chromium's webview tag expects a string.
             allowpopups="true"
-            className={cn("absolute inset-0 h-full w-full", !active && "invisible pointer-events-none")}
+            className={cn("molten-browser-page absolute inset-0 h-full w-full", !active && "invisible pointer-events-none")}
         />
     );
 }
@@ -2018,7 +2018,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
-            <div className="relative min-h-0 flex-1">
+            <div className="molten-browser-pages relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>
                     tab.engine ? (
                         tab.id === state.activeId ? (

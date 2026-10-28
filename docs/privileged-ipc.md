@@ -41,6 +41,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | --- | --- |
 | `authkey.ts` | `get-auth-key` |
 | `moltenterm-accessibility.ts` | `moltenterm:get-accessibility-support` |
+| `moltenterm-window-buttons.ts` | `moltenterm-window-buttons` |
 | `moltenterm-hang-watch.ts` | `moltenterm-hang-pong`, `moltenterm-slow-sync-ipc`, `moltenterm-hang-diagnostics`, `moltenterm-hang-copy` |
 | `moltenterm-renderer-gone.ts` | `moltenterm-show-log` |
 | `emain-platform.ts` | `get-is-dev`, `get-platform`, `get-user-name`, `get-host-name`, `get-webview-preload`, `get-data-dir`, `get-config-dir`, `get-home-dir` |

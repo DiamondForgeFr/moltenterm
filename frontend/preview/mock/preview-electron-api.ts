@@ -61,6 +61,7 @@ const previewElectronApi: ElectronApi = {
     setKeyboardChordMode: () => {},
     clearWebviewStorage: (_webContentsId: number) => Promise.resolve(),
     setWaveAIOpen: (_isOpen: boolean) => {},
+    setWindowButtonsVisible: (_visible: boolean) => {}, // MOLTENTERM-PATCH (#1216)
     closeBuilderWindow: () => {},
     incrementTermCommands: (_opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {},
     nativePaste: () => {},
