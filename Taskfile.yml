@@ -102,7 +102,8 @@ tasks:
         sources:
             - docs/package-lock.json
             - docs/package.json
-        cmd: npm install
+        # MOLTENTERM-PATCH (#1276): npm's raw audit mixes the docs site with the app; `task security:check` and CI triage it.
+        cmd: npm install --no-audit --no-fund
         dir: docs
 
     docsite:start:
@@ -554,10 +555,11 @@ tasks:
 
     init:
         desc: Initialize the project for development.
+        # MOLTENTERM-PATCH (#1276): quiet installs, as in npm:install.
         cmds:
-            - npm install
+            - npm install --no-audit --no-fund
             - go mod tidy
-            - cd docs && npm install
+            - cd docs && npm install --no-audit --no-fund
 
     dev:cleardata:windows:
         internal: true
@@ -583,7 +585,9 @@ tasks:
         sources:
             - package-lock.json
             - package.json
-        cmd: npm install
+        # MOLTENTERM-PATCH (#1276): npm's raw audit at every launch mixes the docs site with the app and alarms without
+        # telling what ships; `task security:check` and CI's Dependency security job triage it by surface.
+        cmd: npm install --no-audit --no-fund
 
     go:mod:tidy:
         desc: Runs `go mod tidy`
