@@ -339,8 +339,6 @@ export type ForkCheck = {
     onScreen: boolean;
     // A drag runs (a panel, or a block of the sidebar): the layout is not final yet, and the drop may move the view.
     dragging: boolean;
-    // Its layout still has actions to apply (a rebuild from the configuration runs).
-    pending: boolean;
     // Made from an older configuration (saved from another workspace): it compares against a layout it never had.
     stale: boolean;
 };
@@ -349,7 +347,13 @@ export function forkDue(c: ForkCheck): boolean {
     if (c.state !== "everywhere" || !c.changed || c.projectTab) {
         return false;
     }
-    return c.onScreen && !c.dragging && !c.pending && !c.stale;
+    return c.onScreen && !c.dragging && !c.stale;
+}
+
+// The layout has no actions left to apply: a rebuild from the configuration (opening a newer one, Back to the pinned
+// state) is done, so its partial layouts never fork.
+export function layoutSettled(layout: { pendingbackendactions?: any[] }): boolean {
+    return (layout?.pendingbackendactions?.length ?? 0) === 0;
 }
 
 // The fork (#1272): only the tab's pin keys change, so the view keeps its tab, panels, sessions, agent and name, and

@@ -16,6 +16,7 @@ import {
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
     instanceStale,
+    layoutSettled,
     PinConfig,
     PinConfigMetaKey,
     PinMetaKey,
@@ -62,7 +63,6 @@ function check(over: Partial<ForkCheck>): ForkCheck {
         projectTab: false,
         onScreen: true,
         dragging: false,
-        pending: false,
         stale: false,
         ...over,
     };
@@ -97,8 +97,10 @@ describe("a view pinned everywhere forks on a panel change (#1272)", () => {
         expect(forkDue(check({ projectTab: true }))).toBe(false);
         expect(forkDue(check({ onScreen: false }))).toBe(false);
         expect(forkDue(check({ dragging: true }))).toBe(false);
-        expect(forkDue(check({ pending: true }))).toBe(false);
         expect(forkDue(check({ stale: true }))).toBe(false);
+        expect(layoutSettled({ pendingbackendactions: [{}] })).toBe(false);
+        expect(layoutSettled({ pendingbackendactions: [] })).toBe(true);
+        expect(layoutSettled(null)).toBe(true);
     });
 
     it("turns the instance into a temporary view of the same tab, the pin untouched", () => {
