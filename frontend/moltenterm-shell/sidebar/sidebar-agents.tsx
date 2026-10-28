@@ -14,7 +14,7 @@ import { agentStateLabel, agentStateMessage, type AgentStateInfo } from "../agen
 import { useCompanionFollow } from "../companion/companion-follow";
 import { useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
-import { agentRowLook, type AgentTreeSection } from "./sidebar-agents-model";
+import { agentRowLook, agentRowTarget, type AgentTreeSection } from "./sidebar-agents-model";
 import "./sidebar-agents.css";
 import { SidebarGlyph } from "./sidebar-icons";
 
@@ -203,13 +203,7 @@ export function agentDisplayName(info: AgentStateInfo): string {
     return (info?.firstname || info?.agentname || info?.agent || "").trim();
 }
 
-// What the row of an agent that owns a temporary view adds: that view's menu and its close, as its row had.
-export type OwnedViewProps = {
-    onContextMenu: (e: React.MouseEvent) => void;
-    close: React.ReactNode;
-};
-
-function AgentBlock({ info, active, owned }: { info: AgentStateInfo; active: boolean; owned?: OwnedViewProps }) {
+function AgentBlock({ info, active }: { info: AgentStateInfo; active: boolean }) {
     const t = useT();
     const trees = useAtomValue(AgentInfoModel.getInstance().treesAtom);
     const tree = trees[info.blockid];
@@ -217,7 +211,7 @@ function AgentBlock({ info, active, owned }: { info: AgentStateInfo; active: boo
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
     const doing = agentDoing(info);
-    const go = () => fireAndForget(() => goToAgent(info));
+    const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
     const toggleLabel = t(open ? "sidebar.agents.collapse" : "sidebar.agents.expand", { name });
     return (
         <div
@@ -246,7 +240,6 @@ function AgentBlock({ info, active, owned }: { info: AgentStateInfo; active: boo
                         AgentInfoModel.getInstance().toggleTree(info.blockid);
                     }
                 }}
-                onContextMenu={owned?.onContextMenu}
             >
                 <button
                     type="button"
@@ -268,40 +261,13 @@ function AgentBlock({ info, active, owned }: { info: AgentStateInfo; active: boo
                     <span className="mt-sb-agent-ss">{doing}</span>
                 </span>
                 {look === "working" ? <WorkingDominoes label={agentStateLabel("working")} /> : null}
-                {owned ? (
-                    <span
-                        className="mt-sb-hover-ctl flex shrink-0 items-center"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {owned.close}
-                    </span>
-                ) : null}
             </div>
             {open ? <AgentTree info={info} shut={tree?.shut ?? {}} /> : null}
         </div>
     );
 }
 
-// Wraps the row of an agent owning a temporary view with that view's actions (the sidebar's own hook).
-export type OwnedViewWrap = React.ComponentType<{
-    tabId: string;
-    active: boolean;
-    children: (owned: OwnedViewProps) => React.ReactNode;
-}>;
-
-export function AgentsSection({
-    agents,
-    activeTabId,
-    ownedViews,
-    OwnedView,
-}: {
-    agents: AgentStateInfo[];
-    activeTabId: string;
-    // The temporary view each agent owns, by its terminal.
-    ownedViews: Map<string, string>;
-    OwnedView: OwnedViewWrap;
-}) {
+export function AgentsSection({ agents, activeTabId }: { agents: AgentStateInfo[]; activeTabId: string }) {
     const t = useT();
     const tc = useTCount();
     if (agents.length === 0) {
@@ -320,18 +286,9 @@ export function AgentsSection({
                 </span>
             </div>
             <div className="flex flex-col gap-px">
-                {agents.map((a) => {
-                    const active = a.tabid === activeTabId;
-                    const tabId = ownedViews.get(a.blockid);
-                    if (tabId == null) {
-                        return <AgentBlock key={a.blockid} info={a} active={active} />;
-                    }
-                    return (
-                        <OwnedView key={a.blockid} tabId={tabId} active={active}>
-                            {(owned) => <AgentBlock info={a} active={active} owned={owned} />}
-                        </OwnedView>
-                    );
-                })}
+                {agents.map((a) => (
+                    <AgentBlock key={a.blockid} info={a} active={a.tabid === activeTabId} />
+                ))}
             </div>
         </div>
     );

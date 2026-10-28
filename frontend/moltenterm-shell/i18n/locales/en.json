@@ -8861,11 +8861,7 @@
         "temporary": {
             "title": "Temporary views",
             "hint": "A temporary view closes; pin it to keep it",
-            "newView": "New view",
-            "underAgents": {
-                "one": "+ {count} under its agent",
-                "other": "+ {count} under their agents"
-            }
+            "newView": "New view"
         },
         "agents": {
             "title": "Agents",

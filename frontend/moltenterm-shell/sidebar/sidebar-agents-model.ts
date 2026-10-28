@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The sidebar's agents (FR-SHELL-084, DS of #1181): one row per agent of the workspace, from wavesrv's agent states,
-// those at work first; a temporary view owned by an agent is listed under that agent, not twice.
+// those at work first. A view where an agent runs stays listed as a view (#1246).
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import type { SidebarTabSplit } from "./sidebar-model";
 
 const RowOrder: Record<string, number> = { working: 0, waiting: 1, error: 2, idle: 3, done: 4 };
 
@@ -40,24 +41,17 @@ export function agentRowLook(info: AgentStateInfo): AgentRowLook {
     return "idle";
 }
 
-// The temporary views an agent owns: a view holding one agent's terminal and no other agent's. A view holding two
-// agents stays in the temporary views, so nothing is hidden under the wrong one.
-export function agentOwnedViews(temporaryTabIds: string[], agents: AgentStateInfo[]): Map<string, string> {
-    const temporary = new Set(temporaryTabIds ?? []);
-    const byTab = new Map<string, string[]>();
-    for (const a of agents ?? []) {
-        if (!a.tabid || !temporary.has(a.tabid)) {
-            continue;
-        }
-        byTab.set(a.tabid, [...(byTab.get(a.tabid) ?? []), a.blockid]);
-    }
-    const rtn = new Map<string, string>();
-    for (const [tabId, blocks] of byTab) {
-        if (blocks.length === 1) {
-            rtn.set(tabId, blocks[0]);
-        }
-    }
-    return rtn;
+export type SidebarSections = SidebarTabSplit & { agents: AgentStateInfo[] };
+
+// The sidebar's sections (FR-SHELL-084, #1246): a view stays in its own section, temporary list, tiles or top row,
+// whatever it holds; the agents are listed beside the views, never in their place.
+export function sidebarSections(split: SidebarTabSplit, agents: AgentStateInfo[]): SidebarSections {
+    return { ...split, agents: agents ?? [] };
+}
+
+// Where an agent row goes: the workspace, the view and the panel the agent runs in.
+export function agentRowTarget(info: AgentStateInfo): { workspaceid: string; tabid: string; blockid: string } {
+    return { workspaceid: info?.workspaceid, tabid: info?.tabid, blockid: info?.blockid };
 }
 
 // What the developer opened or closed in an agent's tree, kept per agent terminal: the tree itself, and each section.

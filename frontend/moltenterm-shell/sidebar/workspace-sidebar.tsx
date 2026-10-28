@@ -88,8 +88,8 @@ import {
     ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
-import { AgentsSection, type OwnedViewProps } from "./sidebar-agents";
-import { agentOwnedViews, workspaceAgents } from "./sidebar-agents-model";
+import { AgentsSection } from "./sidebar-agents";
+import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
 import { CreateWorkspacePage } from "./sidebar-create";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import { SidebarGlyph } from "./sidebar-icons";
@@ -103,6 +103,7 @@ import {
     SidebarMaxWidth,
     SidebarMinWidth,
     TileGridColumns,
+    type SidebarTabSplit,
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import { undoFromKey } from "./sidebar-undo";
@@ -1086,49 +1087,24 @@ function afterLastTemporary(ws: Workspace, temporary: string[]): string {
     return at >= 0 && at + 1 < order.length ? order[at + 1] : null;
 }
 
-// The row of an agent owning a temporary view (FR-SHELL-084) keeps that view's menu and its close.
-function OwnedAgentView({
-    tabId,
-    active,
-    children,
-}: {
-    tabId: string;
-    active: boolean;
-    children: (owned: OwnedViewProps) => React.ReactNode;
-}) {
-    const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
-    const identity = useTabIdentity(tabId, tab?.name ?? "");
-    const pin = useViewPin(tabId, tab, identity.name);
-    // The agent row has no inline name field, so the menu's rename opens its popover.
-    const { close, onContextMenu } = useViewActions(tabId, active, pin, null);
-    return <>{children({ onContextMenu, close: <HoldCloseButton onClose={close} /> })}</>;
-}
-
-// The workspace's agents, and the temporary views they own: listed under their agent, not with the other views.
-function useSidebarAgents(temporaryIds: string[]) {
+// The sidebar's views by section, and the workspace's agents beside them (FR-SHELL-084, #1246).
+function useSidebarSections(split: SidebarTabSplit) {
     const ws = useAtomValue(atoms.workspace);
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data, ws?.oid), [data, ws?.oid]);
-    const owned = useMemo(() => agentOwnedViews(temporaryIds, agents), [temporaryIds, agents]);
-    const byAgent = useMemo(() => new Map(Array.from(owned, ([tab, block]) => [block, tab])), [owned]);
-    const shown = useMemo(() => temporaryIds.filter((id) => !owned.has(id)), [temporaryIds, owned]);
-    return { agents, byAgent, shown };
+    return useMemo(() => sidebarSections(split, agents), [split, agents]);
 }
 
 export function TemporaryViews({
     ids,
     activeTabId,
     asideRef,
-    underAgents,
 }: {
     ids: string[];
     activeTabId: string;
     asideRef: React.RefObject<HTMLElement>;
-    // The temporary views listed under their agents instead (FR-SHELL-084).
-    underAgents?: number;
 }) {
     const t = useT();
-    const tc = useTCount();
     const listRef = useRef<HTMLDivElement>(null);
     const { state, drag } = useRowDrag(listRef, asideRef, ids);
     const { target, over } = useZone("temporary");
@@ -1145,11 +1121,6 @@ export function TemporaryViews({
                 title={t("sidebar.temporary.hint")}
             >
                 <span>{t("sidebar.temporary.title")}</span>
-                {underAgents > 0 ? (
-                    <span className="ml-auto tracking-normal normal-case" data-testid="sidebar-temporary-under-agents">
-                        {tc("sidebar.temporary.underAgents", underAgents)}
-                    </span>
-                ) : null}
             </div>
             <div ref={listRef} className="flex flex-col gap-px">
                 {ids.map((id) => (
@@ -2164,7 +2135,7 @@ export function WorkspaceSidebar() {
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
     const projectPage = useAtomValue(model.projectPageAtom);
-    const agents = useSidebarAgents(split.temporary);
+    const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);
     const contentRef = useRef<HTMLDivElement>(null);
     const pullLeftRef = useRef<HTMLDivElement>(null);
@@ -2232,7 +2203,7 @@ export function WorkspaceSidebar() {
             >
                 <WindowRow leftInset={hidden ? 18 : 8} />
                 <TopField />
-                <TopRow instances={split.everywhere ?? {}} activeTabId={activeTabId} />
+                <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
                 <div className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div
                         ref={contentRef}
@@ -2250,21 +2221,15 @@ export function WorkspaceSidebar() {
                             <>
                                 <WorkspaceHeader workspaces={workspaces} />
                                 <TileGrid
-                                    tileIds={split.tiles}
+                                    tileIds={sections.tiles}
                                     activeTabId={activeTabId}
                                     label={t("sidebar.tiles.label", { name })}
                                 />
-                                <AgentsSection
-                                    agents={agents.agents}
-                                    activeTabId={activeTabId}
-                                    ownedViews={agents.byAgent}
-                                    OwnedView={OwnedAgentView}
-                                />
+                                <AgentsSection agents={sections.agents} activeTabId={activeTabId} />
                                 <TemporaryViews
-                                    ids={agents.shown}
+                                    ids={sections.temporary}
                                     activeTabId={activeTabId}
                                     asideRef={asideRef}
-                                    underAgents={agents.byAgent.size}
                                 />
                             </>
                         )}
