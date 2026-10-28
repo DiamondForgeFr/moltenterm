@@ -35,6 +35,7 @@ import {
     GlobalPinsMetaKey,
     instanceStale,
     isProjectTab,
+    layoutSettled,
     layoutTree,
     makeGlobalPinId,
     PinConfig,
@@ -214,19 +215,27 @@ export class ViewPins {
                 return false;
             }
             get(live.leafs);
-            const layout = tab.layoutstate
-                ? get(WOS.getWaveObjectAtom<LayoutState>(WOS.makeORef("layout", tab.layoutstate)))
-                : null;
             return forkDue({
                 state,
                 changed: viewForked(pin.config, layoutTree(live.treeState?.rootNode), (id) => blockMetaOf(get, id)),
                 projectTab: isProjectTab(tab),
                 onScreen: get(atoms.workspace)?.activetabid === tabId,
                 dragging: get(dragging) || get(live.activeDrag),
-                pending: (layout?.pendingbackendactions?.length ?? 0) > 0,
                 stale: instanceStale(tab, pin),
             });
         });
+    }
+
+    // Read when the settle ends rather than through an atom: the layout model clears the stored layout's pending
+    // actions in place, so an atom would keep seeing them.
+    private layoutSettledNow(tabId: string): boolean {
+        const tab = globalStore.get(tabAtom(tabId));
+        if (!tab?.layoutstate) {
+            return true;
+        }
+        return layoutSettled(
+            globalStore.get(WOS.getWaveObjectAtom<LayoutState>(WOS.makeORef("layout", tab.layoutstate)))
+        );
     }
 
     // Watches the view this window shows (dragging: the sidebar's drag); returns the stop.
@@ -236,18 +245,23 @@ export class ViewPins {
         }
         const due = this.forkDueAtom(tabId, dragging);
         let timer: ReturnType<typeof setTimeout> = null;
-        const check = () => {
-            clearTimeout(timer);
+        const settled = () => {
             timer = null;
             if (!globalStore.get(due)) {
                 return;
             }
-            timer = setTimeout(() => {
-                timer = null;
-                if (globalStore.get(due)) {
-                    fireAndForget(() => this.fork(tabId));
-                }
-            }, ForkSettleMs);
+            if (!this.layoutSettledNow(tabId)) {
+                timer = setTimeout(settled, ForkSettleMs);
+                return;
+            }
+            fireAndForget(() => this.fork(tabId));
+        };
+        const check = () => {
+            clearTimeout(timer);
+            timer = null;
+            if (globalStore.get(due)) {
+                timer = setTimeout(settled, ForkSettleMs);
+            }
         };
         const unsub = globalStore.sub(due, check);
         check();
