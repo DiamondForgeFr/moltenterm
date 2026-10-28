@@ -84,6 +84,7 @@ function words(input: Partial<CardInput> & { pr: ReviewPr }) {
 const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr } }[] = [
     { kind: "agent-waiting", input: { pr: pr(), agents: [Diane] } },
     { kind: "agent-working", input: { pr: pr({ merge: "conflicts", draft: true }), agents: [Nathan] } },
+    { kind: "agent-finish", input: { pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true } },
     {
         kind: "interrupted",
         input: {
@@ -218,7 +219,7 @@ describe("cardState: the nine states (#1060)", () => {
     });
 
     it("work interrupted, session open: Relaunch {name}, molten", () => {
-        const w = words(Cases[2].input);
+        const w = words(Cases[3].input);
         expect(w.sentence).toBe("Work interrupted");
         expect(w.why).toBe("Jeanne stopped before finishing the rebase");
         expect(w.primary).toBe("Relaunch Jeanne");
@@ -278,16 +279,52 @@ describe("cardState: the nine states (#1060)", () => {
         expect(s.menu[0].disabled).toBeTruthy();
     });
 
-    it("a draft ready for review: Mark ready, its confirmation names the missing report", () => {
+    // #1212: in a workflow without Human Testing a draft is its agent's even with its agent idle, its quick checks
+    // green or its CI red: Resume {name}, calm, in Agents on it; the developer can still take it over from the menu.
+    it("a draft its agent stopped before marking ready: Resume {name}, never the developer's", () => {
+        const w = words({ pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true });
+        expect(w.kind).toBe("agent-finish");
+        expect(w.sentence).toBe("The agent still has to mark it ready");
+        expect(w.why).toBe("your workflow has no Human Testing: the agent marks its draft ready itself");
+        expect(w.primary).toBe("Resume Jeanne");
+        expect(w.molten).toBe(false);
+        expect(w.menu[0]).toBe("Mark ready for review: the PR leaves draft");
+        const s = state({ pr: pr({ draft: true }), agents: [Jeanne], agentReadies: true });
+        expect([s.turn, s.works, s.motion]).toEqual(["agents", false, null]);
+        const red = words({ pr: pr({ draft: true }, [Failed()]), agentReadies: true });
+        expect([red.kind, red.why, red.primary]).toEqual(["agent-finish", "CI failing: Backend", "Resume an agent"]);
+        const conflicts = words({ pr: pr({ draft: true, merge: "conflicts" }), agentReadies: true });
+        expect([conflicts.kind, conflicts.why]).toEqual(["agent-finish", "conflicts with develop"]);
+        const workflowOnly = state({
+            pr: pr({ draft: true }),
+            agentReadies: true,
+            boardTurn: { owner: "agent", kind: "agent", workflow: true },
+        });
+        expect(workflowOnly.kind).toBe("agent-finish");
+        expect(state({ pr: pr({ draft: true }), agents: [Nathan], agentReadies: true }).kind).toBe("agent-working");
+        expect(state({ pr: pr({ draft: true }), agents: [Diane], agentReadies: true }).kind).toBe("agent-waiting");
+    });
+
+    it("no draft reads Ready, whatever its quick checks say (#1212)", () => {
+        const quick: ReviewCheck[] = [...Green, { name: "Build", state: "neutral" }];
+        for (const agentReadies of [false, true]) {
+            const s = words({ pr: pr({ draft: true }, quick), agentReadies });
+            expect(s.sentence).not.toMatch(/ready for review|ready to merge/i);
+            expect(s.kind).not.toBe("ready");
+        }
+        expect(words({ pr: pr() }).sentence).toBe("Ready to merge");
+    });
+
+    it("a draft to test: Mark ready, its confirmation names the missing report", () => {
         const s = state({ pr: pr({ draft: true, report: { state: "missing" } }) });
-        expect(wordPhrase(s.sentence)).toBe("Ready for review");
+        expect(wordPhrase(s.sentence)).toBe("Draft to test");
         expect(s.primary.id).toBe("mark-ready");
         expect(wordPhrase(s.primary.confirm)).toBe("No test report yet.");
         expect(s.facts.find((f) => f.id === "report").tone).toBe("soft");
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {
-        const w = words(Cases[7].input);
+        const w = words(Cases[8].input);
         expect(w.sentence).toBe("CI running");
         expect(w.why).toBe("2 of 4, Backend, Build");
         expect(w.primary).toBe("Assisted review");
@@ -430,9 +467,9 @@ describe("the dominoes mean work in progress (#1085, FR-REV-022 AC13)", () => {
     });
 
     it("CI running with nothing asked: the state line shows them", () => {
-        const s = state(Cases[7].input);
+        const s = state(Cases[8].input);
         expect([s.kind, s.works, s.motion]).toEqual(["ci-running", true, "state"]);
-        expect(state({ ...Cases[7].input, agents: [Jeanne] }).motion).toBe("state");
+        expect(state({ ...Cases[8].input, agents: [Jeanne] }).motion).toBe("state");
     });
 
     it("nothing works: no dominoes", () => {
@@ -533,7 +570,7 @@ describe("in French", () => {
         expect(words({ pr: pr({ draft: true }) }).primary).toBe("Passer en revue");
         expect(words({ pr: pr() }).sentence).toBe("Prête à fusionner");
         expect(words({ pr: pr({ merge: "conflicts" }) }).primary).toBe("Confier le rebase");
-        expect(words(Cases[4].input).sentence).toBe("CI en échec : Backend");
+        expect(words(Cases[5].input).sentence).toBe("CI en échec : Backend");
         expect(
             words({ pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]), agents: [Nathan] }).facts
         ).toContain("CI 4/5, 1 en cours");

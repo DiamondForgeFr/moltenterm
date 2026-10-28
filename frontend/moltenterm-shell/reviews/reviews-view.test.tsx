@@ -177,7 +177,7 @@ describe("Reviews card (#1060)", () => {
         afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
         it("words the card", () => {
             const html = rowHtml(pr(13, { draft: true }));
-            expect(html).toContain("Prête à passer en revue");
+            expect(html).toContain("Brouillon à tester");
             expect(html).toContain(">brouillon<");
             expect(primary(html)).toContain("Passer en revue");
         });

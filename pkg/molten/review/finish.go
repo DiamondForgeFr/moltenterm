@@ -42,6 +42,9 @@ type FinishRequest struct {
 	FailedChecks     []string `json:"failedchecks,omitempty"`
 	ChangesRequested bool     `json:"changesrequested,omitempty"`
 	NoReport         bool     `json:"noreport,omitempty"`
+	// MarkReady (#1212): the PR is a draft its agent stopped before marking ready, in a workflow without Human Testing;
+	// its last step is the agent's, never the developer's.
+	MarkReady bool `json:"markready,omitempty"`
 	// Start: the developer chose how a new agent works (Mode, #758); its tab goes in WorkspaceId, named TabName.
 	Start       bool   `json:"start,omitempty"`
 	Mode        string `json:"mode,omitempty"`
@@ -139,9 +142,14 @@ func finishPromptLine(req FinishRequest, briefPath string) string {
 	if left == "" {
 		left = "nothing MoltenTerm can see"
 	}
+	ready := ""
+	if req.MarkReady {
+		ready = " It is still a draft: once nothing is left and its full CI is green, mark it ready and move its ticket " +
+			"on as the project's workflow says."
+	}
 	return fmt.Sprintf("MoltenTerm: check PR #%d (%s) and finish it. Left: %s. Verify it against its ticket's acceptance "+
 		"criteria, fix what remains (rebase on origin/%s, never merge it in; push with --force-with-lease), never merge "+
-		"the PR. Brief: %s", req.Number, req.HeadRef, left, req.BaseRef, briefPath)
+		"the PR.%s Brief: %s", req.Number, req.HeadRef, left, req.BaseRef, ready, briefPath)
 }
 
 func renderFinishBrief(req FinishRequest, tree string, ticket int) string {
@@ -187,6 +195,13 @@ func renderFinishBrief(req FinishRequest, tree string, ticket int) string {
 	b.WriteString("4. Red checks: find the cause and fix it on the branch; rerun a job only when the code is not the cause.\n")
 	b.WriteString("5. Review comments and acceptance criteria: do what is missing, answer each thread you handled.\n")
 	b.WriteString("6. Run the project's checks (build, tests, lint), commit in the project's format, push with `git push --force-with-lease` (never a plain `--force`).\n")
+	if req.MarkReady {
+		b.WriteString("7. The PR is still a draft and the project's workflow has no Human Testing step: its last step is yours. " +
+			"Once nothing is left, wait for its CI to be green, then mark it ready for review and move its ticket to the next status, " +
+			"as the project's workflow says (its instructions or workflow tooling). The full CI runs once it is ready: watch it and fix what it finds.\n")
+		b.WriteString("8. When that is done, say so in one line. Do not approve or merge the PR: the developer validates it in MoltenTerm.\n")
+		return b.String()
+	}
 	b.WriteString("7. When nothing is left, say so in one line. Do not approve or merge the PR: the developer validates it in MoltenTerm.\n")
 	return b.String()
 }

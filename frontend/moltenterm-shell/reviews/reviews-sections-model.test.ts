@@ -178,6 +178,58 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         );
     });
 
+    // #1212: on a Solo board a draft whose agent stopped before marking it ready (its terminal idle on the branch) is
+    // still its agent's, with Resume; "Ready" is never said of a draft. With Human Testing it stays the developer's.
+    it("keeps a Solo draft with its stopped agent and offers to resume it", () => {
+        const quick: ReviewCheck[] = [
+            ...Green,
+            { name: "Build", state: "neutral" },
+            { name: "Test", state: "neutral" },
+        ];
+        const draft = pr(1209, { draft: true }, quick);
+        const states = {
+            states: { ...States.states, olivia: { state: "idle", firstname: "Olivia", since: Now - 60_000 } },
+        } as unknown as AgentStatesData;
+        const agent = {
+            branch: "feature/1209-x",
+            worktree: "/w/1209",
+            kind: "panel" as const,
+            blockid: "olivia",
+            started: Now - 600_000,
+        };
+        const ctx = (humantesting: "yes" | "no"): CardContext => ({
+            ...Ctx,
+            states,
+            upcoming: {
+                ...Upcoming,
+                humantesting,
+                agents: [...Upcoming.agents, agent],
+                drafts: [{ branch: "feature/1209-x", ticket: 1209, status: "AI Testing" }],
+            },
+        });
+        const solo = cardState(cardInputOf(draft, null, ctx("no")));
+        expect(solo.kind).toBe("agent-finish");
+        expect(solo.turn).toBe("agents");
+        expect(solo.primary?.id).toBe("resume");
+        expect(solo.primary?.label).toEqual({
+            key: "reviews.card.action.resume",
+            vars: { name: { key: "reviews.card.name", vars: { name: "Olivia" } } },
+        });
+        expect(solo.molten).toBe(false);
+        expect(solo.sentence).toEqual({ key: "reviews.card.state.agentFinish" });
+        const sections = sectionsByTurn(
+            [draft],
+            cardStates([draft], {}, (n) => `/p#${n}`, ctx("no")),
+            "state"
+        );
+        expect(sections.map((s) => s.turn)).toEqual(["agents"]);
+        const gated = cardState(cardInputOf(draft, null, ctx("yes")));
+        expect(gated.kind).toBe("draft-ready");
+        expect(gated.turn).toBe("yours");
+        expect(gated.primary?.id).toBe("mark-ready");
+        expect(gated.sentence).toEqual({ key: "reviews.card.state.draftReady" });
+    });
+
     // #1172: on a Solo board (no Human Testing) a draft is the agents' turn, its column known or not; with Human
     // Testing, the human gates make it the developer's.
     it("puts a draft in Agents on it in a workflow without Human Testing, whatever its column says", () => {

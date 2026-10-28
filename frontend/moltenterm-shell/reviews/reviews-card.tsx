@@ -88,6 +88,8 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
             return phrase("reviews.card.actionTitle.relaunch", { name });
         case "start-agent":
             return phrase("reviews.card.actionTitle.startAgent");
+        case "resume":
+            return phrase("reviews.card.actionTitle.resume", { name });
         case "rebase":
             return phrase("reviews.card.actionTitle.rebase", { base: pr.base });
         case "investigate":
@@ -223,6 +225,9 @@ export function ReviewRow({
                         ? model.retryTask(dir, pr, repo, rebaseAsk.kind ?? "rebase")
                         : model.askFinish(dir, pr, repo)
                 );
+                return;
+            case "resume":
+                ask(action.id, "finish", () => model.askFinish(dir, pr, repo, true));
                 return;
             case "rebase":
                 ask(action.id, "rebase", onAskRebase);
@@ -518,7 +523,15 @@ export function ReviewRow({
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                model.queueAsk(dir, pr, repo, outcomeTask, outcome.busy);
+                                model.queueAsk(
+                                    dir,
+                                    pr,
+                                    repo,
+                                    outcomeTask,
+                                    outcome.busy,
+                                    undefined,
+                                    outcomeTask === "finish" && input.agentReadies
+                                );
                                 setOutcome(null);
                             }}
                             onKeyDown={stopRow}

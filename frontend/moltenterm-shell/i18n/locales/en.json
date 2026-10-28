@@ -6497,6 +6497,7 @@
                 "agentWaiting": "{name} is waiting for you",
                 "agentWorking": "{name} is on it",
                 "agentAway": "An agent is on it",
+                "agentFinish": "The agent still has to mark it ready",
                 "agentOn": {
                     "rebase": "{name} is rebasing onto {base}",
                     "investigate": "{name} is resolving what blocks it",
@@ -6508,7 +6509,7 @@
                 "changes": "Changes requested",
                 "reviewRequired": "Review required",
                 "blockedRule": "Blocked by a rule",
-                "draftReady": "Ready for review",
+                "draftReady": "Draft to test",
                 "ciRunning": "CI running",
                 "mergeChecking": "GitHub is checking the merge",
                 "ready": "Ready to merge",
@@ -6528,6 +6529,7 @@
                 "board": "column {status}",
                 "recentCommit": "a commit landed lately",
                 "workflowDraft": "your workflow leaves drafts to the agents until review",
+                "agentFinish": "your workflow has no Human Testing: the agent marks its draft ready itself",
                 "interrupted": "{name} stopped before finishing {what}",
                 "interruptedGone": "{name}'s session ended before finishing {what}",
                 "nobody": "nobody on it",
@@ -6542,6 +6544,7 @@
                 "follow": "Follow {name}",
                 "relaunch": "Relaunch {name}",
                 "startAgent": "Start an agent",
+                "resume": "Resume {name}",
                 "rebase": "Hand the rebase over",
                 "investigate": "Analyze and resolve",
                 "assistedReview": "Assisted review",
@@ -6559,7 +6562,8 @@
                 "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
                 "startAgent": "The task's session is gone: start a new agent on it",
                 "rebase": "Hand the rebase on {base} to an agent: the one on the branch, or one you start",
-                "investigate": "A work agent resolves what blocks this pull request, in this order: {blockers}. It never merges."
+                "investigate": "A work agent resolves what blocks this pull request, in this order: {blockers}. It never merges.",
+                "resume": "Ask {name} to finish this pull request and mark it ready itself once its CI is green. It never merges."
             },
             "fact": {
                 "ciFailing": "CI failing: {names}",

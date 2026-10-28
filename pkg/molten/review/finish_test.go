@@ -95,6 +95,36 @@ func TestAskFinishStartsAnAgentWhenConfirmed(t *testing.T) {
 	checkFinishPrompt(t, f.opened[0], res.BriefPath)
 }
 
+// #1212: a draft its agent stopped before marking ready, in a workflow without Human Testing: the resumed agent marks it
+// ready itself once its CI is green, as the project's workflow says, and still never merges it.
+func TestAskFinishAsksTheAgentToMarkItsDraftReady(t *testing.T) {
+	f := makeRestartFixture(t)
+	tree := f.agentTreeOnBranch()
+	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
+	f.runs["agent-term"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Bruno"}
+	req := f.finishRequest(false)
+	req.MarkReady = true
+	res := f.askFinish(req)
+	if res.Status != RestartSent {
+		t.Fatalf("result: %+v", res)
+	}
+	line := f.typed["agent-term"]
+	checkFinishPrompt(t, line, res.BriefPath)
+	if !strings.Contains(line, "mark it ready") || !strings.Contains(line, "project's workflow") {
+		t.Errorf("the prompt must ask the agent to mark its draft ready: %s", line)
+	}
+	brief := readText(t, res.BriefPath)
+	for _, part := range []string{"mark it ready for review", "move its ticket to the next status", "Do not approve or merge the PR"} {
+		if !strings.Contains(brief, part) {
+			t.Errorf("the brief misses %q:\n%s", part, brief)
+		}
+	}
+	plain := f.askFinish(f.finishRequest(false))
+	if strings.Contains(readText(t, plain.BriefPath), "mark it ready") {
+		t.Errorf("without markready the brief must not ask to mark the PR ready")
+	}
+}
+
 func TestAskFinishRefusesBadRequests(t *testing.T) {
 	f := makeRestartFixture(t)
 	for _, req := range []FinishRequest{

@@ -737,6 +737,7 @@ export function askReviewFinish(
         failedchecks?: string[];
         changesrequested?: boolean;
         noreport?: boolean;
+        markready?: boolean;
     } & AgentStart
 ): Promise<ReviewRestartResult> {
     return call(FinishCommand, req, RestartTimeoutMs);
