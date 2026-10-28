@@ -114,6 +114,7 @@ export function ReviewRow({
     relation,
     rank,
     queueWhy,
+    waitWhy,
     groupMerge,
     onGroupMerge,
     queued,
@@ -139,6 +140,8 @@ export function ReviewRow({
     // Its place in the merge queue (#1062, FR-REV-024): rank, and the words in the order's direction.
     rank?: number;
     queueWhy?: Phrase;
+    // Why it waits instead of being ranked (#1211): one line under its state.
+    waitWhy?: Phrase;
     // Its place in the group merge (#1108): in it, taken out, or no step; the "…" menu changes it.
     groupMerge?: "in" | "out" | null;
     onGroupMerge?: (inGroup: boolean) => void;
@@ -315,6 +318,7 @@ export function ReviewRow({
     // A queued card says its place in the order where its own state gives no reason, or only the CI's.
     const queueSays = queueWhy != null && (card.why == null || card.kind === "ready" || card.kind === "ci-running");
     const why = word(queueSays ? queueWhy : card.why);
+    const wait = word(waitWhy);
     const primary = card.primary;
     // Every Validate looks the same (developer decision 2026-10-25, #1108): the suggested order is a proposal for the
     // group merge, never a constraint on which PR to validate first.
@@ -422,6 +426,17 @@ export function ReviewRow({
                         ) : null}
                     </div>
                     <CardStateLine tone={card.tone} sentence={sentence} why={why} working={card.motion === "state"} />
+                    {wait ? (
+                        <div
+                            className="flex min-w-0 items-center gap-1.5 text-11 leading-4 text-secondary"
+                            data-testid="reviews-card-wait"
+                        >
+                            <i className="fa fa-solid fa-hourglass-half text-10 text-muted" aria-hidden />
+                            <span className="min-w-0 truncate" title={wait}>
+                                {wait}
+                            </span>
+                        </div>
+                    ) : null}
                     <div
                         className="relative flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4"
                         data-testid="reviews-card-facts"

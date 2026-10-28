@@ -13,8 +13,10 @@ import { Forecast, impactedBy, impactsOf, pathsText } from "./reviews-forecast-m
 import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
 import { orderTier, suggestedMergeOrder } from "./reviews-order-model";
 
-// The queue shows from this many steps: with one, Merge in this order is the card's own Validate.
-export const QueueMinSteps = 2;
+// Merge in this order is offered from this many chosen steps (#1211: "Merge this 1" when one PR can merge now).
+export const QueueMinSteps = 1;
+// The block shows from this many PRs the developer can merge now (#1211).
+export const QueueShownSteps = 2;
 
 export type QueueStep = {
     number: number;
@@ -44,7 +46,18 @@ export type MergeQueue = {
     out?: number[];
     // The number each PR shows (#1108).
     ids?: ShownNumbers;
+    // The PRs of the queue the developer cannot merge yet (#1211), each with why to wait; never ranked.
+    waits?: QueueWait[];
 };
+
+// Why a PR of the queue waits (#1211): an agent works on it, an earlier PR it shares files with should merge first
+// (saves it a rebase), its CI still runs, or GitHub still checks the merge.
+export type QueueWaitReason = "agent" | "after" | "ci" | "checking";
+
+export type QueueWait = { number: number; reason: QueueWaitReason; name?: string; after?: number[] };
+
+// BusyOf: the first name of the agent working on a PR's branch ("" when it has none), null when no agent works on it.
+export type BusyOf = (number: number) => string;
 
 // ShownNumbers: by PR number, the number its card shows: its ticket, else its PR number (#1108).
 export type ShownNumbers = Record<number, number>;
@@ -87,16 +100,68 @@ export function queueCandidates(ready: readonly ReviewPr[]): ReviewPr[] {
     return (ready ?? []).filter((pr) => !pr.draft && (orderTier(pr) < 2 || conflictsBase(pr)));
 }
 
+// queueMergeable (#1211): the developer can merge the PR now: ready for review, its CI green, no conflict with the
+// target and no agent working on it. Only these are ranked.
+export function queueMergeable(pr: ReviewPr, busy?: BusyOf): boolean {
+    if (pr == null || pr.draft || ciWaits(pr) || (pr.merge !== "clean" && pr.merge !== "behind")) {
+        return false;
+    }
+    const ci = pr.ci?.state ?? "none";
+    if (ci !== "success" && ci !== "none") {
+        return false;
+    }
+    return busy?.(pr.number) == null;
+}
+
+// queueWaits: why each queued PR that cannot merge now waits. after: the full order over every queued PR, mergeable
+// or not, so a PR is told which earlier one it shares files with.
+function queueWaits(
+    forecast: Forecast,
+    waiting: ReviewPr[],
+    all: ReviewPr[],
+    listed: readonly ReviewPr[],
+    busy?: BusyOf
+): QueueWait[] {
+    if (waiting.length === 0) {
+        return [];
+    }
+    const full = suggestedMergeOrder(forecast, all, [...listed]);
+    const afterOf = new Map(full.usable ? full.steps.map((s) => [s.number, s.rebaseAfter]) : []);
+    return waiting.map((pr) => {
+        const name = busy?.(pr.number);
+        if (name != null) {
+            return { number: pr.number, reason: "agent", name };
+        }
+        const after = afterOf.get(pr.number) ?? [];
+        if (after.length > 0) {
+            return { number: pr.number, reason: "after", after };
+        }
+        const checking = pr.merge === "unknown" && (pr.ci?.pending ?? 0) === 0 && pr.ci?.state !== "pending";
+        return { number: pr.number, reason: checking ? "checking" : "ci" };
+    });
+}
+
 // mergeQueue: the numbered queue for the PRs ready for review, from the forecast about every listed PR. taken: the
-// steps the developer took out of the group merge (#1108); the order and its cost are the chosen ones'.
+// steps the developer took out of the group merge (#1108); the order and its cost are the chosen ones'. busy: the
+// agent working on each PR (#1211): only PRs the developer can merge now are steps; the others wait, with a reason.
 export function mergeQueue(
     forecast: Forecast,
     ready: readonly ReviewPr[],
     listed: readonly ReviewPr[],
-    taken?: readonly number[]
+    taken?: readonly number[],
+    busy?: BusyOf
 ): MergeQueue {
     const takenOut = new Set(taken ?? []);
-    const all = queueCandidates(ready);
+    const queued = queueCandidates(ready);
+    const waiting = queued.filter((pr) => !conflictsBase(pr) && !queueMergeable(pr, busy));
+    const all = queued.filter((pr) => !waiting.includes(pr));
+    const waits = queueWaits(
+        forecast,
+        waiting,
+        queued.filter((pr) => !conflictsBase(pr)),
+        listed,
+        busy
+    );
     const out = all.filter((pr) => takenOut.has(pr.number) && !conflictsBase(pr)).map((pr) => pr.number);
     const candidates = all.filter((pr) => !out.includes(pr.number));
     const ids = shownNumbersOf(listed, ready);
@@ -122,6 +187,7 @@ export function mergeQueue(
             uptodate: order.uptodate,
             out,
             ids,
+            waits,
         };
     }
     const rankOf = new Map(order.steps.map((s) => [s.number, s.rank]));
@@ -143,60 +209,38 @@ export function mergeQueue(
         uptodate: order.uptodate,
         out,
         ids,
+        waits,
     };
 }
 
-// queueShown: the queue earns its block from QueueMinSteps steps, chosen or taken out (#1108: those taken out are put
-// back from it).
+// queueShown: the queue earns its block once two PRs at least can merge now, chosen or taken out (#1108: those taken
+// out are put back from it). With none or one there is no order to follow: no block, no sentence (#1211, developer
+// decision 2026-10-28); it never says "merge in this order" while the PRs still have to wait.
 export function queueShown(queue: MergeQueue): boolean {
-    return queue != null && queueChosen(queue).length + (queue.out?.length ?? 0) >= QueueMinSteps;
+    if (queue == null) {
+        return false;
+    }
+    return queueChosen(queue).length + (queue.out?.length ?? 0) >= QueueShownSteps;
 }
 
-// A draft's place after the steps it conflicts with (#1172): it joins the order once ready for review.
-export type DraftPlace = { number: number; after: number[] };
-
-// The merge-order view with too few steps for the queue's block (#1172, FR-REV-026): why there is no order, the one
-// step there is, and the drafts that will follow it.
-export type OrderNote = {
-    count: number;
-    steps: QueueStep[];
-    out: number[];
-    drafts: DraftPlace[];
-    // Drafts are listed: the note says when they join the order.
-    hasDrafts: boolean;
-};
-
-// orderNote: what the merge-order view shows instead of the queue's block; null while the block shows. A draft is
-// placed after the steps it conflicts with, either way: it cannot merge before them while it is a draft.
-export function orderNote(queue: MergeQueue, forecast: Forecast, listed: readonly ReviewPr[]): OrderNote {
-    if (queue == null || queueShown(queue)) {
+// queueWait: the one line a waiting card shows (#1211): "Wait for #1191: same files, saves a rebase", "Wait for
+// Salomé, who is still working on it", "Wait for its CI". null for a PR that does not wait.
+export function queueWait(queue: MergeQueue, number: number): Phrase {
+    const wait = queue?.waits?.find((w) => w.number === number);
+    if (wait == null) {
         return null;
     }
-    const steps = queue.steps.filter((s) => !s.merged);
-    const out = queue.out ?? [];
-    const stepNumbers = new Set([...steps.map((s) => s.number), ...out]);
-    const rankOf = (n: number) => steps.find((s) => s.number === n)?.rank ?? Infinity;
-    const drafts = (listed ?? []).filter((pr) => pr.draft);
-    const places: DraftPlace[] = [];
-    for (const draft of drafts) {
-        const after = conflictPartners(forecast, draft, listed)
-            .map((p) => p.number)
-            .filter((n) => stepNumbers.has(n))
-            .sort((a, b) => rankOf(a) - rankOf(b));
-        if (after.length > 0) {
-            places.push({ number: draft.number, after });
-        }
+    switch (wait.reason) {
+        case "agent":
+            return wait.name
+                ? phrase("reviews.queue.wait.agent", { name: wait.name })
+                : phrase("reviews.queue.wait.anAgent");
+        case "after":
+            return phrase("reviews.queue.wait.after", { prs: prsPhrase(wait.after, queue.ids) });
+        case "checking":
+            return phrase("reviews.queue.wait.checking");
     }
-    return { count: steps.length + out.length, steps, out, drafts: places, hasDrafts: drafts.length > 0 };
-}
-
-// orderNoteText: "Only one pull request can merge: no order to suggest." and, with drafts listed, when they join it.
-export function orderNoteText(note: OrderNote): Phrase {
-    if (note == null) {
-        return null;
-    }
-    const why = phrase(note.count === 0 ? "reviews.queue.note.none" : "reviews.queue.note.one");
-    return note.hasDrafts ? joinPhrases([why, phrase("reviews.queue.note.drafts")], " ") : why;
+    return phrase("reviews.queue.wait.ci");
 }
 
 // queueChosen: the steps going into the group merge, in the queue's order.
@@ -310,6 +354,17 @@ export function queueLegend(queue: MergeQueue, base: string): Phrase {
     }
     if (live.some((s) => s.wait)) {
         parts.push(phrase("reviews.queue.legend.wait"));
+    }
+    const waits = queue.waits ?? [];
+    if (waits.length > 0) {
+        parts.push(
+            phrase(waits.length === 1 ? "reviews.queue.legend.waiting.one" : "reviews.queue.legend.waiting.other", {
+                prs: prsPhrase(
+                    waits.map((w) => w.number),
+                    queue.ids
+                ),
+            })
+        );
     }
     if (queue.outside.length > 0) {
         parts.push(

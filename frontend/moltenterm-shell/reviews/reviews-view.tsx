@@ -6,8 +6,7 @@
 // collector. Each card shows one computed state (#1060, reviews-card.tsx), and the cards are grouped by whose turn it
 // is (#1061): Yours, Agents on it, Blocked, Waiting, then Upcoming, Notes and Recently merged; the header's control
 // sorts them by state or by merge order. The numbered merge queue and the status line after a merge sit at the top of
-// Yours (#1062); sorted by merge order with fewer than two steps, a note says why there is no order and places the
-// drafts (#1172). A hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
+// Yours (#1062), once two PRs at least can merge now; the others say on their card why they wait (#1211). A hovered or focused card lights up the cards it conflicts with. Cards move instead of jumping
 // when they arrive, leave, reorder or change section (#1063, reviews-motion.tsx). A card opens the PR's assisted review; the keyboard walks the cards of the
 // open sections (arrows, Home, End) and Enter opens one.
 
@@ -40,7 +39,7 @@ import {
     queueOrder,
 } from "./reviews-batch-model";
 import { ReviewRow } from "./reviews-card";
-import type { CardTurn } from "./reviews-card-model";
+import { busyAgentOf, type CardTurn } from "./reviews-card-model";
 import { CheckAgentsButton, CheckAgentsReport, useCheckAgents } from "./reviews-check";
 import { useReviews } from "./reviews-client";
 import { EdgeWhere, ForecastLinks } from "./reviews-forecast";
@@ -67,16 +66,16 @@ import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { AllProjects, projectOfDir, resolveProjectFilter, ReviewsProjectFilter } from "./reviews-projects-model";
-import { AfterMergeLine, MergeOrderNote, MergeQueueBlock } from "./reviews-queue";
+import { AfterMergeLine, MergeQueueBlock } from "./reviews-queue";
 import {
     cardRelations,
     edgeLine,
     mergeQueue,
-    orderNote,
     queueCanMerge,
     queueChoice,
     queueRanks,
     queueShown,
+    queueWait,
     queueWhy,
     shownNumbersOf,
     withMerged,
@@ -312,12 +311,15 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const forecast = useForecastAnswer(dir);
     const locale = useLocale();
     const sort = useReviewsSort();
-    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs that can merge or wait for their CI, for
-    // those the developer kept in the group merge (#1108).
+    // Each card's one state (#1060), computed here once so its section and the card itself agree.
+    const ctx = useCardContext(dir);
+    const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
+    // The merge queue (#1062, FR-REV-024): the suggested order of the PRs the developer can merge now (#1211), for
+    // those kept in the group merge (#1108); the others wait, an agent on them, their CI or an earlier PR.
     const groupOut = groupOuts[dir];
     const baseQueue = useMemo(
-        () => mergeQueue(forecast, listSplit.ready, listed, groupOut),
-        [forecast, listSplit, listed, groupOut]
+        () => mergeQueue(forecast, listSplit.ready, listed, groupOut, (n) => busyAgentOf(cards[n])),
+        [forecast, listSplit, listed, groupOut, cards]
     );
     const afterMerge = afterMerges[dir];
     const queue = useMemo(
@@ -332,13 +334,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // The number each card shows (#1108), merged PRs included for the banner of the running merge queue.
     const shownIds = useMemo(() => shownNumbersOf(answer.merged ?? [], listed), [answer.merged, listed]);
     const shown = forecastReq != null && queueShown(queue);
-    // The merge-order view always says the order (#1172): with too few steps for the block, why, and the one step's
-    // number on its card.
-    const ordering = sort === "merge" && listed.length > 0;
-    const ranks = useMemo(() => (shown || ordering ? queueRanks(queue) : {}), [queue, shown, ordering]);
-    // Each card's one state (#1060), computed here once so its section and the card itself agree.
-    const ctx = useCardContext(dir);
-    const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
+    // A rank only with an order to follow (#1211): two PRs at least the developer can merge now.
+    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
     // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
     // join (FR-REV-026), which wavesrv publishes. Its banner sits in "Agents on it" (#1123), shown even with no card.
     const batchRun = useBatchRun(dir, answer.target);
@@ -374,10 +371,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const hot =
         active == null || relations.partners.length === 0 ? [] : [active, ...relations.partners.map((p) => p.number)];
     const status = forecastStatus(forecast, forecastReq);
-    const note = useMemo(
-        () => (ordering && !shown ? orderNote(queue, forecast, listed) : null),
-        [ordering, shown, queue, forecast, listed]
-    );
     const [confirming, setConfirming] = useState(false);
     const queuePrs = useMemo(() => {
         const numbers = new Set(queue.steps.filter((s) => !s.merged).map((s) => s.number));
@@ -521,6 +514,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         relation: relations.cards[pr.number],
         rank: ranks[pr.number],
         queueWhy: shown ? queueWhy(queue, pr.number, relations.byCard[pr.number]) : null,
+        waitWhy: shown ? queueWait(queue, pr.number) : null,
         groupMerge: shown ? queueChoice(queue, pr.number) : null,
         onGroupMerge: (inGroup: boolean) => model.setInGroupMerge(dir, pr.number, inGroup),
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
@@ -565,7 +559,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     onMerge={() => setConfirming(true)}
                 />
             ) : null}
-            <MergeOrderNote note={note} prs={listed} ids={queue.ids} status={status} onStep={goToCard} />
             {confirming && plannedBatch != null ? (
                 <BatchConfirmDialog
                     plan={plannedBatch}
@@ -583,7 +576,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         afterMerge?.merged.join(" ") ?? "",
         batchVisible ? "batch" : "",
         shown ? queue.steps.map((s) => `${s.number}${s.merged ? "m" : ""}`).join(" ") : "",
-        note != null ? `note:${note.count}:${note.drafts.length}` : "",
     ].join("|");
     return (
         <div
