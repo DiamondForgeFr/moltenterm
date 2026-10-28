@@ -1286,7 +1286,7 @@ function TopRowBlock({
         <button
             type="button"
             className={cn(
-                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
+                "relative flex h-[34px] min-w-0 cursor-pointer items-center justify-center rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.07] hover:bg-white/[0.14]",
@@ -1311,7 +1311,8 @@ function TopRowBlock({
             }}
             onContextMenu={onContextMenu}
         >
-            <ViewGlyph icons={glyph} small={glyph.length > 1} />
+            {/* The glyph is clipped on its own: the block lets its pull request counts show under it (#1283). */}
+            <ViewGlyph icons={glyph} small={glyph.length > 1} className="max-w-full overflow-hidden" />
             {hasCounts ? <PrPips counts={counts} motionKey={motionKey} calm={!grow} small /> : null}
             {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
             {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}
