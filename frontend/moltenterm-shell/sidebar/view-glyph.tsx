@@ -4,12 +4,12 @@
 // A view's glyph (DS-SHELL-126, FR-SHELL-081): the icon the developer chose, or its panels' icons separated by a slash,
 // up to three ("folder / branch"), never overlapping squares. Tiles, temporary rows and top-row blocks all draw it.
 
-import { atoms, WOS } from "@/app/store/global";
+import { WOS } from "@/app/store/global";
 import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { AgentStates } from "../agent-state-store";
-import { agentGlyph } from "../tab-identity";
+import { AiIcon } from "../tab-identity";
 import { configPaneIcons, paneIcon, viewGlyphIcons, ViewIconMetaKey } from "./view-menu-model";
 import { GlobalPin, GlobalPinMetaKey } from "./view-pins-model";
 import { ViewPins } from "./view-pins-store";
@@ -39,11 +39,10 @@ export function viewGlyphAtom(tabId: string): jotai.Atom<string[]> {
         const pin = gid ? get(ViewPins.getInstance().globalPinsAtom).find((p) => p.id === gid) : null;
         const chosen = pin != null ? pin.icon : meta[ViewIconMetaKey];
         const data = get(AgentStates.getInstance().dataAtom);
-        const presets = get(atoms.fullConfigAtom)?.presets as Record<string, Record<string, unknown>>;
         const icons = (tab?.blockids ?? []).map((id) => {
             const block = get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)));
             const agent = data?.states?.[id]?.agent;
-            return paneIcon(block?.meta, agent ? agentGlyph(agent, presets) : null);
+            return paneIcon(block?.meta, agent ? AiIcon : null);
         });
         const next = viewGlyphIcons(chosen, icons);
         if (!sameIcons(next, last)) {

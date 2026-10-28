@@ -5,6 +5,7 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { AiIcon } from "../ai-icon";
 import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { t } from "../i18n/i18n";
@@ -28,7 +29,6 @@ import {
 // agents.json, the user's in presets.json or presets/*.json of the config folder (a mod can ship one later).
 export const AgentPresetPrefix = "agent@";
 export const AgentCommandKey = "agent:command";
-export const DefaultAgentIcon = "robot";
 
 export const MaxRecentFolders = 8;
 
@@ -151,7 +151,7 @@ export function readAgentPresets(presets: { [key: string]: MetaType }): AgentPre
             id,
             name: str(meta["display:name"]) || id,
             command,
-            icon: str(meta["display:icon"]) || DefaultAgentIcon,
+            icon: AiIcon,
             color: str(meta["display:color"]),
             order: num(meta["display:order"], 0),
         });

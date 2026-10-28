@@ -96,7 +96,7 @@ function useFocusFacts() {
         isPage,
         url: url ?? "",
         panelLabel,
-        panelIcon: meta ? panelIcon(meta) : null,
+        panelIcon: meta ? panelIcon(meta, !!agent) : null,
         viewName,
         panelCount: tab?.blockids?.length ?? 0,
         isTerm: meta?.view === "term",

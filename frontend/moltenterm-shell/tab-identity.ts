@@ -6,6 +6,7 @@
 // (T1, T2…), the title of its first panel instead. A name the user typed always wins.
 
 import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-state";
+import { AiIcon, terminalIcon } from "./ai-icon";
 import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
 import { t } from "./i18n/i18n";
@@ -19,6 +20,7 @@ import { pathBaseName } from "./workspace-project";
 
 export const DefaultTabIcon = "square";
 export const DefaultAgentGlyph = "robot";
+export { AiIcon };
 // The CI/CD, Reviews, Review and Tips views' types, repeated here so this file stays free of the views' React code.
 const CicdView = "molten-cicd";
 const ReviewsView = "molten-reviews";
@@ -82,9 +84,14 @@ export function isGenericTabName(name: string): boolean {
     return /^T\d+$/.test((name ?? "").trim());
 }
 
-export function panelIcon(meta: PanelMeta): string {
+// agentRunning: an agent runs in this panel (any agent CLI). Only a terminal can hold one, so the flag changes no
+// other view's icon.
+export function panelIcon(meta: PanelMeta, agentRunning = false): string {
     if (meta == null) {
         return DefaultTabIcon;
+    }
+    if (meta.view === "term") {
+        return terminalIcon(agentRunning);
     }
     return Views[meta.view ?? ""]?.icon ?? DefaultTabIcon;
 }
@@ -129,10 +136,4 @@ export function tabDisplayName(name: string, firstPanel: PanelMeta, homeDir = ""
         return name ?? "";
     }
     return panelTitle(firstPanel, homeDir) || name;
-}
-
-// The agent's glyph is its preset's icon (agent@claude, agent@codex in presets/agents.json).
-export function agentGlyph(agent: string, presets: Record<string, Record<string, unknown>>): string {
-    const icon = presets?.[`agent@${agent ?? ""}`]?.["display:icon"];
-    return typeof icon === "string" && icon !== "" ? icon : DefaultAgentGlyph;
 }

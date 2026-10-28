@@ -38,6 +38,8 @@ import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
+import { AgentStates } from "../../../moltenterm-shell/agent-state-store"; // MOLTENTERM-PATCH (#1257)
+import { terminalIcon } from "../../../moltenterm-shell/ai-icon"; // MOLTENTERM-PATCH (#1257)
 import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
 import { terminalBodyMenuTail } from "../../../moltenterm-shell/command-panel/block-menus"; // MOLTENTERM-PATCH (#401)
 import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
@@ -123,7 +125,9 @@ export class TermViewModel implements ViewModel {
             if (termMode == "vdom") {
                 return { elemtype: "iconbutton", icon: "bolt" };
             }
-            return { elemtype: "iconbutton", icon: "terminal" };
+            // MOLTENTERM-PATCH (#1257): the AI icon while an agent runs in this terminal
+            const agentRunning = get(AgentStates.getInstance().blockAtom(blockId)) != null;
+            return { elemtype: "iconbutton", icon: terminalIcon(agentRunning) };
         });
         this.viewName = jotai.atom((get) => {
             const blockData = get(this.blockAtom);
