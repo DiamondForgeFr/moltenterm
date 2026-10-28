@@ -8908,7 +8908,7 @@
             "changeIcon": "Change icon…",
             "duplicate": "Duplicate",
             "close": "Close",
-            "closeNote": "Pinned: unpin it to close it",
+            "closeNote": "Pinned: make it temporary to close it",
             "renameTitle": "Rename",
             "iconTitle": "Icon of “{name}”",
             "iconChoice": "Icon {icon}",
