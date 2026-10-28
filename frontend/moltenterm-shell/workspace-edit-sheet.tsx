@@ -6,7 +6,7 @@
 // A change is saved as soon as it is made, as in Wave's editor; Done, Escape and a press outside close it, and the
 // focus goes back to what opened it.
 
-import { atoms, getApi } from "@/app/store/global";
+import { getApi } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -16,6 +16,7 @@ import { workspaceColourStops } from "./accent";
 import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { SidebarModel } from "./sidebar/sidebar-store";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
 import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
 import {
@@ -28,7 +29,6 @@ import {
     PresetGradientChoices,
 } from "./workspace-colour";
 import { workspaceShownName } from "./workspace-default-name";
-import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import {
     checkWorkspaceName,
     colourName,
@@ -37,7 +37,6 @@ import {
     iconName,
     moveRadio,
     radioTabStop,
-    WorkspaceEditIntentKey,
 } from "./workspace-edit-model";
 import { RailBadgeClass, WorkspaceIcon, workspaceImageUrl } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
@@ -50,9 +49,7 @@ import {
     setWorkspaceGradient,
     setWorkspaceLogo,
 } from "./workspace-project-store";
-import { SidebarModel } from "./sidebar/sidebar-store";
 import { askResetWorkspace } from "./workspace-reset";
-import { canCloseWorkspace } from "./workspace-reset-model";
 
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
@@ -1006,39 +1003,5 @@ export function WorkspaceEditSheet({
             </Section>
             <DangerSection ws={ws} closable={closable} onClose={onClose} />
         </DialogFrame>
-    );
-}
-
-// Mounted once by the rail, in every tab view: it shows the sheet of the open request, and picks up a double-click
-// handed over by the tab view the window switched away from.
-export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
-    const model = WorkspaceEditModel.getInstance();
-    const request = useAtomValue(model.requestAtom);
-    const ws = useAtomValue(atoms.workspace);
-    const staticTabId = useAtomValue(atoms.staticTabId);
-    const close = () => model.close();
-    useEffect(() => {
-        listenWorkspaceMenu();
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === WorkspaceEditIntentKey) {
-                pickUpWorkspaceEdit();
-            }
-        };
-        window.addEventListener("storage", onStorage);
-        return () => window.removeEventListener("storage", onStorage);
-    }, []);
-    useEffect(() => {
-        pickUpWorkspaceEdit();
-    }, [ws?.oid, ws?.activetabid, staticTabId]);
-    if (request == null) {
-        return null;
-    }
-    return (
-        <WorkspaceEditSheet
-            key={request.workspaceId}
-            workspaceId={request.workspaceId}
-            closable={canCloseWorkspace(entries, request.workspaceId)}
-            onClose={close}
-        />
     );
 }

@@ -74,7 +74,7 @@ import { AgentChoiceHost } from "./reviews/agent-choice";
 import { installReviewHandoff } from "./reviews/reviews-handoff";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
-import { WorkspaceEditHost } from "./workspace-edit-sheet";
+import { WorkspaceEditHost } from "./workspace-edit-host";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-order";
