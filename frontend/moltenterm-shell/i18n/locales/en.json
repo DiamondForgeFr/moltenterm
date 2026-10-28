@@ -6179,14 +6179,14 @@
             "stepTakeOut": "Take #{number} out of the group merge",
             "stepAdd": "Add #{number} to the group merge",
             "mergeCount": "Merge these {count} in this order…",
-            "chooseOne": "One pull request chosen: its card's Validate merges it.",
+            "mergeOne": "Merge this 1",
             "chooseNone": "No pull request chosen for the group merge.",
-            "note": {
-                "none": "No pull request can merge yet: no order to suggest.",
-                "one": "Only one pull request can merge: no order to suggest.",
-                "drafts": "Drafts join the order once ready for review.",
-                "draftAfter": "#{number} draft · after {after}",
-                "draftTitle": "The draft #{number} {title} joins the order once ready for review, after {after}: they conflict. Shows its card."
+            "wait": {
+                "agent": "Wait for {name}, still working on it",
+                "anAgent": "Wait for the agent still working on it",
+                "after": "Wait for {prs}: same files, saves a rebase",
+                "ci": "Wait for its CI",
+                "checking": "Wait for GitHub to check the merge"
             },
             "cost": {
                 "saved": {
@@ -6204,6 +6204,10 @@
             "legend": {
                 "rebase": "⟲ rebased by your agent before its merge",
                 "wait": "◔ waits for its CI",
+                "waiting": {
+                    "one": "{prs} waits: why is on its card",
+                    "other": "{prs} wait: why is on their cards"
+                },
                 "outside": {
                     "one": "{prs} out of the queue: already conflicts with {base}",
                     "other": "{prs} out of the queue: already conflict with {base}"

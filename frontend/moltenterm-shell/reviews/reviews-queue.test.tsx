@@ -8,8 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import { phrase } from "../i18n/phrase";
 import { ReviewCheck, ReviewPr } from "./reviews-model";
-import { AfterMergeLine, MergeOrderNote, MergeQueueBlock, QueuedAskLine } from "./reviews-queue";
-import type { MergeQueue, OrderNote } from "./reviews-queue-model";
+import { AfterMergeLine, MergeQueueBlock, QueuedAskLine } from "./reviews-queue";
+import type { MergeQueue } from "./reviews-queue-model";
 import { ReviewRow } from "./reviews-view";
 
 const Green: ReviewCheck[] = [{ name: "Backend", state: "success" }];
@@ -247,10 +247,10 @@ describe("choosing the group merge and one number per card (#1108)", () => {
         expect(html).toContain("Merge these 2 in this order…");
     });
 
-    it("gives way to a line when fewer than two are chosen", () => {
-        const one = block({ ...Chosen, steps: Chosen.steps.slice(0, 1), out: [1094, 1090] }, false);
-        expect(one).not.toContain("reviews-queue-merge");
-        expect(one).toContain("One pull request chosen: its card&#x27;s Validate merges it.");
+    it("says Merge this 1 with one chosen (#1211), and gives way to a line with none", () => {
+        const one = block({ ...Chosen, steps: Chosen.steps.slice(0, 1), out: [1094, 1090] });
+        expect(one).toContain('data-testid="reviews-queue-merge"');
+        expect(one).toContain("Merge this 1");
         const none = block({ ...Chosen, steps: [], out: [1096, 1094, 1090] }, false);
         expect(none).toContain("No pull request chosen for the group merge.");
     });
@@ -262,50 +262,5 @@ describe("choosing the group merge and one number per card (#1108)", () => {
         const bare = rowHtml(pr(1096));
         expect(bare).toMatch(/data-testid="reviews-card-number">#1096</);
         expect(bare).not.toContain('data-testid="reviews-card-pr"');
-    });
-});
-
-describe("merge order note (#1172)", () => {
-    beforeAll(() => I18nModel.getInstance().setLanguageSetting("en"));
-    afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
-
-    const note: OrderNote = {
-        count: 1,
-        steps: [{ number: 1162, rank: 1, rebase: false, wait: false, rebaseAfter: [], before: [] }],
-        out: [],
-        drafts: [{ number: 1161, after: [1162] }],
-        hasDrafts: true,
-    };
-    const ids = { 1162: 1150, 1161: 1152 };
-    const prs = [pr(1162, { ticket: 1150 }), pr(1161, { ticket: 1152, draft: true })];
-
-    it("says why there is no order, numbers the one step and greys the draft at its place", () => {
-        const html = renderToStaticMarkup(
-            <MergeOrderNote note={note} prs={prs} ids={ids} status={null} onStep={() => {}} />
-        );
-        expect(html).toContain("Only one pull request can merge: no order to suggest.");
-        expect(html).toContain("Drafts join the order once ready for review.");
-        expect(html).toMatch(/data-testid="reviews-order-note-step" data-step="1162">.*1<\/span>#1150/);
-        expect(html).toContain("#1152 draft · after #1150");
-        expect(html).not.toContain('data-testid="reviews-queue-merge"');
-    });
-
-    it("shows nothing while the numbered block shows", () => {
-        expect(
-            renderToStaticMarkup(<MergeOrderNote note={null} prs={prs} ids={ids} status={null} onStep={() => {}} />)
-        ).toBe("");
-    });
-
-    it("reads in French", () => {
-        I18nModel.getInstance().setLanguageSetting("fr");
-        try {
-            const html = renderToStaticMarkup(
-                <MergeOrderNote note={note} prs={prs} ids={ids} status={null} onStep={() => {}} />
-            );
-            expect(html).toContain("Une seule pull request prête à fusionner : pas d&#x27;ordre à proposer.");
-            expect(html).toContain("#1152 brouillon · après #1150");
-        } finally {
-            I18nModel.getInstance().setLanguageSetting("en");
-        }
     });
 });

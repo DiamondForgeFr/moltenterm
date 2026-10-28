@@ -15,8 +15,6 @@ import {
     joinAfterMerge,
     keptOut,
     mergeQueue,
-    orderNote,
-    orderNoteText,
     queueCanMerge,
     queueChoice,
     queueChosen,
@@ -25,6 +23,7 @@ import {
     queueMemory,
     queueRanks,
     queueShown,
+    queueWait,
     queueWhy,
     withMerged,
 } from "./reviews-queue-model";
@@ -113,16 +112,20 @@ describe("merge queue (#1062)", () => {
             [2, 1201, false, false],
             [3, 1202, true, false],
             [4, 1203, false, false],
-            [5, 1205, false, true],
-            [6, 1204, true, false],
+            [5, 1204, true, false],
         ]);
+        // #1211: #1205's CI still runs: it waits, unranked, and says why on its card.
+        expect(queue.waits).toEqual([{ number: 1205, reason: "ci" }]);
+        expect(wordPhrase(queueWait(queue, 1205))).toBe("Wait for its CI");
+        expect(queueWait(queue, 1204)).toBeNull();
         expect(queue.outside).toEqual([1207]);
-        expect(wordPhrase(queueCost(queue))).toBe("2 rebases instead of 3 in list order");
+        expect(wordPhrase(queueCost(queue))).toBe("2 rebases");
         expect(wordPhrase(queueLegend(queue, "develop"))).toBe(
-            "⟲ rebased by your agent before its merge · ◔ waits for its CI · #1207 out of the queue: already conflicts with develop"
+            "⟲ rebased by your agent before its merge · #1205 waits: why is on its card · #1207 out of the queue: already conflicts with develop"
         );
         expect(queueShown(queue)).toBe(true);
-        expect(queueRanks(queue)[1204]).toBe(6);
+        expect(queueRanks(queue)[1204]).toBe(5);
+        expect(queueRanks(queue)[1205]).toBeUndefined();
         expect(queueRanks(queue)[1207]).toBeUndefined();
     });
 
@@ -134,8 +137,8 @@ describe("merge queue (#1062)", () => {
         expect(why(1201)).toBe("before #1202");
         expect(why(1202)).toBe("to rebase after #1201");
         expect(why(1203)).toBe("before #1204");
-        expect(why(1205)).toBe("the queue will wait for it");
-        expect(why(1204)).toBe("to rebase after #1203 and #1205");
+        expect(queueWhy(queue, 1205, rel.byCard[1205])).toBeNull();
+        expect(why(1204)).toBe("to rebase after #1203");
         expect(queueWhy(queue, 1207, rel.byCard[1207])).toBeNull();
     });
 
@@ -153,8 +156,8 @@ describe("merge queue (#1062)", () => {
     it("keeps the list order while the forecast cannot say, without marks it does not know", () => {
         const queue = mergeQueue(null, Ready, Listed);
         expect(queue.usable).toBe(false);
-        expect(queue.steps.map((s) => s.number)).toEqual([1201, 1202, 1203, 1204, 1205, 1206]);
-        expect(queue.steps.find((s) => s.number === 1205).wait).toBe(true);
+        expect(queue.steps.map((s) => s.number)).toEqual([1201, 1202, 1203, 1204, 1206]);
+        expect(queue.waits).toEqual([{ number: 1205, reason: "ci" }]);
         expect(queue.outside).toEqual([1207]);
         expect(queueCost(queue)).toBeNull();
     });
@@ -227,31 +230,30 @@ describe("merge queue (#1062)", () => {
         const queue = mergeQueue(Shop, Ready, Listed, [1201, 1203]);
         expect(queue.steps.map((s) => [s.rank, s.number, s.rebase])).toEqual([
             [1, 1202, false],
-            [2, 1206, false],
-            [3, 1204, false],
-            [4, 1205, true],
+            [2, 1204, false],
+            [3, 1206, false],
         ]);
         expect(queue.out).toEqual([1201, 1203]);
-        expect(wordPhrase(queueCost(queue))).toBe("1 rebase");
+        expect(wordPhrase(queueCost(queue))).toBe("no rebase needed");
         expect(queueRanks(queue)[1201]).toBeUndefined();
         expect(queueChoice(queue, 1202)).toBe("in");
         expect(queueChoice(queue, 1201)).toBe("out");
         expect(queueChoice(queue, 1207)).toBeNull();
-        expect(queueChosen(queue)).toEqual([1202, 1206, 1204, 1205]);
+        expect(queueChosen(queue)).toEqual([1202, 1204, 1206]);
         expect(queueCanMerge(queue)).toBe(true);
         const rel = cardRelations(Shop, Listed, null);
-        expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("before #1205");
         expect(wordPhrase(queueWhy(queue, 1202, rel.byCard[1202]))).not.toContain("#1201");
         // A PR already conflicting with the base is never a step, taken out or not.
         expect(mergeQueue(Shop, Ready, Listed, [1207]).out).toEqual([]);
     });
 
-    it("keeps the block while two steps remain, chosen or taken out, and the button from two chosen (#1108)", () => {
+    it("keeps the block while two mergeable steps remain, chosen or taken out, and the button from one chosen", () => {
         const two = [pr(1206), pr(1201)];
         const one = mergeQueue(Shop, two, two, [1201]);
         expect(queueShown(one)).toBe(true);
         expect(queueChosen(one)).toEqual([1206]);
-        expect(queueCanMerge(one)).toBe(false);
+        expect(queueCanMerge(one)).toBe(true);
+        expect(queueCanMerge(mergeQueue(Shop, two, two, [1201, 1206]))).toBe(false);
         expect(queueShown(mergeQueue(Shop, [pr(1206)], [pr(1206)], []))).toBe(false);
     });
 
@@ -301,80 +303,12 @@ describe("merge queue (#1062)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
             const queue = mergeQueue(Shop, Ready, Listed);
-            expect(wordPhrase(queueCost(queue))).toBe("2 rebases au lieu de 3 dans l'ordre de la liste");
+            expect(wordPhrase(queueCost(queue))).toBe("2 rebases");
             const rel = cardRelations(Shop, Listed, null);
-            expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("à rebaser après #1203 et #1205");
+            expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("à rebaser après #1203");
+            expect(wordPhrase(queueWait(queue, 1205))).toBe("Attendre sa CI");
             expect(wordPhrase(rel.cards[1201].fact)).toBe(
                 "mêmes lignes que #1202 et le brouillon #1208 : src/theme.ts"
-            );
-        } finally {
-            I18nModel.getInstance().setLanguageSetting("en");
-        }
-    });
-});
-
-// #1172: the gold's case, three PRs in Yours: #1169 (ticket #1163, draft), #1161 (#1152, draft) and #1162 (#1150,
-// ready, in conflict with #1152). One PR can merge: the merge-order view says why there is no order and places the
-// conflicting draft after it.
-describe("merge order with fewer than two steps (#1172)", () => {
-    const ready1162 = pr(1162, { ticket: 1150 });
-    const draft1161 = pr(1161, { ticket: 1152, draft: true });
-    const draft1169 = pr(1169, { ticket: 1163, draft: true });
-    const listed = [ready1162, draft1161, draft1169];
-    const gold: Forecast = {
-        ...Shop,
-        rows: [row(1162, [impact(1161, ["pkg/a.go"])]), row(1161, []), row(1169, [])],
-    };
-    let locale: string;
-    beforeAll(() => {
-        locale = I18nModel.getInstance().getLocale();
-        I18nModel.getInstance().setLanguageSetting("en");
-    });
-    afterAll(() => I18nModel.getInstance().setLanguageSetting(locale));
-
-    it("says there is one step, numbers it and places the conflicting draft after it", () => {
-        const queue = mergeQueue(gold, [ready1162], listed);
-        expect(queueShown(queue)).toBe(false);
-        const note = orderNote(queue, gold, listed);
-        expect(note.count).toBe(1);
-        expect(note.steps.map((s) => [s.rank, s.number])).toEqual([[1, 1162]]);
-        expect(note.drafts).toEqual([{ number: 1161, after: [1162] }]);
-        expect(wordPhrase(orderNoteText(note))).toBe(
-            "Only one pull request can merge: no order to suggest. Drafts join the order once ready for review."
-        );
-        expect(queueRanks(queue)).toEqual({ 1162: 1 });
-    });
-
-    it("says there is nothing to order with drafts only, and without drafts no word about them", () => {
-        const none = orderNote(mergeQueue(gold, [], listed), gold, listed);
-        expect(none.count).toBe(0);
-        expect(none.drafts).toEqual([]);
-        expect(wordPhrase(orderNoteText(none))).toBe(
-            "No pull request can merge yet: no order to suggest. Drafts join the order once ready for review."
-        );
-        const alone = orderNote(mergeQueue(gold, [ready1162], [ready1162]), gold, [ready1162]);
-        expect(wordPhrase(orderNoteText(alone))).toBe("Only one pull request can merge: no order to suggest.");
-    });
-
-    it("leaves two steps or more to the numbered block", () => {
-        const queue = mergeQueue(Shop, Ready, Listed);
-        expect(orderNote(queue, Shop, Listed)).toBeNull();
-    });
-
-    it("keeps a step taken out of the group merge in the note", () => {
-        const queue = mergeQueue(gold, [ready1162], listed, [1162]);
-        const note = orderNote(queue, gold, listed);
-        expect(note.count).toBe(1);
-        expect(note.out).toEqual([1162]);
-        expect(note.drafts).toEqual([{ number: 1161, after: [1162] }]);
-    });
-
-    it("reads in French", () => {
-        I18nModel.getInstance().setLanguageSetting("fr");
-        try {
-            const note = orderNote(mergeQueue(gold, [ready1162], listed), gold, listed);
-            expect(wordPhrase(orderNoteText(note))).toBe(
-                "Une seule pull request prête à fusionner : pas d'ordre à proposer. Les brouillons entrent dans l'ordre une fois prêts pour la revue."
             );
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");

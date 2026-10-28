@@ -6179,14 +6179,14 @@
             "stepTakeOut": "Retirer #{number} de la fusion groupée",
             "stepAdd": "Ajouter #{number} à la fusion groupée",
             "mergeCount": "Fusionner ces {count} dans cet ordre…",
-            "chooseOne": "Une seule pull request choisie : le Valider de sa carte la fusionne.",
+            "mergeOne": "Fusionner celle-ci",
             "chooseNone": "Aucune pull request choisie pour la fusion groupée.",
-            "note": {
-                "none": "Aucune pull request prête à fusionner : pas d'ordre à proposer.",
-                "one": "Une seule pull request prête à fusionner : pas d'ordre à proposer.",
-                "drafts": "Les brouillons entrent dans l'ordre une fois prêts pour la revue.",
-                "draftAfter": "#{number} brouillon · après {after}",
-                "draftTitle": "Le brouillon #{number} {title} entrera dans l'ordre une fois prêt pour la revue, après {after} : ils sont en conflit. Montre sa carte."
+            "wait": {
+                "agent": "Attendre {name}, qui y travaille encore",
+                "anAgent": "Attendre l'agent qui y travaille encore",
+                "after": "Attendre {prs} : mêmes fichiers, un rebase évité",
+                "ci": "Attendre sa CI",
+                "checking": "Attendre que GitHub vérifie la fusion"
             },
             "cost": {
                 "saved": {
@@ -6204,6 +6204,10 @@
             "legend": {
                 "rebase": "⟲ rebasée par votre agent avant sa fusion",
                 "wait": "◔ attend sa CI",
+                "waiting": {
+                    "one": "{prs} attend : la raison est sur sa carte",
+                    "other": "{prs} attendent : la raison est sur leur carte"
+                },
                 "outside": {
                     "one": "{prs} hors file : déjà en conflit avec {base}",
                     "other": "{prs} hors file : déjà en conflit avec {base}"

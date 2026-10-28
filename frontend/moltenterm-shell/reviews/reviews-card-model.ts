@@ -170,6 +170,16 @@ function cardMotion(input: CardInput, works: boolean): "state" | "agent" | null 
     return moves ? "agent" : "state";
 }
 
+// busyAgentOf (#1211): the first name of the agent on the card's branch while it works or waits for the developer
+// ("" when unnamed), null when none is: such a PR is not the developer's to merge now. The merge queue's own agent
+// (#1128) does not count: the PR is already in the group merge.
+export function busyAgentOf(card: CardState): string {
+    if (card == null || (card.kind !== "agent-working" && card.kind !== "agent-waiting") || card.agent?.batch) {
+        return null;
+    }
+    return card.agent?.name || card.agent?.parentName || "";
+}
+
 // agentName: how the card names an agent: its first name, a sub-agent by its parent, a background agent by its
 // parent session when known.
 export function agentName(agent: AgentBarFacts): Phrase {
