@@ -65,6 +65,7 @@ import { View360ExitHost } from "../view360/view360-toggle";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
 import { openWorkspaceEditor } from "../workspace-edit";
+import { WorkspaceIcon } from "../workspace-icon";
 import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
@@ -94,6 +95,7 @@ import {
     zoneProps,
 } from "./sidebar-drag";
 import { SidebarGhost } from "./sidebar-ghost";
+import { workspaceHeaderLogo } from "./sidebar-header-model";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -109,8 +111,8 @@ import {
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
-import { SidebarSwipeController, setCurrentSwipe } from "./sidebar-swipe-view";
-import { SwitchIntent, switchDirection, switchFromSidebar, useSwitchArrival } from "./sidebar-switch";
+import { setCurrentSwipe, SidebarSwipeController } from "./sidebar-swipe-view";
+import { switchDirection, switchFromSidebar, SwitchIntent, useSwitchArrival } from "./sidebar-switch";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -492,6 +494,7 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const projects = readProjects(ws);
     const current = currentProject(ws);
     const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
+    const logo = workspaceHeaderLogo(ws);
     const openProjectMenu = (anchor: HTMLElement) => {
         setProjectMenuOpen(true);
         showMenuUnder(anchor, projectMenuItems(ws, t), () => setProjectMenuOpen(false));
@@ -505,12 +508,14 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
         showMenuUnder(anchor, workspaceMenuItems(entry, workspaces, anchor, platform, t), () => setMenuOpen(false));
     };
     return (
-        <div
-            className="mt-sb-hdr flex shrink-0 items-center gap-1.5 border-t border-white/10 px-0.5 pt-1.5"
-            data-testid="sidebar-header"
-        >
+        <div className="mt-sb-hdr flex shrink-0 items-center gap-1.5 px-0.5 pt-1.5" data-testid="sidebar-header">
+            {logo ? (
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center" data-testid="sidebar-project-logo">
+                    <WorkspaceIcon source={{ icon: "", color: "", image: "", logo }} className="h-4 w-4" />
+                </span>
+            ) : null}
             <span
-                className="max-w-[60%] shrink-0 truncate text-11 font-semibold tracking-[0.08em] uppercase"
+                className="max-w-[60%] shrink-0 truncate text-12 font-semibold tracking-[0.08em] uppercase"
                 style={{ color: "color-mix(in srgb, var(--color-primary) 82%, var(--mt-accent))" }}
                 title={name}
                 data-testid="sidebar-workspace-name"
@@ -2096,7 +2101,10 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
 
 // The neighbours a swipe brings in: the workspaces on each side, or, from the new-workspace page, its own workspace on
 // the left. Mounted once the sidebar is idle, so the first paint does not draw them.
-function useSwipeNeighbours(workspaces: SidebarWorkspaces, creating: boolean): { prev: WorkspaceRailEntry; next: WorkspaceRailEntry } {
+function useSwipeNeighbours(
+    workspaces: SidebarWorkspaces,
+    creating: boolean
+): { prev: WorkspaceRailEntry; next: WorkspaceRailEntry } {
     const [ready, setReady] = useState(false);
     useEffect(() => {
         const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
