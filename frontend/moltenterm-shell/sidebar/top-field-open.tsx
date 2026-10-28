@@ -592,7 +592,9 @@ export function OpenField({
                                               index={i}
                                               selected={i === selected}
                                               onHover={setSelected}
-                                              onRun={(r, ev) => run(r, { alt: ev.altKey, meta: ev.metaKey })}
+                                              onRun={(r, ev) =>
+                                                  run(r, { alt: ev.altKey, meta: ev.metaKey || ev.ctrlKey })
+                                              }
                                           />
                                       );
                                   })}

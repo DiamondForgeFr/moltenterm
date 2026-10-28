@@ -102,7 +102,7 @@ describe("looksLikeAddress", () => {
 
 describe("addresses", () => {
     it("on a page: Enter here, ⌥Enter beside, ⌘Enter a new view", () => {
-        const rows = addressRows("github.com/a", { onPage: true, pageHost: "docs.dev" });
+        const rows = addressRows("github.com/a", { onPage: true, pageHost: "docs.dev" }, true);
         expect(rows.map((r) => [r.key, r.run.kind === "address" && r.run.mode])).toEqual([
             ["↵", "here"],
             ["⌥↵", "beside"],
@@ -112,7 +112,7 @@ describe("addresses", () => {
     });
 
     it("elsewhere: Enter a new view, ⌥Enter in this view", () => {
-        const rows = addressRows("localhost:5173", { onPage: false, viewName: "Build" });
+        const rows = addressRows("localhost:5173", { onPage: false, viewName: "Build" }, true);
         expect(rows.map((r) => [r.key, r.run.kind === "address" && r.run.mode])).toEqual([
             ["↵", "newview"],
             ["⌥↵", "beside"],
@@ -129,8 +129,18 @@ describe("addresses", () => {
     });
 
     it("the hint line says what each key does in the current focus", () => {
-        expect(fieldHint(true).map((h) => h.keys)).toEqual(["↵", "⌥↵", "⌘↵"]);
-        expect(fieldHint(false).map((h) => h.keys)).toEqual(["↵", "⌥↵"]);
+        expect(fieldHint(true, true).map((h) => h.keys)).toEqual(["↵", "⌥↵", "⌘↵"]);
+        expect(fieldHint(false, true).map((h) => h.keys)).toEqual(["↵", "⌥↵"]);
+    });
+
+    it("off macOS the hint line and the rows name Alt and Ctrl, never the macOS glyphs (#1238)", () => {
+        const keys = [
+            ...fieldHint(true, false).map((h) => h.keys),
+            ...addressRows("github.com", { onPage: true }, false).map((r) => r.key),
+        ];
+        expect(keys.join(" ")).not.toMatch(/[⌥⌘]/);
+        expect(keys[1]).toMatch(/^Alt\+/);
+        expect(keys[2]).toMatch(/^Ctrl\+/);
     });
 });
 

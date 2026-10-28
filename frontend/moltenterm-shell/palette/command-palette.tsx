@@ -17,7 +17,7 @@ import { MoltentermBrowserView } from "../browser/browser-model";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
-import { chooserKey } from "../newview/new-view-model";
+import { chooserKey, chooserListEntries } from "../newview/new-view-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
@@ -365,10 +365,11 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         [host, blockId, searching]
     );
     const listed = useMemo(() => {
-        const base = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
+        const all = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
+        const base = newView != null ? chooserListEntries(all) : all;
         const address = addressEntry(query);
         return address != null ? [address, ...base] : base;
-    }, [entries, panelEntries, searching, query]);
+    }, [entries, panelEntries, searching, query, newView]);
     const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;

@@ -5,9 +5,11 @@
 // Enter, ⌥Enter and ⌘Enter do with an address. Pure rules, tested without the app; top-field.tsx gathers the sources
 // and runs the chosen row.
 
+import { isMacOS } from "@/util/platformutil";
 import { addressUrl, looksLikeAddress, toBrowserUrl } from "../browser/browser-model";
 import { t } from "../i18n/i18n";
 import type { PaletteRun } from "../palette/palette-model";
+import { formatKeys } from "../shortcuts/format";
 import { fold } from "./top-field-context";
 
 export { fieldContext, fold, type FieldContext, type FocusFacts } from "./top-field-context";
@@ -72,8 +74,17 @@ export type FieldFocus = {
     viewName?: string;
 };
 
+// Enter and its modifiers as this platform reads them (#1238): ⌥ and ⌘ on macOS; elsewhere Alt, and Ctrl, which the
+// field takes for ⌘ (top-field-open.tsx).
+export function enterKeys(mod: "" | "alt" | "meta", mac = isMacOS()): string {
+    if (mod === "") {
+        return formatKeys("Enter", mac);
+    }
+    return formatKeys(`${mod === "alt" ? "Alt" : mac ? "Cmd" : "Ctrl"}:Enter`, mac);
+}
+
 // The address rows, in the order Enter, ⌥Enter, ⌘Enter take them.
-export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
+export function addressRows(text: string, focus: FieldFocus, mac = isMacOS()): FieldRow[] {
     const url = addressUrl(text);
     if (url == null) {
         return [];
@@ -87,7 +98,7 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
                 strong: t("topField.address.goTo"),
                 label: url,
                 where: t("topField.address.inPanel", { host: focus.pageHost || "" }),
-                key: "↵",
+                key: enterKeys("", mac),
                 icon: "globe",
                 run: { kind: "address", url, mode: "here" },
             },
@@ -97,7 +108,7 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
                 strong: t("topField.address.beside"),
                 label: host,
                 where: t("topField.address.inThisView"),
-                key: "⌥↵",
+                key: enterKeys("alt", mac),
                 icon: "table-columns",
                 run: { kind: "address", url, mode: "beside" },
             },
@@ -107,7 +118,7 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
                 strong: t("topField.address.newView"),
                 label: host,
                 where: t("topField.address.temporary"),
-                key: "⌘↵",
+                key: enterKeys("meta", mac),
                 icon: "square-plus",
                 run: { kind: "address", url, mode: "newview" },
             },
@@ -120,7 +131,7 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
             strong: t("topField.address.newView"),
             label: url,
             where: t("topField.address.temporary"),
-            key: "↵",
+            key: enterKeys("", mac),
             icon: "square-plus",
             run: { kind: "address", url, mode: "newview" },
         },
@@ -130,7 +141,7 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
             strong: t("topField.address.addToView"),
             label: host,
             where: focus.viewName || t("topField.address.inThisView"),
-            key: "⌥↵",
+            key: enterKeys("alt", mac),
             icon: "plus",
             run: { kind: "address", url, mode: "beside" },
         },
@@ -138,17 +149,17 @@ export function addressRows(text: string, focus: FieldFocus): FieldRow[] {
 }
 
 // The hint line under the results: what Enter, ⌥Enter and ⌘Enter do with an address in the current focus.
-export function fieldHint(onPage: boolean): { keys: string; text: string }[] {
+export function fieldHint(onPage: boolean, mac = isMacOS()): { keys: string; text: string }[] {
     if (onPage) {
         return [
-            { keys: "↵", text: t("topField.hint.thisPanel") },
-            { keys: "⌥↵", text: t("topField.hint.beside") },
-            { keys: "⌘↵", text: t("topField.hint.newView") },
+            { keys: enterKeys("", mac), text: t("topField.hint.thisPanel") },
+            { keys: enterKeys("alt", mac), text: t("topField.hint.beside") },
+            { keys: enterKeys("meta", mac), text: t("topField.hint.newView") },
         ];
     }
     return [
-        { keys: "↵", text: t("topField.hint.newView") },
-        { keys: "⌥↵", text: t("topField.hint.inThisView") },
+        { keys: enterKeys("", mac), text: t("topField.hint.newView") },
+        { keys: enterKeys("alt", mac), text: t("topField.hint.inThisView") },
     ];
 }
 
@@ -256,7 +267,7 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
             strong: t("topField.searchWeb"),
             label: t("topField.searchQuery", { query: q }),
             where: t("topField.address.temporary"),
-            key: "↵",
+            key: enterKeys(""),
             icon: "magnifying-glass",
             run: { kind: "address", url, mode: "newview" },
         });
