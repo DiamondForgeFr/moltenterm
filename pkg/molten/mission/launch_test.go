@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
@@ -146,14 +147,22 @@ type launchFixture struct {
 	events  []LaunchState
 }
 
+// freePort picks a free port below the systems' ephemeral ranges (49152 and up, 32768 and up on Linux) (#1208): a
+// port the system hands out for 127.0.0.1:0 is released before node listens on it, and on a loaded machine another
+// connection was given it in between, so the launch's server failed with EADDRINUSE.
 func freePort(t *testing.T) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	for range 1000 {
+		port := 20000 + rand.IntN(10000)
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err != nil {
+			continue
+		}
+		ln.Close()
+		return port
 	}
-	defer ln.Close()
-	return ln.Addr().(*net.TCPAddr).Port
+	t.Fatal("no free port between 20000 and 30000")
+	return 0
 }
 
 const launchServerJs = `const fs = require("fs");
