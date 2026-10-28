@@ -147,7 +147,7 @@ export class OnboardingViewModel implements ViewModel {
 function StepFailed({ error }: { error?: Error }) {
     const t = useT();
     return (
-        <p className="text-13 text-error">
+        <p className="text-13 text-danger">
             {t("onboarding.stepFailed", { error: error?.message ?? t("onboarding.unknownError") })}
         </p>
     );
@@ -248,7 +248,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     />
                 ) : null}
                 {error ? (
-                    <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-error" role="alert">
+                    <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-danger" role="alert">
                         {error}
                     </p>
                 ) : null}

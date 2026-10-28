@@ -291,7 +291,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
             <MissionControlOffer facts={facts} call={call} />
             <SessionsPanel ctx={ctx} />
             {error ? (
-                <p className="text-12 text-error" role="alert">
+                <p className="text-12 text-danger" role="alert">
                     {error}
                 </p>
             ) : null}

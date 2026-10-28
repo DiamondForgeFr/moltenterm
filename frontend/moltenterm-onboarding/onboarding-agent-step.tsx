@@ -237,7 +237,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     if (list == null) {
         return error ? (
-            <p className="text-13 text-error" role="alert">
+            <p className="text-13 text-danger" role="alert">
                 {error}
             </p>
         ) : (
@@ -255,7 +255,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
             <div className="flex flex-col gap-4">
                 <NoAgentFound agents={catalog} busy={busy} onRetry={() => fireAndForget(load)} />
                 <GenericOption agent={genericAgent(list)} />
-                {error ? <p className="text-12 text-error">{error}</p> : null}
+                {error ? <p className="text-12 text-danger">{error}</p> : null}
             </div>
         );
     }
@@ -285,7 +285,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
             <GenericOption agent={genericAgent(list)} />
             <IntegrationNote />
             {error ? (
-                <p className="text-12 text-error" role="alert">
+                <p className="text-12 text-danger" role="alert">
                     {error}
                 </p>
             ) : null}
