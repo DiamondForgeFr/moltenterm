@@ -5,9 +5,20 @@
 // and with the sidebar hidden no top bar: the window buttons and the sidebar toggle show only while the pointer is in
 // the top-left corner they sit in.
 
-// The frame's one margin. workspace.tsx hands it to the panel layout as its gap and to the CSS as --mt-frame-gap, so
-// the gap between panels can never drift from the window's margins (window:tilegapsize applies off the sidebar).
+// The frame's one margin when window:tilegapsize is not set.
 export const FrameGapPx = 8;
+
+export type FrameSizes = { marginPx: number; gapPx: number };
+
+// window:tilegapsize drives the frame's one token: workspace.tsx hands it to the CSS as --mt-frame-gap (the window's
+// margins) and to the panel layout as its gap, so a set value changes both and they never drift apart.
+export function frameSizes(tileGapSetting: unknown): FrameSizes {
+    const px =
+        typeof tileGapSetting === "number" && Number.isFinite(tileGapSetting) && tileGapSetting >= 0
+            ? tileGapSetting
+            : FrameGapPx;
+    return { marginPx: px, gapPx: px };
+}
 
 export type WindowButtonsState = {
     sidebarHidden: boolean;

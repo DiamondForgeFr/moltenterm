@@ -26,7 +26,7 @@ import {
 import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
 import { SidebarModel } from "../../moltenterm-shell/sidebar/sidebar-store"; // MOLTENTERM-PATCH (#1183)
 import { SidebarContentStrip, WorkspaceSidebar } from "../../moltenterm-shell/sidebar/workspace-sidebar"; // MOLTENTERM-PATCH (#1183)
-import { FrameGapPx } from "../../moltenterm-shell/sidebar/window-corner-model"; // MOLTENTERM-PATCH (#1216)
+import { frameSizes } from "../../moltenterm-shell/sidebar/window-corner-model"; // MOLTENTERM-PATCH (#1216)
 import { StatusBar } from "../../moltenterm-shell/status-bar"; // MOLTENTERM-PATCH (#55)
 import { ViewPendingOverlay } from "../../moltenterm-shell/view-pending"; // MOLTENTERM-PATCH (#450)
 import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
@@ -56,6 +56,8 @@ const WorkspaceElem = memo(() => {
     // MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar (top or left), the rail and the status bar
     const sidebarOn = useAtomValue(SidebarModel.getInstance().enabledAtom);
     const sidebarHidden = useAtomValue(SidebarModel.getInstance().hiddenAtom);
+    // MOLTENTERM-PATCH (#1216): window:tilegapsize is the frame's one margin, outside and between panels
+    const frame = frameSizes(useAtomValue(getSettingsKeyAtom("window:tilegapsize")));
     const showLeftTabBar = !sidebarOn && tabBarPosition === "left";
     const aiPanelVisible = useAtomValue(workspaceLayoutModel.panelVisibleAtom);
     const widgetsSidebarVisible = useAtomValue(workspaceLayoutModel.widgetsSidebarVisibleAtom);
@@ -129,7 +131,7 @@ const WorkspaceElem = memo(() => {
             {/* MOLTENTERM-PATCH (#44, #1183): the workspace rail, or the workspace sidebar, on the left of the content row */}
             <div
                 className={`relative flex flex-row flex-grow overflow-hidden ${sidebarOn ? "mt-sb-frame" : ""}`}
-                style={sidebarOn ? ({ "--mt-frame-gap": `${FrameGapPx}px` } as React.CSSProperties) : undefined}
+                style={sidebarOn ? ({ "--mt-frame-gap": `${frame.marginPx}px` } as React.CSSProperties) : undefined}
             >
             {sidebarOn ? <WorkspaceSidebar /> : MoltentermWorkspaceRail && <WorkspaceRail />}
             {/* MOLTENTERM-PATCH (#1183, #1216): under the sidebar the content sits in the Spaces frame's one margin */}
@@ -190,7 +192,7 @@ const WorkspaceElem = memo(() => {
                                         key={tabId}
                                         tabId={tabId}
                                         noTopPadding={showLeftTabBar && isMacOS()}
-                                        frameGapPx={sidebarOn ? FrameGapPx : undefined}
+                                        frameGapPx={sidebarOn ? frame.gapPx : undefined}
                                     />
                                     {/* MOLTENTERM-PATCH (#110): the widget bar's tools live at the bottom of the workspace rail */}
                                     {widgetsSidebarVisible && !MoltentermToolRail && <Widgets />}

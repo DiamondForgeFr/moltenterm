@@ -24,9 +24,9 @@
 }
 
 /* The Spaces frame (DS-SHELL-127, #1216): one margin, --mt-frame-gap, between the window's edges and the panels and
-   between two panels, with one panel or several, sidebar shown or hidden. workspace.tsx sets the token from FrameGapPx
-   and hands the same value to the panel layout as its gap, so the gap between panels and the frame never disagree. Every panel's
-   leaf keeps half the gap (Wave pads it only beside another panel) and the content the other half, so the outer
+   between two panels, with one panel or several, sidebar shown or hidden. workspace.tsx sets the token from
+   window:tilegapsize (8 px unset) and hands the same value to the panel layout as its gap, so the gap and the frame
+   never disagree. Every panel's leaf keeps half the gap (Wave pads it only beside another panel) and the content the other half, so the outer
    margin is the same alone or split. Beside the shown sidebar the content slides under the grip: sidebar edge to
    panel is the same gap again, and the grip stays on top to take its presses. */
 .mt-sb-frame {
