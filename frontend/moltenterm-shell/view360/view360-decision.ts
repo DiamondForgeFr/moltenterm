@@ -20,6 +20,9 @@ export const FirstColumnMinPx = FixedMinPx;
 export const SideColumnMinPx = ReadableCarpetColumnPx;
 // Automatic leaves 360 view only once every column fits at its minimum with this much to spare.
 export const LeaveMarginPx = 64;
+// The automatic view needs at least two panels on the carpet (#1225): the first column plus two. A carpet holding one
+// panel brings nothing, two columns share the width instead. On demand and the always setting keep two columns.
+export const AutoMinColumns = 3;
 // A width change alone (the window being resized) switches only once the width has held this long.
 export const ResizeSettleMs = 250;
 
@@ -100,7 +103,7 @@ export function autoWants(
     gapPx = 0,
     columnMins?: number[]
 ): boolean {
-    if (columnCount < 2 || !(widthPx > 0)) {
+    if (columnCount < AutoMinColumns || !(widthPx > 0)) {
         return false;
     }
     const need = minimumsPx(columnCount, gapPx, columnMins);
@@ -159,17 +162,18 @@ export function decideView360(inputs: View360Inputs): View360Decision {
     let wanted = false;
     let source: View360Source = "auto";
     let reason: View360Reason;
+    const autoColumns = inputs.columnCount >= AutoMinColumns;
     if (inputs.manual === true) {
         wanted = true;
         source = "manual";
     } else if (inputs.manual === false) {
-        wanted = !!inputs.cannotFit;
+        wanted = !!inputs.cannotFit && autoColumns;
         source = wanted ? "auto" : "manual";
         reason = wanted ? "fit" : undefined;
-    } else if (inputs.columnsOver) {
+    } else if (inputs.columnsOver && autoColumns) {
         wanted = true;
         reason = "columns";
-    } else if (inputs.autoOn) {
+    } else if (inputs.autoOn && autoColumns) {
         wanted = true;
         reason = "fit";
     } else if (inputs.setting === "always") {
