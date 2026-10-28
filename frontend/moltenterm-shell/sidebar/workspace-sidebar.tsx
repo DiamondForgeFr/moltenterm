@@ -126,6 +126,7 @@ import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown }
 import { GlobalPin, GlobalPinMetaKey, PinScope, ViewState } from "./view-pins-model";
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
+import { pointerInCorner, windowButtonsVisible } from "./window-corner-model";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
 
@@ -388,24 +389,89 @@ function WindowRow({ leftInset }: { leftInset: number }) {
     );
 }
 
-// Above the content where the window needs room of its own: the window buttons when the sidebar is hidden (with the
-// toggle beside them), and the window controls on the right off macOS.
-export function SidebarContentStrip() {
+// The Spaces frame on macOS (DS-SHELL-127): no top bar. The top margin moves the window; with the sidebar hidden the
+// window buttons and the toggle show over the content while the pointer is in the top-left corner. The corner never
+// moves the window, or the page would not see the pointer reach it.
+function WindowCorner() {
+    const model = SidebarModel.getInstance();
     const isFullScreen = useAtomValue(atoms.isFullScreen);
     const zoomFactor = useAtomValue(atoms.zoomFactorAtom);
+    const corner = useAtomValue(model.cornerAtom);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            const box = ref.current?.getBoundingClientRect();
+            if (box == null) {
+                return;
+            }
+            model.setCorner(pointerInCorner(e.clientX, e.clientY, box));
+        };
+        window.addEventListener("mousemove", onMove, { passive: true });
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            model.setCorner(false);
+        };
+    }, []);
+    const room = trafficLightsRoom(isFullScreen, zoomFactor);
+    return (
+        <div
+            ref={ref}
+            className={cn("mt-frame-corner", corner && "is-shown")}
+            style={{ height: WindowRowHeight, ...NoDrag }}
+            data-testid="window-corner"
+        >
+            {room > 0 ? <div className="shrink-0" style={{ width: room }} /> : null}
+            <ToggleButton />
+        </div>
+    );
+}
+
+// Sends whether the window buttons show (macOS only). Each tab of the window has its own page: only the one shown
+// speaks, and it speaks again when it comes to the front.
+function useWindowButtons(hidden: boolean, peek: boolean) {
+    const corner = useAtomValue(SidebarModel.getInstance().cornerAtom);
+    const fullScreen = useAtomValue(atoms.isFullScreen);
+    const visible = windowButtonsVisible({ sidebarHidden: hidden, peek, corner, fullScreen });
+    useEffect(() => {
+        if (!isMacOS()) {
+            return;
+        }
+        const send = () => {
+            if (document.visibilityState === "visible") {
+                getApi()?.setWindowButtonsVisible?.(visible);
+            }
+        };
+        send();
+        document.addEventListener("visibilitychange", send);
+        return () => document.removeEventListener("visibilitychange", send);
+    }, [visible]);
+    useEffect(() => {
+        if (!isMacOS()) {
+            return;
+        }
+        // Turning the sidebar off brings back the bar that holds the buttons.
+        return () => getApi()?.setWindowButtonsVisible?.(true);
+    }, []);
+}
+
+// Above the content where the window needs room of its own. On macOS the frame has no top bar (WindowCorner); off
+// macOS a strip keeps the window controls' room on the right, and the toggle when the sidebar is hidden.
+export function SidebarContentStrip() {
     const hidden = useAtomValue(SidebarModel.getInstance().hiddenAtom);
-    if (!hidden && isMacOS()) {
-        // The content sits in the window with the sidebar's 8 px margin, which still moves the window.
-        return <div className="h-2 shrink-0" style={Drag} />;
+    if (isMacOS()) {
+        return (
+            <>
+                <div className="mt-frame-drag" style={Drag} data-testid="frame-drag" />
+                {hidden ? <WindowCorner /> : null}
+            </>
+        );
     }
-    const room = hidden ? trafficLightsRoom(isFullScreen, zoomFactor) : 0;
     return (
         <div
             className="flex shrink-0 items-center gap-1.5 pl-1.5"
             style={{ height: WindowRowHeight, ...Drag }}
             data-testid="sidebar-content-strip"
         >
-            {room > 0 ? <div className="shrink-0" style={{ width: room }} /> : null}
             {hidden ? <AppMenuButton /> : null}
             {hidden ? <ToggleButton /> : null}
         </div>
@@ -2101,6 +2167,7 @@ export function WorkspaceSidebar() {
     usePageSlide(contentRef, draft != null);
     useSwitchArrival(contentRef);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
+    useWindowButtons(hidden, peek);
     useEffect(() => {
         // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
         const onKey = (e: KeyboardEvent) => {
@@ -2149,7 +2216,7 @@ export function WorkspaceSidebar() {
                 data-hidden={hidden ? "true" : undefined}
                 className={cn(
                     "mt-sb flex h-full shrink-0 flex-col gap-2 select-none",
-                    hidden ? "is-hidden" : "pb-2 pl-2",
+                    hidden ? "is-hidden" : "pb-[var(--mt-frame-gap)] pl-[var(--mt-frame-gap)]",
                     hidden && peek && "is-peek"
                 )}
                 style={{ width }}

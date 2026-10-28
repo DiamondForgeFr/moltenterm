@@ -48,6 +48,8 @@ export class SidebarModel {
     // Set until the window's meta echoes the change, so a toggle shows at once.
     pendingHiddenAtom = jotai.atom(null) as jotai.PrimitiveAtom<boolean>;
     peekAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+    // The pointer is in the top-left corner while the sidebar is hidden (DS-SHELL-127): the window buttons show.
+    cornerAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     // The add-a-project page while it is open (FR-SHELL-087); with an id it edits that project.
     projectPageAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProjectPage>;
     // The new-workspace page while it is open (FR-SHELL-082): the bottom row draws its pending dot from it.
@@ -151,6 +153,10 @@ export class SidebarModel {
 
     toggleHidden() {
         this.setHidden(!this.isHidden());
+    }
+
+    setCorner(corner: boolean) {
+        globalStore.set(this.cornerAtom, corner);
     }
 
     setPeek(peek: boolean) {

@@ -23,6 +23,65 @@
     }
 }
 
+/* The Spaces frame (DS-SHELL-127, #1216): one margin, --mt-frame-gap, between the window's edges and the panels and
+   between two panels, with one panel or several, sidebar shown or hidden. workspace.tsx sets the token from FrameGapPx
+   and hands the same value to the panel layout as its gap, so the gap between panels and the frame never disagree. Every panel's
+   leaf keeps half the gap (Wave pads it only beside another panel) and the content the other half, so the outer
+   margin is the same alone or split. Beside the shown sidebar the content slides under the grip: sidebar edge to
+   panel is the same gap again, and the grip stays on top to take its presses. */
+.mt-sb-frame {
+    --mt-frame-half: calc(var(--mt-frame-gap) / 2);
+}
+
+.mt-frame-content {
+    isolation: isolate;
+    padding: var(--mt-frame-half);
+}
+
+.mt-frame-content.is-beside {
+    margin-left: calc(-1 * var(--mt-frame-gap));
+}
+
+.mt-frame-content .tile-layout .tile-node .tile-leaf {
+    padding: var(--mt-frame-half);
+}
+
+/* The top margin moves the window, as Arc's does; the corner that shows the window buttons stays out of it, since a
+   region that moves the window hides the pointer from the page. */
+.mt-frame-drag {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--mt-frame-gap);
+}
+
+/* With the sidebar hidden there is no top bar: the window buttons and the toggle show over the content while the
+   pointer is at the top-left corner (window-corner.ts). */
+.mt-frame-corner {
+    position: absolute;
+    z-index: 26;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 6px;
+    padding-right: 6px;
+    border-bottom-right-radius: var(--mt-radius-6);
+    background: color-mix(in srgb, color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16)) 92%, black);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-frame-corner.is-shown,
+.mt-frame-corner:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 .prefers-reduced-motion .mt-sb-frame {
     transition: background-color var(--mt-duration-fade) linear;
 }
@@ -46,9 +105,9 @@
 .mt-sb.is-hidden {
     position: absolute;
     z-index: 30;
-    top: 8px;
-    bottom: 8px;
-    left: 8px;
+    top: var(--mt-frame-gap);
+    bottom: var(--mt-frame-gap);
+    left: var(--mt-frame-gap);
     padding: 0 10px 10px;
     border-radius: var(--mt-radius-6);
     background: color-mix(in srgb, color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16)) 88%, black);
@@ -75,7 +134,8 @@
 /* The width grip, in the gap between the sidebar and the content. */
 .mt-sb-grip {
     position: relative;
-    width: 8px;
+    z-index: 1;
+    width: var(--mt-frame-gap);
     flex: none;
     cursor: col-resize;
     display: flex;

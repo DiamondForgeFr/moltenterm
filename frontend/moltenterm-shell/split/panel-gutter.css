@@ -2,12 +2,37 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The gutter between panels (FR-SHELL-086): an Arc-like pill centred in the gap, vertical between columns and
-   horizontal between stacked panels; brighter and taller on hover and while dragged. Wave's accent line, shown on hover
-   after a delay, gives way to it. */
+   horizontal between stacked panels; shown only on hover and while dragged (#1216), taller then. Wave's accent line,
+   shown on hover after a delay, gives way to it. */
 .tile-layout .resize-handle {
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
+}
+
+/* The handle is wider than the gap and would reach over both panels' edges (#1216): only the gap itself, all of it,
+   takes the pointer. Its hover and presses still land on the handle. */
+.tile-layout .resize-handle::before {
+    content: "";
+    position: absolute;
+    pointer-events: auto;
+}
+
+.tile-layout .resize-handle.flex-row::before {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: var(--gap-size-px);
+    transform: translateX(-50%);
+}
+
+.tile-layout .resize-handle.flex-column::before {
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--gap-size-px);
+    transform: translateY(-50%);
 }
 
 .tile-layout .resize-handle .line {
@@ -17,7 +42,7 @@
 .tile-layout .resize-handle .mt-gutter-pill {
     flex: none;
     border-radius: var(--mt-radius-2);
-    background: rgb(255 255 255 / 0.16);
+    background: transparent;
     pointer-events: none;
     transition:
         width var(--mt-duration-fast) var(--mt-ease),
@@ -54,7 +79,11 @@
 .tile-layout .resize-handle.mt-handle-stuck .mt-gutter-pill,
 .tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
     height: 26px;
-    background: rgb(255 255 255 / 0.08);
+    background: transparent;
+}
+
+.tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
+    background: rgb(255 255 255 / 0.12);
 }
 
 .tile-layout .resize-handle.flex-column.mt-handle-stuck .mt-gutter-pill {

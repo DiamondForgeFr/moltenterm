@@ -18,18 +18,41 @@
    calm accent hairline (60 %), drawn by the mask over the content, so it shows on every panel type, pages included,
    and also when the panel is alone in its tab. */
 :root {
-    --block-border-radius: var(--mt-radius-6);
+    --mt-panel-radius: var(--mt-radius-6);
+    --block-border-radius: var(--mt-panel-radius);
+}
+
+/* One radius on all four corners of every panel (DS-SHELL-124, #1216): Wave's tile wraps the panel in a calc() radius
+   the build caps at 3 px, which cut a lone panel's corners tighter than its own. */
+.tile-layout .display-container .tile-node {
+    border-radius: var(--mt-panel-radius);
+}
+
+/* The panel is a clean card whose content reaches its edge (DS-SHELL-124, #1216): no 1 px ring of padding around it,
+   and its outlines are inner light drawn over the content along the radius, never a border, so a panel's outer size
+   and the gaps between panels are the same focused or not, whatever the panel's type. */
+.block.block-frame-default {
+    padding: 0;
+}
+
+.block.block-frame-default .block-mask,
+.block.block-frame-default.block-focused .block-mask,
+.block.block-frame-default.block-focused.block-no-highlight .block-mask,
+.block.block-frame-default.block-focused.block-preview .block-mask {
+    border-width: 0 !important;
 }
 
 .block.block-frame-default .block-mask,
 .block.block-frame-default.block-focused.block-preview .block-mask {
-    border-color: rgb(255 255 255 / 0.07) !important;
-    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
 }
 
 .block.block-frame-default.block-focused:not(.block-preview) .block-mask,
 .block.block-frame-default.block-focused.block-no-highlight:not(.block-preview) .block-mask {
-    border-color: color-mix(in srgb, var(--mt-accent) 60%, transparent) !important;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-accent) 60%, transparent),
+        inset 0 0 12px -4px color-mix(in srgb, var(--mt-accent) 45%, transparent);
 }
 
 /* Only the focused panel shows its whole header (FR-SHELL-086): the others keep their glyph, their name, their state
