@@ -6,10 +6,10 @@
 // rules as pure functions, tested without the app; new-panel.ts carries them out.
 
 import type { LayoutNode } from "@/layout/lib/types";
+import { newViewStart, resolveDirect, TerminalChoiceId } from "../newview/new-view-model";
 import type { PaletteEntry, PaletteRun } from "../palette/palette-model";
 import { besidePlace, type BesideSide } from "../split/add-beside-model";
 import type { CarpetLayout } from "../view360/carpet-model";
-import { newViewStart, resolveDirect, TerminalChoiceId } from "../newview/new-view-model";
 
 // The panel found under the pointer when ⌘N is pressed, with its box's horizontal extent.
 export type PointerHit = { blockId: string; left: number; width: number };

@@ -191,7 +191,6 @@ export function panelEntries(widgets: { [key: string]: WidgetConfigType }, works
             detail: w.description || undefined,
             icon: w.icon || "browser",
             color: w.color || undefined,
-            hint: key === "defwidget@terminal" ? formatShortcutById("new-panel") || undefined : undefined,
             keywords: [w.label, w.blockdef?.meta?.view].filter((s) => s),
             run: { kind: "widget", blockdef: w.blockdef },
         }));

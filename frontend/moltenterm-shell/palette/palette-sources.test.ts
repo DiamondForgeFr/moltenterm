@@ -59,7 +59,7 @@ describe("agent presets", () => {
 });
 
 describe("panels", () => {
-    it("lists the default widgets in display order with full names, the terminal with its shortcut, no wsh", () => {
+    it("lists the default widgets in display order with full names, no shortcut on the terminal (⌘N opens a new panel, #1241), no wsh", () => {
         const panels = panelEntries(DefaultWidgets, "ws1");
         expect(panels.map((p) => p.label)).toEqual([
             "Terminal",
@@ -71,8 +71,7 @@ describe("panels", () => {
             "Processes",
         ]);
         expect(panels.map((p) => p.cli).filter((c) => c)).toEqual([]);
-        expect(panels[0].hint).toBe(formatShortcutById("new-panel"));
-        expect(panels[0].hint).not.toBe("");
+        expect(panels[0].hint).toBeUndefined();
         expect(panels[3].hint).toBeUndefined();
         expect(panels[0].run).toEqual({ kind: "widget", blockdef: DefaultWidgets["defwidget@terminal"].blockdef });
     });
