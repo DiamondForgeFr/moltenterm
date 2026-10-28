@@ -11,10 +11,9 @@
 // replace the word "working", which stays their accessible name (#1060). A sub-agent
 // a panel started (#1035) is named by its parent, tool, model and task, with its own state; Go to shows the parent.
 
-import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn, fireAndForget, makeIconClass, NullAtom } from "@/util/util";
-import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT } from "../i18n/i18n";
@@ -25,7 +24,7 @@ import { MoltenWave } from "../molten-button";
 import { showPanel } from "../review/review-panels";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
-import { agentGlyph } from "../tab-identity";
+import { AiIcon } from "../tab-identity";
 import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { BatchRuns, queueKey } from "./reviews-batch-client";
@@ -201,12 +200,10 @@ export function AgentBar({
     const t = useT();
     const word = useWordPhrase();
     const now = useMinuteNow();
-    const fullConfig = useAtomValue(atoms?.fullConfigAtom ?? (NullAtom as Atom<FullConfigType>));
     const trustDir = useTrustAsk(facts?.blockId);
     if (facts == null) {
         return task != null ? <GoneAgentBar task={task} actions={actions} stacked={stacked} /> : null;
     }
-    const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
     const background = facts.kind === "background";
     const subagent = facts.kind === "subagent";
     const name = background
@@ -265,7 +262,7 @@ export function AgentBar({
             ) : null}
             <i
                 className={cn(
-                    makeIconClass(agentGlyph(facts.agent, presets), true, { defaultIcon: "robot" }),
+                    makeIconClass(AiIcon, true, { defaultIcon: "robot" }),
                     "w-3 shrink-0 text-center text-secondary"
                 )}
                 aria-hidden

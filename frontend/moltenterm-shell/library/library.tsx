@@ -603,7 +603,7 @@ function PutAwaySection({ entries, query }: { entries: WorkspaceRailEntry[]; que
                     <div key={view.id} className="mt-lib-item" data-testid="library-putaway-row">
                         <i
                             className={cn(
-                                makeIconClass(panelIcon(view.panels?.[0]), true),
+                                makeIconClass(panelIcon(view.panels?.[0], agents.length > 0), true),
                                 "w-4 text-center text-secondary"
                             )}
                             aria-hidden

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { AiIcon } from "../ai-icon";
 import {
     configPaneIcons,
     dropAction,
@@ -46,6 +47,17 @@ describe("a view's glyph (DS-SHELL-126)", () => {
         expect(paneIcon({ view: "term", [AgentSlotMetaKey]: true })).toBe("robot");
         expect(paneIcon({ view: "term" })).toBe("terminal");
         expect(paneIcon({ view: "preview" })).toBe("folder-open");
+    });
+
+    it("shows the AI icon for a terminal with a running agent, whichever the CLI (#1257)", () => {
+        const withAgent = (agent: string) => paneIcon({ view: "term" }, agent ? AiIcon : null);
+        expect(withAgent("claude")).toBe("sparkles");
+        expect(withAgent("codex")).toBe("sparkles");
+        expect(withAgent("")).toBe("terminal");
+        expect(viewGlyphIcons(null, [withAgent("claude"), paneIcon({ view: "preview" })])).toEqual([
+            "sparkles",
+            "folder-open",
+        ]);
     });
 
     it("reads a configuration's panels in the order of its layout", () => {

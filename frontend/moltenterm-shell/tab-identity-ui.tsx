@@ -5,7 +5,7 @@
 // of Wave's generic T<n>, and the agent mark, whose shape tells the state without its colour (NFR-SHELL-026): a
 // pulsing ring while working, a solid amber disc while waiting, a red diamond on error, a small green disc when done.
 
-import { atoms, getApi } from "@/app/store/global";
+import { getApi } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { cn, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
@@ -16,7 +16,7 @@ import { TFunction, useT } from "./i18n/i18n";
 import { ProjectTabMetaKey, ProjectTabName } from "./project/project-model";
 import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
 import { tabAgentName, tabAgentsByRun, tabAgentsTitle } from "./tab-agents";
-import { agentGlyph, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
+import { AiIcon, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
 import { useWorkingBeat } from "./working-beat";
 
 let homeDir: string = null;
@@ -73,10 +73,8 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
     const facts = useAtomValue(identityAtom);
     const urgent = useAtomValue(urgentAtom);
     const agents = useAtomValue(agentsAtom);
-    const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const t = useT();
-    const presets = fullConfig?.presets as Record<string, Record<string, unknown>>;
-    const icon = facts.agentId ? agentGlyph(facts.agentId, presets) : panelIcon(facts.meta);
+    const icon = facts.agentId ? AiIcon : panelIcon(facts.meta);
     const shownName = facts.pinned && tabName === ProjectTabName ? t("project.tabName") : tabName;
     return {
         name: tabDisplayName(shownName, facts.meta, getHomeDir()),

@@ -3,8 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    agentGlyph,
-    DefaultAgentGlyph,
+    AiIcon,
     DefaultTabIcon,
     isGenericTabName,
     panelIcon,
@@ -52,11 +51,11 @@ describe("tab identity (FR-SHELL-056, DS-SHELL-098)", () => {
         expect(tabDisplayName("T3", null)).toBe("T3");
     });
 
-    it("takes the agent's glyph from its preset", () => {
-        const presets = { "agent@claude": { "display:icon": "asterisk" }, "agent@codex": { "display:icon": "" } };
-        expect(agentGlyph("claude", presets)).toBe("asterisk");
-        expect(agentGlyph("codex", presets)).toBe(DefaultAgentGlyph);
-        expect(agentGlyph("other", null)).toBe(DefaultAgentGlyph);
+    it("shows the AI icon for a terminal that holds an agent, and only for a terminal (#1257)", () => {
+        expect(panelIcon({ view: "term" }, true)).toBe(AiIcon);
+        expect(panelIcon({ view: "term" }, false)).toBe("terminal");
+        expect(panelIcon({ view: "term" })).toBe("terminal");
+        expect(panelIcon({ view: "preview" }, true)).toBe("folder-open");
     });
 
     it("marks a Review tab whose PR is finished, and no other tab (#686)", () => {

@@ -47,8 +47,16 @@ describe("agent presets", () => {
         } as any;
         const read = readAgentPresets(presets);
         expect(read.map((p) => p.id)).toEqual(["a", "b"]);
-        expect(read[0]).toMatchObject({ name: "a", icon: "bolt", command: "aye" });
-        expect(read[1].icon).toBe("robot");
+        expect(read[0]).toMatchObject({ name: "a", command: "aye" });
+    });
+
+    it("gives every agent row the AI icon, whatever its preset says (#1257)", () => {
+        const presets = {
+            "agent@a": { "agent:command": "aye", "display:icon": "bolt" },
+            "agent@b": { "agent:command": "bee" },
+        } as any;
+        expect(readAgentPresets(presets).map((p) => p.icon)).toEqual(["sparkles", "sparkles"]);
+        expect(agentEntries(DefaultAgents).map((e) => e.icon)).toEqual(["sparkles", "sparkles"]);
     });
 
     it("shows the command as the CLI equivalent", () => {
