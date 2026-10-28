@@ -84,6 +84,29 @@ export function setTransform(
     };
 }
 
+// MOLTENTERM-PATCH (#1240): a resize handle is centred on the rounded edge the neighbouring tiles share (setTransform),
+// not on the unrounded boundary, which put the grip up to half a pixel off the middle of the gap. The handle size is
+// twice the gap, so its half is a whole number of pixels for a whole gap.
+export function resizeHandleDimensions(lastChildRect: Dimensions, isRow: boolean, handleSizePx: number): Dimensions {
+    const half = handleSizePx / 2;
+    if (isRow) {
+        const top = Math.round(lastChildRect.top);
+        return {
+            top,
+            left: Math.round(lastChildRect.left + lastChildRect.width) - half,
+            width: handleSizePx,
+            height: Math.round(lastChildRect.top + lastChildRect.height) - top,
+        };
+    }
+    const left = Math.round(lastChildRect.left);
+    return {
+        top: Math.round(lastChildRect.top + lastChildRect.height) - half,
+        left,
+        width: Math.round(lastChildRect.left + lastChildRect.width) - left,
+        height: handleSizePx,
+    };
+}
+
 export function getCenter(dimensions: Dimensions): Point {
     return {
         x: dimensions.left + dimensions.width / 2,
