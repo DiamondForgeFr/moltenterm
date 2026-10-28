@@ -65,10 +65,13 @@ export function setTransform(
     zIndex?: number | string
 ): CSSProperties {
     // Replace unitless items with px
-    const topRounded = roundVals ? Math.floor(top) : top;
-    const leftRounded = roundVals ? Math.floor(left) : left;
-    const widthRounded = roundVals ? Math.ceil(width) : width;
-    const heightRounded = roundVals ? Math.ceil(height) : height;
+    // MOLTENTERM-PATCH (#1220): round the edges, not the sizes. Flooring the start and ceiling the size made two
+    // adjacent tiles overlap by a pixel whenever a split fell between pixels, so that gap came out a pixel narrower
+    // than the others; rounded edges are shared exactly by neighbours.
+    const topRounded = roundVals ? Math.round(top) : top;
+    const leftRounded = roundVals ? Math.round(left) : left;
+    const widthRounded = roundVals ? Math.round(left + width) - leftRounded : width;
+    const heightRounded = roundVals ? Math.round(top + height) - topRounded : height;
     const translate = `translate3d(${leftRounded}px,${topRounded}px, 0)`;
     return {
         top: 0,

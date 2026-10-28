@@ -4,15 +4,6 @@
 /* Moltenterm's shell style (Workspace shell, FR-SHELL-004/005). Imported last from frontend/wave.ts, so it overrides
    Wave's theme without editing its files. Corner radii are capped at build time (build/cap-radius.ts). */
 
-/* A thin focus border: the terminal, not its frame, holds the eye. Wave's no-highlight and preview rules use
-   !important, so the same selectors are repeated here: equal specificity, and this sheet comes later. */
-.block.block-frame-default .block-mask,
-.block.block-frame-default.block-focused .block-mask,
-.block.block-frame-default.block-focused.block-no-highlight .block-mask,
-.block.block-frame-default.block-focused.block-preview .block-mask {
-    border-width: 1px !important;
-}
-
 /* A view is columns of panels (FR-SHELL-086): flat panels set into the window, not sheets laid on it. 6 px corners
    (a token, so the build's radius cap leaves it), no drop shadow, a faint inner hairline; the focused panel carries a
    calm accent hairline (60 %), drawn by the mask over the content, so it shows on every panel type, pages included,
@@ -35,6 +26,8 @@
     padding: 0;
 }
 
+/* Wave's mask border (2 px focused) and its no-highlight and preview rules use !important, so the same selectors are
+   repeated here: equal specificity, and this sheet comes later. */
 .block.block-frame-default .block-mask,
 .block.block-frame-default.block-focused .block-mask,
 .block.block-frame-default.block-focused.block-no-highlight .block-mask,
@@ -42,9 +35,13 @@
     border-width: 0 !important;
 }
 
+/* Every panel draws the same 1 px inset edge at the same place, and focus changes only its colour (DS-SHELL-127,
+   #1220). The neutral edge must stand out from the window background in the gap, not only from the panel: a faint one
+   (7 % white) came out darker than the gap, so the eye placed the unfocused panel's edge one pixel further out than
+   the focused one's accent edge, and the gap looked narrower on the focused side. */
 .block.block-frame-default .block-mask,
 .block.block-frame-default.block-focused.block-preview .block-mask {
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
     transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
 }
 
