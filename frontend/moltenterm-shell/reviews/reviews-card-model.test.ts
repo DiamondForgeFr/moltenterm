@@ -301,6 +301,13 @@ describe("cardState: the nine states (#1060)", () => {
             boardTurn: { owner: "agent", kind: "agent", workflow: true },
         });
         expect(workflowOnly.kind).toBe("agent-finish");
+        // Its AI Testing column says nothing of an agent at work in this workflow; a recent commit does.
+        const aiTesting = { owner: "agent" as const, kind: "agent" as const, status: "AI Testing" };
+        expect(state({ pr: pr({ draft: true }), agentReadies: true, boardTurn: aiTesting }).kind).toBe("agent-finish");
+        expect(
+            state({ pr: pr({ draft: true }), agentReadies: true, boardTurn: aiTesting, recentCommit: true }).kind
+        ).toBe("agent-working");
+        expect(state({ pr: pr({ draft: true }), boardTurn: aiTesting }).kind).toBe("agent-working");
         expect(state({ pr: pr({ draft: true }), agents: [Nathan], agentReadies: true }).kind).toBe("agent-working");
         expect(state({ pr: pr({ draft: true }), agents: [Diane], agentReadies: true }).kind).toBe("agent-waiting");
     });
