@@ -8979,6 +8979,11 @@
             "topTitle": "{name} · pinned everywhere, opened on this workspace's project",
             "topModifiedTitle": "{name} · pinned everywhere · changed since pinned (right-click: save or go back)",
             "topRowLabel": "Views pinned everywhere",
+            "forked": "New view “{name}”",
+            "forkedHint": "Views pinned everywhere stay as they are in every workspace.",
+            "updatePinned": "Update the pinned view",
+            "updatedPinned": "“{name}” updated for every workspace",
+            "updatedPinnedHint": "Each workspace opens it with this layout.",
             "closeFinished": {
                 "one": "Close the finished view",
                 "other": "Close the {count} finished views"
@@ -8997,7 +9002,8 @@
                 "pinEverywhereNow": "Pin everywhere",
                 "pinOnlyHere": "Pin only in {workspace}",
                 "unpin": "Unpin (make it temporary)",
-                "makeTemporary": "Make temporary"
+                "makeTemporary": "Make temporary",
+                "updatePinned": "Update the pinned view “{name}”"
             },
             "page": {
                 "title": "Pin the view",

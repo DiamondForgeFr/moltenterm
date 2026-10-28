@@ -25,6 +25,9 @@ export const PinConfigMetaKey = "molten:pinconfig";
 // made from.
 export const GlobalPinMetaKey = "molten:globalpin";
 export const GlobalPinRevMetaKey = "molten:pinrev";
+// A temporary view made from a changed view pinned everywhere (#1272): the pin it came from, for Update the pinned
+// view. Any move of the view clears it.
+export const ForkedFromMetaKey = "molten:forkedfrom";
 // The client's meta: the views pinned everywhere, in the top row's order.
 export const GlobalPinsMetaKey = "molten:globalpins";
 
@@ -278,12 +281,24 @@ function signature(node: PinNode, keyOf: (leaf: PinNode) => string): string {
     return keyOf(node);
 }
 
-export function configSignature(config: PinConfig): string {
-    return signature(config?.tree, (leaf) => paneKey(config.panes[leaf.pane ?? -1]));
+type PaneKeyFn = (meta: Record<string, any>) => string;
+
+// What a panel is, for "did a view pinned everywhere change" (#1272): its kind only. Browsing to another site is
+// content, as typing in a terminal is, and never makes a new view.
+export function panelKind(meta: Record<string, any>): string {
+    return meta?.view ?? "";
 }
 
-export function liveSignature(tree: PinNode, metaOf: (blockId: string) => Record<string, any>): string {
-    return signature(tree, (leaf) => paneKey(metaOf(leaf.blockid)));
+export function configSignature(config: PinConfig, keyOf: PaneKeyFn = paneKey): string {
+    return signature(config?.tree, (leaf) => keyOf(config.panes[leaf.pane ?? -1]));
+}
+
+export function liveSignature(
+    tree: PinNode,
+    metaOf: (blockId: string) => Record<string, any>,
+    keyOf: PaneKeyFn = paneKey
+): string {
+    return signature(tree, (leaf) => keyOf(metaOf(leaf.blockid)));
 }
 
 // A pinned view changed since it was pinned: its panels or their layout differ from its configuration. A layout not
@@ -291,7 +306,8 @@ export function liveSignature(tree: PinNode, metaOf: (blockId: string) => Record
 export function viewModified(
     config: PinConfig,
     tree: PinNode,
-    metaOf: (blockId: string) => Record<string, any>
+    metaOf: (blockId: string) => Record<string, any>,
+    keyOf: PaneKeyFn = paneKey
 ): boolean {
     if (config == null || tree == null) {
         return false;
@@ -299,7 +315,94 @@ export function viewModified(
     if (treeBlockIds(tree).some((id) => metaOf(id) == null)) {
         return false;
     }
-    return liveSignature(tree, metaOf) !== configSignature(config);
+    return liveSignature(tree, metaOf, keyOf) !== configSignature(config, keyOf);
+}
+
+// An instance of a view pinned everywhere no longer has the pin's panels or layout (#1272): a panel added, closed,
+// moved or split. Its content never counts.
+export function viewForked(
+    config: PinConfig,
+    tree: PinNode,
+    metaOf: (blockId: string) => Record<string, any>
+): boolean {
+    return viewModified(config, tree, metaOf, panelKind);
+}
+
+// When an instance of a view pinned everywhere leaves its pin (#1272).
+export type ForkCheck = {
+    state: ViewState;
+    // Its panels or layout differ from the pin's (viewForked).
+    changed: boolean;
+    projectTab: boolean;
+    // The view on screen: its toast shows where the developer looks; a view changed in the background forks when it
+    // comes on screen.
+    onScreen: boolean;
+    // A drag runs (a panel, or a block of the sidebar): the layout is not final yet, and the drop may move the view.
+    dragging: boolean;
+    // Its layout still has actions to apply (a rebuild from the configuration runs).
+    pending: boolean;
+    // Made from an older configuration (saved from another workspace): it compares against a layout it never had.
+    stale: boolean;
+};
+
+export function forkDue(c: ForkCheck): boolean {
+    if (c.state !== "everywhere" || !c.changed || c.projectTab) {
+        return false;
+    }
+    return c.onScreen && !c.dragging && !c.pending && !c.stale;
+}
+
+// The fork (#1272): only the tab's pin keys change, so the view keeps its tab, panels, sessions, agent and name, and
+// remembers the pin it came from for Update the pinned view. The pin and the other workspaces are untouched.
+export function planViewFork(pin: GlobalPin): Record<string, any> {
+    return { ...UnpinnedTabMeta, [ViewIconMetaKey]: pin.icon ?? null, [ForkedFromMetaKey]: pin.id };
+}
+
+// The pin a temporary view came from, while that pin still exists.
+export function forkOrigin(tab: { meta?: Record<string, any> }, pins: GlobalPin[]): GlobalPin {
+    const id = tab?.meta?.[ForkedFromMetaKey];
+    if (typeof id !== "string" || id === "") {
+        return null;
+    }
+    const all = pins ?? [];
+    if (viewStateOf(tab, new Set(all.map((p) => p.id))) !== "temporary") {
+        return null;
+    }
+    return all.find((p) => p.id === id) ?? null;
+}
+
+// Update the pinned view (#1272): the pin takes the view's layout as a new revision, so every workspace's instance
+// follows the next time it opens; the view becomes this workspace's instance again; another instance this workspace
+// opened meanwhile becomes a temporary view rather than closing (nothing lost).
+export type PinUpdate = {
+    pins: GlobalPin[];
+    pin: GlobalPin;
+    tabMeta: Record<string, any>;
+    othersMeta: Record<string, any>;
+};
+
+export function planPinUpdate(pins: GlobalPin[], pinId: string, captured: PinConfig): PinUpdate {
+    const current = (pins ?? []).find((p) => p.id === pinId);
+    if (current == null || captured == null) {
+        return null;
+    }
+    const pin: GlobalPin = { ...current, rev: (current.rev ?? 0) + 1, config: captured };
+    return {
+        pins: replacePin(pins, pin),
+        pin,
+        tabMeta: { ...UnpinnedTabMeta, [GlobalPinMetaKey]: pin.id, [GlobalPinRevMetaKey]: pin.rev },
+        othersMeta: { ...UnpinnedTabMeta, [ViewIconMetaKey]: current.icon ?? null },
+    };
+}
+
+// Undo of Update the pinned view: the previous configuration comes back as a newer revision, so the instances made
+// from the update follow back too. Other changes of the pin meanwhile (its name, its icon) stay.
+export function undoPinUpdate(now: GlobalPin[], before: GlobalPin): GlobalPin[] {
+    const current = (now ?? []).find((p) => p.id === before?.id);
+    if (current == null) {
+        return now;
+    }
+    return replacePin(now, { ...current, rev: (current.rev ?? 0) + 1, config: before.config });
 }
 
 // A finished view: an agent is in it and none works, waits or reports an error. A done agent the developer has seen
@@ -340,4 +443,5 @@ export const UnpinnedTabMeta: Record<string, any> = {
     [PinConfigMetaKey]: null,
     [GlobalPinMetaKey]: null,
     [GlobalPinRevMetaKey]: null,
+    [ForkedFromMetaKey]: null,
 };

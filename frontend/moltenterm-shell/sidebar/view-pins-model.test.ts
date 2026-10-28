@@ -211,7 +211,14 @@ describe("moving a view between its three states (#1244)", () => {
             expect(move).not.toBeNull();
             // Only pin keys (and the icon a pin carried) are written: the tab, its panels and its own meta stay.
             const touched = Object.keys(move.tabMeta);
-            const pinKeys = [PinMetaKey, PinConfigMetaKey, GlobalPinMetaKey, GlobalPinRevMetaKey, "molten:viewicon"];
+            const pinKeys = [
+                PinMetaKey,
+                PinConfigMetaKey,
+                GlobalPinMetaKey,
+                GlobalPinRevMetaKey,
+                "molten:viewicon",
+                "molten:forkedfrom",
+            ];
             expect(touched.every((k) => pinKeys.includes(k))).toBe(true);
             const after = { ...tab, meta: applyMetaPatch(tab.meta, move.tabMeta) };
             expect(after.oid).toBe("tab-1");

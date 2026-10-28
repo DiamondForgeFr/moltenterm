@@ -123,11 +123,13 @@ export type ViewMenuPlan = {
     close: boolean;
     // A pinned view says it closes only once made temporary.
     closeNote: boolean;
+    // A temporary view made from a changed view pinned everywhere, while its pin exists (#1272).
+    updatePinned: boolean;
 };
 
 // projectTab: MoltenTerm's own Project tab, which stays pinned in its workspace (viewMoves) and still closes: a closed
-// Project tab is not made again until asked (FR-SHELL-015).
-export function viewMenuPlan(state: ViewState, modified: boolean, projectTab = false): ViewMenuPlan {
+// Project tab is not made again until asked (FR-SHELL-015). fromPin: the view came from a pin that still exists.
+export function viewMenuPlan(state: ViewState, modified: boolean, projectTab = false, fromPin = false): ViewMenuPlan {
     const temporary = state === "temporary";
     const moves = viewMoves(state, projectTab);
     return {
@@ -138,6 +140,7 @@ export function viewMenuPlan(state: ViewState, modified: boolean, projectTab = f
         makeTemporary: moves.includes("temporary"),
         close: temporary || projectTab,
         closeNote: !temporary && !projectTab,
+        updatePinned: temporary && fromPin && !projectTab,
     };
 }
 

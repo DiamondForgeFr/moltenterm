@@ -8979,6 +8979,11 @@
             "topTitle": "{name} · épinglée partout, ouverte sur le projet de ce workspace",
             "topModifiedTitle": "{name} · épinglée partout · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
             "topRowLabel": "Vues épinglées partout",
+            "forked": "Nouvelle vue « {name} »",
+            "forkedHint": "Les vues épinglées partout restent telles quelles dans tous les workspaces.",
+            "updatePinned": "Mettre à jour la vue épinglée",
+            "updatedPinned": "« {name} » mise à jour pour tous les workspaces",
+            "updatedPinnedHint": "Chaque workspace l'ouvre avec cette disposition.",
             "closeFinished": {
                 "one": "Fermer la vue terminée",
                 "other": "Fermer les {count} vues terminées"
@@ -8997,7 +9002,8 @@
                 "pinEverywhereNow": "Épingler partout",
                 "pinOnlyHere": "Épingler seulement dans {workspace}",
                 "unpin": "Désépingler (rendre temporaire)",
-                "makeTemporary": "Rendre temporaire"
+                "makeTemporary": "Rendre temporaire",
+                "updatePinned": "Mettre à jour la vue épinglée « {name} »"
             },
             "page": {
                 "title": "Épingler la vue",
