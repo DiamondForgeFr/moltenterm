@@ -6,12 +6,14 @@ import { AgentStatesData } from "../agent-state-model";
 import { sameTabSplit, splitSidebarTabs } from "./sidebar-model";
 import {
     agentBlocksOf,
+    applyMetaPatch,
     configSignature,
     GlobalPin,
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
     GlobalPinsMetaKey,
     instanceStale,
+    isProjectTab,
     layoutTree,
     liveSignature,
     makeGlobalPinId,
@@ -19,11 +21,19 @@ import {
     PinConfig,
     PinConfigMetaKey,
     PinMetaKey,
+    pinMetaOf,
+    PinWorkspace,
+    planViewMove,
     readGlobalPins,
     RepoToken,
+    shownViewState,
+    undoPins,
     viewBusy,
     viewFinished,
+    ViewIconMetaKey,
     viewModified,
+    viewMoves,
+    ViewState,
     viewStateOf,
 } from "./view-pins-model";
 
@@ -158,5 +168,118 @@ describe("finished views (FR-SHELL-080)", () => {
 
     it("lists the panels that hold an agent", () => {
         expect(agentBlocksOf(states({ a: "idle" }), ["a", "t"])).toEqual(["a"]);
+    });
+});
+
+describe("moving a view between its three states (#1244)", () => {
+    const captured: PinConfig = { tree: { pane: 0 }, panes: [{ view: "term" }] };
+    const other: GlobalPin = { id: "g0", name: "Docs", rev: 1, config };
+    // A view of its own: a terminal and a web page, a background, an icon, its name; the pin keys come per state.
+    const own = { bg: "#123456", "molten:viewicon": "gear", "tab:name": "Work" };
+    const tabOf = (state: ViewState) => {
+        const meta: Record<string, any> = { ...own };
+        if (state === "workspace") {
+            Object.assign(meta, { [PinMetaKey]: PinWorkspace, [PinConfigMetaKey]: config });
+        }
+        if (state === "everywhere") {
+            Object.assign(meta, { [GlobalPinMetaKey]: "g1", [GlobalPinRevMetaKey]: 2 });
+        }
+        return { oid: "tab-1", blockids: ["term-1", "web-1"], meta };
+    };
+    const pinsOf = (state: ViewState): GlobalPin[] =>
+        state === "everywhere" ? [other, { ...pin, icon: "gear" }] : [other];
+    const transitions: [ViewState, ViewState][] = [
+        ["temporary", "workspace"],
+        ["temporary", "everywhere"],
+        ["workspace", "everywhere"],
+        ["workspace", "temporary"],
+        ["everywhere", "workspace"],
+        ["everywhere", "temporary"],
+    ];
+
+    for (const [from, to] of transitions) {
+        it(`${from} → ${to} keeps the view's tab, panels and meta, and Undo brings ${from} back`, () => {
+            const tab = tabOf(from);
+            const pins = pinsOf(from);
+            const move = planViewMove(from, to, {
+                tabMeta: tab.meta,
+                pins,
+                captured,
+                name: "Work",
+                newPinId: "g9",
+            });
+            expect(move).not.toBeNull();
+            // Only pin keys (and the icon a pin carried) are written: the tab, its panels and its own meta stay.
+            const touched = Object.keys(move.tabMeta);
+            const pinKeys = [PinMetaKey, PinConfigMetaKey, GlobalPinMetaKey, GlobalPinRevMetaKey, "molten:viewicon"];
+            expect(touched.every((k) => pinKeys.includes(k))).toBe(true);
+            const after = { ...tab, meta: applyMetaPatch(tab.meta, move.tabMeta) };
+            expect(after.oid).toBe("tab-1");
+            expect(after.blockids).toEqual(["term-1", "web-1"]);
+            expect(after.meta).toMatchObject(own);
+            const ids = new Set(move.pins.map((p) => p.id));
+            expect(viewStateOf(after, ids)).toBe(to);
+            expect(ids.has("g0")).toBe(true);
+
+            const undone = applyMetaPatch(after.meta, pinMetaOf(tab.meta));
+            const pinsBack = undoPins(pins, move.pins, move.pin);
+            expect(undone).toEqual(tab.meta);
+            expect(pinsBack.map((p) => p.id)).toEqual(pins.map((p) => p.id));
+            expect(viewStateOf({ meta: undone }, new Set(pinsBack.map((p) => p.id)))).toBe(from);
+        });
+    }
+
+    it("pins everywhere with the view's own icon and what it shows now", () => {
+        const move = planViewMove("workspace", "everywhere", {
+            tabMeta: tabOf("workspace").meta,
+            pins: [other],
+            captured,
+            name: "Work",
+            newPinId: "g9",
+        });
+        expect(move.pin).toEqual({ id: "g9", name: "Work", icon: "gear", rev: 1, config: captured });
+        expect(move.pins.map((p) => p.id)).toEqual(["g0", "g9"]);
+    });
+
+    it("keeps the pin's configuration for a view pinned only here", () => {
+        const move = planViewMove("everywhere", "workspace", {
+            tabMeta: tabOf("everywhere").meta,
+            pins: pinsOf("everywhere"),
+        });
+        expect(move.tabMeta[PinConfigMetaKey]).toBe(config);
+        expect(move.pins.map((p) => p.id)).toEqual(["g0"]);
+    });
+
+    it("moves a top-row block this workspace never opened by its pin", () => {
+        const move = planViewMove("everywhere", "temporary", {
+            tabMeta: null,
+            pins: pinsOf("everywhere"),
+            pinId: "g1",
+        });
+        expect(move.pin.id).toBe("g1");
+        expect(move.tabMeta[ViewIconMetaKey]).toBe("gear");
+    });
+
+    it("refuses what it cannot do: the same state, a missing pin, a pin without the view's layout", () => {
+        expect(planViewMove("workspace", "workspace", { tabMeta: {}, pins: [] })).toBeNull();
+        expect(planViewMove("everywhere", "temporary", { tabMeta: {}, pins: [] })).toBeNull();
+        expect(planViewMove("temporary", "everywhere", { tabMeta: {}, pins: [], newPinId: "g9" })).toBeNull();
+    });
+
+    it("puts an undone pin back at its place, keeping changes made meanwhile", () => {
+        const a = { ...pin, id: "a" };
+        const b = { ...pin, id: "b" };
+        const c = { ...pin, id: "c" };
+        expect(undoPins([a, b, c], [a, c], b).map((p) => p.id)).toEqual(["a", "b", "c"]);
+        expect(undoPins([a], [a, b], b).map((p) => p.id)).toEqual(["a"]);
+        const renamed = { ...a, name: "Renamed" };
+        expect(undoPins([a, b], [renamed], b)[0].name).toBe("Renamed");
+    });
+
+    it("leaves the Project tab where it is", () => {
+        expect(viewMoves("workspace", true)).toEqual([]);
+        expect(isProjectTab({ meta: { "molten:projecttab": true } })).toBe(true);
+        expect(shownViewState("temporary", true)).toBe("workspace");
+        expect(shownViewState("temporary", false)).toBe("temporary");
     });
 });

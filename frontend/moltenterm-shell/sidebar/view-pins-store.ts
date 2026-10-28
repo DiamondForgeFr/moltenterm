@@ -32,18 +32,21 @@ import {
     GlobalPinRevMetaKey,
     GlobalPinsMetaKey,
     instanceStale,
+    isProjectTab,
     layoutTree,
     makeGlobalPinId,
     PinConfig,
     PinConfigMetaKey,
     PinMetaKey,
+    pinMetaOf,
     PinNode,
     PinScope,
     PinWorkspace,
+    planViewMove,
     readGlobalPins,
     readPinConfig,
     replacePin,
-    UnpinnedTabMeta,
+    undoPins,
     viewBusy,
     viewFinished,
     viewModified,
@@ -274,77 +277,20 @@ export class ViewPins {
         await this.pinHere(draft.tabId, name);
     }
 
+    // A temporary view becomes pinned in the workspace, a view pinned everywhere pinned only here (moveView).
     async pinHere(tabId: string, name: string): Promise<void> {
-        try {
-            const config = await this.capture(tabId);
-            await this.setTabMeta(tabId, {
-                ...UnpinnedTabMeta,
-                [PinMetaKey]: PinWorkspace,
-                [PinConfigMetaKey]: config,
-            });
-            const workspace =
-                workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
-            showUndoToast(t("sidebar.pins.pinnedHere", { name, workspace }), () =>
-                this.setTabMeta(tabId, UnpinnedTabMeta)
-            );
-        } catch (e) {
-            pinError(e);
-        }
+        await this.moveView({ tabId }, "workspace", name);
     }
 
     // The pin keeps the icon the developer chose for the view, never one picked for it (FR-SHELL-081).
     async pinEverywhere(tabId: string, name: string): Promise<void> {
-        try {
-            const config = await this.capture(tabId);
-            const tab = globalStore.get(tabAtom(tabId));
-            const before = this.globalPins();
-            const pin: GlobalPin = {
-                id: makeGlobalPinId(Date.now(), Math.random()),
-                name,
-                icon: readViewIcon(tab?.meta?.[ViewIconMetaKey]) ?? undefined,
-                rev: 1,
-                config,
-            };
-            await this.writeGlobalPins([...before, pin]);
-            await this.setTabMeta(tabId, { ...UnpinnedTabMeta, [GlobalPinMetaKey]: pin.id, [GlobalPinRevMetaKey]: 1 });
-            showUndoToast(t("sidebar.pins.pinnedEverywhere", { name }), async () => {
-                await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
-                await this.setTabMeta(tabId, UnpinnedTabMeta);
-            });
-        } catch (e) {
-            pinError(e);
-        }
+        await this.moveView({ tabId }, "everywhere", name);
     }
 
     // A view pinned everywhere becomes pinned only in this workspace: its configuration stays with this instance, the
     // other workspaces keep theirs as temporary views. A block this workspace never opened gets its instance now.
     async pinOnlyHere(tabId: string, pinId?: string): Promise<void> {
-        const tab = tabId ? globalStore.get(tabAtom(tabId)) : null;
-        const id = pinId ?? tab?.meta?.[GlobalPinMetaKey];
-        const pins = this.globalPins();
-        const pin = pins.find((p) => p.id === id);
-        if (pin == null) {
-            return;
-        }
-        const meta = {
-            ...UnpinnedTabMeta,
-            [PinMetaKey]: PinWorkspace,
-            [PinConfigMetaKey]: pin.config,
-            [ViewIconMetaKey]: pin.icon ?? null,
-        };
-        try {
-            if (tab != null) {
-                await this.setTabMeta(tabId, meta);
-            } else {
-                await this.build({ name: pin.name, tabmeta: meta, config: pin.config, background: true });
-            }
-            await this.writeGlobalPins(withoutPin(this.globalPins(), pin.id));
-            const workspace =
-                workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
-            showToast({ title: t("sidebar.pins.pinnedOnlyHere", { name: pin.name, workspace }) });
-        } catch (e) {
-            pinError(e);
-        }
+        await this.moveView({ tabId: tabId || undefined, pinId }, "workspace");
     }
 
     // Rename (FR-SHELL-081): a view pinned everywhere is renamed in every workspace, through its pin.
@@ -514,59 +460,100 @@ export class ViewPins {
         }
     }
 
+    // Make temporary: a view pinned everywhere keeps the icon its pin had.
     async unpin(tabId: string): Promise<void> {
-        const tab = globalStore.get(tabAtom(tabId));
-        if (tab == null) {
+        await this.moveView({ tabId }, "temporary");
+    }
+
+    // Make temporary a view pinned everywhere that this workspace never opened: its instance is made here, temporary.
+    async unpinGlobal(pinId: string): Promise<void> {
+        await this.moveView({ pinId }, "temporary");
+    }
+
+    // Moves a view to another state (FR-SHELL-080, #1244), keeping the view itself: only its tab's pin keys and the
+    // pins everywhere change, never its panels, layout, name, background or sessions. Undo (⌘Z) brings back the state
+    // it had. A top-row block this workspace never opened gets its instance here first; Undo closes it again.
+    async moveView(view: ViewRef, to: ViewState, name?: string): Promise<void> {
+        const ref: ViewRef = view.tabId || !view.pinId ? view : { ...view, tabId: this.instanceOf(view.pinId) };
+        const tab = ref.tabId ? globalStore.get(tabAtom(ref.tabId)) : null;
+        const pinsBefore = this.globalPins();
+        const from: ViewState =
+            tab != null ? viewStateOf(tab, new Set(pinsBefore.map((p) => p.id))) : ref.pinId ? "everywhere" : null;
+        if (from == null || from === to || isProjectTab(tab)) {
             return;
         }
-        const pins = this.globalPins();
-        const pin = pins.find((p) => p.id === tab.meta?.[GlobalPinMetaKey]);
-        const before = {
-            [PinMetaKey]: tab.meta?.[PinMetaKey] ?? null,
-            [PinConfigMetaKey]: tab.meta?.[PinConfigMetaKey] ?? null,
-            [GlobalPinMetaKey]: tab.meta?.[GlobalPinMetaKey] ?? null,
-            [GlobalPinRevMetaKey]: tab.meta?.[GlobalPinRevMetaKey] ?? null,
-            [ViewIconMetaKey]: tab.meta?.[ViewIconMetaKey] ?? null,
-        };
         try {
-            // A view pinned everywhere keeps the icon its pin had.
-            await this.setTabMeta(
-                tabId,
-                pin != null ? { ...UnpinnedTabMeta, [ViewIconMetaKey]: pin.icon ?? null } : UnpinnedTabMeta
-            );
-            if (pin != null) {
-                await this.writeGlobalPins(withoutPin(pins, pin.id));
+            const needsCapture = to === "everywhere" || (to === "workspace" && from === "temporary");
+            const captured = needsCapture ? await this.capture(ref.tabId) : undefined;
+            const shown = name ?? this.pinOf(ref)?.name ?? tab?.name ?? "";
+            const move = planViewMove(from, to, {
+                tabMeta: tab?.meta,
+                pins: pinsBefore,
+                pinId: ref.pinId,
+                captured,
+                name: shown,
+                newPinId: to === "everywhere" ? makeGlobalPinId(Date.now(), Math.random()) : undefined,
+            });
+            if (move == null) {
+                return;
             }
-            showUndoToast(t("sidebar.pins.unpinned", { name: pin?.name ?? tab.name }), async () => {
-                if (pin != null) {
-                    const at = pins.findIndex((p) => p.id === pin.id);
-                    const now = withoutPin(this.globalPins(), pin.id);
-                    await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
+            const metaBefore = pinMetaOf(tab?.meta);
+            let built: string = null;
+            if (to === "everywhere") {
+                await this.writeGlobalPins(move.pins);
+                await this.setTabMeta(ref.tabId, move.tabMeta);
+            } else {
+                if (tab != null) {
+                    await this.setTabMeta(ref.tabId, move.tabMeta);
+                } else {
+                    const req = {
+                        name: move.pin.name,
+                        tabmeta: move.tabMeta,
+                        config: move.pin.config,
+                        background: true,
+                    };
+                    built = (await this.build(req))?.tabid ?? null;
                 }
-                await this.setTabMeta(tabId, before);
+                if (from === "everywhere") {
+                    await this.writeGlobalPins(move.pins);
+                }
+            }
+            showUndoToast(this.moveTitle(from, to, shown), async () => {
+                if (move.pin != null) {
+                    await this.writeGlobalPins(undoPins(pinsBefore, this.globalPins(), move.pin));
+                }
+                const ws = globalStore.get(atoms.workspace);
+                if (built && ws != null) {
+                    await getApi().closeTab(ws.oid, built, false);
+                    return;
+                }
+                if (tab != null) {
+                    await this.setTabMeta(ref.tabId, metaBefore);
+                }
             });
         } catch (e) {
             pinError(e);
         }
     }
 
-    // Unpins a view pinned everywhere that this workspace never opened.
-    async unpinGlobal(pinId: string): Promise<void> {
-        const pins = this.globalPins();
-        const pin = pins.find((p) => p.id === pinId);
-        if (pin == null) {
-            return;
+    // This workspace's instance of a view pinned everywhere, when it opened one.
+    private instanceOf(pinId: string): string {
+        const ids = globalStore.get(atoms.workspace)?.tabids ?? [];
+        return ids.find((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId) ?? undefined;
+    }
+
+    private moveTitle(from: ViewState, to: ViewState, name: string): string {
+        const workspace = workspaceShownName(globalStore.get(atoms.workspace)?.name, t) || t("rail.unsavedWorkspace");
+        if (to === "everywhere") {
+            return t("sidebar.pins.pinnedEverywhere", { name });
         }
-        try {
-            await this.writeGlobalPins(withoutPin(pins, pinId));
-            showUndoToast(t("sidebar.pins.unpinned", { name: pin.name }), async () => {
-                const at = pins.findIndex((p) => p.id === pinId);
-                const now = withoutPin(this.globalPins(), pinId);
-                await this.writeGlobalPins([...now.slice(0, at), pin, ...now.slice(at)]);
+        if (to === "workspace") {
+            return t(from === "everywhere" ? "sidebar.pins.pinnedOnlyHere" : "sidebar.pins.pinnedHere", {
+                name,
+                workspace,
             });
-        } catch (e) {
-            pinError(e);
         }
+        return t("sidebar.pins.unpinned", { name });
     }
 
     // Save the current state: the view's configuration becomes what it shows; for a view pinned everywhere, every

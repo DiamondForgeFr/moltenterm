@@ -6,7 +6,9 @@ import {
     configPaneIcons,
     dropAction,
     dropsAfter,
+    isMoveAction,
     MaxGlyphIcons,
+    menuMoveTargets,
     moveBeside,
     paneIcon,
     readViewIcon,
@@ -16,11 +18,12 @@ import {
     undoOrder,
     viewGlyphIcons,
     ViewIconChoices,
+    viewMenuHeader,
     viewMenuPlan,
     withMissingPanels,
     zoneCaptionShown,
 } from "./view-menu-model";
-import { AgentSlotMetaKey, PinConfig } from "./view-pins-model";
+import { AgentSlotMetaKey, PinConfig, shownViewState } from "./view-pins-model";
 
 describe("a view's glyph (DS-SHELL-126)", () => {
     it("shows the panels' icons, up to three, in order", () => {
@@ -68,14 +71,14 @@ describe("the view menu (FR-SHELL-081)", () => {
             const plan = viewMenuPlan(state, false);
             expect(plan.close).toBe(false);
             expect(plan.closeNote).toBe(true);
-            expect(plan.unpin).toBe(true);
+            expect(plan.makeTemporary).toBe(true);
             expect(plan.pinHere).toBe(false);
         }
     });
 
-    it("offers a temporary view its pins and Close, never Unpin or Save", () => {
+    it("offers a temporary view its pins and Close, never Make temporary or Save", () => {
         const plan = viewMenuPlan("temporary", true);
-        expect(plan).toMatchObject({ pinHere: true, pinEverywhere: true, close: true, unpin: false });
+        expect(plan).toMatchObject({ pinHere: true, pinEverywhere: true, close: true, makeTemporary: false });
         expect(plan.saveOrRevert).toBe(false);
         expect(plan.closeNote).toBe(false);
     });
@@ -88,6 +91,39 @@ describe("the view menu (FR-SHELL-081)", () => {
     it("offers Save and Back only once a pinned view changed", () => {
         expect(viewMenuPlan("workspace", true).saveOrRevert).toBe(true);
         expect(viewMenuPlan("everywhere", false).saveOrRevert).toBe(false);
+    });
+
+    it("lists exactly the two states the view is not in (#1244)", () => {
+        for (const state of ["temporary", "workspace", "everywhere"] as const) {
+            const targets = menuMoveTargets(viewMenuPlan(state, false));
+            expect(targets).toHaveLength(2);
+            expect(targets).not.toContain(state);
+            expect(new Set(targets).size).toBe(2);
+        }
+        expect(menuMoveTargets(viewMenuPlan("workspace", false))).toEqual(["everywhere", "temporary"]);
+        expect(menuMoveTargets(viewMenuPlan("everywhere", false))).toEqual(["workspace", "temporary"]);
+        expect(viewMenuPlan("everywhere", false)).toMatchObject({ pinOnlyHere: true, pinHere: false });
+    });
+
+    it("gives the Project tab no move and keeps its Close", () => {
+        const plan = viewMenuPlan(shownViewState("temporary", true), false, true);
+        expect(menuMoveTargets(plan)).toEqual([]);
+        expect(plan).toMatchObject({ close: true, closeNote: false, saveOrRevert: false });
+    });
+
+    it("heads the menu with the view's real state", () => {
+        const t = (key: string, vars?: Record<string, any>) =>
+            ({
+                "sidebar.pins.menu.state.temporary": "Temporary view",
+                "sidebar.pins.menu.state.workspace": `Pinned in ${vars?.workspace}`,
+                "sidebar.pins.menu.state.everywhere": "Pinned everywhere",
+            })[key];
+        expect(viewMenuHeader("Work", "temporary", "Molten", t)).toBe("Work · Temporary view");
+        expect(viewMenuHeader("Work", "workspace", "Molten", t)).toBe("Work · Pinned in Molten");
+        expect(viewMenuHeader("Work", "everywhere", "Molten", t)).toBe("Work · Pinned everywhere");
+        expect(viewMenuHeader("Project", shownViewState("temporary", true), "Molten", t)).toBe(
+            "Project · Pinned in Molten"
+        );
     });
 });
 
@@ -138,14 +174,28 @@ describe("reorder by drag", () => {
         expect(dropAction("tile", "top")).toBe("pin-everywhere");
         expect(dropAction("row", "tiles")).toBe("pin-here");
         expect(dropAction("row", "top")).toBe("pin-everywhere");
-        expect(dropAction("top", "tiles")).toBeNull();
+        expect(dropAction("top", "tiles")).toBe("pin-only-here");
+    });
+
+    it("moves a view to the state of the section it is dropped on (#1244)", () => {
+        expect(dropAction("tile", "temporary")).toBe("make-temporary");
+        expect(dropAction("top", "temporary")).toBe("make-temporary");
+        expect(dropAction("row", "temporary")).toBeNull();
+        for (const kind of ["tile", "top", "row"] as const) {
+            for (const zone of ["tiles", "top", "temporary"] as const) {
+                const own = { tile: "tiles", top: "top", row: "temporary" }[kind];
+                expect(isMoveAction(dropAction(kind, zone))).toBe(zone !== own);
+            }
+        }
     });
 
     it("hides the reordered row's own caption and keeps the other targets'", () => {
         expect(zoneCaptionShown("tile", "tiles")).toBe(false);
         expect(zoneCaptionShown("tile", "top")).toBe(true);
         expect(zoneCaptionShown("top", "top")).toBe(false);
-        expect(zoneCaptionShown("top", "tiles")).toBe(false);
+        expect(zoneCaptionShown("top", "tiles")).toBe(true);
+        expect(zoneCaptionShown("row", "temporary")).toBe(false);
+        expect(zoneCaptionShown("tile", "temporary")).toBe(true);
         expect(zoneCaptionShown("row", "tiles")).toBe(true);
         expect(zoneCaptionShown("row", "top")).toBe(true);
     });

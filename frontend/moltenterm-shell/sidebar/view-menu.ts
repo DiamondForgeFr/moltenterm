@@ -14,7 +14,7 @@ import { currentEqualize } from "../equalize/equalize-actions";
 import { acceleratorById } from "../shortcuts/format";
 import { view360MenuItems } from "../view360/view360-toggle";
 import { workspaceShownName } from "../workspace-default-name";
-import { viewMenuPlan } from "./view-menu-model";
+import { viewMenuHeader, viewMenuPlan } from "./view-menu-model";
 import { ViewState } from "./view-pins-model";
 import { ViewPins, ViewRef } from "./view-pins-store";
 import { openViewPopover } from "./view-popover";
@@ -78,13 +78,10 @@ function layoutItems(t: TFn): ContextMenuItem[] {
 
 function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
     const pins = ViewPins.getInstance();
-    const plan = viewMenuPlan(target.state, target.modified);
+    const plan = viewMenuPlan(target.state, target.modified, target.projectTab);
     const workspace = shownWorkspace(t);
     const tabId = target.ref.tabId;
     const items: ContextMenuItem[] = [];
-    if (target.projectTab) {
-        return items;
-    }
     if (plan.pinHere) {
         items.push({
             label: t("sidebar.pins.menu.pinHere", { workspace }),
@@ -114,9 +111,9 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
             click: () => fireAndForget(() => pins.pinOnlyHere(tabId, target.ref.pinId)),
         });
     }
-    if (plan.unpin) {
+    if (plan.makeTemporary) {
         items.push({
-            label: t("sidebar.pins.menu.unpin"),
+            label: t("sidebar.pins.menu.makeTemporary"),
             icon: "thumbtack-slash",
             click: () => fireAndForget(() => (tabId ? pins.unpin(tabId) : pins.unpinGlobal(target.ref.pinId))),
         });
@@ -126,11 +123,12 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
 
 export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: TFn): ContextMenuItem[] {
     const pins = ViewPins.getInstance();
-    const plan = viewMenuPlan(target.state, target.modified);
+    const plan = viewMenuPlan(target.state, target.modified, target.projectTab);
     const tabId = target.ref.tabId;
     const workspace = shownWorkspace(t);
-    const stateLabel = t(`sidebar.pins.menu.state.${target.state}`, { workspace });
-    const items: ContextMenuItem[] = [{ type: "header", label: `${target.name} · ${stateLabel}` }];
+    const items: ContextMenuItem[] = [
+        { type: "header", label: viewMenuHeader(target.name, target.state, workspace, t) },
+    ];
     if (plan.saveOrRevert && tabId) {
         items.push(
             {

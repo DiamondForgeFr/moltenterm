@@ -3,7 +3,8 @@
 
 // Dragging views in the sidebar (FR-SHELL-081): tiles and top-row blocks reorder among their row, a tile or a
 // temporary view dropped on the top row is pinned everywhere, a temporary view dropped on the tiles is pinned in the
-// workspace. The rows that would pin show their scope caption; the row being reordered hides its own. Moved blocks
+// workspace, a top-row block dropped on the tiles is pinned only there, and a tile or a top-row block dropped on the
+// temporary list becomes temporary (#1244). The rows that would move the view show their scope caption; the row being reordered hides its own. Moved blocks
 // glide to their new place.
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -11,7 +12,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { useLayoutEffect, useRef } from "react";
 import { MotionClass, prefersReducedMotion } from "../molten-motion";
-import { DragKind, dropAction, dropsAfter, DropZone } from "./view-menu-model";
+import { DragKind, dropAction, dropsAfter, DropZone, isMoveAction } from "./view-menu-model";
 import { ViewPins } from "./view-pins-store";
 
 export const DragThresholdPx = 4;
@@ -30,10 +31,11 @@ export type SidebarDrag = {
     pinnable: boolean;
 };
 
-// A zone the dragged view may land on: one whose drop does something, and never a pin for a view that cannot be pinned.
+// A zone the dragged view may land on: one whose drop does something, and never a move for a view that keeps its
+// state (the Project tab, #1244).
 export function usableHit(kind: DragKind, hit: ZoneHit, pinnable: boolean): ZoneHit {
     const action = hit == null ? null : dropAction(kind, hit.zone);
-    if (action == null || (!pinnable && (action === "pin-here" || action === "pin-everywhere"))) {
+    if (action == null || (!pinnable && isMoveAction(action))) {
         return null;
     }
     return hit;
@@ -90,6 +92,16 @@ export function finishDrop(kind: DragKind, id: string, hit: ZoneHit, name: strin
     }
     if (action === "pin-everywhere") {
         fireAndForget(() => pins.pinEverywhere(id, name));
+        return true;
+    }
+    // A top-row block's id is its pin's; a tile's is its tab's.
+    const ref = kind === "top" ? { pinId: id } : { tabId: id };
+    if (action === "pin-only-here") {
+        fireAndForget(() => pins.moveView(ref, "workspace"));
+        return true;
+    }
+    if (action === "make-temporary") {
+        fireAndForget(() => pins.moveView(ref, "temporary"));
         return true;
     }
     return false;
