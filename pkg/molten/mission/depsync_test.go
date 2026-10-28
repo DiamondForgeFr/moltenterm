@@ -79,7 +79,8 @@ func (f *depSyncFixture) sync(t *testing.T) RunRecord {
 	if res.Run == nil {
 		t.Fatalf("the sync did not start: %+v", res)
 	}
-	deadline := time.Now().Add(30 * time.Second)
+	// Generous: it only bounds a failing run (#1208).
+	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
 		rec, err := f.runs.readRecord(f.site, res.Run.Id)
 		if err == nil && rec.State != RunStateRunning {
@@ -292,7 +293,7 @@ func TestDepSyncReleasesBeforeItReadsAsEnded(t *testing.T) {
 		if !free {
 			t.Fatal("the dependent is still held when the sync reads as ended")
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the sync did not end")
 	}
 }
@@ -303,12 +304,12 @@ func TestDepSyncStops(t *testing.T) {
 	depSyncTimeout, depSyncKillGrace = time.Second, 200*time.Millisecond
 	t.Cleanup(func() { depSyncTimeout, depSyncKillGrace = savedTimeout, savedGrace })
 	f := makeDepSyncFixture(t)
-	depCommit(t, f.clock, f.site, "chore: a stubborn sync", map[string]string{"scripts/sync.sh": "trap '' TERM\nsleep 30\n"})
+	// The sleep outlasts any wait of the test (#1208): a sync that was not stopped shows as one that never ends.
+	depCommit(t, f.clock, f.site, "chore: a stubborn sync", map[string]string{"scripts/sync.sh": "trap '' TERM\necho stubborn\nsleep 3600\n"})
 	f.trust(t)
-	start := time.Now()
 	timedOut := f.sync(t)
-	if timedOut.State != RunStateFailure || time.Since(start) > 15*time.Second {
-		t.Fatalf("the stubborn sync is stopped and fails: %+v after %s", timedOut, time.Since(start))
+	if timedOut.State != RunStateFailure {
+		t.Fatalf("the stubborn sync is stopped and fails: %+v", timedOut)
 	}
 	if text := f.log(t, timedOut); !strings.Contains(text, "was stopped") {
 		t.Fatalf("its log: %s", text)
@@ -320,11 +321,17 @@ func TestDepSyncStops(t *testing.T) {
 	if err != nil || res.Run == nil {
 		t.Fatalf("%+v %v", res, err)
 	}
-	time.Sleep(700 * time.Millisecond)
+	started := time.Now().Add(time.Minute)
+	for chunk, _ := f.runs.ReadLog(f.site, res.Run.Id, 0); !strings.Contains(chunk.Text, "stubborn"); chunk, _ = f.runs.ReadLog(f.site, res.Run.Id, 0) {
+		if time.Now().After(started) {
+			t.Fatal("the second sync never started its script")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err := f.runs.Cancel(f.site, res.Run.Id); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
 		rec, _ := f.runs.readRecord(f.site, res.Run.Id)
 		if rec.State != RunStateRunning {

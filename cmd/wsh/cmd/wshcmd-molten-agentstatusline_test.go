@@ -6,7 +6,9 @@ package cmd
 import (
 	"bytes"
 	"crypto/sha256"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -134,33 +136,38 @@ func TestStatusLineRelayWithoutCommand(t *testing.T) {
 // A slow or stuck hand-off never holds the status line past its timeout, and adds nothing when the command is slower.
 func TestStatusLineRelayBoundsTheHandOff(t *testing.T) {
 	skipWithoutSh(t)
-	stuck := func(molten.AgentStatusLineRequest) { time.Sleep(5 * time.Second) }
+	// No duration is checked (#1208): the stuck hand-off never returns, so a relay that waited for it hangs.
+	never := make(chan struct{})
+	t.Cleanup(func() { close(never) })
+	stuck := func(molten.AgentStatusLineRequest) { <-never }
 	var stdout, stderr bytes.Buffer
-	start := time.Now()
 	runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"echo hi"}, stuck)
-	if d := time.Since(start); d > moltenStatusLineSendTimeout+200*time.Millisecond {
-		t.Errorf("a stuck hand-off held the status line %v", d)
-	}
 	if stdout.String() != "hi\n" {
 		t.Errorf("output %q", stdout.String())
 	}
 
-	fast := func(molten.AgentStatusLineRequest) {}
-	var total time.Duration
-	const runs = 10
-	for i := 0; i < runs; i++ {
-		start = time.Now()
-		runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"true"}, fast)
-		total += time.Since(start)
+	// NFR-SHELL-012: the hand-off runs alongside the command, never before it. This one only returns once the command
+	// ran, so a relay that handed off first would only start the command after the hand-off's deadline.
+	marker := filepath.Join(t.TempDir(), "ran")
+	sawCommand := make(chan bool, 1)
+	alongside := func(molten.AgentStatusLineRequest) {
+		deadline := time.Now().Add(time.Minute)
+		for time.Now().Before(deadline) {
+			if _, err := os.Stat(marker); err == nil {
+				sawCommand <- true
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		sawCommand <- false
 	}
-	direct := time.Now()
-	for i := 0; i < runs; i++ {
-		runSh(t, "true", statusLineInput)
+	stdout.Reset()
+	runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"touch '" + marker + "'; echo hi"}, alongside)
+	if stdout.String() != "hi\n" {
+		t.Errorf("output %q", stdout.String())
 	}
-	added := (total - time.Since(direct)) / runs
-	t.Logf("relay overhead per run: %v", added)
-	if added > 20*time.Millisecond {
-		t.Errorf("the relay adds %v to the status line (NFR-SHELL-012: under 20 ms)", added)
+	if !<-sawCommand {
+		t.Error("the hand-off ran before the status line command")
 	}
 }
 

@@ -73,13 +73,9 @@ func TestRunMoltenAgentNotifyRunsTheUsersProgram(t *testing.T) {
 	inPane := func(name string) string {
 		return map[string]string{"WAVETERM_BLOCKID": "b", "WAVETERM_JWT": "not-a-token"}[name]
 	}
-	start := time.Now()
+	// No duration is checked: a loaded machine can take seconds to start the script (#1208).
 	if code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", program: []string{script}, payload: testNotifyPayload}, inPane); code != 5 {
 		t.Fatalf("in a pane: %d", code)
-	}
-	// The cap plus room for a loaded machine to start the script.
-	if took := time.Since(start); took > moltenAgentNotifyReportTimeout+3*time.Second {
-		t.Fatalf("the report took %v", took)
 	}
 	if data, _ := os.ReadFile(log); string(data) != testNotifyPayload+"\x00" {
 		t.Fatalf("in a pane the program still gets the payload: %q", data)

@@ -56,7 +56,8 @@ func makeCiFixture(t *testing.T, ci string) (*Ci, string) {
 
 func waitCi(t *testing.T, c *Ci, dir string, runId string) CiRunRecord {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	// Generous: it only bounds a failing run (#1208).
+	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
 		if c.activeRun(dir) == nil {
 			rec, err := c.readRecord(dir, runId)
@@ -178,7 +179,7 @@ func TestCiFailedJobStopsItsLane(t *testing.T) {
 }
 
 func TestCiCancelAndPrepare(t *testing.T) {
-	c, dir := makeCiFixture(t, `{"prepare":{"run":"echo preparing"},"jobs":[{"name":"slow","run":"sleep 30"}]}`)
+	c, dir := makeCiFixture(t, `{"prepare":{"run":"echo preparing"},"jobs":[{"name":"slow","run":"sleep 3600"}]}`)
 	res, err := c.Start(CiRunRequest{Dir: dir})
 	if err != nil || res.Run == nil {
 		t.Fatalf("start: %+v %v", res, err)
@@ -186,10 +187,10 @@ func TestCiCancelAndPrepare(t *testing.T) {
 	if _, err := c.Start(CiRunRequest{Dir: dir, Force: true}); err == nil || !strings.Contains(err.Error(), "in progress") {
 		t.Fatalf("one run at a time: %v", err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if rec, _ := c.readRecord(dir, res.Run.Id); rec.Jobs[0].Status == CiStateRunning {
-			break
+	deadline := time.Now().Add(time.Minute)
+	for rec, _ := c.readRecord(dir, res.Run.Id); len(rec.Jobs) == 0 || rec.Jobs[0].Status != CiStateRunning; rec, _ = c.readRecord(dir, res.Run.Id) {
+		if time.Now().After(deadline) {
+			t.Fatal("the slow job never ran")
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

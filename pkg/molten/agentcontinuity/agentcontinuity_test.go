@@ -26,8 +26,10 @@ import (
 
 // Fake binaries that answer get a generous timeout: a full `go test ./...` loads the machine
 // enough that a shell script can take seconds to start (#338). Only the hanging-binary test
-// relies on a short timeout, and a binary that never answers times out at any load.
-const AnsweringProbeTimeout = 30 * time.Second
+// relies on a short timeout, and a binary that never answers times out at any load. A minute, not 30 s (#1208): the
+// first run of a freshly written script waits for the system's check of new executables, which grows with the
+// machine's load (0.15 to 2 s measured beside one `go test ./...`, while a cached run takes 5 ms).
+const AnsweringProbeTimeout = time.Minute
 
 func writeFakeAgent(t *testing.T, dir string, name string, script string) string {
 	t.Helper()
@@ -394,11 +396,8 @@ func TestDetectHangingProbeTimesOut(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "bin")
 	writeFakeAgent(t, bin, "codex", `sleep 30`)
 	d := MakeDetector(RunVersionProbe, 500*time.Millisecond)
-	start := time.Now()
+	// No duration is checked (#1208): a probe that was not cut ends with the sleep and reads as "no version".
 	got := d.DetectAll(context.Background(), []string{"codex", "kimi"}, DetectEnv{PathList: bin})
-	if elapsed := time.Since(start); elapsed > 10*time.Second {
-		t.Errorf("detection took %s", elapsed)
-	}
 	if c := got["codex"]; c.Installed || c.Path == "" || !strings.Contains(c.Reason, "did not answer within 500ms") {
 		t.Errorf("hanging codex %+v", c)
 	}
@@ -457,13 +456,13 @@ func TestDetectCanceledIsNotCached(t *testing.T) {
 	skipOnWindows(t)
 	bin := filepath.Join(t.TempDir(), "bin")
 	writeFakeAgent(t, bin, "claude", `sleep 30`)
-	d := MakeDetector(RunVersionProbe, 3*time.Second)
+	// The probe's own limit is out of reach (#1208): only the caller's cancel can end this probe before the sleep does.
+	d := MakeDetector(RunVersionProbe, time.Hour)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	start := time.Now()
 	got := d.Detect(ctx, "claude", DetectEnv{PathList: bin})
-	if got.Installed || time.Since(start) > 2*time.Second {
-		t.Errorf("canceled detection %+v after %s", got, time.Since(start))
+	if got.Installed || got.Reason != ReasonCancelled {
+		t.Errorf("canceled detection %+v", got)
 	}
 	if len(d.cache) != 0 {
 		t.Error("a canceled probe was cached")

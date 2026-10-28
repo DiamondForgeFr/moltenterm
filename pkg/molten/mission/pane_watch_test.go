@@ -77,7 +77,7 @@ func (w *watchedPanes) advance(d time.Duration) {
 
 func (w *watchedPanes) waitChange(t *testing.T, root string) {
 	t.Helper()
-	deadline := time.After(2 * time.Second)
+	deadline := time.After(time.Minute)
 	for {
 		select {
 		case r := <-w.changed:

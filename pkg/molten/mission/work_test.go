@@ -10,7 +10,7 @@ import (
 )
 
 func TestRunningWorkAcrossProjects(t *testing.T) {
-	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo '▶ phase: build'; sleep 30","artifact":"out"}`)
+	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo '▶ phase: build'; sleep 3600","artifact":"out"}`)
 	if work := RunningWork(r, nil); len(work) != 0 {
 		t.Fatalf("nothing runs: %+v", work)
 	}
