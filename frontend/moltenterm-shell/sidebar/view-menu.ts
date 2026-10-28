@@ -11,6 +11,7 @@ import { buildTabContextMenu } from "@/app/tab/tabcontextmenu";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { currentEqualize } from "../equalize/equalize-actions";
+import { tCount } from "../i18n/i18n";
 import { acceleratorById } from "../shortcuts/format";
 import { view360MenuItems } from "../view360/view360-toggle";
 import { workspaceShownName } from "../workspace-default-name";
@@ -121,6 +122,26 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
     return items;
 }
 
+// Close the finished views (FR-SHELL-080): its bordered button gave way to Clear (#1253), the action stays in a
+// temporary view's menu while some temporary view's agents have all finished.
+export function closeFinishedItems(target: ViewMenuTarget): ContextMenuItem[] {
+    if (target.state !== "temporary") {
+        return [];
+    }
+    const pins = ViewPins.getInstance();
+    const count = globalStore.get(pins.finishedAtom).length;
+    if (count === 0) {
+        return [];
+    }
+    return [
+        {
+            label: tCount("sidebar.pins.closeFinished", count),
+            icon: "broom",
+            click: () => fireAndForget(() => pins.closeFinished()),
+        },
+    ];
+}
+
 export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: TFn): ContextMenuItem[] {
     const pins = ViewPins.getInstance();
     const plan = viewMenuPlan(target.state, target.modified, target.projectTab);
@@ -190,6 +211,7 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
                 .map((item) => (item.label === close ? { ...item, label: t("sidebar.views.close") } : item))
         );
     }
+    items.push(...closeFinishedItems(target));
     if (plan.closeNote && !target.projectTab) {
         items.push({ label: t("sidebar.views.closeNote"), icon: "lock", enabled: false });
     }

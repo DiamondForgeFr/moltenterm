@@ -77,6 +77,7 @@ const Paths = {
         </>
     ),
     back: <path d="m14 6-6 6 6 6" />,
+    down: <path d="M12 5v14M6 13l6 6 6-6" />,
     share: (
         <>
             <path d="M12 4v11M8 8l4-4 4 4" />

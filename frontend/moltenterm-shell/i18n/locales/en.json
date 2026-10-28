@@ -4766,6 +4766,11 @@
                 "subtitle": "Replacing it stops what runs in it.",
                 "confirm": "Replace anyway"
             },
+            "clear": {
+                "title": "Clear the temporary views?",
+                "subtitle": "Closing them stops what runs in their terminals. Undo reopens the views, not what ran in them.",
+                "confirm": "Clear anyway"
+            },
             "tab": {
                 "title": "Close this tab?",
                 "titleNamed": "Close the tab “{name}”?",
@@ -8875,9 +8880,13 @@
             }
         },
         "temporary": {
-            "title": "Temporary views",
-            "hint": "A temporary view closes; pin it to keep it",
-            "newView": "New view"
+            "newView": "New view",
+            "clear": "Clear",
+            "clearTitle": "Close the temporary views; pinned views stay",
+            "cleared": {
+                "one": "1 temporary view cleared",
+                "other": "{count} temporary views cleared"
+            }
         },
         "agents": {
             "title": "Agents",
@@ -8964,7 +8973,6 @@
                 "one": "Close the finished view",
                 "other": "Close the {count} finished views"
             },
-            "closeFinishedTitle": "Views whose agent still works stay open",
             "menu": {
                 "state": {
                     "temporary": "Temporary view",

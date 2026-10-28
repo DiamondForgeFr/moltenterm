@@ -1,0 +1,107 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The temporary views, as in Arc (FR-SHELL-080, DS-SHELL-125, #1253): no title, a thin separator under the pinned
+   part with "↓ Clear" at its right end, "+ New view", then the rows. The separator keeps its room with no view (it only
+   fades), so showing it moves nothing. Only transform and opacity animate (150 to 250 ms, --mt-ease); under reduced
+   motion every change is immediate. */
+
+.mt-sb-tv-sep {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 16px;
+    padding: 0 2px 0 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-base) var(--mt-ease);
+    transition-delay: var(--tv-sep-delay, 0ms);
+}
+
+.mt-sb-tv-sep[data-shown="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0ms;
+}
+
+.mt-sb-tv-line {
+    flex: 1;
+    height: 1px;
+    background: rgb(255 255 255 / 0.1);
+}
+
+/* Small and dimmed, only while the pointer is over the sidebar. */
+.mt-sb-tv-clear {
+    opacity: 0;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear,
+.mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:focus-visible {
+    opacity: 0.6;
+}
+
+.mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:hover {
+    opacity: 1;
+}
+
+.mt-sb-tv [data-tv-motion="in"] {
+    animation: mt-sb-tv-in var(--mt-duration-base) var(--mt-ease) both;
+}
+
+/* Clear: each row folds away downward, its delay set per row (--tv-delay), and stays folded until its close lands. */
+.mt-sb-tv [data-tv-motion="out"] {
+    pointer-events: none;
+    transform-origin: 50% 0;
+    animation: mt-sb-tv-out var(--mt-duration-base) var(--mt-ease) var(--tv-delay, 0ms) both;
+}
+
+@keyframes mt-sb-tv-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scaleY(0.85);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes mt-sb-tv-out {
+    from {
+        opacity: 1;
+        transform: none;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(10px) scaleY(0.6);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-tv-sep,
+    .mt-sb-tv-clear {
+        transition: none;
+    }
+
+    .mt-sb-tv [data-tv-motion] {
+        animation: none;
+    }
+
+    .mt-sb-tv [data-tv-motion="out"] {
+        opacity: 0;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-tv-sep,
+.prefers-reduced-motion .mt-sb-tv-clear {
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-sb-tv [data-tv-motion] {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-sb-tv [data-tv-motion="out"] {
+    opacity: 0;
+}
