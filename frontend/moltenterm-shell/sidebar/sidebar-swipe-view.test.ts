@@ -75,7 +75,7 @@ function momentum(from: number, count: number): number[] {
     return out;
 }
 
-describe("workspace swipe on screen (FR-SHELL-082, #1248)", () => {
+describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHELL-205)", () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
         vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) =>
