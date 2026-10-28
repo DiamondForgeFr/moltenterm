@@ -1090,6 +1090,22 @@ function useSidebarSections(split: SidebarTabSplit) {
     return useMemo(() => sidebarSections(split, agents), [split, agents]);
 }
 
+// The room the line gives up on hover is "↓ Clear"'s own width, which follows the interface language (#1268).
+function useClearRoom(sepRef: React.RefObject<HTMLDivElement>) {
+    useLayoutEffect(() => {
+        const sep = sepRef.current;
+        const clear = sep?.querySelector<HTMLElement>(".mt-sb-tv-clear");
+        if (clear == null || typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const measure = () => sep.style.setProperty("--tv-clear-w", `${clear.offsetWidth}px`);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(clear);
+        return () => ro.disconnect();
+    }, [sepRef]);
+}
+
 // The temporary views, as in Arc (FR-SHELL-080, #1253): no title; under the pinned part a thin separator, shown once a
 // temporary view exists, with "↓ Clear" at its right end while the pointer is over the sidebar; "+ New view"; then
 // the rows. Clear folds the rows away (temporary-clear.ts) and the separator fades once they are gone.
@@ -1111,6 +1127,8 @@ export function TemporaryViews({
     const mark = (ws?.meta as Record<string, any>)?.[ClearingMetaKey];
     const clearing = useMemo(() => clearingIds(mark, Date.now()), [mark]);
     useTemporaryViewsMotion(listRef, ids, clearing);
+    const sepRef = useRef<HTMLDivElement>(null);
+    useClearRoom(sepRef);
     const staying = ids.filter((id) => !clearing.has(id)).length;
     const shown = staying > 0;
     const sepDelay = clearing.size > 0 ? foldTotalMs(clearing.size, prefersReducedMotion()) : 0;
@@ -1123,6 +1141,7 @@ export function TemporaryViews({
             {...zoneProps("temporary")}
         >
             <div
+                ref={sepRef}
                 className="mt-sb-tv-sep"
                 data-testid="sidebar-temporary-separator"
                 data-shown={shown ? "true" : "false"}
