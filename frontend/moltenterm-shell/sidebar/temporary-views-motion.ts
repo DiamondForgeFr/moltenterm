@@ -3,8 +3,8 @@
 
 // The temporary views' motion (FR-SHELL-080, #1253), as in Arc: a new row slides in while the rows below make room, a
 // closed row's neighbours close the gap, Clear folds the rows away downward, staggered. Only transform and opacity
-// move (temporary-views.css): the rows' places are read once per change, all reads before any write, so a change
-// costs one layout and the frames after it none. Reduced motion: every change is immediate.
+// move (temporary-views.css): the rows' places are read once per frame, all reads before any write, so a change
+// costs at most one layout a frame, and its animation none. Reduced motion: every change is immediate.
 
 import { useLayoutEffect, useRef } from "react";
 import { prefersReducedMotion } from "../molten-motion";
@@ -55,40 +55,53 @@ export function planRowMotion(
     return { moves, entering };
 }
 
+// Reads every row's place (offsetTop: the layout's, whatever transform a running move adds), then plays the moves.
+function measureAndMove(root: HTMLElement, tops: React.RefObject<Map<string, number>>) {
+    if (root == null) {
+        return;
+    }
+    const rows = rowsOf(root);
+    const next = new Map(rows.map((el) => [el.dataset.tabId, el.offsetTop]));
+    const before = tops.current;
+    tops.current = next;
+    if (before == null || prefersReducedMotion(root.ownerDocument)) {
+        return;
+    }
+    const { moves, entering } = planRowMotion(before, next);
+    const byId = new Map(rows.map((el) => [el.dataset.tabId, el]));
+    for (const id of entering) {
+        const el = byId.get(id);
+        el.setAttribute(MotionAttr, "in");
+        clearEnterOnEnd(el);
+    }
+    for (const [id, dy] of moves) {
+        const el = byId.get(id);
+        if (typeof el.animate !== "function") {
+            continue;
+        }
+        el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], {
+            duration: MoveMs,
+            easing: MtEase,
+        });
+    }
+}
+
 export function useTemporaryViewsMotion(listRef: React.RefObject<HTMLElement>, ids: string[], clearing: Set<string>) {
     const tops = useRef<Map<string, number>>(null);
+    const frame = useRef<number>(null);
     const signature = ids.join("\u0001");
+    // Several changes landing in one frame (Clear's closes) are measured once, in that frame's animation callback:
+    // the frame then lays out once, and the inverted places are set before it paints.
     useLayoutEffect(() => {
-        const root = listRef.current;
-        if (root == null) {
+        if (frame.current != null) {
             return;
         }
-        const rows = rowsOf(root);
-        const base = root.getBoundingClientRect().top;
-        const next = new Map(rows.map((el) => [el.dataset.tabId, el.getBoundingClientRect().top - base]));
-        const before = tops.current;
-        tops.current = next;
-        if (before == null || prefersReducedMotion(root.ownerDocument)) {
-            return;
-        }
-        const { moves, entering } = planRowMotion(before, next);
-        const byId = new Map(rows.map((el) => [el.dataset.tabId, el]));
-        for (const id of entering) {
-            const el = byId.get(id);
-            el.setAttribute(MotionAttr, "in");
-            clearEnterOnEnd(el);
-        }
-        for (const [id, dy] of moves) {
-            const el = byId.get(id);
-            if (typeof el.animate !== "function") {
-                continue;
-            }
-            el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], {
-                duration: MoveMs,
-                easing: MtEase,
-            });
-        }
+        frame.current = requestAnimationFrame(() => {
+            frame.current = null;
+            measureAndMove(listRef.current, tops);
+        });
     }, [signature]);
+    useLayoutEffect(() => () => cancelAnimationFrame(frame.current), []);
     const clearingKey = [...clearing].join("\u0001");
     useLayoutEffect(() => {
         const root = listRef.current;

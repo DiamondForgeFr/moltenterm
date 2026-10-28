@@ -4768,7 +4768,7 @@
             },
             "clear": {
                 "title": "Effacer les vues temporaires ?",
-                "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Annuler rouvre les vues, pas ce qui y tournait.",
+                "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Les vues pourront revenir, pas ce qui y tournait.",
                 "confirm": "Effacer quand même"
             },
             "tab": {

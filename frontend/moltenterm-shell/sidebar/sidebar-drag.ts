@@ -155,15 +155,37 @@ export function startBlockDrag(e: React.MouseEvent, kind: "tile" | "top", id: st
 }
 
 // The blocks under ref carrying data-sb-key glide from where they were to where a new order puts them (first, last,
-// invert, play). Their places are read at every render, so a resize in between never makes them jump.
+// invert, play). Their places are read after every render, so a resize in between never makes them jump; a render that
+// keeps the order reads them in the next frame's animation callback, never in the commit: a burst of renders (Clear's
+// closes, #1253) costs at most one layout a frame instead of one a render.
 export function useGlide(ref: React.RefObject<HTMLElement>, order: string) {
     const rects = useRef(new Map<string, DOMRect>());
     const lastOrder = useRef(order);
+    const frame = useRef<number>(null);
+    useLayoutEffect(() => () => cancelAnimationFrame(frame.current), []);
     useLayoutEffect(() => {
         const root = ref.current;
+        const readRects = () => {
+            const next = new Map<string, DOMRect>();
+            for (const el of Array.from(root?.querySelectorAll<HTMLElement>(`[${KeyAttr}]`) ?? [])) {
+                next.set(el.getAttribute(KeyAttr), el.getBoundingClientRect());
+            }
+            rects.current = next;
+        };
+        if (order === lastOrder.current) {
+            if (frame.current == null) {
+                frame.current = requestAnimationFrame(() => {
+                    frame.current = null;
+                    readRects();
+                });
+            }
+            return;
+        }
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
         const els = Array.from(root?.querySelectorAll<HTMLElement>(`[${KeyAttr}]`) ?? []);
         const next = new Map<string, DOMRect>();
-        const moved = order !== lastOrder.current && !prefersReducedMotion(root?.ownerDocument);
+        const moved = !prefersReducedMotion(root?.ownerDocument);
         for (const el of els) {
             const key = el.getAttribute(KeyAttr);
             const rect = el.getBoundingClientRect();
