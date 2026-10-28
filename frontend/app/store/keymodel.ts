@@ -5,7 +5,6 @@ import { WaveAIModel } from "@/app/aipanel/waveai-model";
 import { FocusManager } from "@/app/store/focusManager";
 import {
     atoms,
-    createBlock,
     getAllBlockComponentModels,
     getApi,
     getBlockComponentModel,
@@ -28,6 +27,8 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
+import { openNewPanel } from "../../moltenterm-shell/newpanel/new-panel"; // MOLTENTERM-PATCH (#1241)
+import { installPointerTracker } from "../../moltenterm-shell/newpanel/pointer-tracker"; // MOLTENTERM-PATCH (#1241)
 import { openNewView, registerNewViewKeys } from "../../moltenterm-shell/newview/new-view"; // MOLTENTERM-PATCH (#1232)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
@@ -407,9 +408,10 @@ function getDefaultNewBlockDef(): BlockDef {
     return termBlockDef;
 }
 
+// MOLTENTERM-PATCH (#1241): a new panel beside the panel under the pointer, holding what a new view starts with, its
+// row evened out (FR-SHELL-086, frontend/moltenterm-shell/newpanel/); Terminal there gives what this gave.
 async function handleCmdN() {
-    const blockDef = getDefaultNewBlockDef();
-    await createBlock(blockDef);
+    await openNewPanel(getDefaultNewBlockDef);
 }
 
 // MOLTENTERM-PATCH (#370): a split opens the content picker in the new panel (FR-SHELL-042,
@@ -539,6 +541,7 @@ function registerGlobalKeys() {
         switchTab(-1);
         return true;
     });
+    installPointerTracker(); // MOLTENTERM-PATCH (#1241)
     globalKeyMap.set("Cmd:n", () => {
         handleCmdN();
         return true;

@@ -79,6 +79,39 @@ export function equalizeOps(root: LayoutNode, opts?: EqualizeOptions): ResizeNod
     return ops;
 }
 
+function parentOf(node: LayoutNode, nodeId: string): LayoutNode {
+    for (const child of node?.children ?? []) {
+        if (child.id === nodeId) {
+            return node;
+        }
+        const found = parentOf(child, nodeId);
+        if (found != null) {
+            return found;
+        }
+    }
+    return null;
+}
+
+// The equalize of the row holding a node only (#1241, a panel opened with ⌘N): the row's children get the same width
+// per column they span, and nothing inside them is touched, so a stacked column keeps its heights and the other rows
+// keep their widths. Empty when the node's parent is not a row of two or more, or is already even.
+export function rowEqualizeOps(root: LayoutNode, nodeId: string): ResizeNodeOperation[] {
+    const row = parentOf(root, nodeId);
+    if (!isRow(row) || row.children.length < 2) {
+        return [];
+    }
+    const spans = row.children.map(columnSpan);
+    const total = spans.reduce((acc, n) => acc + n, 0);
+    const ops: ResizeNodeOperation[] = [];
+    row.children.forEach((child, i) => {
+        const size = (RowTotal * spans[i]) / total;
+        if (Math.abs((child.size ?? 0) - size) > SizeEpsilon) {
+            ops.push({ nodeId: child.id, size });
+        }
+    });
+    return ops;
+}
+
 // The width every carpet column takes in 360 view: the mean of their widths now, so the carpet keeps its length.
 // Null when the carpet has fewer than two columns or they are already even.
 export function equalCarpetWidthPx(widthsPx: number[]): number {
