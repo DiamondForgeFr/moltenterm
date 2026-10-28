@@ -410,10 +410,10 @@
             "updateTerminals": "Mettre à jour les terminaux périmés"
         },
         "panels": {
-            "missionControl": "Mission Control",
+            "missionControl": "Projet",
             "missionControlDetail": "la vue d'ensemble du projet",
             "noProject": "aucun projet lié pour l'instant",
-            "lineMap": "Plan des lignes",
+            "lineMap": "Carte des lignes",
             "lineMapDetail": "les branches du projet en lignes",
             "companion": "Compagnon",
             "companionDetail": "l'agent de ce terminal",

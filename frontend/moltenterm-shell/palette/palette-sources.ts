@@ -364,7 +364,8 @@ const PickerKeywords: Record<string, string[]> = {
     [MoltentermCompanionView]: ["agent", "usage"],
 };
 
-// The panel kinds a split's picker offers first (DS-SHELL-066, DS-SHELL-084), in a fixed order: the configured
+// The panel kinds a split's picker offers first, and with no source panel the launcher's and the new view
+// chooser's panels (#1273) (DS-SHELL-066, DS-SHELL-084), in a fixed order: the configured
 // panels, with the terminal and the file browser opened where the source panel is, then Mission Control's overview
 // and its line map, the source terminal's companion, and Sessions.
 export function pickerPanelEntries(
@@ -521,10 +522,10 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const panels =
         input.picker != null
             ? pickerPanelEntries(input.widgets, input.workspaceId, input.picker, input.projectLinked)
-            : panelEntries(input.widgets, input.workspaceId);
+            : pickerPanelEntries(input.widgets, input.workspaceId, null, input.projectLinked);
     const actions = actionEntries(input.workspaces, input.projectLinked)
-        // The picker lists Sessions with the panels already.
-        .filter((e) => input.picker == null || e.id !== "action:sessions")
+        // The panels list Sessions already (#1273).
+        .filter((e) => e.id !== "action:sessions")
         .map((e) => (e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e));
     const entries = [
         ...agentEntries(input.presets),

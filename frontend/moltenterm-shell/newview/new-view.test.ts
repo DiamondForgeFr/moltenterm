@@ -91,7 +91,7 @@ describe("openNewView (FR-SHELL-089)", () => {
         h.settings["app:newviewopen"] = "action:sessions";
         openNewView();
         await settle();
-        expect(h.run).toHaveBeenCalledWith({ kind: "sessions" }, { placement: "new", blockId: null });
+        expect(h.createTab).toHaveBeenLastCalledWith({ meta: { view: "molten-sessions" } });
     });
 });
 

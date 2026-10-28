@@ -173,6 +173,18 @@ describe("what the new panel holds (#1241, FR-SHELL-089)", () => {
     });
 
     it("runs an entry that opens nothing in a panel", () => {
-        expect(newPanelContent("action:sessions", choices).kind).toBe("run");
+        const linked = newViewChoices({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            projectLinked: true,
+        });
+        expect(newPanelContent("action:projecttab", linked).kind).toBe("run");
+    });
+
+    it("opens Sessions as a panel, also for a choice saved when it was an action (#1273)", () => {
+        const content = newPanelContent("action:sessions", choices);
+        expect(content.kind).toBe("block");
+        expect((content as { blockdef: BlockDef }).blockdef.meta.view).toBe("molten-sessions");
     });
 });
