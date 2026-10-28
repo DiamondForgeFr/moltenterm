@@ -79,6 +79,9 @@ export type PaletteEntry = {
     run: PaletteRun;
 };
 
+// The "Open <address>" row (#1229): typed text that is an address; it is not filtered and always ranks first.
+export const AddressEntryId = "address:open";
+
 export type PaletteSection = { group: PaletteGroupId; title: string; entries: PaletteEntry[] };
 
 export type PaletteMatch = { score: number; indices: number[] };
@@ -195,9 +198,17 @@ export function filterPalette(
             kept = inGroup;
         } else {
             kept = inGroup
-                .map((entry, order) => ({ entry, order, match: matchEntry(q, entry) }))
+                .map((entry, order) => ({
+                    entry,
+                    order,
+                    match: entry.id === AddressEntryId ? { score: Infinity, indices: [] } : matchEntry(q, entry),
+                }))
                 .filter((r) => r.match != null)
-                .sort((a, b) => b.match.score - a.match.score || a.order - b.order)
+                .sort(
+                    (a, b) =>
+                        (a.match.score === b.match.score ? 0 : b.match.score > a.match.score ? 1 : -1) ||
+                        a.order - b.order
+                )
                 .map((r) => r.entry);
         }
         if (kept.length > 0) {
@@ -228,6 +239,10 @@ export function bestMatchIndex(sections: PaletteSection[], query: string): numbe
     }
     if ((query ?? "").trim() === "") {
         return 0;
+    }
+    const address = flat.findIndex((entry) => entry.id === AddressEntryId);
+    if (address >= 0) {
+        return address;
     }
     let best = 0;
     let bestScore = -Infinity;

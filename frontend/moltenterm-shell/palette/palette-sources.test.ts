@@ -5,8 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatShortcutById } from "../shortcuts/format";
+import { bestMatchIndex, filterPalette, flattenSections, PickerGroupOrder } from "./palette-model";
 import {
     actionEntries,
+    addressEntry,
     agentCopyEntries,
     agentEntries,
     browserEntries,
@@ -62,7 +64,7 @@ describe("panels", () => {
         expect(panels.map((p) => p.label)).toEqual([
             "Terminal",
             "Files",
-            "Browser",
+            "Web page",
             "CI/CD",
             "Control room",
             "System info",
@@ -273,5 +275,42 @@ describe("browserEntries (FR-BRW-002)", () => {
         expect(browserEntries({ id: "custom", name: "Thorium" }, true)[0].cli).toBe(
             "molten open <url> --browser installed"
         );
+    });
+});
+
+describe("the address row (#1229)", () => {
+    const entries = () =>
+        buildPaletteEntries({
+            presets: DefaultAgents,
+            widgets: DefaultWidgets,
+            workspaceId: "ws1",
+            folder: "/p",
+            recentFolders: ["/p"],
+            otherFolders: [],
+            workspaces: [],
+            home: "",
+        });
+    const firstRow = (query: string) => {
+        const listed = [addressEntry(query), ...entries()].filter((e) => e != null);
+        const sections = filterPalette(listed, query, {}, PickerGroupOrder);
+        const flat = flattenSections(sections);
+        return { first: flat[0], selected: flat[bestMatchIndex(sections, query)] };
+    };
+
+    it.each([
+        ["github.com", "Open github.com", "https://github.com"],
+        ["localhost:3000", "Open localhost:3000", "http://localhost:3000"],
+        ["https://example.com/x", "Open https://example.com/x", "https://example.com/x"],
+    ])("puts Open %s first and selected, and Enter opens a web page panel on it", (typed, label, url) => {
+        const { first, selected } = firstRow(typed);
+        expect(first.label).toBe(label);
+        expect(selected.id).toBe(first.id);
+        expect(first.run).toEqual({ kind: "widget", blockdef: { meta: { view: "molten-browser", url } } });
+    });
+
+    it("leaves a plain word to the usual filter", () => {
+        expect(addressEntry("terminal")).toBeNull();
+        expect(addressEntry("open the files")).toBeNull();
+        expect(firstRow("term").first.label).toBe("Terminal");
     });
 });

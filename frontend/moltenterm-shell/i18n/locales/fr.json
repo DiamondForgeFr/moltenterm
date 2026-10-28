@@ -358,6 +358,7 @@
         "ariaSearch": "Rechercher dans la palette de commandes",
         "placeholder": "Ouvrir un agent, un panneau, un dossier…",
         "noMatch": "Rien ne correspond à « {query} »",
+        "openAddress": "Ouvrir {address}",
         "footer": {
             "choose": "choisir",
             "open": "ouvrir",
@@ -378,7 +379,7 @@
         "panelNames": {
             "terminal": "Terminal",
             "files": "Fichiers",
-            "browser": "Navigateur",
+            "browser": "Page web",
             "cicd": "CI/CD",
             "reviews": "Pilotage",
             "sysinfo": "Infos système",
@@ -1813,7 +1814,7 @@
             },
             "split": {
                 "title": "Divisez là où vous travaillez",
-                "text": "Divisez le panneau actif pour ajouter un terminal, un navigateur ou toute autre vue à côté ; glissez une session sur un panneau pour l'y afficher."
+                "text": "Divisez le panneau actif pour ajouter un terminal, une page web ou toute autre vue à côté ; glissez une session sur un panneau pour l'y afficher."
             },
             "gettingStarted": {
                 "title": "Premiers pas",
@@ -2000,7 +2001,7 @@
             "sharedNothingTyped": "Partagé avec {name}, rien n'a été saisi",
             "badgeTitle": "Partagé avec {name}. Cliquez pour arrêter le partage."
         },
-        "viewName": "Navigateur",
+        "viewName": "Page web",
         "notice": {
             "siteChoiceNotSaved": "Le choix pour ce site n'a pas pu être enregistré : {error}",
             "decisionNotForgotten": "La décision des agents n'a pas pu être oubliée : {error}",
@@ -2344,8 +2345,8 @@
                 "plural": "panneaux d'app"
             },
             "browser": {
-                "name": "Navigateur",
-                "plural": "panneaux de navigateur"
+                "name": "Page web",
+                "plural": "pages web"
             },
             "companion": {
                 "name": "Compagnon",
@@ -5031,7 +5032,7 @@
             "terminal": "Terminal",
             "files": "Fichiers",
             "web": "Web",
-            "browser": "Navigateur",
+            "browser": "Page web",
             "project": "Projet",
             "sessions": "Sessions",
             "lineMap": "Plan de lignes",
