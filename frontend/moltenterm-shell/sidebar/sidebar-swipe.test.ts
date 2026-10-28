@@ -78,7 +78,7 @@ function momentum(from: number, count: number): number[] {
 
 const released = (run: Run) => run.results.filter((r) => r.released).map((r) => r.released);
 
-describe("workspace swipe: tracking (FR-SHELL-082, #1248)", () => {
+describe("workspace swipe: tracking (FR-SHELL-082, #1248, TC-SHELL-200)", () => {
     it("follows the fingers 1:1, both ways, without lifting", () => {
         const run = feed([10, 10, 10, 10, -5, -5], Middle);
         expect(run.state.phase).toBe("tracking");
@@ -107,7 +107,7 @@ describe("workspace swipe: tracking (FR-SHELL-082, #1248)", () => {
     });
 });
 
-describe("workspace swipe: release", () => {
+describe("workspace swipe: release (TC-SHELL-201)", () => {
     it("commits past 35 % of the width", () => {
         const run = feed(Array(10).fill(9), Middle, { every: 30 });
         const { settle } = lift(run, Middle);
@@ -161,7 +161,7 @@ describe("workspace swipe: release", () => {
     });
 });
 
-describe("workspace swipe: no lost gestures", () => {
+describe("workspace swipe: no lost gestures (TC-SHELL-202)", () => {
     it("absorbs the momentum after a commit: it never switches twice", () => {
         const run = feed([...Array(12).fill(14), ...momentum(14, 60)], Middle);
         expect(released(run).filter((s) => s.commit !== 0)).toHaveLength(1);
@@ -209,7 +209,7 @@ describe("workspace swipe: no lost gestures", () => {
     });
 });
 
-describe("workspace swipe: past either end", () => {
+describe("workspace swipe: past either end (TC-SHELL-203, TC-SHELL-204)", () => {
     it("resists more the further it is pulled, never past its reach", () => {
         const reach = RubberFraction * Width;
         expect(rubberBand(0, reach)).toBe(0);
@@ -256,7 +256,7 @@ describe("workspace swipe: past either end", () => {
     });
 });
 
-describe("workspace swipe: leaving the new-workspace page and the library", () => {
+describe("workspace swipe: leaving the new-workspace page and the library (TC-SHELL-203, TC-SHELL-204)", () => {
     it("leaves the new-workspace page by the first swipe back", () => {
         const ctx: SwipeCtx = { width: Width, sides: CreatePageSides };
         const run = feed(Array(10).fill(-9), ctx, { every: 30 });
@@ -275,7 +275,7 @@ describe("workspace swipe: leaving the new-workspace page and the library", () =
     });
 });
 
-describe("workspace swipe: reduced motion", () => {
+describe("workspace swipe: reduced motion (TC-SHELL-205)", () => {
     it("slides nothing and fades no tint, the ring still fills", () => {
         const page = swipeLook(80, 80, Middle, true);
         expect(page).toMatchObject({ pageX: 0, neighbour: null, tint: 0, ring: null });
