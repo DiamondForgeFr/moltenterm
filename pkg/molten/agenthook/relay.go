@@ -25,6 +25,10 @@ import (
 // The whole hand-off, connection included, never holds the status line longer than this.
 const StatusLineSendTimeout = 300 * time.Millisecond
 
+// relaySendTimeout is StatusLineSendTimeout; a test lifts it out of reach to tell a hand-off run alongside the command
+// from one run before it without timing either (#1208).
+var relaySendTimeout = StatusLineSendTimeout
+
 // StatusLineSender hands the windows over; nil outside MoltenTerm.
 type StatusLineSender func(req AgentStatusLineRequest)
 
@@ -53,7 +57,7 @@ func RunStatusLineRelay(stdin io.Reader, stdout io.Writer, stderr io.Writer, arg
 		code = RunStatusLineCommand(args, io.MultiReader(bytes.NewReader(head), stdin), stdout, stderr)
 	}
 	if sent != nil {
-		wait := StatusLineSendTimeout - time.Since(start)
+		wait := relaySendTimeout - time.Since(start)
 		if wait > 0 {
 			select {
 			case <-sent:
