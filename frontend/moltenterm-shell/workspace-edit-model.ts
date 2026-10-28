@@ -46,6 +46,56 @@ export function iconName(icon: string): string {
     return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
+// The sheet's two parts and the fields each holds, in order (#1280, DS-SHELL-036): what is the workspace's own, then
+// what follows its linked project. A field is in exactly one part.
+export type WorkspaceEditPart = "workspace" | "project";
+export type WorkspaceEditField =
+    | "name"
+    | "icon"
+    | "colour"
+    | "look"
+    | "linkedProject"
+    | "logo"
+    | "folder"
+    | "projectSettings";
+
+export const WorkspaceEditParts: Record<WorkspaceEditPart, readonly WorkspaceEditField[]> = {
+    workspace: ["name", "icon", "colour", "look"],
+    project: ["linkedProject", "logo", "folder", "projectSettings"],
+};
+
+export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {
+    return (Object.keys(WorkspaceEditParts) as WorkspaceEditPart[]).find((part) =>
+        WorkspaceEditParts[part].includes(field)
+    );
+}
+
+export type ProjectPartState = {
+    hasProject: boolean;
+    // Project settings… opens the sidebar's project page, which edits the workspace the window shows.
+    sidebarOn: boolean;
+    isWindowWorkspace: boolean;
+};
+
+// The Project part's fields that show. Without a linked project it offers the link and keeps the folder: nothing else
+// in the sheet waits on a project.
+export function projectPartFields(state: ProjectPartState): WorkspaceEditField[] {
+    return WorkspaceEditParts.project.filter((field) => {
+        if (field === "logo") {
+            return state.hasProject;
+        }
+        if (field === "projectSettings") {
+            return state.hasProject && state.sidebarOn && state.isWindowWorkspace;
+        }
+        return true;
+    });
+}
+
+// The Workspace part's fields that show; the look comes with the window's opacity (#1281).
+export function workspacePartFields(lookAvailable: boolean): WorkspaceEditField[] {
+    return WorkspaceEditParts.workspace.filter((field) => field !== "look" || lookAvailable);
+}
+
 export type DangerAction = { kind: "delete" | "reset"; label: string; text: string };
 
 // The last workspace is reset, never deleted (#222); both keep their confirmations.

@@ -4619,7 +4619,6 @@
             "iconDialogTitle": "Icône de l'espace de travail",
             "backToSymbol": "Retour au symbole",
             "using": "{name} utilisée",
-            "identity": "Identité",
             "name": "Nom",
             "icon": "Icône",
             "iconKind": "Type d'icône",
@@ -4636,7 +4635,15 @@
             "title": "Espace de travail",
             "done": "Terminé",
             "project": "Projet",
-            "folder": "Dossier"
+            "folder": "Dossier",
+            "sheetTitle": "Modifier l'espace de travail",
+            "linkedProject": "Projet lié",
+            "logo": "Logo",
+            "logoHint": "Les images du projet, affichées comme icône de l'espace de travail.",
+            "noLogo": "Aucune image trouvée dans le projet.",
+            "projectLogoInUse": "Le logo du projet est utilisé : choisissez-en un autre dans Projet › Logo.",
+            "projectSettings": "Réglages du projet…",
+            "projectSettingsHint": "Son type et la branche suivie, dans la barre latérale."
         },
         "iconKind": {
             "imported": "image importée",

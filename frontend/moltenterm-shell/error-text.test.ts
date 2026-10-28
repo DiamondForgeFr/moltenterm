@@ -16,7 +16,7 @@ const IconUses = [
     "sessions/sessions-dialogs.tsx|failed: \"text-error\",",
     "status-bar-model.ts|failure: \"fa-circle-xmark text-error\",",
     "toast-model.ts|error: { tone: \"error\", label: \"notif.tone.error\", colorClass: \"text-error\", icon: \"circle-exclamation\" },",
-    "workspace-edit-sheet.tsx|<i className=\"fa fa-solid fa-circle-exclamation mr-1 text-error\" aria-hidden />",
+    "workspace-edit-sheet.tsx|{result.ok ? null : <i className=\"fa fa-solid fa-circle-exclamation mr-1 text-error\" aria-hidden />}",
 ];
 function errorFillUses(folder: string): string[] {
     const base = join(process.cwd(), folder);
