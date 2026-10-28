@@ -16,11 +16,20 @@ app.whenReady().then(async () => {
         await fs.mkdir(output, { recursive: true });
         const result = await build({
             entryPoints: ["scripts/fixtures/error-contrast.tsx"], bundle: true, write: false,
-            platform: "browser", format: "iife", jsx: "automatic", loader: { ".css": "empty" },
+            platform: "browser", format: "iife", jsx: "automatic", loader: { ".css": "empty", ".scss": "empty" }, external: ["electron"],
             define: { "process.env.NODE_ENV": '"development"' },
             plugins: [{ name: "contrast-read-only-fixtures", setup(builder) {
-                builder.onResolve({ filter: /(?:^@\/app\/store\/(?:global|services|wos)$|^@\/layout\/index$|^@\/util\/util$|\/i18n\/(?:i18n|i18n-core|server-text)$|\/(?:busy-close-store|busy-close-main|notifications-store|reopen-store|worktree-store|molten-host)$)/ },
+                builder.onResolve({ filter: /(?:^@\/app\/store\/(?:global|services|wos)$|^@\/layout\/index$|^@\/util\/util$|\/i18n\/(?:i18n|i18n-core|server-text)$|\/(?:busy-close-store|busy-close-main|notifications-store|reopen-store|worktree-store|molten-host|view-pins-store)$)/ },
                     () => ({ path: path.resolve("scripts/fixtures/error-contrast-mocks.ts") }));
+            } }],
+        });
+        const onboarding = await build({
+            entryPoints: ["scripts/fixtures/onboarding-contrast.tsx"], bundle: true, write: false,
+            platform: "browser", format: "iife", jsx: "automatic", loader: { ".css": "empty", ".scss": "empty", ".svg": "dataurl" }, external: ["electron"],
+            define: { "process.env.NODE_ENV": '"development"' },
+            plugins: [{ name: "onboarding-read-only-fixtures", setup(builder) {
+                builder.onResolve({ filter: /(?:^@\/app\/store\/(?:global|services|wos|client-model|keymodel|tab-model)$|^@\/layout\/index$|^@\/util\/util$|\/i18n\/(?:i18n|i18n-core|server-text)$|\/(?:onboarding-client|onboarding-open|molten-host|settings-open|open-view|sessions-model|workspace-edit|workspace-project|workspace-project-store|palette-actions)$|shortcuts\/(?:format|registry)$|logo\.svg$)/ },
+                    () => ({ path: path.resolve("scripts/fixtures/onboarding-contrast-mocks.ts") }));
             } }],
         });
         const assets = "dist/frontend/assets";
@@ -34,6 +43,7 @@ app.whenReady().then(async () => {
             await win.webContents.insertCSS(".text-danger { color: var(--mt-state-error) !important; }");
         }
         await win.webContents.executeJavaScript(result.outputFiles[0].text);
+        await win.webContents.executeJavaScript(onboarding.outputFiles[0].text);
         const recipes = new Set(["text-danger"]);
         const inventory = [];
         async function inspect(dir) {
@@ -53,18 +63,21 @@ app.whenReady().then(async () => {
             }
         }
         await inspect("frontend/moltenterm-shell");
+        await inspect("frontend/moltenterm-onboarding");
         const report = await win.webContents.executeJavaScript(`globalThis.runContrastChecks(${JSON.stringify([...recipes])})`);
+        report.onboarding = await win.webContents.executeJavaScript("globalThis.runOnboardingContrastChecks()");
         report.recipes = [...recipes];
         report.inventory = inventory;
         report.runtime = { electron: process.versions.electron, chromium: process.versions.chrome };
         await fs.writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
-        for (const kind of ["worktree", "session", "mods"]) {
-            await win.webContents.executeJavaScript(`document.documentElement.style.setProperty('--mt-accent', '#ff7c0d'); globalThis.renderContrastCase(${JSON.stringify(kind)})`);
+        for (const kind of ["worktree", "session", "mods", ...report.onboarding.kinds]) {
+            const render = report.onboarding.kinds.includes(kind) ? "renderOnboardingCase" : "renderContrastCase";
+            await win.webContents.executeJavaScript(`document.documentElement.style.setProperty('--mt-accent', '#ff7c0d'); globalThis.${render}(${JSON.stringify(kind)})`);
             await win.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
             await fs.writeFile(path.join(output, `${kind}.png`), (await win.webContents.capturePage()).toPNG());
         }
         console.log(JSON.stringify({ result: "PASS", samples: report.samples, accents: report.accents,
-            minimum: report.minimum, recipes: report.recipes, output, ...report.runtime }, null, 2));
+            minimum: report.minimum, onboarding: { samples: report.onboarding.samples, minimum: report.onboarding.minimum, kinds: report.onboarding.kinds }, recipes: report.recipes, output, ...report.runtime }, null, 2));
         app.exit(0);
     } catch (error) {
         console.error(error);

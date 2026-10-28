@@ -125,7 +125,7 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
                 </button>
                 {shown ? <span className="text-12 text-secondary">{t("onboarding.morph.copyBoxShown")}</span> : null}
             </div>
-            {error ? <p className="text-12 text-error">{error}</p> : null}
+            {error ? <p className="text-12 text-danger">{error}</p> : null}
             <StepText className="text-12 text-muted">{t("onboarding.morph.installAgent")}</StepText>
         </div>
     );
@@ -191,7 +191,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     if (list == null) {
         return error ? (
-            <p className="text-13 text-error">{error}</p>
+            <p className="text-13 text-danger">{error}</p>
         ) : (
             <StepText>{t("onboarding.morph.preparing")}</StepText>
         );
@@ -258,7 +258,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
                 {withCodes(t("onboarding.morph.waiting"), { command: "molten undo" })}
             </StepText>
             {error ? (
-                <p className="text-12 text-error" role="alert">
+                <p className="text-12 text-danger" role="alert">
                     {error}
                 </p>
             ) : null}
