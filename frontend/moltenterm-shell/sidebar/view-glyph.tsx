@@ -7,7 +7,6 @@
 import { WOS } from "@/app/store/global";
 import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
-import { useAtomValue } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../tab-identity";
 import { configPaneIcons, paneIcon, viewGlyphIcons, ViewIconMetaKey } from "./view-menu-model";
@@ -54,12 +53,9 @@ export function viewGlyphAtom(tabId: string): jotai.Atom<string[]> {
     return rtn;
 }
 
-// A top-row block's glyph: its pin's icon, else this workspace's instance's panels, else the pin's configuration.
-export function useTopGlyph(pin: GlobalPin, tabId: string): string[] {
-    const live = useAtomValue(viewGlyphAtom(tabId || ""));
-    if (tabId) {
-        return live;
-    }
+// A top-row block's glyph: its pin's icon, else the pin's configuration. Never this workspace's live instance: the
+// global row must look the same in every workspace, and an agent running here shows as a corner mark (#1270).
+export function topGlyph(pin: GlobalPin): string[] {
     return viewGlyphIcons(pin.icon, configPaneIcons(pin.config));
 }
 

@@ -117,7 +117,7 @@ import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./tem
 import { useTemporaryViewsMotion } from "./temporary-views-motion";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
-import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
+import { topGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
 import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
@@ -1267,7 +1267,7 @@ function TopRowBlock({
     const pins = ViewPins.getInstance();
     const drag = useAtomValue(sidebarDragAtom);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
-    const glyph = useTopGlyph(pin, tabId);
+    const glyph = topGlyph(pin);
     const title = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", { name: pin.name });
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -1314,7 +1314,19 @@ function TopRowBlock({
             <ViewGlyph icons={glyph} small={glyph.length > 1} />
             {hasCounts ? <PrPips counts={counts} motionKey={motionKey} calm={!grow} small /> : null}
             {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
+            {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}
         </button>
+    );
+}
+
+// The agent running in this workspace's instance of a view pinned everywhere: a corner mark, as on tiles, so the
+// block's icon stays the same in every workspace (#1270).
+function TopRowAgentMark({ tabId }: { tabId: string }) {
+    const identity = useTabIdentity(tabId, "");
+    return (
+        <span className="absolute top-1 right-1 flex">
+            <TabAgentMark info={identity.agent} />
+        </span>
     );
 }
 
