@@ -65,6 +65,10 @@ export function supersedes(newer: QueuedAction, older: QueuedAction): boolean {
     return false;
 }
 
+function isKeptAction(entry: QueuedAction): boolean {
+    return entry.op === "deleteworkspace" || entry.op === "showactivetab";
+}
+
 export type QueueLog = (msg: string, ...args: any[]) => void;
 
 export class WindowActionQueue<E extends QueuedAction> {
@@ -120,11 +124,12 @@ export class WindowActionQueue<E extends QueuedAction> {
             this.log("[#449] superseding the running action", running.op, running.workspaceId ?? "", "by", entry.op);
             this.bumpGeneration();
         }
-        // A delete is never dropped nor replaced; otherwise the newest pending action replaces the previous one, as in
-        // Wave (there is no point running an action that is about to be overwritten).
-        const pending = this.entries.slice(1).filter((p) => p.op === "deleteworkspace" || !supersedes(entry, p));
+        // A delete, or a show of the active tab after the view on screen went (#1250), is never dropped nor replaces or
+        // is replaced; otherwise the newest pending action replaces the previous one, as in Wave (there is no point
+        // running an action that is about to be overwritten).
+        const pending = this.entries.slice(1).filter((p) => isKeptAction(p) || !supersedes(entry, p));
         const last = pending[pending.length - 1];
-        if (last != null && last.op !== "deleteworkspace" && entry.op !== "deleteworkspace") {
+        if (last != null && !isKeptAction(last) && !isKeptAction(entry)) {
             pending[pending.length - 1] = entry;
         } else {
             pending.push(entry);

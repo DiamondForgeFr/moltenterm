@@ -19,6 +19,7 @@ import {
     enforceHiddenTabViewBudget,
     hasTabView,
     isTabViewHostEnabled,
+    positionWindowTabViews,
     ReadinessError,
     showTabViewInWindow,
     sweepDeletedTabViews,
@@ -57,6 +58,11 @@ export type WindowAction =
           // a delete goes through the queue, so it cannot race a switch to the same workspace (#449)
           op: "deleteworkspace";
           workspaceId: string;
+      }
+    | {
+          // the window shows its active tab again, its view recreated if needed, after the view on screen went or
+          // drifted from the window's state (#1250)
+          op: "showactivetab";
       };
 
 // The backend's window can be ahead of the workspace on screen (workspaceId) while a switch is running or after one was
@@ -189,6 +195,9 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
             return;
         case "deleteworkspace":
             await runDeleteWorkspace(win, entry.workspaceId, run);
+            return;
+        case "showactivetab":
+            await runShowActiveTab(win, run);
             return;
         case "resetworkspace": {
             // the old tabs' views close once the new tab is on screen (#222)
@@ -342,8 +351,9 @@ async function rollBackBackendWorkspace(win: WaveBrowserWindow, failedWorkspaceI
 
 // The delete runs in the queue, after any switch to the workspace has stopped and dropped its view, so no renderer
 // initializes a tab being deleted. When the window was only switching to it, it stays on the workspace it shows (#449).
-// Then the views of its tabs are destroyed in every window, once this window shows another workspace (the view on
-// screen is never destroyed) (#448).
+// A window showing it switches to another workspace first, so its renderer never shows a deleted workspace (#1250).
+// Then the views of its tabs are destroyed in every window; a view on screen that goes is followed by the window's
+// active tab (#448, #1250).
 async function runDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string, run: ActionRun) {
     try {
         await applyDeleteWorkspace(win, workspaceId, run);
@@ -352,9 +362,77 @@ async function runDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string, r
     }
 }
 
+// The workspace a window lands on when the one it shows goes: the one its backend window is on, else the one the
+// backend's DeleteWorkspace picks (the last unclaimed one before it in the list, else the first after it).
+function landingWorkspace(win: WaveBrowserWindow, list: WorkspaceListEntry[], goneId: string): string {
+    const entries = (list ?? []).filter((e) => e != null && e.workspaceid != goneId);
+    const backendOn = entries.find((e) => e.windowid == win.waveWindowId);
+    if (backendOn != null) {
+        return backendOn.workspaceid;
+    }
+    let before: string = null;
+    let passed = false;
+    for (const e of list ?? []) {
+        if (e == null) {
+            continue;
+        }
+        if (e.workspaceid == goneId) {
+            if (before != null) {
+                return before;
+            }
+            passed = true;
+            continue;
+        }
+        if (e.windowid) {
+            continue;
+        }
+        if (passed) {
+            return e.workspaceid;
+        }
+        before = e.workspaceid;
+    }
+    return before;
+}
+
+async function listWorkspaces(): Promise<WorkspaceListEntry[]> {
+    return WorkspaceService.ListWorkspaces().catch((): WorkspaceListEntry[] => null);
+}
+
+// A switch away that fails or is superseded does not stop the delete: the user asked for it, and the window then
+// lands as before (#449).
+async function leaveBeforeDelete(win: WaveBrowserWindow, workspaceId: string, run: ActionRun) {
+    const target = landingWorkspace(win, await listWorkspaces(), workspaceId);
+    if (target == null) {
+        return;
+    }
+    console.log("[#1250] leaving the workspace before deleting it", workspaceId, target, win.waveWindowId);
+    try {
+        await runSwitchWorkspace(win, target, run);
+    } catch (e) {
+        console.log("[#1250] could not leave the workspace before deleting it", workspaceId, e);
+    }
+}
+
+// Leaving an unsaved workspace deletes it in the backend (#68), so the delete may find it gone.
+async function deleteWorkspaceFromBackend(win: WaveBrowserWindow, workspaceId: string): Promise<string> {
+    try {
+        return await WorkspaceService.DeleteWorkspace(workspaceId);
+    } catch (e) {
+        const ws = await WorkspaceService.GetWorkspace(workspaceId).catch((): Workspace => undefined);
+        if (ws !== null) {
+            throw e;
+        }
+        console.log("[#1250] workspace already deleted", workspaceId, win.waveWindowId);
+        return landingWorkspace(win, await listWorkspaces(), workspaceId);
+    }
+}
+
 async function applyDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string, run: ActionRun) {
+    if (win.workspaceId == workspaceId) {
+        await leaveBeforeDelete(win, workspaceId, run);
+    }
     const onThisWindow = win.workspaceId == workspaceId || backendWorkspaceOf(win) == workspaceId;
-    const newWorkspaceId = await WorkspaceService.DeleteWorkspace(workspaceId);
+    const newWorkspaceId = await deleteWorkspaceFromBackend(win, workspaceId);
     console.log("delete-workspace done", workspaceId, win.waveWindowId);
     if (!onThisWindow) {
         return;
@@ -373,4 +451,33 @@ async function applyDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string,
     const stay = win.workspaceId != workspaceId && (await WorkspaceService.GetWorkspace(win.workspaceId)) != null;
     run.check();
     await runSwitchWorkspace(win, stay ? win.workspaceId : newWorkspaceId, run);
+}
+
+// The window's active tab, shown again (#1250): the view on screen went (a deleted tab or workspace, the budget, a tab
+// taken by another window), or a renderer asked for the workspace emain shows, believing another one was on screen. A
+// live active view goes back on screen and every other view off it; otherwise the tab's view is acquired and shown as
+// at a tab switch, its view recreated when it is gone. A window whose workspace no longer exists lands on another one.
+async function runShowActiveTab(win: WaveBrowserWindow, run: ActionRun) {
+    const ws = await WorkspaceService.GetWorkspace(win.workspaceId).catch((): Workspace => null);
+    run.check();
+    if (ws == null) {
+        const target = landingWorkspace(win, await listWorkspaces(), win.workspaceId);
+        console.log("[#1250] the workspace on screen is gone, landing on", target ?? "(none)", win.waveWindowId);
+        if (target != null) {
+            await runSwitchWorkspace(win, target, run);
+        }
+        return;
+    }
+    const tabId = ws.activetabid || ws.tabids?.[0];
+    if (!tabId) {
+        return;
+    }
+    const active = win.activeTabView;
+    if (active != null && active.waveTabId == tabId && !active.isDestroyed) {
+        console.log("[#1250] active tab back on screen", tabId, win.waveWindowId);
+        positionWindowTabViews(win);
+        return;
+    }
+    console.log("[#1250] showing the active tab", tabId, active?.waveTabId ?? "(no view)", win.waveWindowId);
+    await runAction(win, { op: "switchtab", tabId, setInBackend: false }, run);
 }

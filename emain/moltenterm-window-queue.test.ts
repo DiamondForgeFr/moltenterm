@@ -427,6 +427,14 @@ function makeServices() {
     const ObjectService = {
         GetObject: (oref: string) =>
             backendCall(() => (b().tabs.has(oref.replace(/^tab:/, "")) ? { oid: oref } : null)),
+        // The deleted tabs' sweep (#448) reads the tabs that still exist.
+        GetObjects: (orefs: string[]) =>
+            backendCall(() =>
+                orefs.map((oref) => {
+                    const tabId = oref.replace(/^tab:/, "");
+                    return b().tabs.has(tabId) ? { oid: tabId } : null;
+                })
+            ),
     };
     // A fault set on a method applies to its next call only: it throws, or answers null.
     for (const svc of [WorkspaceService, WindowService, ObjectService] as Record<string, any>[]) {
@@ -1348,5 +1356,122 @@ describe("hidden tab view budget never loses unsaved work (#454)", () => {
         expect(h.onScreen()).toBe(starter.activetabid);
         expect(h.allViews.find((v: any) => v.waveTabId === starter.activetabid)).toBe(starterView);
         expect(screenSince(t0).find((e) => e[1] === starter.activetabid)[0]).toBeLessThan(150);
+    });
+});
+
+// #1250: deleting a workspace left the window on its placeholder. The view on screen was a tab of the deleted workspace
+// while emain's state named another one; the sweep (#448) destroyed it and nothing showed the window's active tab again.
+describe("a window always shows a live view of its active tab (#1250)", () => {
+    function liveViewOf(tabId: string): any {
+        return h.allViews.find((v: any) => v.waveTabId === tabId && !v.webContents.destroyed);
+    }
+
+    function expectShowsLive(tabId: string) {
+        expect(h.onScreen()).toBe(tabId);
+        expect(win.activeTabView?.waveTabId).toBe(tabId);
+        expect(win.activeTabView.webContents.destroyed).toBe(false);
+        expect(queueLength()).toBe(0);
+    }
+
+    function activeTabOf(wsId: string): string {
+        return h.backend.workspaces.get(wsId).activetabid;
+    }
+
+    // The incident's drift: the window shows, as its active view, the cached view of another workspace's tab while its
+    // workspace stays the one it switched to; that view's isActiveTab flag says it is hidden, so the sweep (#448) takes
+    // it for a hidden view.
+    async function driftActiveViewTo(view: any) {
+        await win.setActiveTab(view.waveTabId, false);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(win.activeTabView).toBe(view);
+        view.isActiveTab = false;
+    }
+
+    it("deletes the workspace on screen: the window switches to another one first, then deletes it", async () => {
+        const starter = await setup();
+        const a = await addVisitedWorkspace();
+        await warmSpare();
+        const b = await addVisitedWorkspace();
+        const bTab = b.activetabid;
+        h.backend.calls = [];
+        ipc("delete-workspace", b.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(h.backend.workspaces.has(b.oid)).toBe(false);
+        expect([starter.oid, a.oid]).toContain(win.workspaceId);
+        expectShowsLive(activeTabOf(win.workspaceId));
+        const switchAt = h.backend.calls.findIndex((c) => c.startsWith("SwitchWorkspace"));
+        const deleteAt = h.backend.calls.indexOf(`DeleteWorkspace ${b.oid}`);
+        expect(switchAt).toBeGreaterThanOrEqual(0);
+        expect(switchAt).toBeLessThan(deleteAt);
+        expect(liveViewOf(bTab)).toBeUndefined();
+    });
+
+    it("deletes another workspace whose view is still cached: the window keeps showing its own tab", async () => {
+        await setup();
+        const a = await addVisitedWorkspace();
+        await warmSpare();
+        const b = await addVisitedWorkspace();
+        expect(liveViewOf(a.activetabid)).toBeDefined();
+        ipc("delete-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(h.backend.workspaces.has(a.oid)).toBe(false);
+        expect(win.workspaceId).toBe(b.oid);
+        expectShowsLive(b.activetabid);
+        expect(liveViewOf(a.activetabid)).toBeUndefined();
+    });
+
+    it("deletes the workspace whose view is on screen while the window's state names another one", async () => {
+        await setup();
+        const a = await addVisitedWorkspace();
+        await warmSpare();
+        const b = await addVisitedWorkspace();
+        const aView = liveViewOf(a.activetabid);
+        await driftActiveViewTo(aView);
+        expect(h.onScreen()).toBe(a.activetabid);
+        expect(win.workspaceId).toBe(b.oid);
+        ipc("delete-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(h.backend.workspaces.has(a.oid)).toBe(false);
+        expect(aView.webContents.destroyed).toBe(true);
+        expect(win.workspaceId).toBe(b.oid);
+        expectShowsLive(b.activetabid);
+    });
+
+    it("deletes the last workspace: a new one is made and the window lands on it", async () => {
+        const starter = await setup();
+        await warmSpare();
+        ipc("delete-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(h.backend.workspaces.has(starter.oid)).toBe(false);
+        expect(h.backend.calls).toContain("CreateWorkspace");
+        expect(win.isDestroyed()).toBe(false);
+        expect(h.backend.workspaces.has(win.workspaceId)).toBe(true);
+        expectShowsLive(activeTabOf(win.workspaceId));
+    });
+
+    it("recreates the active tab's view when the view on screen is destroyed", async () => {
+        const starter = await setup();
+        await warmSpare();
+        const shown = win.activeTabView;
+        win.removeTabView(starter.activetabid, true);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(shown.webContents.destroyed).toBe(true);
+        expectShowsLive(starter.activetabid);
+        expect(win.activeTabView).not.toBe(shown);
+    });
+
+    it("resyncs, instead of doing nothing, when a renderer asks for the workspace emain believes is on screen", async () => {
+        await setup();
+        const a = await addVisitedWorkspace();
+        await warmSpare();
+        const b = await addVisitedWorkspace();
+        const aView = liveViewOf(a.activetabid);
+        await driftActiveViewTo(aView);
+        expect(h.onScreen()).toBe(a.activetabid);
+        // a's renderer, on screen, believes b is not shown; the window's 1 s repositioning cannot fix this one
+        h.ipc.get("switch-workspace")({ sender: aView.webContents, senderFrame: aView.webContents.mainFrame }, b.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(win.workspaceId).toBe(b.oid);
+        expectShowsLive(b.activetabid);
     });
 });

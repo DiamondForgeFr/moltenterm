@@ -34,6 +34,7 @@ import {
     positionWindowTabViews,
     removeWindowTabView,
     sweepDeletedTabViews,
+    windowShowsItsActiveView, // MOLTENTERM-PATCH (#1250)
     windowTabViews,
 } from "./moltenterm-tabview-host";
 import { isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions";
@@ -376,10 +377,18 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     // MOLTENTERM-PATCH (#490): false when the user kept the workspace left (FR-SHELL-062)
-    async switchWorkspace(workspaceId: string): Promise<boolean> {
+    // MOLTENTERM-PATCH (#1250): askingWebContentsId is the renderer that asked, when one did
+    async switchWorkspace(workspaceId: string, askingWebContentsId?: number): Promise<boolean> {
         console.log("switchWorkspace", workspaceId, this.waveWindowId);
         // MOLTENTERM-PATCH (#449): coming back to the workspace on screen while a switch is under way cancels that switch
         if (workspaceId == this.workspaceId && !this.actionQueue.hasWorkspaceChange()) {
+            // MOLTENTERM-PATCH (#1250): a renderer asking for the workspace emain shows believes another one is on
+            // screen; the window shows its active tab again instead of doing nothing
+            if (!windowShowsItsActiveView(this, askingWebContentsId) || !(await this.showsTabOfItsWorkspace())) {
+                console.log("switchWorkspace already on this workspace, but not on screen: resyncing", this.waveWindowId);
+                await this.queueShowActiveTab("switch to the workspace emain shows");
+                return true;
+            }
             console.log("switchWorkspace already on this workspace", this.waveWindowId);
             return true;
         }
@@ -441,6 +450,23 @@ export class WaveBrowserWindow extends BaseWindow {
     // MOLTENTERM-PATCH (#449): a delete goes through the queue, so it cannot race a switch to the same workspace
     async queueDeleteWorkspace(workspaceId: string) {
         await this._queueActionInternal({ op: "deleteworkspace", workspaceId });
+    }
+
+    // MOLTENTERM-PATCH (#1250): the active view is a tab of the workspace emain says is shown
+    private async showsTabOfItsWorkspace(): Promise<boolean> {
+        const tabId = this.activeTabView?.waveTabId;
+        const ws = await WorkspaceService.GetWorkspace(this.workspaceId).catch((): Workspace => null);
+        return tabId != null && ws?.tabids?.includes(tabId) == true;
+    }
+
+    // MOLTENTERM-PATCH (#1250): shows the window's active tab again (its view recreated if needed) once the view on
+    // screen is gone or no longer matches; one is enough while it waits
+    async queueShowActiveTab(reason: string) {
+        if (this.isDestroyed() || this.actionQueue.entries.slice(1).some((e) => e.op === "showactivetab")) {
+            return;
+        }
+        console.log("[#1250] showing the window's active tab again:", reason, this.waveWindowId);
+        await this._queueActionInternal({ op: "showactivetab" });
     }
 
     // MOLTENTERM-PATCH (#449): the window shows the workspace, is switching to it, or its backend window is on it
@@ -608,7 +634,7 @@ onAppIpc("switch-workspace", (event, workspaceId) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("switch-workspace", workspaceId, ww?.waveWindowId);
-        await ww?.switchWorkspace(workspaceId);
+        await ww?.switchWorkspace(workspaceId, event.sender.id); // MOLTENTERM-PATCH (#1250)
     });
 });
 
@@ -648,11 +674,9 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
 
         const _workspaceHasWindow = !!workspaceList.find((wse) => wse.workspaceid === workspaceId)?.windowid;
 
-        // MOLTENTERM-PATCH (#222): the last workspace of a window is reset from the rail, never deleted
-        if (!(await WorkspaceService.CanCloseWorkspace(workspaceId))) {
-            console.log("delete-workspace refused: last workspace of its window", workspaceId, ww?.waveWindowId);
-            return;
-        }
+        // MOLTENTERM-PATCH (#222, #1250): the rail resets the last workspace of a window instead; a delete of it that
+        // still comes (a stale rail) makes a new workspace for the window to land on, never an empty window
+        const isLast = !(await WorkspaceService.CanCloseWorkspace(workspaceId));
 
         // MOLTENTERM-PATCH (#490): when its terminals run something, MoltenTerm's dialog replaces this box
         const busy = await askDeleteStops(event.sender, workspaceId);
@@ -671,6 +695,15 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
                 console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
                 return;
             }
+        }
+        // MOLTENTERM-PATCH (#1250)
+        if (isLast) {
+            const newWsId = await WorkspaceService.CreateWorkspace("", "", "", true);
+            if (!newWsId) {
+                console.log("delete-workspace: last workspace of its window, no new one made", workspaceId);
+                return;
+            }
+            console.log("delete-workspace: last workspace of its window, new one to land on", workspaceId, newWsId);
         }
 
         // MOLTENTERM-PATCH (#449): applied by the action queue of the window that shows the workspace or is switching to
