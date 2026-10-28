@@ -6,10 +6,9 @@
 // block lands. Kept apart from the components so the rules can be tested without the app.
 
 import { DefaultAgentGlyph, DefaultTabIcon, panelIcon } from "../tab-identity";
-import { AgentSlotMetaKey, PinConfig, PinNode, ViewState } from "./view-pins-model";
+import { AgentSlotMetaKey, PinConfig, PinNode, ViewIconMetaKey, viewMoves, ViewState } from "./view-pins-model";
 
-// The icon the developer chose for a view, in its tab's meta; a view pinned everywhere keeps it in its pin.
-export const ViewIconMetaKey = "molten:viewicon";
+export { ViewIconMetaKey };
 
 // A combination shows at most this many of its panels' icons.
 export const MaxGlyphIcons = 3;
@@ -113,30 +112,58 @@ export function withMissingPanels(tree: PinNode, blockIds: string[]): PinNode {
     return all.length === 1 ? all[0] : { dir: "row", children: all };
 }
 
-// What the view menu offers (FR-SHELL-081): never an action the state forbids. pinPage: the temporary view's pin
-// actions open the pin page (#1184).
+// What the view menu offers (FR-SHELL-081): never an action the state forbids, and exactly the two states the view is
+// not in (#1244). A temporary view's pins open the pin page (#1184); a pinned view moves at once.
 export type ViewMenuPlan = {
     saveOrRevert: boolean;
     pinHere: boolean;
     pinEverywhere: boolean;
     pinOnlyHere: boolean;
-    unpin: boolean;
+    makeTemporary: boolean;
     close: boolean;
-    // A pinned view says it closes only once unpinned.
+    // A pinned view says it closes only once made temporary.
     closeNote: boolean;
 };
 
-export function viewMenuPlan(state: ViewState, modified: boolean): ViewMenuPlan {
+// projectTab: MoltenTerm's own Project tab, which stays pinned in its workspace (viewMoves) and still closes: a closed
+// Project tab is not made again until asked (FR-SHELL-015).
+export function viewMenuPlan(state: ViewState, modified: boolean, projectTab = false): ViewMenuPlan {
     const temporary = state === "temporary";
+    const moves = viewMoves(state, projectTab);
     return {
-        saveOrRevert: modified && !temporary,
-        pinHere: temporary,
-        pinEverywhere: state !== "everywhere",
-        pinOnlyHere: state === "everywhere",
-        unpin: !temporary,
-        close: temporary,
-        closeNote: !temporary,
+        saveOrRevert: modified && !temporary && !projectTab,
+        pinHere: temporary && moves.includes("workspace"),
+        pinEverywhere: moves.includes("everywhere"),
+        pinOnlyHere: state === "everywhere" && moves.includes("workspace"),
+        makeTemporary: moves.includes("temporary"),
+        close: temporary || projectTab,
+        closeNote: !temporary && !projectTab,
     };
+}
+
+// The states the menu's move items lead to, in the menu's order.
+export function menuMoveTargets(plan: ViewMenuPlan): ViewState[] {
+    const rtn: ViewState[] = [];
+    if (plan.pinHere || plan.pinOnlyHere) {
+        rtn.push("workspace");
+    }
+    if (plan.pinEverywhere) {
+        rtn.push("everywhere");
+    }
+    if (plan.makeTemporary) {
+        rtn.push("temporary");
+    }
+    return rtn;
+}
+
+// The menu's header, "<name> · <state>", in the words of the sidebar's sections.
+export function viewMenuHeader(
+    name: string,
+    state: ViewState,
+    workspace: string,
+    t: (key: string, vars?: Record<string, any>) => string
+): string {
+    return `${name} · ${t(`sidebar.pins.menu.state.${state}`, { workspace })}`;
 }
 
 // The list once the dragged id lands beside the target: before it, or after it. Other ids keep their place.
@@ -163,25 +190,40 @@ export function undoOrder(before: readonly string[], now: readonly string[]): st
 
 // A drag in the sidebar: a tile, a block of the top row, or a temporary view's row.
 export type DragKind = "tile" | "top" | "row";
-export type DropZone = "tiles" | "top";
-export type DropAction = "reorder-tiles" | "reorder-top" | "pin-here" | "pin-everywhere";
+export type DropZone = "tiles" | "top" | "temporary";
+export type DropAction =
+    | "reorder-tiles"
+    | "reorder-top"
+    | "pin-here"
+    | "pin-everywhere"
+    | "pin-only-here"
+    | "make-temporary";
 
 // What a drop on a zone does: a tile among the tiles or a block among the top row reorders; a temporary view on the
-// tiles is pinned in the workspace; a tile or a temporary view on the top row is pinned everywhere.
+// tiles is pinned in the workspace, a top-row block there is pinned only in it; a tile or a temporary view on the top
+// row is pinned everywhere; a tile or a top-row block on the temporary list becomes temporary (#1244). A temporary
+// row on its own list reorders through the list itself.
 export function dropAction(kind: DragKind, zone: DropZone): DropAction {
     if (zone === "tiles") {
-        return kind === "tile" ? "reorder-tiles" : kind === "row" ? "pin-here" : null;
+        return kind === "tile" ? "reorder-tiles" : kind === "row" ? "pin-here" : "pin-only-here";
     }
     if (zone === "top") {
         return kind === "top" ? "reorder-top" : "pin-everywhere";
     }
+    if (zone === "temporary") {
+        return kind === "row" ? null : "make-temporary";
+    }
     return null;
 }
 
-// A zone shows its scope caption while it would pin the dragged view; the row being reordered hides its own.
+// The drop moves the view to another state, rather than reordering its section.
+export function isMoveAction(action: DropAction): boolean {
+    return action != null && action !== "reorder-tiles" && action !== "reorder-top";
+}
+
+// A zone shows its scope caption while it would move the dragged view; the row being reordered hides its own.
 export function zoneCaptionShown(kind: DragKind, zone: DropZone): boolean {
-    const action = dropAction(kind, zone);
-    return action === "pin-here" || action === "pin-everywhere";
+    return isMoveAction(dropAction(kind, zone));
 }
 
 // The side of the target the dragged block lands on, from the pointer: past its middle, after it.

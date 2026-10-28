@@ -8918,6 +8918,7 @@
             "reordered": "Ordre modifié",
             "captionHere": "Garder dans {workspace}",
             "captionEverywhere": "Partout · tous les workspaces",
+            "captionTemporary": "La rendre temporaire",
             "emptyTitle": "Cette vue épinglée n'a plus de panneau",
             "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
             "emptyAdd": "Ajouter un panneau"
@@ -8965,7 +8966,8 @@
                 "pinEverywhere": "Épingler partout…",
                 "pinEverywhereNow": "Épingler partout",
                 "pinOnlyHere": "Épingler seulement dans {workspace}",
-                "unpin": "Désépingler (rendre temporaire)"
+                "unpin": "Désépingler (rendre temporaire)",
+                "makeTemporary": "Rendre temporaire"
             },
             "page": {
                 "title": "Épingler la vue",

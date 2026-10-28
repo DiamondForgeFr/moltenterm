@@ -14,6 +14,8 @@ export const ViewPinCaptureCommand = "moltenviewpincapture";
 export const ViewPinBuildCommand = "moltenviewpinbuild";
 export const RepoToken = "molten:repo";
 export const AgentSlotMetaKey = "molten:agentslot";
+// The icon the developer chose for a view, in its tab's meta; a view pinned everywhere keeps it in its pin.
+export const ViewIconMetaKey = "molten:viewicon";
 
 // A tab pinned in its workspace: PinMetaKey says so, PinConfigMetaKey keeps its configuration.
 export const PinMetaKey = "molten:pin";
@@ -74,6 +76,145 @@ export function viewStateOf(tab: { meta?: Record<string, any> }, globalIds: Read
         return "workspace";
     }
     return "temporary";
+}
+
+// must match ProjectTabMetaKey in frontend/moltenterm-shell/project/project-model.ts
+export const ProjectTabMetaKey = "molten:projecttab";
+
+export function isProjectTab(tab: { meta?: Record<string, any> }): boolean {
+    return !!tab?.meta?.[ProjectTabMetaKey];
+}
+
+// The state the sidebar and the view menu name (#1244): MoltenTerm's own Project tab is a tile of its workspace
+// (FR-SHELL-015), pinned there by MoltenTerm without a configuration of its own, and still closable, so its pin rules
+// (viewStateOf) stay those of a temporary view while it reads as pinned in the workspace.
+export function shownViewState(state: ViewState, projectTab: boolean): ViewState {
+    return projectTab ? "workspace" : state;
+}
+
+// The states a view can move to from its menu or by drag (FR-SHELL-080, #1244): the two it is not in. The Project tab
+// stays pinned in its workspace: each workspace has its own, on its own project, first in the strip (FR-SHELL-015), so
+// pinning it everywhere would duplicate it in every workspace and making it temporary would contradict its place.
+export function viewMoves(state: ViewState, projectTab?: boolean): ViewState[] {
+    if (projectTab) {
+        return [];
+    }
+    const all: ViewState[] = ["workspace", "everywhere", "temporary"];
+    return all.filter((s) => s !== state);
+}
+
+// The pin keys of a tab's meta, as they are: what Undo writes back after a move.
+export function pinMetaOf(meta: Record<string, any>): Record<string, any> {
+    const rtn: Record<string, any> = {};
+    for (const key of [...Object.keys(UnpinnedTabMeta), ViewIconMetaKey]) {
+        rtn[key] = meta?.[key] ?? null;
+    }
+    return rtn;
+}
+
+// A move of a view between its states (FR-SHELL-080, #1244): the patch for its tab's meta, and the pins everywhere
+// after it. Only the pin keys (and the icon a pin carried) change, so the tab, its panels, its layout, its name, its
+// background and its sessions stay the view's own.
+export type ViewMove = { tabMeta: Record<string, any>; pins: GlobalPin[]; pin?: GlobalPin };
+
+export type ViewMoveInput = {
+    // The tab's meta now (null for a top-row block this workspace never opened).
+    tabMeta: Record<string, any>;
+    pins: GlobalPin[];
+    // The pin of a view pinned everywhere.
+    pinId?: string;
+    // The view's configuration as it shows now, for a pin from a temporary view or a tile.
+    captured?: PinConfig;
+    name?: string;
+    newPinId?: string;
+};
+
+export function planViewMove(from: ViewState, to: ViewState, input: ViewMoveInput): ViewMove {
+    if (from === to) {
+        return null;
+    }
+    const meta = input.tabMeta ?? {};
+    const pins = input.pins ?? [];
+    const current = from === "everywhere" ? pins.find((p) => p.id === (input.pinId ?? meta[GlobalPinMetaKey])) : null;
+    if (from === "everywhere" && current == null) {
+        return null;
+    }
+    if (to === "everywhere") {
+        if (input.captured == null || !input.newPinId) {
+            return null;
+        }
+        const icon = meta[ViewIconMetaKey];
+        const pin: GlobalPin = {
+            id: input.newPinId,
+            name: input.name ?? "",
+            icon: typeof icon === "string" && icon.trim() !== "" ? icon.trim() : undefined,
+            rev: 1,
+            config: input.captured,
+        };
+        return {
+            tabMeta: { ...UnpinnedTabMeta, [GlobalPinMetaKey]: pin.id, [GlobalPinRevMetaKey]: 1 },
+            pins: [...pins, pin],
+            pin,
+        };
+    }
+    if (from === "everywhere") {
+        const rest = withoutPin(pins, current.id);
+        const icon = { [ViewIconMetaKey]: current.icon ?? null };
+        if (to === "workspace") {
+            return {
+                tabMeta: {
+                    ...UnpinnedTabMeta,
+                    [PinMetaKey]: PinWorkspace,
+                    [PinConfigMetaKey]: current.config,
+                    ...icon,
+                },
+                pins: rest,
+                pin: current,
+            };
+        }
+        return { tabMeta: { ...UnpinnedTabMeta, ...icon }, pins: rest, pin: current };
+    }
+    if (to === "workspace") {
+        if (input.captured == null) {
+            return null;
+        }
+        return {
+            tabMeta: { ...UnpinnedTabMeta, [PinMetaKey]: PinWorkspace, [PinConfigMetaKey]: input.captured },
+            pins,
+        };
+    }
+    return { tabMeta: { ...UnpinnedTabMeta }, pins };
+}
+
+// The pins everywhere once a move is undone: a pin the move removed goes back at its place, one it added leaves. Pins
+// changed meanwhile (reordered, saved, renamed) keep those changes.
+export function undoPins(before: GlobalPin[], now: GlobalPin[], moved: GlobalPin): GlobalPin[] {
+    if (moved == null) {
+        return now;
+    }
+    const wasThere = before.some((p) => p.id === moved.id);
+    const rest = withoutPin(now, moved.id);
+    if (!wasThere) {
+        return rest;
+    }
+    const at = Math.min(
+        before.findIndex((p) => p.id === moved.id),
+        rest.length
+    );
+    return [...rest.slice(0, at), moved, ...rest.slice(at)];
+}
+
+// A meta patch applied the way wavesrv applies SetMeta: a null value removes the key.
+export function applyMetaPatch(meta: Record<string, any>, patch: Record<string, any>): Record<string, any> {
+    const rtn = { ...(meta ?? {}) };
+    for (const [key, value] of Object.entries(patch ?? {})) {
+        if (value == null) {
+            delete rtn[key];
+        } else {
+            rtn[key] = value;
+        }
+    }
+    return rtn;
 }
 
 // The layout as the window holds it, in the shape a configuration keeps: splits and panels, without sizes or ids; a

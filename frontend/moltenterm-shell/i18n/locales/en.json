@@ -8918,6 +8918,7 @@
             "reordered": "Order changed",
             "captionHere": "Keep in {workspace}",
             "captionEverywhere": "Everywhere · every workspace",
+            "captionTemporary": "Make it temporary",
             "emptyTitle": "This pinned view has no panel",
             "emptyHint": "A pinned view stays until you unpin it. Add a panel, or unpin it to close it.",
             "emptyAdd": "Add a panel"
@@ -8965,7 +8966,8 @@
                 "pinEverywhere": "Pin everywhere…",
                 "pinEverywhereNow": "Pin everywhere",
                 "pinOnlyHere": "Pin only in {workspace}",
-                "unpin": "Unpin (make it temporary)"
+                "unpin": "Unpin (make it temporary)",
+                "makeTemporary": "Make temporary"
             },
             "page": {
                 "title": "Pin the view",

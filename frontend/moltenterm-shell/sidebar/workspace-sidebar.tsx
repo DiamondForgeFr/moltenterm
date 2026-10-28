@@ -124,7 +124,7 @@ import { TopFieldModel } from "./top-field-store";
 import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
-import { GlobalPin, GlobalPinMetaKey, PinScope, ViewState } from "./view-pins-model";
+import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import { pointerInCorner, windowButtonsVisible } from "./window-corner-model";
@@ -574,7 +574,7 @@ type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: s
 
 function useViewPin(tabId: string, tab: Tab, name: string): ViewPinFacts {
     const pins = ViewPins.getInstance();
-    const state = useAtomValue(pins.stateAtom(tabId));
+    const state = shownViewState(useAtomValue(pins.stateAtom(tabId)), isProjectTab(tab));
     const modified = useAtomValue(pins.modifiedAtom(tabId));
     const globalPins = useAtomValue(pins.globalPinsAtom);
     const meta = (tab?.meta ?? {}) as Record<string, any>;
@@ -1131,9 +1131,15 @@ export function TemporaryViews({
     const tc = useTCount();
     const listRef = useRef<HTMLDivElement>(null);
     const { state, drag } = useRowDrag(listRef, asideRef, ids);
+    const { target, over } = useZone("temporary");
     const newViewKeys = formatShortcutById("new-tab");
     return (
-        <div className="flex shrink-0 flex-col" data-testid="sidebar-temporary">
+        <div
+            className={cn("mt-sb-zone flex shrink-0 flex-col", target && "is-target", over && "is-over")}
+            data-testid="sidebar-temporary"
+            data-cap={t("sidebar.views.captionTemporary")}
+            {...zoneProps("temporary")}
+        >
             <div
                 className="flex items-center gap-1.5 px-1 pt-1.5 pb-0.5 text-11 tracking-[0.07em] text-muted uppercase"
                 title={t("sidebar.temporary.hint")}
