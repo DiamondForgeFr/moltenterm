@@ -8820,6 +8820,16 @@
     },
     "sidebar": {
         "label": "Sidebar of {name}",
+        "workspaceMenu": {
+            "header": "{name} · Workspace",
+            "rename": "Rename…",
+            "changeIcon": "Change icon…",
+            "editColour": "Edit colour…",
+            "edit": "Edit workspace…",
+            "newView": "New view",
+            "manage": "Manage workspaces…",
+            "delete": "Delete workspace…"
+        },
         "hide": "Hide the sidebar ({keys})",
         "show": "Keep the sidebar shown ({keys})",
         "appMenu": "Menu",

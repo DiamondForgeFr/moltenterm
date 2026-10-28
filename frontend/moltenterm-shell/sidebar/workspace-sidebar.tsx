@@ -124,6 +124,7 @@ import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, Vi
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import { pointerInCorner, windowButtonsVisible } from "./window-corner-model";
+import { opensWorkspaceMenu, workspaceBackgroundMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
 
@@ -507,10 +508,6 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
         <div
             className="mt-sb-hdr flex shrink-0 items-center gap-1.5 border-t border-white/10 px-0.5 pt-1.5"
             data-testid="sidebar-header"
-            onContextMenu={(e) => {
-                e.preventDefault();
-                openMenu(moreRef.current ?? (e.currentTarget as HTMLElement));
-            }}
         >
             <span
                 className="max-w-[60%] shrink-0 truncate text-11 font-semibold tracking-[0.08em] uppercase"
@@ -2135,6 +2132,41 @@ function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
     );
 }
 
+// The workspace menu of the background and of the name (FR-SHELL-079, #1252): the same actions as the edit sheet, the
+// rail menu, the library and the + menu.
+function useWorkspaceMenu(workspaces: SidebarWorkspaces) {
+    const t = useT();
+    const ws = useAtomValue(atoms.workspace);
+    return (e: React.MouseEvent<HTMLElement>) => {
+        if (!opensWorkspaceMenu(e.target as Element, e.defaultPrevented)) {
+            return;
+        }
+        const id = ws?.oid;
+        const anchor = e.currentTarget;
+        const edit = () => openWorkspaceEditor(id, anchor);
+        const items = workspaceBackgroundMenuItems(
+            {
+                name: workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace"),
+                onRename: edit,
+                onChangeIcon: edit,
+                onEditColour: edit,
+                onEdit: edit,
+                onNewView: () => openNewView(),
+                newViewKeys: acceleratorById("new-tab"),
+                onAddProject: () => SidebarModel.getInstance().openProjectPage(),
+                onManage: () => SidebarModel.getInstance().openLibrary(),
+                remove: {
+                    enabled: canCloseWorkspace(workspaces.entries, id),
+                    reason: lastWorkspaceReason(),
+                    onDelete: () => getApi().deleteWorkspace(id),
+                },
+            },
+            t
+        );
+        ContextMenuModel.getInstance().showContextMenu(items, e);
+    };
+}
+
 export function WorkspaceSidebar() {
     const t = useT();
     const model = SidebarModel.getInstance();
@@ -2144,6 +2176,7 @@ export function WorkspaceSidebar() {
     const ws = useAtomValue(atoms.workspace);
     const activeTabId = useAtomValue(atoms.staticTabId);
     const workspaces = useSidebarWorkspaces();
+    const onWorkspaceMenu = useWorkspaceMenu(workspaces);
     const asideRef = useRef<HTMLElement>(null);
     const peekTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
     const split = useAtomValue(model.tabSplitAtom);
@@ -2235,6 +2268,7 @@ export function WorkspaceSidebar() {
                 style={{ width }}
                 onMouseEnter={keepPeek}
                 onMouseLeave={endPeek}
+                onContextMenu={onWorkspaceMenu}
             >
                 <WindowRow leftInset={hidden ? 18 : 8} />
                 <TopField />
