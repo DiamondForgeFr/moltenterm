@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The field at the top of the sidebar (FR-SHELL-083, #1187). Closed, it shows the focused panel: a page's address, or
-// "<panel> · <view>". ⌘L, ⌘K or a click opens it: it searches views, agents, workspaces, pull requests, panels and
+// "<panel> · <view>". ⌘L or a click opens it: it searches views, agents, workspaces, pull requests, panels and
 // actions (every command of the palette), and opens an address with Enter, ⌥Enter or ⌘Enter as its hint line says.
 //
 // This module is the resting field only; the open field loads once the sidebar is on screen (top-field-open.tsx), out
@@ -105,7 +105,7 @@ function useFocusFacts() {
 
 export type FocusFactsValue = ReturnType<typeof useFocusFacts>;
 
-// The open field's look before its code arrives: it takes the keys typed right after ⌘K and hands them over.
+// The open field's look before its code arrives: it takes the keys typed right after ⌘L and hands them over.
 function StandInField({
     focus,
     onClose,

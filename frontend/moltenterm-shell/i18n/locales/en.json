@@ -1740,7 +1740,7 @@
             "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
             "workspace-jump": "Jump to a workspace of the bottom bar",
-            "term-clear": "Clear the terminal (sidebar off)",
+            "term-clear": "Clear the terminal",
             "term-copy-plain": "Copy the plain selection",
             "term-copy": "Copy the selection",
             "term-paste": "Paste",

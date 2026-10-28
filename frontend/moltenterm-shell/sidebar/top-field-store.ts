@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Whether the sidebar's top field is open (FR-SHELL-083, #1187), and its keys: ⌘L and ⌘K open it wherever the focus
-// is while the sidebar is on; a hidden sidebar shows over the content for it. With the sidebar off the keys keep their
-// old roles (the page's address bar, the terminal's clear).
+// Whether the sidebar's top field is open (FR-SHELL-083, #1187), and its key: ⌘L opens it wherever the focus is while
+// the sidebar is on; a hidden sidebar peeks in for it and stays while the field is open. A focused page keeps ⌘L for
+// its address bar, and ⌘K stays the terminal's clear (#1219). With the sidebar off ⌘L is the page's address bar only.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import * as jotai from "jotai";
@@ -53,11 +53,6 @@ export class TopFieldModel {
 
 export function openTopField(): boolean {
     return TopFieldModel.getInstance().open();
-}
-
-// The terminal leaves ⌘K to the field while the sidebar is on (Wave's term-model.ts asks).
-export function topFieldTakesKey(): boolean {
-    return SidebarModel.getInstance().isEnabled();
 }
 
 function openFromKey(): boolean {

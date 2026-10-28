@@ -284,3 +284,27 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
     }
     return results([{ title: "", rows: found }]);
 }
+
+export type PopoverPlace = { left: number; top: number; width: number };
+
+const PopoverInset = 4;
+const PopoverWindowMargin = 8;
+const WidePopoverPx = 420;
+const WideWindowPx = 900;
+
+// The results popover under the field: wider than the sidebar in a wide window, and always inside the window, even
+// while a hidden sidebar is still sliding in from the left edge (#1219).
+export function placePopover(
+    anchor: { left: number; bottom: number; width: number },
+    windowWidth: number
+): PopoverPlace {
+    const room = Math.max(0, windowWidth - 2 * PopoverWindowMargin);
+    const wanted =
+        windowWidth > WideWindowPx
+            ? Math.max(WidePopoverPx, anchor.width + 2 * PopoverInset)
+            : anchor.width + 2 * PopoverInset;
+    const width = Math.min(wanted, room);
+    const maxLeft = windowWidth - PopoverWindowMargin - width;
+    const left = Math.max(PopoverWindowMargin, Math.min(anchor.left - PopoverInset, maxLeft));
+    return { left, top: anchor.bottom + PopoverInset, width };
+}
