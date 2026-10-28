@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Hold ⌘ to show the shortcut overlay, ⌘/ to keep it (FR-SHELL-090, TC-SHELL-169).
+// Hold ⌘ to show the shortcut overlay, ⌘/ to keep it (FR-SHELL-090, TC-SHELL-172).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OverlayController, OverlayMode } from "./overlay-controller";
