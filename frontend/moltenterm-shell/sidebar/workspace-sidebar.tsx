@@ -1029,7 +1029,11 @@ function OwnedAgentView({
     active: boolean;
     children: (owned: OwnedViewProps) => React.ReactNode;
 }) {
-    const { close, onContextMenu } = useViewActions(tabId, active);
+    const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const pin = useViewPin(tabId, tab, identity.name);
+    // The agent row has no inline name field, so the menu's rename opens its popover.
+    const { close, onContextMenu } = useViewActions(tabId, active, pin, null);
     return <>{children({ onContextMenu, close: <HoldCloseButton onClose={close} /> })}</>;
 }
 
