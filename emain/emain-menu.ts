@@ -34,6 +34,7 @@ import { contextMenuRole } from "./moltenterm-contextmenu-policy";
 import { mt, onMainLocaleChange } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): the menus follow app:language
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
+import { makeMoltentermSidebarMenuItem } from "./moltenterm-sidebar-menu"; // MOLTENTERM-PATCH (#1279)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
@@ -231,10 +232,17 @@ function makeViewMenu(
     webContents: electron.WebContents,
     callbacks: AppMenuCallbacks,
     isBuilderWindowFocused: boolean,
-    fullscreenOnLaunch: boolean
+    fullscreenOnLaunch: boolean,
+    fullConfig?: FullConfigType // MOLTENTERM-PATCH (#1279)
 ): Electron.MenuItemConstructorOptions[] {
     const devToolsAccel = unamePlatform === "darwin" ? "Option+Command+I" : "Alt+Shift+I";
+    // MOLTENTERM-PATCH (#1279): View › Show or hide the sidebar, one of the ways back with the sidebar closed
+    const sidebarItem = makeMoltentermSidebarMenuItem(
+        fullConfig?.settings,
+        (window) => ((window as WaveBrowserWindow) ?? focusedWaveWindow)?.waveWindowId
+    );
     return [
+        ...(sidebarItem != null && !isBuilderWindowFocused ? [sidebarItem, { type: "separator" as const }] : []),
         {
             label: mt(isBuilderWindowFocused ? "appMenu.reloadWindow" : "appMenu.reloadTab"), // MOLTENTERM-PATCH (#623)
             accelerator: "Shift+CommandOrControl+R",
@@ -374,7 +382,7 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     }
     const editMenu = makeEditMenu(fullConfig);
     const fileMenu = makeFileMenu(numWaveWindows, callbacks, fullConfig);
-    const viewMenu = makeViewMenu(webContents, callbacks, isBuilderWindowFocused, fullscreenOnLaunch);
+    const viewMenu = makeViewMenu(webContents, callbacks, isBuilderWindowFocused, fullscreenOnLaunch, fullConfig); // MOLTENTERM-PATCH (#1279)
     let workspaceMenu: Electron.MenuItemConstructorOptions[] = null;
     try {
         workspaceMenu = await getWorkspaceMenu();

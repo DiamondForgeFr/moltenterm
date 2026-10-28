@@ -157,7 +157,7 @@ declare global {
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open
-        setWindowButtonsVisible: (visible: boolean) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216)
+        setWindowButtons: (state: { visible: boolean; zoom: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279)
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste

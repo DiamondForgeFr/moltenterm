@@ -57,29 +57,21 @@
     height: var(--mt-frame-gap);
 }
 
-/* With the sidebar hidden there is no top bar: the window buttons and the toggle show over the content while the
-   pointer is at the top-left corner (window-corner.ts). */
-.mt-frame-corner {
-    position: absolute;
-    z-index: 26;
-    top: 0;
-    left: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-bottom-right-radius: var(--mt-radius-6);
-    background: color-mix(in srgb, color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16)) 92%, black);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+/* The window row spans the band from the window's top edge to the top field (#1279): the sidebar's gap under it is
+   taken back, and in the peeked card (which starts one margin down) it starts at the window's top edge, so its icons
+   and the window buttons Electron main places (window-corner-model.ts) share one centre line. --mt-peek-top is where
+   the peeked card starts (.mt-sb.is-hidden). */
+.mt-sb-window-row {
+    margin-bottom: calc(var(--spacing, 0.25rem) * -2);
 }
 
-.mt-frame-corner.is-shown,
-.mt-frame-corner:focus-within {
-    opacity: 1;
-    pointer-events: auto;
+.mt-sb-window-row.is-peeked {
+    margin-top: calc(-1 * var(--mt-peek-top));
+}
+
+/* Off macOS the strip over the content spans the same band, from the window's top edge. */
+.mt-frame-strip {
+    margin-top: calc(-1 * var(--mt-frame-half));
 }
 
 .prefers-reduced-motion .mt-sb-frame {
@@ -102,10 +94,13 @@
 }
 
 /* Hidden: the sidebar waits off the window's left edge and slides over the content while the pointer stays. */
+/* The peeked card never starts below 8 px (#1279): its window row centres on the band's half, 20 px down, and a wider
+   frame margin would put the card's top edge through the row's icons. */
 .mt-sb.is-hidden {
+    --mt-peek-top: min(var(--mt-frame-gap), 8px);
     position: absolute;
     z-index: 30;
-    top: var(--mt-frame-gap);
+    top: var(--mt-peek-top);
     bottom: var(--mt-frame-gap);
     left: var(--mt-frame-gap);
     padding: 0 10px 10px;
