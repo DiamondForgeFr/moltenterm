@@ -1740,7 +1740,7 @@
             "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
             "workspace-jump": "Aller à un espace de travail de la barre du bas",
-            "term-clear": "Effacer le terminal (barre latérale désactivée)",
+            "term-clear": "Effacer le terminal",
             "term-copy-plain": "Copier la sélection en texte brut",
             "term-copy": "Copier la sélection",
             "term-paste": "Coller",

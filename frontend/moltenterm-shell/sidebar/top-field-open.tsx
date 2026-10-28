@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The open top field (FR-SHELL-083): its sources, search results, popover and runs. Loaded once the sidebar is on
-// screen, or on the first ⌘L, ⌘K or click when that comes first (top-field.tsx), so it stays out of the JS every tab
+// screen, or on the first ⌘L or click when that comes first (top-field.tsx), so it stays out of the JS every tab
 // view loads up front (NFR-PERF-003, bundle.initialJsMB).
 
 import { atoms, createBlock, getApi, getBlockComponentModel, globalStore, refocusNode, WOS } from "@/app/store/global";
@@ -36,12 +36,20 @@ import { isSavedWorkspace, makeWorkspaceRailEntries } from "../workspace-rail-mo
 import { SidebarGlyph } from "./sidebar-icons";
 import { SidebarModel } from "./sidebar-store";
 import { FocusFactsValue, homeDir, TypedText } from "./top-field";
-import { AddressMode, enterRun, fieldHint, fieldResults, FieldRow, FieldRun, hostOfUrl } from "./top-field-model";
+import {
+    AddressMode,
+    enterRun,
+    fieldHint,
+    fieldResults,
+    FieldRow,
+    FieldRun,
+    hostOfUrl,
+    placePopover,
+    PopoverPlace,
+} from "./top-field-model";
 import { TopFieldModel } from "./top-field-store";
 
 const BlurCloseMs = 120;
-const WidePopoverPx = 420;
-const WideWindowPx = 900;
 const MaxTabsLoaded = 300;
 const HiddenTabsMetaKey = "molten:hiddentabs";
 
@@ -219,7 +227,7 @@ function extraRows(focus: FocusFactsValue, t: TFn): FieldRow[] {
             id: "action:clearterm",
             group: "action",
             label: t("topField.actions.clearTerminal"),
-            where: t("topField.where.action"),
+            where: formatShortcutById("term-clear") || t("topField.where.action"),
             icon: "eraser",
             keywords: ["clear", "terminal", "scrollback", "cls"],
             run: { kind: "clearterm", blockId: focus.blockId },
@@ -382,8 +390,6 @@ function ResultRow({
     );
 }
 
-type PopoverPlace = { left: number; top: number; width: number };
-
 function usePopoverPlace(anchorRef: React.RefObject<HTMLElement>, open: boolean): PopoverPlace {
     const [place, setPlace] = useState<PopoverPlace>(null);
     useLayoutEffect(() => {
@@ -396,16 +402,16 @@ function usePopoverPlace(anchorRef: React.RefObject<HTMLElement>, open: boolean)
             if (r == null) {
                 return;
             }
-            const wide = window.innerWidth > WideWindowPx;
-            setPlace({
-                left: r.left - 4,
-                top: r.bottom + 4,
-                width: wide ? Math.max(WidePopoverPx, r.width + 8) : r.width + 8,
-            });
+            setPlace(placePopover(r, window.innerWidth));
         };
         measure();
+        // A hidden sidebar is still sliding in when ⌘L opens the field: place the popover again once it has arrived.
         window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
+        window.addEventListener("transitionend", measure, true);
+        return () => {
+            window.removeEventListener("resize", measure);
+            window.removeEventListener("transitionend", measure, true);
+        };
     }, [open, anchorRef]);
     return place;
 }

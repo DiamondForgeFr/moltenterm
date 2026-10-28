@@ -11,7 +11,29 @@ import {
     FieldRow,
     looksLikeAddress,
     matchScore,
+    placePopover,
 } from "./top-field-model";
+
+describe("placePopover", () => {
+    const inside = (p: { left: number; width: number }, w: number) => p.left >= 0 && p.left + p.width <= w;
+
+    it("sits under the field, wider than the sidebar in a wide window", () => {
+        expect(placePopover({ left: 18, bottom: 60, width: 240 }, 1400)).toEqual({ left: 14, top: 64, width: 420 });
+    });
+
+    it("stays inside the window while a hidden sidebar is still off its left edge (#1219)", () => {
+        const p = placePopover({ left: -270, bottom: 60, width: 240 }, 1400);
+        expect(p.left).toBeGreaterThanOrEqual(8);
+        expect(inside(p, 1400)).toBe(true);
+    });
+
+    it("never overflows a narrow window on either side", () => {
+        for (const left of [-500, 0, 300, 700]) {
+            expect(inside(placePopover({ left, bottom: 60, width: 240 }, 800), 800)).toBe(true);
+            expect(inside(placePopover({ left, bottom: 60, width: 700 }, 600), 600)).toBe(true);
+        }
+    });
+});
 
 function view(name: string, here = true, current = false): FieldRow {
     return {
