@@ -34,7 +34,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { coffeeCondition, coffeeSupported } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
-import { LibraryHost } from "../library/library";
+import { LibraryHost } from "../library/library-host";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
