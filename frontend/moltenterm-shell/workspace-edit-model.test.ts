@@ -12,7 +12,11 @@ import {
     isFreshIntent,
     moveRadio,
     parseIntent,
+    partOfField,
+    projectPartFields,
     radioTabStop,
+    WorkspaceEditParts,
+    workspacePartFields,
 } from "./workspace-edit-model";
 import { LastWorkspaceReason } from "./workspace-reset-model";
 
@@ -120,5 +124,40 @@ describe("a double-click handed over between tab views (DS-SHELL-035)", () => {
         expect(isFreshIntent(intent, "w2", 1100, 500)).toBe(false);
         expect(isFreshIntent(intent, "w1", 900, 500)).toBe(false);
         expect(isFreshIntent(null, "w1", 1000, 500)).toBe(false);
+    });
+});
+
+describe("the Workspace part and the Project part (#1280, TC-SHELL-206, TC-SHELL-207)", () => {
+    it("puts the workspace's own fields under Workspace and what follows the project under Project", () => {
+        expect(WorkspaceEditParts.workspace).toEqual(["name", "icon", "colour", "look"]);
+        expect(WorkspaceEditParts.project).toEqual(["linkedProject", "logo", "folder", "projectSettings"]);
+        expect(partOfField("name")).toBe("workspace");
+        expect(partOfField("look")).toBe("workspace");
+        expect(partOfField("logo")).toBe("project");
+        expect(partOfField("folder")).toBe("project");
+    });
+
+    it("places every field in exactly one part", () => {
+        const all = [...WorkspaceEditParts.workspace, ...WorkspaceEditParts.project];
+        expect(new Set(all).size).toBe(all.length);
+    });
+
+    it("offers the link and keeps the folder when no project is linked", () => {
+        expect(projectPartFields({ hasProject: false, sidebarOn: true, isWindowWorkspace: true })).toEqual([
+            "linkedProject",
+            "folder",
+        ]);
+    });
+
+    it("shows the logo with a project, and Project settings only where the sidebar can open its page", () => {
+        const linked = { hasProject: true, sidebarOn: true, isWindowWorkspace: true };
+        expect(projectPartFields(linked)).toEqual(["linkedProject", "logo", "folder", "projectSettings"]);
+        expect(projectPartFields({ ...linked, sidebarOn: false })).toEqual(["linkedProject", "logo", "folder"]);
+        expect(projectPartFields({ ...linked, isWindowWorkspace: false })).toEqual(["linkedProject", "logo", "folder"]);
+    });
+
+    it("shows the look only once it is available", () => {
+        expect(workspacePartFields(false)).toEqual(["name", "icon", "colour"]);
+        expect(workspacePartFields(true)).toEqual(["name", "icon", "colour", "look"]);
     });
 });

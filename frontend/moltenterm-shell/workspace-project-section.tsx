@@ -3,7 +3,7 @@
 
 // The Project and Folder sections of the workspace edit sheet (FR-SHELL-030, DS-SHELL-036): the linked folder, or a
 // "Link a project" action; the folder the workspace works in (FR-SHELL-009). The project's images are offered by the
-// sheet's Icon field (DS-SHELL-101). The sheet gives each its heading.
+// sheet's Logo field, in its Project part (#1280). The sheet gives each its heading.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";

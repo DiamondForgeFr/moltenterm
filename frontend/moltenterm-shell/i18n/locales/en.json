@@ -4619,7 +4619,6 @@
             "iconDialogTitle": "Workspace icon",
             "backToSymbol": "Back to the symbol",
             "using": "Using {name}",
-            "identity": "Identity",
             "name": "Name",
             "icon": "Icon",
             "iconKind": "Icon kind",
@@ -4636,7 +4635,15 @@
             "title": "Workspace",
             "done": "Done",
             "project": "Project",
-            "folder": "Folder"
+            "folder": "Folder",
+            "sheetTitle": "Edit workspace",
+            "linkedProject": "Linked project",
+            "logo": "Logo",
+            "logoHint": "The project's images, shown as the workspace's icon.",
+            "noLogo": "No image found in the project.",
+            "projectLogoInUse": "The project's logo is in use: choose another under Project › Logo.",
+            "projectSettings": "Project settings…",
+            "projectSettingsHint": "Its type and the branch it follows, in the sidebar."
         },
         "iconKind": {
             "imported": "imported image",
