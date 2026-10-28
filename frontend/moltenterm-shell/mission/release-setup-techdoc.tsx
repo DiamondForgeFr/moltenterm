@@ -63,6 +63,17 @@ export function useTechDocPlan(
     return { plan, error };
 }
 
+// Where the document goes: a backend page, the repository file, or the repository file moved from its former path (#1226).
+export function techDocWhere(plan: SetupTechDocPlan): { key: string; vars?: Record<string, string> } {
+    if (plan.backend !== "repository") {
+        return { key: "mc.setup.techdoc.whereBackend" };
+    }
+    if (plan.movedfrom) {
+        return { key: "mc.setup.techdoc.whereMoved", vars: { path: plan.path ?? "", from: plan.movedfrom } };
+    }
+    return { key: "mc.setup.techdoc.whereRepository", vars: { path: plan.path ?? "" } };
+}
+
 // The document as one more generated file of step 3's list (#1104): its diff from the current one, closed at first.
 export function techDocFile(plan: SetupTechDocPlan): PreparedFile {
     if (!plan?.proposed) {
@@ -90,7 +101,6 @@ export function TechDocChanges({ dir, text, kind }: { dir: string; text: string;
         return null;
     }
     const counts = techDocCounts(plan);
-    const repository = plan?.backend === "repository";
     return (
         <div className="flex flex-col gap-1.5 rounded-6 border border-border px-3 py-2" data-testid="setup-techdoc">
             <div className="flex flex-wrap items-center gap-2">
@@ -119,9 +129,7 @@ export function TechDocChanges({ dir, text, kind }: { dir: string; text: string;
             ) : null}
             {plan != null ? (
                 <p className="text-11 text-secondary" data-testid="setup-techdoc-where" data-backend={plan.backend}>
-                    {repository
-                        ? t("mc.setup.techdoc.whereRepository", { path: plan.path ?? "" })
-                        : t("mc.setup.techdoc.whereBackend")}{" "}
+                    {t(techDocWhere(plan).key, techDocWhere(plan).vars)}{" "}
                     {kind === "update" ? t("mc.setup.techdoc.whyUpdate") : t("mc.setup.techdoc.why")}
                 </p>
             ) : null}

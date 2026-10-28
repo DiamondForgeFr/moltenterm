@@ -4042,6 +4042,7 @@
                 "building": "génération de la documentation à partir du pipeline",
                 "error": "La documentation n’a pas pu être générée : {error}",
                 "whereRepository": "Écrite dans {path}, dans la même pull request.",
+                "whereMoved": "Déplacée de {from} vers {path}, dans la même pull request.",
                 "whereBackend": "Écrite dans la page de documentation du projet (Documentation technique, page du pipeline de release) une fois la pull request ouverte.",
                 "why": "Elle décrit comment le projet est construit et publié, d’après le pipeline ci-dessus.",
                 "whyUpdate": "Elle est réécrite d’après le pipeline mis à jour ; son historique garde les changements précédents.",

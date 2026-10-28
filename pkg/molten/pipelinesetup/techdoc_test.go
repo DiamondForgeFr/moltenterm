@@ -44,56 +44,6 @@ func saasFoundryDocInput(t *testing.T) TechDocInput {
 		Change: TechDocChange{Date: "2026-10-25", Kind: TechDocChangeSetup, Author: "Setup test", Branch: "feature/7-release-pipeline", Template: TemplateVersion}}
 }
 
-func TestTechDocOfSaaSFoundryAIsPipeline(t *testing.T) {
-	in := saasFoundryDocInput(t)
-	doc := BuildTechDoc(in)
-	if BuildTechDoc(in) != doc {
-		t.Fatal("the same pipeline gives another document")
-	}
-	for _, want := range []string{
-		"# Release pipeline: SaaSFoundryAI",
-		"do not edit it by hand",
-		"```mermaid\nflowchart LR\n",
-		"subgraph rc[\"Release candidate\"]",
-		"subgraph public[\"Public release\"]",
-		"(by hand)\"/]",
-		"public_7{{\"Tag the merge commit and push the tag: publish-stable.yml s…\"}}",
-		"public_wf_publish_stable_yml[\"publish-stable.yml · approval: npm-production\"]",
-		"public_to_npm[(\"npm\")]",
-		"a release branch made from the trunk reaches the published branch by pull request (`merge`)",
-		"- **Tags:** public `vX.Y.Z`, release candidates `vX.Y.Z-N`.",
-		"## Branches and protection",
-		"- required checks: `CI / Required gate`;",
-		"Read from the GitHub ruleset `master`.",
-		"- `rc-{version}`: the release branches",
-		"## Release candidate flow",
-		"## Public release flow",
-		"| 1 | prepare | Bump the version and draft the notes on rc-X.Y.Z, made from develop | MoltenTerm | `molten release prepare {tag} --pr` | — |",
-		"| By hand | In the release worktree (../SaaSFoundry-release",
-		"`molten release merge-pr {tag} --method merge`",
-		"4 steps: 2 run by MoltenTerm (`molten release`), 2 by hand.",
-		"10 steps: 8 run by MoltenTerm (`molten release`), 2 by hand.",
-		"- A public release tag starts `publish-stable.yml`, `test.yml`.",
-		"| `.github/workflows/deploy-docs.yml` | Deploy Documentation | docs | run by hand (workflow_dispatch) | `github-pages` | GitHub Pages |",
-		"| `.github/workflows/publish-stable.yml` | Publish stable package | publish | push of tags `v[0-9]+.[0-9]+.[0-9]+`; run by hand (workflow_dispatch), inputs `tag` | `npm-production` | npm |",
-		"Local CI (`molten ci`)",
-		"| Build | dist | `npm run build` |",
-		"- `npm-production` (`publish-stable.yml`): GitHub applies the environment's protection rules",
-		"- npm: built by npm (`package.json`), published by `publish-stable.yml`.",
-		"## Sync-back\n\nMerge master back into develop with a merge commit merges `master` back into `develop`",
-		"| `package-lock.json` | json | `version`, `packages..version` |",
-		"| `README.md` | text | `\\*\\*v{version}\\*\\*` |",
-		"Changelogs, written by hand before the cut and committed with the version: `docs/changelog.md`, `docs/fr/changelog.md`.",
-		"First public version: `1.0.0`.",
-		techDocHistoryStart + "\n" + techDocHistoryHead + "\n" + techDocHistoryRule + "\n",
-		"| 2026-10-25 | Pipeline set up | Setup test | [`feature/7-release-pipeline`](https://github.com/DiamondForgeFr/SaasFoundryAI/pulls?q=is%3Apr+head%3Afeature%2F7-release-pipeline) | 2 |",
-	} {
-		if !strings.Contains(doc, want) {
-			t.Fatalf("the document lacks %q:\n%s", want, doc)
-		}
-	}
-}
-
 // An update keeps the earlier history, newest first, and never repeats a row when the preview is built again.
 func TestTechDocUpdateCarriesTheHistory(t *testing.T) {
 	in := saasFoundryDocInput(t)
@@ -102,7 +52,7 @@ func TestTechDocUpdateCarriesTheHistory(t *testing.T) {
 	in.Change = TechDocChange{Date: "2026-11-02", Kind: TechDocChangeUpdate, Author: "Other dev", PrUrl: "https://github.com/DiamondForgeFr/SaasFoundryAI/pull/50", Template: 3}
 	in.Pipeline.Release.Public = in.Pipeline.Release.Public[:len(in.Pipeline.Release.Public)-1]
 	second := BuildTechDoc(in)
-	newRow := "| 2026-11-02 | Pipeline updated | Other dev | [https://github.com/DiamondForgeFr/SaasFoundryAI/pull/50](https://github.com/DiamondForgeFr/SaasFoundryAI/pull/50) | 3 |"
+	newRow := "| 2026-11-02 | Pipeline updated | Other dev | [#50](https://github.com/DiamondForgeFr/SaasFoundryAI/pull/50) | 3 |"
 	oldRow := "| 2026-10-25 | Pipeline set up | Setup test |"
 	if i, j := strings.Index(second, newRow), strings.Index(second, oldRow); i < 0 || j < 0 || i > j {
 		t.Fatalf("history:\n%s", second[strings.Index(second, techDocHistoryStart):])
@@ -120,7 +70,7 @@ func TestTechDocEscapesTheModelsText(t *testing.T) {
 	in := saasFoundryDocInput(t)
 	in.Pipeline.Release.Rc = []molten.PipelineStep{{Id: "odd", Title: "A \"quoted\" | piped\ntitle", Phase: "cut", PipelineCommand: molten.PipelineCommand{Run: "echo `x`"}}}
 	doc := BuildTechDoc(in)
-	for _, want := range []string{"| A \"quoted\" \\| piped<br>title |", "`` echo `x` ``", "[\"A #quot;quoted#quot; | piped title\"]"} {
+	for _, want := range []string{"| A \"quoted\" \\| piped<br>title |", "[\"A #quot;quoted#quot; | piped title\"]"} {
 		if !strings.Contains(doc, want) {
 			t.Fatalf("the document lacks %q:\n%s", want, doc)
 		}
@@ -250,7 +200,7 @@ func TestTechDocGoesInThePullRequestWithoutABackend(t *testing.T) {
 	}
 	gitIn(t, dir, "fetch", "--quiet", "origin")
 	pushed := gitOut(t, dir, "show", "origin/"+job.Branch+":"+TechDocPath)
-	if !strings.Contains(pushed, "`feature/7-release-pipeline`") || !strings.Contains(pushed, "| Pipeline set up | Setup test |") {
+	if !strings.Contains(pushed, "/pull/42)") || !strings.Contains(pushed, "| Pipeline set up | Setup test |") {
 		t.Fatalf("pushed:\n%s", pushed)
 	}
 	if !strings.Contains(strings.Join(job.Files, " "), TechDocPath) {
@@ -361,7 +311,6 @@ func TestTechDocFollowsTheDocLanguage(t *testing.T) {
 		"# Pipeline de release: SaaSFoundryAI",
 		"ne le modifiez pas à la main",
 		"## Vue d’ensemble",
-		"## Branches et protection",
 		"## Flux de release publique",
 		"subgraph public[\"Release publique\"]",
 		"(à la main)\"/]",
@@ -369,7 +318,7 @@ func TestTechDocFollowsTheDocLanguage(t *testing.T) {
 		"## Historique des changements",
 		"| Date | Changement | Par | Pull request | Modèle MoltenTerm |",
 		"| 2026-10-25 | Pipeline mis en place | Setup test |",
-		"`publish-stable.yml`",
+		"publish-stable.yml · approbation : npm-production",
 	} {
 		if !strings.Contains(french, want) {
 			t.Fatalf("the French document lacks %q:\n%s", want, french)

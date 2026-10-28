@@ -38,6 +38,8 @@ type TechDocPlan struct {
 	// The repository file, or the backend page's address ("" before it exists).
 	Path string `json:"path,omitempty"`
 	Url  string `json:"url,omitempty"`
+	// The former default path of a generated document the pull request moves to Path (#1226).
+	MovedFrom string `json:"movedfrom,omitempty"`
 	// The document as it is now ("" when there is none) and as the pull request would leave it.
 	Current  string `json:"current"`
 	Proposed string `json:"proposed"`
@@ -96,12 +98,12 @@ func (s *Setup) githubRepo(ctx context.Context, dir string) string {
 }
 
 // committedTechDoc: the repository file at the base commit, else the working copy's when there is no commit.
-func (s *Setup) committedTechDoc(ctx context.Context, dir string, b *baseFiles) string {
+func (s *Setup) committedTechDoc(ctx context.Context, dir string, b *baseFiles, rel string) string {
 	if b != nil && b.Commit != "" {
-		data, _ := s.committedFile(ctx, dir, b.Commit, TechDocPath)
+		data, _ := s.committedFile(ctx, dir, b.Commit, rel)
 		return string(data)
 	}
-	path := filepath.Join(dir, filepath.FromSlash(TechDocPath))
+	path := filepath.Join(dir, filepath.FromSlash(rel))
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxTechDocBytes {
 		return ""
@@ -125,7 +127,8 @@ func (s *Setup) buildTechDoc(ctx context.Context, dir string, b *baseFiles, text
 	}
 	f := DetectWith(dir, report)
 	ReadRemoteFacts(ctx, s.Run, dir, &f)
-	build := &techDocBuild{plan: TechDocPlan{Backend: TechDocBackendRepository, Topic: TechDocTopicRelease, Title: TechDocTitle, Path: TechDocPath, Warnings: []string{}}}
+	docPath := TechDocPathOf(report.Pipeline)
+	build := &techDocBuild{plan: TechDocPlan{Backend: TechDocBackendRepository, Topic: TechDocTopicRelease, Title: TechDocTitle, Path: docPath, Warnings: []string{}}}
 	if backend := s.docBackend(ctx, dir, mode); backend != nil {
 		page, err := backend.Read(ctx, dir, TechDocTopicRelease)
 		if err == nil {
@@ -136,7 +139,17 @@ func (s *Setup) buildTechDoc(ctx context.Context, dir string, b *baseFiles, text
 		}
 	}
 	if build.backend == nil {
-		build.plan.Current = s.committedTechDoc(ctx, dir, b)
+		build.plan.Current = s.committedTechDoc(ctx, dir, b, docPath)
+		// Only a document MoltenTerm generated (it carries the history markers) is moved: the pull request must not take
+		// a page the developer wrote.
+		if docPath != LegacyTechDocPath {
+			if legacy := s.committedTechDoc(ctx, dir, b, LegacyTechDocPath); strings.Contains(legacy, techDocHistoryStart) {
+				build.plan.MovedFrom = LegacyTechDocPath
+				if build.plan.Current == "" {
+					build.plan.Current = legacy
+				}
+			}
+		}
 	}
 	change := TechDocChange{Date: time.Now().Format("2006-01-02"), Kind: TechDocChangeSetup, Author: s.gitAuthor(ctx, dir), Branch: branch, Template: TemplateVersion}
 	if kind == PrKindUpdate {
@@ -207,7 +220,15 @@ func (s *Setup) withTechDoc(dir string, b *baseFiles, current []byte, files *prF
 		// A backend that answered when the job started and fails now: the file keeps the document in the pull request
 		// rather than losing it.
 		if backend == nil || build.backend == nil {
-			files.add(TechDocPath, []byte(build.plan.Proposed))
+			files.add(build.plan.Path, []byte(build.plan.Proposed))
+			if build.plan.MovedFrom != "" {
+				files.remove = append(files.remove, build.plan.MovedFrom)
+			}
+			// The pull request's number is known only once it is open: the history row is then linked to it.
+			files.docWithPr = func(prUrl string) (string, []byte) {
+				build.input.Change.PrUrl = prUrl
+				return build.plan.Path, []byte(BuildTechDoc(build.input))
+			}
 			return nil
 		}
 		files.afterPr = func(ctx context.Context, prUrl string) (string, error) {
@@ -226,14 +247,19 @@ func (s *Setup) TechDocLinkOf(ctx context.Context, dir string, b *baseFiles) *Te
 			return &TechDocLink{Backend: backend.Name(), Url: page.Url}
 		}
 	}
-	local := filepath.Join(dir, filepath.FromSlash(TechDocPath))
-	if info, err := os.Lstat(local); err == nil && info.Mode().IsRegular() {
-		return &TechDocLink{Backend: TechDocBackendRepository, Path: local}
+	var pipeline []byte
+	if b != nil {
+		pipeline = b.Pipeline
+	}
+	// A document not moved yet stays at the former default path until the next setup or update.
+	candidates := []string{TechDocPathOf(pipelineReport(dir, pipeline).Pipeline), LegacyTechDocPath}
+	for _, rel := range candidates {
+		local := filepath.Join(dir, filepath.FromSlash(rel))
+		if info, err := os.Lstat(local); err == nil && info.Mode().IsRegular() {
+			return &TechDocLink{Backend: TechDocBackendRepository, Path: local}
+		}
 	}
 	if b == nil || b.Commit == "" {
-		return nil
-	}
-	if data, _ := s.committedFile(ctx, dir, b.Commit, TechDocPath); data == nil {
 		return nil
 	}
 	repo := s.githubRepo(ctx, dir)
@@ -244,5 +270,10 @@ func (s *Setup) TechDocLinkOf(ctx context.Context, dir string, b *baseFiles) *Te
 	if parts := strings.Split(repo, "/"); len(parts) == 3 {
 		host, path = parts[0], parts[1]+"/"+parts[2]
 	}
-	return &TechDocLink{Backend: TechDocBackendRepository, Url: "https://" + host + "/" + path + "/blob/" + b.Trunk + "/" + TechDocPath}
+	for _, rel := range candidates {
+		if data, _ := s.committedFile(ctx, dir, b.Commit, rel); data != nil {
+			return &TechDocLink{Backend: TechDocBackendRepository, Url: "https://" + host + "/" + path + "/blob/" + b.Trunk + "/" + rel}
+		}
+	}
+	return nil
 }

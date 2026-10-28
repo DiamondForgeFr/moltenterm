@@ -14,7 +14,7 @@ vi.mock("./release-setup-client", () => ({
 vi.mock("@/app/store/global", () => ({ createBlock: vi.fn(), openLink: vi.fn(), getApi: vi.fn() }));
 
 import { createBlock } from "@/app/store/global";
-import { TechDocChanges, techDocCounts, techDocFile } from "./release-setup-techdoc";
+import { TechDocChanges, techDocCounts, techDocFile, techDocWhere } from "./release-setup-techdoc";
 import { openTechDoc, TechDocLinkButton } from "./release-techdoc-link";
 
 describe("pipeline technical documentation (FR-MC-043)", () => {
@@ -23,7 +23,7 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
             backend: "repository",
             topic: "release-pipeline",
             title: "Release pipeline",
-            path: "docs/engineering/release-pipeline.md",
+            path: ".molten/release-pipeline.md",
             current: "# A\nsame\nold\n",
             proposed: "# A\nsame\nnew\nmore\n",
             warnings: [],
@@ -37,13 +37,13 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
             backend: "repository",
             topic: "release-pipeline",
             title: "Release pipeline",
-            path: "docs/engineering/release-pipeline.md",
+            path: ".molten/release-pipeline.md",
             current: "# Old\n",
             proposed: "# New\n",
             warnings: ["fake: unreachable"],
         };
         expect(techDocFile(plan)).toEqual({
-            path: "docs/engineering/release-pipeline.md",
+            path: ".molten/release-pipeline.md",
             status: "changed",
             kind: "whole",
             content: "# New\n",
@@ -60,6 +60,27 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
         expect(techDocFile({ ...plan, proposed: "" })).toBeNull();
     });
 
+    it("says where the document goes: outside the docs site by default, and moved from the former path (#1226)", () => {
+        const plan = {
+            backend: "repository",
+            topic: "release-pipeline",
+            title: "Release pipeline",
+            path: ".molten/release-pipeline.md",
+            current: "",
+            proposed: "# New\n",
+            warnings: [],
+        };
+        expect(techDocWhere(plan)).toEqual({
+            key: "mc.setup.techdoc.whereRepository",
+            vars: { path: ".molten/release-pipeline.md" },
+        });
+        expect(techDocWhere({ ...plan, movedfrom: "docs/engineering/release-pipeline.md" })).toEqual({
+            key: "mc.setup.techdoc.whereMoved",
+            vars: { path: ".molten/release-pipeline.md", from: "docs/engineering/release-pipeline.md" },
+        });
+        expect(techDocWhere({ ...plan, backend: "saasfoundry" }).key).toBe("mc.setup.techdoc.whereBackend");
+    });
+
     it("shows the block while the document is built, and nothing without a pipeline", () => {
         const html = renderToStaticMarkup(<TechDocChanges dir="/p" text="{}" kind="write" />);
         expect(html).toContain("Technical documentation");
@@ -71,15 +92,15 @@ describe("pipeline technical documentation (FR-MC-043)", () => {
         expect(renderToStaticMarkup(<TechDocLinkButton doc={{ backend: "repository" }} onOpen={() => {}} />)).toBe("");
         const html = renderToStaticMarkup(
             <TechDocLinkButton
-                doc={{ backend: "repository", path: "/p/docs/engineering/release-pipeline.md" }}
+                doc={{ backend: "repository", path: "/p/.molten/release-pipeline.md" }}
                 onOpen={() => {}}
             />
         );
         expect(html).toContain("How this project ships");
         expect(html).toContain("cursor-pointer");
-        openTechDoc({ backend: "repository", path: "/p/docs/engineering/release-pipeline.md" });
+        openTechDoc({ backend: "repository", path: "/p/.molten/release-pipeline.md" });
         expect(createBlock).toHaveBeenCalledWith({
-            meta: { view: "preview", file: "/p/docs/engineering/release-pipeline.md" },
+            meta: { view: "preview", file: "/p/.molten/release-pipeline.md" },
         });
     });
 });

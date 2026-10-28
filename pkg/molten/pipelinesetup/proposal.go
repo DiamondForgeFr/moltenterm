@@ -46,7 +46,7 @@ const (
 var proposalVersionFields = map[string]bool{"tagprefix": true, "notes": true, "firstpublic": true, "files": true, "changelogs": true}
 
 // The pipeline's other top-level keys: a change that names one is outside what the setup proposes.
-var pipelineTopKeys = map[string]bool{"schema": true, "name": true, "group": true, "dependson": true, "icon": true, "branches": true,
+var pipelineTopKeys = map[string]bool{"schema": true, "name": true, "group": true, "dependson": true, "icon": true, "techdoc": true, "branches": true,
 	"ci": true, "builds": true, "release": true, "steps": true, "launch": true}
 
 var (

@@ -182,9 +182,9 @@ describe("the setup's pull request (#1098)", () => {
                         },
                         {
                             source: ".gitignore",
-                            pattern: "docs/engineering/",
+                            pattern: ".molten/release-pipeline.md",
                             shared: true,
-                            files: ["docs/engineering/release-pipeline.md"],
+                            files: [".molten/release-pipeline.md"],
                         },
                     ],
                 })}
@@ -196,7 +196,7 @@ describe("the setup's pull request (#1098)", () => {
         expect(html).toContain(
             "This computer&#x27;s git settings ignore .molten/ (.git/info/exclude); the pull request adds these files anyway: .molten/project.json, .molten/release-setup.json."
         );
-        expect(html).toContain("The project&#x27;s .gitignore ignores docs/engineering/");
+        expect(html).toContain("The project&#x27;s .gitignore ignores .molten/release-pipeline.md");
         expect(html).toContain("a new file there needs git add -f");
         const failed = renderToStaticMarkup(
             <PrPanel
