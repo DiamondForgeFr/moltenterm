@@ -38,7 +38,7 @@ import { GoldUpdateButton } from "./update/update-dialog";
 import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "./workspace-icon-model";
 import { readWorkspaceProject } from "./workspace-project";
-import { readWorktreeLink, TreeMarker, treeMarker } from "./worktree-model";
+import { readWorktreeLink, statusBarMarker, TreeMarker, treeMarker } from "./worktree-model";
 import { WorktreeChip } from "./worktree-ui";
 
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
@@ -87,7 +87,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                 )}
                 <span className="truncate text-primary">{pane.projectName}</span>
             </span>
-            <WorktreeChip marker={tree} hideBranch={true} />
+            <WorktreeChip marker={statusBarMarker(tree)} hideBranch={true} />
             {pane.branch ? (
                 <button
                     type="button"

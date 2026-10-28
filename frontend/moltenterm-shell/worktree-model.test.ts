@@ -13,6 +13,7 @@ import {
     readReviewPath,
     readWorktreeDismissed,
     readWorktreeLink,
+    statusBarMarker,
     tabCloseRemovals,
     tabTreesTooltip,
     tabWorktrees,
@@ -57,6 +58,12 @@ describe("treeMarker", () => {
         expect(m.kind).toBe("main");
         expect(m.label).toBe("main tree");
         expect(m.branch).toBe("develop");
+    });
+
+    it("leaves the main tree out of the status bar, keeps a worktree (#1262)", () => {
+        expect(statusBarMarker(treeMarker(mainState, ""))).toBeNull();
+        expect(statusBarMarker(treeMarker(wtState, "")).kind).toBe("worktree");
+        expect(statusBarMarker(null)).toBeNull();
     });
 
     it("shows no marker outside a repository or while asking", () => {
