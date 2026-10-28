@@ -13,15 +13,19 @@ import { useCallback } from "react";
 import {
     availableLanguageCodes,
     availableLanguages,
+    FallbackLanguage,
     formatNumber as formatLocaleNumber,
     I18nVars,
+    isLanguageReady,
     LanguageInfo,
+    loadLanguage,
     onLanguagesChange,
     resolveLanguage,
     SystemLanguage,
     translate,
     translateCount,
 } from "./i18n-core";
+import "./i18n-locales-lazy";
 
 export type TFunction = (key: string, vars?: I18nVars) => string;
 
@@ -42,8 +46,11 @@ export class I18nModel {
     osLanguagesAtom = jotai.atom<string[]>([]) as jotai.PrimitiveAtom<string[]>;
     // Bumped when a language is added or its texts change (a language pack, #624).
     languagesVersionAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
+    // The language on screen while a newly chosen one loads (#1213): never a language whose texts are not there yet.
+    shownLocaleAtom = jotai.atom<string>(FallbackLanguage) as jotai.PrimitiveAtom<string>;
 
     resolutionAtom!: jotai.Atom<{ locale: string; unknown: string }>;
+    // The resolved language once its dictionary is loaded, the shown one until then.
     localeAtom!: jotai.Atom<string>;
     // The language following the OS would give, for the picker's "Same as the system" choice.
     systemLocaleAtom!: jotai.Atom<string>;
@@ -57,7 +64,11 @@ export class I18nModel {
             get(this.languagesVersionAtom);
             return resolveLanguage(get(this.languageSettingAtom), get(this.osLanguagesAtom), availableLanguageCodes());
         });
-        this.localeAtom = jotai.atom((get) => get(this.resolutionAtom).locale);
+        this.localeAtom = jotai.atom((get) => {
+            get(this.languagesVersionAtom);
+            const locale = get(this.resolutionAtom).locale;
+            return isLanguageReady(locale) ? locale : get(this.shownLocaleAtom);
+        });
         this.systemLocaleAtom = jotai.atom((get) => {
             get(this.languagesVersionAtom);
             return resolveLanguage(SystemLanguage, get(this.osLanguagesAtom), availableLanguageCodes()).locale;
@@ -68,8 +79,18 @@ export class I18nModel {
         });
         onLanguagesChange(() => globalStore.set(this.languagesVersionAtom, (v) => v + 1));
         globalStore.sub(this.localeAtom, () => this.notifyLocale());
+        globalStore.sub(this.resolutionAtom, () => {
+            this.whenReady().catch((e) => console.error("loading the interface language", e));
+        });
         this.lastLocale = globalStore.get(this.localeAtom);
         setDocumentLang(this.lastLocale);
+        this.whenReady().catch((e) => console.error("loading the interface language", e));
+    }
+
+    // Resolves once the resolved language's texts are loaded; the app awaits it before its first render, so no raw
+    // key ever shows.
+    async whenReady(): Promise<void> {
+        await loadLanguage(globalStore.get(this.resolutionAtom).locale);
     }
 
     static getInstance(): I18nModel {
@@ -108,6 +129,7 @@ export class I18nModel {
         const locale = this.getLocale();
         if (locale === this.lastLocale) return;
         this.lastLocale = locale;
+        globalStore.set(this.shownLocaleAtom, locale);
         setDocumentLang(locale);
         for (const listener of [...this.listeners]) {
             try {
@@ -142,17 +164,25 @@ export function useLocale(): string {
     return jotai.useAtomValue(I18nModel.getInstance().localeAtom, { store: globalStore });
 }
 
+// Bumped when a dictionary arrives or a pack changes texts: the translate functions change with it, so a component
+// shows texts loaded after its first render (#1213).
+function useLanguagesVersion(): number {
+    return jotai.useAtomValue(I18nModel.getInstance().languagesVersionAtom, { store: globalStore });
+}
+
 // The translate function of the current language; the component renders again when the language changes.
 export function useT(): TFunction {
     const locale = useLocale();
-    return useCallback((key: string, vars?: I18nVars) => translate(locale, key, vars), [locale]);
+    const version = useLanguagesVersion();
+    return useCallback((key: string, vars?: I18nVars) => translate(locale, key, vars), [locale, version]);
 }
 
 // tCount for components: renders again when the language changes.
 export function useTCount(): (key: string, count: number, vars?: I18nVars) => string {
     const locale = useLocale();
+    const version = useLanguagesVersion();
     return useCallback(
         (key: string, count: number, vars?: I18nVars) => translateCount(locale, key, count, vars),
-        [locale]
+        [locale, version]
     );
 }

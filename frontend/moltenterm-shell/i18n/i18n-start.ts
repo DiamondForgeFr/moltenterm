@@ -43,8 +43,18 @@ function reportUnknownLanguage(value: string) {
     });
 }
 
-export function startMoltentermI18n() {
-    if (started) return;
+// The texts of the language a window shows without following the settings (the builder), before its first render.
+export async function whenMoltentermI18nReady(): Promise<void> {
+    try {
+        await I18nModel.getInstance().whenReady();
+    } catch (e) {
+        console.error("loading the interface language", e);
+    }
+}
+
+// Resolves once the interface language's texts are loaded (#1213): the caller awaits it before the first render.
+export function startMoltentermI18n(): Promise<void> {
+    if (started) return whenMoltentermI18nReady();
     started = true;
     const model = I18nModel.getInstance();
     model.setOsLanguages(readSystemLanguages());
@@ -74,4 +84,5 @@ export function startMoltentermI18n() {
     sendLocale();
     globalStore.sub(model.resolutionAtom, sendLocale);
     packs.onChange(sendPacks);
+    return whenMoltentermI18nReady();
 }

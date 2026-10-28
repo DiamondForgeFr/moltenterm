@@ -5,7 +5,7 @@
 // has not trusted yet (FR-MORPH-004).
 
 import { parse } from "acorn";
-import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
+import { loadShippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
 import { checkLanguagePack } from "../moltenterm-shell/i18n/language-pack";
 import { isDataOnlyMod, MoltenLanguageEntry, MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 
@@ -168,7 +168,7 @@ export async function validateLanguageFiles(
             problems.push({ file, ...jsonErrorLocation(text, message), message: `not valid JSON: ${message}` });
             continue;
         }
-        const check = checkLanguagePack(language.code, data, shippedDictionary("en"));
+        const check = checkLanguagePack(language.code, data, await loadShippedDictionary("en"));
         problems.push(...check.errors.map((p) => ({ file, message: p.message })));
         problems.push(...check.warnings.map((p) => ({ file, message: p.message, severity: "warning" as const })));
     }
