@@ -393,6 +393,30 @@ export function shownAddress(url: string): string {
     return bare.replace(/^([^/?#]+)\/$/, "$1");
 }
 
+// Text that is an address rather than words to search: a scheme, localhost, an IP, or a host with a dot and no space.
+// Shared by the sidebar's top field (#1187) and the panel launcher (#1229).
+export function looksLikeAddress(text: string): boolean {
+    const s = (text ?? "").trim();
+    if (s === "" || /\s/.test(s)) {
+        return false;
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^(about|file|data):/i.test(s)) {
+        return true;
+    }
+    if (/^localhost(:\d+)?(\/|$)/i.test(s) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
+        return true;
+    }
+    return /^[^/\s]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s);
+}
+
+export function addressUrl(text: string): string {
+    const s = (text ?? "").trim();
+    if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
+        return "http://" + s;
+    }
+    return toBrowserUrl(s);
+}
+
 // A tab names its page: its title, or its host while the title is unknown.
 export function browserTabTitle(tab: BrowserTab): string {
     const title = tab?.title?.trim();

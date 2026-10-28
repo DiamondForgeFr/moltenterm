@@ -5,6 +5,7 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { addressUrl, browserBlockDef, looksLikeAddress } from "../browser/browser-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { t } from "../i18n/i18n";
 import { MoltentermLineMapView } from "../mission/line-map-model";
@@ -15,7 +16,13 @@ import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
 import { workspaceShownName } from "../workspace-default-name";
-import { PaletteEntry, PaletteGroupId, PickerGroupOrder, shortestSelectingPrefix } from "./palette-model";
+import {
+    AddressEntryId,
+    PaletteEntry,
+    PaletteGroupId,
+    PickerGroupOrder,
+    shortestSelectingPrefix,
+} from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
 // agents.json, the user's in presets.json or presets/*.json of the config folder (a mod can ship one later).
@@ -35,6 +42,25 @@ const PanelNameKeys: Record<string, string> = {
     "defwidget@sysinfo": "palette.panelNames.sysinfo",
     "defwidget@processviewer": "palette.panelNames.processes",
 };
+
+// "Open <address>" when the typed text is an address (#1229): a web page panel on it, read as the top field reads it.
+export function addressEntry(query: string): PaletteEntry {
+    const text = (query ?? "").trim();
+    if (!looksLikeAddress(text)) {
+        return null;
+    }
+    const url = addressUrl(text);
+    if (url == null) {
+        return null;
+    }
+    return {
+        id: AddressEntryId,
+        group: "panels",
+        label: t("palette.openAddress", { address: text }),
+        icon: "globe",
+        run: { kind: "widget", blockdef: browserBlockDef(url) },
+    };
+}
 
 export type PaletteWorkspace = {
     id: string;

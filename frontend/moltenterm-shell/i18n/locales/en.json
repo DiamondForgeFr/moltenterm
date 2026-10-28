@@ -358,6 +358,7 @@
         "ariaSearch": "Search the command palette",
         "placeholder": "Open an agent, a panel, a folder…",
         "noMatch": "Nothing matches \"{query}\"",
+        "openAddress": "Open {address}",
         "footer": {
             "choose": "choose",
             "open": "open",
@@ -378,7 +379,7 @@
         "panelNames": {
             "terminal": "Terminal",
             "files": "Files",
-            "browser": "Browser",
+            "browser": "Web page",
             "cicd": "CI/CD",
             "reviews": "Control room",
             "sysinfo": "System info",
@@ -1813,7 +1814,7 @@
             },
             "split": {
                 "title": "Split where you work",
-                "text": "Split the focused panel to add a terminal, a browser or any view beside it; drag a session onto a panel to show it there."
+                "text": "Split the focused panel to add a terminal, a web page or any view beside it; drag a session onto a panel to show it there."
             },
             "gettingStarted": {
                 "title": "Getting started",
@@ -2000,7 +2001,7 @@
             "sharedNothingTyped": "Shared with {name}, nothing typed",
             "badgeTitle": "Shared with {name}. Click to stop sharing."
         },
-        "viewName": "Browser",
+        "viewName": "Web page",
         "notice": {
             "siteChoiceNotSaved": "The site choice could not be saved: {error}",
             "decisionNotForgotten": "The agents' decision could not be forgotten: {error}",
@@ -2344,8 +2345,8 @@
                 "plural": "apps"
             },
             "browser": {
-                "name": "Browser",
-                "plural": "browser panels"
+                "name": "Web page",
+                "plural": "web pages"
             },
             "companion": {
                 "name": "Companion",
@@ -5030,7 +5031,7 @@
             "terminal": "Terminal",
             "files": "Files",
             "web": "Web",
-            "browser": "Browser",
+            "browser": "Web page",
             "project": "Project",
             "sessions": "Sessions",
             "lineMap": "Line map",

@@ -53,7 +53,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         expect(sections[0].group).toBe("panels");
         expect(sections[0].entries.map((e) => e.label)).toEqual([
             "Terminal",
-            "Browser",
+            "Web page",
             "Files",
             "Mission Control",
             "Line map",
@@ -115,7 +115,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             return flattenSections(sections)[bestMatchIndex(sections, word)].label;
         };
         expect(pick("mission")).toBe("Mission Control");
-        expect(pick("url")).toBe("Browser");
+        expect(pick("url")).toBe("Web page");
         expect(pick("resume")).toBe("Sessions");
         expect(pick("usage")).toBe("Companion");
         expect(pick("line")).toBe("Line map");
@@ -135,7 +135,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             const sections = filterPalette(entries, typed, {}, PickerGroupOrder);
             expect(flattenSections(sections)[bestMatchIndex(sections, typed)].id).toBe(panel.id);
         }
-        expect(panels.find((e) => e.label === "Browser").keyPath).toBe("⌘D  b  ↵");
+        expect(panels.find((e) => e.label === "Web page").keyPath).toBe("⌘D  w  ↵");
         expect(entries.filter((e) => e.group !== "panels").every((e) => e.keyPath == null)).toBe(true);
     });
 

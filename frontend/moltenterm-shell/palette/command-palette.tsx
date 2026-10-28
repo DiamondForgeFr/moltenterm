@@ -38,7 +38,13 @@ import {
     paletteKeyCommand,
     PickerGroupOrder,
 } from "./palette-model";
-import { buildPaletteEntries, paletteGroupTitles, PaletteWorkspace, PickerSource } from "./palette-sources";
+import {
+    addressEntry,
+    buildPaletteEntries,
+    paletteGroupTitles,
+    PaletteWorkspace,
+    PickerSource,
+} from "./palette-sources";
 
 export type CommandPaletteHost = "pane" | "modal";
 
@@ -343,10 +349,11 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 : [],
         [host, blockId, searching]
     );
-    const listed = useMemo(
-        () => (searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries),
-        [entries, panelEntries, searching]
-    );
+    const listed = useMemo(() => {
+        const base = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
+        const address = addressEntry(query);
+        return address != null ? [address, ...base] : base;
+    }, [entries, panelEntries, searching, query]);
     const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;
@@ -497,7 +504,9 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 />
             </div>
             <div ref={listRef} id="molten-palette-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-                {flat.length === 0 && <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>}
+                {flat.length === 0 && (
+                    <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>
+                )}
                 {sections.map((section) => (
                     <div key={section.group}>
                         {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}

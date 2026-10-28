@@ -5,7 +5,7 @@
 // Enter, ⌥Enter and ⌘Enter do with an address. Pure rules, tested without the app; top-field.tsx gathers the sources
 // and runs the chosen row.
 
-import { toBrowserUrl } from "../browser/browser-model";
+import { addressUrl, looksLikeAddress, toBrowserUrl } from "../browser/browser-model";
 import { t } from "../i18n/i18n";
 import type { PaletteRun } from "../palette/palette-model";
 import { fold } from "./top-field-context";
@@ -54,28 +54,7 @@ export type FieldRow = {
     run: FieldRun;
 };
 
-// Text that is an address rather than words to search: a scheme, localhost, an IP, or a host with a dot and no space.
-export function looksLikeAddress(text: string): boolean {
-    const s = (text ?? "").trim();
-    if (s === "" || /\s/.test(s)) {
-        return false;
-    }
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^(about|file|data):/i.test(s)) {
-        return true;
-    }
-    if (/^localhost(:\d+)?(\/|$)/i.test(s) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
-        return true;
-    }
-    return /^[^/\s]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s);
-}
-
-export function addressUrl(text: string): string {
-    const s = (text ?? "").trim();
-    if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) {
-        return "http://" + s;
-    }
-    return toBrowserUrl(s);
-}
+export { addressUrl, looksLikeAddress };
 
 export function hostOfUrl(url: string): string {
     try {
