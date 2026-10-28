@@ -740,7 +740,7 @@ function SuggestPopover({ onClose }: { onClose: () => void }) {
 
 // ---------- The library ----------
 
-function Library({
+export function Library({
     section,
     entries,
     onApps,
@@ -896,13 +896,4 @@ function Library({
             </section>
         </div>
     );
-}
-
-// Mounted once per window view with the sidebar; draws the library while it is open.
-export function LibraryHost({ entries, onApps }: { entries: WorkspaceRailEntry[]; onApps: () => void }) {
-    const section = useAtomValue(SidebarModel.getInstance().libraryAtom);
-    if (section == null) {
-        return null;
-    }
-    return <Library section={section} entries={entries} onApps={onApps} />;
 }
