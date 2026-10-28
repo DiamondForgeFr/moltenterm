@@ -17,6 +17,7 @@ import { headStillFails, PrTask, prTaskState, taskAgent, taskAgentLive } from ".
 import {
     AgentBarFacts,
     branchAgents,
+    DraftActiveMs,
     draftTurn,
     prOtherBranches,
     UpcomingAnswer,
@@ -79,6 +80,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         boardTurn,
         boardStatus,
         agentReadies: pr.draft && workflowTurn,
+        recentCommit: !!draft?.commitat && ctx.now - draft.commitat < DraftActiveMs,
         headFails: headStillFails(pr, agents[0] ?? null, taskState),
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),
         others: prOtherBranches(ctx.upcoming, pr),

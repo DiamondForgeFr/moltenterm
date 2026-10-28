@@ -106,6 +106,8 @@ export type CardInput = {
     boardStatus?: string;
     // The project's workflow has no Human Testing (#1212): a draft is its agent's until the agent marks it ready.
     agentReadies?: boolean;
+    // The draft's branch got a commit lately (DraftActiveMs): someone, probably an agent, works on it.
+    recentCommit?: boolean;
     // Checks the list confirmed failing on the PR's head after a stopped task (headStillFails).
     headFails?: string[];
     // The PR can be rerun on GitHub Actions (rerunnable).
@@ -227,12 +229,14 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     if (waiting != null) {
         return "agent-waiting";
     }
-    const workflowOnly = input.agentReadies && input.boardTurn?.workflow;
-    if (working != null || (input.boardTurn?.owner === "agent" && pr.draft && !workflowOnly)) {
+    // #1212: in a workflow without Human Testing every draft is the agents' column (AI Testing until it is marked
+    // ready), so the column says nothing of an agent at work: only a live agent or a recent commit does.
+    const inferred = input.agentReadies ? input.recentCommit : input.boardTurn?.owner === "agent";
+    if (working != null || (inferred && pr.draft)) {
         return "agent-working";
     }
-    // #1212: in a workflow without Human Testing a draft no agent works on is still its agent's (it stopped before
-    // marking it ready), whatever its CI or its conflicts: never the developer's.
+    // #1212: a draft no agent works on is still its agent's (it stopped before marking it ready), whatever its CI or
+    // its conflicts: never the developer's.
     if (input.agentReadies && pr.draft) {
         return "agent-finish";
     }
