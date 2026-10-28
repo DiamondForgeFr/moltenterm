@@ -10,6 +10,7 @@ import {
     ChooserAction,
     ChooserBlockDef,
     chooserKey,
+    chooserListEntries,
     ChooserState,
     DefaultFavoriteIds,
     favoriteIds,
@@ -191,5 +192,12 @@ describe("favourites (FR-SHELL-089)", () => {
         expect(
             press(["ArrowLeft", "Enter"], ["agent:claude", "panel:defwidget@terminal", "panel:defwidget@web"]).opened.id
         ).toBe("panel:defwidget@web");
+    });
+});
+
+describe("the chooser list (#1238)", () => {
+    it("leaves out New tab, which only opened another new view", () => {
+        const entries = [{ id: "action:newtab" }, { id: "action:sessions" }] as PaletteEntry[];
+        expect(chooserListEntries(entries).map((e) => e.id)).toEqual(["action:sessions"]);
     });
 });

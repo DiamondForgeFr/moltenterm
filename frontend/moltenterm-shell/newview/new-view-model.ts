@@ -40,6 +40,11 @@ export function newViewChoices(input: NewViewChoiceInput): PaletteEntry[] {
     return [...panelEntries(input.widgets, input.workspaceId), ...agentEntries(input.presets), ...actions];
 }
 
+// The chooser already is a new view: its list leaves out "New tab", which only opened yet another one (#1238).
+export function chooserListEntries(entries: PaletteEntry[]): PaletteEntry[] {
+    return entries.filter((e) => e.id !== "action:newtab");
+}
+
 function idList(setting: unknown): string[] {
     if (!Array.isArray(setting)) {
         return [];
