@@ -8908,7 +8908,7 @@
             "changeIcon": "Changer l'icône…",
             "duplicate": "Dupliquer",
             "close": "Fermer",
-            "closeNote": "Épinglée : désépinglez-la pour la fermer",
+            "closeNote": "Épinglée : rendez-la temporaire pour la fermer",
             "renameTitle": "Renommer",
             "iconTitle": "Icône de « {name} »",
             "iconChoice": "Icône {icon}",
