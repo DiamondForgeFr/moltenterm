@@ -21,7 +21,7 @@ const helperDirEnv = "MOLTEN_STDINWATCH_HELPER_DIR"
 
 // A socketpair descriptor, as libuv gives wavesrv's stdin, whose open file is replaced under the reader the way a
 // stray close of descriptor 0 inside wavesrv does: dup2 drops the socket and puts a write-only file there, so the
-// read gets EBADF however the read and the replacement interleave, and the descriptor number stays owned by the test.
+// read gets EBADF, and the descriptor number stays owned by the test.
 func TestReplacedDescriptorKeepsRunning(t *testing.T) {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
@@ -44,6 +44,9 @@ func TestReplacedDescriptorKeepsRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 	devNull.Close()
+	// On Linux a read already blocked on the socket keeps the socket's open file and is not woken by the dup2: a
+	// byte from the peer ends it, and the next read meets the write-only file. EPIPE means no read held the socket.
+	peer.Write([]byte{0})
 	for i := 0; i < 3; i++ {
 		select {
 		case <-parent.polls:
