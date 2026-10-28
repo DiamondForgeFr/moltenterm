@@ -1338,6 +1338,10 @@
                 "privacy": {
                     "title": "No telemetry, no account.",
                     "text": "MoltenTerm sends no usage data and connects only for what you ask."
+                },
+                "shortcuts": {
+                    "title": "Shortcuts on screen.",
+                    "text": "Hold {hold} or press {press} to see the shortcuts of what is on screen."
                 }
             }
         },
@@ -1720,6 +1724,18 @@
             "review": "Review",
             "paletteandmenus": "Palette and menus"
         },
+        "overlay": {
+            "title": "Shortcuts on screen",
+            "more": "All shortcuts",
+            "sidebar": "Sidebar",
+            "showSidebar": "Show the sidebar",
+            "focusThis": "Focus this panel",
+            "types": {
+                "terminal": "Terminal",
+                "web": "Web page",
+                "panel": "Panel"
+            }
+        },
         "items": {
             "split-right": "Split right",
             "split-down": "Split down",
@@ -1765,7 +1781,7 @@
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
-            "shortcuts": "Keyboard shortcuts",
+            "shortcuts": "Show the shortcuts on screen",
             "escape": "Close a dialog or the search",
             "palette-right": "Open the palette's entry to the right",
             "carpet-previous": "Previous panel on the carpet (360 view)",

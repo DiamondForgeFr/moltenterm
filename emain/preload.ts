@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld("api", {
     registerGlobalWebviewKeys: (keys) => ipcRenderer.send("register-global-webview-keys", keys),
     onControlShiftStateUpdate: (callback) =>
         ipcRenderer.on("control-shift-state-update", (_event, state) => callback(state)),
+    // MOLTENTERM-PATCH (#1242): a focused web page's modifier keys, chords and Escape, for the shortcut overlay
+    onMoltentermKeyNotice: (callback: (waveEvent: WaveKeyboardEvent) => void) =>
+        ipcRenderer.on("moltenterm-key-notice", (_event, waveEvent) => callback(waveEvent)),
     createWorkspace: () => ipcRenderer.send("create-workspace"),
     switchWorkspace: (workspaceId) => ipcRenderer.send("switch-workspace", workspaceId),
     deleteWorkspace: (workspaceId) => ipcRenderer.send("delete-workspace", workspaceId),

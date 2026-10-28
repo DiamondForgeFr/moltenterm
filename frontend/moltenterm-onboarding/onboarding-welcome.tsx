@@ -9,6 +9,8 @@ import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { cn } from "@/util/util";
 import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
+import { formatKeys, modifierLabel } from "../moltenterm-shell/shortcuts/format";
+import { ShortcutsSheetKey } from "../moltenterm-shell/shortcuts/registry";
 import { ShownFirstRunSteps } from "./onboarding-steps";
 
 export const MoltentermLicenseUrl = `${MoltentermRepoUrl}/blob/main/LICENSE`;
@@ -20,21 +22,41 @@ const Points: { id: string; icon: string }[] = [
     { id: "morph", icon: "wand-magic-sparkles" },
     { id: "sessions", icon: "clock-rotate-left" },
     { id: "privacy", icon: "lock" },
+    // The shortcut overlay (FR-SHELL-090): how to call it up, in the platform's keys.
+    { id: "shortcuts", icon: "keyboard" },
 ];
 
 // The commands a point names, set in code wherever its translation puts their placeholder.
 const PointCode: Record<string, string> = { morph: "/morph", undo: "molten undo" };
 
+// The keys a point names, formatted for this platform by the shortcut registry, never hard-coded glyphs.
+function pointKeys(): Record<string, string> {
+    return { hold: modifierLabel("Cmd"), press: formatKeys(ShortcutsSheetKey) };
+}
+
 function withCode(text: string): React.ReactNode[] {
-    return text.split(/\{(morph|undo)\}/).map((part, i) =>
-        i % 2 === 1 ? (
+    const keys = pointKeys();
+    return text.split(/\{(morph|undo|hold|press)\}/).map((part, i) => {
+        if (i % 2 === 0) {
+            return part;
+        }
+        if (keys[part] != null) {
+            return (
+                <kbd
+                    key={i}
+                    className="rounded-4 border border-border px-1 font-mono text-12 text-primary"
+                    data-testid={`onboarding-shortcut-${part}`}
+                >
+                    {keys[part]}
+                </kbd>
+            );
+        }
+        return (
             <code key={i} className="font-mono text-12 text-primary">
                 {PointCode[part]}
             </code>
-        ) : (
-            part
-        )
-    );
+        );
+    });
 }
 
 const linkClassName = "cursor-pointer text-secondary underline decoration-border underline-offset-2 hover:text-primary";

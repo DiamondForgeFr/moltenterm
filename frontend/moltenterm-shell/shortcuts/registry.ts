@@ -424,12 +424,12 @@ export const Shortcuts: Shortcut[] = [
     },
     {
         id: "shortcuts",
-        label: "Keyboard shortcuts",
+        label: "Show the shortcuts on screen",
         category: "Palette and menus",
         scope: "global",
         keys: ShortcutsSheetKey,
         alt: [ShortcutsSheetAltKey],
-        keywords: ["keys", "help", "cheat sheet"],
+        keywords: ["keys", "help", "cheat sheet", "keyboard shortcuts", "overlay", "hold"],
     },
     {
         id: "escape",

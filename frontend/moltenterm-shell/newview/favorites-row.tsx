@@ -41,6 +41,8 @@ export function FavoritesRow({ favorites, keys, selected, onHover, onOpen }: Fav
                         aria-selected={on}
                         data-testid="new-view-favorite"
                         data-favorite={entry.id}
+                        data-mt-shortcut={keys[i] ? "new-view-favorite" : undefined}
+                        data-mt-shortcut-n={keys[i] ? i + 1 : undefined}
                         onMouseMove={() => onHover(i)}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onOpen(entry)}
