@@ -1847,7 +1847,9 @@
             "readyMessage": "{count} changement(s). Consultez-les, puis mettez à jour maintenant ou en quittant.",
             "review": "Mettre à jour…",
             "rolledBackTitle": "La nouvelle gold n'a pas démarré : MoltenTerm est revenu à la précédente",
-            "rolledBackMessage": "Le build {build} ne sera plus proposé ; une gold plus récente le sera.",
+            "rolledBackMessage": "Le build {build} est mis de côté jusqu'à une gold plus récente. Réessayez pour l'installer quand même.",
+            "retry": "Réessayer",
+            "retryGone": "Le build {build} n'est plus dans le dossier des builds locaux.",
             "failedTitle": "La mise à jour n'a pas pu être installée"
         },
         "release": {

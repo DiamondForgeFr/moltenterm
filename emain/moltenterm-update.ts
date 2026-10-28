@@ -61,6 +61,21 @@ function statusFile(): string {
     return path.join(updateDir(), "swap.status");
 }
 
+function startedFile(): string {
+    return path.join(updateDir(), "swap.started");
+}
+
+// The swap waits on this marker to know the reopened build runs, without listing processes (#1193). Written by every
+// start: the swap removes it before reopening, so only the new build's own write counts.
+function markStarted() {
+    try {
+        fs.mkdirSync(updateDir(), { recursive: true });
+        fs.writeFileSync(startedFile(), String(process.pid));
+    } catch (e) {
+        console.log("[gold-update] start marker not written:", e?.message ?? e);
+    }
+}
+
 async function readManifest(): Promise<any> {
     const file = path.join(currentGoldDir(), "manifest.json");
     const stat = await fs.promises.stat(file);
@@ -140,16 +155,20 @@ export const SwapScript = `#!/bin/sh
 # still had the old name (#191). requirement is the running gold's designated requirement (#663): the staged copy sits
 # in a folder the user's processes can write, so it is verified once more right before the swap, and only a verified
 # bundle loses its quarantine.
-pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"; requirement="$8"
+# started is the marker the reopened build writes once it runs (#1193).
+pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"; requirement="$8"; started="$9"
 grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 # Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
 reopen_app() {
     if [ -n "$MOLTENTERM_SWAP_DIRECT" ]; then
         # shellcheck disable=SC2086
         exe=$(ls "$1/Contents/MacOS" | head -1)
-        "$1/Contents/MacOS/$exe" $MOLTENTERM_SWAP_ARGS >/dev/null 2>&1 &
+        # In a subshell, so the app is not this script's child: an exited child would linger as a zombie that kill -0
+        # still finds, as an app opened by launch services never does.
+        ("$1/Contents/MacOS/$exe" $MOLTENTERM_SWAP_ARGS >/dev/null 2>&1 &)
     else
-        open "$1"
+        # Launch Services can briefly see a bundle just moved back as missing its executable (#1193).
+        open "$1" || { sleep 2; open "$1"; }
     fi
 }
 i=0
@@ -178,9 +197,45 @@ if [ "$reopen" != 1 ]; then
     echo "installed $build" > "$status"
     exit 0
 fi
+rm -f "$started"
 reopen_app "$target"
-sleep "$grace"
-if pgrep -f "$target/Contents/MacOS/" >/dev/null; then
+i=0
+while [ "$i" -lt "$((grace * 2))" ]; do
+    sleep 0.5
+    i=$((i + 1))
+done
+# Whether the new build still runs: yes, no, or unknown when no check could run (#1193). Its start marker (the pid it
+# writes once its backend is ready) is checked with a signal, which needs no process listing; listing processes needs
+# sysmond, which can be missing, and a failed listing is no proof that the app quit.
+new_app_state() {
+    newpid=$(head -c 32 "$started" 2>/dev/null | tr -cd 0-9)
+    if [ -n "$newpid" ]; then
+        if kill -0 "$newpid" 2>/dev/null; then echo yes; else echo no; fi
+        return
+    fi
+    if listing=$(ps -axo pid=,command= 2>/dev/null) && [ -n "$listing" ]; then
+        case "$listing" in
+            *"$target/Contents/MacOS/"*) echo yes ;;
+            *) echo no ;;
+        esac
+        return
+    fi
+    pgrep -f "$target/Contents/MacOS/" >/dev/null 2>&1
+    case $? in
+        0) echo yes ;;
+        1) echo no ;;
+        *) echo unknown ;;
+    esac
+}
+state=$(new_app_state)
+if [ "$state" = unknown ]; then
+    rm -rf "$aside"
+    echo "the new build could not be checked: it is kept"
+    echo "installed $build unchecked" > "$status"
+    exit 0
+fi
+# Checked once more right before moving it: the bundle of a running app is never moved aside.
+if [ "$state" = yes ] || [ "$(new_app_state)" != no ]; then
     rm -rf "$aside"
     echo "installed $build" > "$status"
     exit 0
@@ -213,6 +268,7 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
             String(swap.buildId),
             statusFile(),
             swap.requirement,
+            startedFile(),
         ],
         { detached: true, stdio: ["ignore", log, log] }
     );
@@ -285,6 +341,10 @@ export function initMoltentermUpdate() {
         applyGoldUpdate(buildId, when)
     );
     handleAppIpc(MoltentermUpdateLastChannel, () => takeLastSwapStatus());
+    // Called once wavesrv is ready (initIpcHandlers): the new build has started normally.
+    if (process.platform === "darwin" && electron.app.isPackaged) {
+        markStarted();
+    }
     // Releases learn about newer releases from GitHub (#188); golds keep the local update above.
     initMoltentermReleaseFeed();
     // "Update when I quit": the swap starts as the app ends, without reopening it.

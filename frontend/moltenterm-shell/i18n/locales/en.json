@@ -1847,7 +1847,9 @@
             "readyMessage": "{count} change(s). Review them, then update now or when you quit.",
             "review": "Update…",
             "rolledBackTitle": "The new gold did not start: MoltenTerm went back to the previous one",
-            "rolledBackMessage": "Build {build} will not be offered again; a newer gold will.",
+            "rolledBackMessage": "Build {build} is put aside until a newer gold arrives. Try again to install it anyway.",
+            "retry": "Try again",
+            "retryGone": "Build {build} is no longer in the local builds folder.",
             "failedTitle": "The update could not be installed"
         },
         "release": {
