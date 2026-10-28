@@ -70,6 +70,7 @@ import { ScreenModel } from "./screen-store";
 import type { ScreenInfo } from "./screen-threshold";
 import {
     anyColumnTooTight,
+    AutoMinColumns,
     autoWants,
     carpetSlotWidthsPx,
     columnFractions,
@@ -406,6 +407,8 @@ export class View360Model {
         const columns = topColumns(rootNode);
         const count = columns.length;
         const gap = this.gapPx();
+        // Taken before the column count changes: the automatic gate (#1225) flips the state with the count alone.
+        const before = this.active;
         globalStore.set(this.columnCountAtom, count);
         const columnMins = columnMinimumsPx(count, currentFirstColumnFloorPx());
         this.lastColumnMins = columnMins;
@@ -414,9 +417,8 @@ export class View360Model {
 
         // The screen's column threshold (#1083) switches at once: a column opened or closed, another screen.
         const threshold = globalStore.get(this.thresholdAtom);
-        const before = this.active;
         const prevCount = this.lastColumnCount;
-        globalStore.set(this.columnsOverAtom, overThreshold(count, threshold));
+        globalStore.set(this.columnsOverAtom, count >= AutoMinColumns && overThreshold(count, threshold));
         globalStore.set(this.cannotFitAtom, !fitsAtReadableMinimums(count, width, gap));
         // Turned off by hand beyond the threshold, the tab follows the automatic decision again once its columns drop
         // back to the threshold, unless the readable minimums would turn the view straight back on.

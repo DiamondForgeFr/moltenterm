@@ -197,7 +197,7 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         // Leaves at N or fewer.
         expect(decideView360({ ...base, columnsOver: false, columnCount: 2 }).active).toBe(false);
         // A small window on a large screen: the readable minimums switch earlier.
-        expect(decideView360({ ...base, autoOn: true, columnsOver: false, columnCount: 2 })).toMatchObject({
+        expect(decideView360({ ...base, autoOn: true, columnsOver: false, columnCount: 3 })).toMatchObject({
             active: true,
             reason: "fit",
         });
@@ -280,15 +280,53 @@ describe("first column floor in the 360 decision (#731, #848)", () => {
     });
 
     it("enters 360 view when the first column's floor no longer fits", () => {
-        // a first column (a browser alone, say) at a 900 px floor beside another column: 900 + 360 = 1260
-        const mins = columnMinimumsPx(2, 900);
-        expect(minimumsPx(2, 0, mins)).toBe(1260);
-        expect(autoWants(false, 2, 1500, 0, mins)).toBe(false);
-        expect(autoWants(false, 2, 1259, 0, mins)).toBe(true);
+        // a first column at a 900 px floor beside two others: 900 + 360 + 360 = 1620
+        const mins = columnMinimumsPx(3, 900);
+        expect(minimumsPx(3, 0, mins)).toBe(1620);
+        expect(autoWants(false, 3, 1700, 0, mins)).toBe(false);
+        expect(autoWants(false, 3, 1619, 0, mins)).toBe(true);
         // Without the floor the same width still fits.
-        expect(autoWants(false, 2, 1259)).toBe(false);
-        expect(autoWants(true, 2, 1260 + LeaveMarginPx - 1, 0, mins)).toBe(true);
-        expect(autoWants(true, 2, 1260 + LeaveMarginPx, 0, mins)).toBe(false);
+        expect(autoWants(false, 3, 1619)).toBe(false);
+        expect(autoWants(true, 3, 1620 + LeaveMarginPx - 1, 0, mins)).toBe(true);
+        expect(autoWants(true, 3, 1620 + LeaveMarginPx, 0, mins)).toBe(false);
+    });
+
+    it("#1225: two columns never go automatic, whatever the floor or the width", () => {
+        // The case that tripped: a wide first column floor beside a single other column on a laptop.
+        const mins = columnMinimumsPx(2, 900);
+        for (const width of [200, 800, 1000, 1259, 1260, 1500, 3000]) {
+            expect(autoWants(false, 2, width, 0, mins)).toBe(false);
+            expect(autoWants(true, 2, width, 0, mins)).toBe(false);
+            expect(autoWants(false, 2, width)).toBe(false);
+        }
+        const base = { setting: "auto" as const, manual: null as boolean, columnCount: 2 };
+        expect(decideView360({ ...base, autoOn: true, columnsOver: true, cannotFit: true })).toMatchObject({
+            active: false,
+            wanted: false,
+        });
+        expect(decideView360({ ...base, manual: false, autoOn: true, cannotFit: true }).active).toBe(false);
+    });
+
+    it("#1225: on demand and the always setting keep two columns", () => {
+        const two = { autoOn: false, columnCount: 2 };
+        expect(decideView360({ ...two, setting: "auto", manual: true })).toMatchObject({
+            active: true,
+            source: "manual",
+        });
+        expect(decideView360({ ...two, setting: "always", manual: null })).toMatchObject({
+            active: true,
+            source: "setting",
+        });
+    });
+
+    it("#1225: three columns go automatic over the threshold or when they do not fit", () => {
+        const three = { setting: "auto" as const, manual: null as boolean, columnCount: 3 };
+        expect(decideView360({ ...three, autoOn: false, columnsOver: true })).toMatchObject({
+            active: true,
+            reason: "columns",
+        });
+        expect(decideView360({ ...three, autoOn: true })).toMatchObject({ active: true, reason: "fit" });
+        expect(decideView360({ ...three, autoOn: false, columnsOver: false }).active).toBe(false);
     });
 
     it("ignores per-column minimums that do not match the column count", () => {

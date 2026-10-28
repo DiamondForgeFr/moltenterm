@@ -449,14 +449,28 @@ describe("View360Model mode (FR-SHELL-066)", () => {
         expect(globalStore.get(model.signalAtom)).toBe(2);
     });
 
+    it("keeps two columns in the normal layout at any width and floor (#1225)", () => {
+        terminalFloor.px = 900;
+        try {
+            const root = rowOf(2);
+            const { model } = makeModel(null, root);
+            for (const width of [600, 900, 1100, 1260, 1500]) {
+                model.evaluate(root, boundsOf(width));
+                expect(model.active).toBe(false);
+            }
+        } finally {
+            terminalFloor.px = null;
+        }
+    });
+
     it("enters when a panel opened leaves no room for the first column's floor (#731, #848), and reports what fits", () => {
         terminalFloor.px = 900;
         try {
             const { model } = makeModel(null, rowOf(1));
             model.evaluate(rowOf(1), boundsOf(1200));
             expect(model.active).toBe(false);
-            // 900 (floor) + 360 > 1200, while the readable minimums alone (520 + 360) would fit.
-            model.evaluate(rowOf(2), boundsOf(1200));
+            // 900 (floor) + 360 + 360 > 1500, while the readable minimums alone (520 + 720) would fit.
+            model.evaluate(rowOf(3), boundsOf(1500));
             expect(model.active).toBe(true);
             expect(model.fitsAtCurrentFloors()).toBe(false);
             expect(model.fitsAtReadableMinimums()).toBe(true);
@@ -558,9 +572,9 @@ describe("View360Model mode (FR-SHELL-066)", () => {
     it("leaves below the first column's floor without readjusting anything, turned off by hand (#733, #1083)", () => {
         terminalFloor.px = 900;
         try {
-            const root = rowOf(2);
+            const root = rowOf(3);
             const { model, layoutModel } = makeModel(true, root);
-            model.evaluate(root, boundsOf(1200));
+            model.evaluate(root, boundsOf(1500));
             expect(model.requestLeave()).toEqual({ kind: "leave" });
             expect(globalStore.get(model.exitAskAtom)).toBeNull();
             // The floor stays, no size is shared again, and the tab stays off although the floor no longer fits.
