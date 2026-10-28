@@ -27,7 +27,7 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AgentInfoHost } from "../agent-info/agent-info-window";
+import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";

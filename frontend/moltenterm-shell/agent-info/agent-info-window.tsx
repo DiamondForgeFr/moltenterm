@@ -39,7 +39,6 @@ import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readWorktreeLink } from "../worktree-model";
 import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "./agent-info-hooks";
 import { agentTool, mcpServerRows, sharedPages, startedAgo, subagentRows, type SharedPage } from "./agent-info-model";
-import { AgentInfoModel } from "./agent-info-store";
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -493,13 +492,4 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
             </div>
         </DialogFrame>
     );
-}
-
-export function AgentInfoHost() {
-    const model = AgentInfoModel.getInstance();
-    const blockId = useAtomValue(model.openAtom);
-    if (!blockId) {
-        return null;
-    }
-    return <AgentInfoWindow key={blockId} blockId={blockId} onClose={() => model.close()} />;
 }
