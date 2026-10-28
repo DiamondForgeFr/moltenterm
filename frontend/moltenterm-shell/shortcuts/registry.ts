@@ -132,7 +132,14 @@ export const Shortcuts: Shortcut[] = [
         then: ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"],
         keywords: ["split left", "split up", "chord"],
     },
-    { id: "new-panel", label: "New terminal panel", category: "Panels", scope: "global", keys: "Cmd:n" },
+    {
+        id: "new-panel",
+        label: "New panel",
+        category: "Panels",
+        scope: "global",
+        keys: "Cmd:n",
+        keywords: ["add panel", "pointer", "beside", "terminal"],
+    },
     { id: "close-panel", label: "Close the panel", category: "Panels", scope: "global", keys: "Cmd:w" },
     {
         id: "magnify",
