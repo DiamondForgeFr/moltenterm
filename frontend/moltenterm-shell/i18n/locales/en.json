@@ -4768,7 +4768,7 @@
             },
             "clear": {
                 "title": "Clear the temporary views?",
-                "subtitle": "Closing them stops what runs in their terminals. Undo reopens the views, not what ran in them.",
+                "subtitle": "Closing them stops what runs in their terminals. The views can come back, not what ran in them.",
                 "confirm": "Clear anyway"
             },
             "tab": {
