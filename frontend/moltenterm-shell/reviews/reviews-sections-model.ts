@@ -78,6 +78,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         taskLive: live,
         boardTurn,
         boardStatus,
+        agentReadies: pr.draft && workflowTurn,
         headFails: headStillFails(pr, agents[0] ?? null, taskState),
         rerunnable: checksOf(pr.ci, "failure").some((c) => (c.runid ?? 0) > 0),
         others: prOtherBranches(ctx.upcoming, pr),

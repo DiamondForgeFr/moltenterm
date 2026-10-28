@@ -304,9 +304,17 @@ export class ReviewsModel {
 
     // queueAsk (#1062, FR-REV-022 AC12): "Hand the rebase to {name} after its task": the task waits for the busy agent
     // and goes to it, with no dialog, once it is neither working nor waiting.
-    queueAsk(dir: string, pr: ReviewPr, repo: string, kind: PrTaskKind, agent: BusyAgent, mergedPr?: number) {
+    queueAsk(
+        dir: string,
+        pr: ReviewPr,
+        repo: string,
+        kind: PrTaskKind,
+        agent: BusyAgent,
+        mergedPr?: number,
+        markReady?: boolean
+    ) {
         const queue = this.askQueue();
-        queue.queue({ dir, repo, pr, kind, agent, mergedPr });
+        queue.queue({ dir, repo, pr, kind, agent, mergedPr, markReady });
     }
 
     // askQueue: the queue of asks, sending through this model and watching the agents' states once it is first used.
@@ -327,7 +335,7 @@ export class ReviewsModel {
             case "investigate":
                 return this.investigateOnce(ask.dir, ask.pr, ask.repo, null);
             case "finish":
-                return this.finishOnce(ask.dir, ask.pr, ask.repo, null);
+                return this.finishOnce(ask.dir, ask.pr, ask.repo, null, ask.markReady);
         }
         return this.askRebaseOnce(ask.dir, ask.pr, ask.repo, null, ask.mergedPr);
     }
@@ -345,8 +353,9 @@ export class ReviewsModel {
     }
 
     // Check and finish one PR (#954), from its row's Retry: the agent on the branch, else the developer's choice.
-    async askFinish(dir: string, pr: ReviewPr, repo: string): Promise<RebaseOutcome> {
-        const outcome = await this.finishOnce(dir, pr, repo, null);
+    // markReady (#1212): Resume on a draft its agent stopped before marking ready, in a workflow without Human Testing.
+    async askFinish(dir: string, pr: ReviewPr, repo: string, markReady?: boolean): Promise<RebaseOutcome> {
+        const outcome = await this.finishOnce(dir, pr, repo, null, markReady);
         if (outcome?.kind !== "offer") {
             return outcome;
         }
@@ -361,14 +370,15 @@ export class ReviewsModel {
         if (choice == null) {
             return null;
         }
-        return this.finishOnce(dir, pr, repo, choice);
+        return this.finishOnce(dir, pr, repo, choice, markReady);
     }
 
     private async finishOnce(
         dir: string,
         pr: ReviewPr,
         repo: string,
-        choice: AgentChoiceAnswer
+        choice: AgentChoiceAnswer,
+        markReady?: boolean
     ): Promise<RebaseOutcome> {
         const mode = choice?.mode;
         const repoName = repo || repoOfPrUrl(pr?.url);
@@ -392,6 +402,7 @@ export class ReviewsModel {
                 failedchecks: left.failedChecks.length > 0 ? left.failedChecks : undefined,
                 changesrequested: left.changesRequested || undefined,
                 noreport: left.noReport || undefined,
+                markready: (markReady && pr.draft) || undefined,
                 ...(mode != null ? agentStartOf("finish", pr.number, mode, choice.agent) : {}),
             });
             showStartedAgent(mode, result);

@@ -6495,6 +6495,7 @@
                 "agentWaiting": "{name} vous attend",
                 "agentWorking": "{name} s'en occupe",
                 "agentAway": "Un agent s'en occupe",
+                "agentFinish": "L'agent doit encore la marquer prête",
                 "agentOn": {
                     "rebase": "{name} rebase sur {base}",
                     "investigate": "{name} résout ce qui la bloque",
@@ -6506,7 +6507,7 @@
                 "changes": "Modifications demandées",
                 "reviewRequired": "Revue requise",
                 "blockedRule": "Bloquée par une règle",
-                "draftReady": "Prête à passer en revue",
+                "draftReady": "Brouillon à tester",
                 "ciRunning": "CI en cours",
                 "mergeChecking": "GitHub vérifie la fusion",
                 "ready": "Prête à fusionner",
@@ -6526,6 +6527,7 @@
                 "board": "colonne {status}",
                 "recentCommit": "un commit vient d'arriver",
                 "workflowDraft": "votre workflow laisse les brouillons aux agents jusqu'à la revue",
+                "agentFinish": "votre workflow n'a pas de Human Testing : l'agent marque lui-même son brouillon prêt",
                 "interrupted": "{name} s'est arrêté avant de finir {what}",
                 "interruptedGone": "la session de {name} s'est terminée avant de finir {what}",
                 "nobody": "personne dessus",
@@ -6540,6 +6542,7 @@
                 "follow": "Suivre {name}",
                 "relaunch": "Relancer {name}",
                 "startAgent": "Lancer un agent",
+                "resume": "Reprendre avec {name}",
                 "rebase": "Confier le rebase",
                 "investigate": "Analyser et résoudre",
                 "assistedReview": "Revue assistée",
@@ -6557,7 +6560,8 @@
                 "relaunch": "Renvoyer la même tâche à {name}, dans sa session, avec la pull request telle qu'elle est",
                 "startAgent": "La session de la tâche est terminée : lancer un nouvel agent dessus",
                 "rebase": "Confier le rebase sur {base} à un agent : celui de la branche, ou un que vous lancez",
-                "investigate": "Un agent de travail résout ce qui bloque cette pull request, dans cet ordre : {blockers}. Il ne fusionne jamais."
+                "investigate": "Un agent de travail résout ce qui bloque cette pull request, dans cet ordre : {blockers}. Il ne fusionne jamais.",
+                "resume": "Demande à {name} de finir cette pull request et de la marquer prête lui-même une fois sa CI verte. Il ne fusionne jamais."
             },
             "fact": {
                 "ciFailing": "CI en échec : {names}",

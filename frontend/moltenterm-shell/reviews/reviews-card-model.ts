@@ -17,6 +17,7 @@ import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
 export const CardStateKinds = [
     "agent-waiting",
     "agent-working",
+    "agent-finish",
     "interrupted",
     "conflicts",
     "failing",
@@ -40,6 +41,7 @@ export type CardActionId =
     | "follow"
     | "relaunch"
     | "start-agent"
+    | "resume"
     | "rebase"
     | "investigate"
     | "assisted-review"
@@ -102,6 +104,8 @@ export type CardInput = {
     boardTurn?: DraftTurn;
     // Board column, worded by the caller.
     boardStatus?: string;
+    // The project's workflow has no Human Testing (#1212): a draft is its agent's until the agent marks it ready.
+    agentReadies?: boolean;
     // Checks the list confirmed failing on the PR's head after a stopped task (headStillFails).
     headFails?: string[];
     // The PR can be rerun on GitHub Actions (rerunnable).
@@ -117,11 +121,12 @@ export type CardInput = {
 const Tones: Record<CardStateKind, CardTone> = {
     "agent-waiting": "you",
     "agent-working": "agent",
+    "agent-finish": "agent",
     interrupted: "you",
     conflicts: "broken",
     failing: "broken",
     "review-required": "you",
-    "draft-ready": "ready",
+    "draft-ready": "you",
     "ci-running": "wait",
     ready: "ready",
 };
@@ -129,6 +134,7 @@ const Tones: Record<CardStateKind, CardTone> = {
 const Turns: Record<CardStateKind, CardTurn> = {
     "agent-waiting": "yours",
     "agent-working": "agents",
+    "agent-finish": "agents",
     interrupted: "yours",
     conflicts: "blocked",
     failing: "blocked",
@@ -141,6 +147,8 @@ const Turns: Record<CardStateKind, CardTurn> = {
 // Calm primaries: nothing is the developer's to do right now. The same states are the ones where something works
 // (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
+// A draft left to its agent (#1212) asks nothing of the developer either, but nothing works on it: calm, no dominoes.
+const QuietKinds = new Set<CardStateKind>([...CalmKinds, "agent-finish"]);
 
 // agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
 // background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
@@ -219,8 +227,14 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     if (waiting != null) {
         return "agent-waiting";
     }
-    if (working != null || (input.boardTurn?.owner === "agent" && pr.draft)) {
+    const workflowOnly = input.agentReadies && input.boardTurn?.workflow;
+    if (working != null || (input.boardTurn?.owner === "agent" && pr.draft && !workflowOnly)) {
         return "agent-working";
+    }
+    // #1212: in a workflow without Human Testing a draft no agent works on is still its agent's (it stopped before
+    // marking it ready), whatever its CI or its conflicts: never the developer's.
+    if (input.agentReadies && pr.draft) {
+        return "agent-finish";
     }
     // A stopped task whose session is still open; one whose session is gone falls to the PR's own state, with its
     // history, and reads as interrupted only when nothing else is left.
@@ -484,6 +498,23 @@ export function cardState(input: CardInput): CardState {
             ];
             break;
         }
+        case "agent-finish": {
+            // The branch's agent that stopped (a panel first: the one Resume reaches), else the task's.
+            agent = agents.find((a) => a.kind === "panel") ?? agents[0] ?? (input.taskLive ? input.taskOwner : null);
+            sentence = phrase("reviews.card.state.agentFinish");
+            if (pr.merge === "conflicts") {
+                why = phrase("reviews.card.why.conflicts", { base: pr.base });
+                said.add("conflicts");
+            } else if (failed.length > 0) {
+                why = phrase("reviews.card.why.ciFailing", { names: checkNames(failed) });
+                said.add("ci");
+            } else {
+                why = phrase("reviews.card.why.agentFinish");
+            }
+            primary = action("resume", "reviews.card.action.resume", { name: agentName(agent) });
+            menu = [...agentActions(agent), AssistedReview(), mergeAction(input, null), Launch(), Github()];
+            break;
+        }
         case "interrupted": {
             agent = input.taskLive ? input.taskOwner : null;
             const name = input.task?.name || "";
@@ -585,7 +616,7 @@ export function cardState(input: CardInput): CardState {
         why,
         agent,
         primary,
-        molten: primary != null && !CalmKinds.has(kind) && primary.disabled == null,
+        molten: primary != null && !QuietKinds.has(kind) && primary.disabled == null,
         menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
         facts: cardFacts(input, kind, said),
         history,

@@ -24,6 +24,8 @@ export type QueuedAsk = {
     kind: PrTaskKind;
     agent: BusyAgent;
     mergedPr?: number;
+    // A finish that also marks the draft ready (#1212).
+    markReady?: boolean;
     at: number;
     sending?: boolean;
     failed?: Phrase;
