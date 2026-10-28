@@ -164,6 +164,32 @@ func (svc *WorkspaceService) CreateTab(workspaceId string, tabName string, activ
 	return tabId, updates, nil
 }
 
+// MOLTENTERM-PATCH (#1232): a new view whose first block is given: the chooser or the type opened directly (FR-SHELL-089)
+func (svc *WorkspaceService) CreateTabWithBlock_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"workspaceId", "blockDef", "activateTab"},
+		ReturnDesc: "tabId",
+	}
+}
+
+func (svc *WorkspaceService) CreateTabWithBlock(workspaceId string, blockDef *waveobj.BlockDef, activateTab bool) (string, waveobj.UpdatesRtnType, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	tabId, err := wcore.CreateTabWithBlock(ctx, workspaceId, blockDef, activateTab)
+	if err != nil {
+		return "", nil, fmt.Errorf("error creating tab: %w", err)
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:CreateTabWithBlock:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return tabId, updates, nil
+}
+
 func (svc *WorkspaceService) SetActiveTab_Meta() tsgenmeta.MethodMeta {
 	return tsgenmeta.MethodMeta{
 		ArgNames: []string{"workspaceId", "tabId"},

@@ -39,6 +39,7 @@ import { LibraryHost } from "../library/library-host";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
+import { openNewView } from "../newview/new-view";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
@@ -1159,7 +1160,7 @@ export function TemporaryViews({
                     type="button"
                     className="mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-white/[0.08] hover:text-primary"
                     data-testid="sidebar-new-view"
-                    onClick={() => getApi().createTab()}
+                    onClick={() => openNewView()}
                 >
                     {state != null && !state.out && state.before == null && state.id !== ids[ids.length - 1] ? (
                         <span className="pointer-events-none absolute -top-px right-1 left-1 h-[2px] rounded-full bg-accent" />
@@ -1885,7 +1886,7 @@ function PlusButton({ workspaces }: { workspaces: SidebarWorkspaces }) {
                 icon: "plus",
                 section: t("sidebar.plus.inWorkspace", { name }),
                 accelerator: acceleratorById("new-tab"),
-                click: () => getApi().createTab(),
+                click: () => openNewView(),
             },
             {
                 label: t("sidebar.plus.newWorkspace"),

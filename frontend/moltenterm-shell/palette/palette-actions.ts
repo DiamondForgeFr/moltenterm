@@ -7,7 +7,6 @@
 import {
     createBlock,
     createBlockSplitHorizontally,
-    createTab,
     getApi,
     getBlockComponentModel,
     replaceBlock,
@@ -20,6 +19,7 @@ import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { handOffActivePage } from "../browser/browser-routing";
 import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { equalizeCurrentTab } from "../equalize/equalize-actions";
+import { openNewView } from "../newview/new-view";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { reopenLastClosed } from "../reopen/reopen-store";
@@ -115,7 +115,7 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             await openBlock(folderBlockDef(run.path), target);
             return;
         case "newtab":
-            createTab();
+            openNewView();
             return;
         case "newworkspace":
             getApi().createWorkspace();

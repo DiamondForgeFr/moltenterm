@@ -67,6 +67,18 @@ function digits(make: (n: number) => string[]): string[] {
     return rtn;
 }
 
+// The direct shortcuts of the new view's favourites (FR-SHELL-089): one per position, ⌥⌘1…⌥⌘4 on macOS, Alt+Shift+1…4
+// elsewhere.
+export const NewViewFavoriteKeyCount = 4;
+
+export function newViewFavoriteBindings(mac: boolean): string[] {
+    const rtn: string[] = [];
+    for (let n = 1; n <= NewViewFavoriteKeyCount; n++) {
+        rtn.push(mac ? `Cmd:Alt:c{Digit${n}}` : `Cmd:Shift:c{Digit${n}}`);
+    }
+    return rtn;
+}
+
 export const Shortcuts: Shortcut[] = [
     // Panels
     {
@@ -216,6 +228,28 @@ export const Shortcuts: Shortcut[] = [
     },
     // Tabs
     { id: "new-tab", label: "New tab", category: "Tabs", scope: "global", keys: "Cmd:t" },
+    // #1232: a new view already holding favourite 1 to 4 of its chooser (FR-SHELL-089), by key code like ⌥1…⌥9. Off
+    // macOS Wave's Cmd is Alt, so ⌥⌘digit would be Alt+digit (a tab) and Ctrl+Alt+digit is the Workspace menu's.
+    {
+        id: "new-view-favorite",
+        label: "New view with favourite 1 to 4",
+        category: "Tabs",
+        scope: "global",
+        keys: `Cmd:Alt:{1-${NewViewFavoriteKeyCount}}`,
+        bindings: newViewFavoriteBindings(true),
+        keywords: ["new view", "favourite", "favorite", "chooser", "terminal", "web page"],
+        macOnly: true,
+    },
+    {
+        id: "new-view-favorite-other",
+        label: "New view with favourite 1 to 4",
+        category: "Tabs",
+        scope: "global",
+        keys: `Cmd:Shift:{1-${NewViewFavoriteKeyCount}}`,
+        bindings: newViewFavoriteBindings(false),
+        keywords: ["new view", "favourite", "favorite", "chooser", "terminal", "web page"],
+        notMac: true,
+    },
     { id: "close-tab", label: "Close the tab", category: "Tabs", scope: "global", keys: "Cmd:Shift:w" },
     {
         id: "reopen-closed",

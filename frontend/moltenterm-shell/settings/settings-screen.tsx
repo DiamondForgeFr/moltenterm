@@ -24,11 +24,14 @@ import { IntegrateOffKey } from "../companion/companion-integration-model";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
+import { NewViewOpenKey } from "../newview/new-view-model";
+import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
 import {
     ProjectMetaKey,
@@ -67,7 +70,6 @@ import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader
 import { SecretsSection } from "./settings-secrets";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
 import { View360Screens } from "./settings-view360-screens";
-import { View360SettingKey } from "../view360/view360-decision";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -357,6 +359,8 @@ function Control({
     const t = useT();
     const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
     const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
+    const newViewChoices = useNewViewChoices();
+    const newViewOptions = newViewChoices.map((c) => ({ value: c.id, label: c.label }));
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
@@ -380,7 +384,13 @@ function Control({
                 <Select
                     entry={entry}
                     value={shown}
-                    options={entry.optionsFrom === "termthemes" ? themes : (entry.options ?? [])}
+                    options={
+                        entry.optionsFrom === "termthemes"
+                            ? themes
+                            : entry.optionsFrom === NewViewChoicesOptions
+                              ? newViewOptions
+                              : (entry.options ?? [])
+                    }
                     onSet={onSet}
                 />
             );
@@ -918,6 +928,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 ) : null}
                                                 {g.entries.some((e) => e.key === View360SettingKey) ? (
                                                     <View360Screens />
+                                                ) : null}
+                                                {g.entries.some((e) => e.key === NewViewOpenKey) ? (
+                                                    <NewViewFavorites />
                                                 ) : null}
                                             </PageCard>
                                         ))}

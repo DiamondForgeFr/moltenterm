@@ -144,7 +144,7 @@ declare global {
         deleteWorkspace: (workspaceId: string) => void; // delete-workspace
         resetWorkspace: (workspaceId: string) => void; // reset-workspace (MOLTENTERM-PATCH #222)
         setActiveTab: (tabId: string) => void; // set-active-tab
-        createTab: () => void; // create-tab
+        createTab: (blockDef?: BlockDef) => void; // create-tab (MOLTENTERM-PATCH #1232: a new view may start with a given block)
         closeTab: (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>; // close-tab
         setWindowInitStatus: (status: "ready" | "wave-ready") => void; // set-window-init-status
         onWaveInit: (callback: (initOpts: WaveInitOpts) => void) => void; // wave-init

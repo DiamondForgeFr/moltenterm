@@ -86,8 +86,9 @@ function splitKeys(keys: string): { mods: string[]; key: string } {
 
 // "c{Digit1}" is the key code form of Wave's notation; "{1-9}" the registry's digit family.
 function keyLabel(key: string, mac: boolean): string {
-    if (key === "{1-9}") {
-        return "1–9";
+    const family = key.match(/^\{(\d)-(\d)\}$/);
+    if (family) {
+        return `${family[1]}–${family[2]}`;
     }
     const code = key.match(/^c\{(?:Digit|Numpad)(\d)\}$/);
     if (code) {

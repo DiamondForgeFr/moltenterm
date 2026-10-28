@@ -121,6 +121,9 @@ const (
 
 	ConfigKey_ShellWorkspaceSidebar          = "shell:workspacesidebar"
 
+	ConfigKey_AppNewViewOpen                 = "app:newviewopen"
+	ConfigKey_AppNewViewFavorites            = "app:newviewfavorites"
+
 	ConfigKey_MoltentermTabViewPriority      = "moltenterm:tabviewpriority"
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
 	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"
