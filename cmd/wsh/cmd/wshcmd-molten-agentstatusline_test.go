@@ -6,14 +6,11 @@ package cmd
 import (
 	"bytes"
 	"crypto/sha256"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -145,30 +142,8 @@ func TestStatusLineRelayBoundsTheHandOff(t *testing.T) {
 	if stdout.String() != "hi\n" {
 		t.Errorf("output %q", stdout.String())
 	}
-
-	// NFR-SHELL-012: the hand-off runs alongside the command, never before it. This one only returns once the command
-	// ran, so a relay that handed off first would only start the command after the hand-off's deadline.
-	marker := filepath.Join(t.TempDir(), "ran")
-	sawCommand := make(chan bool, 1)
-	alongside := func(molten.AgentStatusLineRequest) {
-		deadline := time.Now().Add(time.Minute)
-		for time.Now().Before(deadline) {
-			if _, err := os.Stat(marker); err == nil {
-				sawCommand <- true
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		sawCommand <- false
-	}
-	stdout.Reset()
-	runStatusLineRelay(strings.NewReader(statusLineInput), &stdout, &stderr, []string{"touch '" + marker + "'; echo hi"}, alongside)
-	if stdout.String() != "hi\n" {
-		t.Errorf("output %q", stdout.String())
-	}
-	if !<-sawCommand {
-		t.Error("the hand-off ran before the status line command")
-	}
+	// NFR-SHELL-012 (the hand-off adds nothing to the status line) is TestStatusLineRelayHandsOffAlongsideTheCommand in
+	// pkg/molten/agenthook.
 }
 
 func TestStatusLineSenderOutsideMoltenTerm(t *testing.T) {

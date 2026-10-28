@@ -455,8 +455,9 @@ func TestDetectSkipsLaunchers(t *testing.T) {
 func TestDetectCanceledIsNotCached(t *testing.T) {
 	skipOnWindows(t)
 	bin := filepath.Join(t.TempDir(), "bin")
-	writeFakeAgent(t, bin, "claude", `sleep 30`)
-	// The probe's own limit is out of reach (#1208): only the caller's cancel can end this probe before the sleep does.
+	writeFakeAgent(t, bin, "claude", `sleep 3600`)
+	// The probe's own limit and the sleep are out of reach (#1208): only the caller's cancel ends this probe, and a probe
+	// that ignored it shows as a hang.
 	d := MakeDetector(RunVersionProbe, time.Hour)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
