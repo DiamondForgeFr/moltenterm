@@ -3,15 +3,16 @@
 
 import logoUrl from "@/app/asset/logo.svg?url";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atoms, getSettingsKeyAtom, globalStore, replaceBlock } from "@/app/store/global";
-import { CommandPalette } from "../../../moltenterm-shell/palette/command-palette"; // MOLTENTERM-PATCH (#111)
-import { useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#741)
+import { atoms, getSettingsKeyAtom, globalStore, replaceBlock, WOS } from "@/app/store/global"; // MOLTENTERM-PATCH (#1232): WOS
 import type { TabModel } from "@/app/store/tab-model";
 import { checkKeyPressed, keydownWrapper } from "@/util/keyutil";
 import { isBlank, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { atom, useAtom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
+import { useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#741)
+import { isNewViewBlock, NewViewChooserView } from "../../../moltenterm-shell/newview/new-view-chooser"; // MOLTENTERM-PATCH (#1232)
+import { CommandPalette } from "../../../moltenterm-shell/palette/command-palette"; // MOLTENTERM-PATCH (#111)
 // MOLTENTERM-PATCH (#107): grid and logo sizes from the shell (no orphan tile, small logo)
 import {
     launcherGrid,
@@ -150,6 +151,15 @@ export class LauncherViewModel implements ViewModel {
 function LauncherView(props: ViewComponentProps<LauncherViewModel>) {
     const { blockId, model } = props;
     const tileLauncher = useAtomValue(getSettingsKeyAtom("app:tilelauncher"));
+    // MOLTENTERM-PATCH (#1232): a new view's launcher is its chooser (FR-SHELL-089), whatever app:tilelauncher says
+    const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
+    if (isNewViewBlock(block)) {
+        return (
+            <div className="w-full h-full p-4 box-border flex items-start justify-center pt-[8%] overflow-hidden">
+                <NewViewChooserView blockId={blockId} inputRef={model.inputRef} />
+            </div>
+        );
+    }
     if (tileLauncher) {
         return <LauncherTilesView {...props} />;
     }

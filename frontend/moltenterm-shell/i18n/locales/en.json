@@ -366,7 +366,8 @@
             "openRight": "open to the right",
             "close": "close",
             "cancelSplit": "cancel the split",
-            "clear": "clear"
+            "clear": "clear",
+            "cancelNewView": "cancel the new view"
         },
         "groups": {
             "agents": "Agents",
@@ -491,7 +492,8 @@
             "thisWorkspace": "This workspace",
             "otherSettings": "Other settings",
             "360View": "360 view",
-            "codingAgent": "Coding agent"
+            "codingAgent": "Coding agent",
+            "newViews": "New views"
         },
         "items": {
             "app:nativecontextmenu": {
@@ -1012,6 +1014,11 @@
             "review:validategreenonly": {
                 "label": "Validate only once CI is green",
                 "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green."
+            },
+            "app:newviewopen": {
+                "label": "When a new view opens",
+                "description": "Ask shows the chooser; or open one type directly, without it.",
+                "unset": "Ask"
             }
         },
         "title": "Settings",
@@ -1765,7 +1772,9 @@
             "carpet-next": "Next panel on the carpet (360 view)",
             "pin-panel": "Pin the panel to the fixed zone, or unpin it",
             "equalize-panels": "Equalize panel widths",
-            "top-field": "Search, go to, open an address"
+            "top-field": "Search, go to, open an address",
+            "new-view-favorite": "New view with favourite 1 to 4",
+            "new-view-favorite-other": "New view with favourite 1 to 4"
         }
     },
     "tips": {
@@ -9138,6 +9147,26 @@
             "copy": "Copy the download link",
             "copied": "Download link copied",
             "failed": "The link could not be copied"
+        }
+    },
+    "newView": {
+        "aria": "New view: choose what it holds",
+        "favoritesAria": "Favourites",
+        "hint": {
+            "choose": "choose",
+            "open": "open",
+            "all": "all panels",
+            "cancel": "cancel"
+        },
+        "settings": {
+            "title": "Favourites",
+            "hint": "2 to 4 choices on top of a new view, in this order. Each one's shortcut opens a new view holding it.",
+            "change": "Favourite {n}",
+            "moveUp": "Move up",
+            "moveDown": "Move down",
+            "remove": "Remove",
+            "add": "Add a favourite",
+            "unknown": "Not available ({id})"
         }
     }
 }

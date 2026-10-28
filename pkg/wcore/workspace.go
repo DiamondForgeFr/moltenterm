@@ -234,6 +234,11 @@ func getNextTabName(tabNames []string) string {
 
 // returns tabid
 func CreateTab(ctx context.Context, workspaceId string, tabName string, activateTab bool, isInitialLaunch bool) (string, error) {
+	return createTabWithLayout(ctx, workspaceId, tabName, activateTab, isInitialLaunch, GetNewTabLayout())
+}
+
+// MOLTENTERM-PATCH (#1232): the new tab's layout is a parameter, so a new view can start with another block (moltenterm_newview.go)
+func createTabWithLayout(ctx context.Context, workspaceId string, tabName string, activateTab bool, isInitialLaunch bool, newTabLayout PortableLayout) (string, error) {
 	if tabName == "" {
 		ws, err := GetWorkspace(ctx, workspaceId)
 		if err != nil {
@@ -263,7 +268,7 @@ func CreateTab(ctx context.Context, workspaceId string, tabName string, activate
 
 	// No need to apply an initial layout for the initial launch, since the starter layout will get applied after onboarding modal dismissal
 	if !isInitialLaunch {
-		err = ApplyPortableLayout(ctx, tab.OID, GetNewTabLayout(), true)
+		err = ApplyPortableLayout(ctx, tab.OID, newTabLayout, true)
 		if err != nil {
 			return tab.OID, fmt.Errorf("error applying new tab layout: %w", err)
 		}

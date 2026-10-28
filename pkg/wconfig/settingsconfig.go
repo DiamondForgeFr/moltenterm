@@ -189,6 +189,10 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1183): the workspace sidebar replaces the tab bar, the rail and the status bar (FR-SHELL-079, frontend/moltenterm-shell/sidebar).
 	ShellWorkspaceSidebar *bool `json:"shell:workspacesidebar,omitempty" jsonschema_description:"Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back"`
 
+	// MOLTENTERM-PATCH (#1232): what a new view opens, and the favourites of its chooser (FR-SHELL-089, frontend/moltenterm-shell/newview).
+	AppNewViewOpen      string   `json:"app:newviewopen,omitempty" jsonschema_description:"What a new view opens: unset shows the chooser (favourites on top, the launcher's full list below); a launcher entry id opens it directly, such as panel:defwidget@terminal for a terminal or agent:<preset> for an agent"`
+	AppNewViewFavorites []string `json:"app:newviewfavorites,omitempty" jsonschema_description:"The 2 to 4 favourites of the new view chooser, in order, as launcher entry ids (panel:defwidget@terminal, panel:defwidget@web, agent:<preset>...); each opens directly with Option+Cmd+1 to 4 (Alt+Shift+1 to 4 off macOS). Unset: Terminal and Web page"`
+
 	// MOLTENTERM-PATCH (#450): tab views about to be shown and the hot spare load at the foreground priority (FR-PERF-004, emain/moltenterm-tabview-priority.ts).
 	MoltentermTabViewPriority *bool `json:"moltenterm:tabviewpriority,omitempty" jsonschema_description:"Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)"`
 

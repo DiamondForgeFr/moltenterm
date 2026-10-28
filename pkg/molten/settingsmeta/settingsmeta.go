@@ -37,6 +37,9 @@ const OptionsTermThemes = "termthemes"
 // The interface languages: the shipped ones and the installed language packs (FR-I18N-001).
 const OptionsLanguages = "languages"
 
+// The launcher's entries a new view can open (FR-SHELL-089): panels, the registered agents, Sessions.
+const OptionsNewViewChoices = "newviewchoices"
+
 var Sections = []string{
 	SectionGeneral,
 	SectionAppearance,
@@ -116,6 +119,9 @@ var settings = []Setting{
 	{Key: "moltenterm:releasecandidates", Section: SectionGeneral, Group: "Updates", Label: "Also get release candidates", Description: "Release candidates preview the next version and may be less stable. Off: public releases only.", Control: ControlToggle},
 	{Key: "window:savelastwindow", Section: SectionGeneral, Group: "Startup", Label: "Reopen the last window", Description: "Closing the last window keeps it, so it opens again at the next launch.", Control: ControlToggle},
 	{Key: "window:fullscreenonlaunch", Section: SectionGeneral, Group: "Startup", Label: "Full screen at launch", Description: "Open windows in full screen.", Control: ControlToggle},
+	// #1232: the choices are the launcher's entries, filled by the screen; the favourites have their own editor below.
+	{Key: "app:newviewopen", Section: SectionGeneral, Group: "New views", Label: "When a new view opens", Description: "Ask shows the chooser; or open one type directly, without it.", Control: ControlSelect, OptionsFrom: OptionsNewViewChoices, UnsetLabel: "Ask"},
+	hidden("app:newviewfavorites"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
 	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Power", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},

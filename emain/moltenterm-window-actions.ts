@@ -38,6 +38,8 @@ export type WindowAction =
       }
     | {
           op: "createtab";
+          // the new view's first block (FR-SHELL-089, #1232); none gives the usual terminal
+          blockDef?: BlockDef;
       }
     | {
           op: "closetab";
@@ -150,7 +152,10 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
     // have to use "===" here to get the typechecker to work :/
     switch (entry.op) {
         case "createtab":
-            tabId = await WorkspaceService.CreateTab(win.workspaceId, null, true);
+            tabId =
+                entry.blockDef != null
+                    ? await WorkspaceService.CreateTabWithBlock(win.workspaceId, entry.blockDef, true)
+                    : await WorkspaceService.CreateTab(win.workspaceId, null, true);
             break;
         case "switchtab":
             tabId = entry.tabId;

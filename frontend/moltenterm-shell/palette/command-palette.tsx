@@ -16,6 +16,8 @@ import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useLocale, useT } from "../i18n/i18n";
+import { FavoritesRow } from "../newview/favorites-row";
+import { chooserKey } from "../newview/new-view-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
@@ -58,6 +60,16 @@ type CommandPaletteProps = {
     autoFocus?: boolean;
     // "open" when an entry was chosen (its pane takes the focus), "dismiss" on Esc.
     onClose?: (reason: "open" | "dismiss") => void;
+    // A new view's chooser (FR-SHELL-089): favourites on top, Enter opens in the view, Escape cancels the view.
+    newView?: NewViewChooser;
+};
+
+export type NewViewChooser = {
+    favorites: PaletteEntry[];
+    // Each favourite's direct shortcut as shown, by position.
+    favoriteKeys: string[];
+    onOpen: (entry: PaletteEntry) => void;
+    onCancel: () => void;
 };
 
 type OtherWorkspaces = { list: PaletteWorkspace[]; folders: string[] };
@@ -330,12 +342,15 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
     );
 }
 
-export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose }: CommandPaletteProps) {
+export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose, newView }: CommandPaletteProps) {
     const t = useT();
     const picker = usePickerSource(host, blockId);
     const { entries, titles } = usePaletteEntries(picker);
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState(0);
+    const favCount = newView?.favorites?.length ?? 0;
+    // The selected favourite of a new view's chooser; -1 while the selection is in the list.
+    const [fav, setFav] = useState(favCount > 0 ? 0 : -1);
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
@@ -378,6 +393,9 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
 
     useEffect(() => {
         setSelected(Math.max(bestMatchIndex(sections, query), 0));
+        if (favCount > 0) {
+            setFav(query.trim() === "" ? 0 : -1);
+        }
     }, [query]);
     // A click on another panel before anything was chosen or typed cancels the split; the clicked panel keeps the
     // focus (DS-SHELL-066).
@@ -414,6 +432,10 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (entry == null) {
             return;
         }
+        if (newView != null) {
+            newView.onOpen(entry);
+            return;
+        }
         // In a split's picker the entry fills the new panel: it was opened for that.
         const placement: PalettePlacement = right && blockId && picker == null ? "right" : inPlace;
         if (host === "modal") {
@@ -440,13 +462,31 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (e.nativeEvent.isComposing) {
             return;
         }
-        const command = paletteKeyCommand({
-            key: e.key,
-            shift: e.shiftKey,
-            ctrl: e.ctrlKey,
-            meta: e.metaKey,
-            alt: e.altKey,
-        });
+        const key = { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey };
+        if (newView != null) {
+            const action = chooserKey({ fav, favCount, selected, listCount: flat.length, query }, key);
+            if (action != null) {
+                e.preventDefault();
+                e.stopPropagation();
+                switch (action.kind) {
+                    case "fav":
+                        setFav(action.index);
+                        break;
+                    case "list":
+                        setFav(-1);
+                        setSelected(action.index);
+                        break;
+                    case "openfav":
+                        newView.onOpen(newView.favorites[action.index]);
+                        break;
+                    case "cancel":
+                        newView.onCancel();
+                        break;
+                }
+                return;
+            }
+        }
+        const command = paletteKeyCommand(key);
         if (command == null) {
             return;
         }
@@ -475,6 +515,11 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         setSelected(moveSelection(selected, command, flat.length));
     };
 
+    const onListHover = (i: number) => {
+        setFav(-1);
+        setSelected(i);
+    };
+
     let index = 0;
     const palette = (
         <div
@@ -485,9 +530,18 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             )}
             style={pickerInPane && !inPopover ? { minHeight: PickerMinPx } : undefined}
             role="dialog"
-            aria-label={t("palette.ariaPalette")}
+            aria-label={t(newView != null ? "newView.aria" : "palette.ariaPalette")}
             data-role={pickerInPane ? (inPopover ? "split-picker-popover" : "split-picker") : undefined}
         >
+            {newView != null ? (
+                <FavoritesRow
+                    favorites={newView.favorites}
+                    keys={newView.favoriteKeys}
+                    selected={fav}
+                    onHover={setFav}
+                    onOpen={newView.onOpen}
+                />
+            ) : null}
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
                 <span className="font-mono text-accent">❯</span>
                 <input
@@ -520,9 +574,9 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                                     key={entry.id}
                                     entry={entry}
                                     index={i}
-                                    selected={i === selected}
+                                    selected={fav < 0 && i === selected}
                                     query={query}
-                                    onHover={setSelected}
+                                    onHover={onListHover}
                                     onOpen={open}
                                 />
                             );
@@ -530,21 +584,33 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     </div>
                 ))}
             </div>
-            <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
-                <span>↑↓ {t("palette.footer.choose")}</span>
-                <span>↵ {t(inPlace === "replace" ? "palette.footer.openHere" : "palette.footer.open")}</span>
-                {blockId && picker == null && <span>⇥ {t("palette.footer.openRight")}</span>}
-                <span>
-                    esc{" "}
-                    {t(
-                        host === "modal"
-                            ? "palette.footer.close"
-                            : picker != null
-                              ? "palette.footer.cancelSplit"
-                              : "palette.footer.clear"
-                    )}
-                </span>
-            </div>
+            {newView != null ? (
+                <div
+                    className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted"
+                    data-testid="new-view-hint"
+                >
+                    <span>← → {t("newView.hint.choose")}</span>
+                    <span>↵ {t("newView.hint.open")}</span>
+                    <span>↓ {t("newView.hint.all")}</span>
+                    <span>esc {t("palette.footer.cancelNewView")}</span>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
+                    <span>↑↓ {t("palette.footer.choose")}</span>
+                    <span>↵ {t(inPlace === "replace" ? "palette.footer.openHere" : "palette.footer.open")}</span>
+                    {blockId && picker == null && <span>⇥ {t("palette.footer.openRight")}</span>}
+                    <span>
+                        esc{" "}
+                        {t(
+                            host === "modal"
+                                ? "palette.footer.close"
+                                : picker != null
+                                  ? "palette.footer.cancelSplit"
+                                  : "palette.footer.clear"
+                        )}
+                    </span>
+                </div>
+            )}
         </div>
     );
     if (!pickerInPane) {

@@ -335,6 +335,7 @@ Everything else (directories, lock, socket, menus, About panel, permission promp
 | Wave file | Change | Why | Ticket |
 | --- | --- | --- | --- |
 | `vitest.config.ts`, `eslint.config.js` | Exclude checkout-relative nested worktree storage, retaining default exclusions | Validate only the current checkout | #820 |
+| `pkg/wcore/workspace.go`, `pkg/service/workspaceservice/workspaceservice.go`, `frontend/app/store/services.ts`, `emain/preload.ts`, `emain/emain-window.ts`, `frontend/types/custom.d.ts`, `frontend/app/store/keymodel.ts`, `frontend/app/view/launcher/launcher.tsx`, `pkg/wconfig/settingsconfig.go`, `pkg/wconfig/metaconsts.go`, `frontend/types/gotypes.d.ts`, `schema/settings.json` | A new tab can start with a given block (`CreateTabWithBlock`, the `create-tab` IPC's optional blockdef); ⌘T and the favourites' ⌥⌘1–4 go through `frontend/moltenterm-shell/newview/`; a launcher marked `molten:newview` shows the new view chooser; settings `app:newviewopen` and `app:newviewfavorites` | A new view starts with a chooser of favourite types, or one type directly (FR-SHELL-089) | #1232 |
 
 Terminal accessibility (#808, FR-SHELL-070) updates already-listed `frontend/app/view/term/termwrap.ts`,
 `emain/emain-ipc.ts`, `emain/preload.ts`, `frontend/types/custom.d.ts`,

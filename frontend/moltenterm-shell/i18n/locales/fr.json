@@ -366,7 +366,8 @@
             "openRight": "ouvrir à droite",
             "close": "fermer",
             "cancelSplit": "annuler la division",
-            "clear": "effacer"
+            "clear": "effacer",
+            "cancelNewView": "annuler la nouvelle vue"
         },
         "groups": {
             "agents": "Agents",
@@ -616,7 +617,8 @@
             "debugging": "Débogage",
             "appBuilder": "Créateur d'apps",
             "360View": "Vue 360",
-            "codingAgent": "Agent de code"
+            "codingAgent": "Agent de code",
+            "newViews": "Nouvelles vues"
         },
         "items": {
             "molten:folder": {
@@ -1137,6 +1139,11 @@
             "review:validategreenonly": {
                 "label": "Valider seulement une fois la CI verte",
                 "description": "Désactivé : une PR dont les checks tournent peut être validée ; la file de fusion la fusionne une fois verte."
+            },
+            "app:newviewopen": {
+                "label": "À l'ouverture d'une nouvelle vue",
+                "description": "Demander affiche le choix ; ou ouvrir un type directement, sans lui.",
+                "unset": "Demander"
             }
         },
         "mods": {
@@ -1765,7 +1772,9 @@
             "carpet-next": "Panneau suivant sur le tapis (vue 360)",
             "pin-panel": "Épingler le panneau dans la zone fixe, ou le désépingler",
             "equalize-panels": "Égaliser la largeur des panneaux",
-            "top-field": "Chercher, aller à, ouvrir une adresse"
+            "top-field": "Chercher, aller à, ouvrir une adresse",
+            "new-view-favorite": "Nouvelle vue avec le favori 1 à 4",
+            "new-view-favorite-other": "Nouvelle vue avec le favori 1 à 4"
         }
     },
     "tips": {
@@ -9138,6 +9147,26 @@
             "copy": "Copier le lien de téléchargement",
             "copied": "Lien de téléchargement copié",
             "failed": "Le lien n'a pas pu être copié"
+        }
+    },
+    "newView": {
+        "aria": "Nouvelle vue : choisissez ce qu'elle contient",
+        "favoritesAria": "Favoris",
+        "hint": {
+            "choose": "choisir",
+            "open": "ouvrir",
+            "all": "tous les panneaux",
+            "cancel": "annuler"
+        },
+        "settings": {
+            "title": "Favoris",
+            "hint": "2 à 4 choix en haut d'une nouvelle vue, dans cet ordre. Le raccourci de chacun ouvre une nouvelle vue qui le contient.",
+            "change": "Favori {n}",
+            "moveUp": "Monter",
+            "moveDown": "Descendre",
+            "remove": "Retirer",
+            "add": "Ajouter un favori",
+            "unknown": "Indisponible ({id})"
         }
     }
 }

@@ -216,3 +216,61 @@ describe("reopen the last closed pane or tab (#512)", () => {
         expect(platformShortcuts(false).map((s) => s.id)).toEqual(expect.arrayContaining([...reopen]));
     });
 });
+
+// The physical keys a binding takes on one platform: Wave's Cmd is Command on macOS and Alt elsewhere, Option is Alt
+// on macOS and Meta elsewhere; a digit by its code or by its key is the same key.
+function physicalKeys(binding: string, mac: boolean): string[] {
+    const parts = binding.split(":");
+    const key = parts.pop();
+    const mods = parts.map((m) => {
+        switch (m) {
+            case "Cmd":
+                return mac ? "meta" : "alt";
+            case "Option":
+                return mac ? "alt" : "meta";
+            case "Alt":
+                return "alt";
+            case "Meta":
+                return "meta";
+            default:
+                return m.toLowerCase();
+        }
+    });
+    const mod = [...new Set(mods)].sort().join("+");
+    const digits = key.match(/^\{(\d)-(\d)\}$/);
+    const keys = digits
+        ? Array.from({ length: Number(digits[2]) - Number(digits[1]) + 1 }, (_, i) => String(Number(digits[1]) + i))
+        : [key.replace(/^c\{Digit(\d)\}$/, "$1").toLowerCase()];
+    return keys.map((k) => `${mod}+${k}`);
+}
+
+describe("the new view's favourite shortcuts (FR-SHELL-089, TC-SHELL-168)", () => {
+    const ids = new Set(["new-view-favorite", "new-view-favorite-other"]);
+
+    it.each([true, false])("take keys no other shortcut uses (macOS: %s)", (mac) => {
+        const shortcuts = platformShortcuts(mac);
+        const mine = shortcuts.filter((s) => ids.has(s.id));
+        expect(mine).toHaveLength(1);
+        const own = shortcutBindings(mine[0]).flatMap((b) => physicalKeys(b, mac));
+        expect(own).toHaveLength(4);
+        expect(new Set(own).size).toBe(4);
+        const others = new Set(
+            shortcuts
+                .filter((s) => !ids.has(s.id))
+                .flatMap((s) => shortcutBindings(s).flatMap((b) => physicalKeys(b, mac)))
+        );
+        expect(own.filter((k) => others.has(k))).toEqual([]);
+        // ⌘K clears the terminal, ⌘L is the top field, ⌥1…⌥9 switch workspaces.
+        for (const taken of ["Cmd:k", "Cmd:l", "Alt:c{Digit1}", "Alt:c{Digit4}"]) {
+            expect(own).not.toContain(physicalKeys(taken, mac)[0]);
+        }
+        const fromKeyModel = new Set(keyModelBindings().flatMap((b) => physicalKeys(b, mac)));
+        expect(own.filter((k) => fromKeyModel.has(k))).toEqual([]);
+    });
+
+    it("shows ⌥⌘1–4 on macOS and Alt+Shift+1–4 elsewhere", () => {
+        expect(formatShortcutById("new-view-favorite", true)).toBe("⌥⌘1–4");
+        expect(formatShortcutById("new-view-favorite-other", false)).toBe("Alt+Shift+1–4");
+        expect(formatKeys("Cmd:Alt:c{Digit2}", true)).toBe("⌥⌘2");
+    });
+});

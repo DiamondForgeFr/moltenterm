@@ -6,7 +6,6 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
 import { BaseWindow, BaseWindowConstructorOptions, dialog, globalShortcut, screen } from "electron";
-import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { globalEvents } from "emain/emain-events";
 import path from "path";
 import { debounce } from "throttle-debounce";
@@ -23,6 +22,7 @@ import { getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview"; //
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
+import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
 import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
@@ -424,8 +424,9 @@ export class WaveBrowserWindow extends BaseWindow {
         positionWindowTabViews(this);
     }
 
-    async queueCreateTab() {
-        await this._queueActionInternal({ op: "createtab" });
+    // MOLTENTERM-PATCH (#1232): a new view may start with a given block (the chooser or a type opened directly)
+    async queueCreateTab(blockDef?: BlockDef) {
+        await this._queueActionInternal({ op: "createtab", blockDef });
     }
 
     async queueCloseTab(tabId: string) {
@@ -560,11 +561,14 @@ onAppIpc("set-active-tab", async (event, tabId) => {
     await ww?.setActiveTab(tabId, true);
 });
 
-onAppIpc("create-tab", async (event, _opts) => {
+onAppIpc("create-tab", async (event, opts) => {
     const senderWc = event.sender;
     const ww = getWaveWindowByWebContentsId(senderWc.id);
     if (ww != null) {
-        await ww.queueCreateTab();
+        // MOLTENTERM-PATCH (#1232): only a block definition with a meta object is passed on
+        const blockDef =
+            opts?.blockdef?.meta != null && typeof opts.blockdef.meta === "object" ? opts.blockdef : undefined;
+        await ww.queueCreateTab(blockDef);
     }
     event.returnValue = true;
     return null;

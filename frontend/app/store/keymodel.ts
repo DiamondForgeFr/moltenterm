@@ -6,7 +6,6 @@ import { FocusManager } from "@/app/store/focusManager";
 import {
     atoms,
     createBlock,
-    createTab,
     getAllBlockComponentModels,
     getApi,
     getBlockComponentModel,
@@ -29,6 +28,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { registerEqualizeKeys } from "../../moltenterm-shell/equalize/equalize-actions"; // MOLTENTERM-PATCH (#825)
 import { visibleTabIds } from "../../moltenterm-shell/hidden-tabs"; // MOLTENTERM-PATCH (#758)
+import { openNewView, registerNewViewKeys } from "../../moltenterm-shell/newview/new-view"; // MOLTENTERM-PATCH (#1232)
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
@@ -568,8 +568,9 @@ function registerGlobalKeys() {
         handleCmdI();
         return true;
     });
+    // MOLTENTERM-PATCH (#1232): a new view starts with the chooser, or the type chosen to open directly (FR-SHELL-089)
     globalKeyMap.set("Cmd:t", () => {
-        createTab();
+        openNewView();
         return true;
     });
     globalKeyMap.set("Cmd:w", () => {
@@ -810,6 +811,7 @@ function registerGlobalKeys() {
     registerEqualizeKeys(globalKeyMap);
     // MOLTENTERM-PATCH (#1183): Cmd+S hides or shows the workspace sidebar
     registerSidebarKeys(globalKeyMap);
+    registerNewViewKeys(globalKeyMap); // MOLTENTERM-PATCH (#1232)
     // MOLTENTERM-PATCH (#1187): Cmd+L and Cmd+K open the sidebar's top field
     registerTopFieldKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
