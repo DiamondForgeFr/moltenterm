@@ -60,7 +60,7 @@ import {
 
 const CaptureTimeoutMs = 10000;
 const BuildTimeoutMs = 15000;
-// The workspace's meta: the last Close the finished views, for the view on screen to show its toast.
+// The workspace's meta: the last Close the finished views or Clear, for the view on screen to show its toast.
 const ClosedFinishedMetaKey = "molten:closedfinished";
 const ClosedToastMs = 15000;
 const WaitSteps = 50;
@@ -644,13 +644,7 @@ export class ViewPins {
         const own = globalStore.get(atoms.staticTabId);
         const closingOwn = ids.includes(own);
         if (closingOwn) {
-            // This window's view closes with the others, and its toasts with it: a view that stays comes on screen
-            // first, and shows the toast once the closes are done (showClosedFinished).
-            const survivor = (ws.tabids ?? []).find((id) => !ids.includes(id));
-            if (survivor != null) {
-                getApi().setActiveTab(survivor);
-                await waitFor(() => globalStore.get(atoms.workspace)?.activetabid === survivor);
-            }
+            await showSurvivor(ids);
         }
         const close = recordingTabClose(getApi().closeTab);
         let closed = closingOwn ? 1 : 0;
@@ -666,22 +660,14 @@ export class ViewPins {
         if (closed === 0) {
             return;
         }
-        await RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: WOS.makeORef("workspace", ws.oid),
-            meta: {
-                [ClosedFinishedMetaKey]: {
-                    count: closed,
-                    at: Date.now(),
-                    id: makeGlobalPinId(Date.now(), Math.random()),
-                },
-            } as MetaType,
-        });
+        await announceClosedViews(ws.oid, closed, "finished");
         if (closingOwn) {
             await close(ws.oid, own, false);
         }
     }
 
-    // The toast of Close the finished views, with its Undo, shown by the view on screen once the closes are done.
+    // The toast of Close the finished views or of Clear (#1253), with its Undo (⌘Z too), shown by the view on screen
+    // once the closes are done.
     showClosedFinished(value: any) {
         const ws = globalStore.get(atoms.workspace);
         if (value == null || typeof value.count !== "number" || ws == null || this.closedShown.has(value.id)) {
@@ -698,22 +684,59 @@ export class ViewPins {
                 meta: { [ClosedFinishedMetaKey]: null } as MetaType,
             })
         );
-        showToast({
-            title: tCount("sidebar.pins.closedFinished", count),
-            message: t("sidebar.pins.closedFinishedHint"),
-            actions: [
-                {
-                    id: "undo",
-                    label: t("sidebar.pins.undo"),
-                    run: async () => {
-                        for (let i = 0; i < count; i++) {
-                            await reopenLastQuietly();
-                        }
-                    },
-                },
-            ],
-        });
+        showClosedViewsToast(count, value.kind);
     }
+}
+
+export const ClosedKindCleared = "cleared";
+
+// The toast after Close the finished views or Clear: its Undo, and ⌘Z while it shows, reopen what closed.
+export function showClosedViewsToast(
+    count: number,
+    kind: string,
+    reopen: () => Promise<unknown> = reopenLastQuietly
+): string {
+    const cleared = kind === ClosedKindCleared;
+    return showUndoToast(
+        tCount(cleared ? "sidebar.temporary.cleared" : "sidebar.pins.closedFinished", count),
+        () => reopenClosedViews(count, reopen),
+        cleared ? undefined : t("sidebar.pins.closedFinishedHint")
+    );
+}
+
+// Brings back the last count closes of the workspace, the latest first, through Reopen what was closed (#512).
+async function reopenClosedViews(count: number, reopen: () => Promise<unknown>) {
+    for (let i = 0; i < count; i++) {
+        await reopen();
+    }
+}
+
+// Tells the view on screen that count views just closed, so it shows the toast with Undo (showClosedFinished).
+export async function announceClosedViews(workspaceId: string, count: number, kind: string): Promise<void> {
+    await RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: WOS.makeORef("workspace", workspaceId),
+        meta: {
+            [ClosedFinishedMetaKey]: {
+                count,
+                kind,
+                at: Date.now(),
+                id: makeGlobalPinId(Date.now(), Math.random()),
+            },
+        } as MetaType,
+    });
+}
+
+// This window's view closes with the others, and its toasts with it: a view that stays comes on screen first, and
+// shows the toast once the closes are done. false: every view of the workspace is closing.
+export async function showSurvivor(closing: readonly string[]): Promise<boolean> {
+    const ws = globalStore.get(atoms.workspace);
+    const survivor = (ws?.tabids ?? []).find((id) => !closing.includes(id));
+    if (survivor == null) {
+        return false;
+    }
+    getApi().setActiveTab(survivor);
+    await waitFor(() => globalStore.get(atoms.workspace)?.activetabid === survivor);
+    return true;
 }
 
 async function waitFor(cond: () => boolean): Promise<void> {

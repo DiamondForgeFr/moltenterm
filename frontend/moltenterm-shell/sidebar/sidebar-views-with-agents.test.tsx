@@ -19,9 +19,9 @@ beforeAll(() => {
 });
 
 describe("the temporary list with agents (#1246)", () => {
-    // Which views the list gets is sidebarSections' rule (sidebar-agents-model.test.ts); the list's own header no longer
-    // counts any view.
-    it("shows its title without a counter of views under agents", () => {
+    // Which views the list gets is sidebarSections' rule (sidebar-agents-model.test.ts); the list has no header (#1253)
+    // and counts no view.
+    it("shows no counter of views under agents", () => {
         const html = renderToStaticMarkup(
             <TemporaryViews ids={[]} activeTabId={null} asideRef={createRef<HTMLElement>()} />
         );

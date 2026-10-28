@@ -16,7 +16,7 @@ type I18n = typeof import("../i18n/i18n");
 type Sidebar = typeof import("./workspace-sidebar");
 type Dict = Record<string, any>;
 
-// A key left in the markup: dotted lowercase words, as in sidebar.temporary.title.
+// A key left in the markup: dotted lowercase words, as in sidebar.temporary.clear.
 const RawKeyRegex = /\b[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+){2,}\b/;
 
 let core: Core;
@@ -27,9 +27,9 @@ let french: Dict;
 let frenchAttempts = 0;
 
 // Dictionaries as a dev server started before the sidebar's keys were added serves them.
-function withoutTemporaryTitle(dict: Dict): Dict {
+function withoutClearText(dict: Dict): Dict {
     const copy = structuredClone(dict);
-    delete copy.sidebar.temporary.title;
+    delete copy.sidebar.temporary.clear;
     return copy;
 }
 
@@ -41,11 +41,11 @@ beforeAll(async () => {
     vi.doMock("../i18n/i18n-locales-lazy", () => ({}));
     core = await import("../i18n/i18n-core");
     core.provideShippedLanguages({
-        "./locales/en.json": async () => withoutTemporaryTitle(english),
+        "./locales/en.json": async () => withoutClearText(english),
         "./locales/fr.json": async () => {
             frenchAttempts++;
             if (frenchAttempts === 1) throw new Error("chunk not served");
-            return withoutTemporaryTitle(french);
+            return withoutClearText(french);
         },
     });
     i18n = await import("../i18n/i18n");
@@ -77,7 +77,7 @@ describe("sidebar texts with the language loaded on demand (#1215)", () => {
         core.replaceShippedDictionary("fr", french);
         html = renderTemporaryViews();
         expect(html).not.toMatch(RawKeyRegex);
-        expect(html).toContain("Vues temporaires");
+        expect(html).toContain("Effacer");
         expect(html).toContain("Nouvelle vue");
     });
 

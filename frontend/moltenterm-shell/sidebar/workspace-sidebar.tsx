@@ -74,6 +74,10 @@ import { closeTabAskingFirst } from "../worktree-close";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
 import { PrPips, useCountsMotion, usePilotageBlock, useWorkspacePrCounts } from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
+import { AgentsSection } from "./sidebar-agents";
+import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
+import { CreateWorkspacePage } from "./sidebar-create";
+import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import {
     finishDrop,
     keyProps,
@@ -88,10 +92,6 @@ import {
     ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
-import { AgentsSection } from "./sidebar-agents";
-import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
-import { CreateWorkspacePage } from "./sidebar-create";
-import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -106,7 +106,6 @@ import {
     type SidebarTabSplit,
 } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
-import { undoFromKey } from "./sidebar-undo";
 import {
     centredScroll,
     initialSwipeState,
@@ -117,9 +116,10 @@ import {
     swipeStep,
 } from "./sidebar-swipe";
 import { lastSwitchAt, switchDirection, switchFromSidebar, useSwitchArrival } from "./sidebar-switch";
+import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
-import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
-import { switchWorkspaceProject } from "./workspace-projects-store";
+import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
+import { useTemporaryViewsMotion } from "./temporary-views-motion";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
 import { useTopGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
@@ -129,6 +129,8 @@ import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, Vi
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import { pointerInCorner, windowButtonsVisible } from "./window-corner-model";
+import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
+import { switchWorkspaceProject } from "./workspace-projects-store";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
 
@@ -1096,6 +1098,9 @@ function useSidebarSections(split: SidebarTabSplit) {
     return useMemo(() => sidebarSections(split, agents), [split, agents]);
 }
 
+// The temporary views, as in Arc (FR-SHELL-080, #1253): no title; under the pinned part a thin separator, shown once a
+// temporary view exists, with "↓ Clear" at its right end while the pointer is over the sidebar; "+ New view"; then
+// the rows. Clear folds the rows away (temporary-clear.ts) and the separator fades once they are gone.
 export function TemporaryViews({
     ids,
     activeTabId,
@@ -1110,20 +1115,58 @@ export function TemporaryViews({
     const { state, drag } = useRowDrag(listRef, asideRef, ids);
     const { target, over } = useZone("temporary");
     const newViewKeys = formatShortcutById("new-tab");
+    const ws = useAtomValue(atoms.workspace);
+    const mark = (ws?.meta as Record<string, any>)?.[ClearingMetaKey];
+    const clearing = useMemo(() => clearingIds(mark, Date.now()), [mark]);
+    useTemporaryViewsMotion(listRef, ids, clearing);
+    const staying = ids.filter((id) => !clearing.has(id)).length;
+    const shown = staying > 0;
+    const sepDelay = clearing.size > 0 ? foldTotalMs(clearing.size, prefersReducedMotion()) : 0;
+    const dropAtEnd = state != null && !state.out && state.before == null && state.id !== ids[ids.length - 1];
     return (
         <div
-            className={cn("mt-sb-zone flex shrink-0 flex-col", target && "is-target", over && "is-over")}
+            className={cn("mt-sb-zone mt-sb-tv flex shrink-0 flex-col", target && "is-target", over && "is-over")}
             data-testid="sidebar-temporary"
             data-cap={t("sidebar.views.captionTemporary")}
             {...zoneProps("temporary")}
         >
             <div
-                className="flex items-center gap-1.5 px-1 pt-1.5 pb-0.5 text-11 tracking-[0.07em] text-muted uppercase"
-                title={t("sidebar.temporary.hint")}
+                className="mt-sb-tv-sep"
+                data-testid="sidebar-temporary-separator"
+                data-shown={shown ? "true" : "false"}
+                aria-hidden={shown ? undefined : true}
+                style={{ "--tv-sep-delay": `${sepDelay}ms` } as React.CSSProperties}
             >
-                <span>{t("sidebar.temporary.title")}</span>
+                <span className="mt-sb-tv-line" />
+                <button
+                    type="button"
+                    className="mt-sb-tv-clear flex cursor-pointer items-center gap-0.5 rounded-4 px-1 text-11 text-muted hover:text-primary"
+                    data-testid="sidebar-temporary-clear"
+                    title={t("sidebar.temporary.clearTitle")}
+                    disabled={!shown}
+                    tabIndex={shown ? 0 : -1}
+                    onClick={() => fireAndForget(() => clearTemporary())}
+                >
+                    <SidebarGlyph name="down" size={11} />
+                    <span>{t("sidebar.temporary.clear")}</span>
+                </button>
             </div>
-            <div ref={listRef} className="flex flex-col gap-px">
+            <button
+                type="button"
+                className="mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-white/[0.08] hover:text-primary"
+                data-testid="sidebar-new-view"
+                data-mt-shortcut="new-tab"
+                onClick={() => openNewView()}
+            >
+                <span className="flex w-4 shrink-0 justify-center">
+                    <SidebarGlyph name="plus" size={14} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{t("sidebar.temporary.newView")}</span>
+                {newViewKeys ? (
+                    <span className="mt-sb-row-hint font-mono text-11 text-muted">{newViewKeys}</span>
+                ) : null}
+            </button>
+            <div ref={listRef} className="relative flex flex-col gap-px" data-testid="sidebar-temporary-list">
                 {ids.map((id) => (
                     <ViewRow
                         key={id}
@@ -1134,50 +1177,11 @@ export function TemporaryViews({
                         drag={drag}
                     />
                 ))}
-                <button
-                    type="button"
-                    className="mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-white/[0.08] hover:text-primary"
-                    data-testid="sidebar-new-view"
-                    data-mt-shortcut="new-tab"
-                    onClick={() => openNewView()}
-                >
-                    {state != null && !state.out && state.before == null && state.id !== ids[ids.length - 1] ? (
-                        <span className="pointer-events-none absolute -top-px right-1 left-1 h-[2px] rounded-full bg-accent" />
-                    ) : null}
-                    <span className="flex w-4 shrink-0 justify-center">
-                        <SidebarGlyph name="plus" size={14} />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{t("sidebar.temporary.newView")}</span>
-                    {newViewKeys ? (
-                        <span className="mt-sb-row-hint font-mono text-11 text-muted">{newViewKeys}</span>
-                    ) : null}
-                </button>
-                <CloseFinishedButton />
+                {dropAtEnd ? (
+                    <span className="pointer-events-none absolute right-1 -bottom-px left-1 h-[2px] rounded-full bg-accent" />
+                ) : null}
             </div>
         </div>
-    );
-}
-
-// "Close the N finished views" (FR-SHELL-080): only while a temporary view's agents have all finished; a view whose
-// agent works or waits stays open.
-function CloseFinishedButton() {
-    const t = useT();
-    const tc = useTCount();
-    const finished = useAtomValue(ViewPins.getInstance().finishedAtom);
-    if (finished.length === 0) {
-        return null;
-    }
-    return (
-        <button
-            type="button"
-            className="mt-0.5 flex cursor-pointer items-center gap-1.5 rounded-6 border border-dashed border-white/[0.18] px-2 py-1.5 text-left text-12 text-secondary transition-colors duration-120 ease-mt hover:border-accent hover:text-primary"
-            title={t("sidebar.pins.closeFinishedTitle")}
-            data-testid="sidebar-close-finished"
-            onClick={() => fireAndForget(() => ViewPins.getInstance().closeFinished())}
-        >
-            <SidebarGlyph name="x" size={14} />
-            <span className="min-w-0 truncate">{tc("sidebar.pins.closeFinished", finished.length)}</span>
-        </button>
     );
 }
 

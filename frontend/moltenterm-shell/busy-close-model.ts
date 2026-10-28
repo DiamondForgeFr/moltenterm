@@ -10,7 +10,7 @@ import { agentLabel, AgentStateInfo, agentStateLabel, AgentStateName } from "./a
 import { t } from "./i18n/i18n";
 
 // window, quit, delete and switch are asked by Electron main (FR-SHELL-062, busy-close-main.ts).
-export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch";
+export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch" | "clear";
 
 // What one terminal block says of itself. Unknown fields stay null: a read that failed counts as no signal.
 export type RunningSource = {
@@ -160,6 +160,13 @@ export function busyCloseText(action: BusyCloseAction, name?: string, quits?: bo
             title: t("shell.busy.switch.title"),
             subtitle: t("shell.busy.switch.subtitle"),
             confirm: t("shell.busy.switch.confirm"),
+        };
+    }
+    if (action === "clear") {
+        return {
+            title: t("shell.busy.clear.title"),
+            subtitle: t("shell.busy.clear.subtitle"),
+            confirm: t("shell.busy.clear.confirm"),
         };
     }
     const tabName = name;

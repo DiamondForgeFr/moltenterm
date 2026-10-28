@@ -4766,6 +4766,11 @@
                 "subtitle": "Le remplacer arrête ce qui tourne dedans.",
                 "confirm": "Remplacer quand même"
             },
+            "clear": {
+                "title": "Effacer les vues temporaires ?",
+                "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Annuler rouvre les vues, pas ce qui y tournait.",
+                "confirm": "Effacer quand même"
+            },
             "tab": {
                 "title": "Fermer cet onglet ?",
                 "titleNamed": "Fermer l'onglet « {name} » ?",
@@ -8875,9 +8880,13 @@
             }
         },
         "temporary": {
-            "title": "Vues temporaires",
-            "hint": "Une vue temporaire se ferme ; épinglez-la pour la garder",
-            "newView": "Nouvelle vue"
+            "newView": "Nouvelle vue",
+            "clear": "Effacer",
+            "clearTitle": "Fermer les vues temporaires ; les vues épinglées restent",
+            "cleared": {
+                "one": "1 vue temporaire effacée",
+                "other": "{count} vues temporaires effacées"
+            }
         },
         "agents": {
             "title": "Agents",
@@ -8964,7 +8973,6 @@
                 "one": "Fermer la vue terminée",
                 "other": "Fermer les {count} vues terminées"
             },
-            "closeFinishedTitle": "Les vues dont l'agent travaille encore restent ouvertes",
             "menu": {
                 "state": {
                     "temporary": "Vue temporaire",
