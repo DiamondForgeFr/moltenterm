@@ -75,6 +75,7 @@
         "fullScreenOnLaunch": "Plein écran au lancement",
         "toggleFullScreen": "Activer/désactiver le plein écran",
         "toggleWidgetsBar": "Afficher/masquer la barre des widgets",
+        "toggleSidebar": "Afficher ou masquer la barre latérale",
         "workspace": "Espace de travail",
         "createWorkspace": "Créer un espace de travail",
         "editWorkspace": "Modifier l'espace de travail…",

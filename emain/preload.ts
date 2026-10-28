@@ -105,8 +105,9 @@ contextBridge.exposeInMainWorld("api", {
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
     setWaveAIOpen: (isOpen: boolean) => ipcRenderer.send("set-waveai-open", isOpen),
-    // MOLTENTERM-PATCH (#1216): the window buttons show with the sidebar or under the pointer (DS-SHELL-127)
-    setWindowButtonsVisible: (visible: boolean) => ipcRenderer.send("moltenterm-window-buttons", visible),
+    // MOLTENTERM-PATCH (#1216, #1279): the window buttons show with the sidebar, on the window row's centre line (DS-SHELL-127)
+    setWindowButtons: (state: { visible: boolean; zoom: number } | null) =>
+        ipcRenderer.send("moltenterm-window-buttons", state),
     closeBuilderWindow: () => ipcRenderer.send("close-builder-window"),
     incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>
         ipcRenderer.send("increment-term-commands", opts),

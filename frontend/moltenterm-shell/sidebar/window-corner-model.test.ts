@@ -2,7 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { frameSizes, pointerInCorner, windowButtonsVisible } from "./window-corner-model";
+import {
+    controlsOverlayHeight,
+    frameSizes,
+    MacButtonHeightPx,
+    MacButtonsLeftPx,
+    macButtonsPosition,
+    readWindowButtonsMessage,
+    windowButtonsVisible,
+    windowRowCentrePt,
+    windowRowHeightPt,
+    WindowRowPx,
+} from "./window-corner-model";
 
 describe("the frame's one margin (DS-SHELL-127)", () => {
     it("is 8 px when window:tilegapsize is not set", () => {
@@ -23,16 +34,15 @@ describe("the frame's one margin (DS-SHELL-127)", () => {
     });
 });
 
-const hidden = { sidebarHidden: true, peek: false, corner: false, fullScreen: false };
+const hidden = { sidebarHidden: true, peek: false, fullScreen: false };
 
-describe("the window buttons in the Spaces frame (DS-SHELL-127)", () => {
+describe("the window buttons come and go with the sidebar (DS-SHELL-127, #1279)", () => {
     it("show with the sidebar", () => {
         expect(windowButtonsVisible({ ...hidden, sidebarHidden: false })).toBe(true);
     });
 
-    it("hide with the sidebar, until the pointer reaches the corner or the sidebar peeks", () => {
+    it("hide with the sidebar, and come back when it peeks from the left edge", () => {
         expect(windowButtonsVisible(hidden)).toBe(false);
-        expect(windowButtonsVisible({ ...hidden, corner: true })).toBe(true);
         expect(windowButtonsVisible({ ...hidden, peek: true })).toBe(true);
     });
 
@@ -41,14 +51,43 @@ describe("the window buttons in the Spaces frame (DS-SHELL-127)", () => {
     });
 });
 
-describe("the top-left corner", () => {
-    const corner = { right: 114, bottom: 33 };
+describe("the window row's centre line (#1279)", () => {
+    it("is halfway between the window's top edge and the top field", () => {
+        expect(windowRowHeightPt(1)).toBe(WindowRowPx);
+        expect(windowRowCentrePt(1)).toBe(WindowRowPx / 2);
+    });
 
-    it("holds the pointer inside it only", () => {
-        expect(pointerInCorner(0, 0, corner)).toBe(true);
-        expect(pointerInCorner(113, 32, corner)).toBe(true);
-        expect(pointerInCorner(114, 10, corner)).toBe(false);
-        expect(pointerInCorner(10, 33, corner)).toBe(false);
-        expect(pointerInCorner(-1, 4, corner)).toBe(false);
+    it("keeps the band in window points under 100 % and grows it with a larger zoom", () => {
+        expect(windowRowHeightPt(0.8)).toBe(WindowRowPx);
+        expect(windowRowHeightPt(1.5)).toBe(WindowRowPx * 1.5);
+        expect(windowRowHeightPt(undefined)).toBe(WindowRowPx);
+        expect(windowRowHeightPt(Number.NaN)).toBe(WindowRowPx);
+        expect(windowRowHeightPt(-2)).toBe(WindowRowPx);
+    });
+
+    it("carries the system's window buttons, centred on it within a point", () => {
+        for (const zoom of [0.7, 1, 1.25, 1.5, 2]) {
+            const pos = macButtonsPosition(zoom);
+            expect(pos.x).toBe(MacButtonsLeftPx);
+            expect(Math.abs(pos.y + MacButtonHeightPx / 2 - windowRowCentrePt(zoom))).toBeLessThanOrEqual(0.5);
+        }
+    });
+
+    it("sizes the window controls drawn over the page to the same band", () => {
+        expect(controlsOverlayHeight(1)).toBe(WindowRowPx);
+        expect(controlsOverlayHeight(1.25)).toBe(50);
+    });
+});
+
+describe("the message the page sends about the window buttons", () => {
+    it("reads the visibility and the zoom", () => {
+        expect(readWindowButtonsMessage({ visible: true, zoom: 1.25 })).toEqual({ visible: true, zoom: 1.25 });
+        expect(readWindowButtonsMessage({ visible: "yes", zoom: "2" })).toEqual({ visible: false, zoom: 1 });
+    });
+
+    it("asks for the window's defaults back when it is not an object", () => {
+        expect(readWindowButtonsMessage(null)).toBeNull();
+        expect(readWindowButtonsMessage(true)).toBeNull();
+        expect(readWindowButtonsMessage("x")).toBeNull();
     });
 });

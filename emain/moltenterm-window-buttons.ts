@@ -1,24 +1,46 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Spaces frame (DS-SHELL-127, #1216): with the workspace sidebar hidden no top bar holds the window buttons, so
-// they show only while the pointer is at the window's top-left corner (or the sidebar peeks). Only macOS draws them
-// inside the window; elsewhere the window keeps its own controls and this does nothing. The page only sends while it
-// is the tab shown (workspace-sidebar.tsx), so a cached tab never speaks for the window.
+// The Spaces frame (DS-SHELL-127, #1216, #1279): the window buttons come and go with the workspace sidebar, and sit on
+// the window row's centre line. macOS draws them at the top left: they are placed and shown or hidden. Elsewhere the
+// window controls are drawn over the page at the top right: they take the row's height so they share its centre line.
+// The page only sends while it is the tab shown (workspace-sidebar.tsx), so a cached tab never speaks for the window.
 
+import {
+    controlsOverlayHeight,
+    DefaultControlsOverlayPx,
+    macButtonsPosition,
+    readWindowButtonsMessage,
+} from "../frontend/moltenterm-shell/sidebar/window-corner-model";
 import { getWaveWindowByWebContentsId } from "./emain-window";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
 
 type ButtonsWindow = {
     isDestroyed(): boolean;
     setWindowButtonVisibility?(visible: boolean): void;
+    setWindowButtonPosition?(position: { x: number; y: number } | null): void;
+    setTitleBarOverlay?(options: { height: number }): void;
 };
 
-export function applyWindowButtons(win: ButtonsWindow, visible: unknown, platform: string): boolean {
-    if (platform !== "darwin" || win == null || win.isDestroyed()) {
+export function applyWindowButtons(win: ButtonsWindow, value: unknown, platform: string): boolean {
+    if (win == null || win.isDestroyed()) {
         return false;
     }
-    win.setWindowButtonVisibility?.(visible === true);
+    const msg = readWindowButtonsMessage(value);
+    if (platform === "darwin") {
+        win.setWindowButtonPosition?.(msg == null ? null : macButtonsPosition(msg.zoom));
+        win.setWindowButtonVisibility?.(msg == null || msg.visible);
+        return true;
+    }
+    if (platform !== "win32" && platform !== "linux") {
+        return false;
+    }
+    try {
+        win.setTitleBarOverlay?.({ height: msg == null ? DefaultControlsOverlayPx : controlsOverlayHeight(msg.zoom) });
+    } catch {
+        // A window with the native title bar has no overlay to size.
+        return false;
+    }
     return true;
 }
 
@@ -27,7 +49,7 @@ let initialized = false;
 export function initMoltentermWindowButtons() {
     if (initialized) return;
     initialized = true;
-    onAppIpc("moltenterm-window-buttons", (event, visible: unknown) => {
-        applyWindowButtons(getWaveWindowByWebContentsId(event.sender.id), visible, process.platform);
+    onAppIpc("moltenterm-window-buttons", (event, value: unknown) => {
+        applyWindowButtons(getWaveWindowByWebContentsId(event.sender.id), value, process.platform);
     });
 }

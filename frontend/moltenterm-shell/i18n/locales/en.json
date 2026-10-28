@@ -75,6 +75,7 @@
         "fullScreenOnLaunch": "Launch On Full Screen",
         "toggleFullScreen": "Toggle Full Screen",
         "toggleWidgetsBar": "Toggle Widgets Bar",
+        "toggleSidebar": "Show or Hide the Sidebar",
         "workspace": "Workspace",
         "createWorkspace": "Create Workspace",
         "editWorkspace": "Edit Workspace…",
