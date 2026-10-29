@@ -192,6 +192,32 @@ func (svc *WorkspaceService) CreateTabWithBlock(workspaceId string, blockDef *wa
 	return tabId, updates, nil
 }
 
+// MOLTENTERM-PATCH (#1347): the template's views added to a workspace that has none, from its empty state (FR-SHELL-110)
+func (svc *WorkspaceService) AddWorkspaceViews_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"workspaceId"},
+		ReturnDesc: "tabId",
+	}
+}
+
+func (svc *WorkspaceService) AddWorkspaceViews(workspaceId string) (string, waveobj.UpdatesRtnType, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	tabId, err := wcore.AddWorkspaceViews(ctx, workspaceId)
+	if err != nil {
+		return "", nil, err
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:AddWorkspaceViews:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return tabId, updates, nil
+}
+
 func (svc *WorkspaceService) SetActiveTab_Meta() tsgenmeta.MethodMeta {
 	return tsgenmeta.MethodMeta{
 		ArgNames: []string{"workspaceId", "tabId"},

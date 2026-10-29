@@ -83,6 +83,10 @@ type State struct {
 	Steps       map[string]string         `json:"steps,omitempty"`
 	Data        map[string]map[string]any `json:"data,omitempty"`
 	LastVersion string                    `json:"lastversion,omitempty"`
+	// The workspace a fresh install's first run started in (FR-SHELL-110): it gets the new-workspace template's views
+	// when the run ends, then the mark goes. Only a fresh install records one, so no existing workspace gains views
+	// unasked.
+	StarterWs string `json:"starterws,omitempty"`
 }
 
 type Update struct {
@@ -100,16 +104,19 @@ type StartFacts struct {
 	TosAgreed     bool
 	HasPanel      bool
 	FirstTabEmpty bool
+	// The workspace of the first window's active tab.
+	WorkspaceId string
 }
 
 // Outcome is what a start or an update changes: the state to write (when Write), Wave's terms record, the layout of
-// the first tab and the notification to publish.
+// the first tab, the notification to publish and the starter workspace that gets the template's views now.
 type Outcome struct {
-	Write    bool
-	State    State
-	SetTos   bool
-	Layout   string
-	Announce string
+	Write        bool
+	State        State
+	SetTos       bool
+	Layout       string
+	Announce     string
+	StarterViews string
 }
 
 // SkipRequested reads MOLTENTERM_SKIP_ONBOARDING: "1" or "true" (any case) skip the first run, anything else does not.
@@ -194,18 +201,20 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 		if !facts.TosAgreed && facts.FirstTabEmpty {
 			layout = LayoutStarter
 		}
-		return Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout}
+		return withStarterViews(Outcome{Write: true, State: state, SetTos: !facts.TosAgreed, Layout: layout})
 	}
 	if !facts.HasState && facts.TosAgreed {
 		state := markDone(newState(nowMs), ByExisting, nowMs, version)
 		return Outcome{Write: true, State: state, Announce: AnnounceAvailable}
 	}
 	if !facts.HasState {
+		state := newState(nowMs)
 		layout := LayoutNone
 		if facts.FirstTabEmpty {
 			layout = LayoutFirstRun
+			state.StarterWs = facts.WorkspaceId
 		}
-		return Outcome{Write: true, State: newState(nowMs), Layout: layout}
+		return Outcome{Write: true, State: state, Layout: layout}
 	}
 	if !facts.State.Done && !facts.HasPanel {
 		return closedOutcome(facts.State, facts.TosAgreed, nowMs, version)
@@ -213,9 +222,20 @@ func DecideStart(facts StartFacts, nowMs int64, version string) Outcome {
 	return Outcome{}
 }
 
+// withStarterViews hands the starter workspace over once the run is done: it gets the template's views now, and the
+// record forgets it, so ending again (an update sent twice, Getting started reopened) adds nothing.
+func withStarterViews(outcome Outcome) Outcome {
+	if !outcome.Write || !outcome.State.Done || outcome.State.StarterWs == "" {
+		return outcome
+	}
+	outcome.StarterViews = outcome.State.StarterWs
+	outcome.State.StarterWs = ""
+	return outcome
+}
+
 func closedOutcome(state State, tosAgreed bool, nowMs int64, version string) Outcome {
 	state = markDone(cloneState(state), ByClosed, nowMs, version)
-	return Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft}
+	return withStarterViews(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: AnnounceLeft})
 }
 
 // DecideClosed is rule 4 while MoltenTerm runs: the last panel of a run not done was closed.
@@ -296,7 +316,7 @@ func ApplyUpdate(state State, hasState bool, tosAgreed bool, update Update, nowM
 			}
 		}
 		state = markDone(state, by, nowMs, version)
-		return Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}, nil
+		return withStarterViews(Outcome{Write: true, State: state, SetTos: !tosAgreed, Announce: announce}), nil
 	}
 	return Outcome{}, fmt.Errorf("unknown first run update %q", update.Kind)
 }

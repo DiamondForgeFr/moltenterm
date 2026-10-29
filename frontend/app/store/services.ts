@@ -163,6 +163,10 @@ export class WorkspaceServiceType {
         this.waveEnv = waveEnv;
     }
 
+    // @returns tabId (and object updates)
+    AddWorkspaceViews(workspaceId: string): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "AddWorkspaceViews", Array.from(arguments))
+    }
     CanCloseWorkspace(workspaceId: string): Promise<boolean> {
         return callBackendService(this?.waveEnv, "workspace", "CanCloseWorkspace", Array.from(arguments))
     }

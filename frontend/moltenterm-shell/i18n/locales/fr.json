@@ -1302,7 +1302,9 @@
             "doneTitle": "Tout est prêt",
             "leftTitle": "Presque fini",
             "doneText": "MoltenTerm connaît votre agent, a pris une première forme et travaille dans votre projet.",
-            "leftText": "Les étapes laissées de côté vous attendent. Premiers pas reste dans le menu de l'application et la palette de commandes."
+            "leftText": "Les étapes laissées de côté vous attendent. Premiers pas reste dans le menu de l'application et la palette de commandes.",
+            "starterViews": "Ensuite, cet espace de travail reçoit ses vues par défaut : {views}.",
+            "openView": "Ouvrir {view}"
         },
         "welcome": {
             "title": "Bienvenue dans MoltenTerm",
@@ -1311,7 +1313,8 @@
             "stepsOne": "1 étape courte",
             "stepsOther": "{count} étapes courtes",
             "skip": "Passer la configuration",
-            "license": "Open source sous licence Apache 2.0, construit sur Wave Terminal.",
+            "license": "Open source, licence Apache 2.0",
+            "aboutLink": "À propos",
             "licenceLink": "Licence",
             "privacyLink": "Confidentialité",
             "points": {
@@ -9028,6 +9031,13 @@
             "emptyTitle": "Cette vue épinglée n'a plus de panneau",
             "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
             "emptyAdd": "Ajouter un panneau"
+        },
+        "emptyWorkspace": {
+            "title": "Cet espace de travail n'a pas encore de vue",
+            "hint": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Ajoutez les vues par défaut, {views}, ou créez la vôtre.",
+            "hintNoTemplate": "Un espace de travail garde ici, en tuiles, les vues d'un projet. Créez une vue, puis épinglez-la ici.",
+            "addViews": "Ajouter les vues par défaut",
+            "newView": "Nouvelle vue"
         },
         "pins": {
             "failed": "La vue n'a pas pu être épinglée ou ouverte",

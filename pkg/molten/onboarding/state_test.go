@@ -116,6 +116,59 @@ func TestDecideStart(t *testing.T) {
 	}
 }
 
+// FR-SHELL-110: only a fresh install records its starter workspace, and the record hands it over once, when the run
+// ends whichever way.
+func TestStarterWorkspace(t *testing.T) {
+	fresh := DecideStart(StartFacts{FirstTabEmpty: true, WorkspaceId: "ws1"}, testNow, testVersion)
+	if fresh.State.StarterWs != "ws1" || fresh.StarterViews != "" {
+		t.Fatalf("a fresh install records its starter workspace, without views yet: %+v", fresh)
+	}
+	for _, facts := range []StartFacts{
+		{WorkspaceId: "ws1"},
+		{TosAgreed: true, FirstTabEmpty: true, WorkspaceId: "ws1"},
+		{Skip: true, FirstTabEmpty: true, WorkspaceId: "ws1"},
+	} {
+		out := DecideStart(facts, testNow, testVersion)
+		if out.State.StarterWs != "" || out.StarterViews != "" {
+			t.Errorf("no starter views for %+v: %+v", facts, out)
+		}
+	}
+	running := fresh.State
+	ends := map[string]Outcome{}
+	for _, kind := range []string{UpdateFinish, UpdateLeave} {
+		out, err := ApplyUpdate(running, true, true, Update{Kind: kind}, testNow, testVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ends[kind] = out
+	}
+	ends["closed"] = DecideClosed(running, true, true, false, testNow, testVersion)
+	ends["closed at start"] = DecideStart(StartFacts{HasState: true, State: running, TosAgreed: true}, testNow, testVersion)
+	ends["skip"] = DecideStart(StartFacts{Skip: true, HasState: true, State: running, HasPanel: true}, testNow, testVersion)
+	for name, out := range ends {
+		if out.StarterViews != "ws1" || out.State.StarterWs != "" {
+			t.Errorf("%s: the starter workspace gets its views and the record forgets it: %+v", name, out)
+		}
+		again, err := ApplyUpdate(out.State, true, true, Update{Kind: UpdateFinish}, testNow+1, testVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again.StarterViews != "" {
+			t.Errorf("%s: ending again adds nothing: %+v", name, again)
+		}
+	}
+	step, err := ApplyUpdate(running, true, true, Update{Kind: UpdateStep, Step: StepAgent, Status: StatusDone}, testNow, testVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if step.StarterViews != "" || step.State.StarterWs != "ws1" {
+		t.Errorf("a step keeps the mark for the end: %+v", step)
+	}
+	if running.StarterWs != "ws1" {
+		t.Error("the input state was modified")
+	}
+}
+
 func TestDecideStartKeepsSteps(t *testing.T) {
 	running := State{V: 1, StartedTs: 1, Steps: map[string]string{StepAgent: StatusDone}}
 	out := DecideStart(StartFacts{HasState: true, State: running}, testNow, testVersion)
