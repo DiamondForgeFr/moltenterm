@@ -16,7 +16,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
+import { addressOfPage, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
 import { useLocale, useT } from "../i18n/i18n";
 import { tabShownName } from "../project/project-model";
 import { formatShortcutById } from "../shortcuts/format";
@@ -95,7 +95,7 @@ function useFocusFacts() {
         blockId,
         tabId,
         isPage,
-        url: url ?? "",
+        url: addressOfPage(url),
         panelLabel,
         panelIcon: meta ? panelIcon(meta, !!agent) : null,
         viewName,

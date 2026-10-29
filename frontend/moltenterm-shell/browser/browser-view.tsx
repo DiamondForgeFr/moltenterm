@@ -1569,14 +1569,16 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     if (tab == null) {
         return null;
     }
-    const host = browserTabTitle({ id: tab.id, url: tab.url }) || tab.url;
+    const host = isStartPage(tab.url)
+        ? t("browser.start.address")
+        : browserTabTitle({ id: tab.id, url: tab.url }) || tab.url;
     const keys = formatShortcutById("top-field");
     return (
         <button
             type="button"
             className="flex h-6 min-w-12 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
-            title={`${tab.url}\n${t("browser.address.title", { keys })}`}
-            aria-label={t("browser.address.label", { address: tab.url })}
+            title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
+            aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
             data-testid="browser-address"
             onClick={() => {
                 model.nodeModel.focusNode();

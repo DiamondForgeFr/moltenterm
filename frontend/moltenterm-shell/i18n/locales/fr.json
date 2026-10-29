@@ -1903,7 +1903,8 @@
             "title": "Cadrez le prochain changement",
             "hintProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Cette page affiche le dépôt du projet dès que son dossier a un dépôt distant GitHub.",
             "hintNoProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Associez un dossier de projet à cet espace de travail : cette page affiche alors son dépôt ou son README.",
-            "readme": "README de {project}"
+            "readme": "README de {project}",
+            "address": "Page de départ"
         },
         "tabMenu": {
             "reload": "Recharger",
