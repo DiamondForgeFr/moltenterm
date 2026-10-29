@@ -374,7 +374,7 @@
             "files": "Files",
             "browser": "Web page",
             "cicd": "CI/CD",
-            "reviews": "Control room",
+            "reviews": "Integration",
             "sysinfo": "System info",
             "processes": "Processes"
         },
@@ -442,7 +442,7 @@
             "title": "Restart {agent}?",
             "subtitle": "It was started before MoltenTerm's update, without its browser and hooks.",
             "restart": "Restart {agent}",
-            "body": "MoltenTerm types {agent}'s exit command, waits for it to exit, starts a fresh shell in the same folder and starts {agent} again on the same conversation, with MoltenTerm's integration.",
+            "body": "MoltenTerm types {agent}'s exit command, waits for it to exit, starts a fresh shell in the same folder and starts {agent} again on the same conversation, with MoltenTerm's agent hookup.",
             "note": "Before that, Escape answers No to a question {agent} may be asking and an unsent draft in its input is cleared. Nothing is killed: if {agent} does not exit, it keeps running."
         },
         "result": {
@@ -463,7 +463,7 @@
             "shell": "Shell",
             "behaviour": "Behaviour",
             "companion": "Companion",
-            "integration": "Integration",
+            "integration": "Agent hookup",
             "codeReview": "Code review",
             "language": "Language",
             "agents": "Agents",
@@ -652,11 +652,11 @@
                 "description": "Extra configuration folders per agent whose sessions the companion reads."
             },
             "agent:integrate": {
-                "label": "Agent integration",
+                "label": "Agent hookup",
                 "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited."
             },
             "agent:integrateoff": {
-                "label": "Agents with the integration",
+                "label": "Agents with the hookup",
                 "description": "Unticked agents start without it. Applies to sessions started from now on.",
                 "options": {
                     "claude": "Claude Code",
@@ -1020,8 +1020,8 @@
         "integrationRuns": {
             "title": "Running sessions",
             "none": "No agent session is running.",
-            "on": "With the integration",
-            "off": "Without the integration",
+            "on": "With the hookup",
+            "off": "Without the hookup",
             "unknown": "Not known"
         },
         "editInJson": "Edit in JSON",
@@ -1353,7 +1353,7 @@
             "genericPaste": "Paste this line into your agent as is, with {placeholder} replaced by your request, in any language.",
             "noneFound": "MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. None of the agents MoltenTerm supports is on this computer's PATH. Install one, then look again, or skip this step: Getting started offers it again.",
             "lookAgain": "Look again",
-            "integration": "When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm integrates that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
+            "integration": "When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm hooks up that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
             "settingsLink": "Agent settings",
             "listFailed": "The agents could not be listed: {error}",
             "looking": "Looking for the coding agents on this computer…",
@@ -1465,7 +1465,7 @@
             "remote": "No companion for a remote terminal",
             "remoteDetail": "The agent's session lives on the remote machine.",
             "searching": "Waiting for the {name} session",
-            "searchingIntegrated": "MoltenTerm's integration links it as soon as the agent starts its session.",
+            "searchingIntegrated": "MoltenTerm's agent hookup links it as soon as the agent starts its session.",
             "searchingDetail": "It shows as soon as the agent writes its first message.",
             "unsupportedFormat": "Unsupported session format",
             "unsupportedFormatDetail": "{name} writes its transcript in a format this version of MoltenTerm does not read. The terminal is not affected.",
@@ -1571,7 +1571,7 @@
             "allOff": "Turned off for every agent from the next launch. This session keeps it until it ends.",
             "agentOff": "Turned off for {name} from the next launch. This session keeps it until it ends.",
             "badgeTitle": "What MoltenTerm added to this run, and how to turn it off",
-            "title": "Integrated by MoltenTerm",
+            "title": "Hooked up by MoltenTerm",
             "hint": "Added to this run of {name} only, through its own per-run options. Your files are not edited.",
             "added": "Added",
             "skipped": "Left alone",
@@ -1994,8 +1994,8 @@
             "stateOpened": "Opened by {name}",
             "stateNone": "Not shared with an agent",
             "buttonTitle": "{action} ({state})",
-            "offAll": "Agent integration is off: turn it on in Settings › Agents › Integration, then restart {name}",
-            "offAgent": "{agent} is unticked in Settings › Agents › Integration › Agents with the integration: tick it, then restart {name}",
+            "offAll": "Agent hookup is off: turn it on in Settings › Agents › Agent hookup, then restart {name}",
+            "offAgent": "{agent} is unticked in Settings › Agents › Agent hookup › Agents with the hookup: tick it, then restart {name}",
             "lostMcp": "{name} lost its connection to MoltenTerm's browser: in its session, run /mcp and reconnect molten-browser, or restart it",
             "lost": "{name} lost its connection to MoltenTerm's browser: restart its session",
             "startedWithout": "{name} started without MoltenTerm's browser: restart its session to give it the browser",
@@ -2008,7 +2008,7 @@
             "waiting": "{name} is waiting for your answer",
             "error": "{name} stopped on an error",
             "stop": "Stop sharing with {name}",
-            "integrationSettings": "Agent integration settings…",
+            "integrationSettings": "Agent hookup settings…",
             "moveTitle": "Move this tab to {target}?",
             "moveMessage": "It is shared with {holder}, which loses it at once.",
             "anotherAgent": "another agent",
@@ -2087,8 +2087,8 @@
             "prReady": "Ready for review",
             "prUnknown": "Pull requests not read yet for this project",
             "noPr": "No pull request",
-            "otherProject": "This app belongs to {name}, not to this workspace's project: the Control room shows the workspace's project.",
-            "openInReviews": "Open in Control room",
+            "otherProject": "This app belongs to {name}, not to this workspace's project: the Integration panel shows the workspace's project.",
+            "openInReviews": "Open in Integration",
             "openPr": "Open the pull request",
             "reason": {
                 "notLocal": "this page is not served from this computer.",
@@ -2213,9 +2213,9 @@
         "companion": {
             "close": "Close the companion",
             "open": "Open the companion",
-            "integration": "Agent integration",
+            "integration": "Agent hookup",
             "integrationDetail": "every agent, from the next launch",
-            "integrationFor": "Integration for {agent}",
+            "integrationFor": "Hookup for {agent}",
             "fromNextLaunch": "from the next launch",
             "planUsage": "Plan usage",
             "usageSource": "Usage source",
@@ -2378,8 +2378,8 @@
                 "plural": "CI/CD panels"
             },
             "reviews": {
-                "name": "Control room",
-                "plural": "control room panels"
+                "name": "Integration",
+                "plural": "integration panels"
             },
             "project": {
                 "name": "Project",
@@ -3278,8 +3278,8 @@
                 "other": "{count} pull requests waiting for review"
             },
             "noReviewWaiting": "No pull request waiting for review",
-            "toReviews": "Control room",
-            "toReviewsTitle": "Open the Control room: the pull requests, their checks and the order to review them",
+            "toReviews": "Integration",
+            "toReviewsTitle": "Open the Integration panel: the pull requests, their checks and the order to review them",
             "branchesTitle": "Trunk and release branches",
             "branchesHint": "the CI a release waits on · the latest run of each workflow",
             "role": {
@@ -4534,7 +4534,7 @@
                     "closed": "#{number} was closed without being merged: nothing changed. Prepare again to open another one.",
                     "unread": "GitHub could not be read just now: MoltenTerm tries again."
                 },
-                "openReviews": "Open #{number} in Control room",
+                "openReviews": "Open #{number} in Integration",
                 "openGithub": "Open on GitHub"
             },
             "state": {
@@ -5019,8 +5019,8 @@
         "tools": {
             "editWidgets": "Edit widgets.json",
             "label": "Tools",
-            "reviews": "Control room · pull requests waiting for your review",
-            "reviewsCounts": "Control room — {counts}",
+            "reviews": "Integration · pull requests waiting for your review",
+            "reviewsCounts": "Integration — {counts}",
             "reviewsCount": {
                 "toReview": {
                     "one": "1 to review",
@@ -5090,7 +5090,7 @@
             "sessions": "Sessions",
             "lineMap": "Line map",
             "cicd": "CI/CD",
-            "reviews": "Control room",
+            "reviews": "Integration",
             "review": "Review",
             "pipeline": "Pipeline setup",
             "companion": "Companion",
@@ -5812,7 +5812,7 @@
             "count": "{count} projects",
             "none": "No pull request open",
             "noneHint": "Nothing waits for you on {name}.",
-            "openTitle": "Open #{number} in {project}'s Pilotage",
+            "openTitle": "Open #{number} in {project}'s Integration panel",
             "noFolderTitle": "{project} has no folder yet",
             "noFolder": "Give it a folder to follow its pull requests."
         },
@@ -6069,12 +6069,12 @@
             "withdraw": "Cancel validation",
             "withdrawTitle": "Take #{number} out of the merge queue: it is not merged and goes back to review",
             "resumed": "Resumed after MoltenTerm restarted.",
-            "investigateGone": "This pull request is no longer listed in the Control room."
+            "investigateGone": "This pull request is no longer listed in the Integration panel."
         },
-        "viewName": "Control room",
+        "viewName": "Integration",
         "into": "into",
         "intoTitle": "Pull requests into {target} ({from})",
-        "failedTitle": "The Control room could not answer",
+        "failedTitle": "The Integration panel could not answer",
         "failedHint": "MoltenTerm could not read this project's pull requests. Try again in a moment.",
         "tryAgain": "Try again",
         "prsError": "The pull requests could not be read: {error}",
@@ -6487,11 +6487,11 @@
         },
         "empty": {
             "noghTitle": "GitHub CLI (gh) is not installed",
-            "noghHint": "The Control room reads your pull requests through your own gh: install it (cli.github.com), run gh auth login, then refresh.",
+            "noghHint": "The Integration panel reads your pull requests through your own gh: install it (cli.github.com), run gh auth login, then refresh.",
             "loggedoutTitle": "gh is logged out",
             "loggedoutHint": "Run gh auth login in a terminal, then refresh. MoltenTerm never asks for a token.",
             "norepoTitle": "This project has no GitHub remote",
-            "norepoHint": "The Control room lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
+            "norepoHint": "The Integration panel lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
             "errorTitle": "GitHub could not be read",
             "errorHint": "gh could not answer. Try again in a moment."
         },
@@ -6895,7 +6895,7 @@
             "started": "An agent MoltenTerm started for you: {action}."
         },
         "from": {
-            "reviews": "Control room",
+            "reviews": "Integration",
             "reviewTab": "Review tab",
             "mergeQueue": "Merge queue",
             "reviewPanel": "Review panel",
@@ -6987,7 +6987,7 @@
             "noPr": "No pull request",
             "noPrHint": "Open the AI panel from a Review tab.",
             "notOpen": "The review of #{number} is not open",
-            "notOpenHint": "Open the pull request's Review tab from the Control room: the AI panel follows it.",
+            "notOpenHint": "Open the pull request's Review tab from the Integration panel: the AI panel follows it.",
             "cardsLabel": "Briefing and explanations",
             "worktreeAgent": "Worktree: the agent's",
             "worktreeReview": "Worktree: MoltenTerm's review copy",
@@ -7547,11 +7547,11 @@
                 "askedUnnamed": "Conflicts with {base} → rebase asked to the agent on its branch.",
                 "typed": "Conflicts with {base} → rebase typed in {name}'s prompt: press Enter in its terminal to send it.",
                 "typedUnnamed": "Conflicts with {base} → rebase typed in its agent's prompt: press Enter in its terminal to send it.",
-                "agentBusy": "Conflicts with {base}. {name} is busy and was not interrupted: ask for the rebase later from the Control room.",
-                "agentBusyUnnamed": "Conflicts with {base}. Its agent is busy and was not interrupted: ask for the rebase later from the Control room.",
+                "agentBusy": "Conflicts with {base}. {name} is busy and was not interrupted: ask for the rebase later from the Integration panel.",
+                "agentBusyUnnamed": "Conflicts with {base}. Its agent is busy and was not interrupted: ask for the rebase later from the Integration panel.",
                 "needsAgent": "Conflicts with {base}, and no agent works on its branch → start an agent.",
-                "notAsked": "Conflicts with {base}: the rebase could not be asked. Ask for it from the Control room.",
-                "checking": "GitHub had not finished checking whether it still merges cleanly into {base}: the Control room will show it.",
+                "notAsked": "Conflicts with {base}: the rebase could not be asked. Ask for it from the Integration panel.",
+                "checking": "GitHub had not finished checking whether it still merges cleanly into {base}: the Integration panel will show it.",
                 "start": "Start an agent",
                 "starting": "Starting…",
                 "open": "Open"
@@ -7601,7 +7601,7 @@
             "viewName": "Review",
             "viewNamePr": "Review #{number}",
             "noPr": "No pull request in this review",
-            "noPrHint": "Open a pull request's review from the Control room.",
+            "noPrHint": "Open a pull request's review from the Integration panel.",
             "prTitle": "Pull request #{number}",
             "into": "into",
             "head": "head",
@@ -7820,7 +7820,7 @@
         "notes": {
             "title": "Notes",
             "keep": "Keep",
-            "keepHint": "Keep this explanation in the project's notes, in the Control room. Notes stay in MoltenTerm, never in the project.",
+            "keepHint": "Keep this explanation in the project's notes, in the Integration panel. Notes stay in MoltenTerm, never in the project.",
             "kept": "Kept",
             "keptHint": "Kept in the project's notes as \"{title}\"",
             "keptWhen": "kept {when}",
@@ -8061,7 +8061,7 @@
             },
             "update": {
                 "programbusy": "Finish or stop {program} first: updating the terminal replaces its shell.",
-                "needconfirm": "Restart {agent} with MoltenTerm's integration? The conversation resumes.",
+                "needconfirm": "Restart {agent} with MoltenTerm's agent hookup? The conversation resumes.",
                 "ready": "The shell is at its prompt: it is replaced in the same folder.",
                 "already": "This terminal is already being updated.",
                 "uptodate": "This terminal is already up to date.",
@@ -8245,8 +8245,8 @@
             },
             "projects": {
                 "migratedTitle": "{workspace} now holds its group's projects",
-                "migrated": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them.",
-                "migratedKept": "{workspace} is now a product with the projects {projects}, and Pilotage follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them. Workspaces without a project folder stay on their own: {kept}.",
+                "migrated": "{workspace} is now a product with the projects {projects}, and the Integration panel follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them.",
+                "migratedKept": "{workspace} is now a product with the projects {projects}, and the Integration panel follows them all. The other workspaces keep their views and agents ({workspaces}): delete them when you no longer need them. Workspaces without a project folder stay on their own: {kept}.",
                 "keptTitle": "{group} stays a group",
                 "kept": "The group {group} stays as it was: its other workspaces have no project folder to bring in ({workspaces})."
             },
@@ -8299,7 +8299,7 @@
                 "commits": "Commits not pushed on {branch}: {count}.",
                 "cleanedUp": "Its terminal is closed and its copy of {branch} removed: nothing was left behind.",
                 "openReview": "Open the review",
-                "openCard": "Show in Control room",
+                "openCard": "Show in Integration",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr}: CI green again",
                 "ciGreen": "{name}: {outcome}",
@@ -8316,13 +8316,13 @@
                 "rerun": {
                     "passedTitle": "#{number}{pr}: the rerun jobs passed",
                     "failedTitle": "#{number}{pr}: failed again after the rerun",
-                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in the Control room."
+                    "failed": "Still failing: {names}. Investigate and fix from the pull request's row in the Integration panel."
                 },
                 "batch": {
-                    "openReviews": "Open the Control room",
+                    "openReviews": "Open the Integration panel",
                     "goTo": "Go to the terminal",
                     "stoppedTitle": "The batch merge stopped on #{number}",
-                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Control room.",
+                    "stopped": "Reason: {reason}. The pull requests after it wait for your decision in the Integration panel.",
                     "doneTitle": "Merge queue: {merged} of {total} PRs merged",
                     "cancelledTitle": "Merge queue cancelled: {merged} of {total} PRs merged",
                     "summary": "{merged}{skipped}CI runs redone: {ciruns}.{kept}{trunk}",
@@ -8476,11 +8476,11 @@
                 "nested": "started by a running agent",
                 "turnedoff": "{var}=0",
                 "passthrough": "a command that starts no session",
-                "settingsoff": "the integration is turned off in MoltenTerm's settings ({setting})",
-                "settingsagentoff": "the integration is turned off for this agent in MoltenTerm's settings ({setting})",
+                "settingsoff": "the agent hookup is turned off in MoltenTerm's settings ({setting})",
+                "settingsagentoff": "the agent hookup is turned off for this agent in MoltenTerm's settings ({setting})",
                 "settingsunknown": "MoltenTerm's settings could not be read in time",
                 "disableallhooks": "disableAllHooks is on in {where}: Claude Code runs no hooks and no status line",
-                "notwritten": "the integration could not be written: {detail}"
+                "notwritten": "the agent hookup could not be written: {detail}"
             }
         },
         "keepawake": {
@@ -8631,7 +8631,7 @@
         },
         "background": {
             "button": "Let the agent handle it",
-            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in the Control room or in Sessions; a notification tells you when it is done or needs you."
+            "text": "Nothing opens and nothing takes the focus. Follow it in the pull request's row in the Integration panel or in Sessions; a notification tells you when it is done or needs you."
         },
         "together": {
             "rebase": "Go through the rebase with the agent",
@@ -8864,7 +8864,7 @@
         "project": {
             "menuTitle": "Projects of {name}",
             "currentNote": "New agents start here",
-            "addNote": "Pilotage follows every project",
+            "addNote": "Integration follows every project",
             "addMenu": "Add a project…",
             "editMenu": "Edit {project}…",
             "typeTitleOne": "Project type: {type} · add another project",
@@ -8872,10 +8872,10 @@
             "switched": "Current project: {project}",
             "switchedHint": "New agents start in its folder.",
             "added": "{project} added",
-            "addedHint": "Pilotage follows its pull requests. Choose it in the header to work in it.",
+            "addedHint": "The Integration panel follows its pull requests. Choose it in the header to work in it.",
             "addTitle": "Add a project to {name}",
             "editTitle": "Edit {project}",
-            "lede": "A workspace is a product. Its projects are its targets: app, mobile, website… Pilotage follows the pull requests of all of them.",
+            "lede": "A workspace is a product. Its projects are its targets: app, mobile, website… The Integration panel follows the pull requests of all of them.",
             "type": "Type",
             "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
             "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Website, API, Library, Extension",

@@ -230,8 +230,8 @@ var settings = []Setting{
 
 	// Agents, Integration (FR-SHELL-040): kept here so adding them renumbers only the hidden rows; the screen sorts by
 	// section first.
-	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
-	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Agents with the integration", Description: "Unticked agents start without it. Applies to sessions started from now on.", Control: ControlMulti, Inverted: true, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent hookup", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
+	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Agents with the hookup", Description: "Unticked agents start without it. Applies to sessions started from now on.", Control: ControlMulti, Inverted: true, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	// Agents, Code review (FR-REV-005).
 	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: the interface language.", Control: ControlText},
 	// Agents, Code review (FR-REV-010).

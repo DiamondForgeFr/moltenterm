@@ -333,7 +333,7 @@ func writeChecks(sb *strings.Builder, req InvestigateRequest, checks []Investiga
 func renderInvestigateBrief(req InvestigateRequest, b blockers, tree string, ticket int, commit string, outcomePath string, roundBrief string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# Analyze and resolve what blocks PR #%d\n\n", req.Number)
-	sb.WriteString("MoltenTerm wrote this brief when the developer clicked Analyze and resolve in the Control room (the PR panel): the pull " +
+	sb.WriteString("MoltenTerm wrote this brief when the developer clicked Analyze and resolve in the Integration panel (the PR panel): the pull " +
 		"request cannot be merged yet. The developer asks you to find the cause of each blocker below and resolve it, not " +
 		"only to diagnose it, in the order listed. You work under the developer's usual permissions.\n\n")
 	fmt.Fprintf(&sb, "- Pull request: #%d", req.Number)

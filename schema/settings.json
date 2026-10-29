@@ -537,7 +537,7 @@
           "x-moltenterm": {
             "section": "agents",
             "group": "Integration",
-            "label": "Agent integration",
+            "label": "Agent hookup",
             "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.",
             "control": "toggle",
             "default": true,
@@ -553,7 +553,7 @@
           "x-moltenterm": {
             "section": "agents",
             "group": "Integration",
-            "label": "Agents with the integration",
+            "label": "Agents with the hookup",
             "description": "Unticked agents start without it. Applies to sessions started from now on.",
             "control": "multi",
             "options": [

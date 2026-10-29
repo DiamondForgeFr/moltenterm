@@ -225,19 +225,19 @@ describe("share with agent: why an agent is greyed (#947)", () => {
         const runs = [run("term-a", "claude", "added"), run("term-b", "codex", "added")];
         const agentOff = shareAgents(states, [], paneTitle, { runs, settings: { "agent:integrateoff": ["codex"] } });
         expect(reasons(agentOff)[1]).toBe(
-            "Codex is unticked in Settings › Agents › Integration › Agents with the integration: tick it, then restart Codex"
+            "Codex is unticked in Settings › Agents › Agent hookup › Agents with the hookup: tick it, then restart Codex"
         );
         const allOff = shareAgents(states, [], paneTitle, { runs, settings: { "agent:integrate": false } });
         expect(reasons(allOff)[0]).toBe(
-            "Agent integration is off: turn it on in Settings › Agents › Integration, then restart Claude Code"
+            "Agent hookup is off: turn it on in Settings › Agents › Agent hookup, then restart Claude Code"
         );
         const entries = shareMenuItems(tab, null, agentOff, "", actions)[1].submenu;
         const settings = entries[entries.length - 1];
-        expect(settings.label).toBe("Agent integration settings…");
+        expect(settings.label).toBe("Agent hookup settings…");
         settings.click();
         expect(calls).toEqual(["settings"]);
         const lost = shareMenuItems(tab, null, shareAgents(states, [], paneTitle, { runs }), "", actions)[1].submenu;
-        expect(lost.some((i) => i.label === "Agent integration settings…")).toBe(false);
+        expect(lost.some((i) => i.label === "Agent hookup settings…")).toBe(false);
     });
 
     it("maps a run and the settings to the reason", () => {

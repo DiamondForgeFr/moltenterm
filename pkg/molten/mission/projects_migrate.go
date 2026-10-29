@@ -198,11 +198,11 @@ func projectsMigrationNotice(plan MigratePlan) molten.NotificationInput {
 	input.Title = fmt.Sprintf("%s now holds its group's projects", plan.HostName)
 	input.TitleText = uimsg.Make("notif.projects.migratedTitle", "workspace", plan.HostName)
 	if len(plan.Kept) == 0 {
-		input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them.", plan.HostName, projects, moved)
+		input.Message = fmt.Sprintf("%s is now a product with the projects %s, and the Integration panel follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them.", plan.HostName, projects, moved)
 		input.MessageText = uimsg.Make("notif.projects.migrated", "workspace", plan.HostName, "projects", projects, "workspaces", moved)
 		return input
 	}
-	input.Message = fmt.Sprintf("%s is now a product with the projects %s, and Pilotage follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them. Workspaces without a project folder stay on their own: %s.", plan.HostName, projects, moved, kept)
+	input.Message = fmt.Sprintf("%s is now a product with the projects %s, and the Integration panel follows them all. The other workspaces keep their views and agents (%s): delete them when you no longer need them. Workspaces without a project folder stay on their own: %s.", plan.HostName, projects, moved, kept)
 	input.MessageText = uimsg.Make("notif.projects.migratedKept", "workspace", plan.HostName, "projects", projects, "workspaces", moved,
 		"kept", kept)
 	return input

@@ -238,7 +238,7 @@ describe("MoltenTerm widget options (FR-SHELL-049-AC4..AC6, DS-SHELL-090, TC-SHE
         expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrate": false });
 
         const mine = find(companionSections(c), "companion:integrateagent");
-        expect(mine.label).toBe("Integration for Codex");
+        expect(mine.label).toBe("Hookup for Codex");
         expect(effectiveValue(mine)).toBe(true);
         await setItemValue(mine, false);
         expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrateoff": ["codex"] });

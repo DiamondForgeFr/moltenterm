@@ -333,7 +333,7 @@ describe("short choices as option rows (#658)", () => {
 describe("Agents with the integration (FR-SHELL-040, #947)", () => {
     it("shows agent:integrateoff inverted: a ticked agent gets the integration", () => {
         const entry = catalog().find((e) => e.key === "agent:integrateoff");
-        expect(entry).toMatchObject({ label: "Agents with the integration", inverted: true, control: "multi" });
+        expect(entry).toMatchObject({ label: "Agents with the hookup", inverted: true, control: "multi" });
         expect(entry.description).toMatch(/from now on/);
         expect(multiOptionOn(entry, null, "claude")).toBe(true);
         expect(multiOptionOn(entry, ["codex"], "codex")).toBe(false);
@@ -361,8 +361,8 @@ describe("Agents with the integration (FR-SHELL-040, #947)", () => {
             states
         );
         expect(rows.map((r) => [r.label, integrationRunText(r.integration)])).toEqual([
-            ["codex", "Without the integration"],
-            ["Valentin · Claude Code", "With the integration"],
+            ["codex", "Without the hookup"],
+            ["Valentin · Claude Code", "With the hookup"],
         ]);
     });
 });

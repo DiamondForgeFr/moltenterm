@@ -106,7 +106,7 @@ describe("a PR's notification opens its card (#1130)", () => {
 
     const card = {
         id: "card",
-        label: "Show in Control room",
+        label: "Show in Integration",
         kind: "gesture" as const,
         gesture: "reviews:card",
         args: { dir: "/p/app", number: 1120 },

@@ -54,7 +54,7 @@ settings. The guides MoltenTerm installs tell the agent to do this, and only for
 
 ## Seeing what was added
 
-- **The companion**: an integrated session's bar says **Integrated by MoltenTerm**. Click it for what this run got,
+- **The companion**: an integrated session's bar says **Hooked up by MoltenTerm**. Click it for what this run got,
   what was left alone because you already had it, this guide, and the switches to turn the integration off.
 - **The terminal**: `molten agent integration status` prints, for each agent, the real binary and what a session
   started now would get, or why nothing. Run inside an integrated agent (its tools' shell), it prints what that run
