@@ -25,6 +25,9 @@ const (
 
 	// RepoToken stands for the project's repository web address (https://github.com/owner/name) in a pinned page.
 	RepoToken = "molten:repo"
+	// BlankPageUrl is what a repository page opens on a project without a GitHub remote (FR-SHELL-111): an empty page,
+	// never GitHub's home page.
+	BlankPageUrl = "about:blank"
 	// ProjectToken stands for the project's folder in a pinned file view.
 	ProjectToken = "molten:projectdir"
 	// AgentSlotMetaKey: a terminal that held an agent when the view was pinned; it offers to start one.
@@ -213,14 +216,14 @@ func resolvePath(path string, dir string) string {
 	return strings.TrimRight(dir, "/") + strings.TrimPrefix(path, ProjectToken)
 }
 
-// resolveUrl gives a pinned page's address on a project; a repository page on a project without one opens the
-// GitHub home page.
+// resolveUrl gives a pinned page's address on a project; a repository page on a project without a GitHub remote opens
+// a blank page (FR-SHELL-111).
 func resolveUrl(url string, repoUrl string) string {
 	if !strings.HasPrefix(url, RepoToken) {
 		return url
 	}
 	if repoUrl == "" {
-		return "https://github.com"
+		return BlankPageUrl
 	}
 	return repoUrl + strings.TrimPrefix(url, RepoToken)
 }
