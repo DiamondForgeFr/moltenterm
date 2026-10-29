@@ -44,6 +44,12 @@ export function readSidebarHidden(meta: Record<string, any>): boolean {
     return meta?.[SidebarHiddenMetaKey] === true;
 }
 
+// Whether the sidebar is drawn floating (the edge reveals it) rather than docked: hidden by the developer, or the
+// window is narrow (FR-SHELL-109). The stored choice is kept as it is, so widening the window docks it again.
+export function sidebarFloats(storedHidden: boolean, narrowWindow: boolean): boolean {
+    return storedHidden === true || narrowWindow === true;
+}
+
 // The tile grid's columns in CSS, the rule tilesPerRow states: at most 3 a row, never under 74 px, a 6 px gutter.
 export const TileGridColumns = `repeat(auto-fill, minmax(max(${TileMinWidth}px, calc((100% - ${TileGap * (TileMaxPerRow - 1)}px) / ${TileMaxPerRow})), 1fr))`;
 

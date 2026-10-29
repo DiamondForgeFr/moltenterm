@@ -5,6 +5,8 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
 import {
     anyColumnTooTight,
+    autoMinColumns,
+    AutoMinColumns,
     autoWants,
     carpetSlotWidthsPx,
     columnFractions,
@@ -305,6 +307,30 @@ describe("first column floor in the 360 decision (#731, #848)", () => {
             wanted: false,
         });
         expect(decideView360({ ...base, manual: false, autoOn: true, cannotFit: true }).active).toBe(false);
+    });
+
+    it("FR-SHELL-109: in a narrow window two columns go automatic when they cannot fit, never a single one", () => {
+        const two = {
+            setting: "auto" as const,
+            manual: null as boolean,
+            autoOn: false,
+            columnCount: 2,
+            narrowWindow: true,
+        };
+        expect(autoMinColumns(true)).toBe(2);
+        expect(autoMinColumns(false)).toBe(AutoMinColumns);
+        expect(autoWants(false, 2, 800, 0, undefined, autoMinColumns(true))).toBe(true);
+        expect(autoWants(false, 2, 900, 0, undefined, autoMinColumns(true))).toBe(false);
+        // The leaving margin holds it on until the columns fit with room to spare.
+        expect(autoWants(true, 2, 900, 0, undefined, autoMinColumns(true))).toBe(true);
+        expect(autoWants(true, 2, 880 + LeaveMarginPx, 0, undefined, autoMinColumns(true))).toBe(false);
+        expect(decideView360({ ...two, autoOn: true })).toMatchObject({ active: true, source: "auto", reason: "fit" });
+        expect(decideView360({ ...two, manual: false, cannotFit: true })).toMatchObject({ active: true });
+        expect(decideView360({ ...two, autoOn: false })).toMatchObject({ active: false });
+        expect(decideView360({ ...two, autoOn: true, narrowWindow: false })).toMatchObject({ active: false });
+        expect(decideView360({ ...two, columnCount: 1, autoOn: true }).active).toBe(false);
+        // The screen's column threshold still starts at three columns.
+        expect(decideView360({ ...two, columnsOver: true }).active).toBe(false);
     });
 
     it("#1225: on demand and the always setting keep two columns", () => {

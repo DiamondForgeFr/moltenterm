@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { isNarrowWindow, NarrowWindowPx } from "../narrow-window";
 import {
     buildLetterKey,
     clampSidebarWidth,
@@ -15,6 +16,7 @@ import {
     sameTabSplit,
     SidebarDefaultWidth,
     sidebarEnabled,
+    sidebarFloats,
     SidebarHiddenMetaKey,
     sidebarKeyYields,
     SidebarMaxWidth,
@@ -55,6 +57,25 @@ describe("workspace sidebar width (FR-SHELL-079, TC-SHELL-154)", () => {
         expect(sidebarEnabled(null)).toBe(true);
         expect(sidebarEnabled(true)).toBe(true);
         expect(sidebarEnabled(false)).toBe(false);
+    });
+});
+
+describe("narrow window (FR-SHELL-109)", () => {
+    it("floats when hidden by choice or when the window is narrow, docks again once it widens", () => {
+        expect(sidebarFloats(false, false)).toBe(false);
+        expect(sidebarFloats(false, true)).toBe(true);
+        expect(sidebarFloats(true, false)).toBe(true);
+        expect(sidebarFloats(true, true)).toBe(true);
+    });
+
+    it("counts a window as narrow below 1000 px", () => {
+        expect(NarrowWindowPx).toBe(1000);
+        expect(isNarrowWindow(1400)).toBe(false);
+        expect(isNarrowWindow(1000)).toBe(false);
+        expect(isNarrowWindow(999)).toBe(true);
+        expect(isNarrowWindow(820)).toBe(true);
+        expect(isNarrowWindow(0)).toBe(false);
+        expect(isNarrowWindow(NaN)).toBe(false);
     });
 });
 

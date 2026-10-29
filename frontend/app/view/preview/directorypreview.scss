@@ -208,6 +208,36 @@
     min-width: 90px;
 }
 
+// MOLTENTERM-PATCH (#1346): a narrow panel drops columns instead of cutting them (FR-SHELL-109): Permissions first,
+// then Type, then Size. Name and Modified stay. Each step lowers the row's minimum to what the columns left need.
+.dir-table-container {
+    container-type: inline-size;
+}
+@container (max-width: 30rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 24rem;
+    }
+    .dir-table-container .dir-table .col-modestr {
+        display: none !important;
+    }
+}
+@container (max-width: 24rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 18rem;
+    }
+    .dir-table-container .dir-table .col-mimetype {
+        display: none !important;
+    }
+}
+@container (max-width: 18rem) {
+    .dir-table-container .dir-table {
+        --min-row-width: 14.5rem;
+    }
+    .dir-table-container .dir-table .col-size {
+        display: none !important;
+    }
+}
+
 .entry-manager-overlay {
     display: flex;
     flex-direction: column;

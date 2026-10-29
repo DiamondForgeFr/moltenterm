@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { selectAtom } from "jotai/utils";
 import { DefaultLibrarySection, LibrarySection } from "../library/library-model";
+import { narrowWindowAtom } from "../narrow-window";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { CreateDraft, makeCreateDraft } from "./sidebar-create-model";
 import {
@@ -22,6 +23,7 @@ import {
     SidebarDefaultWidth,
     sidebarEnabled,
     SidebarHiddenMetaKey,
+    sidebarFloats,
     SidebarSettingKey,
     SidebarTabSplit,
     SidebarWidthMetaKey,
@@ -60,6 +62,9 @@ export class SidebarModel {
     enabledAtom!: jotai.Atom<boolean>;
     windowMetaAtom!: jotai.Atom<Record<string, any>>;
     widthAtom!: jotai.Atom<number>;
+    // The developer's choice, as the window's meta keeps it.
+    storedHiddenAtom!: jotai.Atom<boolean>;
+    // What is drawn: hidden by choice, or floating because the window is narrow (FR-SHELL-109).
     hiddenAtom!: jotai.Atom<boolean>;
     // The workspace's tabs as tiles and temporary views; a new value only when the lists change.
     tabSplitAtom!: jotai.Atom<SidebarTabSplit>;
@@ -89,9 +94,10 @@ export class SidebarModel {
             return WOS.getObjectValue<WaveWindow>(WOS.makeORef("window", windowId), get)?.meta ?? null;
         });
         this.widthAtom = jotai.atom((get) => get(this.draggingWidthAtom) ?? readSidebarWidth(get(this.windowMetaAtom)));
-        this.hiddenAtom = jotai.atom(
+        this.storedHiddenAtom = jotai.atom(
             (get) => get(this.pendingHiddenAtom) ?? readSidebarHidden(get(this.windowMetaAtom))
         );
+        this.hiddenAtom = jotai.atom((get) => sidebarFloats(get(this.storedHiddenAtom), get(narrowWindowAtom)));
     }
 
     static getInstance(): SidebarModel {
@@ -149,7 +155,13 @@ export class SidebarModel {
         });
     }
 
+    // In a narrow window the sidebar floats whatever the stored choice, so the toggle opens or closes the floating
+    // panel instead: writing the choice would change nothing on screen, and widening again must find it as it was.
     toggleHidden() {
+        if (globalStore.get(narrowWindowAtom)) {
+            this.setPeek(!globalStore.get(this.peekAtom));
+            return;
+        }
         this.setHidden(!this.isHidden());
     }
 

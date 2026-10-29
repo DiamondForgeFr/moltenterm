@@ -1562,7 +1562,8 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
 }
 
 // The page's site in the panel's row (FR-SHELL-083, #1187): its full address shows in the sidebar's top field while
-// the panel has the focus, where it is edited (a click or ⌘L). The right click keeps the old tab's menu.
+// the panel has the focus, where it is edited (a click or ⌘L). The right click keeps the old tab's menu. It keeps
+// room for the start of the host in a narrow panel (FR-SHELL-109): "g…" told nothing.
 function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const loads = useAtomValue(model.loads.loadsAtom);
@@ -1578,7 +1579,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     return (
         <button
             type="button"
-            className="flex h-6 min-w-12 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
+            className="flex h-6 min-w-28 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
             title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
             aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
             data-testid="browser-address"

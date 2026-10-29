@@ -36,6 +36,7 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
 import { MoltentermCicdView } from "../mission/cicd-view";
+import { narrowWindowAtom } from "../narrow-window";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
@@ -2370,6 +2371,9 @@ export function WorkspaceSidebar() {
         }
     }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
+    // Crossing the narrow-window threshold closes a floating panel left open, so it never pops up on its own later.
+    const narrow = useAtomValue(narrowWindowAtom);
+    useEffect(() => model.setPeek(false), [narrow]);
     const panelArrived = usePanelArrived(hidden && peek, asideRef);
     useWindowButtons(hidden, panelArrived);
     const standIns = useStandIns(hidden, panelArrived);
