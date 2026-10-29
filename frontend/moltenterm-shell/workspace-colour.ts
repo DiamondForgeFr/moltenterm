@@ -106,6 +106,31 @@ export function logoColourChoices(colours: string[]): string[] {
 export const PresetColourChoices = PresetColours.map((c) => c.value);
 export const PresetGradientChoices = PresetGradients.map((g) => g.value);
 
+// The short version of the palette (FR-SHELL-102): ten of the presets spread around the hue wheel, shown first on the
+// New workspace page; "More colours" there opens the full palette above.
+const ShortPaletteNames = ["red", "orange", "amber", "lime", "green", "teal", "sky", "blue", "violet", "pink"];
+
+export const ShortPaletteColours: string[] = ShortPaletteNames.map(
+    (name) => PresetColours.find((c) => c.name === name)?.value
+).filter((v) => !!v);
+
+// Red reads as danger or deletion (audit #1316 F14): a workspace is never given it unasked. Its hue band, around 0°,
+// takes in red and coral; pink and rose sit far enough from it.
+export function isRedColour(choice: string): boolean {
+    const stops = colourStops(choice);
+    if (stops.length !== 1) {
+        return false;
+    }
+    const { r, g, b } = parseColor(stops[0]);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max - min < 0.25 * max || max !== r) {
+        return false;
+    }
+    const hue = (60 * (g - b)) / (max - min);
+    return hue > -15 && hue < 15;
+}
+
 // A custom colour typed in: "#rrggbb", "rrggbb" or "#rgb", or "" while it is not one yet.
 export function parseCustomColour(text: string): string {
     const value = (text ?? "").trim();
