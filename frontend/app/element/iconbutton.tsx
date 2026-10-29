@@ -28,6 +28,7 @@ export const IconButton = memo(
                 })}
                 title={decl.title}
                 aria-label={decl.title}
+                aria-pressed={decl.pressed} // MOLTENTERM-PATCH (#1328)
                 style={styleVal}
                 disabled={disabled}
             >

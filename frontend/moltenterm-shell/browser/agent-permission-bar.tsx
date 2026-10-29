@@ -59,7 +59,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
                             key={b.decision}
                             type="button"
                             onClick={() => click(b.decision)}
-                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-(--mt-focus-ring)"
+                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)"
                         >
                             {b.label}
                         </button>

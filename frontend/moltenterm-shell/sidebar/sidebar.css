@@ -146,11 +146,12 @@
     transition: background-color var(--mt-duration-fade) linear;
 }
 
-/* The keyboard focus reads as the active tile's white hairline: an accent frame would look like the selection the
-   design rules out (DS-SHELL-124). A menu closed by Escape puts the focus back on its row, so this shows often. */
+/* The keyboard focus is the fixed --mt-focus, 2 px with a 2 px offset, like every other control (#1319, #1328): the
+   1 px white at 55 % it replaces read under 3:1 (WCAG 1.4.11). A menu closed by Escape puts the focus back on its row,
+   so this shows often. */
 .mt-sb :focus-visible {
-    outline: 1px solid rgb(255 255 255 / 0.55);
-    outline-offset: -1px;
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
 }
 
 .mt-sb-scroll {
@@ -343,16 +344,16 @@
     }
 }
 
-/* The build badge rests dimmed beside the branch, and lights under the pointer. */
+/* The build badge rests small beside the branch and fills under the pointer. Its letter is never dimmed with an
+   opacity: at 0.45 it read 2.88:1 (#1328). */
 .mt-sb-build {
-    opacity: 0.45;
     transform: scale(0.9);
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
 }
 
 .mt-sb-build:hover,
 .mt-sb-build:focus-visible {
-    opacity: 1;
+    background-color: var(--color-hover);
 }
 
 .mt-sb-plus > svg {
@@ -404,8 +405,8 @@
     position: absolute;
     right: 4px;
     bottom: 4px;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: var(--mt-radius-6);
     display: none;
     align-items: center;
@@ -619,8 +620,9 @@
     text-overflow: ellipsis;
 }
 
-/* Many workspaces (FR-SHELL-082, #1186): past seven the slots shrink, the row scrolls under soft edges and keeps the
-   current square in the middle (sidebar-swipe.ts centredScroll). */
+/* Many workspaces (FR-SHELL-082, #1186): past seven the dots shrink inside their 24 px slots (a 24 px target, WCAG
+   2.5.8, #1328), the row scrolls under soft edges and keeps the current square in the middle (sidebar-swipe.ts
+   centredScroll). */
 .mt-sb-dots.is-many {
     justify-content: flex-start;
     overflow-x: auto;
@@ -637,7 +639,7 @@
 }
 
 .mt-sb-dots.is-many .mt-sb-dot {
-    width: 17px;
+    width: 24px;
 }
 
 .mt-sb-dots.is-many .mt-sb-dot > i {
@@ -655,7 +657,7 @@
 }
 
 .mt-sb-dots.is-many .mt-sb-dot.has-ring::after {
-    inset: 5px 2px;
+    inset: 5px;
 }
 
 @media (prefers-reduced-motion: reduce) {

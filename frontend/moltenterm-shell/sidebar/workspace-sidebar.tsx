@@ -730,6 +730,17 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
             : identity.name;
     const title = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
+    // The glyph is decoration: the tile is named for what it is, whatever its icons.
+    const label = renaming
+        ? undefined
+        : [
+              t("sidebar.pins.tileLabel", { name: identity.name }),
+              identity.agent != null ? agentStateTitle(identity.agent).split("\n")[0] : null,
+              modified ? t("sidebar.pins.tileChangedLabel") : null,
+              summary || null,
+          ]
+              .filter(Boolean)
+              .join(", ");
     const rename = (name: string) => {
         setRenaming(false);
         if (name !== identity.name) {
@@ -759,6 +770,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 dropSideClass(drag, "tiles", tabId)
             )}
             aria-current={active ? "page" : undefined}
+            aria-label={label}
             title={title}
             data-testid="sidebar-tile"
             data-tab-id={tabId}
@@ -1023,7 +1035,7 @@ function ViewRow({
             <span className="mt-sb-hover-ctl flex shrink-0 items-center" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                     type="button"
-                    className="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-4 text-secondary hover:bg-white/[0.12] hover:text-primary"
+                    className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-4 text-secondary hover:bg-white/[0.12] hover:text-primary"
                     title={t("sidebar.pins.pinTitle")}
                     aria-label={t("sidebar.pins.pinTitle")}
                     data-testid="sidebar-pin-view"
@@ -1044,7 +1056,7 @@ function ViewRow({
 function HoldCloseButton({ onClose }: { onClose: () => void }) {
     return (
         <HoldToCloseButton
-            className="relative flex h-[18px] w-[18px] cursor-pointer items-center justify-center p-0"
+            className="relative flex h-6 w-6 cursor-pointer items-center justify-center p-0"
             onClose={() => onClose()}
         />
     );
@@ -1229,7 +1241,7 @@ export function TemporaryViews({
                 <span className="mt-sb-tv-line" />
                 <button
                     type="button"
-                    className="mt-sb-tv-clear flex cursor-pointer items-center gap-0.5 rounded-4 px-1 text-11 text-muted hover:text-primary"
+                    className="mt-sb-tv-clear flex min-h-6 min-w-6 cursor-pointer items-center gap-0.5 rounded-4 px-1.5 text-11 text-muted hover:text-primary"
                     data-testid="sidebar-temporary-clear"
                     title={t("sidebar.temporary.clearTitle")}
                     disabled={!shown}

@@ -324,6 +324,7 @@ export class PreviewModel implements ViewModel {
             return {
                 elemtype: "iconbutton",
                 icon: "chevron-left",
+                title: translate(get(I18nModel.getInstance().localeAtom), "wave.files.parentFolder"), // MOLTENTERM-PATCH (#1328)
                 click: this.goParentDirectory.bind(this),
             };
         });
@@ -341,10 +342,9 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: showHiddenFiles ? "eye" : "eye-slash",
-                        title: translate(
-                            get(I18nModel.getInstance().localeAtom),
-                            showHiddenFiles ? "wave.files.hideHidden" : "wave.files.showHidden"
-                        ), // MOLTENTERM-PATCH (#742)
+                        // The same words as Preferences (preview:showhiddenfiles); the state is the pressed one.
+                        title: translate(get(I18nModel.getInstance().localeAtom), "wave.files.showHidden"), // MOLTENTERM-PATCH (#742, #1328)
+                        pressed: showHiddenFiles,
                         click: () => {
                             globalStore.set(this.showHiddenFiles, (prev) => !prev);
                         },
