@@ -18,6 +18,14 @@ export function readSettingsSection(value: unknown): SettingsSectionId {
     return SettingsSections.find((s) => s.id === value)?.id ?? null;
 }
 
+// Block meta of a settings pane: the setting to bring into view, as the search does (MOLTENTERM-PATCH #1332: the
+// sleep indicator and the workspace menu point at Preferences › Energy instead of repeating its options).
+export const SettingsKeyMetaKey = "molten:settings:key";
+
+export function readSettingsKey(value: unknown): string {
+    return typeof value === "string" && value !== "" ? value : null;
+}
+
 // The settings screen, or with a file, that settings file in the JSON editor.
 export function openSettings(file?: string): Promise<void> {
     return openAppPanel({ meta: file ? { view: SettingsView, file } : { view: SettingsView } }, { ephemeral: true });
@@ -28,4 +36,9 @@ export function openSettingsSection(section: SettingsSectionId): Promise<void> {
         { meta: { view: SettingsView, [SettingsSectionMetaKey]: section } as MetaType },
         { ephemeral: true, patch: { [SettingsSectionMetaKey]: section } }
     );
+}
+
+export function openSettingsKey(section: SettingsSectionId, key: string): Promise<void> {
+    const asked = { [SettingsSectionMetaKey]: section, [SettingsKeyMetaKey]: key } as MetaType;
+    return openAppPanel({ meta: { view: SettingsView, ...asked } as MetaType }, { ephemeral: true, patch: asked });
 }

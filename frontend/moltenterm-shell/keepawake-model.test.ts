@@ -1,7 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("./workspace-project", () => ({ ProjectMetaKey: "molten:project", WorkspaceFolderMetaKey: "molten:folder" }));
+
 import {
     applyKeepAwakeState,
     cleanSleepPolicy,
@@ -12,16 +15,23 @@ import {
     coffeeTooltip,
     EmptyKeepAwakeState,
     formatCountdown,
+    keepAwakeActive,
     KeepAwakeAttempt,
     keepAwakeCount,
+    keepAwakeIndicatorLabel,
+    keepAwakeIndicatorTitle,
+    keepAwakeReasons,
     keepAwakeSessions,
     KeepAwakeState,
     policyHoldingLine,
     railCoffeeLabel,
     reasonsText,
     sessionWhere,
-    sleepPolicyChoices,
+    SleepPolicySetting,
+    sleepPolicyDetail,
+    sleepPolicyLabel,
 } from "./keepawake-model";
+import { settingsCatalog } from "./settings/settings-catalog";
 
 function state(partial: Partial<KeepAwakeState>): KeepAwakeState {
     return { ...EmptyKeepAwakeState, version: 1, ...partial };
@@ -156,11 +166,53 @@ describe("keep-awake model", () => {
     });
 
     it("spells out the work rule next to Until work ends (FR-SHELL-023-AC1)", () => {
-        const choices = sleepPolicyChoices("darwin");
-        expect(choices.map((c) => c.policy)).toEqual(["allow", "untilworkends", "letsleep"]);
-        expect(choices[1].detail).toContain("still busy with background subagents or commands after its turn");
-        expect(choices[1].detail).toContain("waiting for input with nothing running is not work");
+        const detail = sleepPolicyDetail("untilworkends");
+        expect(detail).toContain("still busy with background subagents or commands after its turn");
+        expect(detail).toContain("waiting for input with nothing running is not work");
+        expect(sleepPolicyDetail("allow")).toBe("A terminal that asks to stay awake is always heard.");
         expect(cleanSleepPolicy("letsleep")).toBe("letsleep");
         expect(cleanSleepPolicy("never")).toBeNull();
+    });
+
+    it("words the four options once: the indicator and the menu read Preferences' labels (FR-SHELL-103-AC3)", () => {
+        const entry = settingsCatalog("darwin").find((e) => e.key === SleepPolicySetting);
+        expect(entry.group).toBe("Energy");
+        for (const option of entry.options) {
+            expect(sleepPolicyLabel(option.value)).toBe(option.label);
+        }
+        expect(sleepPolicyLabel("")).toBe(entry.unsetLabel);
+        expect(entry.options.map((o) => o.value)).toEqual(["allow", "untilworkends", "letsleep"]);
+    });
+
+    it("is active only while something keeps the computer awake (FR-SHELL-103-AC1)", () => {
+        expect(keepAwakeActive(state({}))).toBe(false);
+        expect(keepAwakeActive(state({ attempts: [attempt({ outcome: "neutralised" })] }))).toBe(false);
+        expect(keepAwakeActive(state({ attempts: [attempt({})] }))).toBe(true);
+        expect(keepAwakeActive(state({ hold: true }))).toBe(true);
+    });
+
+    it("names what keeps it awake, with plurals (FR-SHELL-103-AC2, AC4)", () => {
+        const coffee = { workspaceid: "a", workspacename: "Alpha", since: 1, working: true };
+        expect(keepAwakeReasons(state({ attempts: [attempt({})] }))).toEqual(["a terminal asked to stay awake"]);
+        expect(
+            keepAwakeReasons(
+                state({
+                    hold: true,
+                    attempts: [attempt({ id: "1", blockid: "b1" }), attempt({ id: "2", blockid: "b2" })],
+                    coffees: [coffee],
+                    policyholding: true,
+                })
+            )
+        ).toEqual(["2 terminals asked to stay awake", "kept awake by you in Alpha", "work is running"]);
+        expect(keepAwakeReasons(state({ coffees: [coffee, { ...coffee, workspaceid: "b" }] }))).toEqual([
+            "kept awake by you in 2 workspaces",
+        ]);
+        const s = state({ attempts: [attempt({})] });
+        expect(keepAwakeIndicatorLabel(s)).toBe(
+            "Keeping this computer awake: a terminal asked to stay awake. Open Preferences › Energy"
+        );
+        expect(keepAwakeIndicatorTitle(s, "untilworkends")).toBe(
+            `${keepAwakeIndicatorLabel(s)}\nEnergy setting: Until work ends`
+        );
     });
 });

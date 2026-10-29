@@ -1145,7 +1145,7 @@
           "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input with nothing running is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep.",
           "x-moltenterm": {
             "section": "general",
-            "group": "Power",
+            "group": "Energy",
             "label": "Keep the computer awake",
             "description": "Whether a program in a terminal may keep the computer awake.",
             "control": "select",

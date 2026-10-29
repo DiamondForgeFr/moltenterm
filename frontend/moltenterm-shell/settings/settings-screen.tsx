@@ -26,6 +26,8 @@ import { IntegrateOffKey } from "../companion/companion-integration-model";
 import { EmptyState } from "../empty-state";
 import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
+import { SleepPolicySetting } from "../keepawake-model";
+import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
 import { platformShortcuts } from "../shortcuts/registry";
@@ -68,7 +70,7 @@ import {
 import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
 import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
-import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
+import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { SecretsSection } from "./settings-secrets";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
@@ -665,6 +667,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     );
     const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
     const askedSection = readSettingsSection(block?.meta?.[SettingsSectionMetaKey]);
+    const askedKey = readSettingsKey(block?.meta?.[SettingsKeyMetaKey]);
     const [query, setQuery] = useState("");
     const [active, setActive] = useState(0);
     const [highlight, setHighlight] = useState<string>(null);
@@ -714,6 +717,23 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
             })
         );
     }, [askedSection, blockId]);
+
+    // A setting asked the same way (the sleep indicator's link): shown like a search result, then cleared.
+    useEffect(() => {
+        if (askedKey == null) {
+            return;
+        }
+        const entry = catalog.find((e) => e.key === askedKey);
+        if (entry != null) {
+            jump(entry);
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: { [SettingsKeyMetaKey]: null } as MetaType,
+            })
+        );
+    }, [askedKey, blockId]);
 
     // After a jump the row is rendered in its section: bring it to the middle, focus its control, light it briefly.
     useEffect(() => {
@@ -949,6 +969,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 ))}
                                                 {g.entries.some((e) => e.key === IntegrateOffKey) ? (
                                                     <IntegrationRuns />
+                                                ) : null}
+                                                {g.entries.some((e) => e.key === SleepPolicySetting) ? (
+                                                    <KeepAwakeDetails />
                                                 ) : null}
                                                 {g.entries.some((e) => e.key === View360SettingKey) ? (
                                                     <View360Screens />

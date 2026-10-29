@@ -5,7 +5,7 @@
 // DS-SHELL-063): the sleep policy, the coffees of the rail, the blocks the shims reported. wavesrv decides
 // (pkg/molten/keepawake); this file holds the rules the views need, apart from the components so they can be tested.
 
-import { t } from "./i18n/i18n";
+import { t, tCount } from "./i18n/i18n";
 import { ServerText, serverText, serverTexts } from "./i18n/server-text";
 import { workspaceShownName } from "./workspace-default-name";
 import { viewNameText } from "./workspace-views/workspace-views-model";
@@ -262,28 +262,66 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
     return [...sessions.values()];
 }
 
-export type SleepPolicyChoice = { policy: SleepPolicy; label: string; detail: string };
-
-// The popover's one sentence (DS-SHELL-101): the segmented control of the policies completes it.
-export function sleepPolicySentence(_platform: string): string {
-    return t("keepawake.policySentence");
+// The four options of the sleep setting, worded once: Preferences, the sidebar indicator and the workspace menu all
+// read these (FR-SHELL-103-AC3). Unset is the fourth: the first block asks.
+export function sleepPolicyLabel(policy: string): string {
+    const base = `settings.items.${SleepPolicySetting}`;
+    switch (cleanSleepPolicy(policy)) {
+        case "allow":
+            return t(`${base}.options.allow`);
+        case "untilworkends":
+            return t(`${base}.options.untilworkends`);
+        case "letsleep":
+            return t(`${base}.options.letsleep`);
+        default:
+            return t(`${base}.unset`);
+    }
 }
 
-// The labels answer that sentence; each detail is its segment's tooltip.
-export function sleepPolicyChoices(_platform: string): SleepPolicyChoice[] {
-    return [
-        { policy: "allow", label: t("keepawake.policy.allow"), detail: t("keepawake.policy.allowDetail") },
-        {
-            policy: "untilworkends",
-            label: t("keepawake.policy.untilWorkEnds"),
-            detail: t("keepawake.policy.untilWorkEndsDetail"),
-        },
-        {
-            policy: "letsleep",
-            label: t("keepawake.policy.letSleep"),
-            detail: t("keepawake.policy.letSleepDetail"),
-        },
-    ];
+// What the chosen option does, shown under the setting in Preferences; "" while unset.
+export function sleepPolicyDetail(policy: string): string {
+    switch (cleanSleepPolicy(policy)) {
+        case "allow":
+            return t("keepawake.policy.allowDetail");
+        case "untilworkends":
+            return t("keepawake.policy.untilWorkEndsDetail");
+        case "letsleep":
+            return t("keepawake.policy.letSleepDetail");
+        default:
+            return t("keepawake.policy.unsetDetail");
+    }
+}
+
+// The indicator shows only while something keeps the computer awake (FR-SHELL-103-AC1).
+export function keepAwakeActive(state: KeepAwakeState): boolean {
+    return keepAwakeCount(state) > 0;
+}
+
+// What keeps the computer awake now, one phrase per cause: terminals that asked, coffee mode (the workspaces the
+// user kept awake) and the Until work ends policy.
+export function keepAwakeReasons(state: KeepAwakeState): string[] {
+    const reasons: string[] = [];
+    const terminals = new Set(state.attempts.filter(attemptAlive).map((a) => a.blockid)).size;
+    if (terminals > 0) {
+        reasons.push(tCount("keepawake.byTerminals", terminals));
+    }
+    if (state.coffees.length > 0) {
+        const name = workspaceShownName(state.coffees[0].workspacename, t) || t("keepawake.thisWorkspace");
+        reasons.push(tCount("keepawake.byYou", state.coffees.length, { name }));
+    }
+    if (state.policyholding) {
+        reasons.push(t("keepawake.byWork"));
+    }
+    return reasons;
+}
+
+// The indicator's name for assistive technology, and its tooltip, which adds the current option.
+export function keepAwakeIndicatorLabel(state: KeepAwakeState): string {
+    return t("keepawake.indicatorLabel", { reasons: keepAwakeReasons(state).join(" · ") });
+}
+
+export function keepAwakeIndicatorTitle(state: KeepAwakeState, policy: string): string {
+    return `${keepAwakeIndicatorLabel(state)}\n${t("keepawake.indicatorPolicy", { policy: sleepPolicyLabel(policy) })}`;
 }
 
 export function cleanSleepPolicy(value: string): SleepPolicy {
@@ -349,10 +387,10 @@ export function approvalSummary(approvals: KeepAwakeApproval[]): string {
     const { approved, asked } = approvalCounts(approvals);
     const parts: string[] = [];
     if (approved > 0) {
-        parts.push(t("keepawake.approvedCount", { count: approved }));
+        parts.push(tCount("keepawake.approvedCount", approved));
     }
     if (asked > 0) {
-        parts.push(t("keepawake.askedCount", { count: asked }));
+        parts.push(tCount("keepawake.askedCount", asked));
     }
     return parts.join(" · ");
 }

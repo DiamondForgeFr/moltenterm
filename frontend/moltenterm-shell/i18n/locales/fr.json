@@ -596,7 +596,7 @@
             "text": "Texte",
             "openingPages": "Ouverture des pages",
             "browserPanel": "Page web",
-            "power": "Énergie",
+            "energy": "Énergie",
             "window": "Fenêtre",
             "updates": "Mises à jour",
             "startup": "Démarrage",
@@ -2429,21 +2429,37 @@
         "holdingEnding": "Cet ordinateur reste éveillé, fin dans {time}",
         "aTerminal": "Un terminal",
         "aTerminalLower": "un terminal",
-        "policySentence": "Garder cet ordinateur éveillé quand un terminal le demande",
         "policy": {
-            "allow": "Toujours",
-            "allowDetail": "Les blocages demandés par les terminaux passent.",
-            "untilWorkEnds": "Jusqu'à la fin du travail",
+            "allowDetail": "Un terminal qui demande à rester éveillé est toujours écouté.",
             "untilWorkEndsDetail": "MoltenTerm garde cet ordinateur éveillé tant que du travail tourne (un agent au travail, ou encore occupé par des sous-agents ou des commandes en arrière-plan après son tour ; une commande au premier plan qui n'est pas un shell inactif ; une exécution du projet), plus 2 minutes. Un agent qui attend une saisie sans rien exécuter ne travaille pas.",
-            "letSleep": "Jamais",
-            "letSleepDetail": "Les blocages des terminaux sont arrêtés ; cet ordinateur se met en veille comme prévu et le travail reprend au réveil."
+            "letSleepDetail": "Les blocages des terminaux sont arrêtés ; cet ordinateur se met en veille comme prévu et le travail reprend au réveil.",
+            "unsetDetail": "Le premier terminal qui demande à rester éveillé vous demande de choisir."
         },
+        "byTerminals": {
+            "one": "un terminal a demandé à rester éveillé",
+            "other": "{count} terminaux ont demandé à rester éveillés"
+        },
+        "byYou": {
+            "one": "gardé éveillé par vous dans {name}",
+            "other": "gardé éveillé par vous dans {count} espaces de travail"
+        },
+        "byWork": "du travail est en cours",
+        "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}. Ouvrir Réglages › Énergie",
+        "indicatorPolicy": "Réglage d’énergie : {policy}",
+        "coffeeFor": "Garder éveillé pendant que {name} travaille",
+        "coffeeHint": "Cet ordinateur reste éveillé tant que du travail tourne dans cet espace de travail, quel que soit le réglage ci-dessus.",
         "approvalLog": "{path} dans le dossier de données de MoltenTerm",
         "sessionWhere": "{agent} dans {where}",
         "approves": "Approuve les demandes des agents : {sessions}",
         "stillAsks": "Demande encore : {where}",
-        "approvedCount": "{count} approuvée(s)",
-        "askedCount": "{count} laissée(s) à votre choix",
+        "approvedCount": {
+            "one": "{count} approuvée",
+            "other": "{count} approuvées"
+        },
+        "askedCount": {
+            "one": "{count} laissée à votre choix",
+            "other": "{count} laissées à votre choix"
+        },
         "sessionPolicy": "Règle de veille de {name}",
         "override": {
             "follow": "Suit la règle",
@@ -2454,7 +2470,6 @@
         "allowed": "Autorisé",
         "stopped": "Arrêté",
         "sinceNow": "maintenant",
-        "panelLabel": "Garder éveillé",
         "keptByYou": "Gardé éveillé par vous",
         "workspace": "Espace de travail",
         "thisWorkspace": "cet espace de travail",
@@ -2469,9 +2484,6 @@
         "approved": "approuvée",
         "askedYou": "vous a demandé",
         "everyDecision": "Toutes les décisions : {log}",
-        "statusCount": "{count} gardent cet ordinateur éveillé",
-        "statusCountIncluded": "{count} gardent cet ordinateur éveillé (MoltenTerm compris)",
-        "statusNone": "Veille : rien ne garde cet ordinateur éveillé",
         "unknownPolicy": "Règle de veille inconnue."
     },
     "worktree": {
@@ -8879,6 +8891,7 @@
             "changeIcon": "Changer l’icône…",
             "editColour": "Modifier la couleur…",
             "edit": "Modifier l’espace de travail…",
+            "keepAwake": "Garder éveillé…",
             "newView": "Nouvelle vue",
             "manage": "Gérer les espaces de travail…",
             "delete": "Supprimer l’espace de travail…"

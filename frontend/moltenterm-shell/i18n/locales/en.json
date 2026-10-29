@@ -469,7 +469,7 @@
             "text": "Text",
             "openingPages": "Opening pages",
             "browserPanel": "Web page",
-            "power": "Power",
+            "energy": "Energy",
             "window": "Window",
             "updates": "Updates",
             "startup": "Startup",
@@ -2429,21 +2429,37 @@
         "holdingEnding": "Holding this computer awake, ending in {time}",
         "aTerminal": "A terminal",
         "aTerminalLower": "a terminal",
-        "policySentence": "Keep this computer awake when a terminal asks",
         "policy": {
-            "allow": "Always",
-            "allowDetail": "Terminals' blocks go through.",
-            "untilWorkEnds": "Until work ends",
+            "allowDetail": "A terminal that asks to stay awake is always heard.",
             "untilWorkEndsDetail": "MoltenTerm keeps this computer awake while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a project run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
-            "letSleep": "Never",
-            "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake."
+            "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake.",
+            "unsetDetail": "The first terminal that asks to stay awake asks you to choose."
         },
+        "byTerminals": {
+            "one": "a terminal asked to stay awake",
+            "other": "{count} terminals asked to stay awake"
+        },
+        "byYou": {
+            "one": "kept awake by you in {name}",
+            "other": "kept awake by you in {count} workspaces"
+        },
+        "byWork": "work is running",
+        "indicatorLabel": "Keeping this computer awake: {reasons}. Open Preferences › Energy",
+        "indicatorPolicy": "Energy setting: {policy}",
+        "coffeeFor": "Keep awake while {name} works",
+        "coffeeHint": "This computer stays awake while work runs in this workspace, whatever the setting above.",
         "approvalLog": "{path} in MoltenTerm's data folder",
         "sessionWhere": "{agent} in {where}",
         "approves": "Approves the agents' requests: {sessions}",
         "stillAsks": "Still asks: {where}",
-        "approvedCount": "{count} approved",
-        "askedCount": "{count} left to you",
+        "approvedCount": {
+            "one": "{count} approved",
+            "other": "{count} approved"
+        },
+        "askedCount": {
+            "one": "{count} left to you",
+            "other": "{count} left to you"
+        },
         "sessionPolicy": "Sleep policy of {name}",
         "override": {
             "follow": "Follows the policy",
@@ -2454,7 +2470,6 @@
         "allowed": "Allowed",
         "stopped": "Stopped",
         "sinceNow": "now",
-        "panelLabel": "Keep awake",
         "keptByYou": "Kept awake by you",
         "workspace": "Workspace",
         "thisWorkspace": "this workspace",
@@ -2469,9 +2484,6 @@
         "approved": "approved",
         "askedYou": "asked you",
         "everyDecision": "Every decision: {log}",
-        "statusCount": "{count} keeping this computer awake",
-        "statusCountIncluded": "{count} keeping this computer awake (MoltenTerm included)",
-        "statusNone": "Sleep: nothing keeps this computer awake",
         "unknownPolicy": "Unknown sleep policy."
     },
     "worktree": {
@@ -8879,6 +8891,7 @@
             "changeIcon": "Change icon…",
             "editColour": "Edit colour…",
             "edit": "Edit workspace…",
+            "keepAwake": "Keep awake…",
             "newView": "New view",
             "manage": "Manage workspaces…",
             "delete": "Delete workspace…"

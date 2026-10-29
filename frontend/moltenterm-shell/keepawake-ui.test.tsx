@@ -1,52 +1,105 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { atom, getDefaultStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/app/store/global", () => ({ useSettingsKeyAtom: () => "" }));
+const Hoisted = vi.hoisted(() => ({ policy: "" }));
+
+vi.mock("@/app/store/global", async () => {
+    const { atom: makeAtom } = await import("jotai");
+    return {
+        useSettingsKeyAtom: () => Hoisted.policy,
+        atoms: { workspace: makeAtom({ oid: "ws1", name: "Alpha" }) },
+    };
+});
 vi.mock("@/util/platformutil", () => ({ PLATFORM: "darwin" }));
-vi.mock("./keepawake-store", () => ({ KeepAwakeModel: { getInstance: () => ({}) } }));
+vi.mock("./settings/settings-open", () => ({ openSettingsKey: vi.fn() }));
+vi.mock("./keepawake-store", async () => {
+    const { atom: makeAtom } = await import("jotai");
+    const stateAtom = makeAtom({});
+    const model = { stateAtom, coffeeAtom: () => makeAtom(null), setCoffee: vi.fn(), setOverride: vi.fn() };
+    return { KeepAwakeModel: { getInstance: () => model } };
+});
 
-import { SleepPolicyControl } from "./keepawake-ui";
+import { EmptyKeepAwakeState, KeepAwakeAttempt, KeepAwakeState } from "./keepawake-model";
+import { KeepAwakeDetails, KeepAwakeStatusItem } from "./keepawake-ui";
+import { KeepAwakeModel } from "./keepawake-store";
 
-function control(policy: string, holding = "") {
-    return renderToStaticMarkup(
-        <SleepPolicyControl platform="darwin" policy={policy} holding={holding} onSelect={() => {}} />
-    );
+const model = KeepAwakeModel.getInstance() as unknown as { stateAtom: ReturnType<typeof atom> };
+
+function setState(partial: Partial<KeepAwakeState>) {
+    getDefaultStore().set(model.stateAtom as any, { ...EmptyKeepAwakeState, version: 1, ...partial });
 }
 
-function segments(html: string) {
-    return [...html.matchAll(/role="radio" aria-checked="(true|false)"[^>]*>([^<]+)</g)].map((m) => [m[2], m[1]]);
+function attempt(partial: Partial<KeepAwakeAttempt>): KeepAwakeAttempt {
+    return { id: "1", blockid: "b1", tool: "caffeinate", pid: 10, since: 0, outcome: "allowed", ...partial };
 }
 
-describe("keep-awake popover (FR-SHELL-059-AC3)", () => {
-    it("says one sentence, then the policies as a segmented control", () => {
-        const html = control("untilworkends");
-        expect(html.match(/<div class="text-12 text-primary">[^<]+<\/div>/g)).toEqual([
-            '<div class="text-12 text-primary">Keep this computer awake when a terminal asks</div>',
-        ]);
-        expect(html).toContain('role="radiogroup" aria-label="Keep this computer awake when a terminal asks"');
-        expect(html).toContain('data-role="segmented"');
-        expect(html).not.toContain('type="radio"');
+function item(variant: "status" | "sidebar" = "sidebar") {
+    return renderToStaticMarkup(<KeepAwakeStatusItem variant={variant} />);
+}
+
+beforeEach(() => {
+    Hoisted.policy = "";
+    setState({});
+});
+
+describe("sleep indicator (FR-SHELL-103)", () => {
+    it("shows no icon while nothing keeps the computer awake (AC1)", () => {
+        expect(item()).toBe("");
+        expect(item("status")).toBe("");
+        setState({ attempts: [attempt({ outcome: "neutralised" })] });
+        expect(item()).toBe("");
     });
 
-    it("fills the current choice, and only it", () => {
-        expect(segments(control("untilworkends"))).toEqual([
-            ["Always", "false"],
-            ["Until work ends", "true"],
-            ["Never", "false"],
-        ]);
-        expect(segments(control("letsleep")).filter((s) => s[1] === "true")).toEqual([["Never", "true"]]);
-        expect(segments(control("")).filter((s) => s[1] === "true")).toEqual([]);
-    });
-
-    it("keeps each policy's detail in its tooltip, and shows what the policy holds only while it holds", () => {
-        const html = control("untilworkends");
-        expect(html).toMatch(/title="MoltenTerm keeps this computer awake while work runs[^"]*"[^>]*>Until work ends</);
-        expect(html).not.toContain("Holding");
-        expect(control("untilworkends", "Holding this computer awake while work runs")).toContain(
-            "Holding this computer awake while work runs"
+    it("is a cup, not a moon, and names the reason and the setting (AC2)", () => {
+        Hoisted.policy = "untilworkends";
+        setState({ attempts: [attempt({})] });
+        const html = item();
+        expect(html).toContain("fa-mug-hot");
+        expect(html).not.toContain("fa-moon");
+        expect(html).toContain(
+            'aria-label="Keeping this computer awake: a terminal asked to stay awake. Open Preferences › Energy"'
         );
+        expect(html).toContain("Energy setting: Until work ends");
+    });
+
+    it("opens a link, not a popover: it carries no pressed state (B5)", () => {
+        setState({ attempts: [attempt({})] });
+        expect(item()).not.toContain("aria-expanded");
+    });
+
+    it("counts only when more than one thing keeps it awake", () => {
+        setState({ attempts: [attempt({})] });
+        expect(item()).not.toContain("tabular-nums");
+        setState({ hold: true, coffees: [{ workspaceid: "a", since: 1, working: true }], attempts: [attempt({})] });
+        expect(item()).toContain(">2<");
+    });
+});
+
+describe("Energy card details (FR-SHELL-103)", () => {
+    it("says what the chosen option does, and offers this workspace's coffee", () => {
+        Hoisted.policy = "allow";
+        const html = renderToStaticMarkup(<KeepAwakeDetails />);
+        expect(html).toContain("A terminal that asks to stay awake is always heard.");
+        expect(html).toContain('role="switch"');
+        expect(html).toContain("Keep awake while Alpha works");
+    });
+
+    it("keeps the terminals that asked, each with its own override", () => {
+        setState({ attempts: [attempt({ tabname: "Tab 1" })] });
+        const html = renderToStaticMarkup(<KeepAwakeDetails />);
+        expect(html).toContain("Terminals that asked");
+        expect(html).toContain("Allow for this session");
+        expect(html).toContain("caffeinate");
+    });
+
+    it("keeps the coffees with Stop", () => {
+        setState({ hold: true, coffees: [{ workspaceid: "a", workspacename: "Beta", since: 1, working: true }] });
+        const html = renderToStaticMarkup(<KeepAwakeDetails />);
+        expect(html).toContain("Kept awake by you");
+        expect(html).toContain("Stop keeping this computer awake for Beta");
     });
 });
