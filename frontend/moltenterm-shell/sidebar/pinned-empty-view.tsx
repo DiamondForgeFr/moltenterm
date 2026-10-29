@@ -3,7 +3,7 @@
 
 // A pinned view whose last panel closed (FR-SHELL-081): the view stays, as a pinned view closes only once unpinned,
 // and says how to go on: add a panel, or unpin it. A new workspace's view not opened yet (FR-SHELL-092) makes its
-// panels here instead, the first time it is shown.
+// panels here instead, the first time it is shown, and offers to try again if that failed.
 
 import { createBlock, WOS } from "@/app/store/global";
 import { fireAndForget } from "@/util/util";
@@ -16,16 +16,40 @@ import { ViewPins } from "./view-pins-store";
 
 export function PinnedEmptyView({ tabId }: { tabId: string }) {
     const t = useT();
-    const state = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
+    const pins = ViewPins.getInstance();
+    const state = useAtomValue(pins.stateAtom(tabId));
     const tabAtom = useMemo(() => WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)), [tabId]);
-    const pending = !!useAtomValue(tabAtom)?.meta?.[ViewPendingMetaKey];
+    const tab = useAtomValue(tabAtom);
+    const failed = useAtomValue(pins.openFailedAtom).includes(tabId);
+    const pending = !!tab?.meta?.[ViewPendingMetaKey] && (tab?.blockids?.length ?? 0) === 0;
     useEffect(() => {
         if (pending) {
-            fireAndForget(() => ViewPins.getInstance().openPending(tabId));
+            fireAndForget(() => pins.openPending(tabId));
         }
     }, [pending, tabId]);
-    if (state === "temporary" || pending) {
+    if (state === "temporary" || (pending && !failed)) {
         return null;
+    }
+    const unpin = {
+        label: t("sidebar.pins.menu.unpin"),
+        testId: "pinned-empty-unpin",
+        onClick: () => fireAndForget(() => pins.unpin(tabId)),
+    };
+    if (pending) {
+        return (
+            <EmptyState
+                icon="thumbtack"
+                title={t("workspaceViews.openFailed")}
+                hint={t("workspaceViews.openFailedHint")}
+                primary={{
+                    label: t("workspaceViews.retry"),
+                    testId: "pinned-empty-retry",
+                    onClick: () => fireAndForget(() => pins.openPending(tabId)),
+                }}
+                secondary={unpin}
+                testId="pinned-empty-view"
+            />
+        );
     }
     return (
         <EmptyState
@@ -37,11 +61,7 @@ export function PinnedEmptyView({ tabId }: { tabId: string }) {
                 testId: "pinned-empty-add",
                 onClick: () => fireAndForget(() => createBlock({ meta: { view: "launcher" } })),
             }}
-            secondary={{
-                label: t("sidebar.pins.menu.unpin"),
-                testId: "pinned-empty-unpin",
-                onClick: () => fireAndForget(() => ViewPins.getInstance().unpin(tabId)),
-            }}
+            secondary={unpin}
             testId="pinned-empty-view"
         />
     );

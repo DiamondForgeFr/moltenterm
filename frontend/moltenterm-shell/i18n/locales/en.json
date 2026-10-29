@@ -9215,6 +9215,9 @@
         }
     },
     "workspaceViews": {
+        "openFailed": "This view could not open its panels",
+        "openFailedHint": "Try again, or unpin the view to use it as an empty view.",
+        "retry": "Try again",
         "names": {
             "scoping": "Scoping",
             "integration": "Integration",

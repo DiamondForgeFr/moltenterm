@@ -5,7 +5,7 @@
 // starts with. Add, remove, rename and order the views; choose, add, remove and order each view's panels; Reset goes
 // back to Scoping and Integration. Existing workspaces never change.
 
-import { getSettingsKeyAtom } from "@/app/store/global";
+import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
@@ -31,8 +31,31 @@ import {
 
 const DefaultTemplate = readTemplate((builtinDefaults as Record<string, unknown>)[NewWorkspaceViewsKey]);
 
-function writeTemplate(views: TemplateView[]) {
-    fireAndForget(() => writeSettings({ [NewWorkspaceViewsKey]: views }));
+function templateAtom() {
+    return getSettingsKeyAtom(NewWorkspaceViewsKey as keyof SettingsType);
+}
+
+// The template this card last wrote, until the settings echo it: an edit made before the echo (a rename on blur then
+// a click) applies to it rather than to the rendered list, so no edit is lost.
+let lastWritten: TemplateView[] = null;
+
+function currentTemplate(): TemplateView[] {
+    const stored = readTemplate(globalStore.get(templateAtom()));
+    if (lastWritten != null && JSON.stringify(stored) === JSON.stringify(lastWritten)) {
+        lastWritten = null;
+    }
+    return lastWritten ?? stored;
+}
+
+function writeTemplate(op: (views: TemplateView[]) => TemplateView[]) {
+    const next = op(currentTemplate());
+    lastWritten = next;
+    fireAndForget(() => writeSettings({ [NewWorkspaceViewsKey]: next }));
+}
+
+function resetTemplate() {
+    lastWritten = null;
+    fireAndForget(() => writeSettings({ [NewWorkspaceViewsKey]: null }));
 }
 
 const SelectClass =
@@ -75,7 +98,7 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
     const name = templateViewName(view, t);
     const commit = (value: string) => {
         if (value.trim() && value.trim() !== name) {
-            writeTemplate(renameView(views, i, value));
+            writeTemplate((v) => renameView(v, i, value));
         }
     };
     return (
@@ -103,18 +126,18 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
                     icon="arrow-up"
                     label={t("workspaceViews.settings.moveViewUp", { name })}
                     disabled={i === 0}
-                    onClick={() => writeTemplate(moveView(views, i, -1))}
+                    onClick={() => writeTemplate((v) => moveView(v, i, -1))}
                 />
                 <IconAction
                     icon="arrow-down"
                     label={t("workspaceViews.settings.moveViewDown", { name })}
                     disabled={i === views.length - 1}
-                    onClick={() => writeTemplate(moveView(views, i, 1))}
+                    onClick={() => writeTemplate((v) => moveView(v, i, 1))}
                 />
                 <IconAction
                     icon="trash"
                     label={t("workspaceViews.settings.removeView", { name })}
-                    onClick={() => writeTemplate(removeView(views, i))}
+                    onClick={() => writeTemplate((v) => removeView(v, i))}
                 />
             </div>
             <ul className="flex flex-col gap-1 pl-3">
@@ -124,7 +147,7 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
                         <select
                             aria-label={t("workspaceViews.settings.panel", { n: p + 1, name })}
                             value={kind}
-                            onChange={(e) => writeTemplate(replacePanel(views, i, p, e.target.value))}
+                            onChange={(e) => writeTemplate((v) => replacePanel(v, i, p, e.target.value))}
                             className={SelectClass}
                         >
                             {WorkspaceViewPanels.map((opt) => (
@@ -137,19 +160,19 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
                             icon="arrow-up"
                             label={t("workspaceViews.settings.movePanelUp")}
                             disabled={p === 0}
-                            onClick={() => writeTemplate(movePanel(views, i, p, -1))}
+                            onClick={() => writeTemplate((v) => movePanel(v, i, p, -1))}
                         />
                         <IconAction
                             icon="arrow-down"
                             label={t("workspaceViews.settings.movePanelDown")}
                             disabled={p === view.panels.length - 1}
-                            onClick={() => writeTemplate(movePanel(views, i, p, 1))}
+                            onClick={() => writeTemplate((v) => movePanel(v, i, p, 1))}
                         />
                         <IconAction
                             icon="xmark"
                             label={t("workspaceViews.settings.removePanel")}
                             disabled={view.panels.length <= 1}
-                            onClick={() => writeTemplate(removePanel(views, i, p))}
+                            onClick={() => writeTemplate((v) => removePanel(v, i, p))}
                         />
                     </li>
                 ))}
@@ -159,7 +182,7 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
                     type="button"
                     className={GhostButton}
                     data-testid="workspace-view-add-panel"
-                    onClick={() => writeTemplate(addPanel(views, i))}
+                    onClick={() => writeTemplate((v) => addPanel(v, i))}
                 >
                     <i className="fa-solid fa-plus" />
                     {t("workspaceViews.settings.addPanel")}
@@ -171,7 +194,7 @@ function ViewEditor({ views, i }: { views: TemplateView[]; i: number }) {
 
 export function NewWorkspaceViewsCard() {
     const t = useT();
-    const setting = useAtomValue(getSettingsKeyAtom(NewWorkspaceViewsKey as keyof SettingsType));
+    const setting = useAtomValue(templateAtom());
     const views = readTemplate(setting);
     const isDefault = JSON.stringify(views) === JSON.stringify(DefaultTemplate);
     return (
@@ -195,7 +218,7 @@ export function NewWorkspaceViewsCard() {
                         type="button"
                         className={cn(GhostButton)}
                         data-testid="workspace-view-add"
-                        onClick={() => writeTemplate(addView(views, ""))}
+                        onClick={() => writeTemplate((v) => addView(v, ""))}
                     >
                         <i className="fa-solid fa-plus" />
                         {t("workspaceViews.settings.addView")}
@@ -205,7 +228,7 @@ export function NewWorkspaceViewsCard() {
                         className={GhostButton}
                         data-testid="workspace-view-reset"
                         disabled={isDefault}
-                        onClick={() => fireAndForget(() => writeSettings({ [NewWorkspaceViewsKey]: null }))}
+                        onClick={resetTemplate}
                     >
                         <i className="fa-solid fa-rotate-left" />
                         {t("workspaceViews.settings.reset")}

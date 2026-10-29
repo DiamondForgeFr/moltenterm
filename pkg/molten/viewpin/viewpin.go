@@ -75,6 +75,9 @@ type BuildRequest struct {
 	Config      Config              `json:"config"`
 	// Background: a new tab (a duplicate, FR-SHELL-081) does not take the screen from the view the developer is on.
 	Background bool `json:"background,omitempty"`
+	// Pending: a new workspace's view shown for the first time (FR-SHELL-092): wavesrv opens it from its own tab's
+	// configuration, once, and Config is ignored.
+	Pending bool `json:"pending,omitempty"`
 }
 
 type BuildResult struct {
