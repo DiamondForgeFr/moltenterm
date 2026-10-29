@@ -635,7 +635,8 @@ export function RemoteCiTab({
         <div className="flex flex-col gap-5">
             <ReviewsLine github={github} target={prTarget || trunk} dir={dir} />
             <BranchesCiBlock dir={dir} githubAt={githubAt} onRefresh={onRefresh} onShowRelease={onShowRelease} />
-            <div className="grid gap-5 @3xl:grid-cols-2">
+            {/* grid-cols-1 caps the column at the panel's width, so the rows truncate and keep their duration. */}
+            <div className="grid grid-cols-1 gap-5 @3xl:grid-cols-2">
                 <ScheduledBlock github={github} />
                 <RecentRunsBlock github={github} dir={dir} onRefresh={onRefresh} />
             </div>
