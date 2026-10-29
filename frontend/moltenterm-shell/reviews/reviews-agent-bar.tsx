@@ -334,7 +334,7 @@ export function AgentBar({
                             fireAndForget(() => reviewProjectCommands(trustDir));
                         }}
                         onKeyDown={stop}
-                        className="molten-btn h-5 cursor-pointer rounded-3 px-1.5 text-11"
+                        className="molten-btn h-5 cursor-pointer rounded-4 px-1.5 text-11"
                         title={t("reviewsAgents.trustReviewTitle", { name, project: pathBaseName(trustDir) })}
                         data-testid="reviews-agent-trust"
                     >
@@ -390,7 +390,7 @@ export function AgentBar({
 }
 
 export const BarButton =
-    "flex h-5 shrink-0 cursor-pointer items-center gap-1.5 rounded-3 border border-transparent px-1.5 text-secondary hover:border-border hover:bg-hover hover:text-primary focus-visible:border-border";
+    "flex h-5 shrink-0 cursor-pointer items-center gap-1.5 rounded-4 border border-transparent px-1.5 text-secondary hover:border-border hover:bg-hover hover:text-primary focus-visible:border-border";
 
 // The line of a task whose agent's session is gone (#954): its name, what it left, and Retry.
 function GoneAgentBar({ task, actions, stacked }: { task: BarTask; actions?: React.ReactNode; stacked?: boolean }) {
@@ -544,7 +544,7 @@ export function RowAgentLine({
                         type="button"
                         onClick={click(() => run("stop", () => onStop(blockId)))}
                         onKeyDown={stop}
-                        className="molten-btn molten-btn-destructive h-5 cursor-pointer rounded-3 px-1.5 text-11"
+                        className="molten-btn molten-btn-destructive h-5 cursor-pointer rounded-4 px-1.5 text-11"
                         data-testid="reviews-agent-stop-yes"
                     >
                         {busy === "stop" ? <DominoLoader /> : null}

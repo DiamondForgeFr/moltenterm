@@ -7,7 +7,7 @@
    turns each token into a Tailwind utility; plain CSS reads the --mt-* variables. MoltenTerm-owned CSS and TSX
    (frontend/moltenterm-shell, frontend/moltenterm-onboarding) use only these: build/token-lint.test.ts fails on an
    off-scale font size, weight, radius, icon size or transition duration. Wave's own surfaces keep their values (and
-   the 3 px radius cap of build/cap-radius.ts) until a MoltenTerm patch moves them onto the tokens.
+   the snap of build/cap-radius.ts onto the two radii) until a MoltenTerm patch moves them onto the tokens.
 
    Type        text-11 · text-12 (UI default) · text-13 (panel body) · text-15 · text-20 (section titles) · text-32
                (onboarding and hero numbers); weights font-normal 400 · font-medium 500 · font-semibold 600 only.
@@ -16,10 +16,11 @@
                h-row-lg 32 px (inputs, tab bar items).
    Icons       text-icon-14 (chrome, menus) · text-icon-16 (rail, headers) · text-icon-20 (empty states), Font Awesome.
                An icon inline in a label takes the label's text size instead.
-   Radii       rounded-4 (chips, inputs, a pill's inner part, and every overlay: dialogs, popovers, menus, toasts, #905)
-               · rounded-6 (buttons, items, tabs, pills) · rounded-10 (large tiles inside a page only, never an
-               overlay); rounded-full only for state dots and status pills. The DiamondForge suite surfaces (Settings,
-               the workspace editor, #658) take the low scale: rounded-2 · rounded-3 · rounded-4.
+   Radii       two only (FR-SHELL-118): rounded-4, var(--mt-radius-control), 4 px (chips, inputs, the suite's blocks, and
+               every overlay: dialogs, popovers, menus, toasts, #905) · rounded-6, var(--mt-radius-panel), 6 px (panels,
+               tiles, cards; buttons, items, tabs and pills keep it until a pass moves the clicked ones to 4);
+               rounded-full only for state dots, toggles and status pills. The DiamondForge suite's --df-radius-* slots
+               all read the control radius.
    Colour      bg-surface-0 (window, sidebar) · bg-surface-1 (rail, panels) · bg-surface-2 (raised: cards, hover
                fills) · bg-surface-3 (overlays), fixed cast iron in every workspace (FR-SHELL-115); text in
                var(--mt-text-1|2|3), never a text with an opacity;
@@ -67,13 +68,12 @@
     --mt-icon-16: 16px;
     --mt-icon-20: 20px;
 
-    /* The DiamondForge suite's low scale (#658, Notulia's 2–4 px): blocks, chips, option rows and the surfaces built
-       on them. */
-    --mt-radius-2: 2px;
-    --mt-radius-3: 3px;
-    --mt-radius-4: 4px;
-    --mt-radius-6: 6px;
-    --mt-radius-10: 10px;
+    /* Two radii (theme "Coulée" step 5, FR-SHELL-118): the control radius is for what is clicked, chips, the suite's
+       blocks and every overlay; the panel radius is for panels, tiles and cards. A third value fails
+       build/token-lint.ts, and build/cap-radius.ts snaps Wave's own radii onto these two. Only dots, toggles and
+       pills are round. */
+    --mt-radius-control: 4px;
+    --mt-radius-panel: 6px;
 
     /* Cast iron (theme "Coulée" step 2, FR-SHELL-115): fixed warm greys, the same in every workspace. None of them
        mixes the workspace colour, which marks the place only (--mt-place, #1319), so a contrast holds once for every
@@ -142,6 +142,15 @@
     /* The longest loop cycle (the working segment of a panel header, FR-SHELL-052): NFR-SHELL-027's 1.6 s. A loop has
        no reduced-motion duration: it stops, its rule says how it stands still. */
     --mt-duration-loop: 1600ms;
+    /* Theme Coulée's loops (FR-SHELL-118). A loop has no duration to zero under reduced motion: its rule stops it and
+       says how it stands still (motion-still-states.test.ts checks that every looping animation has one).
+       spin       the "running" sweep and arc, 1.1 s; the browser's load line stands full at 70 % opacity
+       dominoes   the suite's chain loader, 1 s; the bars stand in their rest angle (--df-domino-still). The bars' delays
+                  are written in 1/24 s of this cycle (moltenterm-shell.css), so the token and them move together
+       loop       a pulse (the sidebar ring, the radar), up to 1.6 s; the pulse stays lit at full opacity
+       glow       the suite's turning light (--df-glow-duration), 8 s; it stands at its rest angle (--df-glow-rest) */
+    --mt-duration-spin: 1100ms;
+    --mt-duration-dominoes: 1000ms;
     /* A change made before the developer's eyes (molten-motion.css, #1163): an element flows in, melts out or travels
        to its new place, and the molten glow passes over it, under 400 ms. */
     --mt-duration-flow: 320ms;
@@ -171,9 +180,9 @@
     --df-text: var(--mt-text-main);
     --df-text-muted: var(--mt-text-muted);
 
-    --df-radius-sm: var(--mt-radius-2);
-    --df-radius-md: var(--mt-radius-3);
-    --df-radius-lg: var(--mt-radius-4);
+    --df-radius-sm: var(--mt-radius-control);
+    --df-radius-md: var(--mt-radius-control);
+    --df-radius-lg: var(--mt-radius-control);
 
     --df-text-chip: var(--mt-text-11);
     --df-text-desc: var(--mt-text-12);
@@ -184,8 +193,7 @@
     --df-weight-medium: var(--mt-weight-medium);
     --df-weight-semibold: var(--mt-weight-semibold);
 
-    --df-duration-fast: var(--mt-duration-fast);
-    --df-tile-fg: var(--mt-action-fg);
+    --df-duration-fast: var(--mt-duration-fast);    --df-tile-fg: var(--mt-action-fg);
 }
 
 /* MoltenTerm's own reduced-motion setting (the app root's class) stills the turning light like the system's. */
@@ -266,11 +274,8 @@
     --spacing-row: var(--mt-row-28);
     --spacing-row-lg: var(--mt-row-32);
 
-    --radius-2: var(--mt-radius-2);
-    --radius-3: var(--mt-radius-3);
-    --radius-4: var(--mt-radius-4);
-    --radius-6: var(--mt-radius-6);
-    --radius-10: var(--mt-radius-10);
+    --radius-4: var(--mt-radius-control);
+    --radius-6: var(--mt-radius-panel);
 
     --color-surface-0: var(--mt-surface-0);
     --color-surface-1: var(--mt-surface-1);

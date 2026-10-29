@@ -161,7 +161,7 @@
     margin: 0 4px 4px;
     padding: 0 8px;
     border: 1px solid var(--mt-line-2);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--mt-text-muted);
     font-family: var(--mt-ui-font);

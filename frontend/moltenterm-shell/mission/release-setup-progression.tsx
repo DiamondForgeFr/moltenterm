@@ -165,7 +165,7 @@ function MarkerTiles({ marker, state }: { marker: ProgressMarker; state: Progres
                             <span
                                 key={part.id}
                                 className={cn(
-                                    "grid h-5 w-5 place-items-center rounded-2 transition-colors duration-240",
+                                    "grid h-5 w-5 place-items-center rounded-4 transition-colors duration-240",
                                     PartTone[part.state]
                                 )}
                                 title={t(part.labelKey)}
@@ -186,7 +186,7 @@ function Connector({ filled, count, countKey }: { filled: boolean; count?: numbe
     const t = useT();
     return (
         <span className="relative mx-3 flex flex-none items-center" aria-hidden={!count}>
-            <span className="relative block h-0.5 w-12 overflow-hidden rounded-2 bg-border">
+            <span className="relative block h-0.5 w-12 overflow-hidden rounded-4 bg-border">
                 <i
                     className={cn(
                         "absolute inset-y-0 left-0 bg-success transition-[width] duration-240",

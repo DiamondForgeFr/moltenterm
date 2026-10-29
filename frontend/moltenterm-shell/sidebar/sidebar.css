@@ -175,7 +175,7 @@
     left: var(--mt-frame-gap);
     height: auto;
     padding: var(--mt-peek-inset);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: var(--mt-surface-0);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
     transform: translateX(calc(-100% - 24px));
@@ -212,7 +212,7 @@
     /* The parity of the gap, so the room on each side is whole pixels (#1240). */
     width: calc(4px - mod(var(--mt-frame-gap), 2px));
     height: 26px;
-    border-radius: var(--mt-radius-2);
+    border-radius: var(--mt-radius-control);
     background: transparent;
     transition:
         height var(--mt-duration-fast) var(--mt-ease),
@@ -318,7 +318,7 @@
 .mt-sb-dot.is-on > i {
     width: 20px;
     height: 20px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     opacity: 1;
 }
 
@@ -408,7 +408,7 @@
     bottom: 4px;
     width: 24px;
     height: 24px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     display: none;
     align-items: center;
     justify-content: center;
@@ -440,7 +440,7 @@
     content: "";
     position: absolute;
     inset: 4px;
-    border-radius: var(--mt-radius-2);
+    border-radius: var(--mt-radius-control);
     background: rgb(0 0 0 / 0.45);
 }
 
@@ -593,7 +593,7 @@
 }
 
 .mt-sb-zone.is-target {
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background-color: rgb(255 255 255 / 0.04);
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
@@ -610,7 +610,7 @@
     top: 0;
     transform: translate(-50%, -50%);
     padding: 2px 7px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     background: var(--color-accent);
     color: #111;
     font-size: var(--mt-text-11);
@@ -624,7 +624,7 @@
 .mt-sb-zone-empty {
     min-height: 34px;
     border: 1px dashed rgb(255 255 255 / 0.18);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
 }
 
 /* The view menu's Rename and Change icon pages, drawn as the menus are. */
@@ -906,15 +906,15 @@
 }
 
 .mt-sb.is-hidden .mt-sb-place-strip {
-    left: var(--mt-radius-6);
-    right: var(--mt-radius-6);
+    left: var(--mt-radius-panel);
+    right: var(--mt-radius-panel);
 }
 
 .mt-sb-place-bar {
     flex: none;
     width: 3px;
     height: 14px;
-    border-radius: var(--mt-radius-2);
+    border-radius: var(--mt-radius-control);
     background-color: var(--mt-place);
     background-image: linear-gradient(
         to bottom,
@@ -930,7 +930,7 @@
     bottom: -1px;
     left: 10px;
     height: 2px;
-    border-radius: var(--mt-radius-2);
+    border-radius: var(--mt-radius-control);
     background: var(--mt-place);
     pointer-events: none;
 }

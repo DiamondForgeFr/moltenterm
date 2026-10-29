@@ -36,10 +36,10 @@ const OwnModalAllowed: Record<string, string> = {
     "moltenterm-shell/tab-close-confirmation.tsx": "uses DialogFrame",
 };
 
-// Overlay frames: fixed, or floating with an overlay shadow. Only the token radii count: the build caps every other
-// radius (Wave's rounded-lg included) at 3 px (build/cap-radius.ts).
+// Overlay frames: fixed, or floating with an overlay shadow. Only the token radii count: the build snaps every other
+// radius (Wave's rounded-lg included) onto the 4 and 6 px of the tokens (build/cap-radius.ts).
 const OverlayMarker = /\b(fixed|shadow-command|shadow-e2|shadow-e3|shadow-lg|shadow-xl)\b/;
-const HighCorner = /\brounded-(6|10)\b/;
+const HighCorner = /\brounded-6\b/;
 
 function sourceFiles(dir: string, ext: RegExp): string[] {
     return (readdirSync(dir, { recursive: true }) as string[])

@@ -12,6 +12,8 @@ export const OwnedFrontendDirs = ["moltenterm-shell", "moltenterm-onboarding"];
 
 const Weights = new Set(["400", "500", "600"]);
 const Durations = new Set(["120", "180", "240"]);
+// The two radii (FR-SHELL-118): rounded-4 is --mt-radius-control, rounded-6 --mt-radius-panel.
+const Radii = new Set(["4", "6"]);
 const TwSizeNames = "xxs|xs|sm|base|lg|xl|[2-9]xl|title|default";
 const TwRadiusSides = "t|b|l|r|tl|tr|bl|br|s|e|ss|se|es|ee";
 const TwRadiusNames = "xs|sm|md|lg|xl|[2-4]xl";
@@ -33,6 +35,11 @@ const TsRules: TsRule[] = [
     {
         rule: "radius off the scale",
         re: new RegExp(`${Variants}rounded(?:-(?:${TwRadiusSides}))?(?:-(?:${TwRadiusNames}|\\[[^\\]]*\\]))?${End}`, "g"),
+    },
+    {
+        rule: "radius off the scale",
+        re: new RegExp(`${Variants}rounded(?:-(?:${TwRadiusSides}))?-(\\d+)${End}`, "g"),
+        bad: (m) => !Radii.has(m[1]),
     },
     {
         rule: "transition duration off the scale",
@@ -146,13 +153,14 @@ function badWeight(value: string): boolean {
 
 const TokenDurationVar = /^var\(--(?:mt|df)-duration-/;
 
+// A radius reads the two tokens, the suite kit's slots (which tokens.css maps onto the control radius) or the panel
+// radius Wave's blocks read; any other variable could hold a third value.
+const RadiusVar = /^var\(--(?:mt-radius-(?:control|panel)|radius-[46]|df-radius-(?:sm|md|lg)|mt-panel-radius|block-border-radius|modal-border-radius)\b/;
+
 function badRadius(value: string): string {
     const v = value.replace(/\s*!important$/, "");
-    if (/^calc\(/.test(v) && /var\(--/.test(v)) {
-        return null;
-    }
     for (const part of splitTop(v, /[\s/]/)) {
-        if (/^var\(--/.test(part) || part === "0" || /%$/.test(part) || /^(?:inherit|initial|unset)$/.test(part)) {
+        if (RadiusVar.test(part) || part === "0" || /%$/.test(part) || /^(?:inherit|initial|unset)$/.test(part)) {
             continue;
         }
         const px = /^(\d*\.?\d+)px$/.exec(part);

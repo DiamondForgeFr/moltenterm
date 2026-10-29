@@ -41,7 +41,7 @@
 
 .tile-layout .resize-handle .mt-gutter-pill {
     flex: none;
-    border-radius: var(--mt-radius-2);
+    border-radius: var(--mt-radius-control);
     background: transparent;
     pointer-events: none;
     transition:

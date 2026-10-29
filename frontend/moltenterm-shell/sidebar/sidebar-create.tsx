@@ -174,7 +174,7 @@ export function CreateWorkspacePage({ draft }: { draft: CreateDraft }) {
             }}
         >
             <div
-                className="mx-auto flex h-12 w-12 items-center justify-center rounded-10 text-20 font-semibold transition-colors duration-180 ease-mt"
+                className="mx-auto flex h-12 w-12 items-center justify-center rounded-6 text-20 font-semibold transition-colors duration-180 ease-mt"
                 style={{ background: colourChoiceCss(draft.colour), color: colourChoiceForeground(draft.colour) }}
                 aria-hidden
                 data-testid="sidebar-create-art"

@@ -29,7 +29,7 @@
     padding: 0 10px;
     box-sizing: border-box;
     overflow: hidden;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     transition: background-color var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -122,7 +122,7 @@
 .tab.molten-tab .name.focused {
     flex: 1 1 auto;
     padding: 1px 4px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     text-overflow: clip;
 }
 

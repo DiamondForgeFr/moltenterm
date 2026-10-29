@@ -7,8 +7,10 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 
 ## Shared principles (the suite)
 
-- **Sharp editorial corners.** Radii from 2 to 4 px: 4 px for blocks, icon tiles and dialogs, 3 px for chips, pockets
-  and toggles, 2 px for the smallest marks. `rounded-full` is kept for dots, radios, switches and pills.
+- **Sharp editorial corners.** One radius, 4 px, for blocks, icon tiles, dialogs, chips, pockets and the smallest
+  marks (MoltenTerm reads it as the control radius, with the 6 px panel radius for its panels, FR-SHELL-118; the kit's
+  own defaults stay at 2 to 4 px for the other products of the suite). `rounded-full` is kept for dots, radios,
+  switches and pills.
 - **Section blocks, not floating headings.** A group of settings is a framed block. Its name is an uppercase chip sunk
   halfway into the top border. The border dives around the chip in a small pocket, and the block's icon sits in an
   accent tile on the top-left corner. One line of description comes first, then the rows, flush with the block's
@@ -55,8 +57,8 @@ so a future light theme only has to map the same slots.
 - Icons: `suiteIcon("language")` and the other concepts in `suite-icons.ts`. Use named imports from `lucide-react`
   only.
 - The mapping of the `--df-*` slots lives in `../tokens.css`. The token lint (`build/token-lint.ts`) accepts
-  `var(--df-text-*)`, `var(--df-weight-*)` and `var(--df-duration-*)`. The build's radius cap (`build/cap-radius.ts`)
-  leaves `--df-radius-*` alone.
+  `var(--df-text-*)`, `var(--df-weight-*)` and `var(--df-duration-*)`. The build's radius snap (`build/cap-radius.ts`, onto the two radii of FR-SHELL-118)
+  leaves `--df-radius-*` alone, and tokens.css maps all three onto the 4 px control radius.
 - Applied in #658 to Settings (every group, Secrets, Mods, Advanced files and Keyboard) and the workspace editor
   (Identity, Project, Folder, Danger zone, and the dialog frame through `DialogFrame suite`). Tips follows through
   `PageCard`. Since #890 every `DialogFrame` carries the turning light while it is open (`noGlow` opts out, with the
@@ -64,7 +66,7 @@ so a future light theme only has to map the same slots.
 - Since #905 every dialog is framed this way: MoltenTerm's own through `DialogFrame`, Wave's through its `Modal`, which
   draws the same frame (`DialogFrameClass`, `modal.scss`) and the same light. Popovers, menus, toasts and command
   surfaces (palette, command panel) keep their own look with 4 px corners and no light. `dialog-suite-frame.test.tsx`
-  fails on a dialog without the frame and on an overlay with the 6 or 10 px radius.
+  fails on a dialog without the frame and on an overlay with the 6 px panel radius.
 
 ## Molten motion
 

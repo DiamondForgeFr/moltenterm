@@ -428,7 +428,7 @@ export function ReviewRow({
                         </span>
                         {pr.draft ? (
                             <span
-                                className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase"
+                                className="shrink-0 rounded-4 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase"
                                 title={t("reviews.card.draftTagTitle")}
                                 data-testid="reviews-draft-tag"
                             >

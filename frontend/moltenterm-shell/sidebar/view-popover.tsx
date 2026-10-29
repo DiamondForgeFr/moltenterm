@@ -161,7 +161,7 @@ export function ViewPopoverHost() {
         <div
             ref={boxRef}
             role="dialog"
-            className="mt-sb-pop fixed z-[1000] rounded-8 py-1"
+            className="mt-sb-pop fixed z-[1000] rounded-4 py-1"
             style={{
                 width: PopoverWidth[state.kind],
                 left: pos?.left ?? state.x,

@@ -71,7 +71,7 @@ function Fact({ label, value, title }: { label: string; value: string; title?: s
         return null;
     }
     return (
-        <div className="min-w-0 rounded-8 bg-white/[0.05] px-[11px] py-[9px]" title={title ?? value}>
+        <div className="min-w-0 rounded-6 bg-white/[0.05] px-[11px] py-[9px]" title={title ?? value}>
             <small className="block text-11 text-muted">{label}</small>
             <b className="block truncate text-12 font-semibold text-primary">{value}</b>
         </div>
@@ -482,7 +482,7 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
                 {connectionsOpen ? (
                     <section
                         ref={connectionsRef}
-                        className="mt-3.5 rounded-8 border border-border p-3 [&>div]:w-full"
+                        className="mt-3.5 rounded-6 border border-border p-3 [&>div]:w-full"
                         data-testid="agent-info-connections-panel"
                     >
                         <AgentLinksPanel blockId={blockId} />

@@ -33,7 +33,7 @@
     align-items: flex-start;
     // MOLTENTERM-PATCH (#905): the suite's dialog frame, as DialogFrame draws it (DialogFrameClass): 4 px corners, the
     // thin border, the raised surface. modal.tsx adds the turning light.
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     border: 1px solid var(--color-border);
     background: var(--mt-surface-3);
     box-shadow: var(--mt-shadow-e3);

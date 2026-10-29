@@ -447,7 +447,7 @@ function SessionCard({
                                 ? t("reviewsAgents.upcoming.session.title", { name })
                                 : t("reviewsAgents.upcoming.session.titleUnknown")}
                         </span>
-                        <span className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase">
+                        <span className="shrink-0 rounded-4 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase">
                             {tCount("reviewsAgents.upcoming.session.agents", entry.items.length)}
                         </span>
                     </div>

@@ -57,11 +57,11 @@ import { askDeleteWorkspace, askResetWorkspace } from "./workspace-reset";
 
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
-    "shrink-0 cursor-pointer rounded-3 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
+    "shrink-0 cursor-pointer rounded-4 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded-3 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const GhostButtonClass =
-    "shrink-0 cursor-pointer rounded-3 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-4 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
@@ -240,7 +240,7 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
                 ref={confirmRef}
                 type="button"
                 onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-3 px-2 py-1 text-12"
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-4 px-2 py-1 text-12"
             >
                 {t("workspace.edit.replace")}
                 <MoltenWave />
@@ -253,7 +253,7 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
 }
 
 const ImageTileClass =
-    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-3 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-4 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
 
 // A change of the workspace's image, one at a time, its result one announced line.
 function useIconChange() {
@@ -328,7 +328,7 @@ export function ImagePane({
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-3 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-4 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                     over && "bg-accent/10 outline outline-1 outline-accent outline-dashed"
                 )}
             >
@@ -835,7 +835,7 @@ export function IconChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(icon)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-3 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-4 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                         FocusRingClass,
                         checked
                             ? "border-accent bg-accent/10 text-primary"
@@ -1150,7 +1150,7 @@ export function WorkspaceEditSheet({
             buttons={
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-3 px-4 py-1.5 text-12"
+                    className="molten-btn cursor-pointer rounded-4 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
                     {t("workspace.edit.done")}

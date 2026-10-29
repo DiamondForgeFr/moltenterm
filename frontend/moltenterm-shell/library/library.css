@@ -14,7 +14,7 @@
     gap: 8px;
     padding: 8px;
     box-sizing: border-box;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     background: var(--mt-surface-0);
     box-shadow:
         var(--mt-shadow-command),
@@ -86,7 +86,7 @@
     gap: 6px;
     padding: 12px 4px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--color-secondary);
     font-size: var(--mt-text-12);
@@ -122,7 +122,7 @@
     align-items: center;
     justify-content: center;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--color-secondary);
     cursor: pointer;
@@ -143,7 +143,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 10px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: color-mix(in srgb, rgb(20 17 16) 92%, white);
     box-shadow:
         var(--mt-shadow-command),
@@ -165,7 +165,7 @@
     gap: 10px;
     padding: 12px;
     box-sizing: border-box;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(0 0 0 / 0.18);
 }
 
@@ -192,7 +192,7 @@
     margin-left: auto;
     padding: 5px 9px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.06);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
     color: var(--color-primary);
@@ -225,7 +225,7 @@
     gap: 8px;
     padding: 10px;
     overflow-y: auto;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-c) 18%, rgb(20 17 16)) 70%, black);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
     cursor: pointer;
@@ -247,7 +247,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-semibold);
 }
@@ -263,7 +263,7 @@
     gap: 4px;
     padding: 0 4px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.09);
     color: var(--color-primary);
     font-size: var(--mt-text-11);
@@ -303,7 +303,7 @@
     gap: 7px;
     padding: 0 6px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--color-secondary);
     font-size: var(--mt-text-12);
@@ -367,7 +367,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 12px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.05);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
 }
@@ -387,7 +387,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.08);
     font-style: normal;
 }
@@ -401,7 +401,7 @@
     max-width: 100%;
     padding: 4px 10px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.08);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
     color: var(--color-primary);
@@ -434,7 +434,7 @@
     gap: 6px;
     padding: 4px 8px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--color-secondary);
     font-size: var(--mt-text-12);
@@ -462,7 +462,7 @@
     gap: 10px;
     padding: 9px 10px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: var(--color-secondary);
     text-align: left;
@@ -497,7 +497,7 @@
 
 .mt-lib-state {
     padding: 2px 7px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.07);
     color: var(--mt-lib-fg-3);
     font-size: var(--mt-text-11);
@@ -515,7 +515,7 @@
     align-items: center;
     gap: 10px;
     padding: 9px 10px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.04);
 }
 
@@ -548,7 +548,7 @@
     gap: 10px;
     padding: 12px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: rgb(255 255 255 / 0.05);
     color: var(--color-primary);
     text-align: left;

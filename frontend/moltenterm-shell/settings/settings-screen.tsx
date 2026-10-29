@@ -834,7 +834,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                     setSection(s.id);
                                 }}
                                 className={cn(
-                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
+                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-4 px-2 text-left text-12 transition-colors duration-120 ease-mt",
                                     current
                                         ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
                                         : "text-secondary hover:bg-surface-2 hover:text-primary"

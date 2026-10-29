@@ -134,7 +134,7 @@ export function MergeQueueBlock({
                         <li key={s.number} className="flex items-center gap-1">
                             <span
                                 className={cn(
-                                    "inline-flex items-center rounded-3 border border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-secondary",
+                                    "inline-flex items-center rounded-4 border border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-secondary",
                                     s.rebase && "border-dashed",
                                     s.wait && "text-muted",
                                     s.merged && "line-through opacity-55",
@@ -190,7 +190,7 @@ export function MergeQueueBlock({
                             className={cn("flex items-center gap-1", i === 0 && queue.steps.length > 0 && "ml-2")}
                         >
                             <span
-                                className="inline-flex items-center rounded-3 border border-dashed border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-muted"
+                                className="inline-flex items-center rounded-4 border border-dashed border-[var(--mt-line-2)] leading-4 whitespace-nowrap text-muted"
                                 data-testid="reviews-queue-step"
                                 data-step={n}
                                 data-out
@@ -252,7 +252,7 @@ function StepCheck({ checked, label, onToggle }: { checked: boolean; label: stri
             aria-label={label}
             title={label}
             onClick={onToggle}
-            className="inline-flex cursor-pointer items-center self-stretch rounded-l-3 px-1 text-10 hover:bg-hover hover:text-primary"
+            className="inline-flex cursor-pointer items-center self-stretch rounded-l-4 px-1 text-10 hover:bg-hover hover:text-primary"
             data-testid="reviews-queue-step-check"
         >
             <i

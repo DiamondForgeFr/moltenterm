@@ -22,7 +22,7 @@ describe("Pill (FR-SHELL-052, DS-SHELL-093)", () => {
     it("is 20 px high, radius 6, 11/500", () => {
         const pill = rule(headerCss, ".molten-pill");
         expect(pill).toContain("height: 20px;");
-        expect(pill).toContain("border-radius: var(--mt-radius-6);");
+        expect(pill).toContain("border-radius: var(--mt-radius-panel);");
         expect(pill).toContain("font-size: var(--mt-text-11);");
         expect(pill).toContain("font-weight: var(--mt-weight-medium);");
         expect(pill).toContain("background: var(--mt-surface-3);");
