@@ -4719,6 +4719,8 @@
             },
             "lossTabs": "Its {tabs} will close.",
             "lossTabsPanes": "Its {tabs} and their {panes} will close; terminals and agents stop.",
+            "lossOneTab": "Its view will close.",
+            "lossOneTabPanes": "Its view and its {panes} will close; terminals and agents stop.",
             "unsaved": "Unsaved workspace",
             "title": "Reset the workspace \"{name}\"?",
             "subtitle": "It is your only workspace, so it is reset rather than deleted.",
