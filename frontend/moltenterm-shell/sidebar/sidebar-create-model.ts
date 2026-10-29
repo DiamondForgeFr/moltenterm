@@ -1,29 +1,39 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The new-workspace page of the sidebar (FR-SHELL-082): what the form holds, the colours it offers and the pending dot
-// it draws in the bottom row.
+// The new-workspace page of the sidebar (FR-SHELL-082, FR-SHELL-102): what the form holds, the colours it offers and
+// the pending dot it draws in the bottom row.
 
-import { PresetColours } from "../workspace-colour";
+import { isRedColour, logoColourChoices, ShortPaletteColours } from "../workspace-colour";
 
-export type CreateDraft = { name: string; type: string; folder: string; colour: string };
+// colourPicked: the developer chose the colour; a logo found afterwards no longer replaces it.
+export type CreateDraft = { name: string; type: string; folder: string; colour: string; colourPicked?: boolean };
 
-// A short row of the presets spread around the hue wheel, as the prototype's swatches.
-const CreateColourNames = ["red", "orange", "amber", "lime", "green", "teal", "sky", "blue", "violet", "pink"];
+export const CreateColours: string[] = ShortPaletteColours;
 
-export const CreateColours: string[] = CreateColourNames.map(
-    (name) => PresetColours.find((c) => c.name === name)?.value
-).filter((v) => !!v);
+const DefaultColours = CreateColours.filter((c) => !isRedColour(c));
 
 export function makeCreateDraft(colour: string): CreateDraft {
-    return { name: "", type: "", folder: "", colour: colour || CreateColours[0] };
+    return { name: "", type: "", folder: "", colour: colour || DefaultColours[0] };
 }
 
-// The colour a new workspace starts with: the first of the row no workspace uses yet, else the next one round.
+// The colour a new workspace starts with (Coulée decision 8, #1318): the first of the row that no workspace uses yet
+// and is not red, else the next non-red one round.
 export function freshColour(used: readonly string[], count: number): string {
     const taken = new Set((used ?? []).map((c) => (c ?? "").toLowerCase()));
-    const free = CreateColours.find((c) => !taken.has(c));
-    return free ?? CreateColours[count % CreateColours.length];
+    const free = DefaultColours.find((c) => !taken.has(c));
+    return free ?? DefaultColours[count % DefaultColours.length];
+}
+
+// The colour the project's logo gives the new workspace, its dominant one; "" when the logo has none to offer.
+export function logoDefaultColour(logoColours: string[]): string {
+    return logoColourChoices(logoColours)[0] ?? "";
+}
+
+// The short row, led by the logo's colour when the folder has a logo, so the default is always among the swatches.
+export function shortRow(logoColours: string[]): string[] {
+    const logo = logoDefaultColour(logoColours);
+    return logo && !CreateColours.includes(logo) ? [logo, ...CreateColours] : CreateColours;
 }
 
 // The pending dot's letter: the name's first letter as typed, "+" until there is one.
