@@ -23,6 +23,7 @@ import {
     PinConfigMetaKey,
     PinMetaKey,
     pinMetaOf,
+    pinShowingPanel,
     PinWorkspace,
     planViewMove,
     readGlobalPins,
@@ -290,5 +291,22 @@ describe("moving a view between its three states (#1244)", () => {
         expect(isProjectTab({ meta: { "molten:projecttab": true } })).toBe(true);
         expect(shownViewState("temporary", true)).toBe("workspace");
         expect(shownViewState("temporary", false)).toBe("temporary");
+    });
+});
+
+describe("pinShowingPanel (FR-SHELL-113)", () => {
+    const pin = (id: string, views: string[]): GlobalPin => ({
+        id,
+        name: id,
+        rev: 1,
+        config: { tree: { pane: 0 }, panes: views.map((view) => ({ view })) },
+    });
+
+    it("prefers the view made of the panel alone, else the first that holds it", () => {
+        const pins = [pin("mix", ["term", "molten-project"]), pin("project", ["molten-project"])];
+        expect(pinShowingPanel(pins, "molten-project").id).toBe("project");
+        expect(pinShowingPanel([pins[0]], "molten-project").id).toBe("mix");
+        expect(pinShowingPanel(pins, "molten-reviews")).toBeNull();
+        expect(pinShowingPanel(null, "molten-reviews")).toBeNull();
     });
 });

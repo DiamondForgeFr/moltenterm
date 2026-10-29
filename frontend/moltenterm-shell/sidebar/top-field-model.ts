@@ -8,7 +8,8 @@
 import { isMacOS } from "@/util/platformutil";
 import { addressUrl, looksLikeAddress, toBrowserUrl } from "../browser/browser-model";
 import { t } from "../i18n/i18n";
-import type { PaletteRun } from "../palette/palette-model";
+import type { PalettePlacement } from "../palette/palette-actions";
+import { fillsPanel, type PaletteEntry, type PaletteRun } from "../palette/palette-model";
 import { formatKeys } from "../shortcuts/format";
 import { fold } from "./top-field-context";
 
@@ -27,7 +28,8 @@ export type FieldRun =
     | { kind: "togglesidebar" }
     | { kind: "clearterm"; blockId: string };
 
-export type FieldGroup = "address" | "view" | "agent" | "workspace" | "pr" | "panel" | "action";
+// "command": an item of the focused panel's command panel (⌘.), listed only while a query is typed.
+export type FieldGroup = "address" | "view" | "agent" | "workspace" | "pr" | "panel" | "action" | "command";
 
 // A workspace's letter as its dot draws it.
 export type FieldLetter = { text: string; paint: string; ink: string };
@@ -219,9 +221,14 @@ function rankOf(query: string, row: FieldRow): number {
     return fold(row.workspaceName ?? row.label).startsWith(fold(query).trim()) ? 0 : 1;
 }
 
-export const MaxFieldRows = 8;
+// The palette merged into the field (FR-SHELL-113): typed results hold up to MaxFieldRows rows, and no group more than
+// MaxRowsPerGroup, so a crowd of matching views never pushes the panels and the actions out of the list.
+export const MaxFieldRows = 12;
+export const MaxRowsPerGroup = 5;
 const EmptyViews = 5;
 const EmptyAgents = 4;
+const EmptyPanels = 4;
+const EmptyActions = 5;
 const EmptyWorkspaces = 5;
 
 export type FieldSection = { title: string; rows: FieldRow[] };
@@ -233,8 +240,26 @@ function results(sections: FieldSection[]): FieldResults {
     return { sections: kept, flat: kept.flatMap((s) => s.rows) };
 }
 
-// The rows for what is typed. Empty: the workspace's other views, the agents, the other workspaces. Typed: an address
-// first (its Enter, ⌥Enter and ⌘Enter rows), then the best matches; words nothing matches search the web.
+function capped(sorted: FieldRow[]): FieldRow[] {
+    const perGroup = new Map<FieldGroup, number>();
+    const rtn: FieldRow[] = [];
+    for (const row of sorted) {
+        const n = perGroup.get(row.group) ?? 0;
+        if (n >= MaxRowsPerGroup) {
+            continue;
+        }
+        perGroup.set(row.group, n + 1);
+        rtn.push(row);
+        if (rtn.length >= MaxFieldRows) {
+            break;
+        }
+    }
+    return rtn;
+}
+
+// The rows for what is typed. Empty: the workspace's other views, the agents, panels to add, actions, the other
+// workspaces (FR-SHELL-113). Typed: an address first (its Enter, ⌥Enter and ⌘Enter rows), then the best matches;
+// words nothing matches search the web.
 export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus, workspaceName: string): FieldResults {
     const q = (query ?? "").trim();
     const list = rows ?? [];
@@ -245,6 +270,11 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
                 rows: list.filter((r) => r.group === "view" && r.here && !r.current).slice(0, EmptyViews),
             },
             { title: t("topField.groups.agents"), rows: list.filter((r) => r.group === "agent").slice(0, EmptyAgents) },
+            { title: t("topField.groups.panels"), rows: list.filter((r) => r.group === "panel").slice(0, EmptyPanels) },
+            {
+                title: t("topField.groups.actions"),
+                rows: list.filter((r) => r.group === "action").slice(0, EmptyActions),
+            },
             {
                 title: t("topField.groups.workspaces"),
                 rows: list.filter((r) => r.group === "workspace").slice(0, EmptyWorkspaces),
@@ -252,12 +282,13 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
         ]);
     }
     const address = looksLikeAddress(q) ? addressRows(q, focus) : [];
-    const matched = list
-        .map((row, order) => ({ row, order, score: matchScore(q, row) }))
-        .filter((m) => m.score != null)
-        .sort((a, b) => rankOf(q, a.row) - rankOf(q, b.row) || b.score - a.score || a.order - b.order)
-        .slice(0, MaxFieldRows)
-        .map((m) => m.row);
+    const matched = capped(
+        list
+            .map((row, order) => ({ row, order, score: matchScore(q, row) }))
+            .filter((m) => m.score != null)
+            .sort((a, b) => rankOf(q, a.row) - rankOf(q, b.row) || b.score - a.score || a.order - b.order)
+            .map((m) => m.row)
+    );
     const found = [...address, ...matched];
     if (found.length === 0) {
         const url = toBrowserUrl(q);
@@ -273,6 +304,71 @@ export function fieldResults(query: string, rows: FieldRow[], focus: FieldFocus,
         });
     }
     return results([{ title: "", rows: found }]);
+}
+
+// The palette's entries as rows of the field (FR-SHELL-113): agent presets, panels and folders go to Panels, the
+// palette's actions to Actions, the focused panel's commands to their own group. Workspaces are left out: the field
+// lists them as its own rows.
+export function paletteFieldRows(entries: PaletteEntry[]): FieldRow[] {
+    const rows: FieldRow[] = [];
+    for (const e of entries ?? []) {
+        if (e.run.kind === "switchworkspace") {
+            continue;
+        }
+        const base = {
+            id: `palette:${e.id}`,
+            icon: e.icon,
+            color: e.color,
+            keywords: [e.detail, e.cli, ...(e.keywords ?? [])].filter((k) => k),
+            run: { kind: "palette", run: e.run } as FieldRun,
+        };
+        if (e.group === "agents") {
+            rows.push({
+                ...base,
+                group: "panel",
+                strong: t("topField.start"),
+                label: e.label,
+                where: t("topField.where.agentPreset"),
+            });
+        } else if (e.group === "panels") {
+            rows.push({
+                ...base,
+                group: "panel",
+                strong: t("topField.add"),
+                label: e.label,
+                where: t("topField.where.panelHere"),
+            });
+        } else if (e.group === "folders") {
+            rows.push({ ...base, group: "panel", label: e.label, note: e.detail, where: t("topField.where.folder") });
+        } else if (e.group === "panel") {
+            rows.push({
+                ...base,
+                group: "command",
+                label: e.label,
+                note: e.detail,
+                where: e.hint || t("topField.where.panelCommand"),
+            });
+        } else {
+            rows.push({ ...base, group: "action", label: e.label, where: e.hint || t("topField.where.action") });
+        }
+    }
+    return rows;
+}
+
+// Where a palette row opens what it holds: beside the focused panel with ⌥, in place of an empty panel (a launcher),
+// as the palette did, else in a new panel of the view.
+export function palettePlacement(
+    run: PaletteRun,
+    alt: boolean,
+    focus: { blockId?: string; isLauncher?: boolean }
+): PalettePlacement {
+    if (!fillsPanel(run) || !focus?.blockId) {
+        return "new";
+    }
+    if (alt) {
+        return "right";
+    }
+    return focus.isLauncher ? "replace" : "new";
 }
 
 export type PopoverPlace = { left: number; top: number; width: number };

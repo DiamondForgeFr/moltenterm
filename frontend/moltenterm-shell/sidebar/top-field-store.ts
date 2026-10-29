@@ -4,6 +4,7 @@
 // Whether the sidebar's top field is open (FR-SHELL-083, #1187), and its key: ⌘L opens it wherever the focus is while
 // the sidebar is on; a hidden sidebar peeks in for it and stays while the field is open. A focused page keeps ⌘L for
 // its address bar, and ⌘K stays the terminal's clear (#1219). With the sidebar off ⌘L is the page's address bar only.
+// The palette's ⌘⇧K opens the same field (FR-SHELL-113, palette/palette-keys.ts).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import * as jotai from "jotai";
@@ -48,6 +49,15 @@ export class TopFieldModel {
 
     close(): void {
         globalStore.set(this.openAtom, false);
+    }
+
+    // Closed from outside the field (its key pressed again): a sidebar that peeked in for it hides again, as on Escape.
+    dismiss(): void {
+        this.close();
+        const sidebar = SidebarModel.getInstance();
+        if (sidebar.isHidden()) {
+            sidebar.setPeek(false);
+        }
     }
 }
 

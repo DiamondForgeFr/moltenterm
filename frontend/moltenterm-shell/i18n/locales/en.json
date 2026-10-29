@@ -63,7 +63,19 @@
         "pasteAndMatchStyle": "Paste and Match Style",
         "delete": "Delete",
         "selectAll": "Select All",
-        "view": "View",
+        "view": "Display",
+        "viewsMenu": "View",
+        "newView": "New View",
+        "closeView": "Close View",
+        "reopenClosed": "Reopen",
+        "nextView": "Next View",
+        "previousView": "Previous View",
+        "project": "Project",
+        "integration": "Integration",
+        "noWorkspaceView": "This workspace has no “{name}” view",
+        "help": "Help",
+        "shortcuts": "Keyboard Shortcuts",
+        "palette": "Command Palette",
         "reloadWindow": "Reload Window",
         "reloadTab": "Reload Tab",
         "relaunchAllWindows": "Relaunch All Windows",
@@ -1302,9 +1314,9 @@
             "doneTitle": "You're set",
             "leftTitle": "Almost there",
             "doneText": "MoltenTerm knows your agent, has taken a first shape and works in your project.",
-            "leftText": "The steps you left wait for you. Getting started stays in the app menu and the command palette.",
             "starterViews": "Next, this workspace gets its default views: {views}.",
-            "openView": "Open {view}"
+            "openView": "Open {view}",
+            "leftText": "The steps you left wait for you. Getting started stays in the Help menu and the command palette."
         },
         "welcome": {
             "title": "Welcome to MoltenTerm",
@@ -1843,7 +1855,7 @@
             },
             "gettingStarted": {
                 "title": "Getting started",
-                "text": "The first run (your agent, a first morph, your project) is in the app menu and the command palette."
+                "text": "The first run (your agent, a first morph, your project) is in the Help menu and the command palette."
             }
         }
     },
@@ -8322,9 +8334,9 @@
             },
             "onboarding": {
                 "availableTitle": "Getting started is available",
-                "available": "A short setup: your agent, a first morph, your project. It is also in the app menu and the command palette.",
+                "available": "A short setup: your agent, a first morph, your project. It is also in the Help menu and the command palette.",
                 "leftTitle": "Getting started is still here",
-                "left": "Open it again whenever you want, from the app menu or the command palette.",
+                "left": "Open it again whenever you want, from the Help menu or the command palette.",
                 "open": "Open Getting started"
             },
             "release": {
@@ -9135,9 +9147,9 @@
         }
     },
     "topField": {
-        "placeholder": "View, agent, panel or address…",
-        "inputLabel": "Search, open or go to an address",
-        "buttonLabel": "Top field: search, open, go to an address ({keys})",
+        "placeholder": "View, agent, panel, action or address…",
+        "inputLabel": "Search or go to…",
+        "buttonLabel": "Search or go to… ({keys})",
         "resultsLabel": "Results",
         "noMatch": "Nothing matches.",
         "searchWeb": "Search the web",
@@ -9147,6 +9159,8 @@
         "groups": {
             "views": "Views of {name}",
             "agents": "Agents",
+            "panels": "Panels",
+            "actions": "Actions",
             "workspaces": "Workspaces"
         },
         "address": {
