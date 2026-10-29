@@ -16,6 +16,7 @@ import { CommandPanelModel, toggleFocusedCommandPanel } from "./command-panel/co
 import { modalIsOpen } from "./modal-open";
 import { CommandPaletteModalName, toggleCommandPalette } from "./palette/palette-keys";
 import { ShortcutsSheetModalName, toggleShortcutsSheet } from "./shortcuts/shortcuts-keys";
+import { SidebarModel } from "./sidebar/sidebar-store";
 
 // The classes on the page: the test's stand-in for the DOM (vitest runs without one).
 let present: string[] = [];
@@ -43,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
 });
 
 describe("no overlay opens under a modal (#746)", () => {
@@ -55,6 +57,8 @@ describe("no overlay opens under a modal (#746)", () => {
     });
 
     it("leaves the palette closed while a dialog is up, and opens it once the dialog is gone", () => {
+        // With the sidebar off the palette is its dialog; with the sidebar on it is the top field (FR-SHELL-113).
+        vi.spyOn(SidebarModel.getInstance(), "isEnabled").mockReturnValue(false);
         present = ["molten-scrim"];
         expect(toggleCommandPalette()).toBe(true);
         expect(openModals()).toEqual([]);

@@ -64,6 +64,18 @@
         "delete": "Supprimer",
         "selectAll": "Tout sélectionner",
         "view": "Présentation",
+        "viewsMenu": "Vue",
+        "newView": "Nouvelle vue",
+        "closeView": "Fermer la vue",
+        "reopenClosed": "Rouvrir",
+        "nextView": "Vue suivante",
+        "previousView": "Vue précédente",
+        "project": "Projet",
+        "integration": "Intégration",
+        "noWorkspaceView": "Cet espace de travail n'a pas de vue « {name} »",
+        "help": "Aide",
+        "shortcuts": "Raccourcis clavier",
+        "palette": "Palette de commandes",
         "reloadWindow": "Recharger la fenêtre",
         "reloadTab": "Recharger l'onglet",
         "relaunchAllWindows": "Relancer toutes les fenêtres",
@@ -1302,9 +1314,9 @@
             "doneTitle": "Tout est prêt",
             "leftTitle": "Presque fini",
             "doneText": "MoltenTerm connaît votre agent, a pris une première forme et travaille dans votre projet.",
-            "leftText": "Les étapes laissées de côté vous attendent. Premiers pas reste dans le menu de l'application et la palette de commandes.",
             "starterViews": "Ensuite, cet espace de travail reçoit ses vues par défaut : {views}.",
-            "openView": "Ouvrir {view}"
+            "openView": "Ouvrir {view}",
+            "leftText": "Les étapes laissées de côté vous attendent. Premiers pas reste dans le menu Aide et la palette de commandes."
         },
         "welcome": {
             "title": "Bienvenue dans MoltenTerm",
@@ -1843,7 +1855,7 @@
             },
             "gettingStarted": {
                 "title": "Premiers pas",
-                "text": "Le premier lancement (votre agent, un premier morph, votre projet) est dans le menu de l'app et la palette de commandes."
+                "text": "Le premier lancement (votre agent, un premier morph, votre projet) est dans le menu Aide et la palette de commandes."
             }
         }
     },
@@ -8322,9 +8334,9 @@
             },
             "onboarding": {
                 "availableTitle": "Premiers pas est disponible",
-                "available": "Une courte configuration : votre agent, un premier morph, votre projet. Premiers pas est aussi dans le menu de l'application et la palette de commandes.",
+                "available": "Une courte configuration : votre agent, un premier morph, votre projet. Premiers pas est aussi dans le menu Aide et la palette de commandes.",
                 "leftTitle": "Premiers pas est toujours là",
-                "left": "Rouvrez-le quand vous voulez, depuis le menu de l'application ou la palette de commandes.",
+                "left": "Rouvrez-le quand vous voulez, depuis le menu Aide ou la palette de commandes.",
                 "open": "Ouvrir Premiers pas"
             },
             "release": {
@@ -9135,9 +9147,9 @@
         }
     },
     "topField": {
-        "placeholder": "Vue, agent, panneau ou adresse…",
-        "inputLabel": "Chercher, ouvrir ou aller à une adresse",
-        "buttonLabel": "Champ du haut : chercher, ouvrir, aller à une adresse ({keys})",
+        "placeholder": "Vue, agent, panneau, action ou adresse…",
+        "inputLabel": "Chercher ou aller à…",
+        "buttonLabel": "Chercher ou aller à… ({keys})",
         "resultsLabel": "Résultats",
         "noMatch": "Rien ne correspond.",
         "searchWeb": "Chercher sur le web",
@@ -9147,6 +9159,8 @@
         "groups": {
             "views": "Vues de {name}",
             "agents": "Agents",
+            "panels": "Panneaux",
+            "actions": "Actions",
             "workspaces": "Espaces de travail"
         },
         "address": {

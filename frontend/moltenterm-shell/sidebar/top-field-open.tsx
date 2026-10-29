@@ -21,7 +21,6 @@ import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { useT } from "../i18n/i18n";
 import { usePaletteEntries } from "../palette/command-palette";
 import { runPaletteEntry } from "../palette/palette-actions";
-import { fillsPanel, PaletteEntry } from "../palette/palette-model";
 import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { showPanel } from "../review/review-panels";
 import { useListedReviewsAnswer } from "../reviews/reviews-client";
@@ -44,6 +43,8 @@ import {
     FieldRow,
     FieldRun,
     hostOfUrl,
+    paletteFieldRows,
+    palettePlacement,
     placePopover,
     PopoverPlace,
 } from "./top-field-model";
@@ -164,52 +165,6 @@ function agentRows(
         });
 }
 
-function paletteRows(entries: PaletteEntry[], t: TFn): FieldRow[] {
-    const rows: FieldRow[] = [];
-    for (const e of entries ?? []) {
-        if (e.run.kind === "switchworkspace") {
-            continue;
-        }
-        const base = {
-            id: `palette:${e.id}`,
-            icon: e.icon,
-            color: e.color,
-            keywords: [e.detail, e.cli, ...(e.keywords ?? [])].filter((k) => k),
-            run: { kind: "palette", run: e.run } as FieldRun,
-        };
-        if (e.group === "agents") {
-            rows.push({
-                ...base,
-                group: "panel",
-                strong: t("topField.start"),
-                label: e.label,
-                where: t("topField.where.agentPreset"),
-            });
-        } else if (e.group === "panels") {
-            rows.push({
-                ...base,
-                group: "panel",
-                strong: t("topField.add"),
-                label: e.label,
-                where: t("topField.where.panelHere"),
-            });
-        } else if (e.group === "folders") {
-            rows.push({ ...base, group: "panel", label: e.label, note: e.detail, where: t("topField.where.folder") });
-        } else if (e.group === "panel") {
-            rows.push({
-                ...base,
-                group: "action",
-                label: e.label,
-                note: e.detail,
-                where: e.hint || t("topField.where.panelCommand"),
-            });
-        } else {
-            rows.push({ ...base, group: "action", label: e.label, where: e.hint || t("topField.where.action") });
-        }
-    }
-    return rows;
-}
-
 function extraRows(focus: FocusFactsValue, t: TFn): FieldRow[] {
     const rows: FieldRow[] = [
         {
@@ -320,8 +275,10 @@ async function runField(run: FieldRun, alt: boolean, focus: FocusFactsValue): Pr
             refocusNode(run.blockId);
             return;
         case "palette": {
-            const placement = alt && fillsPanel(run.run) && focus.blockId ? "right" : "new";
-            await runPaletteEntry(run.run, { placement, blockId: focus.blockId });
+            await runPaletteEntry(run.run, {
+                placement: palettePlacement(run.run, alt, focus),
+                blockId: focus.blockId,
+            });
             return;
         }
     }
@@ -497,8 +454,8 @@ export function OpenField({
             ...agentRows(agentData?.states, ws?.oid, names, t),
             ...loaded.workspaces,
             ...prs,
+            ...paletteFieldRows([...entries, ...panelCommands]),
             ...extraRows(focus, t),
-            ...paletteRows([...entries, ...panelCommands], t),
         ];
     }, [loaded, agentData, ws?.oid, names, reviews, dir, entries, panelCommands, focus, t]);
     const wsName = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");

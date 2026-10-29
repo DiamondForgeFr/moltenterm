@@ -35,6 +35,7 @@ import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; 
 import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 import { makeMoltentermSidebarMenuItem } from "./moltenterm-sidebar-menu"; // MOLTENTERM-PATCH (#1279)
+import { makeMoltentermMenus } from "./moltenterm-view-menu"; // MOLTENTERM-PATCH (#1350)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
@@ -210,7 +211,7 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
                 (getWindowWebContents(window) ?? webContents)?.send("menu-item-about");
             },
         },
-        makeMoltentermGettingStartedMenuItem((window) => getWindowWebContents(window) ?? webContents), // MOLTENTERM-PATCH (#161)
+        // MOLTENTERM-PATCH (#161, #1350): Getting Started moved to the Help menu (emain/moltenterm-view-menu.ts)
         // MOLTENTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
         // update feed even with auto-update disabled.
         { type: "separator" },
@@ -405,6 +406,15 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
         { role: "editMenu", label: mt("appMenu.edit"), submenu: editMenu },
         { role: "viewMenu", label: mt("appMenu.view"), submenu: viewMenu },
     ];
+    // MOLTENTERM-PATCH (#1350): the View menu (the workspace's views) and the Help menu (FR-SHELL-113)
+    const moltenMenus = makeMoltentermMenus(
+        makeMoltentermGettingStartedMenuItem((window) => getWindowWebContents(window) ?? webContents),
+        (window) => getWindowWebContents(window) ?? webContents,
+        unamePlatform
+    );
+    if (!isBuilderWindowFocused) {
+        menuTemplate.push(moltenMenus.views);
+    }
     if (workspaceMenu != null && !isBuilderWindowFocused) {
         menuTemplate.push({
             label: mt("appMenu.workspace"), // MOLTENTERM-PATCH (#623)
@@ -417,6 +427,7 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
         label: mt("appMenu.window"), // MOLTENTERM-PATCH (#623)
         submenu: windowMenu,
     });
+    menuTemplate.push(moltenMenus.help); // MOLTENTERM-PATCH (#1350)
     return electron.Menu.buildFromTemplate(menuTemplate);
 }
 

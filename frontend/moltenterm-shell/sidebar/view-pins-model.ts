@@ -68,6 +68,13 @@ export function readGlobalPins(meta: Record<string, any>): GlobalPin[] {
     ) as GlobalPin[];
 }
 
+// The top row's view that shows a panel (the app menu's View › Project, FR-SHELL-113): the one made of that panel
+// alone first, as the default Project and Integration views are, else the first that holds it.
+export function pinShowingPanel(pins: GlobalPin[], view: string): GlobalPin {
+    const holding = (pins ?? []).filter((p) => (p?.config?.panes ?? []).some((pane) => pane?.view === view));
+    return holding.find((p) => p.config.panes.length === 1) ?? holding[0] ?? null;
+}
+
 export function makeGlobalPinId(now: number, random: number): string {
     return `g${now.toString(36)}${Math.floor(random * 1e6).toString(36)}`;
 }

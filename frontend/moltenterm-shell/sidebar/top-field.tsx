@@ -22,7 +22,6 @@ import { tabShownName } from "../project/project-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { panelIcon, PanelMeta, panelTitle, tabDisplayName } from "../tab-identity";
 import { SidebarGlyph } from "./sidebar-icons";
-import { SidebarModel } from "./sidebar-store";
 import { fieldContext } from "./top-field-context";
 import type * as TopFieldOpen from "./top-field-open";
 import { TopFieldModel } from "./top-field-store";
@@ -101,6 +100,7 @@ function useFocusFacts() {
         viewName,
         panelCount: tab?.blockids?.length ?? 0,
         isTerm: meta?.view === "term",
+        isLauncher: meta?.view === "launcher",
     };
 }
 
@@ -201,13 +201,7 @@ export function TopField() {
             live = false;
         };
     }, [open]);
-    const close = () => {
-        model.close();
-        const sidebar = SidebarModel.getInstance();
-        if (sidebar.isHidden()) {
-            sidebar.setPeek(false);
-        }
-    };
+    const close = () => model.dismiss();
     if (open) {
         const OpenField = openFieldModule?.OpenField;
         if (OpenField == null) {

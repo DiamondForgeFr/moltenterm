@@ -47,6 +47,7 @@ import {
     pinMetaOf,
     PinNode,
     PinScope,
+    pinShowingPanel,
     PinWorkspace,
     planPinUpdate,
     planViewFork,
@@ -881,6 +882,16 @@ export class ViewPins {
         } catch (e) {
             pinError(e);
         }
+    }
+
+    // The top row's view of a panel, opened as its block opens it; false when no pinned view shows that panel.
+    async openPinShowing(view: string): Promise<boolean> {
+        const pin = pinShowingPanel(this.globalPins(), view);
+        if (pin == null) {
+            return false;
+        }
+        await this.openGlobalPin(pin.id, this.instanceOf(pin.id) ?? "");
+        return true;
     }
 
     // Close the finished views: every temporary view whose agents are done; one where an agent still works or waits
