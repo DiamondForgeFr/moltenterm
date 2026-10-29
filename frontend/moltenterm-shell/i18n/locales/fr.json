@@ -4650,7 +4650,16 @@
             "fromSettings": "Issue des réglages de la fenêtre. Un changement ici ne vaut que pour cet espace de travail.",
             "reducedTransparency": "Reste opaque : cet ordinateur est réglé pour réduire la transparence.",
             "unsupported": "Les fenêtres transparentes ne sont pas disponibles sur cet ordinateur : la fenêtre reste opaque.",
-            "noBlur": "Le flou n'est pas disponible sur cet ordinateur."
+            "noBlur": "Le flou n'est pas disponible sur cet ordinateur.",
+            "texture": "Texture",
+            "intensity": "Intensité",
+            "textures": {
+                "none": "Aucune",
+                "grain": "Grain",
+                "dots": "Points fins",
+                "lines": "Lignes fines",
+                "paper": "Papier"
+            }
         },
         "iconKind": {
             "imported": "image importée",

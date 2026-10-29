@@ -68,6 +68,29 @@ describe("the Opacity field (FR-SHELL-091, TC-SHELL-209)", () => {
         expect(noBlur).toContain("Blur is not available on this computer.");
     });
 
+    it("offers None, Grain and three quiet patterns, each with a tile, None chosen by default (#1294, TC-SHELL-222)", () => {
+        const html = render(shown({}));
+        expect(html).toContain(">Texture<");
+        const radios = [...html.matchAll(/role="radio" aria-checked="(true|false)"[^>]*data-texture="(\w+)"/g)];
+        expect(radios.map((m) => m[2])).toEqual(["none", "grain", "dots", "lines", "paper"]);
+        expect(radios.filter((m) => m[1] === "true").map((m) => m[2])).toEqual(["none"]);
+        expect(html.match(/data-role="texture-tile"/g)).toHaveLength(5);
+        expect(html).toMatch(/data-texture="dots"[^>]*class="[^"]*cursor-pointer/);
+        expect(html).toContain("Fine dots");
+        expect(html).not.toContain("Intensity");
+    });
+
+    it("shows the grain's intensity, and draws each tile with its texture", () => {
+        const html = render(shown({ wanted: { opacity: 1, blur: false, texture: "grain", intensity: 0.6 } }), true);
+        expect(html).toMatch(/aria-checked="true"[^>]*data-texture="grain"/);
+        expect(html).toMatch(
+            /<label for="([^"]+)"[^>]*>Intensity<\/label><input id="\1" type="range" min="20" max="100" step="10"/
+        );
+        expect(html).toContain('value="60"');
+        expect(html).toMatch(/data-texture="paper".*?background-image:url\(&quot;data:image\/svg\+xml/);
+        expect(html).not.toMatch(/data-texture="none"[^>]*><span[^>]*background-image/);
+    });
+
     it("says where a shared value comes from", () => {
         expect(lookNote(shown({ source: "project", scope: "project" }))).toBe("workspace.look.fromProject");
         expect(lookNote(shown({ source: "global" }))).toBe("workspace.look.fromSettings");

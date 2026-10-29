@@ -6,6 +6,8 @@
 // shares it; the global window:opacity / window:transparent / window:blur settings come last. Kept apart from the
 // components and from Electron so the rules are tested alone.
 
+import { clampTextureIntensity, isTextureKind, TextureKind, TextureTone } from "./window-texture";
+
 // must match WindowLookMetaKey's readers only in the frontend; wavesrv stores the value as any other meta.
 export const WindowLookMetaKey = "molten:windowlook";
 // On the client object: { "<project folder>": { opacity, blur } }.
@@ -19,11 +21,30 @@ export const OpacityStep = 0.05;
 // Wave's default when window:transparent is on without window:opacity (frontend/app/app.tsx).
 export const GlobalDefaultOpacity = 0.8;
 
-export type WindowLook = { opacity: number; blur: boolean };
+// texture and intensity (#1294) are absent for no texture; intensity only moves the grain.
+export type WindowLook = { opacity: number; blur: boolean; texture?: TextureKind; intensity?: number };
 export type LookSource = "workspace" | "project" | "global";
 export type LookScope = "workspace" | "project";
 
 export const OpaqueLook: WindowLook = { opacity: 1, blur: false };
+
+// The texture part of a look, well formed: nothing for none, else the kind and its intensity on the slider's steps.
+export function lookTexture(look: { texture?: any; intensity?: any }): { texture?: TextureKind; intensity?: number } {
+    const kind = look?.texture;
+    if (!isTextureKind(kind) || kind === "none") {
+        return {};
+    }
+    return { texture: kind, intensity: clampTextureIntensity(look.intensity) };
+}
+
+export function withTexture(look: WindowLook, texture: TextureKind, intensity?: number): WindowLook {
+    const base = look ?? OpaqueLook;
+    return {
+        opacity: base.opacity,
+        blur: base.blur,
+        ...lookTexture({ texture, intensity: intensity ?? base.intensity }),
+    };
+}
 
 export function minOpacity(blur: boolean): number {
     return blur ? MinOpacityBlur : MinOpacity;
@@ -47,7 +68,7 @@ export function parseLook(value: any): WindowLook {
         return null;
     }
     const blur = value.blur === true;
-    return { opacity: clampOpacity(value.opacity, blur), blur };
+    return { opacity: clampOpacity(value.opacity, blur), blur, ...lookTexture(value) };
 }
 
 export function readWorkspaceLook(ws: { meta?: Record<string, any> }): WindowLook {
@@ -122,24 +143,31 @@ export type LookSupport = { translucent: boolean; blur: boolean };
 export type OpaqueReason = "reducedTransparency" | "unsupported";
 
 // What the window draws: the resolved look, unless the system asks for less transparency or this window cannot be
-// see-through; then opaque, with the reason the control shows.
+// see-through; then opaque, with the reason the control shows. The texture is kept either way (#1294): it needs no
+// see-through window.
 export function effectiveLook(
     look: WindowLook,
     reducedTransparency: boolean,
     support: LookSupport
 ): { look: WindowLook; reason: OpaqueReason } {
     const wanted = look ?? OpaqueLook;
+    const opaque = { ...OpaqueLook, ...lookTexture(wanted) };
     if (wanted.opacity >= 1 && !wanted.blur) {
-        return { look: OpaqueLook, reason: null };
+        return { look: opaque, reason: null };
     }
     if (reducedTransparency) {
-        return { look: OpaqueLook, reason: "reducedTransparency" };
+        return { look: opaque, reason: "reducedTransparency" };
     }
     if (!support?.translucent) {
-        return { look: OpaqueLook, reason: "unsupported" };
+        return { look: opaque, reason: "unsupported" };
     }
     const blur = wanted.blur && support.blur;
-    return { look: { opacity: clampOpacity(wanted.opacity, blur), blur }, reason: null };
+    return { look: { opacity: clampOpacity(wanted.opacity, blur), blur, ...lookTexture(wanted) }, reason: null };
+}
+
+// The ink a drawn look's texture takes (window-texture.ts): dark over a see-through frame, light over an opaque one.
+export function textureTone(drawn: WindowLook): TextureTone {
+    return isTranslucent(drawn) ? "dark" : "light";
 }
 
 export function isTranslucent(look: WindowLook): boolean {
