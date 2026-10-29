@@ -18,6 +18,7 @@ import { agentLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
 import { useLocale, useT } from "../i18n/i18n";
+import { tabShownName } from "../project/project-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { panelIcon, PanelMeta, panelTitle, tabDisplayName } from "../tab-identity";
 import { SidebarGlyph } from "./sidebar-icons";
@@ -89,7 +90,7 @@ function useFocusFacts() {
     const agent = blockId ? agentData?.states?.[blockId] : null;
     const panelLabel =
         agent?.agent || agent?.agentname ? agent.firstname || agentLabel(agent) : panelTitle(meta, homeDir());
-    const viewName = tab ? tabDisplayName(tab.name, first?.meta as PanelMeta, homeDir()) : "";
+    const viewName = tab ? tabDisplayName(tabShownName(tab), first?.meta as PanelMeta, homeDir()) : "";
     return {
         blockId,
         tabId,

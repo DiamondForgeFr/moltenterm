@@ -9214,6 +9214,39 @@
             "failed": "Le lien n'a pas pu être copié"
         }
     },
+    "workspaceViews": {
+        "names": {
+            "scoping": "Cadrage",
+            "integration": "Intégration",
+            "view": "Vue"
+        },
+        "panels": {
+            "agent": "Agent",
+            "terminal": "Terminal",
+            "browser": "Page web",
+            "files": "Fichiers",
+            "project": "Projet",
+            "integration": "Intégration",
+            "cicd": "CI/CD",
+            "lineMap": "Plan de lignes"
+        },
+        "settings": {
+            "title": "Vues d'un nouveau workspace",
+            "hint": "Les vues avec lesquelles démarre un workspace que vous créez désormais, épinglées dans celui-ci. Les agents s'ouvrent à gauche, les autres panneaux à droite ; rien ne démarre avant que vous ouvriez une vue. Les workspaces existants ne changent pas.",
+            "empty": "Les nouveaux workspaces démarrent sans vue.",
+            "name": "Nom de la vue {n}",
+            "moveViewUp": "Monter {name}",
+            "moveViewDown": "Descendre {name}",
+            "removeView": "Retirer {name}",
+            "panel": "Panneau {n} de {name}",
+            "movePanelUp": "Monter le panneau",
+            "movePanelDown": "Descendre le panneau",
+            "removePanel": "Retirer le panneau",
+            "addPanel": "Ajouter un panneau",
+            "addView": "Ajouter une vue",
+            "reset": "Rétablir"
+        }
+    },
     "newView": {
         "aria": "Nouvelle vue : choisissez ce qu'elle contient",
         "favoritesAria": "Favoris",

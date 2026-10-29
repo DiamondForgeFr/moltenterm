@@ -45,7 +45,7 @@ import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
-import { ProjectTabMetaKey } from "../project/project-model";
+import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -1386,7 +1386,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
             </div>
             <div className="flex h-[52px] w-24 flex-col items-center justify-center gap-[5px] self-center rounded-6 bg-white/20 px-1 text-11 text-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
                 <ViewGlyph icons={glyph} />
-                <span className="max-w-full truncate">{draft.name || tab?.name}</span>
+                <span className="max-w-full truncate">{draft.name || tabShownName(tab, t)}</span>
             </div>
             <label className="flex flex-col gap-[5px] text-12 text-muted">
                 {t("sidebar.pins.page.name")}

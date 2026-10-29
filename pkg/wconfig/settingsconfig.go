@@ -193,6 +193,9 @@ type SettingsType struct {
 	AppNewViewOpen      string   `json:"app:newviewopen,omitempty" jsonschema_description:"What a new view opens: unset shows the chooser (favourites on top, the launcher's full list below); a launcher entry id opens it directly, such as panel:defwidget@terminal for a terminal or agent:<preset> for an agent"`
 	AppNewViewFavorites []string `json:"app:newviewfavorites,omitempty" jsonschema_description:"The 2 to 4 favourites of the new view chooser, in order, as launcher entry ids (panel:defwidget@terminal, panel:defwidget@web, agent:<preset>...); each opens directly with Option+Cmd+1 to 4 (Alt+Shift+1 to 4 off macOS). Unset: Terminal and Web page"`
 
+	// MOLTENTERM-PATCH (#1305): the views a new workspace starts with (FR-SHELL-092, pkg/wcore/moltenterm_workspaceviews.go).
+	AppNewWorkspaceViews []NewWorkspaceViewType `json:"app:newworkspaceviews,omitempty" jsonschema_description:"The views a workspace created from now on starts with, pinned in that workspace and opened the first time they are shown: each has a name (or namekey, a dictionary key shown in the interface language) and its panels in order, among agent, terminal, browser, files, project, integration, cicd and linemap. Agents go on the left, the other panels on the right. An empty list gives no view; existing workspaces never change"`
+
 	// MOLTENTERM-PATCH (#450): tab views about to be shown and the hot spare load at the foreground priority (FR-PERF-004, emain/moltenterm-tabview-priority.ts).
 	MoltentermTabViewPriority *bool `json:"moltenterm:tabviewpriority,omitempty" jsonschema_description:"Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)"`
 
@@ -990,6 +993,9 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 			// MOLTENTERM-PATCH (#322): a list from JSON ([]any of strings) is accepted for a []string setting.
 			if rtype != ctype && ctype.Kind() == reflect.Slice && rtype.Kind() == reflect.Slice {
 				if converted, ok := convertConfigList(val, ctype); ok {
+					val, rtype = converted, ctype
+				} else if converted, ok := convertConfigMap(val, ctype); ok {
+					// MOLTENTERM-PATCH (#1305): a list of objects (app:newworkspaceviews) converts through JSON, as a map does.
 					val, rtype = converted, ctype
 				}
 			}

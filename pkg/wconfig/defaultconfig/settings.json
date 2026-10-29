@@ -36,6 +36,10 @@
     "moltenterm:releasecandidates": false,
     "moltenterm:view360": "auto",
     "moltenterm:terminalscreenreader": "auto",
+    "app:newworkspaceviews": [
+        { "namekey": "workspaceViews.names.scoping", "panels": ["agent", "browser", "files"] },
+        { "namekey": "workspaceViews.names.integration", "panels": ["project", "integration"] }
+    ],
     "window:savelastwindow": true,
     "telemetry:enabled": false,
     "term:bellsound": false,

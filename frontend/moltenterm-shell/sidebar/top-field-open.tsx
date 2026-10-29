@@ -22,7 +22,7 @@ import { useT } from "../i18n/i18n";
 import { usePaletteEntries } from "../palette/command-palette";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { fillsPanel, PaletteEntry } from "../palette/palette-model";
-import { ProjectTabMetaKey } from "../project/project-model";
+import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { showPanel } from "../review/review-panels";
 import { useListedReviewsAnswer } from "../reviews/reviews-client";
 import { ReviewsModel } from "../reviews/reviews-store";
@@ -128,7 +128,7 @@ async function loadSources(t: TFn, activeId: string): Promise<LoadedSources> {
             views.push({
                 id: `view:${tabId}`,
                 group: "view",
-                label: tabDisplayName(tab.name, first?.meta as PanelMeta, home),
+                label: tabDisplayName(tabShownName(tab), first?.meta as PanelMeta, home),
                 where: here ? kind : `${wsName} · ${kind}`,
                 icon: panelIcon(first?.meta as PanelMeta),
                 here,

@@ -9214,6 +9214,39 @@
             "failed": "The link could not be copied"
         }
     },
+    "workspaceViews": {
+        "names": {
+            "scoping": "Scoping",
+            "integration": "Integration",
+            "view": "View"
+        },
+        "panels": {
+            "agent": "Agent",
+            "terminal": "Terminal",
+            "browser": "Web page",
+            "files": "Files",
+            "project": "Project",
+            "integration": "Integration",
+            "cicd": "CI/CD",
+            "lineMap": "Line map"
+        },
+        "settings": {
+            "title": "New workspace views",
+            "hint": "The views a workspace you create from now on starts with, pinned in it. Agents open on the left, the other panels on the right; nothing starts until you open a view. Existing workspaces do not change.",
+            "empty": "New workspaces start without views.",
+            "name": "Name of view {n}",
+            "moveViewUp": "Move {name} up",
+            "moveViewDown": "Move {name} down",
+            "removeView": "Remove {name}",
+            "panel": "Panel {n} of {name}",
+            "movePanelUp": "Move the panel up",
+            "movePanelDown": "Move the panel down",
+            "removePanel": "Remove the panel",
+            "addPanel": "Add a panel",
+            "addView": "Add a view",
+            "reset": "Reset"
+        }
+    },
     "newView": {
         "aria": "New view: choose what it holds",
         "favoritesAria": "Favourites",

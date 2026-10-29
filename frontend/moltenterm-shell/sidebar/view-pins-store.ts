@@ -23,6 +23,7 @@ import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
 import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
+import { ViewPendingMetaKey, viewShownName } from "../workspace-views/workspace-views-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
@@ -93,6 +94,16 @@ function blockMetaOf(get: jotai.Getter, blockId: string): Record<string, any> {
     return get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta ?? null;
 }
 
+// The name a toast or a copy says: a new workspace's view still named by its key reads in the interface language.
+function shownName(tab: Tab): string {
+    return viewShownName(tab?.name ?? "", tab?.meta, t);
+}
+
+// A new workspace's view not opened yet (#1305): pinned in the workspace, its panels still to be made.
+function viewPending(tab: Tab): boolean {
+    return !!tab?.meta?.[ViewPendingMetaKey] && (tab.blockids?.length ?? 0) === 0;
+}
+
 function pinError(e: any) {
     showToast({ kind: "error", title: t("sidebar.pins.failed"), message: String(e?.message ?? e) });
 }
@@ -109,6 +120,7 @@ export class ViewPins {
     finishedAtom!: jotai.Atom<string[]>;
     closedShown = new Set<string>();
     forking = new Set<string>();
+    opening = new Set<string>();
     seeding = false;
     seedMarkAtom!: jotai.Atom<boolean>;
 
@@ -185,7 +197,7 @@ export class ViewPins {
                     return false;
                 }
                 const tab = get(tabAtom(tabId));
-                if (tab?.layoutstate == null) {
+                if (tab?.layoutstate == null || viewPending(tab)) {
                     return false;
                 }
                 const config = this.configOf(get, tab);
@@ -296,7 +308,7 @@ export class ViewPins {
             await this.setTabMeta(tabId, planViewFork(pin));
             showToast({
                 id: forkToastId(tabId),
-                title: t("sidebar.pins.forked", { name: tab.name || pin.name }),
+                title: t("sidebar.pins.forked", { name: shownName(tab) || pin.name }),
                 message: t("sidebar.pins.forkedHint"),
                 actions: [{ id: "update", label: t("sidebar.pins.updatePinned"), run: () => this.updatePinned(tabId) }],
             });
@@ -423,6 +435,9 @@ export class ViewPins {
 
     async capture(tabId: string): Promise<PinConfig> {
         const tab = globalStore.get(tabAtom(tabId));
+        if (viewPending(tab)) {
+            return readPinConfig(tab.meta[PinConfigMetaKey]);
+        }
         const data = globalStore.get(AgentStates.getInstance().dataAtom);
         return TabRpcClient.wshRpcCall(
             ViewPinCaptureCommand,
@@ -555,7 +570,7 @@ export class ViewPins {
         if (state == null) {
             return;
         }
-        const name = t("sidebar.views.copyName", { name: pin?.name ?? tab?.name ?? "" });
+        const name = t("sidebar.views.copyName", { name: pin?.name ?? shownName(tab) });
         try {
             const config = tab != null ? await this.capture(ref.tabId) : pin.config;
             let newPin: GlobalPin = null;
@@ -684,7 +699,7 @@ export class ViewPins {
         try {
             const needsCapture = to === "everywhere" || (to === "workspace" && from === "temporary");
             const captured = needsCapture ? await this.capture(ref.tabId) : undefined;
-            const shown = name ?? this.pinOf(ref)?.name ?? tab?.name ?? "";
+            const shown = name ?? this.pinOf(ref)?.name ?? shownName(tab);
             const move = planViewMove(from, to, {
                 tabMeta: tab?.meta,
                 pins: pinsBefore,
@@ -764,7 +779,7 @@ export class ViewPins {
             const config = await this.capture(tabId);
             if (state === "workspace") {
                 await this.setTabMeta(tabId, { [PinConfigMetaKey]: config });
-                showToast({ title: t("sidebar.pins.saved", { name: tab?.name ?? "" }) });
+                showToast({ title: t("sidebar.pins.saved", { name: shownName(tab) }) });
                 return;
             }
             const pin = this.globalPins().find((p) => p.id === tab?.meta?.[GlobalPinMetaKey]);
@@ -794,9 +809,32 @@ export class ViewPins {
             if (state === "everywhere") {
                 await this.setTabMeta(tabId, { [GlobalPinRevMetaKey]: pin.rev });
             }
-            showToast({ title: t("sidebar.pins.reverted", { name: pin?.name ?? tab?.name ?? "" }) });
+            showToast({ title: t("sidebar.pins.reverted", { name: pin?.name ?? shownName(tab) }) });
         } catch (e) {
             pinError(e);
+        }
+    }
+
+    // A new workspace's view shown for the first time (#1305): its panels are made from its configuration, on the
+    // workspace's project as it is now, and the mark goes. Its agent slot waits for the developer.
+    async openPending(tabId: string): Promise<void> {
+        const tab = globalStore.get(tabAtom(tabId));
+        if (!viewPending(tab) || this.opening.has(tabId)) {
+            return;
+        }
+        const state = globalStore.get(this.stateAtom(tabId));
+        const pin = this.globalPins().find((p) => p.id === tab.meta[GlobalPinMetaKey]);
+        const config = state === "workspace" ? readPinConfig(tab.meta[PinConfigMetaKey]) : pin?.config;
+        this.opening.add(tabId);
+        try {
+            if (config != null) {
+                await this.build({ tabid: tabId, config });
+            }
+            await this.setTabMeta(tabId, { [ViewPendingMetaKey]: null });
+        } catch (e) {
+            pinError(e);
+        } finally {
+            this.opening.delete(tabId);
         }
     }
 
@@ -966,7 +1004,7 @@ export function refusePinnedClose(tabId: string): boolean {
     }
     showToast({
         id: `pinned-close:${tabId}`,
-        title: t("sidebar.pins.noClose", { name: tab.name ?? "" }),
+        title: t("sidebar.pins.noClose", { name: shownName(tab) }),
         message: t("sidebar.pins.noCloseHint"),
     });
     return true;

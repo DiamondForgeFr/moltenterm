@@ -2,19 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A pinned view whose last panel closed (FR-SHELL-081): the view stays, as a pinned view closes only once unpinned,
-// and says how to go on: add a panel, or unpin it.
+// and says how to go on: add a panel, or unpin it. A new workspace's view not opened yet (FR-SHELL-092) makes its
+// panels here instead, the first time it is shown.
 
-import { createBlock } from "@/app/store/global";
+import { createBlock, WOS } from "@/app/store/global";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useEffect, useMemo } from "react";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
+import { ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
 import { ViewPins } from "./view-pins-store";
 
 export function PinnedEmptyView({ tabId }: { tabId: string }) {
     const t = useT();
     const state = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
-    if (state === "temporary") {
+    const tabAtom = useMemo(() => WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)), [tabId]);
+    const pending = !!useAtomValue(tabAtom)?.meta?.[ViewPendingMetaKey];
+    useEffect(() => {
+        if (pending) {
+            fireAndForget(() => ViewPins.getInstance().openPending(tabId));
+        }
+    }, [pending, tabId]);
+    if (state === "temporary" || pending) {
         return null;
     }
     return (

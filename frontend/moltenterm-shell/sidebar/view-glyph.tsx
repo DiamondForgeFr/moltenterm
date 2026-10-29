@@ -9,9 +9,10 @@ import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../tab-identity";
+import { ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
 import { pinGlyph } from "./sidebar-blocks";
-import { paneIcon, viewGlyphIcons, ViewIconMetaKey } from "./view-menu-model";
-import { GlobalPin, GlobalPinMetaKey } from "./view-pins-model";
+import { configPaneIcons, paneIcon, viewGlyphIcons, ViewIconMetaKey } from "./view-menu-model";
+import { GlobalPin, GlobalPinMetaKey, PinConfigMetaKey, readPinConfig } from "./view-pins-model";
 import { ViewPins } from "./view-pins-store";
 
 const glyphAtoms = new Map<string, jotai.Atom<string[]>>();
@@ -39,11 +40,16 @@ export function viewGlyphAtom(tabId: string): jotai.Atom<string[]> {
         const pin = gid ? get(ViewPins.getInstance().globalPinsAtom).find((p) => p.id === gid) : null;
         const chosen = pin != null ? pin.icon : meta[ViewIconMetaKey];
         const data = get(AgentStates.getInstance().dataAtom);
-        const icons = (tab?.blockids ?? []).map((id) => {
-            const block = get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)));
-            const agent = data?.states?.[id]?.agent;
-            return paneIcon(block?.meta, agent ? AiIcon : null);
-        });
+        const blockIds = tab?.blockids ?? [];
+        // A new workspace's view not opened yet (FR-SHELL-092) shows the panels it will open.
+        const icons =
+            blockIds.length === 0 && meta[ViewPendingMetaKey]
+                ? configPaneIcons(readPinConfig(meta[PinConfigMetaKey]))
+                : blockIds.map((id) => {
+                      const block = get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)));
+                      const agent = data?.states?.[id]?.agent;
+                      return paneIcon(block?.meta, agent ? AiIcon : null);
+                  });
         const next = viewGlyphIcons(chosen, icons);
         if (!sameIcons(next, last)) {
             last = next;

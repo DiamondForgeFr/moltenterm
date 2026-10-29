@@ -1225,6 +1225,13 @@ declare global {
         color: string;
     };
 
+    // wconfig.NewWorkspaceViewType
+    type NewWorkspaceViewType = {
+        name?: string;
+        namekey?: string;
+        panels: string[];
+    };
+
     // waveobj.ORef
     type ORef = string;
 
@@ -1472,6 +1479,7 @@ declare global {
         "shell:workspacesidebar"?: boolean;
         "app:newviewopen"?: string;
         "app:newviewfavorites"?: string[];
+        "app:newworkspaceviews"?: NewWorkspaceViewType[];
         "moltenterm:tabviewpriority"?: boolean;
         "moltenterm:tabviewbudget"?: boolean;
         "moltenterm:hiddentabviews"?: number;
