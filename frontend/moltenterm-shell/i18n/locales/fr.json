@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "À propos de {app}",
         "gettingStarted": "Premiers pas",
+        "settings": "Réglages…",
         "safeModeRestart": "Redémarrer en mode sans échec",
         "safeModeLeave": "Redémarrer normalement",
         "services": "Services",
@@ -77,22 +78,22 @@
         "shortcuts": "Raccourcis clavier",
         "palette": "Palette de commandes",
         "reloadWindow": "Recharger la fenêtre",
-        "reloadTab": "Recharger l'onglet",
+        "reloadView": "Recharger la vue",
         "relaunchAllWindows": "Relancer toutes les fenêtres",
-        "clearTabCache": "Vider le cache des onglets",
+        "developer": "Développement",
+        "clearViewCache": "Vider le cache des vues",
         "toggleDevTools": "Afficher/masquer les DevTools",
         "resetZoom": "Taille réelle",
-        "zoomIn": "Agrandir",
-        "zoomOut": "Réduire",
+        "zoomIn": "Zoom avant",
+        "zoomOut": "Zoom arrière",
         "fullScreenOnLaunch": "Plein écran au lancement",
         "toggleFullScreen": "Activer/désactiver le plein écran",
-        "toggleWidgetsBar": "Afficher/masquer la barre des widgets",
         "toggleSidebar": "Afficher ou masquer la barre latérale",
         "workspace": "Espace de travail",
-        "createWorkspace": "Créer un espace de travail",
+        "newWorkspace": "Nouvel espace de travail",
         "editWorkspace": "Modifier l'espace de travail…",
         "window": "Fenêtre",
-        "minimize": "Placer dans le Dock",
+        "minimizeWindow": "Réduire la fenêtre",
         "zoom": "Zoom",
         "front": "Tout ramener au premier plan"
     },
@@ -511,8 +512,8 @@
                 "description": "Les hôtes SSH et leurs options."
             },
             "widgets": {
-                "name": "Outils de la barre latérale",
-                "description": "Les outils personnalisés de la barre latérale."
+                "name": "Panneaux",
+                "description": "Les panneaux que proposent la Bibliothèque et une nouvelle vue, les vôtres compris."
             },
             "backgrounds": {
                 "name": "Fonds des vues",
@@ -637,10 +638,6 @@
                 "label": "Raccourci global",
                 "description": "Un raccourci valable partout qui ramène MoltenTerm au premier plan."
             },
-            "app:defaultnewblock": {
-                "label": "Contenu d'une nouvelle vue",
-                "description": "Le panneau par lequel commence une nouvelle vue, comme term."
-            },
             "app:showoverlayblocknums": {
                 "label": "Numéros des panneaux",
                 "description": "Afficher le numéro de chaque panneau tant que ses touches de raccourci sont enfoncées."
@@ -670,21 +667,13 @@
                     "term": "Terminaux seulement"
                 }
             },
-            "app:tabbar": {
-                "label": "Position de la barre de vues",
-                "description": "Où se trouve la barre de vues.",
-                "options": {
-                    "top": "En haut",
-                    "left": "À gauche"
-                }
-            },
             "app:tilelauncher": {
                 "label": "Lanceur en tuiles dans les panneaux vides",
                 "description": "Un panneau vide affiche le lanceur en tuiles au lieu de la palette de commandes."
             },
             "feature:waveappbuilder": {
                 "label": "Créateur d'apps",
-                "description": "Afficher l'outil Apps dans la barre latérale en dehors des builds de développement."
+                "description": "Afficher Apps dans la Bibliothèque et le créateur dans le menu Fichier en dehors des builds de développement."
             },
             "term:fontsize": {
                 "label": "Taille du texte",
@@ -925,10 +914,6 @@
                     "modtime": "Dernière modification"
                 }
             },
-            "tab:preset": {
-                "label": "Préréglage de vue",
-                "description": "Le préréglage par lequel commencent les nouvelles vues."
-            },
             "tab:confirmclose": {
                 "label": "Confirmer avant de fermer une vue",
                 "description": "Demander avant de fermer une vue."
@@ -1070,10 +1055,6 @@
             "window:dimensions": {
                 "label": "Taille des nouvelles fenêtres",
                 "description": "La taille des nouvelles fenêtres, comme 1400x900."
-            },
-            "window:zoom": {
-                "label": "Zoom",
-                "description": "Le zoom du contenu de la fenêtre ; ⌘+ et ⌘- le changent."
             },
             "conn:askbeforewshinstall": {
                 "label": "Demander avant de l'installer",
@@ -9278,6 +9259,7 @@
             "inNewView": "Dans une nouvelle vue",
             "show": "L'afficher",
             "thisView": "cette vue",
+            "editList": "Modifier la liste des panneaux",
             "about": {
                 "terminal": "Un shell dans le dossier du projet courant.",
                 "files": "Parcourir les fichiers du projet et en ouvrir un pour le lire ou le modifier.",

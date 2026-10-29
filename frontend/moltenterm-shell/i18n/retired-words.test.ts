@@ -37,11 +37,6 @@ export const RetiredWords: Record<string, Retired[]> = {
 // A key's prefix or whole name, the rules it may break and why. Keep it short: each line is a place the word is right.
 export const Allowed: { key: RegExp; rules: string[]; reason: string }[] = [
     {
-        key: /^appMenu\./,
-        rules: ["tab", "onglet", "widget"],
-        reason: "native menu labels: renamed by #1325 together with the menu's dead entries",
-    },
-    {
         key: /^(browser|cmdpanel\.browser|server\.browser)\.|^shortcuts\.items\.browser-/,
         rules: ["tab", "onglet"],
         reason: "tabs of the Web page panel are a browser's tabs, a different object from a view",
@@ -105,7 +100,8 @@ describe("retired words (#1322)", () => {
 
     it("lets an allowed key keep the word, and only for the rules it names", () => {
         expect(retiredWordProblems("en", [["browser.tabs.newTab", "New tab"]])).toEqual([]);
-        expect(retiredWordProblems("fr", [["appMenu.reloadTab", "Recharger l'onglet"]])).toEqual([]);
+        expect(retiredWordProblems("fr", [["browser.tabs.close", "Fermer l'onglet"]])).toEqual([]);
+        expect(retiredWordProblems("fr", [["appMenu.reloadView", "Recharger l'onglet"]])).toHaveLength(1);
         expect(retiredWordProblems("fr", [["browser.share.x", "Le workspace"]])).toHaveLength(1);
         expect(retiredWordProblems("en", [["shortcuts.keys.tab", "Tab"]])).toEqual([]);
     });

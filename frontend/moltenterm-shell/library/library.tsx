@@ -484,7 +484,7 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
                     }}
                 >
                     <i className={makeIconClass("pen", true)} aria-hidden />
-                    {t("rail.tools.editWidgets")}
+                    {t("library.panels.editList")}
                 </button>
                 {showApps ? (
                     <button type="button" className="mt-lib-link" data-testid="library-apps" onClick={onApps}>

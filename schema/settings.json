@@ -66,13 +66,8 @@
         },
         "app:defaultnewblock": {
           "type": "string",
-          "description": "The view a new tab starts with, such as term.",
           "x-moltenterm": {
-            "section": "advanced",
-            "group": "App",
-            "label": "New tab content",
-            "description": "The view a new tab starts with, such as term.",
-            "control": "text",
+            "hidden": true,
             "order": 77
           }
         },
@@ -174,23 +169,8 @@
             "top",
             "left"
           ],
-          "description": "Where the tab bar sits.",
           "x-moltenterm": {
-            "section": "advanced",
-            "group": "App",
-            "label": "Tab bar position",
-            "description": "Where the tab bar sits.",
-            "control": "select",
-            "options": [
-              {
-                "value": "top",
-                "label": "Top"
-              },
-              {
-                "value": "left",
-                "label": "Left"
-              }
-            ],
+            "hidden": true,
             "order": 78
           }
         },
@@ -208,12 +188,12 @@
         },
         "feature:waveappbuilder": {
           "type": "boolean",
-          "description": "Show the Apps tool in the rail outside development builds.",
+          "description": "Show Apps in the Library and the builder in the File menu outside development builds.",
           "x-moltenterm": {
             "section": "advanced",
             "group": "App",
             "label": "App builder",
-            "description": "Show the Apps tool in the rail outside development builds.",
+            "description": "Show Apps in the Library and the builder in the File menu outside development builds.",
             "control": "toggle",
             "order": 79
           }
@@ -1071,13 +1051,8 @@
         },
         "tab:preset": {
           "type": "string",
-          "description": "The preset new tabs start from.",
           "x-moltenterm": {
-            "section": "advanced",
-            "group": "App",
-            "label": "Tab preset",
-            "description": "The preset new tabs start from.",
-            "control": "text",
+            "hidden": true,
             "order": 80
           }
         },
@@ -1095,12 +1070,12 @@
         },
         "tab:background": {
           "type": "string",
-          "description": "The background new tabs get, from backgrounds.json.",
+          "description": "The background new views get, from backgrounds.json.",
           "x-moltenterm": {
             "section": "advanced",
             "group": "App",
-            "label": "Tab background",
-            "description": "The background new tabs get, from backgrounds.json.",
+            "label": "View background",
+            "description": "The background new views get, from backgrounds.json.",
             "control": "text",
             "order": 81
           }
@@ -1737,19 +1712,8 @@
         },
         "window:zoom": {
           "type": "number",
-          "description": "The zoom of the window's content; ⌘+ and ⌘- change it.",
           "x-moltenterm": {
-            "section": "advanced",
-            "group": "Window",
-            "label": "Zoom",
-            "description": "The zoom of the window's content; ⌘+ and ⌘- change it.",
-            "control": "number",
-            "range": {
-              "min": 0.4,
-              "max": 2.6,
-              "step": 0.1
-            },
-            "default": 1,
+            "hidden": true,
             "order": 84
           }
         },
