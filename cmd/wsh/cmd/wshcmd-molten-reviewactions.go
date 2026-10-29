@@ -242,7 +242,7 @@ var moltenReviewNoWait bool
 
 var moltenReviewShowCmd = &cobra.Command{
 	Use:     "show <N>",
-	Short:   "a PR's review: its row in the Control room, the briefing, the comments, the rounds, the publish and the merge (read-only)",
+	Short:   "a PR's review: its row in the Integration panel, the briefing, the comments, the rounds, the publish and the merge (read-only)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenReviewShowRun),
 	PreRunE: preRunSetupRpcClient,

@@ -58,7 +58,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             "Project",
             "Line map",
             "CI/CD",
-            "Control room",
+            "Integration",
             "Companion",
             "Sessions",
             "System info",

@@ -67,7 +67,7 @@ func (b *BatchRunner) resolvePrNotice(run BatchRun, number int) {
 }
 
 func reviewsAction() molten.NotificationAction {
-	return molten.NotificationAction{Id: "reviews", Label: "Open the Control room", LabelText: uimsg.Make("notif.review.batch.openReviews"),
+	return molten.NotificationAction{Id: "reviews", Label: "Open the Integration panel", LabelText: uimsg.Make("notif.review.batch.openReviews"),
 		Kind: "open", View: ReviewsViewName}
 }
 

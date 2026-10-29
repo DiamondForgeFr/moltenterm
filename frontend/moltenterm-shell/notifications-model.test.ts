@@ -349,8 +349,8 @@ describe("notificationTitle (#727)", () => {
                 "#1107 (PR #1120) a besoin de vous : la file de fusion s'est arrêtée dessus"
             );
             expect(
-                notificationActionLabel({ label: "Show in Control room", labeltext: { code: "notif.review.openCard" } })
-            ).toBe("Voir dans Pilotage");
+                notificationActionLabel({ label: "Show in Integration", labeltext: { code: "notif.review.openCard" } })
+            ).toBe("Voir dans le panneau Intégration");
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }

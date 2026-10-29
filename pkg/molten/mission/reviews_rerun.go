@@ -204,7 +204,7 @@ func (r *Reviews) notifyRerun(dir string, card PrCard, runs []int64, done map[in
 		input.Kind = "warning"
 		input.Title = card.English() + ": failed again after the rerun"
 		input.TitleText = card.Aside(uimsg.Make("notif.review.rerun.failedTitle", "number", card.Number()))
-		input.Message = "Still failing: " + names + ". Investigate from the pull request's row in the Control room."
+		input.Message = "Still failing: " + names + ". Investigate from the pull request's row in the Integration panel."
 		input.MessageText = uimsg.Make("notif.review.rerun.failed", "names", names)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rerunTimeout)

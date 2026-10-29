@@ -387,15 +387,15 @@ describe("reviews model", () => {
 
     it("words the rail's counts with plurals and shows real numbers up to 99 (#688 AC1, #775 AC2, AC3)", () => {
         expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 0 })).toBe(
-            "Control room · pull requests waiting for your review"
+            "Integration · pull requests waiting for your review"
         );
         expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
-            "Control room — 5 to review, 4 ready to merge"
+            "Integration — 5 to review, 4 ready to merge"
         );
-        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 0 })).toBe("Control room — 1 to review");
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 1, drafts: 0 })).toBe("Control room — 1 ready to merge");
+        expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 0 })).toBe("Integration — 1 to review");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 1, drafts: 0 })).toBe("Integration — 1 ready to merge");
         expect(reviewsRailLabel({ toreview: 2, mergeable: 11, drafts: 0 })).toBe(
-            "Control room — 2 to review, 11 ready to merge"
+            "Integration — 2 to review, 11 ready to merge"
         );
         expect(railCountText(1)).toBe("1");
         expect(railCountText(150)).toBe("99+");
@@ -407,11 +407,11 @@ describe("reviews model", () => {
         expect(reviewCounts(drafts(3))).toEqual({ toreview: 0, mergeable: 0, drafts: 3 });
         expect(reviewCounts({ ...drafts(3), state: "error" })).toEqual({ toreview: 0, mergeable: 0, drafts: 0 });
         expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
-            "Control room — 2 to review, 1 ready to merge, 3 drafts"
+            "Integration — 2 to review, 1 ready to merge, 3 drafts"
         );
-        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Control room — 1 draft");
+        expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Integration — 1 draft");
         expect(reviewsRailLabel({ toreview: 1, mergeable: 0, drafts: 12 })).toBe(
-            "Control room — 1 to review, 12 drafts"
+            "Integration — 1 to review, 12 drafts"
         );
         expect(railCountText(11)).toBe("11");
         expect(railCountText(99)).toBe("99");
@@ -424,18 +424,18 @@ describe("reviews model", () => {
 
         it("words the rail's counts (#775 AC3)", () => {
             expect(reviewsRailLabel({ toreview: 5, mergeable: 4, drafts: 0 })).toBe(
-                "Pilotage — 5 à relire, 4 prêtes à fusionner"
+                "Intégration — 5 à relire, 4 prêtes à fusionner"
             );
             expect(reviewsRailLabel({ toreview: 1, mergeable: 1, drafts: 0 })).toBe(
-                "Pilotage — 1 à relire, 1 prête à fusionner"
+                "Intégration — 1 à relire, 1 prête à fusionner"
             );
             expect(reviewsRailLabel({ toreview: 0, mergeable: 11, drafts: 0 })).toBe(
-                "Pilotage — 11 prêtes à fusionner"
+                "Intégration — 11 prêtes à fusionner"
             );
             expect(reviewsRailLabel({ toreview: 2, mergeable: 1, drafts: 3 })).toBe(
-                "Pilotage — 2 à relire, 1 prête à fusionner, 3 brouillons"
+                "Intégration — 2 à relire, 1 prête à fusionner, 3 brouillons"
             );
-            expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Pilotage — 1 brouillon");
+            expect(reviewsRailLabel({ toreview: 0, mergeable: 0, drafts: 1 })).toBe("Intégration — 1 brouillon");
         });
 
         it("names a failed check and why the merge is blocked (#797)", () => {

@@ -362,7 +362,7 @@ describe("the pull request followed in step 3 (#1104)", () => {
             <PrFollow dir="/p" job={job} status={status({})} error={false} onOpenReviews={() => {}} />
         );
         expect(html).toContain("Draft pull request #42: its checks are running (2 to go).");
-        expect(html).toContain("Open #42 in Control room");
+        expect(html).toContain("Open #42 in Integration");
         expect(html).toContain("Open on GitHub");
         const merged = renderToStaticMarkup(
             <PrFollow

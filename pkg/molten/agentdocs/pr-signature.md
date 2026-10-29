@@ -2,7 +2,7 @@
 
 Coding agents commit and open pull requests with the developer's GitHub account, so GitHub cannot tell which agent did
 the work. MoltenTerm gives each agent session a first name and knows its CLI, its model and its effort level; you sign
-your work with them, so the signature stays with the work outside MoltenTerm too. MoltenTerm's Control room shows it
+your work with them, so the signature stays with the work outside MoltenTerm too. MoltenTerm's Integration panel shows it
 on each pull request.
 
 ## Who you are
@@ -64,5 +64,5 @@ author is the developer's own account. Do not try to approve, request reviews or
 
 ## How MoltenTerm reads it
 
-The Control room shows, on each card, the last agent: the newest commit's `Molten-Agent` trailer, else the "Made by"
+The Integration panel shows, on each card, the last agent: the newest commit's `Molten-Agent` trailer, else the "Made by"
 line of the body, else "unknown agent". Hovering it lists every agent found in the commits and the block.

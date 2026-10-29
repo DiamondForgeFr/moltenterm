@@ -59,6 +59,6 @@ func (c PrCard) Aside(text *uimsg.Text) *uimsg.Text {
 
 // Action shows the PR's card in the Control room; a click on the notification runs it too.
 func (c PrCard) Action(dir string) molten.NotificationAction {
-	return molten.NotificationAction{Id: ReviewsCardActionId, Label: "Show in Control room", LabelText: uimsg.Make("notif.review.openCard"),
+	return molten.NotificationAction{Id: ReviewsCardActionId, Label: "Show in Integration", LabelText: uimsg.Make("notif.review.openCard"),
 		Kind: "gesture", Gesture: ReviewsCardGesture, Lasting: true, Args: map[string]any{"dir": dir, "number": c.Pr}}
 }

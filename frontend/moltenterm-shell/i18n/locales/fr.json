@@ -374,7 +374,7 @@
             "files": "Fichiers",
             "browser": "Page web",
             "cicd": "CI/CD",
-            "reviews": "Pilotage",
+            "reviews": "Intégration",
             "sysinfo": "Infos système",
             "processes": "Processus"
         },
@@ -442,7 +442,7 @@
             "title": "Redémarrer {agent} ?",
             "subtitle": "Il a été démarré avant la mise à jour de MoltenTerm, sans son navigateur ni ses hooks.",
             "restart": "Redémarrer {agent}",
-            "body": "MoltenTerm tape la commande de sortie de {agent}, attend qu'il se termine, démarre un nouveau shell dans le même dossier et relance {agent} sur la même conversation, avec l'intégration de MoltenTerm.",
+            "body": "MoltenTerm tape la commande de sortie de {agent}, attend qu'il se termine, démarre un nouveau shell dans le même dossier et relance {agent} sur la même conversation, avec la connexion de MoltenTerm.",
             "note": "Avant cela, Échap répond Non à une question que {agent} pose peut-être, et un brouillon non envoyé dans sa saisie est effacé. Rien n'est tué : si {agent} ne se termine pas, il continue de tourner."
         },
         "result": {
@@ -460,8 +460,8 @@
         "integrationRuns": {
             "title": "Sessions en cours",
             "none": "Aucune session d'agent n'est en cours.",
-            "on": "Avec l'intégration",
-            "off": "Sans l'intégration",
+            "on": "Avec la connexion",
+            "off": "Sans la connexion",
             "unknown": "Inconnu"
         },
         "editInJson": "Modifier en JSON",
@@ -590,7 +590,7 @@
             "shell": "Shell",
             "behaviour": "Comportement",
             "companion": "Compagnon",
-            "integration": "Intégration",
+            "integration": "Connexion de l'agent",
             "codeReview": "Revue de code",
             "language": "Langue",
             "agents": "Agents",
@@ -785,11 +785,11 @@
                 "description": "Des dossiers de configuration en plus, par agent, dont le compagnon lit les sessions."
             },
             "agent:integrate": {
-                "label": "Intégration des agents",
+                "label": "Connexion de l'agent",
                 "description": "claude et codex reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
             },
             "agent:integrateoff": {
-                "label": "Agents avec l'intégration",
+                "label": "Agents avec la connexion",
                 "description": "Les agents décochés démarrent sans elle. S'applique aux sessions démarrées à partir de maintenant.",
                 "options": {
                     "claude": "Claude Code",
@@ -1353,7 +1353,7 @@
             "genericPaste": "Collez cette ligne telle quelle dans votre agent, en remplaçant {placeholder} par votre demande, dans la langue de votre choix.",
             "noneFound": "MoltenTerm n'embarque aucune IA et ne demande aucune clé d'API : c'est l'agent de code que vous utilisez déjà qui le remodèle. Aucun des agents pris en charge par MoltenTerm n'est dans le PATH de cet ordinateur. Installez-en un puis cherchez à nouveau, ou passez cette étape : Premiers pas la propose de nouveau.",
             "lookAgain": "Chercher à nouveau",
-            "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm intègre cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
+            "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm connecte cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
             "settingsLink": "Réglages des agents",
             "listFailed": "Impossible de lister les agents : {error}",
             "looking": "Recherche des agents de code sur cet ordinateur…",
@@ -1465,7 +1465,7 @@
             "remote": "Pas de compagnon pour un terminal distant",
             "remoteDetail": "La session de l'agent se trouve sur la machine distante.",
             "searching": "En attente de la session de {name}",
-            "searchingIntegrated": "L'intégration de MoltenTerm la relie dès que l'agent démarre sa session.",
+            "searchingIntegrated": "La connexion de MoltenTerm la relie dès que l'agent démarre sa session.",
             "searchingDetail": "Elle s'affiche dès que l'agent écrit son premier message.",
             "unsupportedFormat": "Format de session non pris en charge",
             "unsupportedFormatDetail": "{name} écrit sa transcription dans un format que cette version de MoltenTerm ne lit pas. Le terminal n'est pas touché.",
@@ -1571,7 +1571,7 @@
             "allOff": "Désactivée pour tous les agents à partir du prochain lancement. Cette session la garde jusqu'à sa fin.",
             "agentOff": "Désactivée pour {name} à partir du prochain lancement. Cette session la garde jusqu'à sa fin.",
             "badgeTitle": "Ce que MoltenTerm a ajouté à cette exécution, et comment le désactiver",
-            "title": "Intégré par MoltenTerm",
+            "title": "Connecté par MoltenTerm",
             "hint": "Ajouté à cette exécution de {name} uniquement, par ses propres options d'exécution. Vos fichiers ne sont pas modifiés.",
             "added": "Ajouté",
             "skipped": "Laissé tel quel",
@@ -1994,8 +1994,8 @@
             "stateOpened": "Ouvert par {name}",
             "stateNone": "Non partagé avec un agent",
             "buttonTitle": "{action} ({state})",
-            "offAll": "L'intégration des agents est désactivée : activez-la dans Réglages › Agents › Intégration, puis relancez {name}",
-            "offAgent": "{agent} est décoché dans Réglages › Agents › Intégration › Agents avec l'intégration : cochez-le, puis relancez {name}",
+            "offAll": "La connexion de l'agent est désactivée : activez-la dans Réglages › Agents › Connexion de l'agent, puis relancez {name}",
+            "offAgent": "{agent} est décoché dans Réglages › Agents › Connexion de l'agent › Agents avec la connexion : cochez-le, puis relancez {name}",
             "lostMcp": "{name} a perdu sa connexion au navigateur de MoltenTerm : dans sa session, lancez /mcp et reconnectez molten-browser, ou relancez-la",
             "lost": "{name} a perdu sa connexion au navigateur de MoltenTerm : relancez sa session",
             "startedWithout": "{name} a démarré sans le navigateur de MoltenTerm : relancez sa session pour lui donner le navigateur",
@@ -2008,7 +2008,7 @@
             "waiting": "{name} attend votre réponse",
             "error": "{name} s'est arrêté sur une erreur",
             "stop": "Ne plus partager avec {name}",
-            "integrationSettings": "Réglages de l'intégration des agents…",
+            "integrationSettings": "Réglages de la connexion de l'agent…",
             "moveTitle": "Déplacer cet onglet vers {target} ?",
             "moveMessage": "Il est partagé avec {holder}, qui le perd aussitôt.",
             "anotherAgent": "un autre agent",
@@ -2087,8 +2087,8 @@
             "prReady": "Prête pour la revue",
             "prUnknown": "Pull requests pas encore lues pour ce projet",
             "noPr": "Aucune pull request",
-            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : Pilotage montre le projet du workspace.",
-            "openInReviews": "Ouvrir dans Pilotage",
+            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : le panneau Intégration montre le projet du workspace.",
+            "openInReviews": "Ouvrir dans le panneau Intégration",
             "openPr": "Ouvrir la pull request",
             "reason": {
                 "notLocal": "cette page n'est pas servie depuis cet ordinateur.",
@@ -2213,9 +2213,9 @@
         "companion": {
             "close": "Fermer le compagnon",
             "open": "Ouvrir le compagnon",
-            "integration": "Intégration des agents",
+            "integration": "Connexion de l'agent",
             "integrationDetail": "tous les agents, dès le prochain lancement",
-            "integrationFor": "Intégration pour {agent}",
+            "integrationFor": "Connexion pour {agent}",
             "fromNextLaunch": "dès le prochain lancement",
             "planUsage": "Utilisation du forfait",
             "usageSource": "Source de l'utilisation",
@@ -2378,8 +2378,8 @@
                 "plural": "panneaux CI/CD"
             },
             "reviews": {
-                "name": "Pilotage",
-                "plural": "panneaux de pilotage"
+                "name": "Intégration",
+                "plural": "panneaux d'intégration"
             },
             "project": {
                 "name": "Projet",
@@ -3278,8 +3278,8 @@
                 "other": "{count} pull requests en attente de revue"
             },
             "noReviewWaiting": "Aucune pull request en attente de revue",
-            "toReviews": "Pilotage",
-            "toReviewsTitle": "Ouvrir le panneau Pilotage : les pull requests, leurs vérifications et l'ordre pour les relire",
+            "toReviews": "Intégration",
+            "toReviewsTitle": "Ouvrir le panneau Intégration : les pull requests, leurs vérifications et l'ordre pour les relire",
             "branchesTitle": "Branches de tronc et de release",
             "branchesHint": "la CI qu'attend une release · la dernière exécution de chaque workflow",
             "role": {
@@ -4534,7 +4534,7 @@
                     "closed": "#{number} a été fermée sans fusion : rien n’a changé. Préparez à nouveau pour en ouvrir une autre.",
                     "unread": "GitHub n’a pas pu être lu à l’instant : MoltenTerm réessaie."
                 },
-                "openReviews": "Ouvrir #{number} dans Pilotage",
+                "openReviews": "Ouvrir #{number} dans le panneau Intégration",
                 "openGithub": "Ouvrir sur GitHub"
             },
             "state": {
@@ -5019,8 +5019,8 @@
         "tools": {
             "editWidgets": "Modifier widgets.json",
             "label": "Outils",
-            "reviews": "Pilotage · pull requests qui attendent votre revue",
-            "reviewsCounts": "Pilotage — {counts}",
+            "reviews": "Intégration · pull requests qui attendent votre revue",
+            "reviewsCounts": "Intégration — {counts}",
             "reviewsCount": {
                 "toReview": {
                     "one": "1 à relire",
@@ -5090,7 +5090,7 @@
             "sessions": "Sessions",
             "lineMap": "Plan de lignes",
             "cicd": "CI/CD",
-            "reviews": "Pilotage",
+            "reviews": "Intégration",
             "review": "Revue",
             "pipeline": "Mise en place du pipeline",
             "companion": "Compagnon",
@@ -5812,7 +5812,7 @@
             "count": "{count} projets",
             "none": "Aucune pull request ouverte",
             "noneHint": "Rien ne vous attend sur {name}.",
-            "openTitle": "Ouvrir #{number} dans le Pilotage de {project}",
+            "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
             "noFolderTitle": "{project} n’a pas encore de dossier",
             "noFolder": "Donnez-lui un dossier pour suivre ses pull requests."
         },
@@ -6069,12 +6069,12 @@
             "withdraw": "Annuler la validation",
             "withdrawTitle": "Retirer #{number} de la file de fusion : elle n'est pas fusionnée et revient à relire",
             "resumed": "Reprise après le redémarrage de MoltenTerm.",
-            "investigateGone": "Cette pull request n'est plus listée dans Pilotage."
+            "investigateGone": "Cette pull request n'est plus listée dans le panneau Intégration."
         },
-        "viewName": "Pilotage",
+        "viewName": "Intégration",
         "into": "vers",
         "intoTitle": "Pull requests vers {target} ({from})",
-        "failedTitle": "Pilotage n'a pas pu répondre",
+        "failedTitle": "Le panneau Intégration n'a pas pu répondre",
         "failedHint": "MoltenTerm n'a pas pu lire les pull requests de ce projet. Réessayez dans un instant.",
         "tryAgain": "Réessayer",
         "prsError": "Les pull requests n'ont pas pu être lues : {error}",
@@ -6487,11 +6487,11 @@
         },
         "empty": {
             "noghTitle": "GitHub CLI (gh) n'est pas installé",
-            "noghHint": "Pilotage lit vos pull requests via votre propre gh : installez-le (cli.github.com), lancez gh auth login, puis actualisez.",
+            "noghHint": "Le panneau Intégration lit vos pull requests via votre propre gh : installez-le (cli.github.com), lancez gh auth login, puis actualisez.",
             "loggedoutTitle": "gh est déconnecté",
             "loggedoutHint": "Lancez gh auth login dans un terminal, puis actualisez. MoltenTerm ne demande jamais de jeton.",
             "norepoTitle": "Ce projet n'a pas de dépôt distant GitHub",
-            "norepoHint": "Pilotage liste les pull requests du dépôt GitHub du projet : ajoutez son dépôt distant, ou liez l'espace de travail à un autre dossier.",
+            "norepoHint": "Le panneau Intégration liste les pull requests du dépôt GitHub du projet : ajoutez son dépôt distant, ou liez l'espace de travail à un autre dossier.",
             "errorTitle": "GitHub n'a pas pu être lu",
             "errorHint": "gh n'a pas pu répondre. Réessayez dans un instant."
         },
@@ -6895,7 +6895,7 @@
             "started": "Un agent lancé par MoltenTerm pour vous : {action}."
         },
         "from": {
-            "reviews": "Pilotage",
+            "reviews": "Intégration",
             "reviewTab": "Onglet de revue",
             "mergeQueue": "File de fusion",
             "reviewPanel": "Panneau de revue",
@@ -6987,7 +6987,7 @@
             "noPr": "Aucune pull request",
             "noPrHint": "Ouvrez le panneau IA depuis un onglet Revue.",
             "notOpen": "La revue de #{number} n'est pas ouverte",
-            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis Pilotage : le panneau IA le suit.",
+            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis le panneau Intégration : le panneau IA le suit.",
             "cardsLabel": "Briefing et explications",
             "worktreeAgent": "Worktree : celui de l'agent",
             "worktreeReview": "Worktree : la copie de revue de MoltenTerm",
@@ -7547,11 +7547,11 @@
                 "askedUnnamed": "En conflit avec {base} → rebase demandé à l'agent de sa branche.",
                 "typed": "En conflit avec {base} → rebase tapé dans l'invite de {name} : appuyez sur Entrée dans son terminal pour l'envoyer.",
                 "typedUnnamed": "En conflit avec {base} → rebase tapé dans l'invite de son agent : appuyez sur Entrée dans son terminal pour l'envoyer.",
-                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Pilotage.",
-                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Pilotage.",
+                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis le panneau Intégration.",
+                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis le panneau Intégration.",
                 "needsAgent": "En conflit avec {base}, et aucun agent ne travaille sur sa branche → démarrez un agent.",
-                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis Pilotage.",
-                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : Pilotage l'indiquera.",
+                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis le panneau Intégration.",
+                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : le panneau Intégration l'indiquera.",
                 "start": "Démarrer un agent",
                 "starting": "Démarrage…",
                 "open": "Ouvrir"
@@ -7601,7 +7601,7 @@
             "viewName": "Revue",
             "viewNamePr": "Revue #{number}",
             "noPr": "Aucune pull request dans cette revue",
-            "noPrHint": "Ouvrez la revue d'une pull request depuis Pilotage.",
+            "noPrHint": "Ouvrez la revue d'une pull request depuis le panneau Intégration.",
             "prTitle": "Pull request #{number}",
             "into": "dans",
             "head": "head",
@@ -7820,7 +7820,7 @@
         "notes": {
             "title": "Notes",
             "keep": "Garder",
-            "keepHint": "Garder cette explication dans les notes du projet, dans Pilotage. Les notes restent dans MoltenTerm, jamais dans le projet.",
+            "keepHint": "Garder cette explication dans les notes du projet, dans le panneau Intégration. Les notes restent dans MoltenTerm, jamais dans le projet.",
             "kept": "Gardée",
             "keptHint": "Gardée dans les notes du projet sous « {title} »",
             "keptWhen": "gardée {when}",
@@ -8061,7 +8061,7 @@
             },
             "update": {
                 "programbusy": "Terminez ou arrêtez d'abord {program} : mettre à jour le terminal remplace son shell.",
-                "needconfirm": "Redémarrer {agent} avec l'intégration de MoltenTerm ? La conversation reprend.",
+                "needconfirm": "Redémarrer {agent} avec la connexion de MoltenTerm ? La conversation reprend.",
                 "ready": "Le shell est à son invite : il est remplacé dans le même dossier.",
                 "already": "Ce terminal est déjà en cours de mise à jour.",
                 "uptodate": "Ce terminal est déjà à jour.",
@@ -8245,8 +8245,8 @@
             },
             "projects": {
                 "migratedTitle": "{workspace} regroupe désormais les projets de son groupe",
-                "migrated": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin.",
-                "migratedKept": "{workspace} est désormais un produit avec les projets {projects}, et Pilotage les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin. Les espaces de travail sans dossier de projet restent à part : {kept}.",
+                "migrated": "{workspace} est désormais un produit avec les projets {projects}, et le panneau Intégration les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin.",
+                "migratedKept": "{workspace} est désormais un produit avec les projets {projects}, et le panneau Intégration les suit tous. Les autres espaces de travail gardent leurs vues et leurs agents ({workspaces}) : supprimez-les quand vous n’en avez plus besoin. Les espaces de travail sans dossier de projet restent à part : {kept}.",
                 "keptTitle": "{group} reste un groupe",
                 "kept": "Le groupe {group} reste tel quel : ses autres espaces de travail n’ont pas de dossier de projet à intégrer ({workspaces})."
             },
@@ -8299,7 +8299,7 @@
                 "commits": "Commits non poussés sur {branch} : {count}.",
                 "cleanedUp": "Son terminal est fermé et sa copie de {branch} supprimée : rien n'est resté derrière.",
                 "openReview": "Ouvrir la revue",
-                "openCard": "Voir dans Pilotage",
+                "openCard": "Voir dans le panneau Intégration",
                 "prAside": " (PR #{number})",
                 "ciGreenTitle": "#{number}{pr} : la CI est de nouveau verte",
                 "ciGreen": "{name} : {outcome}",
@@ -8316,13 +8316,13 @@
                 "rerun": {
                     "passedTitle": "#{number}{pr} : les jobs relancés ont réussi",
                     "failedTitle": "#{number}{pr} : encore en échec après la relance",
-                    "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans Pilotage."
+                    "failed": "Toujours en échec : {names}. Analysez et résolvez depuis la ligne de la pull request dans le panneau Intégration."
                 },
                 "batch": {
-                    "openReviews": "Ouvrir Pilotage",
+                    "openReviews": "Ouvrir le panneau Intégration",
                     "goTo": "Aller au terminal",
                     "stoppedTitle": "La fusion groupée s'est arrêtée sur #{number}",
-                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans Pilotage.",
+                    "stopped": "Raison : {reason}. Les pull requests suivantes attendent votre décision dans le panneau Intégration.",
                     "doneTitle": "File de fusion : {merged} PR sur {total} fusionnées",
                     "cancelledTitle": "File de fusion annulée : {merged} PR sur {total} fusionnées",
                     "summary": "{merged}{skipped}CI relancées : {ciruns}.{kept}{trunk}",
@@ -8476,11 +8476,11 @@
                 "nested": "lancé par un agent en cours",
                 "turnedoff": "{var}=0",
                 "passthrough": "une commande qui ne démarre pas de session",
-                "settingsoff": "l'intégration est désactivée dans les réglages de MoltenTerm ({setting})",
-                "settingsagentoff": "l'intégration est désactivée pour cet agent dans les réglages de MoltenTerm ({setting})",
+                "settingsoff": "la connexion de l'agent est désactivée dans les réglages de MoltenTerm ({setting})",
+                "settingsagentoff": "la connexion de l'agent est désactivée pour cet agent dans les réglages de MoltenTerm ({setting})",
                 "settingsunknown": "les réglages de MoltenTerm n'ont pas pu être lus à temps",
                 "disableallhooks": "disableAllHooks est activé dans {where} : Claude Code n'exécute aucun hook ni ligne d'état",
-                "notwritten": "l'intégration n'a pas pu être écrite : {detail}"
+                "notwritten": "la connexion de l'agent n'a pas pu être écrite : {detail}"
             }
         },
         "keepawake": {
@@ -8631,7 +8631,7 @@
         },
         "background": {
             "button": "Laisser l'agent s'en charger",
-            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans Pilotage ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
+            "text": "Rien ne s'ouvre et rien ne prend le focus. Suivez-le dans la ligne de la pull request dans le panneau Intégration ou dans Sessions ; une notification vous prévient quand il a fini ou a besoin de vous."
         },
         "together": {
             "rebase": "Faire le rebase avec l'agent",
@@ -8864,7 +8864,7 @@
         "project": {
             "menuTitle": "Projets de {name}",
             "currentNote": "Les nouveaux agents démarrent ici",
-            "addNote": "Pilotage suit tous les projets",
+            "addNote": "Intégration suit tous les projets",
             "addMenu": "Ajouter un projet…",
             "editMenu": "Modifier {project}…",
             "typeTitleOne": "Type du projet : {type} · ajouter un autre projet",
@@ -8872,10 +8872,10 @@
             "switched": "Projet courant : {project}",
             "switchedHint": "Les nouveaux agents démarrent dans son dossier.",
             "added": "{project} ajouté",
-            "addedHint": "Pilotage suit ses pull requests. Choisissez-le dans l’en-tête pour y travailler.",
+            "addedHint": "Le panneau Intégration suit ses pull requests. Choisissez-le dans l’en-tête pour y travailler.",
             "addTitle": "Ajouter un projet à {name}",
             "editTitle": "Modifier {project}",
-            "lede": "Un espace de travail, c’est un produit. Ses projets sont ses cibles : application, mobile, site… Pilotage suit les pull requests de tous ses projets.",
+            "lede": "Un espace de travail, c’est un produit. Ses projets sont ses cibles : application, mobile, site… Le panneau Intégration suit les pull requests de tous ses projets.",
             "type": "Type",
             "typePlaceholder": "SaaS, Desktop, CLI, Mobile…",
             "typeSuggestions": "SaaS, Desktop, CLI, Mobile, Site web, API, Bibliothèque, Extension",
