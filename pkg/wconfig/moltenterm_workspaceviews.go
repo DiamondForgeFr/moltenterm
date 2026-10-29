@@ -16,6 +16,7 @@ const (
 var viewNamesEnglish = map[string]string{
 	"workspaceViews.names.scoping":     "Scoping",
 	"workspaceViews.names.integration": "Integration",
+	"workspaceViews.names.pilotage":    "Control room",
 	DefaultViewNameKey:                 "View",
 }
 

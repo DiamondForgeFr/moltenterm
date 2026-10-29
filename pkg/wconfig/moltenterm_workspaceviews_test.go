@@ -30,7 +30,7 @@ func TestDefaultNewWorkspaceViews(t *testing.T) {
 	if views[0].NameKey != "workspaceViews.names.scoping" || !slices.Equal(views[0].Panels, []string{"agent", "browser", "files"}) {
 		t.Fatalf("scoping %+v", views[0])
 	}
-	if views[1].NameKey != "workspaceViews.names.integration" || !slices.Equal(views[1].Panels, []string{"project", "integration"}) {
+	if views[1].NameKey != "workspaceViews.names.pilotage" || !slices.Equal(views[1].Panels, []string{"project", "integration"}) {
 		t.Fatalf("integration %+v", views[1])
 	}
 }

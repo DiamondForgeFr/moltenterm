@@ -38,7 +38,7 @@
     "moltenterm:terminalscreenreader": "auto",
     "app:newworkspaceviews": [
         { "namekey": "workspaceViews.names.scoping", "panels": ["agent", "browser", "files"] },
-        { "namekey": "workspaceViews.names.integration", "panels": ["project", "integration"] }
+        { "namekey": "workspaceViews.names.pilotage", "panels": ["project", "integration"] }
     ],
     "window:savelastwindow": true,
     "telemetry:enabled": false,

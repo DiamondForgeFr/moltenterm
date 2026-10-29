@@ -58,13 +58,14 @@ describe("names of a new workspace's views (#1305)", () => {
 });
 
 describe("the template", () => {
-    it("defaults to Scoping and Integration", () => {
+    it("defaults to Scoping and Control room (#1315)", () => {
         const views = readTemplate((builtinDefaults as Record<string, unknown>)[NewWorkspaceViewsKey]);
         expect(views).toEqual([
             { namekey: "workspaceViews.names.scoping", panels: ["agent", "browser", "files"] },
-            { namekey: "workspaceViews.names.integration", panels: ["project", "integration"] },
+            { namekey: "workspaceViews.names.pilotage", panels: ["project", "integration"] },
         ]);
-        expect(views.map((v) => templateViewName(v, fr))).toEqual(["Cadrage", "Intégration"]);
+        expect(views.map((v) => templateViewName(v, fr))).toEqual(["Cadrage", "Pilotage"]);
+        expect(views.map((v) => templateViewName(v, en))).toEqual(["Scoping", "Control room"]);
     });
 
     it("reads a missing value as no view and leaves out unknown panels and empty views", () => {
