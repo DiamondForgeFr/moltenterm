@@ -24,6 +24,7 @@ import {
     findProjectLogos,
     linkWorkspaceProject,
     resolveProjectDir,
+    setWorkspaceGradient,
 } from "../workspace-project-store";
 import { CreateDraft, logoDefaultColour, pendingLetter, shortRow, typeSuggestions } from "./sidebar-create-model";
 import { ProjectTypeMetaKey } from "./sidebar-model";
@@ -35,9 +36,14 @@ const FieldClass =
 const LabelClass = "flex flex-col text-11 text-secondary";
 
 async function createWorkspace(draft: CreateDraft): Promise<string> {
-    const id = await WorkspaceService.CreateWorkspace(draft.name.trim(), "", draft.colour, true);
+    // A gradient is stored as the sheet stores it (accent.ts): its first stop as the colour, its stops in the meta.
+    const stops = colourStops(draft.colour);
+    const id = await WorkspaceService.CreateWorkspace(draft.name.trim(), "", stops[0] ?? "", true);
     if (!id) {
         throw new Error("no workspace id");
+    }
+    if (stops.length > 1) {
+        await setWorkspaceGradient(id, stops.join(","));
     }
     const type = draft.type.trim();
     if (type) {
