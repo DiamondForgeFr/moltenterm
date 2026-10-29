@@ -40,9 +40,11 @@ import { DurableSessions } from "../sessions/sessions-store";
 import { localizeSection, SettingsSections } from "../settings/settings-catalog";
 import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
+import { workspaceBlocks, type TopRowBlock } from "../sidebar/sidebar-blocks";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
 import { readProjectType, splitSidebarTabs } from "../sidebar/sidebar-model";
 import { SidebarModel } from "../sidebar/sidebar-store";
+import { ViewGlyph, viewGlyphAtom } from "../sidebar/view-glyph";
 import { GlobalPinMetaKey, PinMetaKey } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -113,26 +115,72 @@ function goToWorkspace(workspaceId: string) {
 
 // ---------- Workspaces ----------
 
+// The workspace's views, and its blocks as its sidebar shows them (sidebar-blocks.ts, #1307).
 function useWorkspaceSplit(ws: Workspace) {
     const splitAtom = useMemo(
         () =>
-            atom((get) =>
-                splitSidebarTabs(
+            atom((get) => {
+                const pins = get(ViewPins.getInstance().globalPinsAtom);
+                const split = splitSidebarTabs(
                     ws ?? {},
                     (id) => get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", id))),
                     PinnedTabMetaKeys,
-                    new Set(get(ViewPins.getInstance().globalPinsAtom).map((p) => p.id)),
+                    new Set(pins.map((p) => p.id)),
                     GlobalPinMetaKey
-                )
-            ),
+                );
+                return { split, blocks: workspaceBlocks(pins, split) };
+            }),
         [ws]
     );
     return useAtomValue(splitAtom);
 }
 
+// A top-row block, as in the sidebar: the pin's glyph, its name on hover; the agent in this workspace's instance as a
+// corner mark. A block the workspace never opened goes to the workspace, or opens there when it is the current one.
+function LibraryTopBlock({ workspaceId, block, active }: { workspaceId: string; block: TopRowBlock; active: boolean }) {
+    const go = () => {
+        if (block.tabId) {
+            return goToView(workspaceId, block.tabId);
+        }
+        if (workspaceId !== globalStore.get(atoms.workspaceId)) {
+            goToWorkspace(workspaceId);
+            return;
+        }
+        close();
+        return ViewPins.getInstance().openGlobalPin(block.pin.id, "");
+    };
+    return (
+        <button
+            type="button"
+            className={cn("mt-lib-tile mt-lib-top", active && "is-on")}
+            title={block.name}
+            aria-label={block.name}
+            data-testid="library-top-block"
+            data-pin-id={block.pin.id}
+            onClick={(e) => {
+                e.stopPropagation();
+                fireAndForget(go);
+            }}
+        >
+            <ViewGlyph icons={block.glyph} small={block.glyph.length > 1} className="max-w-full overflow-hidden" />
+            {block.tabId ? <LibraryAgentMark tabId={block.tabId} /> : null}
+        </button>
+    );
+}
+
+function LibraryAgentMark({ tabId }: { tabId: string }) {
+    const identity = useTabIdentity(tabId, "");
+    return (
+        <span className="absolute top-1 right-1 flex">
+            <TabAgentMark info={identity.agent} />
+        </span>
+    );
+}
+
 function LibraryTile({ workspaceId, tabId, active }: { workspaceId: string; tabId: string; active: boolean }) {
     const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
     return (
         <button
             type="button"
@@ -144,10 +192,7 @@ function LibraryTile({ workspaceId, tabId, active }: { workspaceId: string; tabI
                 fireAndForget(() => goToView(workspaceId, tabId));
             }}
         >
-            <i
-                className={cn(makeIconClass(identity.icon, true, { defaultIcon: "square" }), "text-icon-16")}
-                aria-hidden
-            />
+            <ViewGlyph icons={glyph} className="max-w-full overflow-hidden" />
             <span className="max-w-full truncate">{identity.name}</span>
             <span className="absolute top-1 right-1 flex">
                 <TabAgentMark info={identity.agent} />
@@ -159,6 +204,7 @@ function LibraryTile({ workspaceId, tabId, active }: { workspaceId: string; tabI
 function LibraryViewRow({ workspaceId, tabId, active }: { workspaceId: string; tabId: string; active: boolean }) {
     const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const glyph = useAtomValue(viewGlyphAtom(tabId));
     return (
         <button
             type="button"
@@ -170,10 +216,7 @@ function LibraryViewRow({ workspaceId, tabId, active }: { workspaceId: string; t
                 fireAndForget(() => goToView(workspaceId, tabId));
             }}
         >
-            <i
-                className={cn(makeIconClass(identity.icon, true, { defaultIcon: "square" }), "w-4 text-center")}
-                aria-hidden
-            />
+            <ViewGlyph icons={glyph} small className="min-w-4 justify-center" />
             <span className="t">{identity.name}</span>
             <TabAgentMark info={identity.agent} />
         </button>
@@ -184,7 +227,7 @@ function WorkspaceColumn({ entry }: { entry: WorkspaceRailEntry }) {
     const t = useT();
     const tc = useTCount();
     const [ws] = useWaveObjectValue<Workspace>(WOS.makeORef("workspace", entry.id));
-    const split = useWorkspaceSplit(ws);
+    const { split, blocks } = useWorkspaceSplit(ws);
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data, entry.id), [data, entry.id]);
     const live = liveAgents(agents);
@@ -200,7 +243,6 @@ function WorkspaceColumn({ entry }: { entry: WorkspaceRailEntry }) {
             .split(/[/\\]/)
             .pop() ?? "";
     const sub = [type, folder].filter(Boolean).join(" · ");
-    const tiles = [...Object.values(split.everywhere ?? {}), ...split.tiles];
     const activeTabId = ws?.activetabid;
     return (
         <div
@@ -231,9 +273,21 @@ function WorkspaceColumn({ entry }: { entry: WorkspaceRailEntry }) {
                     {sub ? <div className="truncate text-11 text-muted">{sub}</div> : null}
                 </div>
             </div>
-            {tiles.length > 0 ? (
+            {blocks.top.length > 0 ? (
+                <div className="grid grid-cols-4 gap-1.5" data-testid="library-top-row">
+                    {blocks.top.map((block) => (
+                        <LibraryTopBlock
+                            key={block.pin.id}
+                            workspaceId={entry.id}
+                            block={block}
+                            active={!!block.tabId && block.tabId === activeTabId}
+                        />
+                    ))}
+                </div>
+            ) : null}
+            {blocks.tiles.length > 0 ? (
                 <div className="grid grid-cols-2 gap-1.5">
-                    {tiles.map((id) => (
+                    {blocks.tiles.map((id) => (
                         <LibraryTile key={id} workspaceId={entry.id} tabId={id} active={id === activeTabId} />
                     ))}
                 </div>
