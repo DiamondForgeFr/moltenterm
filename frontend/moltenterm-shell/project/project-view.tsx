@@ -29,6 +29,7 @@ import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
 import { openMoltentermView } from "../open-view";
 import { ProjectSwitchChips } from "../sidebar/project-chips";
+import { openProjectSheet } from "../workspace-edit";
 import { pathBaseName } from "../workspace-project";
 import { useMapFull } from "./map-full";
 import { BuiltinProjectCards, LineMapCardId } from "./project-builtin-cards";
@@ -222,6 +223,15 @@ function ProjectContent({
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
+                <button
+                    type="button"
+                    onClick={(e) => openProjectSheet(undefined, e.currentTarget, project.workspace?.oid)}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                    data-action="project-sheet"
+                    title={t("projectSheet.openTitle")}
+                >
+                    {t("projectSheet.open")}
+                </button>
                 <button
                     type="button"
                     onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}

@@ -21,11 +21,27 @@ import {
 } from "./workspace-edit-model";
 import { isSavedWorkspace } from "./workspace-rail-model";
 
+// The workspace sheet, or the Project sheet of one of its projects (FR-SHELL-105); both are shown by the same host.
+export type WorkspaceSheetKind = "workspace" | "project";
+
 export type WorkspaceEditRequest = {
     workspaceId: string;
     // Gets the focus back when the sheet closes (NFR-SHELL-014).
     opener: HTMLElement;
+    sheet?: WorkspaceSheetKind;
+    // The project the Project sheet shows; none shows the current one.
+    projectId?: string;
 };
+
+export function sameSheet(a: WorkspaceEditRequest, b: Omit<WorkspaceEditRequest, "opener">): boolean {
+    return (
+        a != null &&
+        b != null &&
+        a.workspaceId === b.workspaceId &&
+        (a.sheet ?? "workspace") === (b.sheet ?? "workspace") &&
+        (a.projectId ?? "") === (b.projectId ?? "")
+    );
+}
 
 // MoltenTerm's own preload function (emain/preload.ts), typed here so custom.d.ts stays Wave's.
 type MoltentermWorkspaceMenuApi = {
@@ -60,12 +76,22 @@ export class WorkspaceEditModel {
 
     // An unsaved workspace is saved first, with Wave's default name and icon, as the rail's click does: only a saved
     // workspace has a name to edit.
-    async open(workspaceId: string, opener: HTMLElement): Promise<boolean> {
+    async open(
+        workspaceId: string,
+        opener: HTMLElement,
+        target?: { sheet?: WorkspaceSheetKind; projectId?: string }
+    ): Promise<boolean> {
         if (!workspaceId) {
             return false;
         }
+        const wanted = { workspaceId, sheet: target?.sheet ?? "workspace", projectId: target?.projectId };
         const current = globalStore.get(this.requestAtom);
+        if (sameSheet(current, wanted)) {
+            return true;
+        }
+        // Going from one sheet to the other keeps what first opened them, which gets the focus back at the end.
         if (current?.workspaceId === workspaceId) {
+            globalStore.set(this.requestAtom, { ...wanted, opener: current.opener ?? opener });
             return true;
         }
         const ws = await WorkspaceService.GetWorkspace(workspaceId);
@@ -77,7 +103,7 @@ export class WorkspaceEditModel {
         }
         // The sheet writes through the object atom, which must exist first (Wave's switcher does the same).
         globalStore.get(getWaveObjectAtom(makeORef("workspace", workspaceId)));
-        globalStore.set(this.requestAtom, { workspaceId, opener });
+        globalStore.set(this.requestAtom, { ...wanted, opener });
         return true;
     }
 
@@ -105,6 +131,14 @@ export function openWorkspaceEditor(workspaceId: string, opener?: HTMLElement): 
 // The palette and the app menu act on the workspace the window shows.
 export function openCurrentWorkspaceEditor(opener?: HTMLElement): void {
     openWorkspaceEditor(globalStore.get(atoms.workspace)?.oid, opener);
+}
+
+// The Project sheet (FR-SHELL-105): the workspace sheet's Projects block, the Project panel and the "Edit <project>…"
+// entries open it. Without a workspace, the window's; without a project, its current one.
+export function openProjectSheet(projectId?: string, opener?: HTMLElement, workspaceId?: string): void {
+    const from = opener ?? focusedElement();
+    const id = workspaceId ?? globalStore.get(atoms.workspace)?.oid;
+    fireAndForget(() => WorkspaceEditModel.getInstance().open(id, from, { sheet: "project", projectId }));
 }
 
 function readStorage(key: string): string {

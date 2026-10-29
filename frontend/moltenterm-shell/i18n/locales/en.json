@@ -4710,13 +4710,16 @@
             "project": "Project",
             "folder": "Folder",
             "sheetTitle": "Edit workspace",
-            "linkedProject": "Linked project",
+            "identity": "Identity",
+            "appearance": "Appearance",
+            "projects": "Projects",
+            "linkedProjects": "Linked projects",
+            "currentProject": "current",
             "logo": "Logo",
-            "logoHint": "The project's images, shown as the workspace's icon.",
             "noLogo": "No image found in the project.",
-            "projectLogoInUse": "The project's logo is in use: choose another under Project › Logo.",
-            "projectSettings": "Project settings…",
-            "projectSettingsHint": "Its type and the branch it follows, in the sidebar."
+            "projectLogoInUse": "The project's logo is in use: turn off “Use the project's logo” below to show an image of your own.",
+            "useProjectLogo": "Use the project's logo",
+            "useProjectLogoHint": "The logo is chosen in the project's sheet: Projects › Set up the project."
         },
         "look": {
             "title": "Look",
@@ -8883,6 +8886,24 @@
         "running": "Running: {agents}",
         "runningNotStartable": "running; can't be started from here",
         "missingRunning": "{agent} is chosen and running, but MoltenTerm cannot start it: choose another one"
+    },
+    "projectSheet": {
+        "title": "Set up the project",
+        "open": "Set up the project ›",
+        "openTitle": "The project's folder, type, branch, logo, pipeline and agent",
+        "back": "‹ Workspace",
+        "repository": "Repository and folder",
+        "noFolder": "No folder yet",
+        "details": "Type and branch",
+        "logoInUse": "The workspace's icon shows this logo.",
+        "logoNotInUse": "The workspace shows its own icon: turn on “Use the project's logo” in its Identity to show this one.",
+        "pipeline": "Pipeline and CI",
+        "pipelineUnknown": "Reading the project…",
+        "openPanel": "Open the Project view",
+        "agent": "Project's agent",
+        "agentDefault": "App default ({agent})",
+        "agentDefaultNone": "App default",
+        "agentHint": "The agent MoltenTerm starts for this project's reviews, release notes and companion. The same choice as in the panels' options."
     },
     "hang": {
         "title": "The window did not respond for {seconds} s",

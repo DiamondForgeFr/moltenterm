@@ -24,6 +24,7 @@ import {
     projectFilePath,
     ProjectLogoMetaKey,
     ProjectLogoOfferMetaKey,
+    projectLogoUpdate,
     projectName,
     ProjectPipelineFile,
     ProjectSaaSFoundryFile,
@@ -196,6 +197,12 @@ export async function setWorkspaceFolder(workspaceId: string, folder: string): P
 
 export async function setWorkspaceLogo(workspaceId: string, logo: string): Promise<void> {
     await setWorkspaceMeta(workspaceId, { [ProjectLogoMetaKey]: logo || null });
+}
+
+// The Project sheet's Logo (FR-SHELL-105). The workspace is read again: its icon follows only if it shows the
+// project's logo now.
+export async function setProjectLogo(ws: Workspace, logo: string): Promise<void> {
+    await setWorkspaceMeta(ws.oid, projectLogoUpdate(readWorkspaceProject(latestWorkspace(ws)), logo));
 }
 
 // A gradient's stops ("#a,#b[,#c]", accent.ts), or null for a flat colour.

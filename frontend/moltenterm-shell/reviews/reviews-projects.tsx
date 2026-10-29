@@ -15,9 +15,9 @@ import { useT } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
 import { useMissionSnapshot } from "../mission/mission-client";
 import { ProjectChip } from "../sidebar/project-chips";
-import { SidebarModel } from "../sidebar/sidebar-store";
 import { projectLabel, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import { workspaceShownName } from "../workspace-default-name";
+import { openProjectSheet } from "../workspace-edit";
 import { useCardContext } from "./reviews-agent-bar";
 import { TurnTitleKeys } from "./reviews-card-model";
 import { useReviews } from "./reviews-client";
@@ -230,7 +230,7 @@ export function ProjectWithoutFolder({ project }: { project: WorkspaceProjectEnt
             hint={t("reviews.projects.noFolder")}
             primary={{
                 label: t("sidebar.project.editMenu", { project: projectLabel(project) }),
-                onClick: () => SidebarModel.getInstance().openProjectPage(project),
+                onClick: () => openProjectSheet(project.id),
             }}
         />
     );

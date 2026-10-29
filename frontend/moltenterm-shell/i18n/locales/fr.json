@@ -4710,13 +4710,16 @@
             "project": "Projet",
             "folder": "Dossier",
             "sheetTitle": "Modifier l'espace de travail",
-            "linkedProject": "Projet lié",
+            "identity": "Identité",
+            "appearance": "Apparence",
+            "projects": "Projets",
+            "linkedProjects": "Projets liés",
+            "currentProject": "actuel",
             "logo": "Logo",
-            "logoHint": "Les images du projet, affichées comme icône de l'espace de travail.",
             "noLogo": "Aucune image trouvée dans le projet.",
-            "projectLogoInUse": "Le logo du projet est utilisé : choisissez-en un autre dans Projet › Logo.",
-            "projectSettings": "Réglages du projet…",
-            "projectSettingsHint": "Son type et la branche suivie, dans la barre latérale."
+            "projectLogoInUse": "Le logo du projet est utilisé : désactivez « Utiliser le logo du projet » plus bas pour afficher votre propre image.",
+            "useProjectLogo": "Utiliser le logo du projet",
+            "useProjectLogoHint": "Le logo se choisit dans la fiche du projet : Projets › Régler le projet."
         },
         "look": {
             "title": "Apparence",
@@ -8883,6 +8886,24 @@
         "running": "En cours : {agents}",
         "runningNotStartable": "en cours ; lancement impossible d'ici",
         "missingRunning": "{agent} est choisi et en cours, mais MoltenTerm ne peut pas le lancer : choisissez-en un autre"
+    },
+    "projectSheet": {
+        "title": "Régler le projet",
+        "open": "Régler le projet ›",
+        "openTitle": "Le dossier, le type, la branche, le logo, le pipeline et l'agent du projet",
+        "back": "‹ Espace de travail",
+        "repository": "Dépôt et dossier",
+        "noFolder": "Pas encore de dossier",
+        "details": "Type et branche",
+        "logoInUse": "L'icône de l'espace de travail affiche ce logo.",
+        "logoNotInUse": "L'espace de travail affiche sa propre icône : activez « Utiliser le logo du projet » dans son Identité pour afficher celui-ci.",
+        "pipeline": "Pipeline et CI",
+        "pipelineUnknown": "Lecture du projet…",
+        "openPanel": "Ouvrir la vue Projet",
+        "agent": "Agent du projet",
+        "agentDefault": "Par défaut de l'app ({agent})",
+        "agentDefaultNone": "Par défaut de l'app",
+        "agentHint": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon de ce projet. Le même choix que dans les options des panneaux."
     },
     "hang": {
         "title": "La fenêtre n'a pas répondu pendant {seconds} s",

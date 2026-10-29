@@ -13,7 +13,8 @@ import {
     moveRadio,
     parseIntent,
     partOfField,
-    projectPartFields,
+    ProjectSheetBlocks,
+    projectSheetBlocks,
     radioTabStop,
     WorkspaceEditParts,
 } from "./workspace-edit-model";
@@ -126,32 +127,36 @@ describe("a double-click handed over between tab views (DS-SHELL-035)", () => {
     });
 });
 
-describe("the Workspace part and the Project part (#1280, TC-SHELL-206, TC-SHELL-207)", () => {
-    it("puts the workspace's own fields under Workspace and what follows the project under Project", () => {
-        expect(WorkspaceEditParts.workspace).toEqual(["name", "icon", "colour", "look"]);
-        expect(WorkspaceEditParts.project).toEqual(["linkedProject", "logo", "folder", "projectSettings"]);
-        expect(partOfField("name")).toBe("workspace");
-        expect(partOfField("look")).toBe("workspace");
-        expect(partOfField("logo")).toBe("project");
-        expect(partOfField("folder")).toBe("project");
+describe("Identity, Appearance and Projects, then the Project sheet (FR-SHELL-105, TC-SHELL-206)", () => {
+    it("puts name, icon and colour under Identity, the look under Appearance, projects and folder under Projects", () => {
+        expect(WorkspaceEditParts.identity).toEqual(["name", "icon", "useProjectLogo", "colour"]);
+        expect(WorkspaceEditParts.appearance).toEqual(["look"]);
+        expect(WorkspaceEditParts.projects).toEqual(["projects", "folder"]);
+        expect(partOfField("name")).toBe("identity");
+        expect(partOfField("look")).toBe("appearance");
+        expect(partOfField("folder")).toBe("projects");
     });
 
-    it("places every field in exactly one part", () => {
-        const all = [...WorkspaceEditParts.workspace, ...WorkspaceEditParts.project];
+    it("places every field in exactly one block", () => {
+        const all = Object.values(WorkspaceEditParts).flat();
         expect(new Set(all).size).toBe(all.length);
     });
 
-    it("offers the link and keeps the folder when no project is linked", () => {
-        expect(projectPartFields({ hasProject: false, sidebarOn: true, isWindowWorkspace: true })).toEqual([
-            "linkedProject",
+    it("gives the project's own settings to the Project sheet, the logo there only", () => {
+        expect(Object.values(WorkspaceEditParts).flat()).not.toContain("logo");
+        expect(ProjectSheetBlocks.logo).toEqual(["logo"]);
+        expect(Object.values(ProjectSheetBlocks).flat()).toEqual([
             "folder",
+            "type",
+            "branch",
+            "logo",
+            "pipeline",
+            "agent",
         ]);
     });
 
-    it("shows the logo with a project, and Project settings only where the sidebar can open its page", () => {
-        const linked = { hasProject: true, sidebarOn: true, isWindowWorkspace: true };
-        expect(projectPartFields(linked)).toEqual(["linkedProject", "logo", "folder", "projectSettings"]);
-        expect(projectPartFields({ ...linked, sidebarOn: false })).toEqual(["linkedProject", "logo", "folder"]);
-        expect(projectPartFields({ ...linked, isWindowWorkspace: false })).toEqual(["linkedProject", "logo", "folder"]);
+    it("keeps the folder, type and branch for a project without a folder, the rest once it has one", () => {
+        expect(projectSheetBlocks(true)).toEqual(["repository", "details", "logo", "pipeline", "agent"]);
+        expect(projectSheetBlocks(false)).toEqual(["repository", "details"]);
     });
 });
