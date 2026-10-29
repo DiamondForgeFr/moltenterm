@@ -8,6 +8,7 @@ import {
     dropAction,
     dropsAfter,
     isMoveAction,
+    keepsUndoKey,
     MaxGlyphIcons,
     menuMoveTargets,
     moveBeside,
@@ -246,5 +247,21 @@ describe("⌘Z", () => {
         expect(typesText(el("DIV", ".monaco-editor"))).toBe(true);
         expect(typesText(el("DIV"))).toBe(false);
         expect(typesText(null)).toBe(false);
+    });
+
+    it("lets Command+Z undo a close from a terminal on macOS, never Ctrl+Z (#1345)", () => {
+        const term = {
+            tagName: "TEXTAREA",
+            isContentEditable: false,
+            closest: (sel: string) => (sel.includes(".xterm") ? {} : null),
+        } as unknown as Element;
+        const input = {
+            tagName: "INPUT",
+            isContentEditable: false,
+            closest: () => null,
+        } as unknown as Element;
+        expect(keepsUndoKey(term, true)).toBe(false);
+        expect(keepsUndoKey(term, false)).toBe(true);
+        expect(keepsUndoKey(input, true)).toBe(true);
     });
 });

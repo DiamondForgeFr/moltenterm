@@ -85,15 +85,18 @@ describe("the temporary section's layout (#1253)", () => {
         }
     });
 
-    it("ships Clear in en and fr, and no text for the removed title and button", () => {
+    it("ships Close all in en and fr, and no text for the removed title and button", () => {
         for (const dict of [en, fr] as any[]) {
-            expect(dict.sidebar.temporary.clear).toBeTruthy();
+            expect(dict.sidebar.temporary.closeAll).toBeTruthy();
             expect(dict.sidebar.temporary.title).toBeUndefined();
             expect(dict.sidebar.temporary.hint).toBeUndefined();
             expect(dict.sidebar.pins.closeFinishedTitle).toBeUndefined();
             expect(dict.shell.busy.clear.title).toBeTruthy();
         }
-        expect(fr.sidebar.temporary.clear).toBe("Effacer");
+        expect(fr.sidebar.temporary.closeAll).toBe("Tout fermer");
+        expect(en.sidebar.temporary.closeAll).toBe("Close all");
+        expect(fr.sidebar.temporary.closedAll.other).toBe("{count} vues fermées · dans Vues rangées");
+        expect(en.sidebar.temporary.closedAll.one).toBe("1 view closed · in Put-away views");
     });
 });
 
@@ -238,9 +241,19 @@ describe("Undo of a Clear (#1253)", () => {
         showClosedViewsToast(3, "cleared", reopen);
         expect(showUndoToast).toHaveBeenCalledTimes(1);
         const [title, undo] = vi.mocked(showUndoToast).mock.calls[0];
-        expect(title).toBe("3 temporary views cleared");
+        expect(title).toBe("3 views closed · in Put-away views");
         await undo();
         expect(reopen).toHaveBeenCalledTimes(3);
+    });
+
+    it("offers the same Undo after Cmd+W closes one view (#1345)", async () => {
+        const reopen = vi.fn(async () => ({ reopened: true }));
+        showClosedViewsToast(1, "view", reopen);
+        expect(showUndoToast).toHaveBeenCalledTimes(1);
+        const [title, undo] = vi.mocked(showUndoToast).mock.calls[0];
+        expect(title).toBe("View closed · in Put-away views");
+        await undo();
+        expect(reopen).toHaveBeenCalledTimes(1);
     });
 });
 

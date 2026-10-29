@@ -16,7 +16,7 @@ type I18n = typeof import("../i18n/i18n");
 type Sidebar = typeof import("./workspace-sidebar");
 type Dict = Record<string, any>;
 
-// A key left in the markup: dotted lowercase words, as in sidebar.temporary.clear.
+// A key left in the markup: dotted lowercase words, as in sidebar.temporary.closeAll.
 const RawKeyRegex = /\b[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+){2,}\b/;
 
 let core: Core;
@@ -29,7 +29,7 @@ let frenchAttempts = 0;
 // Dictionaries as a dev server started before the sidebar's keys were added serves them.
 function withoutClearText(dict: Dict): Dict {
     const copy = structuredClone(dict);
-    delete copy.sidebar.temporary.clear;
+    delete copy.sidebar.temporary.closeAll;
     return copy;
 }
 
@@ -77,7 +77,7 @@ describe("sidebar texts with the language loaded on demand (#1215)", () => {
         core.replaceShippedDictionary("fr", french);
         html = renderTemporaryViews();
         expect(html).not.toMatch(RawKeyRegex);
-        expect(html).toContain("Effacer");
+        expect(html).toContain("Tout fermer");
         expect(html).toContain("Nouvelle vue");
     });
 

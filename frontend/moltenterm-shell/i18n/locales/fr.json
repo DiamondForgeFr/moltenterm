@@ -1760,7 +1760,7 @@
             "rename-tab": "Renommer la vue",
             "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
-            "workspace-jump": "Aller à un espace de travail de la barre du bas",
+            "workspace-jump": "Passer à un espace de travail par son numéro",
             "term-clear": "Effacer le terminal",
             "term-copy-plain": "Copier la sélection en texte brut",
             "term-copy": "Copier la sélection",
@@ -4830,9 +4830,9 @@
                 "confirm": "Remplacer quand même"
             },
             "clear": {
-                "title": "Effacer les vues temporaires ?",
+                "title": "Fermer toutes les vues temporaires ?",
                 "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Les vues pourront revenir, pas ce qui y tournait.",
-                "confirm": "Effacer quand même"
+                "confirm": "Tout fermer quand même"
             },
             "tab": {
                 "title": "Fermer cette vue ?",
@@ -8961,11 +8961,11 @@
         },
         "temporary": {
             "newView": "Nouvelle vue",
-            "clear": "Effacer",
-            "clearTitle": "Fermer les vues temporaires ; les vues épinglées restent",
-            "cleared": {
-                "one": "1 vue temporaire effacée",
-                "other": "{count} vues temporaires effacées"
+            "closeAll": "Tout fermer",
+            "closeAllTitle": "Fermer les vues temporaires ; les vues épinglées restent",
+            "closedAll": {
+                "one": "1 vue fermée · dans Vues rangées",
+                "other": "{count} vues fermées · dans Vues rangées"
             }
         },
         "agents": {
@@ -9017,6 +9017,7 @@
             "copyName": "{name} (copie)",
             "duplicated": "« {name} » créée : même configuration",
             "reordered": "Ordre modifié",
+            "closedOne": "Vue fermée · dans Vues rangées",
             "captionHere": "Garder dans {workspace}",
             "captionEverywhere": "Partout · tous les espaces de travail",
             "captionTemporary": "La rendre temporaire",
