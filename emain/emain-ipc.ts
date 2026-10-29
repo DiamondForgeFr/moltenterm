@@ -38,6 +38,7 @@ import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH 
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
 import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MOLTENTERM-PATCH (#1216)
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
+import { initMoltentermWindowLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
 
 const electronApp = electron.app;
@@ -210,6 +211,7 @@ function saveImageFileWithNativeDialog(
 export function initIpcHandlers() {
     initMoltentermAccessibility(); // MOLTENTERM-PATCH (#808): read-only OS accessibility state.
     initMoltentermWindowButtons(); // MOLTENTERM-PATCH (#1216): the window buttons follow the hidden sidebar.
+    initMoltentermWindowLook(); // MOLTENTERM-PATCH (#1281): the workspace's opacity and blur.
     initMoltentermContextMenu(async (host, guest, source, valid) => {
         const result = await getUrlInSession(guest.session, source);
         if (!valid()) {

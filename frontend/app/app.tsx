@@ -36,6 +36,7 @@ import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // 
 import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 import { PanelDropZones } from "../moltenterm-shell/split/drop-zones-overlay"; // MOLTENTERM-PATCH (#414)
 import { TabViewGuard } from "../moltenterm-shell/tab-view-guard"; // MOLTENTERM-PATCH (#447)
+import { WindowLookApplier } from "../moltenterm-shell/window-look"; // MOLTENTERM-PATCH (#1281)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -406,6 +407,7 @@ const AppInner = () => {
             <AppKeyHandlers />
             <AppFocusHandler />
             <AppSettingsUpdater />
+            <WindowLookApplier /> {/* MOLTENTERM-PATCH (#1281): the workspace's opacity and blur */}
             {/* MOLTENTERM-PATCH (#447): a missing workspace or tab, or a render error, shows the pending state */}
             <TabViewGuard>
                 <BadgeAutoClearing />

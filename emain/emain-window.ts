@@ -23,6 +23,7 @@ import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-uti
 import { ElectronWshClient } from "./emain-wsh";
 import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
 import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
 import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
@@ -173,12 +174,11 @@ export class WaveBrowserWindow extends BaseWindow {
             winOpts.titleBarOverlay = false;
             winOpts.autoHideMenuBar = !settings?.["window:showmenubar"];
             winOpts.acceptFirstMouse = true;
-            if (isTransparent) {
-                winOpts.transparent = true;
-            } else if (isBlur) {
+            // MOLTENTERM-PATCH (#1281): created transparent once so a workspace's look can turn see-through without a
+            // restart; the tab views keep their opaque background until a look asks otherwise (moltenterm-window-look.ts)
+            winOpts.transparent = true;
+            if (!isTransparent && isBlur) {
                 winOpts.vibrancy = "fullscreen-ui";
-            } else {
-                winOpts.backgroundColor = "#222222";
             }
         } else if (opts.unamePlatform === "linux") {
             winOpts.titleBarStyle = settings["window:nativetitlebar"] ? "default" : "hidden";
@@ -210,6 +210,8 @@ export class WaveBrowserWindow extends BaseWindow {
         }
 
         super(winOpts);
+        // MOLTENTERM-PATCH (#1281): what this window can become without a restart
+        noteWindowCreatedLook(this, winOpts.transparent === true, winOpts.vibrancy != null, opts.unamePlatform);
 
         if (opts.unamePlatform === "win32") {
             this.setMenu(null);

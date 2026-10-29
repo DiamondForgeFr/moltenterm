@@ -20,6 +20,7 @@ import { SidebarModel } from "./sidebar/sidebar-store";
 import { currentProject } from "./sidebar/workspace-projects";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
 import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
+import { OpacityField } from "./window-look-field";
 import {
     colourChoiceCss,
     colourChoiceForeground,
@@ -1157,7 +1158,15 @@ export function WorkspaceEditSheet({
                 </button>
             }
         >
-            <WorkspacePart ws={ws} nameRef={nameRef} />
+            <WorkspacePart
+                ws={ws}
+                nameRef={nameRef}
+                look={
+                    <PartField label={t("workspace.look.title")} field="look">
+                        <OpacityField ws={ws} />
+                    </PartField>
+                }
+            />
             <ProjectPart ws={ws} onClose={onClose} />
             <DangerSection ws={ws} closable={closable} onClose={onClose} />
         </DialogFrame>
