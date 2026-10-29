@@ -171,7 +171,8 @@ function NodeBackdrops({ layoutModel }: { layoutModel: LayoutModel }) {
 
     return (
         <>
-            {showMagnifiedBackdrop && (
+            {/* MOLTENTERM-PATCH (#1323): the debounced show can land after a quick un-magnify; no panel, no backdrop */}
+            {showMagnifiedBackdrop && magnifiedNodeId && (
                 <div
                     className="magnified-node-backdrop"
                     onClick={() => {
