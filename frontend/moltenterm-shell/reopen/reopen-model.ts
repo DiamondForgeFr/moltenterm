@@ -6,6 +6,7 @@
 
 import { t } from "../i18n/i18n";
 import { MoltentermNotificationKind } from "../notifications-model";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 
 export const ReopenRoute = "molten:reopen";
 export const ReopenRecordCommand = "moltenreopenrecord";
@@ -37,7 +38,9 @@ export function reopenToast(result: ReopenResult, home?: string): ReopenToast {
     }
     // A pane's name comes worded (pkg/molten/reopen PaneName: "the terminal", or its own title).
     const title =
-        result.kind === "tab" ? t("reopen.tab", { name: result.name }) : t("reopen.pane", { name: result.name });
+        result.kind === "tab"
+            ? t("reopen.tab", { name: viewNameText(result.name, t) })
+            : t("reopen.pane", { name: result.name });
     if (!result.freshshell) {
         return { kind: "success", title };
     }

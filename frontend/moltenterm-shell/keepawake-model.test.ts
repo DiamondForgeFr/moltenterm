@@ -19,6 +19,7 @@ import {
     policyHoldingLine,
     railCoffeeLabel,
     reasonsText,
+    sessionWhere,
     sleepPolicyChoices,
 } from "./keepawake-model";
 
@@ -135,6 +136,23 @@ describe("keep-awake model", () => {
             ["b1", "Tab · WS", 2, "allow"],
             ["b9", "Other", 0, "letsleep"],
         ]);
+    });
+
+    it("names a default view never renamed by its name, not its key (#1311)", () => {
+        const s = state({
+            attempts: [attempt({ id: "1", blockid: "b1", tabname: "workspaceViews.names.integration" })],
+        });
+        expect(keepAwakeSessions(s)[0].label).toBe("Integration");
+        expect(
+            sessionWhere({
+                workspaceid: "ws",
+                blockid: "b1",
+                tabname: "workspaceViews.names.scoping",
+                agent: "claude",
+                agentname: "Claude Code",
+                approved: true,
+            })
+        ).toContain("Scoping");
     });
 
     it("spells out the work rule next to Until work ends (FR-SHELL-023-AC1)", () => {

@@ -6,6 +6,7 @@
 // route starts with its code. The window words the code under server.<code>; the English wavesrv sent shows when the
 // code is missing or unknown here.
 
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import { t } from "./i18n";
 import { hasKey } from "./i18n-core";
 
@@ -28,7 +29,11 @@ function wordText(text: ServerText): string {
     if (!hasKey(key)) {
         return null;
     }
-    const vars: Record<string, string> = { ...(text.vars ?? {}) };
+    const vars: Record<string, string> = {};
+    // A var is data, but a default view never renamed is named by its key there (#1311).
+    for (const [name, value] of Object.entries(text.vars ?? {})) {
+        vars[name] = viewNameText(value, t);
+    }
     for (const [name, part] of Object.entries(text.parts ?? {})) {
         const worded = wordText(part);
         if (worded == null) {

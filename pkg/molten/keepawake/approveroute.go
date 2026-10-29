@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 // wavesrv's side of the coffee approvals (FR-SHELL-063): the route's keepawakepermission answer, the sessions the
@@ -77,7 +78,10 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	goSafe("molten:keepawake:approval", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
 		defer cancel()
-		_, approval.WorkspaceName, approval.TabName = s.locateNames(ctx, req.BlockId)
+		var tabName string
+		_, approval.WorkspaceName, tabName = s.locateNames(ctx, req.BlockId)
+		// The approvals log is English, read as a file; no window shows an approval's tab.
+		approval.TabName = wconfig.ViewNameText(tabName)
 		s.keeper.RecordApproval(approval)
 	})
 	return answer

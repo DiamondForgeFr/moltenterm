@@ -11,6 +11,8 @@ export const NewWorkspaceViewsKey = "app:newworkspaceviews";
 export const ViewPendingMetaKey = "molten:viewpending";
 export const ViewNameKeyMetaKey = "molten:viewnamekey";
 export const DefaultViewNameKey = "workspaceViews.names.view";
+// must match ViewNameKeyPrefix in pkg/wconfig/moltenterm_workspaceviews.go
+export const ViewNameKeyPrefix = "workspaceViews.names.";
 
 // The panels a template view may hold, in the order Preferences offers them. must match the kinds of
 // pkg/wcore/moltenterm_workspaceviews.go
@@ -39,6 +41,19 @@ export function viewShownName(name: string, meta: Record<string, any>, tr: Trans
         return tr(key);
     }
     return name ?? "";
+}
+
+// A view's name that comes without its tab's meta (a wavesrv message, a list of terminals, a closed view): a name
+// still stored as its key is worded like the sidebar words it, a key this version lacks as "View" (#1311).
+export function viewNameText(name: string, tr: Translate): string {
+    if (typeof name !== "string" || !name.startsWith(ViewNameKeyPrefix)) {
+        return name ?? "";
+    }
+    const worded = tr(name);
+    if (worded && worded !== name) {
+        return worded;
+    }
+    return tr(DefaultViewNameKey);
 }
 
 // The template as stored, cleaned: views without a known panel and unknown panels left out. A missing value reads as

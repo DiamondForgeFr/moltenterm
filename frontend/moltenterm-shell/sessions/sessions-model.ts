@@ -8,6 +8,7 @@
 import { agentStateLabel } from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { workspaceShownName } from "../workspace-default-name";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 
 export const MoltentermSessionsView = "molten-sessions";
 
@@ -415,7 +416,7 @@ function baseName(path: string): string {
 const GenericTabName = /^(t|tab|terminal|shell|zsh|bash|fish|sh|new tab)\s*\d*$/i;
 
 export function sessionName(s: DurableSession, home: string): string {
-    const tab = (s.tabname ?? "").trim();
+    const tab = viewNameText((s.tabname ?? "").trim(), t);
     if (tab && !GenericTabName.test(tab)) {
         return tab;
     }
@@ -485,7 +486,7 @@ export function placeText(s: DurableSession): string {
         return t("sessions.notInPane");
     }
     const workspace = workspaceShownName(s.workspacename, t);
-    return workspace ? `${workspace}${s.tabname ? ` › ${s.tabname}` : ""}` : "";
+    return workspace ? `${workspace}${s.tabname ? ` › ${viewNameText(s.tabname, t)}` : ""}` : "";
 }
 
 export type ConfirmText = { title: string; subtitle: string; warning?: string; confirm: string };

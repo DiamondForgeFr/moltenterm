@@ -37,8 +37,8 @@ const (
 	ViewPendingMetaKey = "molten:viewpending"
 	ViewNameKeyMetaKey = "molten:viewnamekey"
 	// A template view with neither a name nor a key; a key outside ViewNameKeyPrefix reads as this one.
-	DefaultViewNameKey = "workspaceViews.names.view"
-	ViewNameKeyPrefix  = "workspaceViews.names."
+	DefaultViewNameKey = wconfig.DefaultViewNameKey
+	ViewNameKeyPrefix  = wconfig.ViewNameKeyPrefix
 
 	// A hand-edited template cannot make a workspace heavy.
 	MaxWorkspaceViews     = 12

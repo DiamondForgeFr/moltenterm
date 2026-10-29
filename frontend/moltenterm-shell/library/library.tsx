@@ -56,6 +56,7 @@ import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspa
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import {
     LibrarySection,
     librarySectionAt,
@@ -613,7 +614,7 @@ function PutAwaySection({ entries, query }: { entries: WorkspaceRailEntry[]; que
     }
     const named = views.map((v) => ({
         view: v,
-        name: tabDisplayName(v.name, v.panels?.[0], home) || t("library.putaway.unnamed"),
+        name: tabDisplayName(viewNameText(v.name, t), v.panels?.[0], home) || t("library.putaway.unnamed"),
         workspace: workspaceNameOf(entries, v.workspaceid),
         agents: putAwayAgentNames(v),
     }));
