@@ -5,7 +5,7 @@
    the left, a wide page on the right. Under the dialogs (--zindex-modal-wrapper), so a sheet it opens stays on top. */
 
 .mt-lib {
-    --mt-lib-fg-3: color-mix(in srgb, var(--color-secondary) 70%, transparent);
+    --mt-lib-fg-3: var(--mt-text-3);
     position: fixed;
     z-index: 400;
     inset: 8px;
@@ -15,7 +15,7 @@
     padding: 8px;
     box-sizing: border-box;
     border-radius: var(--mt-radius-4);
-    background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-tint) 18%, rgb(20 17 16)) 94%, black);
+    background: var(--mt-surface-0);
     box-shadow:
         var(--mt-shadow-command),
         inset 0 0 0 1px rgb(255 255 255 / 0.08);

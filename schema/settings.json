@@ -35,14 +35,14 @@
             "label": "System context menus",
             "description": "Use the system's context menus instead of MoltenTerm's.",
             "control": "toggle",
-            "order": 75
+            "order": 76
           }
         },
         "app:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 114
           }
         },
         "app:globalhotkey": {
@@ -54,14 +54,14 @@
             "label": "Global shortcut",
             "description": "A system-wide shortcut that brings MoltenTerm to the front.",
             "control": "text",
-            "order": 68
+            "order": 69
           }
         },
         "app:dismissarchitecturewarning": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 129
+            "order": 130
           }
         },
         "app:defaultnewblock": {
@@ -73,7 +73,7 @@
             "label": "New tab content",
             "description": "The view a new tab starts with, such as term.",
             "control": "text",
-            "order": 76
+            "order": 77
           }
         },
         "app:showoverlayblocknums": {
@@ -86,7 +86,7 @@
             "description": "Show each panel's number while its shortcut keys are held.",
             "control": "toggle",
             "default": true,
-            "order": 74
+            "order": 75
           }
         },
         "app:ctrlvpaste": {
@@ -98,7 +98,7 @@
             "label": "Ctrl+V pastes",
             "description": "Ctrl+V pastes in terminals instead of reaching the program.",
             "control": "toggle",
-            "order": 71
+            "order": 72
           }
         },
         "app:confirmquit": {
@@ -122,7 +122,7 @@
             "label": "No Ctrl+Shift+arrow navigation",
             "description": "Ctrl+Shift+arrows reach the program instead of moving between panels.",
             "control": "toggle",
-            "order": 72
+            "order": 73
           }
         },
         "app:disablectrlshiftdisplay": {
@@ -134,7 +134,7 @@
             "label": "No panel numbers on Ctrl+Shift",
             "description": "Holding Ctrl+Shift does not show the panels' numbers.",
             "control": "toggle",
-            "order": 73
+            "order": 74
           }
         },
         "app:focusfollowscursor": {
@@ -191,7 +191,7 @@
                 "label": "Left"
               }
             ],
-            "order": 77
+            "order": 78
           }
         },
         "app:tilelauncher": {
@@ -215,14 +215,14 @@
             "label": "App builder",
             "description": "Show the Apps tool in the rail outside development builds.",
             "control": "toggle",
-            "order": 78
+            "order": 79
           }
         },
         "term:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 115
           }
         },
         "term:fontsize": {
@@ -241,7 +241,7 @@
             },
             "unit": "px",
             "default": 12,
-            "order": 35
+            "order": 36
           }
         },
         "term:fontfamily": {
@@ -254,7 +254,7 @@
             "description": "A monospace font installed on this computer, such as Hack.",
             "control": "text",
             "default": "Hack",
-            "order": 36
+            "order": 37
           }
         },
         "term:theme": {
@@ -268,7 +268,7 @@
             "control": "select",
             "optionsfrom": "termthemes",
             "default": "default-dark",
-            "order": 34
+            "order": 35
           }
         },
         "term:disablewebgl": {
@@ -280,7 +280,7 @@
             "label": "No WebGL in terminals",
             "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
             "control": "toggle",
-            "order": 94
+            "order": 95
           }
         },
         "term:localshellpath": {
@@ -292,7 +292,7 @@
             "label": "Shell",
             "description": "The shell local terminals start, such as /bin/zsh; empty uses your login shell.",
             "control": "path",
-            "order": 48
+            "order": 49
           }
         },
         "term:localshellopts": {
@@ -307,7 +307,7 @@
             "label": "Shell arguments",
             "description": "The arguments passed to the local shell.",
             "control": "json",
-            "order": 49
+            "order": 50
           }
         },
         "term:gitbashpath": {
@@ -320,7 +320,7 @@
             "description": "Where Git Bash is installed.",
             "control": "path",
             "platform": "windows",
-            "order": 50
+            "order": 51
           }
         },
         "term:scrollback": {
@@ -339,7 +339,7 @@
             },
             "unit": "lines",
             "default": 2000,
-            "order": 40
+            "order": 41
           }
         },
         "term:copyonselect": {
@@ -351,7 +351,7 @@
             "label": "Copy on select",
             "description": "Selecting text copies it.",
             "control": "toggle",
-            "order": 41
+            "order": 42
           }
         },
         "term:transparency": {
@@ -369,7 +369,7 @@
               "step": 0.05
             },
             "default": 0.5,
-            "order": 39
+            "order": 40
           }
         },
         "term:allowbracketedpaste": {
@@ -382,7 +382,7 @@
             "description": "Programs can tell pasted text from typed text.",
             "control": "toggle",
             "default": true,
-            "order": 43
+            "order": 44
           }
         },
         "term:shiftenternewline": {
@@ -394,7 +394,7 @@
             "label": "Shift+Enter inserts a line",
             "description": "Shift+Enter sends a new line instead of Enter.",
             "control": "toggle",
-            "order": 70
+            "order": 71
           }
         },
         "term:macoptionismeta": {
@@ -407,7 +407,7 @@
             "description": "The Option key sends Meta to terminal programs instead of typing symbols.",
             "control": "toggle",
             "platform": "darwin",
-            "order": 69
+            "order": 70
           }
         },
         "term:cursor": {
@@ -433,7 +433,7 @@
                 "label": "Underline"
               }
             ],
-            "order": 37
+            "order": 38
           }
         },
         "term:cursorblink": {
@@ -445,7 +445,7 @@
             "label": "Blinking cursor",
             "description": "The cursor blinks.",
             "control": "toggle",
-            "order": 38
+            "order": 39
           }
         },
         "term:bellsound": {
@@ -457,7 +457,7 @@
             "label": "Bell sound",
             "description": "Play a sound when a program rings the bell.",
             "control": "toggle",
-            "order": 45
+            "order": 46
           }
         },
         "term:bellindicator": {
@@ -469,7 +469,7 @@
             "label": "Bell indicator",
             "description": "Mark the tab when a program rings the bell.",
             "control": "toggle",
-            "order": 46
+            "order": 47
           }
         },
         "term:osc52": {
@@ -495,7 +495,7 @@
                 "label": "When the terminal is focused"
               }
             ],
-            "order": 44
+            "order": 45
           }
         },
         "term:durable": {
@@ -507,7 +507,7 @@
             "label": "Durable sessions",
             "description": "New terminals keep running when MoltenTerm quits or updates.",
             "control": "toggle",
-            "order": 47
+            "order": 48
           }
         },
         "term:showsplitbuttons": {
@@ -519,7 +519,7 @@
             "label": "Split buttons in headers",
             "description": "Show split buttons in terminal headers.",
             "control": "toggle",
-            "order": 95
+            "order": 96
           }
         },
         "term:trimtrailingwhitespace": {
@@ -531,7 +531,7 @@
             "label": "Trim copied lines",
             "description": "Copying drops the spaces at the end of each line.",
             "control": "toggle",
-            "order": 42
+            "order": 43
           }
         },
         "agent:sessionroots": {
@@ -549,7 +549,7 @@
             "label": "More session folders",
             "description": "Extra configuration folders per agent whose sessions the companion reads.",
             "control": "json",
-            "order": 55
+            "order": 56
           }
         },
         "agent:integrate": {
@@ -562,7 +562,7 @@
             "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.",
             "control": "toggle",
             "default": true,
-            "order": 104
+            "order": 105
           }
         },
         "agent:integrateoff": {
@@ -588,7 +588,7 @@
               }
             ],
             "inverted": true,
-            "order": 105
+            "order": 106
           }
         },
         "review:language": {
@@ -600,7 +600,7 @@
             "label": "Review language",
             "description": "Language of the review briefing and answers (fr, French...); empty: the interface language.",
             "control": "text",
-            "order": 106
+            "order": 107
           }
         },
         "review:publishlanguage": {
@@ -612,7 +612,7 @@
             "label": "Publication language",
             "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README.",
             "control": "text",
-            "order": 107
+            "order": 108
           }
         },
         "review:reviewername": {
@@ -624,7 +624,7 @@
             "label": "Your first name",
             "description": "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.",
             "control": "text",
-            "order": 108
+            "order": 109
           }
         },
         "review:validategreenonly": {
@@ -636,7 +636,7 @@
             "label": "Validate only once CI is green",
             "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green.",
             "control": "toggle",
-            "order": 109
+            "order": 110
           }
         },
         "app:language": {
@@ -650,7 +650,7 @@
             "control": "select",
             "optionsfrom": "languages",
             "unsetlabel": "Same as the system",
-            "order": 110
+            "order": 111
           }
         },
         "companion:usagegauges": {
@@ -675,7 +675,7 @@
                 "label": "Codex"
               }
             ],
-            "order": 54
+            "order": 55
           }
         },
         "companion:usageclaudeoauth": {
@@ -687,7 +687,7 @@
             "label": "Claude Code limits (experimental)",
             "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
             "control": "toggle",
-            "order": 96
+            "order": 97
           }
         },
         "linemap:animation": {
@@ -700,7 +700,7 @@
             "description": "Play the load sequence and the moving trains; reduced motion turns it off.",
             "control": "toggle",
             "default": true,
-            "order": 66
+            "order": 67
           }
         },
         "cicd:runs": {
@@ -732,7 +732,7 @@
               }
             ],
             "default": "remote",
-            "order": 67
+            "order": 68
           }
         },
         "editor:minimapenabled": {
@@ -787,7 +787,7 @@
             },
             "unit": "px",
             "default": 12,
-            "order": 31
+            "order": 32
           }
         },
         "editor:inlinediff": {
@@ -806,7 +806,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 116
           }
         },
         "web:openlinksinternally": {
@@ -818,7 +818,7 @@
             "label": "Open links in MoltenTerm",
             "description": "Links clicked in a terminal or a page open in a browser panel.",
             "control": "toggle",
-            "order": 58
+            "order": 59
           }
         },
         "web:defaulturl": {
@@ -830,7 +830,7 @@
             "label": "Home page",
             "description": "The page a new browser panel opens.",
             "control": "text",
-            "order": 60
+            "order": 61
           }
         },
         "web:defaultsearch": {
@@ -842,7 +842,7 @@
             "label": "Search engine",
             "description": "The search URL, with {query} where the words go.",
             "control": "text",
-            "order": 61
+            "order": 62
           }
         },
         "browser:installed": {
@@ -885,7 +885,7 @@
               }
             ],
             "unsetlabel": "First one found",
-            "order": 57
+            "order": 58
           }
         },
         "browser:default": {
@@ -908,7 +908,7 @@
               }
             ],
             "unsetlabel": "Ask for each site",
-            "order": 56
+            "order": 57
           }
         },
         "browser:sites": {
@@ -923,7 +923,7 @@
             "label": "Per-site browser",
             "description": "Sites that always open in MoltenTerm's browser or the installed one.",
             "control": "json",
-            "order": 59
+            "order": 60
           }
         },
         "browser:agentsites": {
@@ -938,7 +938,7 @@
             "label": "Agent site permissions",
             "description": "Sites agents may use or are blocked from in the browser panel.",
             "control": "json",
-            "order": 64
+            "order": 65
           }
         },
         "browser:sitepermissions": {
@@ -956,42 +956,42 @@
             "label": "Site permissions",
             "description": "What each site may use: camera, microphone, location, notifications.",
             "control": "json",
-            "order": 65
+            "order": 66
           }
         },
         "autoupdate:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 117
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 123
+            "order": 124
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 124
+            "order": 125
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 125
+            "order": 126
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 126
+            "order": 127
           }
         },
         "markdown:fontsize": {
@@ -1009,7 +1009,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 32
+            "order": 33
           }
         },
         "markdown:fixedfontsize": {
@@ -1027,7 +1027,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 33
+            "order": 34
           }
         },
         "preview:showhiddenfiles": {
@@ -1078,7 +1078,7 @@
             "label": "Tab preset",
             "description": "The preset new tabs start from.",
             "control": "text",
-            "order": 79
+            "order": 80
           }
         },
         "tab:confirmclose": {
@@ -1102,7 +1102,7 @@
             "label": "Tab background",
             "description": "The background new tabs get, from backgrounds.json.",
             "control": "text",
-            "order": 80
+            "order": 81
           }
         },
         "tab:holdtoclose": {
@@ -1172,7 +1172,7 @@
           "description": "Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back",
           "x-moltenterm": {
             "hidden": true,
-            "order": 130
+            "order": 131
           }
         },
         "app:newviewopen": {
@@ -1221,7 +1221,7 @@
             "description": "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them.",
             "control": "toggle",
             "default": true,
-            "order": 86
+            "order": 87
           }
         },
         "moltenterm:tabviewbudget": {
@@ -1234,7 +1234,7 @@
             "description": "Workspaces not on screen are hidden and only the most recent stay loaded; others reload when shown.",
             "control": "toggle",
             "default": true,
-            "order": 87
+            "order": 88
           }
         },
         "moltenterm:hiddentabviews": {
@@ -1254,7 +1254,7 @@
               "step": 1
             },
             "default": 3,
-            "order": 88
+            "order": 89
           }
         },
         "moltenterm:hiddentabviewsmb": {
@@ -1275,7 +1275,7 @@
             },
             "unit": "MB",
             "default": 1200,
-            "order": 89
+            "order": 90
           }
         },
         "moltenterm:tabviewhost": {
@@ -1288,7 +1288,7 @@
             "description": "A new tab replaces the one on screen once it has rendered, with a pending state if it is slow.",
             "control": "toggle",
             "default": true,
-            "order": 90
+            "order": 91
           }
         },
         "moltenterm:hiddenpagefreeze": {
@@ -1301,7 +1301,7 @@
             "description": "A page not on screen stops running until shown, unless an agent drives it or it plays audio.",
             "control": "toggle",
             "default": true,
-            "order": 62
+            "order": 63
           }
         },
         "moltenterm:hiddenpagediscardmin": {
@@ -1322,7 +1322,7 @@
             },
             "unit": "min",
             "default": 10,
-            "order": 63
+            "order": 64
           }
         },
         "moltenterm:releasenotify": {
@@ -1359,6 +1359,18 @@
             "description": "Closing a pane or a tab in which an agent or a command runs asks first and names what would stop.",
             "control": "toggle",
             "order": 3
+          }
+        },
+        "moltenterm:sidebartint": {
+          "type": "boolean",
+          "description": "Tint the sidebar with the workspace's colour. Off: the sidebar is the same warm grey in every workspace, and the workspace colour shows only on its place cues (the strip at the top of the sidebar, the bar beside its name, the active view's underline and its dot)",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Tint the sidebar",
+            "description": "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks.",
+            "control": "toggle",
+            "order": 24
           }
         },
         "moltenterm:view360": {
@@ -1415,7 +1427,7 @@
                 "label": "Off"
               }
             ],
-            "order": 112
+            "order": 113
           }
         },
         "moltenterm:codingagent": {
@@ -1442,28 +1454,28 @@
               }
             ],
             "unsetlabel": "The first installed",
-            "order": 111
+            "order": 112
           }
         },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 117
+            "order": 118
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 128
+            "order": 129
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 118
+            "order": 119
           }
         },
         "window:fullscreenonlaunch": {
@@ -1487,7 +1499,7 @@
             "label": "Transparent window",
             "description": "Let the desktop show through the window's background.",
             "control": "toggle",
-            "order": 25
+            "order": 26
           }
         },
         "window:blur": {
@@ -1499,7 +1511,7 @@
             "label": "Blur behind the window",
             "description": "Blur the desktop behind a transparent window.",
             "control": "toggle",
-            "order": 26
+            "order": 27
           }
         },
         "window:opacity": {
@@ -1517,7 +1529,7 @@
               "step": 0.05
             },
             "default": 0.8,
-            "order": 27
+            "order": 28
           }
         },
         "window:bgcolor": {
@@ -1529,7 +1541,7 @@
             "label": "Window background",
             "description": "A CSS colour behind the panels, such as #1f1f1f.",
             "control": "text",
-            "order": 28
+            "order": 29
           }
         },
         "window:reducedmotion": {
@@ -1559,7 +1571,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 24
+            "order": 25
           }
         },
         "window:showmenubar": {
@@ -1572,7 +1584,7 @@
             "description": "Show the menu bar in the window.",
             "control": "toggle",
             "platform": "linux,windows",
-            "order": 82
+            "order": 83
           }
         },
         "window:nativetitlebar": {
@@ -1585,7 +1597,7 @@
             "description": "Use the system's title bar.",
             "control": "toggle",
             "platform": "linux,windows",
-            "order": 81
+            "order": 82
           }
         },
         "window:disablehardwareacceleration": {
@@ -1597,7 +1609,7 @@
             "label": "No hardware acceleration",
             "description": "Draw without the GPU; takes effect at the next launch.",
             "control": "toggle",
-            "order": 84
+            "order": 85
           }
         },
         "window:maxtabcachesize": {
@@ -1614,7 +1626,7 @@
               "max": 50,
               "step": 1
             },
-            "order": 85
+            "order": 86
           }
         },
         "window:magnifiedblockopacity": {
@@ -1631,7 +1643,7 @@
               "max": 1,
               "step": 0.05
             },
-            "order": 30
+            "order": 31
           }
         },
         "window:magnifiedblocksize": {
@@ -1648,7 +1660,7 @@
               "max": 1,
               "step": 0.05
             },
-            "order": 29
+            "order": 30
           }
         },
         "window:magnifiedblockblurprimarypx": {
@@ -1666,7 +1678,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 91
+            "order": 92
           }
         },
         "window:magnifiedblockblursecondarypx": {
@@ -1684,7 +1696,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 92
+            "order": 93
           }
         },
         "window:confirmclose": {
@@ -1720,7 +1732,7 @@
             "label": "New window size",
             "description": "The size of new windows, such as 1400x900.",
             "control": "text",
-            "order": 93
+            "order": 94
           }
         },
         "window:zoom": {
@@ -1738,28 +1750,28 @@
               "step": 0.1
             },
             "default": 1,
-            "order": 83
+            "order": 84
           }
         },
         "telemetry:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 119
+            "order": 120
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 127
+            "order": 128
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 120
+            "order": 121
           }
         },
         "conn:askbeforewshinstall": {
@@ -1771,7 +1783,7 @@
             "label": "Ask before installing it",
             "description": "Ask before installing the helper on a new host.",
             "control": "toggle",
-            "order": 52
+            "order": 53
           }
         },
         "conn:wshenabled": {
@@ -1783,7 +1795,7 @@
             "label": "Shell integration on remotes",
             "description": "Install MoltenTerm's helper on SSH hosts, for file views and folder tracking.",
             "control": "toggle",
-            "order": 51
+            "order": 52
           }
         },
         "conn:localhostdisplayname": {
@@ -1795,14 +1807,14 @@
             "label": "Name of this computer",
             "description": "How the local connection is named in headers and menus.",
             "control": "text",
-            "order": 53
+            "order": 54
           }
         },
         "debug:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 121
+            "order": 122
           }
         },
         "debug:pprofport": {
@@ -1819,7 +1831,7 @@
               "max": 65535,
               "step": 1
             },
-            "order": 97
+            "order": 98
           }
         },
         "debug:pprofmemprofilerate": {
@@ -1836,7 +1848,7 @@
               "max": 1048576,
               "step": 1
             },
-            "order": 98
+            "order": 99
           }
         },
         "debug:webglstatus": {
@@ -1848,14 +1860,14 @@
             "label": "WebGL status",
             "description": "Show whether each terminal draws with WebGL.",
             "control": "toggle",
-            "order": 99
+            "order": 100
           }
         },
         "tsunami:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 122
+            "order": 123
           }
         },
         "tsunami:scaffoldpath": {
@@ -1867,7 +1879,7 @@
             "label": "Scaffold path",
             "description": "Where the app builder's scaffold lives.",
             "control": "path",
-            "order": 100
+            "order": 101
           }
         },
         "tsunami:sdkreplacepath": {
@@ -1879,7 +1891,7 @@
             "label": "SDK replace path",
             "description": "A local SDK used in place of the published one.",
             "control": "path",
-            "order": 101
+            "order": 102
           }
         },
         "tsunami:sdkversion": {
@@ -1891,7 +1903,7 @@
             "label": "SDK version",
             "description": "The SDK version apps build against.",
             "control": "text",
-            "order": 102
+            "order": 103
           }
         },
         "tsunami:gopath": {
@@ -1903,7 +1915,7 @@
             "label": "Go binary",
             "description": "The Go binary apps build with.",
             "control": "path",
-            "order": 103
+            "order": 104
           }
         }
       },

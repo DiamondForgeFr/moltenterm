@@ -20,8 +20,8 @@ const WaveColours = [
     ...(/var WorkspaceColors = \[\.\.\.\]string\{([^}]*)\}/.exec(WorkspaceGo)?.[1] ?? "").matchAll(/"([^"]+)"/g),
 ].map((m) => m[1].toLowerCase());
 
-// The dark theme's panel (moltenterm-shell.css, --mt-neutral-bg with no accent).
-const DarkPanel = parseColor("rgb(31, 31, 31)");
+// The window and sidebar's cast iron (tokens.css --mt-surface-0, FR-SHELL-115), where a workspace's dot is drawn.
+const DarkPanel = parseColor("#141210");
 
 describe("preset colours (#657 AC2)", () => {
     it("offers about 24 distinct colours, wavesrv's among them", () => {

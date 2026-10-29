@@ -1007,6 +1007,10 @@
                 "label": "Réduire les animations",
                 "description": "Couper les animations, comme le fait le réglage de réduction des animations du système."
             },
+            "moltenterm:sidebartint": {
+                "label": "Teinter la barre latérale",
+                "description": "La barre latérale prend la couleur de l'espace de travail. Désactivé, la couleur ne marque que les repères de lieu."
+            },
             "window:tilegapsize": {
                 "label": "Espace entre les panneaux",
                 "description": "L'espace entre les panneaux d'une vue."

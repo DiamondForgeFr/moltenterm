@@ -57,15 +57,14 @@ export function lookNote(shown: ShownLook): string {
     return null;
 }
 
-// A choice's tile: the workspace's frame tint with the texture as the window would draw it. Over a see-through frame
-// the ink is dark, so the tile lays the tint over a mid grey standing for what is behind.
-function textureTileStyle(kind: TextureKind, look: WindowLook, drawn: WindowLook, colour: string): React.CSSProperties {
+// A choice's tile: the window's cast-iron frame (FR-SHELL-115) with the texture as the window would draw it. Over a
+// see-through frame the ink is dark, so the tile lays the frame over a mid grey standing for what is behind.
+function textureTileStyle(kind: TextureKind, look: WindowLook, drawn: WindowLook): React.CSSProperties {
     const translucent = isTranslucent(drawn);
-    const base = colour || "var(--mt-place)";
-    const tint = `color-mix(in srgb, ${base} 18%, rgb(20 17 16))`;
+    const frame = "var(--mt-surface-0)";
     const backgroundColor = translucent
-        ? `color-mix(in srgb, ${tint} ${Math.round(drawn.opacity * 100)}%, rgb(150 150 150))`
-        : tint;
+        ? `color-mix(in srgb, ${frame} ${Math.round(drawn.opacity * 100)}%, rgb(150 150 150))`
+        : frame;
     const texture = textureBackground(kind, look.intensity, textureTone(drawn));
     return texture == null
         ? { backgroundColor }
@@ -74,12 +73,10 @@ function textureTileStyle(kind: TextureKind, look: WindowLook, drawn: WindowLook
 
 export function TextureControl({
     shown,
-    colour,
     onLook,
     onCommit,
 }: {
     shown: ShownLook;
-    colour: string;
     onLook: (look: WindowLook) => void;
     onCommit: () => void;
 }) {
@@ -137,7 +134,7 @@ export function TextureControl({
                                     "block h-7 w-11 rounded-4 border border-border",
                                     checked && "ring-2 ring-primary ring-offset-2 ring-offset-modalbg"
                                 )}
-                                style={textureTileStyle(kind, look, shown.drawn, colour)}
+                                style={textureTileStyle(kind, look, shown.drawn)}
                             />
                             {t(`workspace.look.textures.${kind}`)}
                         </button>
@@ -177,15 +174,12 @@ export function TextureControl({
 export function OpacityControl({
     shown,
     hasProject,
-    colour,
     onLook,
     onCommit,
     onScope,
 }: {
     shown: ShownLook;
     hasProject: boolean;
-    // The edited workspace's colour, for the texture tiles' tint.
-    colour?: string;
     onLook: (look: WindowLook) => void;
     onCommit: () => void;
     onScope: (scope: LookScope) => void;
@@ -240,7 +234,7 @@ export function OpacityControl({
                     {t("workspace.look.blur")}
                 </button>
             </div>
-            <TextureControl shown={shown} colour={colour} onLook={onLook} onCommit={onCommit} />
+            <TextureControl shown={shown} onLook={onLook} onCommit={onCommit} />
             <div className="flex flex-wrap items-center justify-end gap-2">
                 {hasProject ? (
                     <ToggleGroup<LookScope>
@@ -296,7 +290,6 @@ export function OpacityField({ ws }: { ws: Workspace }) {
         <OpacityControl
             shown={shown}
             hasProject={readWorkspaceProject(ws).dir !== ""}
-            colour={ws.color}
             onLook={onLook}
             onCommit={save}
             onScope={onScope}

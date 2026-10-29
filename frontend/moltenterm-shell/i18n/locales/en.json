@@ -874,6 +874,10 @@
                 "label": "Reduce motion",
                 "description": "Turn off animations, as the system's reduced motion setting does."
             },
+            "moltenterm:sidebartint": {
+                "label": "Tint the sidebar",
+                "description": "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks."
+            },
             "window:tilegapsize": {
                 "label": "Gap between panels",
                 "description": "The space between the panels of a view."

@@ -40,7 +40,8 @@
     clip-path: inset(0 calc(var(--tv-clear-w, 0px) + 6px) 0 0);
 }
 
-/* Small and dimmed, only while the pointer is over the sidebar. */
+/* Small and discreet (the text-3 token, never an opacity on text, FR-SHELL-115), only while the pointer is over the
+   sidebar. */
 .mt-sb-tv-clear {
     position: absolute;
     top: 50%;
@@ -54,12 +55,8 @@
 
 .mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear,
 .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:focus-visible {
-    opacity: 0.6;
-    transform: translate(0, -50%);
-}
-
-.mt-sb:hover .mt-sb-tv-sep[data-shown="true"] .mt-sb-tv-clear:hover {
     opacity: 1;
+    transform: translate(0, -50%);
 }
 
 .mt-sb-tv [data-tv-motion="in"] {
