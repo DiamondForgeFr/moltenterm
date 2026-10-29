@@ -10,9 +10,9 @@
 import type { WebviewTag } from "electron";
 import { canScrollX, SwipeWheelChannel, SwipeWheelMessage } from "../view360/carpet-wheel";
 import {
+    absorbGapMs,
     arrivedSwipeState,
     CreatePageSides,
-    FreshTouchGapMs,
     heldRaw,
     initialSwipeState,
     LibrarySides,
@@ -24,6 +24,7 @@ import {
     swipeLook,
     SwipeLook,
     swipeOffset,
+    swipeReleaseAt,
     SwipeResult,
     SwipeSettle,
     SwipeSides,
@@ -39,6 +40,8 @@ import type { SwitchIntent, SwitchSwipe } from "./sidebar-switch";
 export const ContentIntentRatio = 2;
 // A switch the main process refused (the developer kept the workspace) leaves this view on screen: it comes back.
 const SwitchGiveUpMs = 1500;
+// The ring's completion pulse lasts 260 ms (sidebar.css .mt-sb-pull.is-done); past this it is cleared anyway.
+const PulseFallbackMs = 600;
 
 export type SwipePlace = "sidebar" | "library" | "content";
 
@@ -234,7 +237,7 @@ export class SidebarSwipeController {
 
     private absorbing(at: number): boolean {
         const a = this.state.absorb;
-        return a != null && at - a.lastAt <= FreshTouchGapMs;
+        return a != null && at - a.lastAt <= absorbGapMs(a);
     }
 
     private apply(r: SwipeResult) {
@@ -247,7 +250,11 @@ export class SidebarSwipeController {
         }
         clearTimeout(this.releaseTimer);
         if (this.state.phase === "tracking") {
-            this.releaseTimer = setTimeout(() => this.tick(), ReleaseGapMs + 4);
+            // Wake when the release falls due (a slow stroke holds longer than a committing one); a held pull is
+            // checked every ReleaseGapMs while it drains.
+            const due = this.gesture == null ? null : swipeReleaseAt(this.state, this.gesture.ctx);
+            const wait = due == null ? ReleaseGapMs : Math.max(0, due - performance.now());
+            this.releaseTimer = setTimeout(() => this.tick(), wait + 4);
         }
         if (this.state.phase === "idle") {
             this.finish();
@@ -293,6 +300,7 @@ export class SidebarSwipeController {
         }
         if (settle.kind === "pull") {
             this.clearStyles();
+            this.pulse(side);
             this.state = { ...this.state, phase: "idle", settle: null };
             if (side < 0) {
                 this.actions.openLibrary();
@@ -344,6 +352,32 @@ export class SidebarSwipeController {
                           lastAt: absorb.lastAt - performance.now() + Date.now(),
                       },
         });
+    }
+
+    // The full ring swells and fades as its page opens (#1312): the pull opens while the fingers still move, and this
+    // marks the moment, like a haptic tick.
+    private pulse(side: -1 | 1) {
+        const pull = this.view.pull(side);
+        if (pull == null || this.view.reduced()) {
+            return;
+        }
+        const halves = Array.from(pull.querySelectorAll<HTMLElement>(".mt-sb-ring-half > i"));
+        const turns = ringTurns(1);
+        halves.forEach((half, i) => {
+            half.style.transform = `rotate(${i === 0 ? turns.right : turns.left}deg)`;
+        });
+        const done = () => {
+            clearTimeout(fallback);
+            pull.removeEventListener("animationend", done);
+            pull.classList.remove("is-done");
+            if (!this.moved.has(pull)) {
+                halves.forEach((half) => (half.style.transform = ""));
+            }
+        };
+        // animationend never comes when the badge is hidden mid-animation.
+        const fallback = setTimeout(done, PulseFallbackMs);
+        pull.addEventListener("animationend", done);
+        pull.classList.add("is-done");
     }
 
     // A touch phase source's signals (#1261): the fingers went down on the trackpad, or lifted. Nothing calls them yet;
