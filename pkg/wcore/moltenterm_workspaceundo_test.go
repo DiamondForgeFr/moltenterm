@@ -196,3 +196,56 @@ func TestUndoOfferEnds(t *testing.T) {
 		t.Fatal("no undo after the undo window")
 	}
 }
+
+func TestUndoDeleteKeepsTheSidebarPlace(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	if _, err := wstore.DBGetSingleton[*waveobj.Client](ctx); err != nil {
+		if err := wstore.DBInsert(ctx, &waveobj.Client{OID: "client-1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws := makeUndoWorkspace(t, ctx)
+	before, err := CreateWorkspace(ctx, "Before", "star", "#000001", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := CreateWorkspace(ctx, "After", "star", "#000002", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No order stored yet (the user never moved a workspace): the list is in creation order, so a workspace made
+	// again would come last.
+	var want []string
+	listed, err := ListWorkspaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range listed {
+		want = append(want, entry.WorkspaceId)
+	}
+	if len(want) != 3 || want[len(want)-1] == ws.OID {
+		t.Fatalf("the deleted workspace is not the last one: %v (%s %s)", want, before.OID, after.OID)
+	}
+	undoId, err := CaptureWorkspaceUndo(ctx, ws.OID, WorkspaceUndoKindDelete, "win-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := DeleteWorkspace(ctx, ws.OID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RestoreWorkspaceUndo(ctx, undoId); err != nil {
+		t.Fatal(err)
+	}
+	list, err := ListWorkspaces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, entry := range list {
+		got = append(got, entry.WorkspaceId)
+	}
+	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("back at its place in the sidebar: got %v, want %v", got, want)
+	}
+}

@@ -4719,6 +4719,8 @@
             },
             "lossTabs": "Ses {tabs} seront fermées.",
             "lossTabsPanes": "Ses {tabs} et leurs {panes} seront fermés ; les terminaux et les agents s'arrêtent.",
+            "lossOneTab": "Sa vue sera fermée.",
+            "lossOneTabPanes": "Sa vue et ses {panes} seront fermés ; les terminaux et les agents s'arrêtent.",
             "unsaved": "Espace de travail non enregistré",
             "title": "Réinitialiser l'espace de travail « {name} » ?",
             "subtitle": "C'est votre seul espace de travail : il est réinitialisé plutôt que supprimé.",

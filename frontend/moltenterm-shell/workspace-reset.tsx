@@ -36,7 +36,7 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 // Calm and red-bordered, without the molten wave: only molten actions carry it (#1318, decision 9).
 const DangerButton =
-    "cursor-pointer rounded-6 border border-error/60 px-3 py-1.5 text-12 text-error hover:border-error hover:bg-error/10";
+    "cursor-pointer rounded-6 border border-error/60 px-3 py-1.5 text-12 text-danger hover:border-error hover:bg-error/10";
 
 type WorkspaceActionRequest = {
     kind: WorkspaceActionKind;

@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -69,6 +70,8 @@ type workspaceUndoEntry struct {
 	tabs        []reopen.Tab
 	activeIndex int
 	iconFiles   []workspaceUndoIcon
+	railIndex   int
+	railNext    string
 }
 
 type workspaceUndoStore struct {
@@ -196,6 +199,7 @@ func CaptureWorkspaceUndo(ctx context.Context, workspaceId string, kind string, 
 		icon:        ws.Icon,
 		color:       ws.Color,
 		meta:        reopen.CleanMeta(ws.Meta),
+		railIndex:   -1,
 	}
 	for _, tabId := range ws.TabIds {
 		tab, ok := captureUndoTab(ctx, tabId)
@@ -212,8 +216,34 @@ func CaptureWorkspaceUndo(ctx context.Context, workspaceId string, kind string, 
 			return captureUndoIconFiles(ws.OID), nil
 		})
 	}
+	if rail, err := ReadRail(ctx); err == nil {
+		e.railIndex = slices.Index(rail.Order, ws.OID)
+		if e.railIndex >= 0 && e.railIndex+1 < len(rail.Order) {
+			e.railNext = rail.Order[e.railIndex+1]
+		}
+	}
 	workspaceUndos.put(e)
 	return e.id, nil
+}
+
+// restoreUndoRailPlace puts a workspace made again back at its place in the sidebar: before the workspace that
+// followed it, else at its old index. Its local group, if it had one, is not restored.
+func restoreUndoRailPlace(ctx context.Context, e *workspaceUndoEntry) {
+	if e.railIndex < 0 {
+		return
+	}
+	_, err := ApplyRail(ctx, func(r railorder.Rail) (railorder.Rail, error) {
+		ids := slices.DeleteFunc(slices.Clone(r.Order), func(id string) bool { return id == e.workspaceId })
+		pos := slices.Index(ids, e.railNext)
+		if pos < 0 {
+			pos = min(e.railIndex, len(ids))
+		}
+		r.Order = slices.Insert(ids, pos, e.workspaceId)
+		return r, nil
+	})
+	if err != nil {
+		log.Printf("molten: undo, putting workspace %q back at its place: %v\n", e.workspaceId, err)
+	}
 }
 
 func PendingWorkspaceUndo(windowId string) *WorkspaceUndoOffer {
@@ -293,6 +323,7 @@ func RestoreWorkspaceUndo(ctx context.Context, undoId string) (*WorkspaceUndoRes
 			return nil, fmt.Errorf("making the workspace again: %w", err)
 		}
 		restoreUndoIconFiles(e.iconFiles)
+		restoreUndoRailPlace(ctx, e)
 	} else {
 		rtn.ClosedTabIds = slices.Clone(existing.TabIds)
 	}
