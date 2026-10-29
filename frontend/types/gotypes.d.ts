@@ -2230,6 +2230,23 @@ declare global {
         windowid: string;
     };
 
+    // wcore.WorkspaceUndoOffer
+    type WorkspaceUndoOffer = {
+        undoid: string;
+        kind: string;
+        workspaceid: string;
+        name: string;
+        remainingms: number;
+    };
+
+    // wcore.WorkspaceUndoResult
+    type WorkspaceUndoResult = {
+        kind: string;
+        workspaceid: string;
+        activetabid?: string;
+        closedtabids?: string[];
+    };
+
     // wshrpc.WshServerCommandMeta
     type WshServerCommandMeta = {
         commandtype: string;

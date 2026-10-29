@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The four closes Electron main decides, asked like FR-SHELL-061 (FR-SHELL-062, DS-SHELL-109): which renderer asks,
+// The closes Electron main decides, asked like FR-SHELL-061 (FR-SHELL-062, DS-SHELL-109): which renderer asks,
 // what the action stops, and bringing a minimised or hidden window forward when its renderer has to ask. Called from
-// the window's close handler, switchWorkspace and delete-workspace (emain/emain-window.ts) and before-quit
-// (emain/emain.ts).
+// the window's close handler and switchWorkspace (emain/emain-window.ts) and before-quit
+// (emain/emain.ts). A workspace delete asks in the renderer's own dialog since #1324 (workspace-reset.tsx).
 
 import { WorkspaceService } from "@/app/store/services";
 import { app } from "electron";
@@ -13,7 +13,6 @@ import { unamePlatform } from "./emain-platform";
 import type { WaveBrowserWindow } from "./emain-window";
 import { askBusyStop, askOncePerAction, BusyAskTarget } from "./moltenterm-busy-close";
 import {
-    BusyAskKindDelete,
     BusyAskKindQuit,
     BusyAskKindSwitch,
     BusyAskKindWindow,
@@ -92,19 +91,6 @@ export async function askSwitchStops(
         askBusyStop(windowTarget(win), BusyAskKindSwitch, stops, { onAsking: () => bringForward(win) })
     );
     return outcome !== BusyOutcomeCancel;
-}
-
-// Asked in the renderer that asked for the delete (the rail, the edit sheet or the workspace switcher).
-export async function askDeleteStops(sender: BusyAskTarget, workspaceId: string): Promise<string> {
-    const workspace = await readWorkspace(workspaceId);
-    return askOncePerAction(`delete:${workspaceId}`, () =>
-        askBusyStop(
-            sender,
-            BusyAskKindDelete,
-            { stopworkspaceids: [workspaceId], quit: false },
-            { name: workspace?.name }
-        )
-    );
 }
 
 export async function askQuitStops(windows: WaveBrowserWindow[], focused: WaveBrowserWindow): Promise<string> {

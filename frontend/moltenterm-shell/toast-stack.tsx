@@ -27,7 +27,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     const [running, setRunning] = useState<string>(null);
     const [held, setHeld] = useState(false);
     const [thumbFailed, setThumbFailed] = useState(false);
-    const remaining = useRef(ToastDismissMs);
+    const remaining = useRef(toast.dismissMs ?? ToastDismissMs);
     const started = useRef(0);
 
     // The countdown restarts where it stopped: a toast pointed at for a while still gets the rest of its time.

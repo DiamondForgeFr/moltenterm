@@ -69,7 +69,7 @@ import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-o
 import { readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "../workspace-rail-model";
-import { askResetWorkspace } from "../workspace-reset";
+import { askDeleteWorkspace, askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
@@ -342,7 +342,7 @@ function baseWorkspaceMenuItems(
         remove: {
             enabled: canCloseWorkspace(entries, entry.id),
             reason: lastWorkspaceReason(),
-            onDelete: () => getApi().deleteWorkspace(entry.id),
+            onDelete: () => askDeleteWorkspace(entry.id),
         },
     });
 }
@@ -2276,7 +2276,7 @@ function useWorkspaceMenu(workspaces: SidebarWorkspaces) {
                 remove: {
                     enabled: canCloseWorkspace(workspaces.entries, id),
                     reason: lastWorkspaceReason(),
-                    onDelete: () => getApi().deleteWorkspace(id),
+                    onDelete: () => askDeleteWorkspace(id),
                 },
             },
             t

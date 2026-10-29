@@ -53,7 +53,7 @@ import {
     setWorkspaceGradient,
     setWorkspaceLogo,
 } from "./workspace-project-store";
-import { askResetWorkspace } from "./workspace-reset";
+import { askDeleteWorkspace, askResetWorkspace } from "./workspace-reset";
 
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
@@ -1083,11 +1083,11 @@ export function ColourField({
 export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closable: boolean; onClose: () => void }) {
     const t = useT();
     const action = dangerAction(closable);
-    // The sheet closes first: Delete asks in a native box, Reset in its own dialog (#222).
+    // The sheet closes first: Delete and Reset ask in the same dialog (#222, #1324).
     const run = () => {
         onClose();
         if (action.kind === "delete") {
-            getApi().deleteWorkspace(ws.oid);
+            askDeleteWorkspace(ws.oid);
         } else {
             askResetWorkspace(ws.oid);
         }

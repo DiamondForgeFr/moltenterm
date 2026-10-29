@@ -144,6 +144,7 @@ declare global {
         switchWorkspace: (workspaceId: string) => void; // switch-workspace
         deleteWorkspace: (workspaceId: string) => void; // delete-workspace
         resetWorkspace: (workspaceId: string) => void; // reset-workspace (MOLTENTERM-PATCH #222)
+        undoWorkspace: (undoId: string, workspaceId: string) => void; // undo-workspace (MOLTENTERM-PATCH #1324)
         setActiveTab: (tabId: string) => void; // set-active-tab
         createTab: (blockDef?: BlockDef) => void; // create-tab (MOLTENTERM-PATCH #1232: a new view may start with a given block)
         closeTab: (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>; // close-tab

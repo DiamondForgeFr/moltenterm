@@ -63,6 +63,11 @@ export type WindowAction =
           // the window shows its active tab again, its view recreated if needed, after the view on screen went or
           // drifted from the window's state (#1250)
           op: "showactivetab";
+      }
+    | {
+          // undo after a reset or a delete (FR-SHELL-095, #1324)
+          op: "undoworkspace";
+          undoId: string;
       };
 
 // The backend's window can be ahead of the workspace on screen (workspaceId) while a switch is running or after one was
@@ -206,6 +211,21 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
             tabViewsToClose = resetWs?.tabids ?? [];
             break;
         }
+        case "undoworkspace": {
+            // A reset workspace on screen gets its views back as a reset does, the fresh view's closing once they are
+            // shown; a deleted one comes back and the window switches to it.
+            const rtn = await WorkspaceService.RestoreWorkspaceUndo(entry.undoId);
+            if (rtn == null) {
+                return;
+            }
+            if (rtn.workspaceid != win.workspaceId) {
+                await runSwitchWorkspace(win, rtn.workspaceid, run);
+                return;
+            }
+            tabId = rtn.activetabid;
+            tabViewsToClose = rtn.closedtabids ?? [];
+            break;
+        }
     }
     if (tabId == null) {
         return;
@@ -246,7 +266,7 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
                 windowViewPending(win).end(tabPending);
             }
         }
-        if (entry.op === "closetab" || entry.op === "resetworkspace") {
+        if (entry.op === "closetab" || entry.op === "resetworkspace" || entry.op === "undoworkspace") {
             sweepDeletedTabViews(entry.op === "closetab" ? "tab closed" : "workspace reset");
         }
         throw e;

@@ -98,10 +98,6 @@
             "message": "Voulez-vous vraiment fermer cet onglet ?",
             "button": "Fermer l'onglet"
         },
-        "deleteWorkspace": {
-            "message": "Supprimer l'espace de travail supprime aussi son contenu.\n\nContinuer ?",
-            "button": "Supprimer l'espace de travail"
-        },
         "saveScrollback": {
             "title": "Enregistrer l'historique",
             "filter": "Fichiers texte"
@@ -4714,21 +4710,31 @@
         "reset": {
             "lastReason": "Le seul espace de travail : réinitialisez-le plutôt",
             "tabs": {
-                "one": "{count} onglet",
-                "other": "{count} onglets"
+                "one": "{count} vue",
+                "other": "{count} vues"
             },
             "panes": {
                 "one": "{count} panneau",
                 "other": "{count} panneaux"
             },
-            "lossTabs": "Ses {tabs} seront fermés.",
-            "lossTabsPanes": "Ses {tabs} et les {panes} qu'ils contiennent seront fermés : leurs terminaux et agents s'arrêtent et la disposition est perdue.",
+            "lossTabs": "Ses {tabs} seront fermées.",
+            "lossTabsPanes": "Ses {tabs} et leurs {panes} seront fermés ; les terminaux et les agents s'arrêtent.",
             "unsaved": "Espace de travail non enregistré",
             "title": "Réinitialiser l'espace de travail « {name} » ?",
             "subtitle": "C'est votre seul espace de travail : il est réinitialisé plutôt que supprimé.",
             "button": "Réinitialiser l'espace de travail",
             "stops": "La réinitialisation arrête :",
-            "kept": "L'espace de travail repart avec un nouvel onglet. Son nom, son icône, sa couleur et son lien de projet sont conservés."
+            "kept": "L'espace de travail repart avec une nouvelle vue. Son nom, son icône, sa couleur et son lien de projet sont conservés.",
+            "undoNote": "Vous pouvez annuler pendant 10 secondes : l'espace de travail revient avec ses vues, mais ce qui a été arrêté ne redémarre pas.",
+            "toastReset": "Espace de travail « {name} » réinitialisé",
+            "toastDeleted": "Espace de travail « {name} » supprimé",
+            "undo": "Annuler",
+            "tooLate": "Trop tard pour annuler : l'espace de travail ne peut plus être rétabli."
+        },
+        "delete": {
+            "title": "Supprimer l'espace de travail « {name} » ?",
+            "button": "Supprimer l'espace de travail",
+            "stops": "La suppression arrête :"
         },
         "link": {
             "title": "Lier cet espace de travail à {name} ?",
