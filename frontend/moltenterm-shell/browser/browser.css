@@ -61,7 +61,7 @@
 }
 
 .molten-browser-tab .fa-triangle-exclamation.molten-browser-tab-icon {
-    color: var(--mt-state-waiting);
+    color: var(--mt-state-warning);
 }
 
 body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-inner,

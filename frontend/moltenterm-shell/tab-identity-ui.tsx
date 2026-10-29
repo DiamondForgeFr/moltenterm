@@ -175,7 +175,7 @@ export function TabAgentMark({ info }: { info: AgentStateInfo }) {
     const title = agentMarkTitle(info);
     return (
         <span
-            className={cn("molten-tab-dot", working && "mt-beat-blink")}
+            className={cn("molten-tab-dot", working && "mt-beat-turn")}
             data-state={info.state}
             role="img"
             aria-label={title}

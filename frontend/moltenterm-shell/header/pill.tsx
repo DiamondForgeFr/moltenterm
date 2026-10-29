@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The one Pill of MoltenTerm's headers (FR-SHELL-052, DS-SHELL-093): 20 px high, radius 6, 11/500, tones neutral,
-// warning and danger, an optional 6 px dot and an optional trailing action. It replaces the header's label styles
-// (agent label, tree chip, offers, the durable shield). The header is the panel's drag handle: the pill's buttons
+// warning, waiting (an agent waits on you, FR-SHELL-116) and danger, an optional 6 px dot shaped by its tone's state
+// and an optional trailing action. It replaces the header's label styles (agent label, tree chip, offers, the durable
+// shield). The header is the panel's drag handle: the pill's buttons
 // keep the pointer to themselves.
 
 import { cn, makeIconClass } from "@/util/util";

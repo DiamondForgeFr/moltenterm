@@ -85,7 +85,7 @@ export function SignInRefusalBar({ signIn, tabId, browserName, onContinue }: Sig
             role="alert"
             className="molten-browser-signin flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
-            <i className="fa fa-solid fa-triangle-exclamation shrink-0 text-[var(--mt-state-waiting)]" />
+            <i className="fa fa-solid fa-triangle-exclamation shrink-0 text-[var(--mt-state-warning)]" />
             <span className="min-w-0 flex-1 text-primary">
                 {t("browser.signin.refused", { provider: bar.label })}
                 <span className="text-secondary">

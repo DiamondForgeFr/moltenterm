@@ -156,13 +156,16 @@ export function agentStateLabel(state: string): string {
     return state ?? "";
 }
 
-// The dot's colour per state, as class strings (the theme's tokens). Working is a ring, like the tab's mark, so it
-// stays apart from waiting's filled amber dot when it stands still (#473: the dot no longer pulses on its own).
+// The dot's colour and shape per state, as class strings (the heat tokens, FR-SHELL-116). Working is an incandescent
+// 270° arc, like the tab's mark, which turns on the working beat and stays apart from waiting's haloed violet dot when
+// it stands still (#473: the dot has no animation of its own).
 export const AgentStateDotClasses: Record<string, string> = {
-    waiting: "bg-warning",
-    error: "bg-error",
-    working: "border-2 border-[var(--mt-state-working)]",
-    done: "bg-success",
+    waiting:
+        "bg-[var(--mt-state-waiting)] shadow-[0_0_0_2px_color-mix(in_srgb,var(--mt-state-waiting)_30%,transparent)]",
+    error: "rounded-none rotate-45 scale-[0.82] bg-[var(--mt-state-blocked)]",
+    working:
+        "border-2 border-[var(--mt-state-running)] border-r-[color-mix(in_srgb,var(--mt-state-running)_25%,transparent)]",
+    done: "bg-[var(--mt-state-ready)]",
     idle: "bg-secondary",
 };
 

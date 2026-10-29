@@ -35,8 +35,11 @@ function readHighlights(selector: string): Record<string, Recipe> {
     return recipes;
 }
 
+const tokensCss = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+
+// A state token (FR-SHELL-116) is a hex value of tokens.css.
 function shellToken(token: string): Rgb {
-    return parseColor(new RegExp(`${token}:\\s*(rgb\\([^)]*\\));`).exec(shellCss)?.[1]);
+    return parseColor(new RegExp(`${token}:\\s*(#[0-9a-f]{6});`).exec(tokensCss)?.[1]);
 }
 
 // The action tokens (#1319) are hex values.
@@ -93,10 +96,7 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
         });
     });
 
-    describe.each([
-        [".molten-btn-destructive", "#ffffff"],
-        [".molten-btn-warning", "#000000"],
-    ])("%s", (selector, wantFg) => {
+    describe.each([[".molten-btn-warning", "#000000"]])("%s", (selector, wantFg) => {
         const base = variantBase(selector);
         const fg = cssValue(selector, "--molten-fg");
         const highlights = { ...Highlights, ...readHighlights(selector) };
@@ -115,12 +115,12 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
         );
     });
 
-    it("fills a destructive button with a red deeper than the error colour", () => {
-        const error = shellToken("--mt-state-error");
-        const base = variantBase(".molten-btn-destructive");
-        expect(base.r).toBeLessThan(error.r);
-        expect(base.g).toBeLessThanOrEqual(error.g);
-        expect(base.r).toBeGreaterThan(base.g + base.b);
+    it("makes a destructive button calm: ember line, blocked text, no fill and no wave (FR-SHELL-116)", () => {
+        const rest = block(".molten-btn.molten-btn-destructive");
+        expect(rest).toMatch(/background-color:\s*transparent;/);
+        expect(rest).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--mt-state-blocked\);/);
+        expect(rest).toMatch(/--molten-fg:\s*var\(--mt-state-blocked-text\);/);
+        expect(block(".molten-btn.molten-btn-destructive > .molten-btn-wave")).toMatch(/display:\s*none;/);
     });
 
     it("never uses Wave's green button colours", () => {
@@ -157,7 +157,7 @@ describe("moltenButtonClasses", () => {
         ["font-[600]", "primary", "molten-btn solid font-[600]", true],
         ["green", "primary", "molten-btn solid", true],
         ["solid green bold", "primary", "molten-btn solid bold", true],
-        ["red", "destructive", "molten-btn molten-btn-destructive solid", true],
+        ["red", "destructive", "molten-btn molten-btn-destructive solid", false],
         ["yellow rounded-[4px]", "warning", "molten-btn molten-btn-warning solid rounded-[4px]", true],
         ["grey", "secondary", "molten-btn-secondary grey solid", false],
         [
@@ -203,10 +203,10 @@ describe("Button", () => {
         );
     });
 
-    it("gives a destructive button the same wave", () => {
+    it("gives a destructive button no wave (FR-SHELL-116, decision 9)", () => {
         const html = renderToStaticMarkup(<Button className="red">Remove</Button>);
         expect(html).toContain('class="wave-button molten-btn molten-btn-destructive solid"');
-        expect(html).toContain("molten-btn-wave");
+        expect(html).not.toContain("molten-btn-wave");
     });
 
     it("keeps calm variants and icon-only buttons free of the wave", () => {

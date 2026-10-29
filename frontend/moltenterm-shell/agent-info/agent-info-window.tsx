@@ -393,7 +393,7 @@ function AgentHead({ info }: { info: AgentStateInfo }) {
                 <div
                     className={cn(
                         "truncate text-12",
-                        look === "waiting" ? "text-warning" : look === "error" ? "text-danger" : "text-muted"
+                        look === "waiting" ? "text-[var(--mt-state-waiting)]" : look === "error" ? "text-danger" : "text-muted"
                     )}
                 >
                     {[agentStateLabel(info.state), agentDoing(info)]

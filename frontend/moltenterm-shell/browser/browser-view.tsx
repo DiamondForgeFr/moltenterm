@@ -1875,7 +1875,7 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
             role="status"
             className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-12 text-secondary"
         >
-            <i className="fa fa-solid fa-circle-info shrink-0 text-[var(--mt-state-waiting)]" />
+            <i className="fa fa-solid fa-circle-info shrink-0 text-[var(--mt-state-info)]" />
             <span className="min-w-0 flex-1">{notice}</span>
             <button
                 type="button"

@@ -17,12 +17,14 @@ export type MoltenButtonStyle = {
     wave: boolean;
 };
 
-const SolidColours: Record<string, { variant: MoltenButtonVariant; classes: string[]; keep: boolean }> = {
-    green: { variant: "primary", classes: ["molten-btn"], keep: false },
-    red: { variant: "destructive", classes: ["molten-btn", "molten-btn-destructive"], keep: false },
-    yellow: { variant: "warning", classes: ["molten-btn", "molten-btn-warning"], keep: false },
-    grey: { variant: "secondary", classes: ["molten-btn-secondary"], keep: true },
-};
+// A destructive button is calm (FR-SHELL-116, decision 9): it keeps molten-btn's behaviour but carries no wave.
+const SolidColours: Record<string, { variant: MoltenButtonVariant; classes: string[]; keep: boolean; wave: boolean }> =
+    {
+        green: { variant: "primary", classes: ["molten-btn"], keep: false, wave: true },
+        red: { variant: "destructive", classes: ["molten-btn", "molten-btn-destructive"], keep: false, wave: false },
+        yellow: { variant: "warning", classes: ["molten-btn", "molten-btn-warning"], keep: false, wave: true },
+        grey: { variant: "secondary", classes: ["molten-btn-secondary"], keep: true, wave: false },
+    };
 
 // Wave's Button picks a category (solid, outlined, ghost) and a colour (green, grey, red, yellow) from its class
 // names, solid and green by default. Whole tokens are matched: Wave sniffed substrings, so "fa-solid" on an icon
@@ -40,7 +42,7 @@ export function moltenButtonClasses(className: string): MoltenButtonStyle {
         return {
             variant: solid.variant,
             className: [...solid.classes, ...kept, ...withCategory].join(" "),
-            wave: solid.classes.includes("molten-btn"),
+            wave: solid.wave,
         };
     }
     // A green outline or ghost takes the workspace accent; the others keep Wave's grey, red and yellow tokens.

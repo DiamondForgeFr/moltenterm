@@ -46,7 +46,7 @@ describe("waiting question (FR-SHELL-052-AC3)", () => {
     it("is an amber pill with Go and the whole question on hover", () => {
         const long = "Claude needs your permission to run the command npm run build:all --watch";
         const pill = waitingPill(agent("waiting", long));
-        expect(pill).toMatchObject({ kind: "waiting", tone: "warning", action: "Go", dot: true });
+        expect(pill).toMatchObject({ kind: "waiting", tone: "waiting", action: "Go", dot: true });
         expect(pill.label).toBe(truncateQuestion(long));
         expect(pill.title).toContain(long);
     });
@@ -80,7 +80,7 @@ describe("one pill, the most urgent (DS-SHELL-093)", () => {
         expect(pickHeaderPill([null, null])).toBeNull();
     });
 
-    it("uses the three tones only", () => {
+    it("uses the four tones only (waiting is its own since FR-SHELL-116)", () => {
         const pills = [
             waitingPill(agent("waiting")),
             agentErrorPill(agent("error")),
@@ -89,7 +89,7 @@ describe("one pill, the most urgent (DS-SHELL-093)", () => {
             durablePill(true, "done"),
         ];
         for (const pill of pills) {
-            expect(["neutral", "warning", "danger"]).toContain(pill.tone);
+            expect(["neutral", "warning", "waiting", "danger"]).toContain(pill.tone);
         }
     });
 });

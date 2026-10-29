@@ -170,7 +170,7 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                         <h4
                             className={cn(
                                 "m-0 text-11 font-semibold tracking-[0.08em] uppercase",
-                                lane.turn === "yours" ? "text-accent" : "text-muted"
+                                lane.turn === "yours" ? "text-[var(--mt-state-waiting)]" : "text-muted"
                             )}
                         >
                             {t(TurnTitle[lane.turn])} · {lane.rows.length}

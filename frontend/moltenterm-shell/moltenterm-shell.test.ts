@@ -41,10 +41,6 @@ function token(name: string): Rgb {
     return parseColor(new RegExp(`${name}: (#[0-9a-f]{6});`).exec(tokensRoot)?.[1]);
 }
 
-function tokenColour(name: string): Rgb {
-    return parseColor(new RegExp(`${name}:\\s*(rgb\\([^)]*\\))`).exec(tokensCss)[1]);
-}
-
 const Surfaces = ["--mt-surface-0", "--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
 const Texts = ["--mt-text-1", "--mt-text-2", "--mt-text-3"];
 // The surfaces Wave's and Tailwind's backgrounds point at: the window, the panels and the dialogs.
@@ -135,8 +131,10 @@ describe("cast-iron neutrals (FR-SHELL-115)", () => {
     });
 
     it.each(Surfaces)("danger text and info read at 4.5:1 on %s", (s) => {
-        expect(contrastRatio(tokenColour("--mt-danger-text"), token(s))).toBeGreaterThanOrEqual(4.5);
-        expect(contrastRatio(tokenColour("--mt-info"), token(s))).toBeGreaterThanOrEqual(4.5);
+        expect(tokensRoot).toContain("--mt-danger-text: var(--mt-state-blocked-text);");
+        expect(tokensRoot).toContain("--mt-info: var(--mt-state-info);");
+        expect(contrastRatio(token("--mt-state-blocked-text"), token(s))).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(token("--mt-state-info"), token(s))).toBeGreaterThanOrEqual(4.5);
     });
 
     it("never dims a sidebar or library text with an opacity", () => {
@@ -173,7 +171,8 @@ describe("heat states (DS-SHELL-014)", () => {
             expect(shellCss).toContain(`[data-mt-agent-state="${state}"]::after`);
         }
         const working = /\[data-mt-agent-state="working"\]::after \{([^}]*)\}/.exec(shellCss)[1];
-        expect(working).toContain("--mt-state-working");
+        // FR-SHELL-116, decision 2: an agent at work glows incandescent, never the action's orange.
+        expect(working).toContain("--mt-heat: var(--mt-state-running);");
         // #473: a static glow; the header segment carries the motion on the shared beat.
         expect(working).not.toContain("animation");
         expect(shellCss).not.toContain("mt-heat-breathe");
@@ -187,10 +186,12 @@ describe("heat states (DS-SHELL-014)", () => {
         );
     });
 
-    it("keeps waiting amber distinct from the default accent", () => {
-        const amber = parseColor(/--mt-state-waiting: (rgb\([^)]*\))/.exec(shellCss)[1]);
+    it("keeps waiting violet and running incandescent distinct from the action's orange", () => {
         const orange = parseColor(MoltentermDefaultAccent);
-        expect(Math.hypot(amber.r - orange.r, amber.g - orange.g, amber.b - orange.b)).toBeGreaterThan(60);
+        const distance = (a: Rgb, b: Rgb) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+        expect(distance(token("--mt-state-waiting"), orange)).toBeGreaterThan(60);
+        expect(distance(token("--mt-state-running"), orange)).toBeGreaterThan(50);
+        expect(distance(token("--mt-state-waiting"), token("--mt-state-running"))).toBeGreaterThan(60);
     });
 
     it("tells waiting from working by form, not colour alone", () => {
@@ -202,6 +203,70 @@ describe("heat states (DS-SHELL-014)", () => {
         }
         expect(rule("working")).not.toContain("box-shadow");
         expect(/\[data-mt-agent-state\]::after \{[^}]*box-shadow: inset 0 0 \d+px/.test(shellCss)).toBe(true);
+    });
+});
+
+// Theme "Coulée" step 3: the heat scale, each state with its shape.
+describe("states by heat (FR-SHELL-116)", () => {
+    const Marks = ["--mt-state-blocked", "--mt-state-running", "--mt-state-ready", "--mt-state-draft"];
+    const TextStates = ["--mt-state-blocked-text", "--mt-state-waiting", "--mt-state-warning", "--mt-state-info"];
+
+    it("has the proposal's values", () => {
+        const values: Record<string, string> = {
+            "--mt-state-blocked": "#ee4f6b",
+            "--mt-state-blocked-text": "#ff8a9a",
+            "--mt-state-running": "#ffb547",
+            "--mt-state-ready": "#4cc38a",
+            "--mt-state-draft": "#8e8780",
+            "--mt-state-waiting": "#b59cf5",
+            "--mt-state-warning": "#e8d46a",
+            "--mt-state-info": "#7faee6",
+            "--mt-chart-1": "#82a9ee",
+        };
+        for (const [name, value] of Object.entries(values)) {
+            expect(tokensRoot, name).toContain(`${name}: ${value};`);
+        }
+    });
+
+    it("keeps the earlier state names as aliases, and Wave's warning is the straw one", () => {
+        expect(tokensRoot).toContain("--mt-state-working: var(--mt-state-running);");
+        expect(tokensRoot).toContain("--mt-state-error: var(--mt-state-blocked);");
+        expect(tokensRoot).toContain("--mt-state-done: var(--mt-state-ready);");
+        expect(shellCss).toContain("--warning-color: var(--mt-state-warning);");
+        expect(shellCss).toContain("--color-warning: var(--mt-state-warning);");
+        expect(shellCss).not.toMatch(/--mt-state-(working|waiting|error|done):/);
+    });
+
+    it.each(Marks.flatMap((m) => Surfaces.map((s) => [m, s])))("%s marks at 3:1 on %s (WCAG 1.4.11)", (m, s) => {
+        expect(contrastRatio(token(m), token(s))).toBeGreaterThanOrEqual(3);
+    });
+
+    it.each(TextStates.flatMap((m) => Surfaces.map((s) => [m, s])))("%s reads at 4.5:1 on %s", (m, s) => {
+        expect(contrastRatio(token(m), token(s))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("gives each state its shape, so greyscale keeps them apart (WCAG 1.4.1)", () => {
+        const mark = (kind: string) => new RegExp(`\\n\\.mt-state-mark\\.is-${kind} \\{([^}]*)\\}`).exec(shellCss)?.[1];
+        expect(mark("blocked")).toMatch(/transform: rotate\(45deg\)/);
+        expect(mark("running")).toMatch(/border: [^;]+ solid var\(--mt-state-running\);/);
+        expect(mark("running")).toMatch(/border-right-color: color-mix\(in srgb, var\(--mt-state-running\) 25%/);
+        expect(mark("ready")).toContain("background: var(--mt-state-ready);");
+        expect(mark("draft")).toContain("border: 1.5px solid var(--mt-state-draft);");
+        expect(mark("draft")).not.toContain("background");
+        expect(mark("waiting")).toContain("background: var(--mt-state-waiting);");
+        expect(mark("waiting")).toMatch(/box-shadow: 0 0 0 2px/);
+    });
+
+    it("turns the running arc on the shared beat only, never with an animation of its own (#473)", () => {
+        const source = readFileSync(new URL("./state-mark.tsx", import.meta.url), "utf8");
+        expect(source).toContain('running && "mt-beat-turn"');
+        expect(source).toContain("useWorkingBeat(running)");
+        expect(/\n\.mt-state-mark[^{]*\{[^}]*animation/.test(shellCss)).toBe(false);
+    });
+
+    it("draws the project charts in the fixed steel blue, not the action or a state", () => {
+        expect(shellCss).toContain("--mt-chart-features: var(--mt-chart-1);");
+        expect(/--mt-chart-[a-z]+: [^;]*--mt-(state|action|accent)/.test(shellCss)).toBe(false);
     });
 });
 

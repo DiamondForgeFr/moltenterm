@@ -57,7 +57,7 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
                 <span
                     className={cn(
                         Badge,
-                        "molten-reviews-toreview top-0 right-0 bg-[var(--mt-state-working)] text-black"
+                        "molten-reviews-toreview top-0 right-0 bg-[var(--mt-state-waiting)] text-black"
                     )}
                     aria-hidden="true"
                 >

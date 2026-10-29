@@ -17,10 +17,10 @@ import type { CardRelation } from "./reviews-queue-model";
 // The source card's frame and the linked cards' tint (the mockup's .card.source and .card.linked).
 export function relationClass(role: CardRelation["role"]): string {
     if (role === "source") {
-        return "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--mt-state-waiting)_60%,transparent)]";
+        return "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--mt-state-warning)_60%,transparent)]";
     }
     if (role === "linked") {
-        return "bg-[color-mix(in_srgb,var(--mt-state-waiting)_6%,transparent)]";
+        return "bg-[color-mix(in_srgb,var(--mt-state-warning)_6%,transparent)]";
     }
     return "";
 }
@@ -215,7 +215,7 @@ function EdgeLines({
             {edges.map((e) => (
                 <div
                     key={e.number}
-                    className="truncate rounded-4 border border-dashed border-[color-mix(in_srgb,var(--mt-state-waiting)_45%,transparent)] bg-[var(--mt-surface-2)] px-3 py-1 text-11 leading-4 text-[var(--mt-state-waiting)]"
+                    className="truncate rounded-4 border border-dashed border-[color-mix(in_srgb,var(--mt-state-warning)_45%,transparent)] bg-[var(--mt-surface-2)] px-3 py-1 text-11 leading-4 text-[var(--mt-state-warning)]"
                     data-pr-edge={e.number}
                     data-where={e.where}
                 >

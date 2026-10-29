@@ -26,7 +26,7 @@ export function AgentStateDot({ info, className }: { info: AgentStateInfo; class
             className={cn(
                 "inline-block h-2 w-2 shrink-0 rounded-full",
                 AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                working && "mt-beat-blink",
+                working && "mt-beat-turn",
                 className
             )}
             role="img"

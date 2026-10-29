@@ -20,9 +20,10 @@ import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
+import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { AgentBar, useMinuteNow } from "./reviews-agent-bar";
-import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses } from "./reviews-card";
+import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses, ToneMarks } from "./reviews-card";
 import type { CardTone } from "./reviews-card-model";
 import { LaunchCardActions } from "./reviews-launch";
 import { LaunchModel } from "./reviews-launch-client";
@@ -379,11 +380,7 @@ function StateLine({ state }: { state: UpcomingState }) {
             )}
             data-testid="reviews-upcoming-state"
         >
-            <span
-                className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
-                style={{ background: RailColours[state.tone] }}
-                aria-hidden
-            />
+            <StateMark kind={ToneMarks[state.tone]} className="self-center" />
             <span className="min-w-0 truncate">
                 {state.sentence}
                 {state.why ? <span className="font-normal text-secondary"> · {state.why}</span> : null}

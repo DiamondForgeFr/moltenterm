@@ -113,8 +113,11 @@
                     padding: 0 6px;
                     min-width: var(--min-row-width);
 
+                    // MOLTENTERM-PATCH (#1336): the selected row is the raised surface with a neutral bar, never the
+                    // action's orange, which marks actions only (FR-SHELL-116).
                     &.focused {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
+                        background-color: var(--mt-surface-2);
+                        box-shadow: inset 2px 0 0 var(--mt-text-2);
                         color: var(--main-text-color);
 
                         .dir-table-body-cell {
@@ -128,7 +131,8 @@
                     }
 
                     &:focus {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
+                        background-color: var(--mt-surface-2);
+                        box-shadow: inset 2px 0 0 var(--mt-text-2);
                         color: var(--main-text-color);
 
                         .dir-table-body-cell {

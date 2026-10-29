@@ -17,6 +17,7 @@ import { Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { showPanel } from "../review/review-panels";
+import { StateMark, type StateMarkKind } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { RowAgentLine, useCardContext, useHeadStillFails } from "./reviews-agent-bar";
 import type { QueuedAsk } from "./reviews-ask-queue";
@@ -37,25 +38,43 @@ import { cardInputOf } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import type { PrTaskKind } from "./reviews-task-model";
 
+// The card's edge by heat (FR-SHELL-116, the theme's Integration mockup): what runs glows at 60 %, so the edge stays
+// calmer than a blocked or a ready one.
 export const RailColours: Record<CardTone, string> = {
-    ready: "var(--mt-state-done)",
+    ready: "var(--mt-state-ready)",
     you: "var(--mt-state-waiting)",
-    agent: "var(--mt-state-working)",
-    broken: "var(--mt-state-error)",
+    agent: "color-mix(in srgb, var(--mt-state-running) 60%, transparent)",
+    broken: "var(--mt-state-blocked)",
+    running: "color-mix(in srgb, var(--mt-state-running) 60%, transparent)",
+    draft: "var(--mt-line-2)",
     wait: "var(--mt-line-2)",
 };
 
 export const SentenceClasses: Record<CardTone, string> = {
-    ready: "text-success",
+    ready: "text-[var(--mt-state-ready)]",
     you: "text-[var(--mt-state-waiting)]",
-    agent: "text-accent",
+    agent: "text-[var(--mt-state-running)]",
     broken: "text-danger",
+    running: "text-secondary",
+    draft: "text-secondary",
     wait: "text-secondary",
+};
+
+// The state dot's shape: the tone's state; a grey waiting card (a reviewer, nothing to do) is a hollow dot like a
+// draft.
+export const ToneMarks: Record<CardTone, StateMarkKind> = {
+    ready: "ready",
+    you: "waiting",
+    agent: "running",
+    broken: "blocked",
+    running: "running",
+    draft: "draft",
+    wait: "draft",
 };
 
 const FactClasses: Record<CardFactTone, string> = {
     ok: "text-muted",
-    soft: "text-[var(--mt-state-waiting)]",
+    soft: "text-[var(--mt-state-warning)]",
     bad: "text-danger",
     muted: "text-muted",
     running: "text-muted",
@@ -423,7 +442,7 @@ export function ReviewRow({
                         ) : null}
                         {relationTag ? (
                             <span
-                                className="inline-flex shrink-0 items-center gap-1 rounded-4 border border-[color-mix(in_srgb,var(--mt-state-waiting)_45%,transparent)] px-1.5 text-11 leading-4 font-normal whitespace-nowrap text-[var(--mt-state-waiting)]"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-4 border border-[color-mix(in_srgb,var(--mt-state-warning)_45%,transparent)] px-1.5 text-11 leading-4 font-normal whitespace-nowrap text-[var(--mt-state-warning)]"
                                 data-testid="reviews-conflict-tag"
                             >
                                 {relationTag}
@@ -451,7 +470,7 @@ export function ReviewRow({
                         ))}
                         {relationFact ? (
                             <span
-                                className="inline-flex min-w-0 items-center gap-1 text-[var(--mt-state-waiting)]"
+                                className="inline-flex min-w-0 items-center gap-1 text-[var(--mt-state-warning)]"
                                 data-testid="reviews-fact-conflicts-with"
                             >
                                 <i className="fa fa-solid fa-code-merge text-10" aria-hidden />
@@ -604,12 +623,7 @@ export function CardStateLine({
                     <DominoLoader />
                 </span>
             ) : (
-                <span
-                    className="h-[7px] w-[7px] shrink-0 -translate-y-px self-center rounded-full"
-                    style={{ background: RailColours[tone] }}
-                    aria-hidden
-                    data-testid="reviews-card-dot"
-                />
+                <StateMark kind={ToneMarks[tone]} className="self-center" testId="reviews-card-dot" />
             )}
             <span className="min-w-0 truncate" title={why ? `${sentence} · ${why}` : sentence}>
                 {sentence}
