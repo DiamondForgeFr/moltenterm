@@ -11,15 +11,23 @@ function fakeElement(width = 240): HTMLElement {
         dataset: {},
         classList: {
             toggle: (c: string, on: boolean) => (on ? classes.add(c) : classes.delete(c)),
+            add: (c: string) => classes.add(c),
             remove: (c: string) => classes.delete(c),
+            contains: (c: string) => classes.has(c),
         },
+        addEventListener: () => {},
+        removeEventListener: () => {},
         getBoundingClientRect: () => ({ width }),
         querySelectorAll: () => [],
         contains: () => false,
     } as unknown as HTMLElement;
 }
 
-type Fixture = { controller: SidebarSwipeController; actions: { [K in keyof SwipeActions]: ReturnType<typeof vi.fn> } };
+type Fixture = {
+    controller: SidebarSwipeController;
+    actions: { [K in keyof SwipeActions]: ReturnType<typeof vi.fn> };
+    pull: (side: -1 | 1) => HTMLElement;
+};
 
 function fixture(opts: { ids?: string[]; activeId?: string; creating?: boolean; reduced?: boolean } = {}): Fixture {
     const page = fakeElement();
@@ -54,7 +62,7 @@ function fixture(opts: { ids?: string[]; activeId?: string; creating?: boolean; 
         startCreate: vi.fn(),
         leaveCreate: vi.fn(),
     };
-    return { controller: new SidebarSwipeController(view, actions), actions };
+    return { controller: new SidebarSwipeController(view, actions), actions, pull: view.pull };
 }
 
 // Feeds deltas every 8 ms on the faked clock, as a 120 Hz trackpad does.
@@ -119,11 +127,16 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
         expect(actions.switchTo).toHaveBeenCalledWith("b", -1, expect.anything());
     });
 
-    it("opens the new-workspace page from a full pull past the last workspace, and leaves it by a swipe back", () => {
-        const { controller, actions } = fixture({ activeId: "c" });
-        feed(controller, Array(40).fill(12));
-        vi.advanceTimersByTime(200);
+    it("opens the new-workspace page once the ring is full, with the fingers still moving, and leaves it by a swipe back", () => {
+        const { controller, actions, pull } = fixture({ activeId: "c" });
+        feed(controller, Array(16).fill(12));
         expect(actions.startCreate).toHaveBeenCalledTimes(1);
+        expect(pull(1).classList.contains("is-done")).toBe(true);
+        // The rest of the gesture, even coming back, is spent: it neither opens again nor leaves.
+        feed(controller, [...Array(10).fill(12), ...Array(10).fill(-12)]);
+        vi.advanceTimersByTime(600);
+        expect(actions.startCreate).toHaveBeenCalledTimes(1);
+        expect(pull(1).classList.contains("is-done")).toBe(false);
         const back = fixture({ activeId: "c", creating: true });
         feed(back.controller, Array(12).fill(-12));
         vi.advanceTimersByTime(600);
@@ -131,23 +144,36 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
         expect(back.actions.switchTo).not.toHaveBeenCalled();
     });
 
-    it("holds a half pull while the fingers rest, and opens nothing from it (#1261)", () => {
+    it("holds a half pull while the fingers rest, and opens nothing from it (#1261, #1312)", () => {
         const { controller, actions } = fixture({ activeId: "c" });
-        feed(controller, Array(18).fill(12));
-        vi.advanceTimersByTime(400);
+        feed(controller, Array(10).fill(12));
+        vi.advanceTimersByTime(1200);
         expect(controller.state.phase).toBe("tracking");
         vi.advanceTimersByTime(2000);
         expect(controller.state.phase).toBe("idle");
         expect(actions.startCreate).not.toHaveBeenCalled();
     });
 
-    it("lets a touch phase source release the pull at the lift (#1261)", () => {
+    it("goes on with a pull after a rest, and opens the library past the first workspace (#1312)", () => {
+        const { controller, actions } = fixture({ activeId: "a" });
+        feed(controller, Array(8).fill(-12));
+        vi.advanceTimersByTime(1000);
+        expect(actions.openLibrary).not.toHaveBeenCalled();
+        feed(controller, Array(10).fill(-12));
+        expect(actions.openLibrary).toHaveBeenCalledTimes(1);
+    });
+
+    it("with a touch phase source, opens when full and lets a half pull go at the lift (#1261, #1312)", () => {
         const { controller, actions } = fixture({ activeId: "c" });
         controller.touch("begin");
-        feed(controller, Array(40).fill(12));
+        feed(controller, Array(8).fill(12));
         vi.advanceTimersByTime(3000);
-        expect(actions.startCreate).not.toHaveBeenCalled();
+        expect(controller.state.phase).toBe("tracking");
         controller.touch("end");
+        expect(actions.startCreate).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(600);
+        controller.touch("begin");
+        feed(controller, Array(20).fill(12));
         expect(actions.startCreate).toHaveBeenCalledTimes(1);
     });
 

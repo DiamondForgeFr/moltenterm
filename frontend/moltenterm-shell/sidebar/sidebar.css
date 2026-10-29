@@ -710,6 +710,26 @@
         0 0 0 3px rgb(255 255 255 / 0.25);
 }
 
+/* The pull opened (#1312): the full ring swells and fades, the moment's cue while the fingers still move. */
+.mt-sb-pull.is-done {
+    animation: mt-sb-pull-done 260ms var(--mt-ease) forwards;
+}
+
+@keyframes mt-sb-pull-done {
+    from {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.08);
+    }
+    35% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.3);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-50%) scale(1.4);
+    }
+}
+
 /* The swipe (DS-SHELL-130, #1248): sidebar-swipe-view.ts moves these layers with transform and opacity only, from one
    requestAnimationFrame per frame. They are composited up front, so a gesture neither promotes nor repaints them
    (the sidebar's page is promoted only while it moves: a permanent will-change would trap its fixed popovers). */

@@ -28,6 +28,7 @@ import {
     SettleMs,
     settleOffset,
     stepTarget,
+    StrokeGapMs,
     SwipeCtx,
     swipeLook,
     swipeOffset,
@@ -66,9 +67,9 @@ function feed(dxs: number[], ctx: SwipeCtx, opts: { start?: number; state?: Swip
     return { state, at: at - every, results };
 }
 
-// The fingers lift: no more events.
+// The fingers lift: no more events (StrokeGapMs releases whatever the release does).
 function lift(run: Run, ctx: SwipeCtx): { state: SwipeState; settle: SwipeSettle } {
-    const r = swipeTick(run.state, run.at + ReleaseGapMs, ctx);
+    const r = swipeTick(run.state, run.at + StrokeGapMs, ctx);
     return { state: r.state, settle: r.released ?? run.results.find((x) => x.released)?.released };
 }
 
@@ -260,7 +261,8 @@ describe("workspace swipe: past either end (TC-SHELL-203, TC-SHELL-204)", () => 
         expect(look.shadow).toBeGreaterThan(0);
         expect(look.neighbour).toBeNull();
         const run = feed(Array(40).fill(12), Last, { every: 30 });
-        expect(lift(run, Last).settle).toMatchObject({ commit: 1, kind: "pull", to: 0 });
+        expect(released(run)).toHaveLength(1);
+        expect(released(run)[0]).toMatchObject({ commit: 1, kind: "pull", to: 0 });
     });
 
     it("springs back from a pull released before the ring is full", () => {
@@ -268,16 +270,18 @@ describe("workspace swipe: past either end (TC-SHELL-203, TC-SHELL-204)", () => 
         expect(touchLift(run, Last)).toMatchObject({ commit: 0, kind: "pull" });
     });
 
-    it("cancels a full pull that reverses", () => {
-        const run = feed([...Array(40).fill(12), -12, -12, -12, -12, -12, -12], Last);
+    it("cancels a nearly full pull that reverses", () => {
+        const run = feed([...Array(14).fill(12), -12, -12, -12, -12, -12, -12], Last);
+        expect(released(run)).toHaveLength(0);
         expect(pullProgress(run.state.raw, Last)).toBeLessThan(1);
         expect(touchLift(run, Last).commit).toBe(0);
     });
 
     it("pulls past the first workspace toward the library", () => {
-        const run = feed(Array(40).fill(-12), First, { every: 30 });
-        expect(swipeLook(swipeOffset(run.state, run.at, First), run.state.raw, First, false).ring.side).toBe(-1);
-        expect(lift(run, First).settle).toMatchObject({ commit: -1, kind: "pull" });
+        const part = feed(Array(10).fill(-12), First, { every: 30 });
+        expect(swipeLook(swipeOffset(part.state, part.at, First), part.state.raw, First, false).ring.side).toBe(-1);
+        const run = feed(Array(10).fill(-12), First, { state: part.state, start: part.at + 30, every: 30 });
+        expect(released(run)).toEqual([expect.objectContaining({ commit: -1, kind: "pull" })]);
     });
 
     it("goes the other way from an end as a normal swipe", () => {
@@ -317,12 +321,12 @@ describe("workspace swipe: reduced motion (TC-SHELL-205)", () => {
 
 describe("workspace swipe: the pull follows the fingers, not time (#1261)", () => {
     it("holds the ring while the fingers rest, with no event (TC-SHELL-213)", () => {
-        const run = feed(fingers(220), Last, { every: 16 });
+        const run = feed(fingers(110), Last, { every: 16 });
         const ring = ringOf(run.state, run.at, Last);
         expect(ring).toBeGreaterThan(0.3);
         expect(ring).toBeLessThan(1);
         // Past the old 90 ms release and up to the hold's end, nothing moves.
-        for (const pause of [ReleaseGapMs + 10, 300, PullHoldMs]) {
+        for (const pause of [ReleaseGapMs + 10, StrokeGapMs + 10, 1000, PullHoldMs]) {
             const r = swipeTick(run.state, run.at + pause, Last);
             expect(r.released).toBeUndefined();
             expect(r.state.phase).toBe("tracking");
@@ -338,7 +342,7 @@ describe("workspace swipe: the pull follows the fingers, not time (#1261)", () =
     });
 
     it("picks the held ring up where it stands, and lets it go when the fingers come back the other way", () => {
-        const run = feed(fingers(220), Last, { every: 16 });
+        const run = feed(fingers(110), Last, { every: 16 });
         const held = run.state.raw;
         const again = feed([4, 6], Last, { state: run.state, start: run.at + 300 });
         expect(again.state.raw).toBe(held + 10);
@@ -347,18 +351,25 @@ describe("workspace swipe: the pull follows the fingers, not time (#1261)", () =
         expect(back.state.raw).toBe(-10);
     });
 
-    it("lets go when the fingers lift, and opens only with the ring full (TC-SHELL-214)", () => {
-        const half = feed(fingers(220), Last, { every: 16 });
+    it("lets go when the fingers lift, and opens as soon as the ring is full (TC-SHELL-214, #1312)", () => {
+        const half = feed(fingers(110), Last, { every: 16 });
         const s = swipeTouch(half.state, "begin", half.at - 1, Last).state;
         expect(swipeTick(s, half.at + 5000, Last).state.phase).toBe("tracking");
         const early = swipeTouch(s, "end", half.at + 5000, Last);
         expect(early.released).toMatchObject({ commit: 0, kind: "pull" });
-        const full = feed(fingers(PullTravelPx + 20), Last, { every: 16 });
-        expect(touchLift(full, Last)).toMatchObject({ commit: 1, kind: "pull" });
+        // Without a touch source as with one, the fingers open it the moment they fill the ring, without lifting.
+        for (const state of [initialSwipeState(), swipeTouch(initialSwipeState(), "begin", 999, Last).state]) {
+            const full = feed(fingers(PullTravelPx + 60), Last, { every: 16, state });
+            const opened = full.results.findIndex((r) => r.released != null);
+            expect(full.results[opened].released).toMatchObject({ commit: 1, kind: "pull" });
+            const before = full.results[opened - 1].state;
+            expect(pullProgress(before.raw, Last)).toBeLessThan(1);
+            expect(full.results.slice(opened + 1).every((r) => r.released == null && !r.grabbed)).toBe(true);
+        }
     });
 
     it("never adds momentum to the ring, and a fling past the end opens nothing (TC-SHELL-215)", () => {
-        const pulled = feed(fingers(300, 20), Last, { every: 8 });
+        const pulled = feed(fingers(150, 20), Last, { every: 8 });
         const before = ringOf(pulled.state, pulled.at, Last);
         const fling = feed(momentum(20, 60), Last, { state: pulled.state, start: pulled.at + 8 });
         const settles = released(fling);
@@ -370,13 +381,13 @@ describe("workspace swipe: the pull follows the fingers, not time (#1261)", () =
             expect(ringOf(r.state, pulled.at + 8 * (told + i + 1), Last)).toBeLessThanOrEqual(before + 1e-9);
         });
         // A fling hard enough to fill the ring many times over still opens nothing.
-        const hard = feed([...fingers(200, 40), ...momentum(40, 80)], Last, { every: 8 });
+        const hard = feed([...fingers(120, 40), ...momentum(40, 80)], Last, { every: 8 });
         expect(released(hard).every((r) => r.commit === 0)).toBe(true);
         expect(lift(hard, Last).state.phase).not.toBe("tracking");
     });
 
     it("absorbs the momentum after a known lift: it never starts a pull", () => {
-        const run = feed(fingers(220), Last, { every: 16 });
+        const run = feed(fingers(110), Last, { every: 16 });
         const lifted = swipeTouch(run.state, "end", run.at + 4, Last).state;
         const tail = feed(momentum(12, 40), Last, { state: lifted, start: run.at + 8 });
         expect(tail.results.every((r) => !r.grabbed)).toBe(true);
@@ -405,10 +416,10 @@ describe("workspace swipe: nothing slides past either end (#1261, TC-SHELL-216)"
 });
 
 describe("workspace swipe: the geared ring (#1261, TC-SHELL-217)", () => {
-    it("takes 2.5 to 3 times #1248's 160 px to fill, and slows down near full", () => {
-        expect(PullTravelPx / 160).toBeGreaterThanOrEqual(2.5);
-        expect(PullTravelPx / 160).toBeLessThanOrEqual(3);
-        expect(pullProgress(160, Last)).toBeLessThan(0.5);
+    it("fills over one comfortable stroke (180 to 200 px, #1312), and slows down near full", () => {
+        expect(PullTravelPx).toBeGreaterThanOrEqual(180);
+        expect(PullTravelPx).toBeLessThanOrEqual(200);
+        expect(pullProgress(PullTravelPx / 2, Last)).toBeLessThan(0.8);
         expect(pullProgress(PullTravelPx - 1, Last)).toBeLessThan(1);
         expect(pullProgress(PullTravelPx, Last)).toBe(1);
         const step = 20;
@@ -441,6 +452,161 @@ describe("workspace swipe: one switch per gesture (#1261, TC-SHELL-218)", () => 
         expect(momentumOnly({ count: 3, peak: 14, peakAt: 0, atPeak: 1, last: 9 })).toBe(false);
         expect(momentumOnly({ count: 8, peak: 9, peakAt: 0, atPeak: 8, last: 9 })).toBe(false);
         expect(momentumOnly({ count: 12, peak: 10, peakAt: 0, atPeak: 8, last: 6 })).toBe(false);
+    });
+});
+
+// A recorded-like trace: each step is the time since the previous event and the delta.
+type Step = { gap: number; dx: number };
+
+// Slow fingers: small deltas, most of them 100 to 150 ms apart, some a frame apart.
+function slowStroke(total: number, deltas = [3, 4, 5, 4, 2], gaps = [110, 16, 150, 100, 16, 130]): Step[] {
+    const out: Step[] = [];
+    let left = Math.abs(total);
+    for (let i = 0; left > 0; i++) {
+        const dx = Math.min(deltas[i % deltas.length], left);
+        out.push({ gap: i === 0 ? 0 : gaps[i % gaps.length], dx: Math.sign(total) * dx });
+        left -= dx;
+    }
+    return out;
+}
+
+const steady = (dxs: number[], gap = 8): Step[] => dxs.map((dx) => ({ gap, dx }));
+const rest = (ms: number, then: Step[]): Step[] => [{ gap: ms, dx: then[0].dx }, ...then.slice(1)];
+
+type Replay = Run & { ats: number[] };
+
+// Every release of a run, the fingers' lift after its last event included.
+function settlesOf(run: Run, ctx: SwipeCtx): { state: SwipeState; settles: SwipeSettle[] } {
+    const end = swipeTick(run.state, run.at + StrokeGapMs, ctx);
+    return { state: end.state, settles: [...released(run), end.released].filter((s) => s != null) };
+}
+
+// Replays a trace from a state; swipeTick runs every frame between events, as the view's timer does.
+function replay(steps: Step[], ctx: SwipeCtx, state = initialSwipeState(), start = 1000): Replay {
+    let s = state;
+    let at = start;
+    const results: SwipeResult[] = [];
+    const ats: number[] = [];
+    for (const step of steps) {
+        for (let t = at + 16; t < at + step.gap; t += 16) {
+            const r = swipeTick(s, t, ctx);
+            s = r.state;
+            results.push(r);
+            ats.push(t);
+        }
+        at += step.gap;
+        const r = swipeWheel(s, { dx: step.dx, dy: 0, at }, ctx);
+        s = r.state;
+        results.push(r);
+        ats.push(at);
+    }
+    return { state: s, at, results, ats };
+}
+
+describe("workspace swipe: recorded-like traces (#1312)", () => {
+    it("opens the pull as soon as a slow stroke with 100–150 ms gaps fills the ring, never cut into a release", () => {
+        for (const [ctx, way] of [
+            [Last, 1],
+            [First, -1],
+        ] as const) {
+            const run = replay(slowStroke(way * (PullTravelPx + 40)), ctx);
+            const r = released(run);
+            expect(r).toHaveLength(1);
+            expect(r[0]).toMatchObject({ commit: way, kind: "pull" });
+            // The ring only grew until it opened: no gap read as a release, no drain.
+            const opened = run.results.findIndex((x) => x.released != null);
+            let previous = 0;
+            run.results.slice(0, opened).forEach((x, i) => {
+                const ring = ringOf(x.state, run.ats[i], ctx);
+                expect(ring).toBeGreaterThanOrEqual(previous - 1e-9);
+                previous = ring;
+            });
+            expect(previous).toBeLessThan(1);
+        }
+    });
+
+    it("holds a pull through a 1 s rest before full, then opens when the stroke goes on", () => {
+        const first = replay(slowStroke(90), Last);
+        const ring = ringOf(first.state, first.at, Last);
+        const resting = swipeTick(first.state, first.at + 1000, Last);
+        expect(resting.released).toBeUndefined();
+        expect(ringOf(resting.state, first.at + 1000, Last)).toBe(ring);
+        const after = replay(rest(1000, steady(fingers(PullTravelPx - 90 + 20))), Last, first.state, first.at);
+        expect(released(after)).toEqual([expect.objectContaining({ commit: 1, kind: "pull" })]);
+        // A rest past the hold drains it instead (about 1.5 s, then 900 ms).
+        expect(
+            ringOf(swipeTick(first.state, first.at + PullHoldMs - 1, Last).state, first.at + PullHoldMs - 1, Last)
+        ).toBe(ring);
+        expect(swipeTick(first.state, first.at + PullHoldMs + PullDrainMs, Last).state.phase).toBe("idle");
+    });
+
+    it("opens a ring the fingers filled before a pause, at the pause", () => {
+        // Fingers slowing down at full: those deltas may be the momentum's first, so it waits for the pause.
+        const run = replay(steady([2, 5, 8, ...Array(12).fill(14), 13]), Last);
+        expect(released(run)).toHaveLength(0);
+        expect(pullProgress(run.state.raw, Last)).toBe(1);
+        const r = swipeTick(run.state, run.at + ReleaseGapMs, Last);
+        expect(r.released).toMatchObject({ commit: 1, kind: "pull" });
+    });
+
+    it("never opens from a fast flick's momentum", () => {
+        for (const [ctx, way] of [
+            [Last, 1],
+            [First, -1],
+        ] as const) {
+            const flick = replay(steady([...fingers(way * 70, 30), ...momentum(30, 60).map((v) => way * v)]), ctx);
+            expect(settlesOf(flick, ctx).settles.every((s) => s.commit === 0)).toBe(true);
+        }
+    });
+
+    it("absorbs the rest of the gesture once the pull opened, then takes the next swipe back", () => {
+        const run = replay(steady(fingers(PullTravelPx + 10)), Last);
+        expect(released(run)).toHaveLength(1);
+        // The controller now reads the new-workspace page: the fingers that go on, or wiggle back, belong to the pull.
+        const create: SwipeCtx = { width: Width, sides: CreatePageSides };
+        const tail = replay(slowStroke(-60, [12, 12, 10], [8, 120, 140]), create, run.state, run.at);
+        expect(tail.results.every((r) => !r.grabbed && r.released == null)).toBe(true);
+        const back = replay(rest(StrokeGapMs + 50, steady(fingers(-120))), create, tail.state, tail.at);
+        expect(back.results.find((r) => r.grabbed)).toBeDefined();
+        expect(lift(back, create).settle).toMatchObject({ commit: -1, kind: "page" });
+    });
+
+    it("commits a slow page swipe whose strokes pause and slow down, with no spring back mid-gesture", () => {
+        // The recording: a slow swipe back from the new-workspace page, its last stroke slowing down after a pause.
+        const create: SwipeCtx = { width: Width, sides: CreatePageSides };
+        for (const ctx of [create, Middle]) {
+            const trace = [...slowStroke(-70), ...rest(140, steady([-8, -7, -6, -5, -4]))];
+            const run = replay(trace, ctx);
+            const { settles } = settlesOf(run, ctx);
+            expect(settles).toHaveLength(1);
+            expect(settles[0]).toMatchObject({ commit: -1, kind: "page" });
+        }
+    });
+
+    it("springs a short slow page swipe back once the fingers stay away, not at the first gap", () => {
+        const run = replay(slowStroke(30), Middle);
+        expect(released(run)).toHaveLength(0);
+        expect(swipeTick(run.state, run.at + 150, Middle).released).toBeUndefined();
+        expect(swipeTick(run.state, run.at + StrokeGapMs, Middle).released).toMatchObject({ commit: 0 });
+    });
+
+    it("still switches back and forth between workspaces, one switch per gesture", () => {
+        let state = initialSwipeState();
+        let at = 1000;
+        const commits: number[] = [];
+        for (const way of [1, -1, 1, -1]) {
+            const run = replay(
+                steady([...fingers(way * 90, 14), ...momentum(14, 30).map((v) => way * v)]),
+                Middle,
+                state,
+                at
+            );
+            const end = settlesOf(run, Middle);
+            commits.push(...end.settles.filter((s) => s.commit !== 0).map((s) => s.commit));
+            state = end.state;
+            at = run.at + 200;
+        }
+        expect(commits).toEqual([1, -1, 1, -1]);
     });
 });
 

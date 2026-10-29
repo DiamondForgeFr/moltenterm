@@ -9,14 +9,17 @@
 // the momentum stays in the finger's scroll sequence), so the machine reads the phases from the deltas themselves:
 // - a fresh touch: a pause between events (momentum is continuous), a reversal (momentum never reverses), or deltas
 //   that break the momentum's smooth decay;
-// - a release: no event for ReleaseGapMs, or the momentum's signature (deltas decaying smoothly after the fingers).
+// - a release: the momentum's signature (deltas decaying smoothly after the fingers), or no event for a while. Resting
+//   and lifted fingers look the same (#1312), and slow fingers leave 100 to 150 ms between events: a pause releases at
+//   ReleaseGapMs only when the release would commit, otherwise the gesture holds until StrokeGapMs and goes on when the
+//   fingers come back.
 // After a release the momentum is absorbed: it never moves anything.
 //
 // Past either end (#1261) nothing slides: the sidebar resists with a rubber band of a few pixels and a ring carries
-// the pull. The pull follows the fingers, not time: a pause holds the ring (fingers resting send no events), it opens
-// only on a release with the ring full, and momentum never adds to it. A touch phase source (swipeTouch: the fingers
-// went down, they lifted) replaces the guesses when one exists; none does yet, so a pause in a pull holds the ring for
-// PullHoldMs and then drains it, instead of letting go at ReleaseGapMs.
+// the pull. The pull follows the fingers, not time: a pause holds the ring (fingers resting send no events), momentum
+// never adds to it, and it opens as soon as the fingers fill it (#1312), without waiting for a release no wheel event
+// can tell. A touch phase source (swipeTouch: the fingers went down, they lifted) replaces the guesses when one exists;
+// none does yet, so a pause in a pull holds the ring for PullHoldMs and then drains it.
 //
 // One gesture switches at most once: a gesture whose largest delta came at its very start only decays, which is the
 // momentum of a gesture already taken (it arrives after a pause or in the view a switch reached), and it never commits.
@@ -32,8 +35,13 @@ export const CommitVelocity = 0.5;
 export const FlickFraction = 0.06;
 // Fingers coming back this fast (px/ms) when they lift cancel, however far the page went.
 export const ReverseVelocity = 0.15;
-// No wheel event for this long: the fingers lifted without momentum.
+// No wheel event for this long: the fingers lifted without momentum, if the release commits (a page past
+// CommitFraction or flicked, a full ring).
 export const ReleaseGapMs = 90;
+// No wheel event for this long: the fingers lifted, whatever the release does. Shorter pauses hold the gesture: slow
+// fingers leave 100 to 150 ms between events, and a release there would spring the page back mid-stroke (#1312). It
+// also ends the rest of a gesture whose pull opened.
+export const StrokeGapMs = 250;
 // A wheel event after a pause this long is a fresh touch: momentum events come every frame.
 export const FreshTouchGapMs = 60;
 // The momentum's signature: this many deltas in a row, none larger than the one before nor much smaller, and the
@@ -41,18 +49,21 @@ export const FreshTouchGapMs = 60;
 export const MomentumRun = 4;
 export const MomentumMinRatio = 0.6;
 export const MomentumMaxRatio = 0.9;
-// The ring is geared (#1261): it fills over PullTravelPx of finger travel past the end, 2.75 times #1248's 160 px, along
-// x(1.5 - 0.5x). The first pixels turn it at 1/293 of a turn per px (1.8 times slower than before), the last ones at
-// 1/880, so it slows down as it nears full like a gear reduction, without the dead stop of a curve that flattens out.
-export const PullTravelPx = 440;
+// Fingers this slow (px per event) leave a momentum of a few pixels at most: a full ring they slow down on opens at
+// once instead of waiting to tell their deltas from the momentum's (#1312).
+export const MomentumCarryPx = 8;
+// The ring is geared (#1261): it fills over PullTravelPx of finger travel past the end along x(1.5 - 0.5x), so it slows
+// down as it nears full like a gear reduction, without the dead stop of a curve that flattens out. #1261's 440 px took
+// most of the trackpad, often twice: 190 px is one comfortable stroke (#1312).
+export const PullTravelPx = 190;
 // The rubber band past either end: the displacement tends to RubberMaxPx however far the fingers go, and reaches half
 // of it after RubberSoftPx of travel (6.4 px at 160 px, 7.4 px at a full ring). Nothing leaves its space.
 export const RubberMaxPx = 8;
 export const RubberSoftPx = 40;
-// A pause in a pull: fingers resting still send no events, so the ring holds PullHoldMs (a deliberate hold, longer
-// than the 150 to 300 ms between two swipes of a back-and-forth), then drains over PullDrainMs and lets go. A hold
-// that comes back to the same side picks the ring up where it stands; one that comes back the other way lets go.
-export const PullHoldMs = 600;
+// A pause in a pull: fingers resting still send no events, so the ring holds PullHoldMs (long enough for a rest, #1312),
+// then drains over PullDrainMs and lets go. A hold that comes back to the same side picks the ring up where it stands;
+// one that comes back the other way lets go.
+export const PullHoldMs = 1500;
 export const PullDrainMs = 900;
 // A gesture whose largest delta came within its first this many events only decays: momentum, never fingers, which
 // speed up from their first event (two, as a dropped frame coalesces two momentum deltas into one).
@@ -83,10 +94,11 @@ export type SwipeSettle = {
     kind: SideKind;
 };
 
-export type SwipeAbsorb = { sign: number; lastAbs: number; lastAt: number };
+// spent: the rest of a gesture whose pull opened, absorbed whatever its deltas until a StrokeGapMs pause.
+export type SwipeAbsorb = { sign: number; lastAbs: number; lastAt: number; spent?: boolean };
 
-// The deltas of the fingers' current stretch (from the touch, or from a pause in a pull): how many, the largest, where
-// it came and how many came close to it.
+// The deltas of the fingers' stretch since the touch, across the pauses it held: how many, the largest, where it came
+// and how many came close to it.
 export type SwipeStretch = { count: number; peak: number; peakAt: number; atPeak: number; last: number };
 
 export type SwipeState = {
@@ -227,13 +239,28 @@ export function heldRaw(state: SwipeState, now: number, ctx: SwipeCtx): number {
     return state.raw * Math.max(0, 1 - draining / PullDrainMs);
 }
 
-// The fingers lifted, as far as the guesses tell: no event for ReleaseGapMs. A pull waits instead (it holds), unless
-// its ring is full: then the pause is its release.
-function releaseDue(state: SwipeState, now: number, ctx: SwipeCtx): boolean {
-    if (state.phase !== "tracking" || state.touch || now - state.lastAt < ReleaseGapMs) {
-        return false;
+// The release a tracking gesture's position and pace would give now.
+function wouldCommit(state: SwipeState, ctx: SwipeCtx): boolean {
+    const fingers = state.touch || !momentumOnly(state.stretch);
+    return releaseSettle(state.raw, swipeVelocity(state.samples), state.lastAt, ctx, fingers).commit !== 0;
+}
+
+// When the fingers lifted, as far as the guesses tell, if no event comes before: ReleaseGapMs after the last event
+// when the release commits, StrokeGapMs otherwise (a slow stroke goes on). A pull below full has none: it holds, then
+// drains (see PullHoldMs). Null when nothing is due.
+export function swipeReleaseAt(state: SwipeState, ctx: SwipeCtx): number {
+    if (state.phase !== "tracking" || state.touch) {
+        return null;
     }
-    return !pulling(state, ctx) || pullProgress(state.raw, ctx) >= 1;
+    if (pulling(state, ctx)) {
+        return pullProgress(state.raw, ctx) >= 1 ? state.lastAt + ReleaseGapMs : null;
+    }
+    return state.lastAt + (wouldCommit(state, ctx) ? ReleaseGapMs : StrokeGapMs);
+}
+
+function releaseDue(state: SwipeState, now: number, ctx: SwipeCtx): boolean {
+    const at = swipeReleaseAt(state, ctx);
+    return at != null && now >= at;
 }
 
 // A held pull that drained to nothing lets go.
@@ -328,10 +355,19 @@ export function looksLikeMomentum(samples: readonly SwipeSample[]): boolean {
     return Math.abs(run[run.length - 1].dx) / Math.abs(run[0].dx) <= MomentumMaxRatio;
 }
 
-// Whether an event continues the momentum being absorbed: same way, no pause, and no break in its decay.
+// How long a pause ends what is being absorbed: the momentum is continuous, the rest of a spent gesture is fingers.
+export function absorbGapMs(absorb: SwipeAbsorb): number {
+    return absorb?.spent ? StrokeGapMs : FreshTouchGapMs;
+}
+
+// Whether an event continues what is being absorbed: the rest of a spent gesture until a pause; the momentum the same
+// way, with no pause and no break in its decay.
 export function continuesMomentum(absorb: SwipeAbsorb, ev: SwipeEvent): boolean {
-    if (absorb == null || ev.at - absorb.lastAt > FreshTouchGapMs) {
+    if (absorb == null || ev.at - absorb.lastAt > absorbGapMs(absorb)) {
         return false;
+    }
+    if (absorb.spent) {
+        return Math.abs(ev.dx) >= Math.abs(ev.dy);
     }
     if (ev.dx === 0) {
         return true;
@@ -379,10 +415,15 @@ function releaseNow(
     const last = state.samples[state.samples.length - 1];
     const fingers = mayCommit && (state.touch || !momentumOnly(state.stretch));
     const settle = releaseSettle(state.raw, swipeVelocity(state.samples), at, ctx, fingers);
-    const absorb: SwipeAbsorb =
-        last != null && last.dx !== 0
-            ? { sign: Math.sign(last.dx), lastAbs: Math.abs(last.dx), lastAt: last.at }
-            : null;
+    // A pull opens while the fingers still move (#1312): what they do next belongs to the same gesture.
+    const spent = settle.kind === "pull" && settle.commit !== 0;
+    let absorb: SwipeAbsorb = null;
+    if (last != null && (last.dx !== 0 || spent)) {
+        absorb = { sign: Math.sign(last.dx), lastAbs: Math.abs(last.dx), lastAt: last.at };
+    }
+    if (absorb != null && spent) {
+        absorb = { ...absorb, lastAt: Math.max(last.at, at), spent };
+    }
     return {
         state: {
             ...state,
@@ -399,14 +440,35 @@ function releaseNow(
 }
 
 // The momentum's signature ended the fingers' part: toward a pull its deltas are taken out of the travel (momentum
-// never adds to the ring) and the pull never opens; toward a page the usual rules apply.
+// never adds to the ring), and the pull opens only if the fingers alone filled it; toward a page the usual rules apply.
 function releaseByMomentum(state: SwipeState, at: number, ctx: SwipeCtx): { state: SwipeState; settle: SwipeSettle } {
     if (!pulling(state, ctx)) {
         return releaseNow(state, at, ctx);
     }
     const run = state.samples.slice(-MomentumRun).reduce((sum, s) => sum + s.dx, 0);
     const raw = Math.sign(state.raw - run) === Math.sign(state.raw) ? state.raw - run : 0;
-    return releaseNow({ ...state, raw }, at, ctx, false);
+    return releaseNow({ ...state, raw }, at, ctx);
+}
+
+// A pull whose ring the fingers just filled opens at once (#1312): no wheel event tells a release, and fingers resting
+// on a full ring would otherwise wait for one. Deltas shrinking at full may be the momentum's first ones: those wait
+// for its signature (which takes them out) or for a pause (which opens).
+function fillsNow(state: SwipeState, ctx: SwipeCtx): boolean {
+    if (!pulling(state, ctx) || pullProgress(state.raw, ctx) < 1) {
+        return false;
+    }
+    if (state.touch) {
+        return true;
+    }
+    if (momentumOnly(state.stretch)) {
+        return false;
+    }
+    const n = state.samples.length;
+    if (n < 2) {
+        return true;
+    }
+    const before = Math.abs(state.samples[n - 2].dx);
+    return before < MomentumCarryPx || Math.abs(state.samples[n - 1].dx) >= before;
 }
 
 // A touch phase source's signal (#1261): the fingers went down on the trackpad, or lifted. Once a source spoke, its
@@ -427,7 +489,7 @@ export function swipeTouch(state: SwipeState, phase: "begin" | "end", at: number
 // The clock moved without an event: a tracking gesture whose events stopped is released, a paused pull drains.
 export function swipeTick(state: SwipeState, now: number, ctx: SwipeCtx): SwipeResult {
     if (releaseDue(state, now, ctx)) {
-        const r = releaseNow(state, state.lastAt + ReleaseGapMs, ctx);
+        const r = releaseNow(state, swipeReleaseAt(state, ctx), ctx);
         return { state: r.state, handled: false, released: r.settle };
     }
     if (drained(state, now, ctx)) {
@@ -439,21 +501,27 @@ export function swipeTick(state: SwipeState, now: number, ctx: SwipeCtx): SwipeR
     return { state, handled: false };
 }
 
-// An event that goes on with a tracking gesture: after a pause in a pull (the ring held), the fingers either pick the
-// ring up where it stands or, going the other way, let it go.
+// An event that goes on with a tracking gesture. After a pause the gesture held (a slow stroke, a rest), the fingers
+// go on where it stands: the momentum is continuous, so the deltas start a new run, but the stretch keeps the gesture's
+// shape (fingers slowing down after a pause are not momentum, #1312). Toward a pull, fingers coming back the other way
+// after a pause let the held ring go.
 function track(s: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): SwipeResult {
     const paused = !s.touch && ev.at - s.lastAt >= ReleaseGapMs;
     const base = heldRaw(s, ev.at, ctx);
-    if (paused && ev.dx !== 0 && Math.sign(ev.dx) !== Math.sign(base)) {
+    if (paused && pulling(s, ctx) && ev.dx !== 0 && Math.sign(ev.dx) !== Math.sign(base)) {
         return grab(letGo(s), ev, ctx);
     }
     const raw = base + ev.dx;
     const sample = { dx: ev.dx, at: ev.at };
     const samples = paused ? [sample] : [...s.samples, sample].slice(-MaxSamples);
-    const stretch = stretchWith(paused ? NoStretch : s.stretch, ev.dx);
+    const stretch = stretchWith(s.stretch, ev.dx);
     const tracked: SwipeState = { ...s, raw, lastAt: ev.at, samples, stretch };
     if (!s.touch && looksLikeMomentum(samples)) {
         const r = releaseByMomentum(tracked, ev.at, ctx);
+        return { state: r.state, handled: true, released: r.settle };
+    }
+    if (fillsNow(tracked, ctx)) {
+        const r = releaseNow(tracked, ev.at, ctx);
         return { state: r.state, handled: true, released: r.settle };
     }
     return { state: tracked, handled: true };
@@ -484,7 +552,7 @@ export function swipeWheel(state: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): Sw
     let s = state;
     let released: SwipeSettle;
     if (releaseDue(s, ev.at, ctx)) {
-        const r = releaseNow(s, s.lastAt + ReleaseGapMs, ctx);
+        const r = releaseNow(s, swipeReleaseAt(s, ctx), ctx);
         s = r.state;
         released = r.settle;
     } else if (drained(s, ev.at, ctx)) {
@@ -505,7 +573,7 @@ export function swipeWheel(state: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): Sw
         return {
             state: {
                 ...s,
-                absorb: { sign: s.absorb.sign, lastAbs: Math.abs(ev.dx) || s.absorb.lastAbs, lastAt: ev.at },
+                absorb: { ...s.absorb, lastAbs: Math.abs(ev.dx) || s.absorb.lastAbs, lastAt: ev.at },
             },
             handled: true,
             released,
