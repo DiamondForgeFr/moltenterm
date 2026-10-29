@@ -89,14 +89,16 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
         vi.unstubAllGlobals();
     });
 
-    it("asks one switch at the commit, with where the settle starts, and absorbs the momentum", () => {
+    it("asks one switch once the settle landed on the neighbour, and absorbs the momentum (#1261)", () => {
         const { controller, actions } = fixture();
-        feed(controller, [...Array(14).fill(12), ...momentum(12, 60)]);
+        feed(controller, [...Array(14).fill(12), ...momentum(12, 8)]);
+        expect(actions.switchTo).not.toHaveBeenCalled();
+        feed(controller, momentum(5, 60));
         expect(actions.switchTo).toHaveBeenCalledTimes(1);
         const [target, side, swipe] = actions.switchTo.mock.calls[0];
         expect(target).toBe("c");
         expect(side).toBe(1);
-        expect(swipe.offset).toBeGreaterThan(0.35);
+        expect(swipe).toMatchObject({ offset: 1, v0: 0 });
         expect(swipe.absorb).toMatchObject({ sign: 1 });
     });
 
@@ -113,13 +115,13 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
         expect(actions.switchTo).not.toHaveBeenCalled();
         expect(actions.startCreate).not.toHaveBeenCalled();
         feed(controller, Array(14).fill(-12));
-        vi.advanceTimersByTime(200);
+        vi.advanceTimersByTime(600);
         expect(actions.switchTo).toHaveBeenCalledWith("b", -1, expect.anything());
     });
 
     it("opens the new-workspace page from a full pull past the last workspace, and leaves it by a swipe back", () => {
         const { controller, actions } = fixture({ activeId: "c" });
-        feed(controller, Array(18).fill(12));
+        feed(controller, Array(40).fill(12));
         vi.advanceTimersByTime(200);
         expect(actions.startCreate).toHaveBeenCalledTimes(1);
         const back = fixture({ activeId: "c", creating: true });
@@ -127,6 +129,26 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
         vi.advanceTimersByTime(600);
         expect(back.actions.leaveCreate).toHaveBeenCalledTimes(1);
         expect(back.actions.switchTo).not.toHaveBeenCalled();
+    });
+
+    it("holds a half pull while the fingers rest, and opens nothing from it (#1261)", () => {
+        const { controller, actions } = fixture({ activeId: "c" });
+        feed(controller, Array(18).fill(12));
+        vi.advanceTimersByTime(400);
+        expect(controller.state.phase).toBe("tracking");
+        vi.advanceTimersByTime(2000);
+        expect(controller.state.phase).toBe("idle");
+        expect(actions.startCreate).not.toHaveBeenCalled();
+    });
+
+    it("lets a touch phase source release the pull at the lift (#1261)", () => {
+        const { controller, actions } = fixture({ activeId: "c" });
+        controller.touch("begin");
+        feed(controller, Array(40).fill(12));
+        vi.advanceTimersByTime(3000);
+        expect(actions.startCreate).not.toHaveBeenCalled();
+        controller.touch("end");
+        expect(actions.startCreate).toHaveBeenCalledTimes(1);
     });
 
     it("under reduced motion switches at the release, with nothing moved", () => {

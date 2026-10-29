@@ -364,9 +364,11 @@ describe("workspace swipe: the pull follows the fingers, not time (#1261)", () =
         const settles = released(fling);
         expect(settles).toHaveLength(1);
         expect(settles[0].commit).toBe(0);
-        for (let at = fling.at; at < fling.at + SettleMs; at += 16) {
-            expect(ringOf(fling.state, at, Last)).toBeLessThanOrEqual(before + 1e-9);
-        }
+        // Once the momentum is told apart, the ring never shows more than the fingers gave it.
+        const told = fling.results.findIndex((r) => r.released != null);
+        fling.results.slice(told).forEach((r, i) => {
+            expect(ringOf(r.state, pulled.at + 8 * (told + i + 1), Last)).toBeLessThanOrEqual(before + 1e-9);
+        });
         // A fling hard enough to fill the ring many times over still opens nothing.
         const hard = feed([...fingers(200, 40), ...momentum(40, 80)], Last, { every: 8 });
         expect(released(hard).every((r) => r.commit === 0)).toBe(true);

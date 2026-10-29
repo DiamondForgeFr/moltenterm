@@ -128,7 +128,9 @@ export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?
         return;
     }
     const frame = frameElement();
-    const from = frame ? getComputedStyle(frame).backgroundColor : "";
+    // A swipe that landed showed the new workspace's tint over the frame already: no colour to fade from (#1261).
+    const landed = swipe != null && swipe.offset >= 1;
+    const from = frame && !landed ? getComputedStyle(frame).backgroundColor : "";
     const intent: SwitchIntent = { workspaceId, direction, from, at: Date.now() };
     if (swipe != null) {
         intent.offset = swipe.offset;
@@ -164,7 +166,7 @@ export function playArrival(intent: SwitchIntent, page: HTMLElement, frame: HTML
     if (page?.animate) {
         if (prefersReducedMotion()) {
             page.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "linear" });
-        } else if (left > 16) {
+        } else if (left > 16 && (intent.offset ?? 0) < 1) {
             const width = page.getBoundingClientRect().width || 1;
             const settle = intentSettle(intent, width);
             const frames = settleFrames(settle, now).map((v) => ({ transform: `translateX(${settle.to - v}px)` }));
