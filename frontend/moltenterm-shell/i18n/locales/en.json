@@ -4650,7 +4650,16 @@
             "fromSettings": "From the window settings. A change here applies to this workspace only.",
             "reducedTransparency": "Stays opaque: this computer is set to reduce transparency.",
             "unsupported": "See-through windows are not available on this computer: the window stays opaque.",
-            "noBlur": "Blur is not available on this computer."
+            "noBlur": "Blur is not available on this computer.",
+            "texture": "Texture",
+            "intensity": "Intensity",
+            "textures": {
+                "none": "None",
+                "grain": "Grain",
+                "dots": "Fine dots",
+                "lines": "Fine lines",
+                "paper": "Paper"
+            }
         },
         "iconKind": {
             "imported": "imported image",

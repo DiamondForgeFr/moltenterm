@@ -26,9 +26,23 @@ html.mt-translucent .mt-sb.is-hidden {
     );
 }
 
+/* A texture (#1294): over the frame's tint and the hidden sidebar's, under everything they hold. The image is one
+   small tile from window-texture.ts, repeated. */
+html.mt-textured {
+    --mt-frame-tint: color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16));
+}
+
+html.mt-textured .mt-sb-frame,
+html.mt-textured .mt-sb.is-hidden {
+    background-image: var(--mt-frame-texture);
+    background-size: var(--mt-frame-texture-size);
+    background-repeat: repeat;
+}
+
 /* An opaque tint under each panel: its own background (a terminal sets it inline from its theme) is drawn over it as
-   it was over the opaque frame. */
-html.mt-translucent .mt-frame-content .block.block-frame-default {
+   it was over the opaque frame, and a texture stays out of the panels. */
+html.mt-translucent .mt-frame-content .block.block-frame-default,
+html.mt-textured .mt-frame-content .block.block-frame-default {
     background-color: var(--mt-frame-tint);
     border-radius: var(--block-border-radius);
 }

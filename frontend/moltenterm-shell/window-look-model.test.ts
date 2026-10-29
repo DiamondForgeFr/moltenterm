@@ -9,6 +9,7 @@ import {
     isTranslucent,
     lookForWorkspace,
     lookScope,
+    lookTexture,
     lookWrites,
     MinOpacity,
     MinOpacityBlur,
@@ -17,7 +18,9 @@ import {
     ProjectLooksMetaKey,
     readProjectLook,
     resolveLook,
+    textureTone,
     WindowLookMetaKey,
+    withTexture,
 } from "./window-look-model";
 
 const Supported = { translucent: true, blur: true };
@@ -157,5 +160,82 @@ describe("reduced transparency and platforms (#1281, TC-SHELL-212)", () => {
             reason: null,
         });
         expect(effectiveLook(look, false, Supported)).toEqual({ look, reason: null });
+    });
+});
+
+describe("the texture: stored values and precedence (#1294, TC-SHELL-222, TC-SHELL-223)", () => {
+    it("stores the texture beside the opacity, only when there is one", () => {
+        expect(parseLook({ opacity: 1, blur: false, texture: "grain", intensity: 0.7 })).toEqual({
+            opacity: 1,
+            blur: false,
+            texture: "grain",
+            intensity: 0.7,
+        });
+        expect(parseLook({ opacity: 1, texture: "dots" })).toEqual({
+            opacity: 1,
+            blur: false,
+            texture: "dots",
+            intensity: 0.5,
+        });
+        expect(parseLook({ opacity: 1, texture: "grain", intensity: 3 })?.intensity).toBe(1);
+        expect(parseLook({ opacity: 0.8, texture: "none", intensity: 0.4 })).toStrictEqual({
+            opacity: 0.8,
+            blur: false,
+        });
+        expect(parseLook({ opacity: 0.8, texture: "plaid" })).toStrictEqual({ opacity: 0.8, blur: false });
+        expect(lookTexture({ texture: "paper", intensity: "x" })).toEqual({ texture: "paper", intensity: 0.5 });
+    });
+
+    it("changes the texture without touching the opacity, and lets none go", () => {
+        const look = { opacity: 0.8, blur: true };
+        expect(withTexture(look, "lines")).toEqual({ opacity: 0.8, blur: true, texture: "lines", intensity: 0.5 });
+        expect(withTexture({ ...look, texture: "grain", intensity: 0.9 }, "none")).toStrictEqual(look);
+        expect(withTexture({ ...look, texture: "grain", intensity: 0.9 }, "paper").intensity).toBe(0.9);
+        expect(withTexture(null, "grain", 0.3)).toEqual({ opacity: 1, blur: false, texture: "grain", intensity: 0.3 });
+    });
+
+    it("follows the opacity's precedence: workspace, then project, then none", () => {
+        const clientMeta = {
+            [ProjectLooksMetaKey]: { "/code/shared": { opacity: 1, blur: false, texture: "paper", intensity: 0.5 } },
+        };
+        const own = { meta: { [WindowLookMetaKey]: { opacity: 0.9, blur: false, texture: "grain", intensity: 0.4 } } };
+        const follows = { meta: {} };
+        expect(lookForWorkspace(own, "/code/shared", clientMeta, {}).look.texture).toBe("grain");
+        expect(lookForWorkspace(follows, "/code/shared", clientMeta, {})).toEqual({
+            look: { opacity: 1, blur: false, texture: "paper", intensity: 0.5 },
+            source: "project",
+        });
+        const global = lookForWorkspace(follows, "/code/other", clientMeta, { "window:transparent": true });
+        expect(global.source).toBe("global");
+        expect(global.look.texture).toBeUndefined();
+    });
+
+    it("saves the texture where the opacity goes", () => {
+        const look = { opacity: 1, blur: false, texture: "dots" as const, intensity: 0.5 };
+        expect(lookWrites("project", look, "/code/a", {})).toEqual({
+            workspace: { [WindowLookMetaKey]: null },
+            client: { [ProjectLooksMetaKey]: { "/code/a": look } },
+        });
+        expect(lookWrites("workspace", look, "/code/a", {})).toEqual({ workspace: { [WindowLookMetaKey]: look } });
+    });
+});
+
+describe("the texture under reduced transparency (#1294, TC-SHELL-225)", () => {
+    const look = { opacity: 0.75, blur: true, texture: "grain" as const, intensity: 0.6 };
+    const textured = { opacity: 1, blur: false, texture: "grain", intensity: 0.6 };
+
+    it("stays while the window stays opaque", () => {
+        expect(effectiveLook(look, true, Supported)).toEqual({ look: textured, reason: "reducedTransparency" });
+        expect(effectiveLook(look, false, { translucent: false, blur: false })).toEqual({
+            look: textured,
+            reason: "unsupported",
+        });
+        expect(effectiveLook(textured as any, false, Supported)).toEqual({ look: textured, reason: null });
+        expect(effectiveLook(look, false, Supported).look).toEqual(look);
+    });
+
+    it("takes light ink on an opaque frame, dark ink on a see-through one", () => {
+        expect(textureTone(effectiveLook(look, true, Supported).look)).toBe("light");
+        expect(textureTone(effectiveLook(look, false, Supported).look)).toBe("dark");
     });
 });

@@ -3,9 +3,10 @@
 
 // The workspace's look applied to the window (FR-SHELL-091, DS-SHELL-131, #1281). Each tab view draws its own
 // workspace's look: the frame and the sidebar take the opacity as CSS alpha (html.mt-translucent, --mt-window-alpha,
-// sidebar.css), the panels stay opaque; Electron main is told only whether this view lets the desktop through and
-// whether the window blurs it, and is told again when the view comes on screen, so a workspace switch switches the
-// look. The rules are window-look-model.ts.
+// sidebar.css), the panels stay opaque, and a texture (#1294, window-texture.ts) lies on the same surfaces as
+// --mt-frame-texture; Electron main is told only whether this view lets the desktop through and whether the window
+// blurs it, and is told again when the view comes on screen, so a workspace switch switches the look. The rules are
+// window-look-model.ts.
 
 import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, getSettingsPrefixAtom } from "@/app/store/global";
@@ -28,9 +29,11 @@ import {
     OpaqueReason,
     readProjectLook,
     readWorkspaceLook,
+    textureTone,
     WindowLook,
 } from "./window-look-model";
 import "./window-look.css";
+import { textureBackground } from "./window-texture";
 import { readWorkspaceProject } from "./workspace-project";
 
 const ReducedTransparencyQuery = "(prefers-reduced-transparency: reduce)";
@@ -128,6 +131,15 @@ function drawLook(look: WindowLook) {
     } else {
         root.style.removeProperty("--mt-window-alpha");
     }
+    const texture = textureBackground(look.texture, look.intensity, textureTone(look));
+    root.classList.toggle("mt-textured", texture != null);
+    if (texture != null) {
+        root.style.setProperty("--mt-frame-texture", texture.image);
+        root.style.setProperty("--mt-frame-texture-size", texture.size);
+    } else {
+        root.style.removeProperty("--mt-frame-texture");
+        root.style.removeProperty("--mt-frame-texture-size");
+    }
 }
 
 function tellWindow(look: WindowLook) {
@@ -168,7 +180,7 @@ export function WindowLookApplier() {
         const onVisible = () => tellWindow(drawn);
         document.addEventListener("visibilitychange", onVisible);
         return () => document.removeEventListener("visibilitychange", onVisible);
-    }, [drawn.opacity, drawn.blur, ws?.oid]);
+    }, [drawn.opacity, drawn.blur, drawn.texture, drawn.intensity, ws?.oid]);
     return null;
 }
 
