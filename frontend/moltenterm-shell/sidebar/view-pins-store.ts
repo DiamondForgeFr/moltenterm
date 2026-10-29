@@ -22,6 +22,7 @@ import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
 import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
+import { SeedGlobalPinsMetaKey, seedPinsMeta } from "./default-pins";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
 import {
@@ -107,6 +108,8 @@ export class ViewPins {
     finishedAtom!: jotai.Atom<string[]>;
     closedShown = new Set<string>();
     forking = new Set<string>();
+    seeding = false;
+    seedMarkAtom!: jotai.Atom<boolean>;
 
     private constructor() {
         this.globalPinsAtom = jotai.atom((get) => {
@@ -116,6 +119,10 @@ export class ViewPins {
             }
             const clientAtom = ClientModel.getInstance().clientAtom;
             return readGlobalPins(clientAtom == null ? null : get(clientAtom)?.meta);
+        });
+        this.seedMarkAtom = jotai.atom((get) => {
+            const clientAtom = ClientModel.getInstance().clientAtom;
+            return clientAtom != null && !!get(clientAtom)?.meta?.[SeedGlobalPinsMetaKey];
         });
         this.finishedAtom = jotai.atom((get) => {
             const data = get(AgentStates.getInstance().dataAtom);
@@ -342,6 +349,34 @@ export class ViewPins {
     private instancesOf(pinId: string): string[] {
         const ids = globalStore.get(atoms.workspace)?.tabids ?? [];
         return ids.filter((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId);
+    }
+
+    // A fresh install's default top row (#1296), written once by the first window that sees wavesrv's mark.
+    seedDefaultPins(): Promise<void> {
+        const clientAtom = ClientModel.getInstance().clientAtom;
+        const meta = seedPinsMeta(
+            clientAtom == null ? null : globalStore.get(clientAtom)?.meta,
+            t,
+            Date.now(),
+            Math.random
+        );
+        if (meta == null || this.seeding) {
+            return Promise.resolve();
+        }
+        this.seeding = true;
+        const pins = meta[GlobalPinsMetaKey] as GlobalPin[];
+        if (pins != null) {
+            globalStore.set(this.pendingPinsAtom, pins);
+        }
+        return RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: WOS.makeORef("client", ClientModel.getInstance().clientId),
+            meta: meta as MetaType,
+        }).finally(() => {
+            this.seeding = false;
+            if (pins != null && globalStore.get(this.pendingPinsAtom) === pins) {
+                globalStore.set(this.pendingPinsAtom, null);
+            }
+        });
     }
 
     private writeGlobalPins(pins: GlobalPin[]): Promise<void> {

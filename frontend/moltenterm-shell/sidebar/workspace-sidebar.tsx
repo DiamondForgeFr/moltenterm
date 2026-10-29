@@ -2171,6 +2171,12 @@ export function WorkspaceSidebar() {
     const peekTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
     const split = useAtomValue(model.tabSplitAtom);
     const pinDraft = useAtomValue(ViewPins.getInstance().draftAtom);
+    const seedMark = useAtomValue(ViewPins.getInstance().seedMarkAtom);
+    useEffect(() => {
+        if (seedMark) {
+            fireAndForget(() => ViewPins.getInstance().seedDefaultPins());
+        }
+    }, [seedMark]);
     const projectPage = useAtomValue(model.projectPageAtom);
     const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);

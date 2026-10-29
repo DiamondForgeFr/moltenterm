@@ -91,6 +91,7 @@ func CreateClient(ctx context.Context) (*waveobj.Client, error) {
 	client := &waveobj.Client{
 		OID:       uuid.NewString(),
 		WindowIds: []string{},
+		Meta:      firstLaunchClientMeta(), // MOLTENTERM-PATCH (#1296): a fresh install's default top row
 	}
 	err := wstore.DBInsert(ctx, client)
 	if err != nil {
