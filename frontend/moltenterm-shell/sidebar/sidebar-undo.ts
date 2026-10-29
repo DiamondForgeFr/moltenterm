@@ -9,7 +9,7 @@ import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { shortcutLabel } from "../menu/menu-model";
 import { dismissToast, showToast } from "../toast-store";
-import { typesText, undoKey } from "./view-menu-model";
+import { keepsUndoKey, undoKey } from "./view-menu-model";
 
 type PendingUndo = { toastId: string; run: () => void | Promise<void> };
 
@@ -49,7 +49,7 @@ export function showUndoToast(title: string, undo: () => void | Promise<void>, m
 
 // ⌘Z from the window: true when it undid the sidebar's latest change.
 export function undoFromKey(e: KeyboardEvent): boolean {
-    if (pending == null || !undoKey(e, isMacOS()) || typesText(document.activeElement)) {
+    if (pending == null || !undoKey(e, isMacOS()) || keepsUndoKey(document.activeElement, isMacOS())) {
         return false;
     }
     const entry = pending;

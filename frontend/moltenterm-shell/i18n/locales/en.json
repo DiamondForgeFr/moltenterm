@@ -1760,7 +1760,7 @@
             "rename-tab": "Rename the view",
             "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
-            "workspace-jump": "Jump to a workspace of the bottom bar",
+            "workspace-jump": "Switch to workspace by number",
             "term-clear": "Clear the terminal",
             "term-copy-plain": "Copy the plain selection",
             "term-copy": "Copy the selection",
@@ -4830,9 +4830,9 @@
                 "confirm": "Replace anyway"
             },
             "clear": {
-                "title": "Clear the temporary views?",
+                "title": "Close all the temporary views?",
                 "subtitle": "Closing them stops what runs in their terminals. The views can come back, not what ran in them.",
-                "confirm": "Clear anyway"
+                "confirm": "Close all anyway"
             },
             "tab": {
                 "title": "Close this view?",
@@ -8961,11 +8961,11 @@
         },
         "temporary": {
             "newView": "New view",
-            "clear": "Clear",
-            "clearTitle": "Close the temporary views; pinned views stay",
-            "cleared": {
-                "one": "1 temporary view cleared",
-                "other": "{count} temporary views cleared"
+            "closeAll": "Close all",
+            "closeAllTitle": "Close the temporary views; pinned views stay",
+            "closedAll": {
+                "one": "1 view closed · in Put-away views",
+                "other": "{count} views closed · in Put-away views"
             }
         },
         "agents": {
@@ -9017,6 +9017,7 @@
             "copyName": "{name} (copy)",
             "duplicated": "“{name}” created: the same configuration",
             "reordered": "Order changed",
+            "closedOne": "View closed · in Put-away views",
             "captionHere": "Keep in {workspace}",
             "captionEverywhere": "Everywhere · every workspace",
             "captionTemporary": "Make it temporary",

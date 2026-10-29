@@ -943,16 +943,22 @@ function forkToastId(tabId: string): string {
 }
 
 export const ClosedKindCleared = "cleared";
+// One view closed by ⌘W (#1345).
+export const ClosedKindView = "view";
 
-// The toast after Close the finished views or Clear: its Undo, and ⌘Z while it shows, reopen what closed.
+// The toast after a view closes, Close the finished views or Close all: its Undo, and ⌘Z while it shows, reopen what
+// closed.
 export function showClosedViewsToast(
     count: number,
     kind: string,
     reopen: () => Promise<unknown> = reopenLastQuietly
 ): string {
+    if (kind === ClosedKindView) {
+        return showUndoToast(t("sidebar.views.closedOne"), () => reopenClosedViews(count, reopen));
+    }
     const cleared = kind === ClosedKindCleared;
     return showUndoToast(
-        tCount(cleared ? "sidebar.temporary.cleared" : "sidebar.pins.closedFinished", count),
+        tCount(cleared ? "sidebar.temporary.closedAll" : "sidebar.pins.closedFinished", count),
         () => reopenClosedViews(count, reopen),
         cleared ? undefined : t("sidebar.pins.closedFinishedHint")
     );

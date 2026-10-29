@@ -1235,13 +1235,13 @@ export function TemporaryViews({
                     type="button"
                     className="mt-sb-tv-clear flex min-h-6 min-w-6 cursor-pointer items-center gap-0.5 rounded-4 px-1.5 text-11 text-muted hover:text-primary"
                     data-testid="sidebar-temporary-clear"
-                    title={t("sidebar.temporary.clearTitle")}
+                    title={t("sidebar.temporary.closeAllTitle")}
                     disabled={!shown}
                     tabIndex={shown ? 0 : -1}
                     onClick={() => fireAndForget(() => clearTemporary())}
                 >
                     <SidebarGlyph name="down" size={11} />
-                    <span>{t("sidebar.temporary.clear")}</span>
+                    <span>{t("sidebar.temporary.closeAll")}</span>
                 </button>
             </div>
             <button

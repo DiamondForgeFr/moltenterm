@@ -175,6 +175,7 @@ func restoreTab(ctx context.Context, e reopen.Entry) (reopen.ReopenResult, error
 		}
 		ids := slices.DeleteFunc(slices.Clone(ws.TabIds), func(id string) bool { return id == tab.OID })
 		ws.TabIds = slices.Insert(ids, min(e.Tab.Index, len(ids)), tab.OID)
+		moltenRememberActiveTab(ws, tab.OID)
 		ws.ActiveTabId = tab.OID
 		if err := wstore.DBUpdate(tctx, ws); err != nil {
 			return "", err

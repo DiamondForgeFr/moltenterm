@@ -381,6 +381,7 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 		if !checkTabInWorkspace(workspace, tabId) { // MOLTENTERM-PATCH (#80)
 			return fmt.Errorf("tab %q is not in workspace %q", tabId, workspaceId)
 		}
+		moltenRememberActiveTab(workspace, tabId) // MOLTENTERM-PATCH (#1345): closing the view returns to this one
 		workspace.ActiveTabId = tabId
 		moltenRevealTab(workspace, tabId) // MOLTENTERM-PATCH (#758): a hidden agent tab shown is a tab like any other
 		wstore.DBUpdate(ctx, workspace)

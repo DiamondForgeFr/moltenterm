@@ -4,7 +4,6 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
-import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { MenuRoleKeys, MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371, #623)
 import { workspaceShownName } from "../frontend/moltenterm-shell/workspace-default-name"; // MOLTENTERM-PATCH (#743)
 import { fireAndForget } from "../frontend/util/util";
@@ -33,6 +32,7 @@ import {
 import { contextMenuRole } from "./moltenterm-contextmenu-policy";
 import { mt, onMainLocaleChange } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): the menus follow app:language
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
+import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 import { makeMoltentermSidebarMenuItem } from "./moltenterm-sidebar-menu"; // MOLTENTERM-PATCH (#1279)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
@@ -73,7 +73,9 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
     ];
     function getWorkspaceSwitchAccelerator(i: number): string {
         if (i < 9) {
-            return unamePlatform == "darwin" ? `Command+Control+${i + 1}` : `Alt+Control+${i + 1}`;
+            // MOLTENTERM-PATCH (#1345): on macOS the window's key model takes Option+digit by key code
+            // (sidebar-keys.ts), so the menu only shows it
+            return unamePlatform == "darwin" ? `Alt+${i + 1}` : `Alt+Control+${i + 1}`;
         }
     }
     if (workspaceList?.length) {
@@ -86,6 +88,7 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
                         ((window as WaveBrowserWindow) ?? ww)?.switchWorkspace(workspace.workspacedata.oid);
                     },
                     accelerator: getWorkspaceSwitchAccelerator(i),
+                    registerAccelerator: unamePlatform !== "darwin", // MOLTENTERM-PATCH (#1345)
                 };
             })
         );

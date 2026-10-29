@@ -10,6 +10,23 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
+// Closing the view on screen returns to the one shown before it, whichever side it sits on (#1345).
+func TestNextActiveTabReturnsToThePreviousView(t *testing.T) {
+	ws := &waveobj.Workspace{TabIds: []string{"project", "work", "other", "new"}, ActiveTabId: "project", Meta: waveobj.MetaMapType{}}
+	moltenRememberActiveTab(ws, "other")
+	ws.ActiveTabId = "other"
+	moltenRememberActiveTab(ws, "new")
+	ws.ActiveTabId = "new"
+	ws.TabIds = []string{"project", "work", "other"}
+	if got := moltenNextActiveTab(ws, 3, &waveobj.Tab{OID: "new"}); got != "other" {
+		t.Errorf("got %q, want other", got)
+	}
+	ws.TabIds = []string{"project", "work"}
+	if got := moltenNextActiveTab(ws, 2, &waveobj.Tab{OID: "other"}); got != "project" {
+		t.Errorf("got %q, want project", got)
+	}
+}
+
 // The tabs after DeleteTab took the closed tab (at idx 2, between "project" and "other") out of the list.
 func TestNextActiveTabReturnsToOpener(t *testing.T) {
 	opened := func(opener string) *waveobj.Tab {

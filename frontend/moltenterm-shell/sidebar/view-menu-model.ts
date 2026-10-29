@@ -246,6 +246,15 @@ export function undoKey(
     return mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
 }
 
+// Whether the focused element keeps ⌘Z for itself. A terminal does not on macOS (#1345): the pty never receives ⌘, and
+// the view that follows ⌘W is usually a terminal, where ⌘Z has to undo the close. Ctrl+Z stays the shell's elsewhere.
+export function keepsUndoKey(el: Element, mac: boolean): boolean {
+    if (mac && el?.closest?.(".xterm") != null) {
+        return false;
+    }
+    return typesText(el);
+}
+
 export function typesText(el: Element): boolean {
     if (el == null) {
         return false;

@@ -34,7 +34,11 @@ import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palet
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { registerSidebarKeys } from "../../moltenterm-shell/sidebar/sidebar-keys"; // MOLTENTERM-PATCH (#1183)
 import { registerTopFieldKeys } from "../../moltenterm-shell/sidebar/top-field-store"; // MOLTENTERM-PATCH (#1187)
-import { pinnedViewKeepsTab } from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185)
+import {
+    announceClosedViews,
+    ClosedKindView,
+    pinnedViewKeepsTab,
+} from "../../moltenterm-shell/sidebar/view-pins-store"; // MOLTENTERM-PATCH (#1185, #1345)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
 import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
@@ -150,6 +154,8 @@ function simpleCloseStaticTab() {
         .then((didClose) => {
             if (didClose) {
                 deleteLayoutModelForTab(tabId);
+                // MOLTENTERM-PATCH (#1345): the view now on screen says so with Undo, so Cmd+Z after Cmd+W reopens it
+                return announceClosedViews(workspaceId, 1, ClosedKindView);
             }
         })
         .catch((e) => {

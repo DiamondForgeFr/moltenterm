@@ -160,6 +160,7 @@ func makePinnedTab(ctx context.Context, req viewpin.BuildRequest) (string, error
 		if err != nil {
 			return "", err
 		}
+		moltenRememberActiveTab(ws, tab.OID)
 		ws.ActiveTabId = tab.OID
 		if err := wstore.DBUpdate(tctx, ws); err != nil {
 			return "", err

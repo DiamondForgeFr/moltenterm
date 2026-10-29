@@ -319,11 +319,13 @@ export const Shortcuts: Shortcut[] = [
         category: "Workspaces",
         scope: "app",
         keys: "Ctrl:Cmd:{1-9}",
+        notMac: true,
     },
-    // #1186: ⌥1…⌥9 from the sidebar's bottom bar (FR-SHELL-082); off macOS Alt+digit is the tab's.
+    // #1186: ⌥1…⌥9 from the sidebar's bottom bar (FR-SHELL-082); off macOS Alt+digit is the tab's. #1345: one shortcut
+    // per platform, so the menu shows ⌥1…⌥9 on macOS (emain-menu.ts) and this entry is that one's.
     {
         id: "workspace-jump",
-        label: "Jump to a workspace of the bottom bar",
+        label: "Switch to workspace by number",
         category: "Workspaces",
         scope: "global",
         keys: "Alt:{1-9}",
