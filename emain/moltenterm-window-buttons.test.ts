@@ -28,7 +28,12 @@ describe("the window buttons follow the sidebar (DS-SHELL-127, #1279)", () => {
         expect(applyWindowButtons(win, { visible: false, zoom: 1 }, "darwin")).toBe(true);
         expect(applyWindowButtons(win, { visible: true, zoom: 1.5 }, "darwin")).toBe(true);
         expect(win.setWindowButtonVisibility.mock.calls).toEqual([[false], [true]]);
-        expect(win.setWindowButtonPosition.mock.calls).toEqual([[macButtonsPosition(1)], [macButtonsPosition(1.5)]]);
+        expect(win.setWindowButtonPosition.mock.calls).toEqual([
+            [macButtonsPosition(1)],
+            [macButtonsPosition(1)],
+            [macButtonsPosition(1.5)],
+            [macButtonsPosition(1.5)],
+        ]);
         expect(win.setTitleBarOverlay).not.toHaveBeenCalled();
     });
 
@@ -36,8 +41,23 @@ describe("the window buttons follow the sidebar (DS-SHELL-127, #1279)", () => {
         const win = makeWindow();
         applyWindowButtons(win, { visible: true, zoom: 1, peekGap: 8 }, "darwin");
         applyWindowButtons(win, { visible: true, zoom: 1 }, "darwin");
-        expect(win.setWindowButtonPosition.mock.calls).toEqual([[macButtonsPosition(1, 8)], [macButtonsPosition(1)]]);
+        expect(win.setWindowButtonPosition.mock.calls.map(([p]) => p)).toEqual([
+            macButtonsPosition(1, 8),
+            macButtonsPosition(1, 8),
+            macButtonsPosition(1),
+            macButtonsPosition(1),
+        ]);
         expect(macButtonsPosition(1, 8)).toEqual({ x: 20, y: 20 });
+    });
+
+    it("places them again once shown, since showing hidden buttons puts them back at the system's spot (#1301)", () => {
+        const win = makeWindow();
+        const calls: string[] = [];
+        win.setWindowButtonVisibility.mockImplementation(() => calls.push("visibility"));
+        win.setWindowButtonPosition.mockImplementation(() => calls.push("position"));
+        applyWindowButtons(win, { visible: true, zoom: 1, peekGap: 8 }, "darwin");
+        expect(calls).toEqual(["position", "visibility", "position"]);
+        expect(win.setWindowButtonPosition.mock.calls.at(-1)).toEqual([{ x: 20, y: 20 }]);
     });
 
     it("only shows them for a value that is exactly true", () => {

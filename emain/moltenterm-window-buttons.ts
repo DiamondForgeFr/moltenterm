@@ -28,8 +28,12 @@ export function applyWindowButtons(win: ButtonsWindow, value: unknown, platform:
     }
     const msg = readWindowButtonsMessage(value);
     if (platform === "darwin") {
-        win.setWindowButtonPosition?.(msg == null ? null : macButtonsPosition(msg.zoom, msg.peekGap));
+        // Showing hidden buttons puts them back where the system draws them by default (#1301): the floating sidebar's
+        // buttons stayed at the window corner. Placed before, so they never show elsewhere, and again after.
+        const position = msg == null ? null : macButtonsPosition(msg.zoom, msg.peekGap);
+        win.setWindowButtonPosition?.(position);
         win.setWindowButtonVisibility?.(msg == null || msg.visible);
+        win.setWindowButtonPosition?.(position);
         return true;
     }
     if (platform !== "win32" && platform !== "linux") {
