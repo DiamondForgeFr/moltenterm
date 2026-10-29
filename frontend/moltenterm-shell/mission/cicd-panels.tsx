@@ -24,7 +24,16 @@ import {
 } from "./branch-ci";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
 import { ActionRowClass, RerunConfirm, RowAction, RowActions } from "./ci-row-actions";
-import { CheckState, describeCron, eventLabel, nextRuns, runState, scheduledWorkflows, WorkflowRun } from "./github";
+import {
+    CheckState,
+    describeCron,
+    eventLabel,
+    githubOnlySchedules,
+    nextRuns,
+    runState,
+    scheduledWorkflows,
+    WorkflowRun,
+} from "./github";
 import { githubRunLog, githubRunRerun } from "./mission-client";
 import { labelRecord } from "./mission-i18n";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
@@ -94,18 +103,45 @@ function Placeholder({ rows }: { rows: number }) {
     );
 }
 
-function ScheduledBlock({ github }: { github: MissionGithub }) {
+export function ScheduledBlock({ github }: { github: MissionGithub }) {
     const t = useT();
     const schedules = useMemo(() => scheduledWorkflows(github?.workflows ?? []), [github?.workflows]);
+    const remoteOnly = useMemo(
+        () => githubOnlySchedules(github?.runs ?? [], github?.workflows ?? []),
+        [github?.runs, github?.workflows]
+    );
     const now = new Date();
     return (
         <section className="flex flex-col gap-2">
             <BlockHeader title={t("mc.remote.scheduledTitle")} hint={t("mc.remote.scheduledHint")} />
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={2} /> : null}
-                {github != null && schedules.length === 0 ? (
+                {github != null && schedules.length === 0 && remoteOnly.length === 0 ? (
                     <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noScheduled")}</p>
                 ) : null}
+                {remoteOnly.map((last) => (
+                    <div
+                        key={`github:${last.workflowName}`}
+                        className="flex flex-col gap-1 border-b border-border px-3 py-2 last:border-b-0"
+                        data-testid="ci-scheduled-github-only"
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-2 text-13 leading-5 font-medium">
+                                <i className="fa fa-solid fa-calendar-days text-11 text-muted" />
+                                <span className="truncate">{last.workflowName}</span>
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => open(last.url)}
+                                className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
+                            >
+                                <CheckIcon state={runState(last.status, last.conclusion)} />
+                                {t("mc.remote.last", { when: timeAgo(last.createdAt) })}
+                            </button>
+                        </div>
+                        <div className="text-12 text-muted">{t("mc.remote.scheduledOnGithub")}</div>
+                    </div>
+                ))}
                 {schedules.map((wf) => {
                     const next = wf.crons
                         .flatMap((c) => nextRuns(c, now, 3))
@@ -263,12 +299,7 @@ function RunRow({
                             </span>
                         </span>
                         <span className="shrink-0 text-12 text-muted">
-                            {timing ??
-                                (active
-                                    ? CiIconLabels[icon]
-                                    : formatDuration(
-                                          new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime()
-                                      ))}
+                            {timing ?? (active ? CiIconLabels[icon] : finishedRunDuration(t, run))}
                         </span>
                     </div>
                     <div className="truncate text-12 text-muted">
@@ -379,9 +410,15 @@ function usualText(ms: number): string {
     return ms < 60000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60000)} min`;
 }
 
+// A finished run that took 0 ms, or whose times are missing, has an unknown duration (FR-SHELL-100), never "0 s".
+export function finishedRunDuration(t: TFunction, run: WorkflowRun): string {
+    const ms = new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime();
+    return Number.isFinite(ms) && ms > 0 ? formatDuration(ms) : t("mc.remote.unknownDuration");
+}
+
 function timingText(t: TFunction, elapsed: number, usual: number, active: boolean): string {
     if (elapsed == null) {
-        return null;
+        return active ? null : t("mc.remote.unknownDuration");
     }
     const spent = formatDuration(elapsed);
     if (!usual) {

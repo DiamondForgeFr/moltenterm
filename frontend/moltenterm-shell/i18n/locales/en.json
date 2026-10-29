@@ -3304,6 +3304,8 @@
             "scheduledTitle": "Scheduled jobs",
             "scheduledHint": "local times · GitHub may start them hours late",
             "noScheduled": "No scheduled workflow.",
+            "scheduledOnGithub": "Scheduled on GitHub, no local file",
+            "unknownDuration": "Unknown duration",
             "last": "last {when}",
             "failedSteps": "The failed steps",
             "wholeLog": "The whole log",
@@ -8790,7 +8792,10 @@
         "notInstalled": "not installed",
         "missing": "{agent} is chosen but not installed on this computer: choose another one",
         "automatic": "Automatic: {agent}",
-        "noneInstalled": "No supported agent is installed on this computer"
+        "noneInstalled": "No supported agent is installed on this computer",
+        "running": "Running: {agents}",
+        "runningNotStartable": "running, but MoltenTerm cannot start it",
+        "missingRunning": "{agent} is chosen and running, but MoltenTerm cannot start it: choose another one"
     },
     "hang": {
         "title": "The window did not respond for {seconds} s",

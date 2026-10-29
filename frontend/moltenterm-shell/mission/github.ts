@@ -195,6 +195,39 @@ export function scheduledWorkflows(files: readonly { name: string; text: string 
     return out;
 }
 
+// The workflows GitHub ran on a schedule that no local workflow file declares (FR-SHELL-100): the Scheduled jobs read
+// the project's files while the runs come from GitHub, so a missing or unpushed file must not read as "none". One per
+// workflow, its latest run. A local file that no longer has a cron keeps its old runs out.
+export function githubOnlySchedules(
+    runs: readonly WorkflowRun[],
+    files: readonly { name: string; text: string }[]
+): WorkflowRun[] {
+    const local = new Set<string>();
+    for (const { name: file, text } of files ?? []) {
+        // GitHub names a workflow without `name:` by its path.
+        local.add(file);
+        local.add(`.github/workflows/${file}`);
+        const name = text
+            .split("\n")
+            .map((l) => /^name:\s*["']?(.+?)["']?\s*$/.exec(l)?.[1])
+            .find(Boolean);
+        if (name) {
+            local.add(name);
+        }
+    }
+    const latest = new Map<string, WorkflowRun>();
+    for (const run of runs ?? []) {
+        if (run.event !== "schedule" || !run.workflowName || local.has(run.workflowName)) {
+            continue;
+        }
+        const seen = latest.get(run.workflowName);
+        if (seen == null || new Date(run.createdAt).getTime() > new Date(seen.createdAt).getTime()) {
+            latest.set(run.workflowName, run);
+        }
+    }
+    return [...latest.values()].sort((a, b) => a.workflowName.localeCompare(b.workflowName));
+}
+
 // Markdown as a line of reading: no headings, tables, code fences or emphasis; links keep their text.
 export function plainText(markdown: string): string {
     return (markdown ?? "")

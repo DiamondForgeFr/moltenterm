@@ -13,6 +13,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import type { AgentStatesData } from "../agent-state-model";
 import { CommandPanelModel } from "../command-panel/command-panel-store";
 import { t } from "../i18n/i18n";
 
@@ -148,30 +149,49 @@ export class CodingAgentModel {
     }
 }
 
+// The supported agents running in a pane (FR-SHELL-100). wavesrv only finds the programs on the login PATH, so an agent
+// started by absolute path, through an alias or from another folder runs while detection says none is installed.
+export function runningCodingAgents(states: AgentStatesData): string[] {
+    const ids = new Set(Object.values(states?.states ?? {}).map((info) => info?.agent));
+    return CodingAgentIds.filter((id) => ids.has(id));
+}
+
 // The item's secondary text: the agent missing, else what no choice gives.
-export function codingAgentDetail(choice: CodingAgentChoice): string {
+export function codingAgentDetail(choice: CodingAgentChoice, running: string[] = []): string {
     if (choice == null) {
         return undefined;
     }
     if (choice.missing) {
-        return t("codingAgent.missing", { agent: choice.chosenname || codingAgentName(choice.chosen) });
+        const agent = choice.chosenname || codingAgentName(choice.chosen);
+        return running.includes(choice.chosen)
+            ? t("codingAgent.missingRunning", { agent })
+            : t("codingAgent.missing", { agent });
     }
     if (choice.source === "order") {
-        return choice.order
-            ? t("codingAgent.automatic", { agent: codingAgentName(choice.order) })
+        if (choice.order) {
+            return t("codingAgent.automatic", { agent: codingAgentName(choice.order) });
+        }
+        return running.length > 0
+            ? t("codingAgent.running", { agents: running.map(codingAgentName).join(", ") })
             : t("codingAgent.noneInstalled");
     }
     return undefined;
 }
 
-export function codingAgentOptions(choice: CodingAgentChoice) {
+export function codingAgentOptions(choice: CodingAgentChoice, running: string[] = []) {
     const agents: CodingAgent[] =
         choice?.agents ?? CodingAgentIds.map((id) => ({ id, name: codingAgentName(id), installed: true }));
-    return agents.map((a) => ({
-        id: `codingagent:${a.id}`,
-        label: a.name,
-        value: a.id,
-        disabled: !a.installed,
-        detail: a.installed ? undefined : t("codingAgent.notInstalled"),
-    }));
+    return agents.map((a) => {
+        let detail: string = undefined;
+        if (!a.installed) {
+            detail = running.includes(a.id) ? t("codingAgent.runningNotStartable") : t("codingAgent.notInstalled");
+        }
+        return {
+            id: `codingagent:${a.id}`,
+            label: a.name,
+            value: a.id,
+            disabled: !a.installed,
+            detail,
+        };
+    });
 }
