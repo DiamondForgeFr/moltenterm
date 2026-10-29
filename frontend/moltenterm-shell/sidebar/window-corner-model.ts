@@ -32,6 +32,16 @@ export const DefaultControlsOverlayPx = 32;
 // The floating sidebar's one inner margin (#1293), as Arc's: on its four sides, the window buttons inset by it from
 // the panel's top and left edges, and one more of it between the buttons and the top field.
 export const PeekInsetPx = 12;
+// How long the stand-ins stay under the real window buttons once these show, so no frame shows neither (#1301).
+export const StandInOverlapMs = 200;
+
+export type MacButtonDiscs = { sizePx: number; pitchPx: number };
+
+// The window buttons' discs as the system draws them, measured on screen (#1301): the stand-ins that fade with the
+// floating panel must sit exactly under the real ones.
+export function macButtonDiscs(tahoe: boolean): MacButtonDiscs {
+    return tahoe ? { sizePx: 14, pitchPx: 23 } : { sizePx: 12, pitchPx: 20 };
+}
 
 function validZoom(zoom: unknown): number {
     return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0 ? zoom : 1;

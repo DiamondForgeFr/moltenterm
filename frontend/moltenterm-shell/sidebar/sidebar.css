@@ -69,6 +69,59 @@
     margin-bottom: calc(var(--mt-peek-inset) - var(--spacing, 0.25rem) * 2);
 }
 
+/* The window buttons' stand-ins (#1301): the system's buttons cannot fade, so these fade in and out with the floating
+   panel's slide, at the spot the system draws them; the real ones show over them once the panel has arrived. */
+.mt-sb-lights {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-sb-lights.is-shown {
+    visibility: visible;
+}
+
+.mt-sb.is-hidden.is-peek .mt-sb-lights {
+    opacity: 1;
+}
+
+.mt-sb-light {
+    position: absolute;
+    top: 0;
+    box-sizing: border-box;
+    border-radius: 9999px;
+    border: 1px solid var(--mt-light-rim);
+    background: var(--mt-light-fill);
+}
+
+/* Matched to the system's buttons on a screen capture, not taken from a palette. */
+.mt-sb-light.is-close {
+    --mt-light-fill: #ff5d61;
+    --mt-light-rim: #e02a1c;
+}
+
+.mt-sb-light.is-minimize {
+    --mt-light-fill: #fec824;
+    --mt-light-rim: #f2ad00;
+}
+
+.mt-sb-light.is-zoom {
+    --mt-light-fill: #2bc852;
+    --mt-light-rim: #22a51b;
+}
+
+.mt-sb-lights.is-inactive .mt-sb-light {
+    --mt-light-fill: rgb(255 255 255 / 0.18);
+    --mt-light-rim: rgb(255 255 255 / 0.08);
+}
+
+.prefers-reduced-motion .mt-sb-lights {
+    transition: none;
+}
+
 /* Off macOS the strip over the content spans the same band, from the window's top edge. */
 .mt-frame-strip {
     margin-top: calc(-1 * var(--mt-frame-half));

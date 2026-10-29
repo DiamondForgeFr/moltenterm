@@ -138,7 +138,9 @@ import {
     frameSizes,
     MacButtonHeightPx,
     MacButtonsLeftPx,
+    macButtonDiscs,
     PeekInsetPx,
+    StandInOverlapMs,
     windowButtonsInPeek,
     windowButtonsVisible,
     WindowRowPx,
@@ -400,7 +402,7 @@ function ToggleButton() {
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
-function WindowRow({ peeked }: { peeked: boolean }) {
+function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean }) {
     const isFullScreen = useAtomValue(atoms.isFullScreen);
     const zoomFactor = useAtomValue(atoms.zoomFactorAtom);
     const leftInset = peeked ? MacButtonsLeftPx / (zoomFactor > 0 ? zoomFactor : 1) : 8;
@@ -411,7 +413,11 @@ function WindowRow({ peeked }: { peeked: boolean }) {
             style={{ height: peeked ? PeekWindowRowHeight : WindowRowHeight, ...Drag }}
             data-testid="sidebar-window-row"
         >
-            {room > 0 ? <div className="shrink-0" style={{ width: room }} /> : null}
+            {room > 0 ? (
+                <div className="relative h-full shrink-0" style={{ width: room }}>
+                    {peeked ? <WindowButtonStandIns shown={standIns} /> : null}
+                </div>
+            ) : null}
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
@@ -449,6 +455,62 @@ function usePanelArrived(peek: boolean, panelRef: React.RefObject<HTMLElement>):
         };
     }, [peek]);
     return arrived;
+}
+
+// Whether the stand-ins show: while the floating panel slides in or out, and a moment after the real buttons show,
+// which reach the screen through Electron main a few frames later (#1301).
+function useStandIns(hidden: boolean, arrived: boolean): boolean {
+    const [overlap, setOverlap] = useState(false);
+    useEffect(() => {
+        if (!arrived) {
+            return;
+        }
+        setOverlap(true);
+        const timer = setTimeout(() => setOverlap(false), StandInOverlapMs);
+        return () => clearTimeout(timer);
+    }, [arrived]);
+    return hidden && (!arrived || overlap);
+}
+
+function useWindowActive(): boolean {
+    const [active, setActive] = useState(() => document.hasFocus());
+    useEffect(() => {
+        const update = () => setActive(document.hasFocus());
+        window.addEventListener("focus", update);
+        window.addEventListener("blur", update);
+        return () => {
+            window.removeEventListener("focus", update);
+            window.removeEventListener("blur", update);
+        };
+    }, []);
+    return active;
+}
+
+// Stand-ins for the window buttons (#1301): the system's buttons cannot fade, so these, drawn where the system draws
+// them, fade and slide with the floating panel; the real ones show over them once it has arrived.
+function WindowButtonStandIns({ shown }: { shown: boolean }) {
+    const active = useWindowActive();
+    const isFullScreen = useAtomValue(atoms.isFullScreen);
+    if (!isMacOS() || isFullScreen) {
+        return null;
+    }
+    const { sizePx, pitchPx } = macButtonDiscs(isMacOSTahoeOrLater());
+    const size = `calc(${sizePx}px * var(--zoomfactor-inv))`;
+    return (
+        <span
+            className={cn("mt-sb-lights", shown && "is-shown", !active && "is-inactive")}
+            aria-hidden
+            data-testid="sidebar-window-button-standins"
+        >
+            {["close", "minimize", "zoom"].map((kind, i) => (
+                <span
+                    key={kind}
+                    className={`mt-sb-light is-${kind}`}
+                    style={{ left: `calc(${i * pitchPx}px * var(--zoomfactor-inv))`, width: size, height: size }}
+                />
+            ))}
+        </span>
+    );
 }
 
 // Sends whether the window buttons show, and the zoom that sizes the window row they centre on. Each tab of the window
@@ -2300,6 +2362,7 @@ export function WorkspaceSidebar() {
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
     const panelArrived = usePanelArrived(hidden && peek, asideRef);
     useWindowButtons(hidden, panelArrived);
+    const standIns = useStandIns(hidden, panelArrived);
     useEffect(() => {
         // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
         const onKey = (e: KeyboardEvent) => {
@@ -2358,7 +2421,7 @@ export function WorkspaceSidebar() {
                 onMouseLeave={endPeek}
                 onContextMenu={onWorkspaceMenu}
             >
-                <WindowRow peeked={hidden} />
+                <WindowRow peeked={hidden} standIns={standIns} />
                 <TopField />
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
                 <div ref={viewportRef} className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">

@@ -9,6 +9,7 @@ vi.mock("./moltenterm-privileged-ipc", () => ({ onAppIpc: () => {} }));
 import {
     controlsOverlayHeight,
     DefaultControlsOverlayPx,
+    macButtonDiscs,
     macButtonsPosition,
 } from "../frontend/moltenterm-shell/sidebar/window-corner-model";
 import { applyWindowButtons } from "./moltenterm-window-buttons";
@@ -58,6 +59,11 @@ describe("the window buttons follow the sidebar (DS-SHELL-127, #1279)", () => {
         applyWindowButtons(win, { visible: true, zoom: 1, peekGap: 8 }, "darwin");
         expect(calls).toEqual(["position", "visibility", "position"]);
         expect(win.setWindowButtonPosition.mock.calls.at(-1)).toEqual([{ x: 20, y: 20 }]);
+    });
+
+    it("sizes the stand-ins like the system's discs, measured on screen (#1301)", () => {
+        expect(macButtonDiscs(true)).toEqual({ sizePx: 14, pitchPx: 23 });
+        expect(macButtonDiscs(false)).toEqual({ sizePx: 12, pitchPx: 20 });
     });
 
     it("only shows them for a value that is exactly true", () => {
