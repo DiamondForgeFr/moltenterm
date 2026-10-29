@@ -9221,6 +9221,7 @@
         "names": {
             "scoping": "Scoping",
             "integration": "Integration",
+            "pilotage": "Control room",
             "view": "View"
         },
         "panels": {

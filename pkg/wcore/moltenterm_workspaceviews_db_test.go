@@ -47,7 +47,7 @@ func countObjs[T waveobj.WaveObj](t *testing.T, ctx context.Context, otype strin
 
 var defaultTemplate = []wconfig.NewWorkspaceViewType{
 	{NameKey: "workspaceViews.names.scoping", Panels: []string{"agent", "browser", "files"}},
-	{NameKey: "workspaceViews.names.integration", Panels: []string{"project", "integration"}},
+	{NameKey: "workspaceViews.names.pilotage", Panels: []string{"project", "integration"}},
 }
 
 func TestCreateWorkspaceWithViewsHoldsOnlyTheTemplate(t *testing.T) {
@@ -64,7 +64,7 @@ func TestCreateWorkspaceWithViewsHoldsOnlyTheTemplate(t *testing.T) {
 	if len(ws.TabIds) != 2 {
 		t.Fatalf("only the template's views, got %d tabs", len(ws.TabIds))
 	}
-	names := []string{"workspaceViews.names.scoping", "workspaceViews.names.integration"}
+	names := []string{"workspaceViews.names.scoping", "workspaceViews.names.pilotage"}
 	for i, tabId := range ws.TabIds {
 		tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
 		if err != nil {

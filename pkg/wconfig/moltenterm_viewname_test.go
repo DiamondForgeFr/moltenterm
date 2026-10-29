@@ -16,6 +16,7 @@ func TestViewNameText(t *testing.T) {
 	cases := map[string]string{
 		"workspaceViews.names.scoping":     "Scoping",
 		"workspaceViews.names.integration": "Integration",
+		"workspaceViews.names.pilotage":    "Control room",
 		"workspaceViews.names.view":        "View",
 		"workspaceViews.names.later":       "View",
 		"Cadrage":                          "Cadrage",
