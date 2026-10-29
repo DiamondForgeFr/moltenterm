@@ -92,6 +92,8 @@ export type SwipeSettle = {
     // The side it settles on (0: back to rest).
     commit: -1 | 0 | 1;
     kind: SideKind;
+    // Released by a pause, not by the momentum's signature: the fingers may still be on the trackpad.
+    byPause?: boolean;
 };
 
 // spent: the rest of a gesture whose pull opened, absorbed whatever its deltas until a StrokeGapMs pause.
@@ -432,11 +434,19 @@ function releaseNow(
             samples: [],
             settle,
             absorb,
-            stretch: NoStretch,
+            // Kept for the fingers that may take the settle back in the same stroke (see grab).
+            stretch: state.stretch,
             down: false,
         },
         settle,
     };
+}
+
+// No event came before the release fell due (see swipeReleaseAt).
+function releaseByPause(state: SwipeState, ctx: SwipeCtx): { state: SwipeState; settle: SwipeSettle } {
+    const r = releaseNow(state, swipeReleaseAt(state, ctx), ctx);
+    const settle = { ...r.settle, byPause: true };
+    return { state: { ...r.state, settle }, settle };
 }
 
 // The momentum's signature ended the fingers' part: toward a pull its deltas are taken out of the travel (momentum
@@ -489,7 +499,7 @@ export function swipeTouch(state: SwipeState, phase: "begin" | "end", at: number
 // The clock moved without an event: a tracking gesture whose events stopped is released, a paused pull drains.
 export function swipeTick(state: SwipeState, now: number, ctx: SwipeCtx): SwipeResult {
     if (releaseDue(state, now, ctx)) {
-        const r = releaseNow(state, swipeReleaseAt(state, ctx), ctx);
+        const r = releaseByPause(state, ctx);
         return { state: r.state, handled: false, released: r.settle };
     }
     if (drained(state, now, ctx)) {
@@ -527,10 +537,24 @@ function track(s: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): SwipeResult {
     return { state: tracked, handled: true };
 }
 
+// The fingers take back the settle of a commit a pause made (not the momentum's signature: then they lifted), going
+// on its way within StrokeGapMs: the same stroke, not a new gesture (#1312). Read as new, its last slowing deltas looked
+// like momentum, which never commits, and the page sprang back after it had reached the neighbour.
+function resumesCommit(s: SwipeState, ev: SwipeEvent): boolean {
+    return (
+        s.phase === "settling" &&
+        s.settle?.byPause === true &&
+        s.settle.commit !== 0 &&
+        Math.sign(ev.dx) === s.settle.commit &&
+        ev.at - s.lastAt <= StrokeGapMs
+    );
+}
+
 // A fresh touch takes the sidebar where it stands.
 function grab(s: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): SwipeResult {
     const offset = swipeOffset(s, ev.at, ctx);
     const raw = rawForOffset(offset, ctx) + ev.dx;
+    const stretch = stretchWith(resumesCommit(s, ev) ? s.stretch : NoStretch, ev.dx);
     return {
         state: {
             ...s,
@@ -540,7 +564,7 @@ function grab(s: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): SwipeResult {
             samples: [{ dx: ev.dx, at: ev.at }],
             settle: null,
             absorb: null,
-            stretch: stretchWith(NoStretch, ev.dx),
+            stretch,
         },
         handled: true,
         grabbed: true,
@@ -552,7 +576,7 @@ export function swipeWheel(state: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): Sw
     let s = state;
     let released: SwipeSettle;
     if (releaseDue(s, ev.at, ctx)) {
-        const r = releaseNow(s, swipeReleaseAt(s, ctx), ctx);
+        const r = releaseByPause(s, ctx);
         s = r.state;
         released = r.settle;
     } else if (drained(s, ev.at, ctx)) {

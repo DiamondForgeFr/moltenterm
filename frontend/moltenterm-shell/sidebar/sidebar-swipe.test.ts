@@ -583,6 +583,21 @@ describe("workspace swipe: recorded-like traces (#1312)", () => {
         }
     });
 
+    it("keeps a commit made at a pause when the same stroke comes back during its settle", () => {
+        // Replayed in the built app: past 35 % a pause commits, the stroke goes on and takes the settle back; its last,
+        // slowing deltas must not read as momentum and spring the page back (the recording's bounce).
+        const create: SwipeCtx = { width: Width, sides: CreatePageSides };
+        for (const ctx of [create, Middle]) {
+            const trace = [...slowStroke(-110), ...rest(140, steady([-8, -7, -6, -5, -4]))];
+            const { settles } = settlesOf(replay(trace, ctx), ctx);
+            expect(settles.length).toBeGreaterThan(0);
+            expect(settles.every((s) => s.commit === -1)).toBe(true);
+        }
+        // A fresh gesture the other way during the settle still cancels it.
+        const run = replay([...slowStroke(-110), ...steady(fingers(120))], Middle);
+        expect(settlesOf(run, Middle).settles.at(-1).commit).not.toBe(-1);
+    });
+
     it("springs a short slow page swipe back once the fingers stay away, not at the first gap", () => {
         const run = replay(slowStroke(30), Middle);
         expect(released(run)).toHaveLength(0);
