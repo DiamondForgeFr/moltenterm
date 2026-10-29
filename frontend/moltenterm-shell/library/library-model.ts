@@ -9,6 +9,7 @@ import type { AgentTab } from "../browser/browser-agent";
 import type { BrowserTab } from "../browser/browser-model";
 import type { PutAwayView } from "../reopen/reopen-model";
 import type { SidebarGlyphName } from "../sidebar/sidebar-icons";
+import type { ViewState } from "../sidebar/view-pins-model";
 
 export type LibrarySection = "workspaces" | "panels" | "ai" | "putaway" | "settings";
 
@@ -158,4 +159,16 @@ export function whenText(at: number, now: number, locale: string): string {
     }
     const day = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date);
     return `${day} · ${time}`;
+}
+
+// Panels › Add to on the active view (FR-SHELL-094): the question a pinned view asks first, or null when the panel is
+// added at once (a temporary view). A view pinned everywhere becomes a temporary view here once changed (#1272).
+export function libraryAddAsk(state: ViewState, projectTab: boolean): string {
+    if (state === "everywhere") {
+        return "library.panels.askEverywhere";
+    }
+    if (state === "workspace" || projectTab) {
+        return "library.panels.askPinned";
+    }
+    return null;
 }

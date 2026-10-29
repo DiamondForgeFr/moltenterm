@@ -31,6 +31,7 @@ import { ReviewsRailBadges } from "./reviews/reviews-rail-badge";
 import { ReviewsModel } from "./reviews/reviews-store";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
+import { openSettings } from "./settings/settings-open";
 import { MoltentermTipsView } from "./tips/tips-view";
 import { readWorkspaceProject } from "./workspace-project";
 
@@ -266,10 +267,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                 {
                     label: t("rail.tools.editWidgets"),
                     icon: "pen",
-                    click: () =>
-                        fireAndForget(() =>
-                            env.createBlock({ meta: { view: "waveconfig", file: "widgets.json" } }, false, true)
-                        ),
+                    click: () => fireAndForget(() => openSettings("widgets.json")),
                 },
             ],
             e
@@ -330,7 +328,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                 label={t(hasConfigErrors ? "rail.tools.settingsErrors" : "rail.tools.settings")}
                 icon="gear"
                 onHover={onHover}
-                open={() => env.createBlock({ meta: { view: SettingsView } }, false, true)}
+                open={() => openSettings()}
             >
                 {hasConfigErrors ? (
                     <span

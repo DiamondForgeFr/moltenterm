@@ -2684,8 +2684,10 @@
             "replayTitle": "Play the map's drawing again",
             "replay": "Replay",
             "header": "Line · last {days} days",
-            "fullSizeTitle": "Open the line map in its own block, over a wider window",
+            "fullSizeTitle": "Enlarge the map to the whole view; Esc or this button restores the layout",
             "fullSize": "Full size",
+            "exitFullSizeTitle": "Back to the layout (Esc)",
+            "exitFullSize": "Exit full size",
             "ciRunning": "CI running",
             "svgLabel": "Line map of the last {days} days"
         },
@@ -5520,7 +5522,6 @@
         }
     },
     "view360": {
-        "carpet": "carpet",
         "empty": "Panels you open are laid here",
         "addStart": "Add a panel on the left",
         "addEnd": "Add a panel on the right",
@@ -9174,6 +9175,9 @@
         },
         "panels": {
             "addTo": "Add to “{view}”",
+            "askPinned": "“{view}” is a pinned view: this panel will change it.",
+            "askEverywhere": "“{view}” is pinned in every workspace: this panel will make it a temporary view here.",
+            "inNewView": "In a new view",
             "show": "Show it",
             "thisView": "this view",
             "about": {

@@ -416,6 +416,13 @@
     background: rgb(255 255 255 / 0.14);
 }
 
+/* Add to on a pinned view: the question in place of the button (FR-SHELL-094). */
+.mt-lib-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .mt-lib-btn:disabled {
     opacity: 0.5;
     cursor: default;

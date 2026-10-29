@@ -13,7 +13,6 @@ import {
 } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { handOffActivePage } from "../browser/browser-routing";
@@ -24,6 +23,7 @@ import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { reopenLastClosed } from "../reopen/reopen-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { openSettings } from "../settings/settings-open";
 import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
 import { enterSplitPlacement, enterSplitPlacementFocused } from "../split/split-place";
 import { TermUpdates } from "../termupdate/termupdate-store";
@@ -97,10 +97,6 @@ function focusBlock(blockId: string) {
     }
 }
 
-function openSettings() {
-    fireAndForget(() => createBlock({ meta: { view: "waveconfig" } }, false, true));
-}
-
 export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): Promise<void> {
     switch (run.kind) {
         case "agent": {
@@ -127,7 +123,7 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             openCurrentWorkspaceEditor();
             return;
         case "settings":
-            openSettings();
+            await openSettings();
             return;
         case "projecttab":
             await openProjectTab();

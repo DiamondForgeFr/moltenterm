@@ -1124,10 +1124,17 @@ export function LineMap({
                         type="button"
                         onClick={onFullSize}
                         className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
-                        title={t("mc.lineMap.fullSizeTitle")}
+                        title={t(full ? "mc.lineMap.exitFullSizeTitle" : "mc.lineMap.fullSizeTitle")}
+                        aria-pressed={full}
+                        data-testid="line-map-fullsize"
                     >
-                        <i className="fa fa-solid fa-up-right-and-down-left-from-center text-11" />
-                        {t("mc.lineMap.fullSize")}
+                        <i
+                            className={cn(
+                                "fa fa-solid text-11",
+                                full ? "fa-down-left-and-up-right-to-center" : "fa-up-right-and-down-left-from-center"
+                            )}
+                        />
+                        {t(full ? "mc.lineMap.exitFullSize" : "mc.lineMap.fullSize")}
                     </button>
                 ) : null}
             </div>

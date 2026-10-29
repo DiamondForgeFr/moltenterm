@@ -23,22 +23,6 @@
     pointer-events: none;
 }
 
-.mt-carpet-label {
-    position: absolute;
-    top: -8px;
-    left: 18px;
-    padding: 0 6px;
-    border-radius: var(--df-radius-sm);
-    background: var(--mt-carpet-bg);
-    color: var(--mt-text-muted);
-    font-family: var(--mt-ui-font);
-    font-size: var(--mt-text-11);
-    line-height: 16px;
-    letter-spacing: 0.08em;
-    text-transform: lowercase;
-    user-select: none;
-}
-
 /* "Add a panel" at each end of the carpet (#702): a slim dashed column with a "+", calm until hovered, then the molten
    accent. Clipped to the surface like the panels; the surface ignores the pointer, the invitations take it back. */
 .mt-carpet-invites {

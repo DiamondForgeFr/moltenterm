@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import {
+    libraryAddAsk,
     librarySectionAt,
     LibrarySections,
     liveAgents,
@@ -151,5 +152,24 @@ describe("when", () => {
         expect(whenText(new Date(2026, 9, 27, 9, 5).getTime(), now, "en-GB")).toBe("09:05");
         expect(whenText(new Date(2026, 9, 26, 9, 5).getTime(), now, "en-GB")).toBe("26 Oct · 09:05");
         expect(whenText(0, now, "en")).toBe("");
+    });
+});
+
+describe("Add to on a pinned view (FR-SHELL-094)", () => {
+    it("asks first on a pinned view, naming what changes", () => {
+        expect(libraryAddAsk("workspace", false)).toBe("library.panels.askPinned");
+        expect(libraryAddAsk("temporary", true)).toBe("library.panels.askPinned");
+        expect(libraryAddAsk("everywhere", false)).toBe("library.panels.askEverywhere");
+    });
+
+    it("adds at once to a temporary view", () => {
+        expect(libraryAddAsk("temporary", false)).toBeNull();
+    });
+
+    it("has the questions in both languages, naming the view", () => {
+        for (const key of ["library.panels.askPinned", "library.panels.askEverywhere"]) {
+            expect(lookup(en, key)).toContain("{view}");
+            expect(lookup(fr, key)).toContain("{view}");
+        }
     });
 });

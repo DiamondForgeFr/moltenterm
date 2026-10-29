@@ -14,6 +14,8 @@ import { NextReleaseCard, NowCard, ReleasesCard, StepsCard } from "./overview-ca
 import { ProjectCard } from "./project-cards";
 import { ProjectCardProps } from "./project-context";
 
+export const LineMapCardId = "moltenterm:linemap";
+
 // The header and map slots frame themselves; the four cards of the row get the core's frame with their title.
 export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
     // The product around the linked project (FR-MC-028), above the band; nothing for a project in no product.
@@ -26,7 +28,7 @@ export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
         bare: true,
         component: NextStationHeader,
     },
-    { id: "moltenterm:linemap", title: "Line map", region: "map", order: 10, bare: true, component: LineMapCard },
+    { id: LineMapCardId, title: "Line map", region: "map", order: 10, bare: true, component: LineMapCard },
     {
         id: "moltenterm:next-release",
         title: "Next public release",

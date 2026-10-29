@@ -38,14 +38,14 @@ import { ReviewsModel } from "../reviews/reviews-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { localizeSection, SettingsSections } from "../settings/settings-catalog";
-import { openSettingsSection } from "../settings/settings-open";
+import { openSettings, openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { workspaceBlocks, type TopRowBlock } from "../sidebar/sidebar-blocks";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
 import { readProjectType, splitSidebarTabs } from "../sidebar/sidebar-model";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { ViewGlyph, viewGlyphAtom } from "../sidebar/view-glyph";
-import { GlobalPinMetaKey, PinMetaKey } from "../sidebar/view-pins-model";
+import { GlobalPinMetaKey, isProjectTab, PinMetaKey } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
 import { TabActivity, whileShown } from "../tab-activity";
 import { panelIcon, tabDisplayName } from "../tab-identity";
@@ -58,6 +58,7 @@ import { readWorkspaceProject } from "../workspace-project";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import { viewNameText } from "../workspace-views/workspace-views-model";
 import {
+    libraryAddAsk,
     LibrarySection,
     librarySectionAt,
     LibrarySections,
@@ -77,7 +78,6 @@ import "./library.css";
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 const SentPollMs = 5000;
 const SentCallTimeoutMs = 3000;
-const SettingsView = "waveconfig";
 
 function close() {
     SidebarModel.getInstance().closeLibrary();
@@ -369,20 +369,27 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
         () => pickerPanelEntries(fullConfig?.widgets, workspaceId, null, !!dir),
         [fullConfig?.widgets, workspaceId, dir]
     );
+    const viewState = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
+    const [asking, setAsking] = useState<string>(null);
     const viewName = identity.name || t("library.panels.thisView");
     const counts = reviewCounts(answer, readied);
     const hasReviews = counts.toreview + counts.mergeable + counts.drafts > 0;
+    // A pinned view changes only when the developer says so (FR-SHELL-094): Add to names it and asks first.
+    const askKey = libraryAddAsk(viewState, isProjectTab(tab));
+    const inNewView = (blockdef: BlockDef) => {
+        close();
+        getApi().createTab(blockdef);
+    };
     const add = (blockdef: BlockDef) => {
         close();
         const view = blockdef?.meta?.view;
+        // Added here, in the view the developer named: never through openMoltentermView, which keeps pinned views
+        // as they are.
         fireAndForget(async () => {
-            if (view === MoltentermReviewsView) {
-                if (!(await focusMoltentermView(view))) {
-                    await ReviewsModel.getInstance().openReviews();
-                }
-                return;
-            }
-            if (view === MoltentermSessionsView && (await focusMoltentermView(view))) {
+            if (
+                (view === MoltentermReviewsView || view === MoltentermSessionsView) &&
+                (await focusMoltentermView(view))
+            ) {
                 return;
             }
             await createBlock(blockdef);
@@ -420,21 +427,48 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
                             {status && status !== entry.label ? (
                                 <div className="text-11 text-secondary">{status}</div>
                             ) : null}
-                            <button
-                                type="button"
-                                className="mt-lib-btn"
-                                data-testid="library-panel-add"
-                                onClick={() => add(blockdef)}
-                            >
-                                {shown ? (
-                                    t("library.panels.show")
-                                ) : (
-                                    <>
-                                        <SidebarGlyph name="plus" size={12} />
-                                        {t("library.panels.addTo", { view: viewName })}
-                                    </>
-                                )}
-                            </button>
+                            {asking === entry.id && !shown ? (
+                                <div className="mt-lib-ask" role="group" data-testid="library-panel-ask">
+                                    <div className="text-11 text-secondary">{t(askKey, { view: viewName })}</div>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="mt-lib-btn"
+                                            data-testid="library-panel-ask-add"
+                                            onClick={() => add(blockdef)}
+                                        >
+                                            {t("library.panels.addTo", { view: viewName })}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="mt-lib-btn"
+                                            data-testid="library-panel-ask-newview"
+                                            onClick={() => inNewView(blockdef)}
+                                        >
+                                            {t("library.panels.inNewView")}
+                                        </button>
+                                        <button type="button" className="mt-lib-link" onClick={() => setAsking(null)}>
+                                            {t("common.cancel")}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="mt-lib-btn"
+                                    data-testid="library-panel-add"
+                                    onClick={() => (askKey && !shown ? setAsking(entry.id) : add(blockdef))}
+                                >
+                                    {shown ? (
+                                        t("library.panels.show")
+                                    ) : (
+                                        <>
+                                            <SidebarGlyph name="plus" size={12} />
+                                            {t("library.panels.addTo", { view: viewName })}
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     );
                 })}
@@ -446,9 +480,7 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
                     data-testid="library-edit-widgets"
                     onClick={() => {
                         close();
-                        fireAndForget(() =>
-                            createBlock({ meta: { view: SettingsView, file: "widgets.json" } }, false, true)
-                        );
+                        fireAndForget(() => openSettings("widgets.json"));
                     }}
                 >
                     <i className={makeIconClass("pen", true)} aria-hidden />
@@ -704,7 +736,7 @@ function SettingsSection() {
                     type="button"
                     className="mt-lib-set is-error"
                     data-testid="library-settings-errors"
-                    onClick={() => open(() => createBlock({ meta: { view: SettingsView } }, false, true))}
+                    onClick={() => open(() => openSettings())}
                 >
                     <i className={makeIconClass("triangle-exclamation", true)} aria-hidden />
                     <span>{t("rail.tools.settingsErrors")}</span>
