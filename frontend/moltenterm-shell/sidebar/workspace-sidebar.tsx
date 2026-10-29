@@ -74,7 +74,14 @@ import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model
 import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
-import { PrPips, useCountsMotion, usePilotageBlock, useWorkspacePrCounts } from "./pr-counts";
+import {
+    PrDots,
+    useCountsMotion,
+    usePilotageBlock,
+    usePrCountsSummary,
+    useWorkspacePrCounts,
+    useWorkspacePrStatesWatch,
+} from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
@@ -608,7 +615,8 @@ function dropSideClass(drag: SidebarDrag, zone: DropZone, key: string): string {
 function Tile({ tabId, active, counts }: { tabId: string; active: boolean; counts?: PrCounts }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
     const hasCounts = hasPrCounts(counts);
-    const { grow } = useCountsMotion(`tile:${tabId}`, hasCounts);
+    const { fresh } = useCountsMotion(`tile:${tabId}`, hasCounts);
+    const summary = usePrCountsSummary(counts);
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
@@ -622,13 +630,14 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
     useRenameCallback(tabId, env, startRename);
     const modified = pin.state === "workspace" && pin.modified;
     const workspace = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
-    const title = renaming
+    const baseTitle = renaming
         ? undefined
         : modified
           ? t("sidebar.pins.tileModifiedTitle", { name: identity.name, workspace })
           : pin.state === "workspace"
             ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
             : identity.name;
+    const title = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
     const rename = (name: string) => {
         setRenaming(false);
         if (name !== identity.name) {
@@ -650,8 +659,8 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.09] hover:bg-white/15",
-                hasCounts && "mt-sb-hp",
-                hasCounts && grow && "mt-sb-grow",
+                // The dots' column sits on the right: the name keeps clear of it, still centred.
+                hasCounts && "px-[15px]",
                 drag?.kind === "tile" && drag.id === tabId && "mt-sb-dragged",
                 dropSideClass(drag, "tiles", tabId)
             )}
@@ -691,15 +700,16 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                     {identity.name}
                 </span>
             )}
-            {hasCounts ? <PrPips counts={counts} motionKey={`tile:${tabId}`} calm={!grow} /> : null}
-            {modified ? null : (
-                <span className="absolute top-1.5 right-1.5 flex">
+            <span className="mt-sb-corner" data-testid="sidebar-corner">
+                {modified ? (
+                    <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden />
+                ) : (
                     <TabAgentMark info={identity.agent} />
-                </span>
-            )}
+                )}
+                {hasCounts ? <PrDots counts={counts} motionKey={`tile:${tabId}`} calm={!fresh} /> : null}
+            </span>
             {modified ? (
                 <>
-                    <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden />
                     <span
                         role="button"
                         tabIndex={0}
@@ -1231,13 +1241,17 @@ function TopRowBlock({
 }) {
     const t = useT();
     const hasCounts = hasPrCounts(counts);
-    const { grow } = useCountsMotion(motionKey, hasCounts);
+    const { fresh } = useCountsMotion(motionKey, hasCounts);
+    const summary = usePrCountsSummary(counts);
     const env = useWaveEnv<SidebarEnv>();
     const pins = ViewPins.getInstance();
     const drag = useAtomValue(sidebarDragAtom);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
     const glyph = topGlyph(pin);
-    const title = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", { name: pin.name });
+    const baseTitle = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", {
+        name: pin.name,
+    });
+    const title = summary ? `${baseTitle}\n${summary}` : baseTitle;
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1259,12 +1273,12 @@ function TopRowBlock({
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.07] hover:bg-white/[0.14]",
-                hasCounts && "mt-sb-hp",
-                hasCounts && grow && "mt-sb-grow",
+                // The dots' column sits on the right: the glyph keeps clear of it, still centred.
+                hasCounts && "px-[10px]",
                 drag?.kind === "top" && drag.id === pin.id && "mt-sb-dragged",
                 dropSideClass(drag, "top", pin.id)
             )}
-            aria-label={pin.name}
+            aria-label={summary ? `${pin.name}, ${summary}` : pin.name}
             aria-current={active ? "page" : undefined}
             title={title}
             data-testid="sidebar-top-block"
@@ -1280,11 +1294,13 @@ function TopRowBlock({
             }}
             onContextMenu={onContextMenu}
         >
-            {/* The glyph is clipped on its own: the block lets its pull request counts show under it (#1283). */}
+            {/* The glyph is clipped on its own: the block lets its corner column show, glows included (#1283). */}
             <ViewGlyph icons={glyph} small={glyph.length > 1} className="max-w-full overflow-hidden" />
-            {hasCounts ? <PrPips counts={counts} motionKey={motionKey} calm={!grow} small /> : null}
-            {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
-            {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}
+            <span className="mt-sb-corner is-small" data-testid="sidebar-corner">
+                {modified && tabId ? <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden /> : null}
+                {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}
+                {hasCounts ? <PrDots counts={counts} motionKey={motionKey} calm={!fresh} small /> : null}
+            </span>
         </button>
     );
 }
@@ -1293,11 +1309,7 @@ function TopRowBlock({
 // block's icon stays the same in every workspace (#1270).
 function TopRowAgentMark({ tabId }: { tabId: string }) {
     const identity = useTabIdentity(tabId, "");
-    return (
-        <span className="absolute top-1 right-1 flex">
-            <TabAgentMark info={identity.agent} />
-        </span>
-    );
+    return <TabAgentMark info={identity.agent} />;
 }
 
 // The pin page (FR-SHELL-080): the view's name, and the two scopes in plain words. It takes the place of the
@@ -1809,6 +1821,7 @@ function LibraryButton() {
     const open = useAtomValue(model.libraryAtom) != null;
     const appsOpen = useAtomValue(model.appsOpenAtom);
     useReviewsRailWatch(readWorkspaceProject(workspace).dir);
+    useWorkspacePrStatesWatch(readWorkspaceProject(workspace).dir);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const showApps = env.isDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
     const label = t("sidebar.library.label");

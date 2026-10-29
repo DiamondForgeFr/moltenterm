@@ -295,16 +295,40 @@
     transform: rotate(45deg);
 }
 
-/* A pinned view changed since it was pinned (FR-SHELL-080): an amber pip in its top-right corner, and a revert
-   button that shows under the pointer. */
-.mt-sb-modpip {
+/* A block's corner column (FR-SHELL-085, #1304): its corner mark (the running agent's mark, or the modified ring) at
+   the top, the pull request status dots stacked under it, so nothing overlaps. Tiles are 52 px high; top-row blocks
+   34 px, so their column is tighter and its dots smaller: the mark and four dots still fit. */
+.mt-sb-corner {
     position: absolute;
-    right: 5px;
-    top: 5px;
-    width: 6px;
-    height: 6px;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.mt-sb-corner:empty {
+    display: none;
+}
+
+.mt-sb-corner.is-small {
+    top: 3px;
+    right: 4px;
+    gap: 1.5px;
+}
+
+/* A pinned view changed since it was pinned (FR-SHELL-080): an amber ring in its corner, an outline so it never reads
+   as a pull request dot (#1304), and a revert button that shows under the pointer. */
+.mt-sb-modpip {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    box-sizing: border-box;
     border-radius: 9999px;
-    background: var(--mt-state-waiting);
+    border: 1.5px solid var(--mt-state-waiting);
+    background: transparent;
     pointer-events: none;
 }
 
@@ -350,102 +374,69 @@
     background: rgb(0 0 0 / 0.45);
 }
 
-/* Pull request counts under the block that shows Pilotage (FR-SHELL-085): soft tinted pills centred just under the
-   block, outside it. The block keeps its height and takes room below it, so only its row grows and the gutter stays
-   the same both ways. Every animation runs once. The pills fade without clipping, so a bump's ring is never cut. */
-.mt-sb-hp {
-    margin-bottom: 17px;
-}
-
-.mt-sb-hp.mt-sb-grow {
-    animation: mt-sb-hp-grow 380ms var(--mt-ease) both;
-}
-
-@keyframes mt-sb-hp-grow {
-    from {
-        margin-bottom: 0;
-    }
-}
-
-.mt-sb-pips {
-    position: absolute;
-    left: 50%;
-    top: calc(100% + 3px);
-    transform: translateX(-50%);
+/* Pull request status dots on the block that shows Integration (FR-SHELL-085, #1304): one round dot per state with
+   pull requests, in the corner column, red blocked on the developer, green ready to merge, orange CI running, grey
+   the agents' turn. Colours are the fixed state tokens; a thin dark edge keeps them apart from light and translucent
+   looks. Dots showing up fade in once, a dot whose count changes glows once; nothing moves at rest. */
+.mt-sb-dots {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 3px;
-    justify-content: center;
-    white-space: nowrap;
-    animation: mt-sb-pips-in 320ms var(--mt-ease) both;
+    animation: mt-sb-dots-in 320ms var(--mt-ease) both;
 }
 
-.mt-sb-grow .mt-sb-pips {
-    animation-delay: 220ms;
-}
-
-.mt-sb-pips.is-calm {
+.mt-sb-dots.is-calm {
     animation: none;
 }
 
-@keyframes mt-sb-pips-in {
+@keyframes mt-sb-dots-in {
     from {
         opacity: 0;
-        translate: 0 -3px;
     }
 }
 
-.mt-sb-pip {
-    min-width: 16px;
-    height: 14px;
-    padding: 0 5px;
-    box-sizing: border-box;
+.mt-sb-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
     border-radius: 9999px;
-    font-size: var(--mt-text-11);
-    font-weight: 600;
-    line-height: 14px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
+    background: currentColor;
+    box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.25);
 }
 
-.mt-sb-pips.is-small {
-    gap: 2px;
+.mt-sb-dots.is-small {
+    gap: 1.5px;
 }
 
-.mt-sb-pips.is-small .mt-sb-pip {
-    min-width: 14px;
-    height: 12px;
-    padding: 0 4px;
-    line-height: 12px;
+.mt-sb-dots.is-small .mt-sb-dot {
+    width: 4px;
+    height: 4px;
 }
 
-.mt-sb-pip.is-ready {
-    background: color-mix(in srgb, #6fc38a 22%, transparent);
-    color: #a6e3b8;
+.mt-sb-dot.is-blocked {
+    color: var(--mt-state-error);
 }
 
-.mt-sb-pip.is-ci {
-    background: color-mix(in srgb, #f0a24a 24%, transparent);
-    color: #f6c895;
+.mt-sb-dot.is-ready {
+    color: var(--mt-state-done);
 }
 
-.mt-sb-pip.is-draft {
-    background: rgb(255 255 255 / 0.1);
-    color: var(--color-secondary);
+.mt-sb-dot.is-ci {
+    color: var(--mt-state-working);
 }
 
-.mt-sb-pip.is-bump {
-    animation: mt-sb-pip-bump 700ms var(--mt-ease);
+.mt-sb-dot.is-draft {
+    color: var(--mt-sb-fg-3);
 }
 
-@keyframes mt-sb-pip-bump {
-    0% {
-        box-shadow: 0 0 0 0 currentColor;
-    }
+.mt-sb-dot.is-bump {
+    animation: mt-sb-dot-glow 700ms var(--mt-ease);
+}
+
+@keyframes mt-sb-dot-glow {
     40% {
-        box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 35%, transparent);
-    }
-    100% {
-        box-shadow: 0 0 0 0 transparent;
+        box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 40%, transparent);
     }
 }
 
@@ -471,9 +462,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mt-sb-hp.mt-sb-grow,
-    .mt-sb-pips,
-    .mt-sb-pip.is-bump,
+    .mt-sb-dots,
+    .mt-sb-dot.is-bump,
     .mt-sb-omni-pop {
         animation: none;
     }

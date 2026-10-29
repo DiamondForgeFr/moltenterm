@@ -8899,17 +8899,21 @@
             "label": "Views pinned in {name}"
         },
         "prCounts": {
+            "blocked": {
+                "one": "{count} pull request waiting on your decision",
+                "other": "{count} pull requests waiting on your decision"
+            },
             "ready": {
-                "one": "{count} pull request ready",
-                "other": "{count} pull requests ready"
+                "one": "{count} pull request ready to merge",
+                "other": "{count} pull requests ready to merge"
             },
             "ci": {
-                "one": "{count} pull request with CI running or failing",
-                "other": "{count} pull requests with CI running or failing"
+                "one": "{count} pull request with CI running",
+                "other": "{count} pull requests with CI running"
             },
             "draft": {
-                "one": "{count} draft pull request",
-                "other": "{count} draft pull requests"
+                "one": "{count} draft or pull request with an agent",
+                "other": "{count} drafts or pull requests with an agent"
             }
         },
         "temporary": {

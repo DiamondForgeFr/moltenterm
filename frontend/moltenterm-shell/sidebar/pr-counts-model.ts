@@ -1,42 +1,88 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The pull request counts under the block that shows Pilotage (FR-SHELL-085): ready, CI running or failing, draft.
-// Pure, read from Pilotage's own answer and split, so the counts never disagree with the panel's lists.
+// The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304): blocked, ready, CI running,
+// the agents' turn. Pure, read from the panel's own answer, split and card states, so the dots never disagree with
+// the panel's lists and sections.
 
-import { MoltentermReviewsView, ReadiedPrs, ReviewPr, ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
+import type { CardState, CardStateKind } from "../reviews/reviews-card-model";
+import {
+    checksOf,
+    MoltentermReviewsView,
+    ReadiedPrs,
+    ReviewPr,
+    ReviewsAnswer,
+    splitReviews,
+} from "../reviews/reviews-model";
 
-export type PrCountKind = "ready" | "ci" | "draft";
+export type PrCountKind = "blocked" | "ready" | "ci" | "draft";
 
 export type PrCounts = Record<PrCountKind, number>;
 
-// The order the pills read in, left to right.
-export const PrCountKinds: PrCountKind[] = ["ready", "ci", "draft"];
+// The order the dots read in, top to bottom: the most critical first.
+export const PrCountKinds: PrCountKind[] = ["blocked", "ready", "ci", "draft"];
 
-// Tooltip keys, a plural each (.one / .other).
+// Tooltip and accessible name keys, a plural each (.one / .other).
 export const PrCountKeys: Record<PrCountKind, string> = {
+    blocked: "sidebar.prCounts.blocked",
     ready: "sidebar.prCounts.ready",
     ci: "sidebar.prCounts.ci",
     draft: "sidebar.prCounts.draft",
 };
 
-function ciBusy(pr: ReviewPr): boolean {
-    const ci = pr.ci?.state ?? "none";
-    return ci === "pending" || ci === "failure" || pr.merge === "running" || pr.merge === "failing";
+// The card states that wait on the developer's decision: an agent stopped on a question, a stopped task, a conflict
+// or a failure nobody works on (the card picks an agent at work before them).
+const BlockedCards = new Set<CardStateKind>(["agent-waiting", "interrupted", "conflicts", "failing"]);
+
+// The card states that are the agents' turn, like a draft.
+const AgentCards = new Set<CardStateKind>(["agent-working", "agent-finish"]);
+
+export function emptyPrCounts(): PrCounts {
+    return { blocked: 0, ready: 0, ci: 0, draft: 0 };
 }
 
-// prCounts: a PR waiting for review whose CI still runs or fails counts as CI, the other ones as ready; drafts as
-// drafts. Nothing while GitHub could not be read: no counts then.
-export function prCounts(answer: ReviewsAnswer, readied?: ReadiedPrs): PrCounts {
-    const counts: PrCounts = { ready: 0, ci: 0, draft: 0 };
+// Without a card (no agent data), the PR alone: a conflict or a failing CI blocks.
+function prKind(pr: ReviewPr): PrCountKind {
+    if (pr.draft) {
+        return "draft";
+    }
+    if (pr.merge === "conflicts" || pr.merge === "failing" || checksOf(pr.ci, "failure").length > 0) {
+        return "blocked";
+    }
+    const ci = pr.ci?.state ?? "none";
+    if (ci === "pending" || ci === "failure" || pr.merge === "running") {
+        return "ci";
+    }
+    return "ready";
+}
+
+// prCountKind: the one dot a PR counts in. With its card (the Integration panel's state for it), the card decides.
+export function prCountKind(pr: ReviewPr, card?: CardState): PrCountKind {
+    if (card == null) {
+        return prKind(pr);
+    }
+    if (BlockedCards.has(card.kind)) {
+        return "blocked";
+    }
+    if (pr.draft || AgentCards.has(card.kind)) {
+        return "draft";
+    }
+    if (card.kind === "ci-running") {
+        return "ci";
+    }
+    return "ready";
+}
+
+// prCounts: every PR the panel lists, ready group and drafts, counted once. Nothing while GitHub could not be read.
+export function prCounts(answer: ReviewsAnswer, readied?: ReadiedPrs, cards?: Record<number, CardState>): PrCounts {
+    const counts = emptyPrCounts();
     if (answer?.state !== "ok") {
         return counts;
     }
     const split = splitReviews(answer, readied);
-    for (const pr of split.ready) {
-        counts[ciBusy(pr) ? "ci" : "ready"]++;
+    for (const pr of [...split.ready, ...split.drafts]) {
+        counts[prCountKind(pr, cards?.[pr.number])]++;
     }
-    counts.draft = split.drafts.length;
     return counts;
 }
 
@@ -44,14 +90,17 @@ export function hasPrCounts(counts: PrCounts): boolean {
     return counts != null && PrCountKinds.some((kind) => counts[kind] > 0);
 }
 
-// A count as its pill shows it: past 99 the pill would outgrow a block.
-export function prCountText(count: number): string {
-    return count > 99 ? "99+" : String(count);
+// The kinds that show a dot, in their order.
+export function shownPrKinds(counts: PrCounts): PrCountKind[] {
+    if (counts == null) {
+        return [];
+    }
+    return PrCountKinds.filter((kind) => counts[kind] > 0);
 }
 
 export type ViewBlocks = { tabId: string; views: string[] };
 
-// firstPilotageTab: one place per area carries the counts, the first of its blocks whose view holds a Pilotage panel.
+// firstPilotageTab: one place per area carries the dots, the first of its blocks whose view holds the panel.
 export function firstPilotageTab(tabs: ViewBlocks[]): string {
     return tabs.find((tab) => tab.views.includes(MoltentermReviewsView))?.tabId ?? "";
 }
