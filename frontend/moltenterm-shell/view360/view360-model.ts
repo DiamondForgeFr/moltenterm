@@ -64,12 +64,14 @@ import {
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
+import { narrowWindowAtom } from "../narrow-window";
 import { countBeside, partPinnedColumns, TabPins, withoutPin, withPin, withPinWidth } from "./pin-model";
 import { PinText } from "./pin-text";
 import { ScreenModel } from "./screen-store";
 import type { ScreenInfo } from "./screen-threshold";
 import {
     anyColumnTooTight,
+    autoMinColumns,
     AutoMinColumns,
     autoWants,
     carpetSlotWidthsPx,
@@ -229,10 +231,13 @@ export class View360Model {
                 columnsOver: get(this.columnsOverAtom),
                 cannotFit: get(this.cannotFitAtom),
                 columnCount: get(this.columnCountAtom),
+                narrowWindow: get(narrowWindowAtom),
             })
         );
         // Another screen, or another threshold chosen for it: the decision is taken again.
         globalStore.sub(this.thresholdAtom, () => this.layoutModel.updateTree());
+        // The window crossing the narrow threshold too (FR-SHELL-109).
+        globalStore.sub(narrowWindowAtom, () => this.layoutModel.updateTree());
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
@@ -320,7 +325,7 @@ export class View360Model {
         const holds =
             globalStore.get(this.columnsOverAtom) ||
             normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ||
-            autoWants(false, count, this.lastEvalWidth, this.lastEvalGap, this.lastColumnMins);
+            this.autoWantsNow(false, count, this.lastEvalWidth, this.lastEvalGap, this.lastColumnMins);
         globalStore.set(this.autoOnAtom, false);
         this.setManual(holds ? false : null);
         this.layoutModel.updateTree();
@@ -428,13 +433,13 @@ export class View360Model {
             !overThreshold(count, threshold) &&
             globalStore.get(this.manualAtom) === false &&
             normalizeView360Setting(globalStore.get(this.settingAtom)) === "auto" &&
-            !autoWants(false, count, width, gap, columnMins)
+            !this.autoWantsNow(false, count, width, gap, columnMins)
         ) {
             this.setManual(null);
         }
 
         const prevOn = globalStore.get(this.autoOnAtom);
-        const want = autoWants(prevOn, count, width, gap, columnMins);
+        const want = this.autoWantsNow(prevOn, count, width, gap, columnMins);
         const first = this.lastColumnCount == null;
         const countChanged = !first && count !== this.lastColumnCount;
         this.lastColumnCount = count;
@@ -453,6 +458,15 @@ export class View360Model {
             return;
         }
         this.scheduleSettle();
+    }
+
+    // The automatic rule (autoWants) for this window. In a narrow window (FR-SHELL-109) fewer than three columns count
+    // their readable minimums only: a large first-column floor beside one other column is #1225's false trip.
+    private autoWantsNow(prevOn: boolean, count: number, width: number, gap: number, columnMins: number[]): boolean {
+        if (globalStore.get(narrowWindowAtom) && count < AutoMinColumns) {
+            return autoWants(prevOn, count, width, gap, undefined, autoMinColumns(true));
+        }
+        return autoWants(prevOn, count, width, gap, columnMins);
     }
 
     // Whether the tab's columns, as last measured, fit side by side at their minimums with the terminal floor (#733).

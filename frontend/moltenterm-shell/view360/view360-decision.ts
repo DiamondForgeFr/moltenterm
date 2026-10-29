@@ -23,6 +23,13 @@ export const LeaveMarginPx = 64;
 // The automatic view needs at least two panels on the carpet (#1225): the first column plus two. A carpet holding one
 // panel brings nothing, two columns share the width instead. On demand and the always setting keep two columns.
 export const AutoMinColumns = 3;
+// In a narrow window (FR-SHELL-109) the sidebar floats and two columns that do not fit at their readable minimums go
+// to 360 view too: squeezed side by side, neither stays readable.
+export const NarrowAutoMinColumns = 2;
+
+export function autoMinColumns(narrowWindow: boolean): number {
+    return narrowWindow ? NarrowAutoMinColumns : AutoMinColumns;
+}
 // A width change alone (the window being resized) switches only once the width has held this long.
 export const ResizeSettleMs = 250;
 
@@ -95,15 +102,17 @@ export function minimumsPx(columnCount: number, gapPx = 0, columnMins?: number[]
 }
 
 // The automatic decision: enter when the minimums no longer fit, leave only when they fit with the margin.
-// `columnMins` (columnMinimumsPx) makes the first column count its floor.
+// `columnMins` (columnMinimumsPx) makes the first column count its floor; `minColumns` (autoMinColumns) is where the
+// automatic view starts.
 export function autoWants(
     prevOn: boolean,
     columnCount: number,
     widthPx: number,
     gapPx = 0,
-    columnMins?: number[]
+    columnMins?: number[],
+    minColumns = AutoMinColumns
 ): boolean {
-    if (columnCount < AutoMinColumns || !(widthPx > 0)) {
+    if (columnCount < minColumns || !(widthPx > 0)) {
         return false;
     }
     const need = minimumsPx(columnCount, gapPx, columnMins);
@@ -146,6 +155,8 @@ export type View360Inputs = {
     // The columns do not fit even at their readable minimums: nothing keeps the normal layout then.
     cannotFit?: boolean;
     columnCount: number;
+    // The window is narrow (FR-SHELL-109): two columns go automatic when they cannot fit.
+    narrowWindow?: boolean;
 };
 
 // What holds an automatic view on: the screen's column threshold, or the readable minimums.
@@ -162,7 +173,7 @@ export function decideView360(inputs: View360Inputs): View360Decision {
     let wanted = false;
     let source: View360Source = "auto";
     let reason: View360Reason;
-    const autoColumns = inputs.columnCount >= AutoMinColumns;
+    const autoColumns = inputs.columnCount >= autoMinColumns(!!inputs.narrowWindow);
     if (inputs.manual === true) {
         wanted = true;
         source = "manual";
@@ -170,7 +181,7 @@ export function decideView360(inputs: View360Inputs): View360Decision {
         wanted = !!inputs.cannotFit && autoColumns;
         source = wanted ? "auto" : "manual";
         reason = wanted ? "fit" : undefined;
-    } else if (inputs.columnsOver && autoColumns) {
+    } else if (inputs.columnsOver && inputs.columnCount >= AutoMinColumns) {
         wanted = true;
         reason = "columns";
     } else if (inputs.autoOn && autoColumns) {

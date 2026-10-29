@@ -15,6 +15,7 @@ import {
 } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { windowWidthAtom } from "../narrow-window";
 import { showToast } from "../toast-store";
 import {
     CarpetEndReservePx,
@@ -460,6 +461,27 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             }
         } finally {
             terminalFloor.px = null;
+        }
+    });
+
+    it("in a narrow window, two columns that cannot fit go to 360 view, a large floor alone does not (FR-SHELL-109)", () => {
+        globalStore.set(windowWidthAtom, 820);
+        terminalFloor.px = 900;
+        try {
+            // 920 px fits 520 + 360 at their readable minimums: the 900 px floor alone keeps the normal layout.
+            const wide = makeModel(null, rowOf(2)).model;
+            wide.evaluate(rowOf(2), boundsOf(920));
+            expect(wide.active).toBe(false);
+            const { model } = makeModel(null, rowOf(2));
+            model.evaluate(rowOf(2), boundsOf(800));
+            expect(model.active).toBe(true);
+            expect(globalStore.get(model.decisionAtom)).toMatchObject({ source: "auto", reason: "fit" });
+            // Widening the window past the threshold gives #1225's rule back at once.
+            globalStore.set(windowWidthAtom, 1400);
+            expect(model.active).toBe(false);
+        } finally {
+            terminalFloor.px = null;
+            globalStore.set(windowWidthAtom, 1400);
         }
     });
 
