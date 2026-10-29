@@ -365,7 +365,9 @@ export function releaseSettle(raw: number, velocity: number, at: number, ctx: Sw
     }
     // A committed pull opens its page, which slides in by itself: the rubber band returns to rest.
     const to = commit !== 0 && kind === "page" ? commit * ctx.width : 0;
-    return { from, to, v0: velocity, at, commit, kind };
+    // The rubber band lets go from where it stands: the fingers' speed would throw it outward first, filling the ring.
+    const v0 = kind === "page" ? velocity : 0;
+    return { from, to, v0, at, commit, kind };
 }
 
 function releaseNow(

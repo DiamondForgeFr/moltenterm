@@ -4,8 +4,8 @@
 // The workspace swipe on screen (FR-SHELL-082, DS-SHELL-130, #1248): wheel events go through the pure machine of
 // sidebar-swipe.ts, and one requestAnimationFrame per display frame writes the result as transforms and opacities on
 // a few elements held by ref (the page, the neighbour's likeness, the tint, the ring, the edge shadow). No React
-// render happens while the fingers move. A switch is asked at the commit; the view that appears takes the spring up
-// where it stands (sidebar-switch.ts), so the swap never stalls the motion.
+// render happens while the fingers move. A switch is asked once the commit's settle landed on the neighbour's likeness
+// (#1261): the view that appears shows the same place at rest, and its frame already has the tint's colour.
 
 import type { WebviewTag } from "electron";
 import { canScrollX, SwipeWheelChannel, SwipeWheelMessage } from "../view360/carpet-wheel";
@@ -13,6 +13,7 @@ import {
     arrivedSwipeState,
     CreatePageSides,
     FreshTouchGapMs,
+    heldRaw,
     initialSwipeState,
     LibrarySides,
     rawForOffset,
@@ -28,6 +29,7 @@ import {
     SwipeSides,
     SwipeState,
     swipeTick,
+    swipeTouch,
     swipeWheel,
     workspaceSides,
 } from "./sidebar-swipe";
@@ -92,6 +94,8 @@ export class SidebarSwipeController {
     frame = 0;
     releaseTimer: ReturnType<typeof setTimeout> = null;
     switchingUntil = 0;
+    // A committed swipe's switch, asked once its settle lands.
+    pendingSwitch: { target: string; side: -1 | 1 } = null;
     moved = new Set<HTMLElement>();
     view: SwipeView;
     actions: SwipeActions;
@@ -162,7 +166,7 @@ export class SidebarSwipeController {
             lastAbs: a.lastAbs,
             lastAt: a.lastAt - Date.now() + performance.now(),
         };
-        this.state = arrivedSwipeState(absorb);
+        this.state = arrivedSwipeState(absorb, this.state.touch);
     }
 
     // The view left the screen: whatever moved goes back to rest.
@@ -171,9 +175,10 @@ export class SidebarSwipeController {
         this.frame = 0;
         clearTimeout(this.releaseTimer);
         // The momentum stays absorbed: it may still arrive when this view comes back.
-        this.state = { ...initialSwipeState(), absorb: this.state.absorb };
+        this.state = { ...initialSwipeState(), absorb: this.state.absorb, touch: this.state.touch };
         this.gesture = null;
         this.switchingUntil = 0;
+        this.pendingSwitch = null;
         this.clearStyles();
     }
 
@@ -307,11 +312,29 @@ export class SidebarSwipeController {
         if (target == null) {
             return;
         }
+        // From here the gesture is spent: whatever follows is its momentum, absorbed until the view leaves.
+        this.switchingUntil = performance.now() + SwitchGiveUpMs;
+        this.pendingSwitch = { target, side };
+        if (this.view.reduced()) {
+            this.askSwitch(Math.min(1, Math.abs(settle.from) / g.ctx.width), settle.v0);
+        }
+    }
+
+    // The switch is asked once the settle landed on the neighbour's likeness (#1261): the view that appears is at rest
+    // where the settle ended, so nothing plays twice and no half-slid frame of either view shows. Asked at the release,
+    // the new view played its slide while emain revealed it off-screen and reinitialised it, then landed on screen
+    // already at rest: the motion jumped to its end.
+    private askSwitch(offset: number, v0: number) {
+        const pending = this.pendingSwitch;
+        if (pending == null) {
+            return;
+        }
+        this.pendingSwitch = null;
         const absorb = this.state.absorb;
         this.switchingUntil = performance.now() + SwitchGiveUpMs;
-        this.actions.switchTo(target, side, {
-            offset: Math.min(1, Math.abs(settle.from) / g.ctx.width),
-            v0: settle.v0,
+        this.actions.switchTo(pending.target, pending.side, {
+            offset,
+            v0,
             absorb:
                 absorb == null
                     ? null
@@ -321,6 +344,18 @@ export class SidebarSwipeController {
                           lastAt: absorb.lastAt - performance.now() + Date.now(),
                       },
         });
+    }
+
+    // A touch phase source's signals (#1261): the fingers went down on the trackpad, or lifted. Nothing calls them yet;
+    // see the PR of #1261 for where a real signal can come from.
+    touch(phase: "begin" | "end") {
+        // Only a tracking gesture reads the context, and a tracking gesture always has one.
+        const r = swipeTouch(this.state, phase, performance.now(), this.gesture?.ctx);
+        if (this.gesture == null) {
+            this.state = r.state;
+            return;
+        }
+        this.apply(r);
     }
 
     private schedule() {
@@ -344,7 +379,7 @@ export class SidebarSwipeController {
             return;
         }
         const offset = swipeOffset(s, now, g.ctx);
-        const raw = s.phase === "tracking" ? s.raw : rawForOffset(offset, g.ctx);
+        const raw = s.phase === "tracking" ? heldRaw(s, now, g.ctx) : rawForOffset(offset, g.ctx);
         const look = swipeLook(offset, raw, g.ctx, this.view.reduced());
         if (g.place === "library") {
             this.drawLibrary(look, offset, g.ctx);
@@ -364,8 +399,10 @@ export class SidebarSwipeController {
             } else if (this.view.position().creating) {
                 this.actions.leaveCreate();
             } else {
-                // The switch is on its way: this view keeps the settled look until it leaves the screen.
+                // The settle landed on the neighbour: the switch goes now, and this view keeps the settled look until
+                // it leaves the screen.
                 this.state = { ...this.state, phase: "idle", settle: null };
+                this.askSwitch(1, 0);
                 setTimeout(() => {
                     if (this.state.phase === "idle" && this.switchingUntil !== 0) {
                         this.reset();
@@ -438,7 +475,8 @@ export class SidebarSwipeController {
         if (lib == null) {
             return;
         }
-        const scale = lib.getBoundingClientRect().width / Math.max(1, ctx.width);
+        // Leaving it follows the fingers across its width; the rubber band past its end stays a few pixels (#1261).
+        const scale = offset > 0 ? lib.getBoundingClientRect().width / Math.max(1, ctx.width) : 1;
         const shown = Math.max(0, offset);
         this.move(lib, `translate3d(${look.pageX * scale}px, 0, 0)`, 1 - Math.min(1, shown / ctx.width) * 0.7);
     }
