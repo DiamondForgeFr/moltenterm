@@ -9215,6 +9215,9 @@
         }
     },
     "workspaceViews": {
+        "openFailed": "Cette vue n'a pas pu ouvrir ses panneaux",
+        "openFailedHint": "Réessayez, ou désépinglez la vue pour l'utiliser comme une vue vide.",
+        "retry": "Réessayer",
         "names": {
             "scoping": "Cadrage",
             "integration": "Intégration",

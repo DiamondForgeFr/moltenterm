@@ -6,6 +6,7 @@ package workspaceservice
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
@@ -32,6 +33,11 @@ func (svc *WorkspaceService) CreateWorkspace(ctx context.Context, name string, i
 	newWS, err := wcore.CreateWorkspace(ctx, name, icon, color, applyDefaults, false)
 	if err != nil {
 		return "", fmt.Errorf("error creating workspace: %w", err)
+	}
+	// MOLTENTERM-PATCH (#1305): a workspace the developer creates starts with the template's views (FR-SHELL-092); a
+	// window's own fallback workspace (wcore.CreateWindow) and the starter workspace do not
+	if err := wcore.AddNewWorkspaceViews(ctx, newWS.OID); err != nil {
+		log.Printf("molten: a new workspace's views: %v\n", err)
 	}
 	return newWS.OID, nil
 }

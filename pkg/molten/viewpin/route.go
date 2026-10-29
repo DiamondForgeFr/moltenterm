@@ -51,6 +51,9 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
+		if req.Pending && req.TabId != "" && req.WorkspaceId != "" {
+			return l.store.Build(ctx, req)
+		}
 		if req.WorkspaceId == "" || len(req.Config.Panes) == 0 {
 			return nil, fmt.Errorf("a view to open needs its workspace and at least one panel")
 		}

@@ -5,12 +5,15 @@ package wcore
 
 import (
 	"context"
-	"log"
+	"encoding/json"
+	"strings"
+	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
 // A workspace the developer creates starts with the views of the app:newworkspaceviews template (FR-SHELL-092,
@@ -33,9 +36,22 @@ const (
 	// must match frontend/moltenterm-shell/workspace-views/workspace-views-model.ts
 	ViewPendingMetaKey = "molten:viewpending"
 	ViewNameKeyMetaKey = "molten:viewnamekey"
-	// A template view with neither a name nor a key.
+	// A template view with neither a name nor a key; a key outside ViewNameKeyPrefix reads as this one.
 	DefaultViewNameKey = "workspaceViews.names.view"
+	ViewNameKeyPrefix  = "workspaceViews.names."
+
+	// A hand-edited template cannot make a workspace heavy.
+	MaxWorkspaceViews     = 12
+	MaxWorkspaceViewPanes = 8
+	MaxWorkspaceViewName  = 80
 )
+
+var pendingViewLock sync.Mutex
+
+var viewPanelKinds = []string{
+	ViewPanelAgent, ViewPanelTerminal, ViewPanelBrowser, ViewPanelFiles,
+	ViewPanelProject, ViewPanelIntegration, ViewPanelCicd, ViewPanelLineMap,
+}
 
 // What each panel kind opens, on the workspace's project when the view is first shown (viewpin.ResolvePane).
 func viewPanelMeta(kind string) waveobj.MetaMapType {
@@ -83,7 +99,7 @@ func WorkspaceViewConfig(panels []string) (viewpin.Config, bool) {
 	var agents, others []int
 	for _, kind := range panels {
 		meta := viewPanelMeta(kind)
-		if meta == nil {
+		if meta == nil || len(cfg.Panes) >= MaxWorkspaceViewPanes {
 			continue
 		}
 		idx := len(cfg.Panes)
@@ -130,29 +146,103 @@ func workspaceViewTabs(views []wconfig.NewWorkspaceViewType) []workspaceViewTab 
 			viewpin.PinConfigMetaKey: cfgMeta,
 			ViewPendingMetaKey:       true,
 		}
-		name := v.Name
+		name := strings.TrimSpace(v.Name)
+		if len([]rune(name)) > MaxWorkspaceViewName {
+			name = string([]rune(name)[:MaxWorkspaceViewName])
+		}
 		if name == "" {
 			name = v.NameKey
-			if name == "" {
+			if !strings.HasPrefix(name, ViewNameKeyPrefix) {
 				name = DefaultViewNameKey
 			}
 			meta[ViewNameKeyMetaKey] = name
 		}
 		rtn = append(rtn, workspaceViewTab{Name: name, Meta: meta})
+		if len(rtn) >= MaxWorkspaceViews {
+			break
+		}
 	}
 	return rtn
 }
 
 // addWorkspaceViews appends the template's views to a new workspace, after its first view, without making them
-// active.
-func addWorkspaceViews(ctx context.Context, workspaceId string, views []wconfig.NewWorkspaceViewType) {
-	for _, tab := range workspaceViewTabs(views) {
-		if _, err := createTabObj(ctx, workspaceId, tab.Name, tab.Meta); err != nil {
-			log.Printf("molten: adding a new workspace's view: %v\n", err)
-		}
+// active, in one transaction.
+func addWorkspaceViews(ctx context.Context, workspaceId string, views []wconfig.NewWorkspaceViewType) error {
+	tabs := workspaceViewTabs(views)
+	if len(tabs) == 0 {
+		return nil
 	}
+	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		for _, tab := range tabs {
+			if _, err := createTabObj(tx.Context(), workspaceId, tab.Name, tab.Meta); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-func newWorkspaceViews() []wconfig.NewWorkspaceViewType {
-	return wconfig.GetWatcher().GetFullConfig().Settings.AppNewWorkspaceViews
+// AddNewWorkspaceViews gives a workspace the developer just created the template's views.
+func AddNewWorkspaceViews(ctx context.Context, workspaceId string) error {
+	return addWorkspaceViews(ctx, workspaceId, wconfig.GetWatcher().GetFullConfig().Settings.AppNewWorkspaceViews)
+}
+
+func samePane(a waveobj.MetaMapType, b waveobj.MetaMapType) bool {
+	ab, errA := json.Marshal(a)
+	bb, errB := json.Marshal(b)
+	return errA == nil && errB == nil && string(ab) == string(bb)
+}
+
+func templatePane(pane waveobj.MetaMapType) bool {
+	for _, kind := range viewPanelKinds {
+		if samePane(pane, viewPanelMeta(kind)) {
+			return true
+		}
+	}
+	return false
+}
+
+// pendingViewConfig is the configuration a pending view opens with, read from its own tab, never from the window:
+// only a tab still pending, pinned in its workspace and without panels, and only panes the template makes. Tab meta
+// is writable from a terminal (wsh setmeta), and a pending view opens without a click, so a planted command panel
+// must never run. build is false when there is nothing to open (already opened, or not a template configuration).
+func pendingViewConfig(tab *waveobj.Tab) (cfg viewpin.Config, build bool) {
+	if tab == nil || tab.Meta[ViewPendingMetaKey] != true || len(tab.BlockIds) > 0 {
+		return cfg, false
+	}
+	if tab.Meta.GetString(viewpin.PinMetaKey, "") != viewpin.PinWorkspace {
+		return cfg, false
+	}
+	if err := utilfn.ReUnmarshal(&cfg, tab.Meta[viewpin.PinConfigMetaKey]); err != nil || len(cfg.Panes) == 0 {
+		return viewpin.Config{}, false
+	}
+	if len(cfg.Panes) > MaxWorkspaceViewPanes {
+		return viewpin.Config{}, false
+	}
+	for _, pane := range cfg.Panes {
+		if !templatePane(pane) {
+			return viewpin.Config{}, false
+		}
+	}
+	return cfg, true
+}
+
+// openPendingView prepares a pending view's build: the configuration to make, or nothing, and the mark cleared when
+// there is nothing to make, so the view shows its empty state instead of waiting.
+func openPendingView(ctx context.Context, tabId string) (viewpin.Config, bool, error) {
+	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
+	if err != nil {
+		return viewpin.Config{}, false, err
+	}
+	cfg, build := pendingViewConfig(tab)
+	if !build && tab.Meta[ViewPendingMetaKey] != nil {
+		if err := clearPendingView(ctx, tabId); err != nil {
+			return viewpin.Config{}, false, err
+		}
+	}
+	return cfg, build, nil
+}
+
+func clearPendingView(ctx context.Context, tabId string) error {
+	return wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Tab, tabId), waveobj.MetaMapType{ViewPendingMetaKey: nil}, false)
 }

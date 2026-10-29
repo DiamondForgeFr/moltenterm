@@ -67,9 +67,6 @@ func CreateWorkspace(ctx context.Context, name string, icon string, color string
 	if err != nil {
 		return nil, fmt.Errorf("error creating tab: %w", err)
 	}
-	if !isInitialLaunch {
-		addWorkspaceViews(ctx, ws.OID, newWorkspaceViews()) // MOLTENTERM-PATCH (#1305): the template's views (FR-SHELL-092)
-	}
 
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_WorkspaceUpdate,

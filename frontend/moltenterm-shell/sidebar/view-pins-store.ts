@@ -121,6 +121,8 @@ export class ViewPins {
     closedShown = new Set<string>();
     forking = new Set<string>();
     opening = new Set<string>();
+    // New workspace views whose first opening failed (#1305): their empty state offers to try again.
+    openFailedAtom = jotai.atom([]) as jotai.PrimitiveAtom<string[]>;
     seeding = false;
     seedMarkAtom!: jotai.Atom<boolean>;
 
@@ -457,6 +459,7 @@ export class ViewPins {
         tabmeta?: Record<string, any>;
         config: PinConfig;
         background?: boolean;
+        pending?: boolean;
     }): Promise<{ tabid: string }> {
         return TabRpcClient.wshRpcCall(
             ViewPinBuildCommand,
@@ -696,6 +699,10 @@ export class ViewPins {
         if (from == null || from === to || isProjectTab(tab)) {
             return;
         }
+        // A new workspace's view never opened (#1305) opens first: unpinned, it would be an empty temporary view.
+        if (viewPending(tab)) {
+            await this.openPending(ref.tabId);
+        }
         try {
             const needsCapture = to === "everywhere" || (to === "workspace" && from === "temporary");
             const captured = needsCapture ? await this.capture(ref.tabId) : undefined;
@@ -817,25 +824,31 @@ export class ViewPins {
 
     // A new workspace's view shown for the first time (#1305): its panels are made from its configuration, on the
     // workspace's project as it is now, and the mark goes. Its agent slot waits for the developer.
+    // wavesrv opens it from the tab's own configuration (only the panels a template makes), once, and clears the mark
+    // in the same call. A failure leaves the view pending and its empty state offers to try again.
     async openPending(tabId: string): Promise<void> {
         const tab = globalStore.get(tabAtom(tabId));
         if (!viewPending(tab) || this.opening.has(tabId)) {
             return;
         }
-        const state = globalStore.get(this.stateAtom(tabId));
-        const pin = this.globalPins().find((p) => p.id === tab.meta[GlobalPinMetaKey]);
-        const config = state === "workspace" ? readPinConfig(tab.meta[PinConfigMetaKey]) : pin?.config;
         this.opening.add(tabId);
+        this.setOpenFailed(tabId, false);
         try {
-            if (config != null) {
-                await this.build({ tabid: tabId, config });
-            }
-            await this.setTabMeta(tabId, { [ViewPendingMetaKey]: null });
+            await this.build({ tabid: tabId, pending: true, config: { tree: {}, panes: [] } });
         } catch (e) {
+            this.setOpenFailed(tabId, true);
             pinError(e);
         } finally {
             this.opening.delete(tabId);
         }
+    }
+
+    private setOpenFailed(tabId: string, failed: boolean) {
+        const now = globalStore.get(this.openFailedAtom);
+        if (now.includes(tabId) === failed) {
+            return;
+        }
+        globalStore.set(this.openFailedAtom, failed ? [...now, tabId] : now.filter((id) => id !== tabId));
     }
 
     // A block of the top row: this workspace's own instance of the view, made on its project the first time, and

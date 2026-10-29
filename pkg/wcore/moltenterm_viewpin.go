@@ -73,6 +73,17 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 			wps.Broker.SendUpdateEvents(updates)
 		}()
 	}()
+	if req.Pending {
+		// Two windows (or a tab view handed over mid-switch) may show the same pending view: one opens it, the other
+		// then finds its panels and does nothing.
+		pendingViewLock.Lock()
+		defer pendingViewLock.Unlock()
+		cfg, build, err := openPendingView(ctx, req.TabId)
+		if err != nil || !build {
+			return viewpin.BuildResult{TabId: req.TabId}, err
+		}
+		req.Config = cfg
+	}
 	dir := workspaceProjectDir(ctx, req.WorkspaceId)
 	project := viewpin.Project{Dir: dir, RepoUrl: viewpin.RepoWebUrl(dir)}
 	panes := req.Config.Panes
@@ -116,6 +127,11 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 	}
 	if err := QueueLayoutActionForTab(ctx, tabId, actions...); err != nil {
 		return viewpin.BuildResult{TabId: tabId}, err
+	}
+	if req.Pending {
+		if err := clearPendingView(ctx, tabId); err != nil {
+			return viewpin.BuildResult{TabId: tabId}, err
+		}
 	}
 	for _, id := range oldBlocks {
 		if err := DeleteBlock(ctx, id, false); err != nil {
