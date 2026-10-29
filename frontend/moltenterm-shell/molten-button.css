@@ -10,12 +10,12 @@
    recolour it. The calm variants (molten-btn-secondary, -outline, -ghost) carry no wave. */
 
 /* Each --molten-hi-* stays a plain `color-mix(in srgb, var(--molten-base) N%, rgb(...))`: molten-button.test.ts
-   resolves them for every workspace colour and keeps the text at 4.5:1 over the rest colour and both highlights
+   resolves them on the action colour and keeps the text at 4.5:1 over the rest colour and both highlights
    (NFR-SHELL-003). The highlights lighten towards warm white and yellow, so the surface reads as molten metal rather
-   than a darkened fill. */
+   than a darkened fill. The base is the fixed action colour (#1319): the same molten button in every workspace. */
 .molten-btn {
-    --molten-base: var(--mt-accent);
-    --molten-fg: var(--mt-accent-fg);
+    --molten-base: var(--mt-action);
+    --molten-fg: var(--mt-action-fg);
     --molten-hi-1: color-mix(in srgb, var(--molten-base) 80%, rgb(255, 246, 222));
     --molten-hi-2: color-mix(in srgb, var(--molten-base) 70%, rgb(255, 222, 140));
     isolation: isolate;
@@ -183,7 +183,7 @@
 
 .molten-btn-outline.molten-tone-accent,
 .molten-btn-ghost.molten-tone-accent {
-    color: var(--mt-accent);
+    color: var(--mt-action-text);
 }
 
 .molten-btn-outline.molten-tone-accent {
@@ -200,12 +200,12 @@
     color: var(--color-accenthover);
 }
 
-/* One focus ring for every button: a light tint of the accent, offset from the edge. Wave's was 1px green. */
+/* One focus ring for every button, the fixed --mt-focus (#1319), offset from the edge. Wave's was 1px green. */
 .molten-btn:focus-visible,
 .molten-btn-secondary:focus-visible,
 .molten-btn-outline:focus-visible,
 .molten-btn-ghost:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--molten-base, var(--mt-accent)) 45%, white);
+    outline: 2px solid var(--mt-focus);
     outline-offset: 2px;
 }
 

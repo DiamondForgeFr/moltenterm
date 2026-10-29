@@ -5,7 +5,7 @@
    desktop through, at --mt-window-alpha (window-look.tsx sets it). The panels keep what they show today: their own
    background laid over the frame's opaque tint, so text in them reads the same. */
 html.mt-translucent {
-    --mt-frame-tint: color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16));
+    --mt-frame-tint: color-mix(in srgb, var(--mt-place) 18%, rgb(20 17 16));
     --mt-frame-tint-alpha: color-mix(in srgb, var(--mt-frame-tint) calc(var(--mt-window-alpha, 1) * 100%), transparent);
 }
 
@@ -33,7 +33,7 @@ html.mt-translucent .mt-sb.is-hidden {
 /* A texture (#1294): over the frame's tint and the hidden sidebar's, under everything they hold. The image is one
    small tile from window-texture.ts, repeated. */
 html.mt-textured {
-    --mt-frame-tint: color-mix(in srgb, var(--mt-accent) 18%, rgb(20 17 16));
+    --mt-frame-tint: color-mix(in srgb, var(--mt-place) 18%, rgb(20 17 16));
 }
 
 html.mt-textured .mt-sb-frame,

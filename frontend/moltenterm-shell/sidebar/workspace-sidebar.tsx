@@ -587,14 +587,14 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     };
     return (
         <div className="mt-sb-hdr flex shrink-0 items-center gap-1.5 px-0.5 pt-1.5" data-testid="sidebar-header">
+            <span className="mt-sb-place-bar" data-testid="sidebar-place-bar" aria-hidden />
             {logo ? (
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center" data-testid="sidebar-project-logo">
                     <WorkspaceIcon source={{ icon: "", color: "", image: "", logo }} className="h-4 w-4" />
                 </span>
             ) : null}
             <span
-                className="max-w-[60%] shrink-0 truncate text-12 font-semibold tracking-[0.08em] uppercase"
-                style={{ color: "color-mix(in srgb, var(--color-primary) 82%, var(--mt-accent))" }}
+                className="max-w-[60%] shrink-0 truncate text-12 font-semibold tracking-[0.08em] text-primary uppercase"
                 title={name}
                 data-testid="sidebar-workspace-name"
             >
@@ -807,6 +807,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 )}
                 {hasCounts ? <PrDots counts={counts} motionKey={`tile:${tabId}`} calm={!fresh} /> : null}
             </span>
+            {active ? <span className="mt-sb-tile-place" data-testid="sidebar-tile-place" aria-hidden /> : null}
             {modified ? (
                 <>
                     <span
@@ -2421,6 +2422,7 @@ export function WorkspaceSidebar() {
                 onMouseLeave={endPeek}
                 onContextMenu={onWorkspaceMenu}
             >
+                <span className="mt-sb-place-strip" data-testid="sidebar-place-strip" aria-hidden />
                 <WindowRow peeked={hidden} standIns={standIns} />
                 <TopField />
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />

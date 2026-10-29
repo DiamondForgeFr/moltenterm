@@ -30,8 +30,10 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 
 ## What stays MoltenTerm
 
-- **The accent is the workspace colour**, molten orange by default (`--mt-accent`). `--df-accent` maps to it, so a
-  block's chip and tile follow the workspace the way the rail and the molten buttons do.
+- **The accent is the action** (#1319): molten orange in every workspace (`--mt-action`, aliased `--mt-accent`).
+  `--df-accent` maps to it, so a block's chip and tile look the same in every workspace, like the molten buttons. The
+  workspace colour (`--mt-place`) marks the place only: the workspace dot, the sidebar strip, the bar beside the
+  workspace name, the active tile's underline and the focused panel's frame.
 - **Its fonts and type scale.** Rows use 12 px and descriptions 12 px (`--mt-text-*`); Notulia uses 14 px. The kit
   reads them through `--df-text-*`.
 - **Its warm neutrals** (`--mt-surface-*`, `--mt-line-*`, `--mt-text-*`), the terminal's dark theme, and the

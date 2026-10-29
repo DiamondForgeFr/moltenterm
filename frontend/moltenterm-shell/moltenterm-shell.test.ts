@@ -26,10 +26,17 @@ const WorkspaceColours = [
 
 type Recipe = { pct: number; base: string };
 
+// The action tokens (#1319): fixed, the same in every workspace.
+function shellToken(name: string): ReturnType<typeof parseColor> {
+    return parseColor(new RegExp(`${name}: (#[0-9a-f]{6});`).exec(shellCss)?.[1]);
+}
+const Action = shellToken("--mt-action");
+const ActionFg = shellToken("--mt-action-fg");
+
 // The --mt-neutral-* and --mt-text-* tokens, read from the stylesheet so the test follows any retuning.
 function readRecipes(): Record<string, Recipe> {
     const recipes: Record<string, Recipe> = {};
-    const re = /(--mt-(?:neutral|text)-[a-z]+):\s*color-mix\(in srgb, var\(--mt-accent\) (\d+)%, (rgb\([^)]*\))\);/g;
+    const re = /(--mt-(?:neutral|text)-[a-z]+):\s*color-mix\(in srgb, var\(--mt-place\) (\d+)%, (rgb\([^)]*\))\);/g;
     for (const m of shellCss.matchAll(re)) {
         recipes[m[1]] = { pct: Number(m[2]), base: m[3] };
     }
@@ -67,7 +74,8 @@ describe("warm neutrals (FR-SHELL-014)", () => {
             }
         );
 
-        it("leans towards the accent", () => {
+        // Step 2 of the Coulée theme (#1318) replaces these tints with fixed neutrals.
+        it("leans towards the workspace colour", () => {
             const warm = resolve("--mt-neutral-bg", accent);
             const grey = parseColor(Recipes["--mt-neutral-bg"].base);
             const a = parseColor(accent);
@@ -127,7 +135,7 @@ describe("interface typeface (FR-SHELL-014)", () => {
 });
 
 describe("text on the accent (NFR-SHELL-003, #244)", () => {
-    const Threshold = 60;
+    const Threshold = 70;
     const Black = { r: 0, g: 0, b: 0 };
     const White = { r: 255, g: 255, b: 255 };
     const rule = /\.bg-accent,\s*((?:\[class\*="bg-accent\/\d+"\],?\s*)+)\{\s*color: var\(--mt-accent-fg\);/.exec(
@@ -154,25 +162,28 @@ describe("text on the accent (NFR-SHELL-003, #244)", () => {
         return found;
     }
 
-    // The worst case, over the workspace colours and the panel backgrounds, of a text colour on a `pct`% accent tint.
-    function worstContrast(pct: number, text: (accent: string) => ReturnType<typeof parseColor>): number {
+    // The worst case, over the workspace colours (the panels still take their tint, #1318 step 2) and the panel
+    // backgrounds, of a text colour on a `pct`% tint of the accent, which is the fixed action colour (#1319).
+    function worstContrast(pct: number, text: (place: string) => ReturnType<typeof parseColor>): number {
         let worst = Infinity;
-        for (const accent of WorkspaceColours) {
+        for (const place of WorkspaceColours) {
             for (const bg of Backgrounds) {
-                const tint = mixColor(parseColor(accent), resolve(bg, accent), pct);
-                worst = Math.min(worst, contrastRatio(text(accent), tint));
+                const tint = mixColor(Action, resolve(bg, place), pct);
+                worst = Math.min(worst, contrastRatio(text(place), tint));
             }
         }
         return worst;
     }
-    const panelText = (accent: string) => resolve("--mt-text-main", accent);
-    const accentText = (accent: string) => {
-        const a = parseColor(accent);
-        return contrastRatio(a, Black) >= contrastRatio(a, White) ? Black : White;
-    };
+    const panelText = (place: string) => resolve("--mt-text-main", place);
+    const accentText = () => ActionFg;
+
+    it("draws the accent's text in the action's fixed text colour", () => {
+        expect(shellCss).toMatch(/:root \{[^}]*--mt-accent-fg: var\(--mt-action-fg\);/);
+        expect([Black, White]).not.toContainEqual(ActionFg);
+    });
 
     it("gives the accent's text colour to the solid fill and the near-solid opacities only", () => {
-        expect(covered).toEqual([60, 65, 70, 75, 80, 85, 90, 95, 100]);
+        expect(covered).toEqual([70, 75, 80, 85, 90, 95, 100]);
     });
 
     it("covers every near-solid opacity used in frontend/", () => {
@@ -251,7 +262,7 @@ describe("running indicators (NFR-MC-004)", () => {
 const tokensCss = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
 
 function tokenRecipe(name: string): Recipe {
-    const m = new RegExp(`${name}:\\s*color-mix\\(in srgb, var\\(--mt-accent\\) (\\d+)%, (rgb\\([^)]*\\))\\);`).exec(
+    const m = new RegExp(`${name}:\\s*color-mix\\(in srgb, var\\(--mt-place\\) (\\d+)%, (rgb\\([^)]*\\))\\);`).exec(
         tokensCss
     );
     return m == null ? null : { pct: Number(m[1]), base: m[2] };
@@ -268,7 +279,7 @@ describe("design tokens v2: colours (FR-SHELL-044 AC2, AC5)", () => {
         return mixColor(parseColor(accent), parseColor(recipe.base), recipe.pct);
     };
     const glyphPct = Number(
-        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-accent\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
+        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-place\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
             tokensCss
         )?.[1]
     );
@@ -339,10 +350,13 @@ describe("design tokens v2: motion (FR-SHELL-044 AC4, NFR-SHELL-027)", () => {
     });
 });
 
-describe("focus ring in the workspace accent (#751)", () => {
-    it("draws --mt-focus-ring on every control without a ring of its own, at zero specificity", () => {
-        expect(shellCss).toMatch(/:where\(:focus-visible\) \{\s*outline: 2px solid var\(--mt-focus-ring\);/);
-        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus-ring: rgb\(255, 124, 13\);/);
+describe("focus ring (#751, #1319)", () => {
+    it("draws the fixed --mt-focus, 2 px with a 2 px offset, on every control without a ring of its own", () => {
+        expect(shellCss).toMatch(
+            /:where\(:focus-visible\) \{\s*outline: 2px solid var\(--mt-focus-ring\);\s*outline-offset: 2px;/
+        );
+        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus-ring: var\(--mt-focus\);/);
+        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus: #ffa45c;/);
     });
 
     it("leaves no MoltenTerm focus ring in the raw accent or in white", () => {
@@ -357,5 +371,95 @@ describe("focus ring in the workspace accent (#751)", () => {
             }
         }
         expect(offenders).toEqual([]);
+    });
+});
+
+// Theme "Coulée" step 1 (#1319, FR-SHELL-004, NFR-SHELL-003): the action is molten in every workspace, the workspace
+// colour only marks the place.
+describe("action and place (#1319)", () => {
+    const Surfaces = ["--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
+    const surface = (name: string, place: string) => {
+        const recipe = tokenRecipe(name);
+        return mixColor(parseColor(place), parseColor(recipe.base), recipe.pct);
+    };
+    // The lightest surface a ring is drawn on: a key cap or a hovered row.
+    const keyCap = (place: string) => resolve("--mt-neutral-key", place);
+
+    it("has the proposal's action values", () => {
+        const values: Record<string, string> = {
+            "--mt-action": "#ff7c0d",
+            "--mt-action-hover": "#ff9a45",
+            "--mt-action-press": "#e86a00",
+            "--mt-action-fg": "#1c0f04",
+            "--mt-action-text": "#ff9442",
+            "--mt-focus": "#ffa45c",
+        };
+        for (const [name, value] of Object.entries(values)) {
+            expect(shellCss, name).toMatch(new RegExp(`:root \\{[^}]*${name}: ${value};`));
+        }
+        expect(shellCss).toMatch(/:root \{[^}]*--mt-action-wash: rgba\(255, 124, 13, 0\.12\);/);
+    });
+
+    it("points every accent alias at the action, never at the place", () => {
+        const root = /\/\* Action and place[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        expect(root).toContain("--mt-accent: var(--mt-action);");
+        for (const alias of [
+            "--accent-color",
+            "--form-element-primary-color",
+            "--toggle-checked-bg-color",
+            "--color-accent",
+        ]) {
+            expect(root).toContain(`${alias}: var(--mt-accent);`);
+        }
+        expect(root).toContain("--color-accentbg: var(--mt-action-wash);");
+        expect(root).toContain("--color-accenthover: var(--mt-action-hover);");
+        for (const slot of [
+            "--df-accent: var(--mt-action);",
+            "--df-accent-fg: var(--mt-action-fg);",
+            "--df-tile-fg: var(--mt-action-fg);",
+        ]) {
+            expect(tokensCss).toContain(slot);
+        }
+    });
+
+    it("reads text on the action at 4.5:1 at rest, on hover and pressed (NFR-SHELL-003)", () => {
+        const want: Record<string, number> = {
+            "--mt-action": 7.27,
+            "--mt-action-hover": 8.9,
+            "--mt-action-press": 5.8,
+        };
+        for (const [name, ratio] of Object.entries(want)) {
+            expect(contrastRatio(ActionFg, shellToken(name)), name).toBeCloseTo(ratio, 1);
+        }
+    });
+
+    describe.each(WorkspaceColours)("in workspace colour %s", (place) => {
+        it.each(Surfaces)("action text reads at 4.5:1, the action and the focus ring at 3:1 on %s", (s) => {
+            const bg = surface(s, place);
+            expect(contrastRatio(shellToken("--mt-action-text"), bg)).toBeGreaterThanOrEqual(4.5);
+            expect(contrastRatio(Action, bg)).toBeGreaterThanOrEqual(3);
+            expect(contrastRatio(shellToken("--mt-focus"), bg)).toBeGreaterThanOrEqual(3);
+        });
+
+        it("the focus ring reads at 3:1 on a key cap", () => {
+            expect(contrastRatio(shellToken("--mt-focus"), keyCap(place))).toBeGreaterThanOrEqual(3);
+        });
+    });
+
+    it("draws the place on the focused panel's frame and the sidebar's place cues", () => {
+        expect(shellCss).toMatch(
+            /\.block-no-highlight:not\(\.block-preview\) \.block-mask \{\s*box-shadow:\s*inset 0 0 0 1px color-mix\(in srgb, var\(--mt-place\) 55%/
+        );
+        const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
+        for (const cue of ["mt-sb-place-strip", "mt-sb-place-bar", "mt-sb-tile-place"]) {
+            expect(sidebarCss).toMatch(new RegExp(`\\.${cue} \\{[^}]*var\\(--mt-place\\)`));
+        }
+    });
+
+    it("keeps the workspace colour off the buttons, the hold-to-confirm and the suite kit", () => {
+        for (const file of ["molten-button.css", "hold-to-confirm.css", "suite/suite.css"]) {
+            const css = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
+            expect(css, file).not.toContain("--mt-place");
+        }
     });
 });

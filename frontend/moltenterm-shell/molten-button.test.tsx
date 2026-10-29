@@ -13,20 +13,6 @@ import { moltenButtonClasses } from "./molten-button";
 const buttonCss = readFileSync(new URL("./molten-button.css", import.meta.url), "utf8");
 const shellCss = readFileSync(new URL("./moltenterm-shell.css", import.meta.url), "utf8");
 
-// The same colours as moltenterm-shell.test.ts: Moltenterm's workspace palette, Wave's flag colours and a dark blue
-// (the one accent that takes white text).
-const WorkspaceColours = [
-    MoltentermDefaultAccent,
-    "#00FFDB",
-    "#429DFF",
-    "#BF55EC",
-    "#FF453A",
-    "#58C142",
-    "#FFE900",
-    "#FF9500",
-    "#1E3A8A",
-];
-
 type Recipe = { pct: number; base: string };
 type Rgb = ReturnType<typeof parseColor>;
 
@@ -51,6 +37,11 @@ function readHighlights(selector: string): Record<string, Recipe> {
 
 function shellToken(token: string): Rgb {
     return parseColor(new RegExp(`${token}:\\s*(rgb\\([^)]*\\));`).exec(shellCss)?.[1]);
+}
+
+// The action tokens (#1319) are hex values.
+function actionToken(token: string): Rgb {
+    return parseColor(new RegExp(`${token}: (#[0-9a-f]{6});`).exec(shellCss)?.[1]);
 }
 
 // A variant's --molten-base: a semantic token, plain or darkened (`color-mix(in srgb, var(--token) N%, black)`).
@@ -78,14 +69,28 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
         expect(Object.keys(Highlights).sort()).toEqual(["--molten-hi-1", "--molten-hi-2"]);
     });
 
-    describe.each(WorkspaceColours)("primary on workspace colour %s", (accent) => {
-        const fg = parseColor(accentForeground(parseColor(accent)));
-        it.each(surfaces(parseColor(accent), Highlights).map((s) => [s.name, s.rgb]))(
+    // The primary is the fixed action colour (#1319): one check holds for every workspace.
+    describe("primary on the action colour", () => {
+        const base = actionToken("--mt-action");
+        const fg = actionToken("--mt-action-fg");
+
+        it("fills with the action and writes in its text colour, never the workspace colour", () => {
+            expect(cssValue(".molten-btn", "--molten-base")).toBe("var(--mt-action)");
+            expect(cssValue(".molten-btn", "--molten-fg")).toBe("var(--mt-action-fg)");
+            expect(base).toEqual(parseColor(MoltentermDefaultAccent));
+            expect(buttonCss).not.toContain("--mt-place");
+        });
+
+        it.each(surfaces(base, Highlights).map((s) => [s.name, s.rgb]))(
             "keeps the text at 4.5:1 over %s",
             (_name, rgb) => {
                 expect(contrastRatio(rgb, fg)).toBeGreaterThanOrEqual(4.5);
             }
         );
+
+        it("draws its focus ring in the fixed --mt-focus", () => {
+            expect(buttonCss).toMatch(/\.molten-btn:focus-visible,[^{]*\{\s*outline: 2px solid var\(--mt-focus\);/);
+        });
     });
 
     describe.each([

@@ -858,7 +858,7 @@ export function Library({
             data-section={section}
             style={
                 {
-                    ["--mt-lib-tint" as string]: colourStops(workspace?.color)[0] ?? "var(--mt-accent)",
+                    ["--mt-lib-tint" as string]: colourStops(workspace?.color)[0] ?? "var(--mt-place)",
                 } as React.CSSProperties
             }
         >

@@ -167,11 +167,11 @@ describe("no bud or goo is left (FR-SHELL-045-AC9)", () => {
         expect(css).toContain(".molten-rail-host[data-tray-open] .molten-rail-coffee-drop {\n    opacity: 0;");
     });
 
-    it("draws the pure workspace colour only on the 3 px active bar (DS-SHELL-082)", () => {
+    it("draws the pure workspace colour only on the 3 px active bar (DS-SHELL-082, #1319)", () => {
         const css = source("./moltenterm-shell.css");
         const bar = cssRule(css, ".molten-rail-active-bar");
         expect(bar).toContain("width: 3px;");
-        expect(bar).toContain("background-color: var(--mt-accent);");
+        expect(bar).toContain("background-color: var(--mt-place);");
         expect(source("./workspace-icon.tsx")).toContain('"molten-glyph-tone"');
     });
 });
