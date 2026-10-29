@@ -71,7 +71,7 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Terminal",
             "Agents",
             "Browser",
-            "Mission Control",
+            "Project",
             "Keyboard",
             "Mods",
             "Secrets",

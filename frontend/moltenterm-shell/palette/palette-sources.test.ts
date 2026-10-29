@@ -126,8 +126,8 @@ describe("workspace actions", () => {
             { id: "w2", name: "Notulia", icon: "book", color: "#0f0", active: false },
         ]);
         expect(actions.map((a) => a.label)).toEqual([
-            "New tab",
-            "Reopen the last closed pane or tab",
+            "New view",
+            "Reopen the last closed pane or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",
@@ -197,9 +197,9 @@ describe("workspace actions", () => {
     it("offers the Project tab first in a linked workspace", () => {
         const actions = actionEntries([], true);
         expect(actions.map((a) => a.label)).toEqual([
-            "Project tab",
-            "New tab",
-            "Reopen the last closed pane or tab",
+            "Project view",
+            "New view",
+            "Reopen the last closed pane or view",
             "Split the panel…",
             "Equalize panels",
             "New workspace",

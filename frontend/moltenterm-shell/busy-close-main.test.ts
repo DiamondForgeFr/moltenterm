@@ -152,7 +152,7 @@ describe("the texts of main's dialogs", () => {
         });
         expect(busyCloseText("delete").title).toBe("Delete the workspace “Unsaved workspace”?");
         expect(busyCloseText("switch").confirm).toBe("Switch anyway");
-        expect(busyCloseText("tab", "build").title).toBe("Close the tab “build”?");
+        expect(busyCloseText("tab", "build").title).toBe("Close the view “build”?");
     });
 
     it("keeps agents first across the stopping and the quit lists", () => {

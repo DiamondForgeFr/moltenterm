@@ -152,7 +152,7 @@ describe("makePaneView", () => {
         });
         expect(view.ci).toMatchObject({ status: "failure", label: "CI failed" });
         expect(view.branchTitle).toBe(
-            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Project tab"
+            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Project view"
         );
     });
 
@@ -177,7 +177,7 @@ describe("makePaneView", () => {
         );
         expect(view.branch).toBe("detached at abcdef1");
         expect(view.branchTitle).toBe(
-            "detached at abcdef1\non no branch\n3 commits on no remote\nOpen the Project tab"
+            "detached at abcdef1\non no branch\n3 commits on no remote\nOpen the Project view"
         );
     });
 
@@ -198,24 +198,24 @@ describe("makePaneView", () => {
             workspace({})
         );
         expect(view.branch).toBe("detached at feature/109-loader");
-        expect(view.branchTitle).toBe("detached at abcdef1\nOpen the Project tab");
+        expect(view.branchTitle).toBe("detached at abcdef1\nOpen the Project view");
         expect(view.pr).toEqual(pr);
     });
 
     it("says a branch has no pull request yet only when the open ones are known (#961)", () => {
         const state: PaneState = { dir: "/r", root: "/r", project: "/r", branch: "feature/7-x", sha: "abcdef1234" };
         expect(makePaneView("/r", { ...state, prknown: true }, workspace({})).branchTitle).toBe(
-            "feature/7-x at abcdef1\nNo pull request yet\nOpen the Project tab"
+            "feature/7-x at abcdef1\nNo pull request yet\nOpen the Project view"
         );
         expect(makePaneView("/r", state, workspace({})).branchTitle).toBe(
-            "feature/7-x at abcdef1\nOpen the Project tab"
+            "feature/7-x at abcdef1\nOpen the Project view"
         );
         const onNoBranch = makePaneView(
             "/r",
             { dir: "/r", root: "/r", project: "/r", detached: true, sha: "abcdef1234", prknown: true },
             workspace({})
         );
-        expect(onNoBranch.branchTitle).toBe("detached at abcdef1\non no branch\nOpen the Project tab");
+        expect(onNoBranch.branchTitle).toBe("detached at abcdef1\non no branch\nOpen the Project view");
     });
 
     it("says which repository below the folder it describes (#961)", () => {

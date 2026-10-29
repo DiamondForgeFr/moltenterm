@@ -144,8 +144,8 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).toContain('value="Client A"');
         expect(html).toContain('aria-invalid="false"');
         expect(html).toMatch(/data-role="rail-preview" class="[^"]*\bh-9 w-9\b[^"]*text-icon-16/);
-        expect(html).toContain('aria-label="Rail badge: Rocket, Blue"');
-        expect(html).toContain("In the rail");
+        expect(html).toContain('aria-label="Sidebar badge: Rocket, Blue"');
+        expect(html).toContain("In the sidebar");
     });
 
     it("names the sidebar under the badge preview when the workspace sidebar is on (#1183)", () => {
@@ -154,7 +154,6 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         try {
             const html = sheet(true);
             expect(html).toContain("In the sidebar");
-            expect(html).not.toContain("In the rail");
         } finally {
             getDefaultStore().set(enabledAtom, false);
         }
@@ -264,7 +263,7 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
 
     it("shows the imported image in the preview, square and fitted whole", () => {
         const html = sheetWith({ "molten:workspaceicon": Stored, "molten:projectlogo": "/p/logo.svg" });
-        expect(html).toContain('aria-label="Rail badge: Rocket, Blue, imported image"');
+        expect(html).toContain('aria-label="Sidebar badge: Rocket, Blue, imported image"');
         const src = encodeURIComponent(`/data/workspace-icons/${Stored}`);
         expect(html).toMatch(
             new RegExp(
@@ -276,10 +275,10 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
 
     it("previews the project logo when no image was imported, and the glyph otherwise", () => {
         expect(sheetWith({ "molten:projectlogo": "/p/logo.svg" })).toContain(
-            'aria-label="Rail badge: Rocket, Blue, project logo"'
+            'aria-label="Sidebar badge: Rocket, Blue, project logo"'
         );
         const plain = sheetWith({});
-        expect(plain).toContain('aria-label="Rail badge: Rocket, Blue"');
+        expect(plain).toContain('aria-label="Sidebar badge: Rocket, Blue"');
         expect(plain).toMatch(
             /<i class="[^"]*fa-rocket[^"]*molten-glyph-tone[^"]*" style="--mt-glyph-color:#429DFF" data-icon-kind="builtin"/
         );
@@ -388,7 +387,7 @@ describe("colour field (#657)", () => {
         const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
         expect(html).toContain('data-role="colour-field"');
         expect(html).toMatch(/aria-checked="true" aria-label="Ocean"/);
-        expect(html).toContain("Rail badge: Rocket, Ocean");
+        expect(html).toContain("Sidebar badge: Rocket, Ocean");
         expect(html).toContain("molten-glyph-gradient");
     });
 });

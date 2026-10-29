@@ -31,7 +31,17 @@ const KnownKinds = new Set(WorkspaceViewPanels.map((p) => p.kind));
 
 export type TemplateView = { name?: string; namekey?: string; panels: string[] };
 
-type Translate = (key: string) => string;
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+// wavesrv names a Review view "Review #N" in English when it makes it (pkg/molten/review/tab.go TabName), and the name
+// stays stored that way, in views made before and after: it is worded through review.view.viewNamePr, so French reads
+// "Revue #17" (#1322). A name the developer typed that happens to match reads the same, which is harmless.
+const ReviewViewNameRe = /^Review #(\d+)$/;
+
+function reviewViewName(name: string, tr: Translate): string {
+    const number = ReviewViewNameRe.exec(name ?? "")?.[1];
+    return number == null ? null : tr("review.view.viewNamePr", { number });
+}
 
 // The name a view shows: the interface language's for a name wavesrv stored as a key, the developer's otherwise. A
 // rename replaces the key with the typed text, which then shows as typed.
@@ -40,14 +50,14 @@ export function viewShownName(name: string, meta: Record<string, any>, tr: Trans
     if (typeof key === "string" && key !== "" && name === key) {
         return tr(key);
     }
-    return name ?? "";
+    return reviewViewName(name, tr) ?? name ?? "";
 }
 
 // A view's name that comes without its tab's meta (a wavesrv message, a list of terminals, a closed view): a name
 // still stored as its key is worded like the sidebar words it, a key this version lacks as "View" (#1311).
 export function viewNameText(name: string, tr: Translate): string {
     if (typeof name !== "string" || !name.startsWith(ViewNameKeyPrefix)) {
-        return name ?? "";
+        return reviewViewName(name, tr) ?? name ?? "";
     }
     const worded = tr(name);
     if (worded && worded !== name) {

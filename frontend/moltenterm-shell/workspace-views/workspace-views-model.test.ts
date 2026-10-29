@@ -24,8 +24,8 @@ import {
     WorkspaceViewPanels,
 } from "./workspace-views-model";
 
-const fr = (key: string) => translate("fr", key);
-const en = (key: string) => translate("en", key);
+const fr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
+const en = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
 
 describe("names of a new workspace's views (#1305)", () => {
     it("shows a key-named view in the interface language, a renamed one as typed", () => {
@@ -54,6 +54,17 @@ describe("names of a new workspace's views (#1305)", () => {
         expect(viewNameText("T2", fr)).toBe("T2");
         expect(viewNameText("", fr)).toBe("");
         expect(viewNameText(undefined, fr)).toBe("");
+    });
+
+    it("words a Review view's name in the interface language, in every surface (#1322)", () => {
+        expect(viewShownName("Review #17", {}, fr)).toBe("Revue #17");
+        expect(viewShownName("Review #17", {}, en)).toBe("Review #17");
+        expect(viewNameText("Review #17", fr)).toBe("Revue #17");
+        expect(viewNameText("Review #17", en)).toBe("Review #17");
+        const tab = { name: "Review #1190", meta: {} } as unknown as Tab;
+        expect(tabShownName(tab, fr)).toBe("Revue #1190");
+        expect(viewShownName("Review #17 notes", {}, fr)).toBe("Review #17 notes");
+        expect(viewShownName("Ma revue", {}, fr)).toBe("Ma revue");
     });
 });
 
