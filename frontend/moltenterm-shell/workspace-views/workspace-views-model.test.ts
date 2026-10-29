@@ -7,16 +7,20 @@ import { translate } from "../i18n/i18n-core";
 import { tabShownName } from "../project/project-model";
 import {
     addPanel,
+    addPanelKind,
     addView,
     movePanel,
     moveView,
     NewWorkspaceViewsKey,
     nextPanelKind,
+    placePanel,
+    placeView,
     readTemplate,
     removePanel,
     removeView,
     renameView,
     replacePanel,
+    templateViewIcons,
     templateViewName,
     ViewNameKeyMetaKey,
     viewNameText,
@@ -121,5 +125,44 @@ describe("the template", () => {
             expect(fr(p.labelKey)).not.toBe(p.labelKey);
             expect(en(p.labelKey)).not.toBe(p.labelKey);
         }
+    });
+});
+
+describe("the template as tiles (FR-SHELL-106)", () => {
+    const views = [
+        { namekey: "workspaceViews.names.scoping", panels: ["agent", "browser"] },
+        { namekey: "workspaceViews.names.integration", panels: ["integration", "project", "cicd", "linemap"] },
+        { name: "Docs", panels: ["files"] },
+    ];
+    const names = (list: { name?: string; namekey?: string }[]) => list.map((v) => v.name ?? v.namekey);
+
+    it("drops a dragged tile at the place of the one it lands on", () => {
+        expect(names(placeView(views, 0, 2))).toEqual([
+            "workspaceViews.names.integration",
+            "Docs",
+            "workspaceViews.names.scoping",
+        ]);
+        expect(names(placeView(views, 2, 0))).toEqual([
+            "Docs",
+            "workspaceViews.names.scoping",
+            "workspaceViews.names.integration",
+        ]);
+        expect(placeView(views, 1, 1)).toBe(views);
+        expect(placeView(views, 0, 5)).toBe(views);
+    });
+
+    it("drops a dragged panel inside its view", () => {
+        expect(placePanel(views, 1, 3, 0)[1].panels).toEqual(["linemap", "integration", "project", "cicd"]);
+        expect(placePanel(views, 1, 3, 0)[0]).toBe(views[0]);
+    });
+
+    it("draws a tile with its panels' icons, three at most, as the sidebar does", () => {
+        expect(templateViewIcons(views[0])).toEqual(["robot", "globe"]);
+        expect(templateViewIcons(views[1])).toHaveLength(3);
+    });
+
+    it("adds the panel kind chosen, and only a known one", () => {
+        expect(addPanelKind(views, 2, "terminal")[2].panels).toEqual(["files", "terminal"]);
+        expect(addPanelKind(views, 2, "nope")).toBe(views);
     });
 });

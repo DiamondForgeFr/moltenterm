@@ -5,7 +5,8 @@
 // description, and on the right the rows of a section, each with its label, a one-line description, its control and a
 // reset when changed. A change writes settings.json through SetConfigCommand, as an edit of the file would. Every block
 // states who it applies to, and the workspace's own settings live in its sheet, which General links to (FR-SHELL-101).
-// Advanced lists the JSON files, which open in Wave's editor in place (settings-view.tsx).
+// Advanced lists the JSON files, which open in Wave's editor in place (settings-view.tsx). Workspaces and views,
+// Notifications, Browser's per-site lists and Tips follow the Spaces model (FR-SHELL-106).
 
 import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, globalStore } from "@/app/store/global";
@@ -34,11 +35,13 @@ import { SleepPolicySetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
+import { NotificationSettingsCards } from "../notification-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { TipsCards } from "../tips/tips-view";
 import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
@@ -73,7 +76,10 @@ import { settingOverriders } from "./settings-overrides";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { OverriddenNotice, ScopeLine } from "./settings-scope";
 import { SecretsSection } from "./settings-secrets";
+import { SiteList } from "./settings-site-lists";
+import { isSiteListKey } from "./settings-sites";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
+import { SidebarModeRows, SidebarTintKey, TopRowCard } from "./settings-spaces";
 import { View360Screens } from "./settings-view360-screens";
 
 export type SettingsFile = { path: string; name: string; description?: string };
@@ -432,6 +438,10 @@ function Control({
         case "multi":
             return <MultiChoice entry={entry} value={value} onSet={onSet} />;
         default:
+            // A per-site setting is edited in its list under the row (FR-SHELL-106), which keeps Edit in JSON.
+            if (isSiteListKey(entry.key)) {
+                return <span className="text-12 text-muted">{jsonSummary(value, t)}</span>;
+            }
             return (
                 <span className="inline-flex items-center gap-2">
                     <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
@@ -611,6 +621,9 @@ const SettingRow = memo(({ entry, rowId, value, overriddenIn, themes, highlighte
             </div>
             {choices != null ? (
                 <ChoiceRows entry={entry} name={`${rowId}-choice`} choices={choices} value={value} onSet={set} />
+            ) : null}
+            {isSiteListKey(entry.key) ? (
+                <SiteList entryKey={entry.key} label={entry.label} value={value} onOpenJson={onOpenJson} />
             ) : null}
         </div>
     );
@@ -847,11 +860,13 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         groups.length +
         (section === "advanced" ? 1 : 0) +
         (section === "mods" ? 1 : 0) +
-        (section === "general" ? 2 : 0);
+        (section === "general" ? 1 : 0) +
+        (section === "spaces" ? 2 : 0) +
+        (section === "notifications" ? 2 : 0);
     const flowColumns = pageColumns(flowBlocks);
     // A short result list reads best as one list.
     const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
-    const width = searching ? resultColumns : section === "keyboard" ? 3 : flowColumns;
+    const width = searching ? resultColumns : section === "keyboard" ? 3 : section === "tips" ? 2 : flowColumns;
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
@@ -998,6 +1013,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 glow={highlight != null && g.entries.some((e) => e.key === highlight)}
                                                 scope="app"
                                             >
+                                                {g.entries.some((e) => e.key === SidebarTintKey) ? (
+                                                    <SidebarModeRows />
+                                                ) : null}
                                                 {g.entries.map((entry) => (
                                                     <SettingRow
                                                         key={entry.key}
@@ -1024,11 +1042,14 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 ) : null}
                                             </PageCard>
                                         ))}
-                                        {section === "general" ? <NewWorkspaceViewsCard /> : null}
+                                        {section === "spaces" ? <TopRowCard /> : null}
+                                        {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
                                         {section === "general" ? <WorkspaceSheetCard name={workspaceName} /> : null}
+                                        {section === "notifications" ? <NotificationSettingsCards /> : null}
                                         {section === "mods" ? <ModsSection /> : null}
                                     </PageFlow>
                                 ) : null}
+                                {section === "tips" ? <TipsCards /> : null}
                                 {section === "keyboard" ? <KeyboardShortcuts /> : null}
                                 {section === "secrets" ? (
                                     model != null ? (

@@ -165,7 +165,7 @@
                 "label": "Terminals only"
               }
             ],
-            "order": 14
+            "order": 15
           }
         },
         "app:tabbar": {
@@ -203,7 +203,7 @@
             "label": "Tile launcher in empty panes",
             "description": "An empty pane shows the tile launcher instead of the command palette.",
             "control": "toggle",
-            "order": 13
+            "order": 14
           }
         },
         "feature:waveappbuilder": {
@@ -744,7 +744,7 @@
             "label": "Minimap",
             "description": "Show the code overview on the editor's right edge.",
             "control": "toggle",
-            "order": 19
+            "order": 20
           }
         },
         "editor:stickyscrollenabled": {
@@ -756,7 +756,7 @@
             "label": "Sticky scroll",
             "description": "Keep the enclosing scopes at the top of the editor while scrolling.",
             "control": "toggle",
-            "order": 20
+            "order": 21
           }
         },
         "editor:wordwrap": {
@@ -768,7 +768,7 @@
             "label": "Wrap long lines",
             "description": "The editor wraps lines wider than the panel.",
             "control": "toggle",
-            "order": 18
+            "order": 19
           }
         },
         "editor:fontsize": {
@@ -799,7 +799,7 @@
             "label": "Inline diffs",
             "description": "Show diffs in one column instead of side by side.",
             "control": "toggle",
-            "order": 21
+            "order": 22
           }
         },
         "web:*": {
@@ -1040,7 +1040,7 @@
             "description": "File views list dotfiles.",
             "control": "toggle",
             "default": true,
-            "order": 16
+            "order": 17
           }
         },
         "preview:defaultsort": {
@@ -1066,7 +1066,7 @@
                 "label": "Last modified"
               }
             ],
-            "order": 17
+            "order": 18
           }
         },
         "tab:preset": {
@@ -1164,7 +1164,7 @@
               }
             ],
             "unsetlabel": "Ask the first time",
-            "order": 15
+            "order": 16
           }
         },
         "shell:workspacesidebar": {
@@ -1179,14 +1179,14 @@
           "type": "string",
           "description": "What a new view opens: unset shows the chooser (favourites on top, the launcher's full list below); a launcher entry id opens it directly, such as panel:defwidget@terminal for a terminal or agent:\u003cpreset\u003e for an agent",
           "x-moltenterm": {
-            "section": "general",
+            "section": "spaces",
             "group": "New views",
             "label": "When a new view opens",
             "description": "Ask shows the chooser; or open one type directly, without it.",
             "control": "select",
             "optionsfrom": "newviewchoices",
             "unsetlabel": "Ask",
-            "order": 10
+            "order": 11
           }
         },
         "app:newviewfavorites": {
@@ -1197,7 +1197,7 @@
           "description": "The 2 to 4 favourites of the new view chooser, in order, as launcher entry ids (panel:defwidget@terminal, panel:defwidget@web, agent:\u003cpreset\u003e...); each opens directly with Option+Cmd+1 to 4 (Alt+Shift+1 to 4 off macOS). Unset: Terminal and Web page",
           "x-moltenterm": {
             "hidden": true,
-            "order": 11
+            "order": 12
           }
         },
         "app:newworkspaceviews": {
@@ -1208,7 +1208,7 @@
           "description": "The views a workspace created from now on starts with, pinned in that workspace and opened the first time they are shown: each has a name (or namekey, a dictionary key shown in the interface language) and its panels in order, among agent, terminal, browser, files, project, integration, cicd and linemap. Agents go on the left, the other panels on the right. An empty list gives no view; existing workspaces never change",
           "x-moltenterm": {
             "hidden": true,
-            "order": 12
+            "order": 13
           }
         },
         "moltenterm:tabviewpriority": {
@@ -1365,12 +1365,12 @@
           "type": "boolean",
           "description": "Tint the sidebar with the workspace's colour. Off: the sidebar is the same warm grey in every workspace, and the workspace colour shows only on its place cues (the strip at the top of the sidebar, the bar beside its name, the active view's underline and its dot)",
           "x-moltenterm": {
-            "section": "appearance",
-            "group": "Window",
+            "section": "spaces",
+            "group": "Sidebar",
             "label": "Tint the sidebar",
             "description": "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks.",
             "control": "toggle",
-            "order": 24
+            "order": 10
           }
         },
         "moltenterm:view360": {
@@ -1396,7 +1396,7 @@
                 "label": "Always"
               }
             ],
-            "order": 22
+            "order": 23
           }
         },
         "moltenterm:terminalscreenreader": {
@@ -1553,7 +1553,7 @@
             "label": "Reduce motion",
             "description": "Turn off animations, as the system's reduced motion setting does.",
             "control": "toggle",
-            "order": 23
+            "order": 24
           }
         },
         "window:tilegapsize": {

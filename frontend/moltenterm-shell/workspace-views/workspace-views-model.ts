@@ -13,6 +13,8 @@ export const ViewNameKeyMetaKey = "molten:viewnamekey";
 export const DefaultViewNameKey = "workspaceViews.names.view";
 // must match ViewNameKeyPrefix in pkg/wconfig/moltenterm_workspaceviews.go
 export const ViewNameKeyPrefix = "workspaceViews.names.";
+// must match MaxGlyphIcons in sidebar/view-menu-model.ts
+const MaxTemplateGlyphIcons = 3;
 
 // The panels a template view may hold, in the order Preferences offers them. must match the kinds of
 // pkg/wcore/moltenterm_workspaceviews.go
@@ -111,6 +113,17 @@ function moved<T>(list: T[], i: number, delta: number): T[] {
     return rtn;
 }
 
+// The item at `from` put at index `to` of the result, the others keeping their order (a drag's drop).
+function placed<T>(list: T[], from: number, to: number): T[] {
+    if (from < 0 || from >= list.length || to < 0 || to >= list.length || from === to) {
+        return list;
+    }
+    const rtn = [...list];
+    const [item] = rtn.splice(from, 1);
+    rtn.splice(to, 0, item);
+    return rtn;
+}
+
 function withView(views: TemplateView[], i: number, change: (v: TemplateView) => TemplateView): TemplateView[] {
     if (i < 0 || i >= views.length) {
         return views;
@@ -131,6 +144,28 @@ export function removeView(views: TemplateView[], i: number): TemplateView[] {
 
 export function moveView(views: TemplateView[], i: number, delta: number): TemplateView[] {
     return moved(views, i, delta);
+}
+
+// A tile dropped at another tile's place (FR-SHELL-106).
+export function placeView(views: TemplateView[], from: number, to: number): TemplateView[] {
+    return placed(views, from, to);
+}
+
+export function placePanel(views: TemplateView[], i: number, from: number, to: number): TemplateView[] {
+    return withView(views, i, (v) => ({ ...v, panels: placed(v.panels, from, to) }));
+}
+
+// The panel icons a template view's tile shows, as the sidebar draws the view once created: up to three, separated.
+export function templateViewIcons(view: TemplateView): string[] {
+    const icons = (view?.panels ?? []).map((k) => WorkspaceViewPanels.find((p) => p.kind === k)?.icon).filter(Boolean);
+    return icons.slice(0, MaxTemplateGlyphIcons);
+}
+
+export function addPanelKind(views: TemplateView[], i: number, kind: string): TemplateView[] {
+    if (!KnownKinds.has(kind)) {
+        return views;
+    }
+    return withView(views, i, (v) => ({ ...v, panels: [...v.panels, kind] }));
 }
 
 // A rename stores the typed text; an empty one changes nothing, so a view never loses its name.

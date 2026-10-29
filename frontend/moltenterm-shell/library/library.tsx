@@ -50,7 +50,6 @@ import { ViewPins } from "../sidebar/view-pins-store";
 import { TabActivity, whileShown } from "../tab-activity";
 import { panelIcon, tabDisplayName } from "../tab-identity";
 import { TabAgentMark, useTabIdentity } from "../tab-identity-ui";
-import { MoltentermTipsView } from "../tips/tips-view";
 import { showToast } from "../toast-store";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
@@ -761,18 +760,6 @@ function SettingsSection() {
                         </button>
                     );
                 })}
-                <button
-                    type="button"
-                    className="mt-lib-set"
-                    data-testid="library-tips"
-                    onClick={() => open(() => createBlock({ meta: { view: MoltentermTipsView } }, false, true))}
-                >
-                    <i className={makeIconClass("lightbulb", true)} aria-hidden />
-                    <span>
-                        {t("rail.tools.tips")}
-                        <small>{t("library.settings.tipsSub")}</small>
-                    </span>
-                </button>
             </div>
         </div>
     );

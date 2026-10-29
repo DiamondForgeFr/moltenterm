@@ -27,19 +27,23 @@ import type { SettingsSectionId } from "./settings-catalog";
 
 export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> = {
     general: "settings",
+    spaces: "workspace",
     appearance: "appearance",
     terminal: "terminal",
     agents: "agent",
     browser: "web",
     mission: "mission",
+    notifications: "notifications",
     keyboard: "keyboard",
     mods: "mods",
     secrets: "secrets",
+    tips: "tips",
     advanced: "tools",
 };
 
 const GroupConcepts: Record<string, SuiteIconName> = {
     thisWorkspace: "workspace",
+    sidebar: "display",
     quittingAndClosing: "quitting",
     startup: "startup",
     panels: "panels",

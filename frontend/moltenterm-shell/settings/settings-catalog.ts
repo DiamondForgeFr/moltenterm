@@ -15,14 +15,17 @@ import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
 
 export type SettingsSectionId =
     | "general"
+    | "spaces"
     | "appearance"
     | "terminal"
     | "agents"
     | "browser"
     | "mission"
+    | "notifications"
     | "keyboard"
     | "mods"
     | "secrets"
+    | "tips"
     | "advanced";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
@@ -30,13 +33,20 @@ export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text"
 // description: the line under the section's title (#534).
 export type SettingsSection = { id: SettingsSectionId; title: string; icon: string; description: string };
 
-// The fixed order of the left list (DS-SHELL-091).
+// The fixed order of the left list (DS-SHELL-091). The Library's Settings page lists the same sections, Tips included,
+// so the two lists never drift apart (FR-SHELL-106).
 export const SettingsSections: SettingsSection[] = [
     {
         id: "general",
         title: "General",
         icon: "sliders",
         description: "Quitting and closing, startup, panels and files.",
+    },
+    {
+        id: "spaces",
+        title: "Workspaces and views",
+        icon: "layer-group",
+        description: "The sidebar, the views pinned everywhere, new views and what a new workspace starts with.",
     },
     {
         id: "appearance",
@@ -68,6 +78,13 @@ export const SettingsSections: SettingsSection[] = [
         icon: "diagram-project",
         description: "The Project, CI/CD and Line map panels.",
     },
+    // The levels set per subject live in the client's meta, not in settings.json (notification-settings.tsx).
+    {
+        id: "notifications",
+        title: "Notifications",
+        icon: "bell",
+        description: "What each subject tells you, and when the notification panel opens by itself.",
+    },
     { id: "keyboard", title: "Keyboard", icon: "keyboard", description: "Keys and every shortcut." },
     // The mods this tab view runs and what each costs (FR-PERF-014); no settings.json key maps here.
     { id: "mods", title: "Mods", icon: "puzzle-piece", description: "The mods this window runs and what each costs." },
@@ -79,6 +96,7 @@ export const SettingsSections: SettingsSection[] = [
         description:
             "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
     },
+    { id: "tips", title: "Tips", icon: "lightbulb", description: "Reshape MoltenTerm, work faster, every shortcut." },
     {
         id: "advanced",
         title: "Advanced",

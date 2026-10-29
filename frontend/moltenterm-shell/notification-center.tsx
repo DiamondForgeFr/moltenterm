@@ -6,7 +6,8 @@
 // shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. What arrives
 // shows as a toast instead of opening the panel (FR-SHELL-055), each subject says only what the user chose, and the
 // work running in every project shows on top, with a progress ring on the bell. What needs an answer opens the panel
-// on itself in the focused window (#790, notification-attention.ts).
+// on itself in the focused window (#790, notification-attention.ts). What each subject may say is set in Preferences ›
+// Notifications, which the panel links to (FR-SHELL-106, notification-settings.tsx).
 
 import { atoms, createBlock, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -27,14 +28,12 @@ import { TrustApprovalHost } from "./mission/trust-approval";
 import { checkAnswered } from "./notification-attention";
 import {
     badgeCount,
-    Delivery,
-    DeliveryLabels,
     MaxRenderedRows,
     notificationSourceLabel,
     NotificationSubject,
-    NotificationSubjects,
     subjectOf,
 } from "./notification-rules";
+import { openNotificationSettings } from "./notification-settings";
 import { startNotificationToasts } from "./notification-toasts";
 import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
 import { WorkspaceChip } from "./notification-workspace-chip";
@@ -374,67 +373,6 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     );
 }
 
-function SettingsView({ highlight }: { highlight: NotificationSubject }) {
-    const t = useT();
-    const model = MoltentermNotifications.getInstance();
-    const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
-    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
-    return (
-        <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <label className="flex cursor-pointer items-start gap-2 rounded-4 px-2 py-1.5 hover:bg-hover">
-                <input
-                    type="checkbox"
-                    data-testid="notification-panel-policy"
-                    checked={panelPolicy === "all"}
-                    onChange={(e) => model.setPanelPolicy(e.target.checked ? "all" : "answers")}
-                    className="mt-0.5 cursor-pointer accent-[var(--color-accent)]"
-                />
-                <span className="min-w-0 flex-1">
-                    <span className="block text-primary">{t("notif.settings.openPanel")}</span>
-                    <span className="block text-11 text-muted">{t("notif.settings.openPanelHint")}</span>
-                </span>
-            </label>
-            <div className="pt-1 pb-1 text-12 text-secondary">{t("notif.settings.intro")}</div>
-            {NotificationSubjects.map((subject) => {
-                const chosen = prefs[subject.id] ?? "notify";
-                return (
-                    <div
-                        key={subject.id}
-                        className={cn(
-                            "flex items-center gap-2 rounded-4 px-2 py-1.5",
-                            highlight === subject.id && "bg-accent/10 ring-1 ring-accent/40"
-                        )}
-                    >
-                        <span className="min-w-0 flex-1 truncate text-primary">{t(subject.labelKey)}</span>
-                        <div
-                            role="radiogroup"
-                            aria-label={t(subject.labelKey)}
-                            className="flex rounded-4 border border-border p-0.5"
-                        >
-                            {(["notify", "quiet", "off"] as Delivery[]).map((delivery) => (
-                                <button
-                                    key={delivery}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={chosen === delivery}
-                                    onClick={() => model.setDelivery(subject.id, delivery)}
-                                    className={cn(
-                                        "cursor-pointer rounded-6 px-2 py-0.5 text-12",
-                                        chosen === delivery ? "bg-hover text-primary" : "text-muted hover:text-primary"
-                                    )}
-                                >
-                                    {t(DeliveryLabels[delivery])}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                );
-            })}
-            <div className="pt-1 text-11 text-muted">{t("notif.settings.footer")}</div>
-        </div>
-    );
-}
-
 export function NotificationCenter() {
     const t = useT();
     const tc = useTCount();
@@ -449,8 +387,7 @@ export function NotificationCenter() {
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
     const [panelOpen, setPanelOpen] = useState(false);
-    const [tab, setTab] = useState<"active" | "archived" | "settings">("active");
-    const [highlight, setHighlight] = useState<NotificationSubject>(null);
+    const [tab, setTab] = useState<"active" | "archived">("active");
     // The notifications the panel opened by itself for (#790): highlighted, and it closes once they are answered.
     const [selfOpenedFor, setSelfOpenedFor] = useState<string[]>([]);
     const [highlightIds, setHighlightIds] = useState<string[]>([]);
@@ -487,7 +424,6 @@ export function NotificationCenter() {
     const close = () => {
         setPanelOpen(false);
         setTab("active");
-        setHighlight(null);
         setSelfOpenedFor([]);
         setHighlightIds([]);
         model.settleSeen();
@@ -698,24 +634,22 @@ export function NotificationCenter() {
                                       {t("notif.center.markAllRead")}
                                   </button>
                               ) : null}
+                              {/* The levels live in Preferences › Notifications, their one home (FR-SHELL-106). */}
                               <button
                                   type="button"
                                   title={t("notif.center.settingsTitle")}
-                                  aria-label={t("notif.center.settingsLabel")}
+                                  data-testid="notification-settings-link"
                                   onClick={() => {
-                                      setHighlight(null);
-                                      setTab(tab === "settings" ? "active" : "settings");
+                                      close();
+                                      openNotificationSettings();
                                   }}
-                                  className={cn(
-                                      "cursor-pointer rounded-6 px-1 py-0.5 text-12 hover:bg-hover hover:text-primary",
-                                      tab === "settings" ? "text-primary" : "text-muted"
-                                  )}
+                                  className="inline-flex cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-12 text-muted hover:bg-hover hover:text-primary"
                               >
-                                  <i className="fa fa-solid fa-gear" />
+                                  {t("notif.center.settingsLink")}
+                                  <i className="fa fa-solid fa-chevron-right text-10" aria-hidden />
                               </button>
                           </div>
                           <div className="overflow-y-auto">
-                              {tab === "settings" ? <SettingsView highlight={highlight} /> : null}
                               {showWork ? (
                                   <div className="border-b border-border">
                                       <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
@@ -735,46 +669,40 @@ export function NotificationCenter() {
                                       ))}
                                   </div>
                               ) : null}
-                              {tab !== "settings" && shown.length === 0 && !showWork ? (
+                              {shown.length === 0 && !showWork ? (
                                   <div className="px-3 py-6 text-center text-secondary">
                                       {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
                                   </div>
                               ) : null}
-                              {tab !== "settings"
-                                  ? shown.map((entry) => (
-                                        <RowBoundary key={entry.id}>
-                                            <NotificationRow
-                                                entry={entry}
-                                                label={workspaceLabel(
-                                                    entry.workspaceid,
-                                                    workspaces,
-                                                    currentWorkspace?.oid
-                                                )}
-                                                now={now}
-                                                archived={tab === "archived"}
-                                                highlighted={highlightIds.includes(entry.id)}
-                                                running={running}
-                                                error={errors[entry.id]}
-                                                onOpen={() => {
-                                                    setPanelOpen(false);
-                                                    fireAndForget(() => model.open(entry));
-                                                }}
-                                                onAction={(action) => {
-                                                    if (action.kind === "open") {
-                                                        setPanelOpen(false);
-                                                    }
-                                                    fireAndForget(() => model.runAction(entry, action));
-                                                }}
-                                                onArchive={() => model.archive([entry.id])}
-                                                onSilence={(subject) => {
-                                                    setHighlight(subject);
-                                                    setTab("settings");
-                                                }}
-                                            />
-                                        </RowBoundary>
-                                    ))
-                                  : null}
-                              {tab !== "settings" && hidden > 0 ? (
+                              {shown.map((entry) => (
+                                  <RowBoundary key={entry.id}>
+                                      <NotificationRow
+                                          entry={entry}
+                                          label={workspaceLabel(entry.workspaceid, workspaces, currentWorkspace?.oid)}
+                                          now={now}
+                                          archived={tab === "archived"}
+                                          highlighted={highlightIds.includes(entry.id)}
+                                          running={running}
+                                          error={errors[entry.id]}
+                                          onOpen={() => {
+                                              setPanelOpen(false);
+                                              fireAndForget(() => model.open(entry));
+                                          }}
+                                          onAction={(action) => {
+                                              if (action.kind === "open") {
+                                                  setPanelOpen(false);
+                                              }
+                                              fireAndForget(() => model.runAction(entry, action));
+                                          }}
+                                          onArchive={() => model.archive([entry.id])}
+                                          onSilence={(subject) => {
+                                              close();
+                                              openNotificationSettings(subject);
+                                          }}
+                                      />
+                                  </RowBoundary>
+                              ))}
+                              {hidden > 0 ? (
                                   <div className="px-3 py-2 text-center text-12 text-muted">
                                       {t("notif.center.more", { count: hidden })}
                                   </div>
