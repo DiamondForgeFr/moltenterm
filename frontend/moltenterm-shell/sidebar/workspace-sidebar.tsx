@@ -39,6 +39,7 @@ import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
+import { EmptyWorkspace } from "./empty-workspace";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
@@ -877,7 +878,7 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
     const { target, over } = useZone("tiles");
     useGlide(ref, tileIds.join(" "));
     if (tileIds.length === 0 && !target) {
-        return null;
+        return <EmptyWorkspace />;
     }
     const caption = t("sidebar.views.captionHere", { workspace: workspaceShownName(ws?.name, t) });
     return (

@@ -1302,7 +1302,9 @@
             "doneTitle": "You're set",
             "leftTitle": "Almost there",
             "doneText": "MoltenTerm knows your agent, has taken a first shape and works in your project.",
-            "leftText": "The steps you left wait for you. Getting started stays in the app menu and the command palette."
+            "leftText": "The steps you left wait for you. Getting started stays in the app menu and the command palette.",
+            "starterViews": "Next, this workspace gets its default views: {views}.",
+            "openView": "Open {view}"
         },
         "welcome": {
             "title": "Welcome to MoltenTerm",
@@ -1311,7 +1313,8 @@
             "stepsOne": "1 short step",
             "stepsOther": "{count} short steps",
             "skip": "Skip setup",
-            "license": "Open source under the Apache License 2.0, built on Wave Terminal.",
+            "license": "Open source, Apache License 2.0",
+            "aboutLink": "About",
             "licenceLink": "Licence",
             "privacyLink": "Privacy",
             "points": {
@@ -9028,6 +9031,13 @@
             "emptyTitle": "This pinned view has no panel",
             "emptyHint": "A pinned view stays until you unpin it. Add a panel, or unpin it to close it.",
             "emptyAdd": "Add a panel"
+        },
+        "emptyWorkspace": {
+            "title": "This workspace has no views yet",
+            "hint": "A workspace keeps the views of one project here, as tiles. Add the default views, {views}, or make one of your own.",
+            "hintNoTemplate": "A workspace keeps the views of one project here, as tiles. Make a view, then pin it here.",
+            "addViews": "Add the default views",
+            "newView": "New view"
         },
         "pins": {
             "failed": "The view could not be pinned or opened",

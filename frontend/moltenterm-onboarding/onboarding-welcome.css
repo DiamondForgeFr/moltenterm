@@ -1,0 +1,49 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The full-frame welcome (FR-SHELL-110, theme proposal #1318 "Premier lancement"): the panel fills the view, a faint
+   molten heat rises behind the text, and the turning light goes round the >_ glyph while MoltenTerm gets ready. */
+
+.molten-welcome {
+    display: grid;
+    place-items: center;
+    min-height: 100%;
+    padding: var(--mt-space-32) var(--mt-space-24);
+    background:
+        radial-gradient(70% 55% at 50% 38%, color-mix(in srgb, var(--mt-action) 7%, transparent), transparent 70%),
+        var(--mt-surface-1);
+}
+
+.molten-welcome-in {
+    width: 100%;
+    max-width: 560px;
+}
+
+.molten-welcome-glyph {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    margin-bottom: 22px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-2);
+}
+
+.molten-welcome-glyph > svg {
+    width: 40px;
+    height: 40px;
+}
+
+.molten-welcome-glyph .stop-hot {
+    stop-color: color-mix(in srgb, var(--mt-action) 30%, rgb(255, 236, 170));
+}
+
+.molten-welcome-glyph .stop-mid {
+    stop-color: color-mix(in srgb, var(--mt-action) 70%, rgb(255, 222, 140));
+}
+
+.molten-welcome-glyph .stop-base {
+    stop-color: var(--mt-action);
+}

@@ -17,7 +17,6 @@
     "conn:askbeforewshinstall": true,
     "conn:wshenabled": true,
     "editor:minimapenabled": true,
-    "web:defaulturl": "https://github.com/DiamondForgeFr/moltenterm",
     "web:defaultsearch": "https://www.google.com/search?q={query}",
     "web:openlinksinternally": true,
     "window:tilegapsize": 8,

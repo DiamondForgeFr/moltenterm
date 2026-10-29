@@ -8,9 +8,10 @@
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
 import { ClientModel } from "@/app/store/client-model";
-import { replaceBlock } from "@/app/store/global";
+import { atoms, getApi, replaceBlock } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
+import { WorkspaceService } from "@/app/store/services";
 import { getActiveTabModel } from "@/app/store/tab-model";
 import * as WOS from "@/app/store/wos";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
@@ -54,11 +55,17 @@ export class OnboardingViewModel implements ViewModel {
     busyAtom = atom(false) as PrimitiveAtom<boolean>;
     errorAtom = atom(null) as PrimitiveAtom<string>;
     blockAtom: Atom<Block>;
+    noHeader: Atom<boolean>;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
         this.blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
+        // The welcome is full frame (FR-SHELL-110): no pane header above it; the steps keep theirs.
+        this.noHeader = atom((get) => {
+            const state = readOnboardingState(get(ClientModel.getInstance().clientAtom)?.meta);
+            return panelPage(state, get(this.blockAtom)?.meta?.[OnboardingPageMetaKey], ShownStepIds) === "welcome";
+        });
     }
 
     get viewComponent(): ViewComponent {
@@ -99,16 +106,20 @@ export class OnboardingViewModel implements ViewModel {
     // Skip setup, Leave setup and Close all end the run, then take the panel away; Getting started brings it back.
     // Closing the last pane of a tab closes the tab, and the window with its last tab: a panel left alone in its tab
     // gives way to a terminal instead.
+    private async closePanel(): Promise<void> {
+        const tabAtom = getActiveTabModel()?.tabAtom;
+        const blockCount = tabAtom == null ? 0 : (globalStore.get(tabAtom)?.blockids?.length ?? 0);
+        if (blockCount === 1) {
+            await replaceBlock(this.blockId, { meta: { view: "term", controller: "shell" } }, true);
+            return;
+        }
+        uxCloseBlock(this.blockId);
+    }
+
     private endAndClose(kind: "leave" | "finish"): Promise<void> {
         return this.run(async () => {
             await this.update({ kind });
-            const tabAtom = getActiveTabModel()?.tabAtom;
-            const blockCount = tabAtom == null ? 0 : (globalStore.get(tabAtom)?.blockids?.length ?? 0);
-            if (blockCount === 1) {
-                await replaceBlock(this.blockId, { meta: { view: "term", controller: "shell" } }, true);
-                return;
-            }
-            uxCloseBlock(this.blockId);
+            await this.closePanel();
         });
     }
 
@@ -118,6 +129,20 @@ export class OnboardingViewModel implements ViewModel {
 
     finish(): Promise<void> {
         return this.endAndClose("finish");
+    }
+
+    // The summary's next step (FR-SHELL-110): the run ends, which gives the starter workspace the template's views
+    // before wavesrv answers, then the first of them is shown. Asking for them again only finds them.
+    finishAndOpenView(): Promise<void> {
+        return this.run(async () => {
+            await this.update({ kind: "finish" });
+            const workspaceId = globalStore.get(atoms.workspace)?.oid;
+            const tabId = workspaceId ? await WorkspaceService.AddWorkspaceViews(workspaceId) : "";
+            await this.closePanel();
+            if (tabId) {
+                getApi().setActiveTab(tabId);
+            }
+        });
     }
 
     // Records the step, then moves to the next step not done after it (skipping always moves forward).
@@ -234,25 +259,34 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     <OnboardingStepper state={state} page={page} onGo={(next) => model.goTo(next)} />
                 </header>
             ) : null}
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-                {page === "welcome" ? (
-                    <OnboardingWelcome busy={busy} onStart={() => model.start()} onSkip={() => model.leave()} />
-                ) : null}
-                {step != null ? <StepPage model={model} step={step} state={state} /> : null}
-                {page === "summary" ? (
-                    <OnboardingSummary
-                        state={state}
+            {page === "welcome" ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    <OnboardingWelcome
                         busy={busy}
-                        onGo={(next) => model.goTo(next)}
-                        onClose={() => model.finish()}
+                        error={error}
+                        onStart={() => model.start()}
+                        onSkip={() => model.leave()}
                     />
-                ) : null}
-                {error ? (
-                    <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-danger" role="alert">
-                        {error}
-                    </p>
-                ) : null}
-            </div>
+                </div>
+            ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
+                    {step != null ? <StepPage model={model} step={step} state={state} /> : null}
+                    {page === "summary" ? (
+                        <OnboardingSummary
+                            state={state}
+                            busy={busy}
+                            onGo={(next) => model.goTo(next)}
+                            onClose={() => model.finish()}
+                            onOpenView={() => model.finishAndOpenView()}
+                        />
+                    ) : null}
+                    {error ? (
+                        <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-danger" role="alert">
+                            {error}
+                        </p>
+                    ) : null}
+                </div>
+            )}
             {step != null ? <StepFooter model={model} step={step} busy={busy} /> : null}
         </div>
     );

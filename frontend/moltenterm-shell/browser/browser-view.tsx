@@ -123,6 +123,7 @@ import {
     setTabEngine,
     shownAddress,
     splitOutTabs,
+    StartPageUrl,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -152,7 +153,8 @@ import { TestContextChip } from "./test-context";
 export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
-const FallbackUrl = "about:blank";
+// Without a home page set (web:defaulturl), a new browser opens MoltenTerm's start page, never a site (FR-SHELL-110).
+const FallbackUrl = StartPageUrl;
 
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
 type BrowserAgentElectronApi = ElectronApi &

@@ -32,6 +32,8 @@ export type OnboardingState = {
     steps: Partial<Record<FirstRunStepId, FirstRunStepStatus>>;
     data: Partial<Record<FirstRunStepId, Record<string, any>>>;
     lastversion: string;
+    // The starter workspace of a fresh install, until its run ends (FR-SHELL-110).
+    starterws: string;
 };
 
 export type FirstRunPage = "welcome" | "summary" | `step:${FirstRunStepId}`;
@@ -46,6 +48,7 @@ export const EmptyOnboardingState: OnboardingState = {
     steps: {},
     data: {},
     lastversion: "",
+    starterws: "",
 };
 
 function isRecord(value: unknown): value is Record<string, any> {
@@ -97,6 +100,7 @@ export function readOnboardingState(meta: MetaType): OnboardingState {
         steps,
         data,
         lastversion: typeof raw.lastversion === "string" ? raw.lastversion : "",
+        starterws: typeof raw.starterws === "string" ? raw.starterws : "",
     };
 }
 
