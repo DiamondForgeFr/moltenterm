@@ -144,14 +144,19 @@ describe("settings catalog (FR-SHELL-050)", () => {
     });
 });
 
-describe("workspace settings (FR-SHELL-050-AC4)", () => {
-    it("marks the workspace's own settings and puts them first in General", () => {
+describe("workspace settings (FR-SHELL-050-AC4, FR-SHELL-101)", () => {
+    it("marks the workspace's own settings and keeps them out of General, a section for the whole app", () => {
         const all = settingsCatalog("darwin");
-        const general = sectionEntries(all, "general");
-        expect(general.slice(0, 2).map((e) => [e.key, e.scope])).toEqual([
-            ["molten:folder", "workspace"],
-            ["molten:project", "workspace"],
+        expect(all.filter((e) => e.scope === "workspace").map((e) => e.key)).toEqual([
+            "molten:folder",
+            "molten:project",
         ]);
+        for (const s of SettingsSections) {
+            expect(
+                sectionEntries(all, s.id).every((e) => e.scope === "global"),
+                s.id
+            ).toBe(true);
+        }
         expect(all.filter((e) => e.scope === "workspace").every((e) => !(e.key in props))).toBe(true);
         expect(all.filter((e) => e.key in props).every((e) => e.scope === "global")).toBe(true);
     });

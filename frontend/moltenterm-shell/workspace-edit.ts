@@ -103,8 +103,8 @@ export function openWorkspaceEditor(workspaceId: string, opener?: HTMLElement): 
 }
 
 // The palette and the app menu act on the workspace the window shows.
-export function openCurrentWorkspaceEditor(): void {
-    openWorkspaceEditor(globalStore.get(atoms.workspace)?.oid);
+export function openCurrentWorkspaceEditor(opener?: HTMLElement): void {
+    openWorkspaceEditor(globalStore.get(atoms.workspace)?.oid, opener);
 }
 
 function readStorage(key: string): string {

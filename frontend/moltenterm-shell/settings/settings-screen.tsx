@@ -3,18 +3,22 @@
 
 // The settings screen (FR-SHELL-050, DS-SHELL-091): the sections on the left, a search over label, key and
 // description, and on the right the rows of a section, each with its label, a one-line description, its control and a
-// reset when changed. A change writes settings.json through SetConfigCommand, as an edit of the file would; the
-// workspace's own settings write its meta and carry a pill with its name. Advanced lists the JSON files, which open
-// in Wave's editor in place (settings-view.tsx).
+// reset when changed. A change writes settings.json through SetConfigCommand, as an edit of the file would. Every block
+// states who it applies to, and the workspace's own settings live in its sheet, which General links to (FR-SHELL-101).
+// Advanced lists the JSON files, which open in Wave's editor in place (settings-view.tsx).
 
+import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, globalStore } from "@/app/store/global";
+import { WorkspaceService } from "@/app/store/services";
 import * as WOS from "@/app/store/wos";
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
+import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
@@ -37,13 +41,7 @@ import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { View360SettingKey } from "../view360/view360-decision";
 import { workspaceShownName } from "../workspace-default-name";
-import {
-    ProjectMetaKey,
-    readWorkspaceFolder,
-    readWorkspaceProject,
-    WorkspaceFolderMetaKey,
-} from "../workspace-project";
-import { linkWorkspaceProject, setWorkspaceFolder, unlinkWorkspaceProject } from "../workspace-project-store";
+import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { NewWorkspaceViewsCard } from "../workspace-views/workspace-views-settings";
 import {
     clampSetting,
@@ -71,7 +69,9 @@ import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "
 import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
 import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
+import { settingOverriders } from "./settings-overrides";
 import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
+import { OverriddenNotice, ScopeLine } from "./settings-scope";
 import { SecretsSection } from "./settings-secrets";
 import { SettingsSlider, useSliderWrites } from "./settings-slider";
 import { View360Screens } from "./settings-view360-screens";
@@ -132,40 +132,45 @@ function platformName(): string {
     return p === "win32" ? "windows" : p;
 }
 
-function readValue(entry: SettingEntry, settings: Record<string, unknown>, ws: Workspace): unknown {
-    if (entry.scope === "workspace") {
-        if (entry.key === WorkspaceFolderMetaKey) {
-            return readWorkspaceFolder(ws) || undefined;
-        }
-        if (entry.key === ProjectMetaKey) {
-            return readWorkspaceProject(ws).dir || undefined;
-        }
-        return (ws?.meta as Record<string, unknown>)?.[entry.key];
-    }
-    return settings?.[entry.key];
+// Writing null clears the key: settings.json loses it, as when deleting the line, and the default applies again. The
+// rows are the app's settings only: the workspace's are edited in its sheet (FR-SHELL-101).
+async function writeValue(entry: SettingEntry, value: unknown): Promise<void> {
+    await writeSettings({ [entry.key]: value ?? null });
 }
 
-// Writing null clears the key: settings.json loses it, as when deleting the line, and the default applies again.
-async function writeValue(entry: SettingEntry, value: unknown): Promise<void> {
-    if (entry.scope !== "workspace") {
-        await writeSettings({ [entry.key]: value ?? null });
-        return;
-    }
-    const ws = globalStore.get(atoms.workspace);
-    if (ws == null) {
-        return;
-    }
-    if (entry.key === WorkspaceFolderMetaKey) {
-        await setWorkspaceFolder(ws.oid, (value as string) || null);
-        return;
-    }
-    if (entry.key === ProjectMetaKey) {
-        if (!value) {
-            await unlinkWorkspaceProject(ws.oid);
-            return;
-        }
-        await linkWorkspaceProject(ws, value as string);
-    }
+// Every workspace object, kept live: the override notices count the ones that replace an app setting.
+function useAllWorkspaces(): Workspace[] {
+    const current = useAtomValue(atoms.workspace);
+    const [ids, setIds] = useState<string[]>([]);
+    useEffect(() => {
+        let gone = false;
+        const refresh = () =>
+            fireAndForget(async () => {
+                const list = (await WorkspaceService.ListWorkspaces()) ?? [];
+                if (!gone) {
+                    setIds(list.map((e) => e.workspaceid));
+                }
+            });
+        refresh();
+        const unsubscribe = waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
+        return () => {
+            gone = true;
+            unsubscribe();
+        };
+    }, [current?.oid]);
+    const all = useMemo(
+        () =>
+            jotai.atom((get) =>
+                ids.map((id) => get(WOS.getWaveObjectAtom<Workspace>(WOS.makeORef("workspace", id)))).filter(Boolean)
+            ),
+        [ids]
+    );
+    return useAtomValue(all);
+}
+
+function useClientMeta(): Record<string, any> {
+    const client = useAtomValue(ClientModel.getInstance().clientAtom);
+    return client?.meta;
 }
 
 function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet: (v: unknown) => void }) {
@@ -443,17 +448,26 @@ function SectionIcon({ id, className }: { id: SettingsSectionId; className?: str
     return <Icon className={className} aria-hidden />;
 }
 
-function WorkspacePill({ name }: { name: string }) {
+// General is for the whole app (FR-SHELL-101): the workspace's own folder and project are edited in its sheet, which
+// this block opens.
+function WorkspaceSheetCard({ name }: { name: string }) {
     const t = useT();
     return (
-        <span
-            className="molten-cmdpanel-scope inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-full px-2 text-11"
-            title={t("settings.workspacePill.title", { name })}
-        >
-            <i className="fa fa-solid fa-layer-group text-11" aria-hidden />
-            <span className="truncate">{name}</span>
-            <span className="sr-only">{t("settings.workspacePill.srOnly")}</span>
-        </span>
+        <PageCard title={t("settings.groups.thisWorkspace")} icon={suiteIcon("workspace")} scope="workspace">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3" data-workspace-sheet-link>
+                <div className="min-w-0 flex-1 basis-60 text-12 text-muted">
+                    {t("settings.workspaceSheet.text", { name })}
+                </div>
+                <button
+                    type="button"
+                    className={cn(SecondaryButton, "ml-auto")}
+                    onClick={(e) => openCurrentWorkspaceEditor(e.currentTarget)}
+                >
+                    {t("settings.workspaceSheet.open")}
+                    <i className="fa fa-solid fa-chevron-right text-10" aria-hidden />
+                </button>
+            </div>
+        </PageCard>
     );
 }
 
@@ -461,7 +475,8 @@ type RowProps = {
     entry: SettingEntry;
     rowId: string;
     value: unknown;
-    workspaceName: string;
+    // The workspaces that replace this app setting with their own value.
+    overriddenIn: string[];
     themes: SettingOption[];
     highlighted: boolean;
     onOpenJson: () => void;
@@ -508,7 +523,7 @@ function ChoiceRows({
     );
 }
 
-const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
+const SettingRow = memo(({ entry, rowId, value, overriddenIn, themes, highlighted, onOpenJson }: RowProps) => {
     const t = useT();
     const [errorKey, setErrorKey] = useState<string>(null);
     const { writer, state } = useSliderWrites(entry, value, (v) => writeValue(entry, v));
@@ -526,7 +541,7 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             await writeValue(entry, v);
         } catch (e) {
             console.error("settings: write failed", entry.key, e);
-            setErrorKey(entry.scope === "workspace" ? "settings.error.folder" : "settings.error.notSaved");
+            setErrorKey("settings.error.notSaved");
         }
     };
     const reset = changed ? (
@@ -558,13 +573,13 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                         <span className="truncate text-12 font-medium text-primary" title={entry.key}>
                             {entry.label}
                         </span>
-                        {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
                     </div>
                     {entry.description ? (
                         <div className="truncate text-12 text-muted" title={entry.description}>
                             {entry.description}
                         </div>
                     ) : null}
+                    <OverriddenNotice names={overriddenIn} />
                     {error ? (
                         <div role="alert" className="text-12 text-danger">
                             {error}
@@ -606,7 +621,12 @@ SettingRow.displayName = "SettingRow";
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
     const t = useT();
     return (
-        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")} icon={suiteIcon("files")}>
+        <PageCard
+            title={t("settings.files.title")}
+            hint={t("settings.files.hint")}
+            icon={suiteIcon("files")}
+            scope="app"
+        >
             {files
                 .filter((f) => f.path !== "secrets")
                 .map((f) => (
@@ -645,6 +665,7 @@ function KeyboardShortcuts() {
             title={t("settings.shortcuts.title")}
             hint={t("settings.shortcuts.hint")}
             icon={suiteIcon("keyboard")}
+            scope="app"
         >
             <div className={cn("px-5 pt-3 [&>section]:pb-3", flowColumnsClass(3))}>
                 <ShortcutSections
@@ -662,6 +683,8 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
+    const allWorkspaces = useAllWorkspaces();
+    const clientMeta = useClientMeta();
     const [section, setSectionState] = useState<SettingsSectionId>(
         () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
     );
@@ -692,6 +715,19 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
     const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
+    // One array per setting, stable while nothing changes, so the memoized rows do not redraw.
+    const overriddenIn = useMemo(() => {
+        const byKey = new Map<string, string[]>();
+        for (const entry of catalog) {
+            const names = settingOverriders(entry.key, allWorkspaces, clientMeta).map(
+                (ws) => workspaceShownName(ws.name, t) || ws.oid
+            );
+            if (names.length > 0) {
+                byKey.set(entry.key, names);
+            }
+        }
+        return byKey;
+    }, [catalog, allWorkspaces, clientMeta, t]);
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
     const openSettingsJson = () => onOpenFile("settings.json");
 
@@ -767,6 +803,11 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     }, [highlight]);
 
     const jump = (entry: SettingEntry) => {
+        if (entry.scope === "workspace") {
+            setQuery("");
+            openCurrentWorkspaceEditor();
+            return;
+        }
         LastSection.set(blockId, entry.section);
         setSectionState(entry.section);
         setQuery("");
@@ -806,7 +847,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         groups.length +
         (section === "advanced" ? 1 : 0) +
         (section === "mods" ? 1 : 0) +
-        (section === "general" ? 1 : 0);
+        (section === "general" ? 2 : 0);
     const flowColumns = pageColumns(flowBlocks);
     // A short result list reads best as one list.
     const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
@@ -916,17 +957,18 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                         <span className="truncate text-12 font-medium text-primary">
                                                             {entry.label}
                                                         </span>
-                                                        {entry.scope === "workspace" ? (
-                                                            <WorkspacePill name={workspaceName} />
-                                                        ) : null}
                                                     </div>
                                                     <div className="truncate text-12 text-muted">
                                                         {entry.description}
                                                     </div>
                                                 </div>
-                                                <span className="shrink-0 text-11 text-muted">
-                                                    {sectionTitle(entry.section, t)}
-                                                </span>
+                                                {entry.scope === "workspace" ? (
+                                                    <ScopeLine scope="workspace" className="shrink-0" />
+                                                ) : (
+                                                    <span className="shrink-0 text-11 text-muted">
+                                                        {sectionTitle(entry.section, t)}
+                                                    </span>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
@@ -954,14 +996,15 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                     settingsGroupIcon(groupSlugByKey.get(g.entries[0].key))
                                                 )}
                                                 glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                                                scope="app"
                                             >
                                                 {g.entries.map((entry) => (
                                                     <SettingRow
                                                         key={entry.key}
                                                         entry={entry}
                                                         rowId={rowId(entry.key)}
-                                                        value={readValue(entry, settings, workspace)}
-                                                        workspaceName={workspaceName}
+                                                        value={settings?.[entry.key]}
+                                                        overriddenIn={overriddenIn.get(entry.key)}
                                                         themes={themes}
                                                         highlighted={highlight === entry.key}
                                                         onOpenJson={openSettingsJson}
@@ -982,6 +1025,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                             </PageCard>
                                         ))}
                                         {section === "general" ? <NewWorkspaceViewsCard /> : null}
+                                        {section === "general" ? <WorkspaceSheetCard name={workspaceName} /> : null}
                                         {section === "mods" ? <ModsSection /> : null}
                                     </PageFlow>
                                 ) : null}

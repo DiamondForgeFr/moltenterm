@@ -16,6 +16,7 @@ import { workspaceColourStops } from "./accent";
 import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { BlockScopeTag } from "./settings/settings-scope";
 import { SidebarModel } from "./sidebar/sidebar-store";
 import { currentProject } from "./sidebar/workspace-projects";
 import { DominoLoader, SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
@@ -66,7 +67,8 @@ const GhostButtonClass =
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
 
-// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
+// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner,
+// and first who it applies to (FR-SHELL-101): everything here is this workspace's.
 function Section({
     title,
     concept,
@@ -82,6 +84,7 @@ function Section({
     return (
         <SectionBlock title={title} icon={suiteIcon(concept)} tone={tone} data-section={title} className="min-w-0">
             {children}
+            <BlockScopeTag scope="workspace" />
         </SectionBlock>
     );
 }

@@ -54,6 +54,7 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
             title={t("settings.secrets.new.title")}
             icon={suiteIcon("secrets")}
             hint={t("settings.secrets.new.hint")}
+            scope="app"
         >
             <div
                 className="flex flex-col gap-3 px-5 py-3"
@@ -112,7 +113,13 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
     const canSave = useAtomValue(model.secretCanSaveAtom);
     const [confirmDelete, setConfirmDelete] = useState(false);
     return (
-        <PageCard title={name} titleCase="as-is" icon={suiteIcon("secrets")} hint={t("settings.secrets.detail.hint")}>
+        <PageCard
+            title={name}
+            titleCase="as-is"
+            icon={suiteIcon("secrets")}
+            hint={t("settings.secrets.detail.hint")}
+            scope="app"
+        >
             <div
                 className="flex flex-col gap-3 px-5 py-3"
                 onKeyDown={(event) => {
@@ -230,6 +237,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                 hint={sorted.length === 0 ? null : `${sorted.length}`}
                 label={t("settings.secrets.stored")}
                 icon={suiteIcon("secrets")}
+                scope="app"
                 footer={
                     !adding ? (
                         <button

@@ -202,6 +202,7 @@ export function NewWorkspaceViewsCard() {
             title={t("workspaceViews.settings.title")}
             hint={t("workspaceViews.settings.hint")}
             icon={suiteIcon("workspace")}
+            scope="app"
         >
             <div className="flex flex-col gap-2 px-5 py-3" data-testid="settings-new-workspace-views">
                 {views.length === 0 ? (
