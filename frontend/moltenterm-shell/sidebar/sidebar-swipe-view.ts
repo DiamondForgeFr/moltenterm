@@ -498,6 +498,10 @@ export class SidebarSwipeController {
         for (const side of [-1, 1] as const) {
             const pull = this.view.pull(side);
             pull?.classList.remove("is-ready");
+            // The completion pulse plays the full ring: it clears its own halves when it ends.
+            if (pull?.classList.contains("is-done")) {
+                continue;
+            }
             for (const half of Array.from(pull?.querySelectorAll<HTMLElement>(".mt-sb-ring-half > i") ?? [])) {
                 half.style.transform = "";
             }
