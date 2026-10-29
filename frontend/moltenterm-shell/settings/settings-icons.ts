@@ -13,8 +13,6 @@ import {
     ExternalLink,
     Eye,
     Laptop,
-    PanelLeft,
-    PanelTop,
     Rocket,
     Square,
     TextCursor,
@@ -78,7 +76,6 @@ export function settingsGroupIcon(slug: string): SuiteIconName {
 
 // The icon of each choice where one says more than the label; a choice missing here has none.
 const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
-    "app:tabbar": { top: PanelTop, left: PanelLeft },
     "browser:default": { app: AppWindow, installed: ExternalLink },
     "preview:defaultsort": { name: ArrowDownAZ, modtime: Clock },
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },

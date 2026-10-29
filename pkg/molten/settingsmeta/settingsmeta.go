@@ -202,14 +202,18 @@ var settings = []Setting{
 
 	// Advanced: real settings few people change.
 	{Key: "app:nativecontextmenu", Section: SectionAdvanced, Group: "App", Label: "System context menus", Description: "Use the system's context menus instead of MoltenTerm's.", Control: ControlToggle},
-	{Key: "app:defaultnewblock", Section: SectionAdvanced, Group: "App", Label: "New tab content", Description: "The view a new tab starts with, such as term.", Control: ControlText},
-	{Key: "app:tabbar", Section: SectionAdvanced, Group: "App", Label: "Tab bar position", Description: "Where the tab bar sits.", Control: ControlSelect, Options: []Option{{Value: "top", Label: "Top"}, {Value: "left", Label: "Left"}}},
-	{Key: "feature:waveappbuilder", Section: SectionAdvanced, Group: "App", Label: "App builder", Description: "Show the Apps tool in the rail outside development builds.", Control: ControlToggle},
-	{Key: "tab:preset", Section: SectionAdvanced, Group: "App", Label: "Tab preset", Description: "The preset new tabs start from.", Control: ControlText},
-	{Key: "tab:background", Section: SectionAdvanced, Group: "App", Label: "Tab background", Description: "The background new tabs get, from backgrounds.json.", Control: ControlText},
+	// #1325: a new view follows app:newviewopen; app:defaultnewblock only changes ⌘N's terminal into Wave's launcher.
+	hidden("app:defaultnewblock"),
+	// #1325: the tab bar only exists without the workspace sidebar (shell:workspacesidebar false, hidden below).
+	hidden("app:tabbar"),
+	{Key: "feature:waveappbuilder", Section: SectionAdvanced, Group: "App", Label: "App builder", Description: "Show Apps in the Library and the builder in the File menu outside development builds.", Control: ControlToggle},
+	// #1325: Wave's older name of tab:background, read only when tab:background is empty.
+	hidden("tab:preset"),
+	{Key: "tab:background", Section: SectionAdvanced, Group: "App", Label: "View background", Description: "The background new views get, from backgrounds.json.", Control: ControlText},
 	{Key: "window:nativetitlebar", Section: SectionAdvanced, Group: "Window", Label: "Native title bar", Description: "Use the system's title bar.", Control: ControlToggle, Platform: "linux,windows"},
 	{Key: "window:showmenubar", Section: SectionAdvanced, Group: "Window", Label: "Menu bar", Description: "Show the menu bar in the window.", Control: ControlToggle, Platform: "linux,windows"},
-	{Key: "window:zoom", Section: SectionAdvanced, Group: "Window", Label: "Zoom", Description: "The zoom of the window's content; ⌘+ and ⌘- change it.", Control: ControlNumber, Range: rng(0.4, 2.6, 0.1), Default: 1},
+	// #1325: nothing reads it; the zoom is View › Zoom in and Zoom out, kept per view by Electron.
+	hidden("window:zoom"),
 	{Key: "window:disablehardwareacceleration", Section: SectionAdvanced, Group: "Window", Label: "No hardware acceleration", Description: "Draw without the GPU; takes effect at the next launch.", Control: ControlToggle},
 	{Key: "window:maxtabcachesize", Section: SectionAdvanced, Group: "Window", Label: "Tabs kept in memory", Description: "How many tabs stay loaded in the background.", Control: ControlNumber, Range: rng(1, 50, 1)},
 	{Key: "moltenterm:tabviewpriority", Section: SectionAdvanced, Group: "Window", Label: "Load tabs at full priority", Description: "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them.", Control: ControlToggle, Default: true},

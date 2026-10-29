@@ -28,11 +28,18 @@ export async function toggleWindowSidebar(windowId: string): Promise<void> {
     });
 }
 
+// The shortcut registry's toggle-sidebar ("Cmd:s"), where Wave's Cmd is Alt off macOS.
+export function sidebarMenuAccelerator(platform: string): string {
+    return platform === "darwin" ? "Command+S" : "Alt+S";
+}
+
 // View › Show or hide the sidebar (#1279): with the sidebar closed nothing stays at the window's top left, so the menu
-// is one of the ways back, beside the shortcut and the left edge. No accelerator: the page owns the shortcut.
+// is one of the ways back, beside the shortcut and the left edge. The menu shows ⌘S (#1325) but the page owns the
+// key: an editor keeps it to save, so a key press that reaches the menu does nothing.
 export function makeMoltentermSidebarMenuItem(
     settings: Record<string, unknown>,
-    windowIdOf: (window: electron.BaseWindow) => string
+    windowIdOf: (window: electron.BaseWindow) => string,
+    platform: string
 ): electron.MenuItemConstructorOptions | null {
     if (!sidebarEnabled(settings?.[SidebarSettingKey] as boolean)) {
         return null;
@@ -40,6 +47,13 @@ export function makeMoltentermSidebarMenuItem(
     return {
         id: MoltentermToggleSidebarMenuId,
         label: mt("appMenu.toggleSidebar"),
-        click: (_, window) => fireAndForget(() => toggleWindowSidebar(windowIdOf(window as electron.BaseWindow))),
+        accelerator: sidebarMenuAccelerator(platform),
+        registerAccelerator: false,
+        click: (_, window, event) => {
+            if (event?.triggeredByAccelerator) {
+                return;
+            }
+            fireAndForget(() => toggleWindowSidebar(windowIdOf(window as electron.BaseWindow)));
+        },
     };
 }

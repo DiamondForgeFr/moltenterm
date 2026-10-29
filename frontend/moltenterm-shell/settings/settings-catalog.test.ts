@@ -293,7 +293,10 @@ describe("short choices as option rows (#658)", () => {
     ];
 
     it("shows a select of four choices or fewer as rows, the unset choice first", () => {
-        expect(settingChoices(entry("app:tabbar"), langs, "System").map((c) => c.value)).toEqual(["top", "left"]);
+        expect(settingChoices(entry("preview:defaultsort"), langs, "System").map((c) => c.value)).toEqual([
+            "name",
+            "modtime",
+        ]);
         expect(settingChoices(entry("term:cursor"), langs, "System")).toHaveLength(3);
         expect(settingChoices(entry("browser:installed"), langs, "System")).toBeNull();
         expect(settingChoices(entry("term:theme"), langs, "System")).toBeNull();

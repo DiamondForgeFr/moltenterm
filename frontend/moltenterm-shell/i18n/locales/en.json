@@ -44,6 +44,7 @@
     "appMenu": {
         "about": "About {app}",
         "gettingStarted": "Getting Started",
+        "settings": "Settings…",
         "safeModeRestart": "Restart in Safe Mode",
         "safeModeLeave": "Restart Normally",
         "services": "Services",
@@ -77,22 +78,22 @@
         "shortcuts": "Keyboard Shortcuts",
         "palette": "Command Palette",
         "reloadWindow": "Reload Window",
-        "reloadTab": "Reload Tab",
+        "reloadView": "Reload View",
         "relaunchAllWindows": "Relaunch All Windows",
-        "clearTabCache": "Clear Tab Cache",
+        "developer": "Developer",
+        "clearViewCache": "Clear View Cache",
         "toggleDevTools": "Toggle DevTools",
-        "resetZoom": "Reset Zoom",
+        "resetZoom": "Actual Size",
         "zoomIn": "Zoom In",
         "zoomOut": "Zoom Out",
-        "fullScreenOnLaunch": "Launch On Full Screen",
+        "fullScreenOnLaunch": "Full Screen at Launch",
         "toggleFullScreen": "Toggle Full Screen",
-        "toggleWidgetsBar": "Toggle Widgets Bar",
         "toggleSidebar": "Show or Hide the Sidebar",
         "workspace": "Workspace",
-        "createWorkspace": "Create Workspace",
+        "newWorkspace": "New Workspace",
         "editWorkspace": "Edit Workspace…",
         "window": "Window",
-        "minimize": "Minimize",
+        "minimizeWindow": "Minimize Window",
         "zoom": "Zoom",
         "front": "Bring All to Front"
     },
@@ -504,10 +505,6 @@
                 "label": "Global shortcut",
                 "description": "A system-wide shortcut that brings MoltenTerm to the front."
             },
-            "app:defaultnewblock": {
-                "label": "New view content",
-                "description": "The panel a new view starts with, such as term."
-            },
             "app:showoverlayblocknums": {
                 "label": "Panel numbers",
                 "description": "Show each panel's number while its shortcut keys are held."
@@ -537,21 +534,13 @@
                     "term": "Terminals only"
                 }
             },
-            "app:tabbar": {
-                "label": "View bar position",
-                "description": "Where the view bar sits.",
-                "options": {
-                    "top": "Top",
-                    "left": "Left"
-                }
-            },
             "app:tilelauncher": {
                 "label": "Tile launcher in empty panes",
                 "description": "An empty pane shows the tile launcher instead of the command palette."
             },
             "feature:waveappbuilder": {
                 "label": "App builder",
-                "description": "Show the Apps tool in the sidebar outside development builds."
+                "description": "Show Apps in the Library and the builder in the File menu outside development builds."
             },
             "term:fontsize": {
                 "label": "Font size",
@@ -792,10 +781,6 @@
                     "modtime": "Last modified"
                 }
             },
-            "tab:preset": {
-                "label": "View preset",
-                "description": "The preset new views start from."
-            },
             "tab:confirmclose": {
                 "label": "Confirm before closing a view",
                 "description": "Ask before closing a view."
@@ -938,10 +923,6 @@
                 "label": "New window size",
                 "description": "The size of new windows, such as 1400x900."
             },
-            "window:zoom": {
-                "label": "Zoom",
-                "description": "The zoom of the window's content; ⌘+ and ⌘- change it."
-            },
             "conn:askbeforewshinstall": {
                 "label": "Ask before installing it",
                 "description": "Ask before installing the helper on a new host."
@@ -1075,8 +1056,8 @@
                 "description": "SSH hosts and their options."
             },
             "widgets": {
-                "name": "Sidebar tools",
-                "description": "The custom tools of the sidebar."
+                "name": "Panels",
+                "description": "The panels the Library and a new view offer, yours included."
             },
             "backgrounds": {
                 "name": "View backgrounds",
@@ -9248,6 +9229,7 @@
             "inNewView": "In a new view",
             "show": "Show it",
             "thisView": "this view",
+            "editList": "Edit the panel list",
             "about": {
                 "terminal": "A shell in the current project's folder.",
                 "files": "Browse the project's files and open one to read or edit it.",

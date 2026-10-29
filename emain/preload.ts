@@ -155,6 +155,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#1350): the app menu's View and Help items (emain/moltenterm-view-menu.ts)
     onMoltentermAppMenuCommand: (callback: (command: string) => void) =>
         ipcRenderer.on("moltenterm-app-menu-command", (_event, command) => callback(command)),
+    // MOLTENTERM-PATCH (#1325): the app menu's Settings… (emain/moltenterm-app-menu.ts)
+    onMoltentermOpenSettings: (callback: () => void) => ipcRenderer.on("moltenterm-open-settings", () => callback()),
     // MOLTENTERM-PATCH (#294, #743): the app menu's Edit Workspace…, or a workspace just created (emain/moltenterm-workspace-menu.ts)
     onMoltentermEditWorkspace: (callback: (workspaceId?: string) => void) =>
         ipcRenderer.on("moltenterm-edit-workspace", (_event, workspaceId) => callback(workspaceId)),

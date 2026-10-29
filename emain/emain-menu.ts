@@ -30,6 +30,11 @@ import {
     liveContextMenuHost,
 } from "./moltenterm-contextmenu";
 import { contextMenuRole } from "./moltenterm-contextmenu-policy";
+import {
+    makeMoltentermSettingsMenuItem,
+    makeMoltentermViewMenu,
+    makeMoltentermWindowMenu,
+} from "./moltenterm-app-menu"; // MOLTENTERM-PATCH (#1325)
 import { mt, onMainLocaleChange } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): the menus follow app:language
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
@@ -66,7 +71,7 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
     const workspaceList = await RpcApi.WorkspaceListCommand(ElectronWshClient);
     const workspaceMenu: Electron.MenuItemConstructorOptions[] = [
         {
-            label: mt("appMenu.createWorkspace"), // MOLTENTERM-PATCH (#623)
+            label: mt("appMenu.newWorkspace"), // MOLTENTERM-PATCH (#623, #1325)
             click: (_, window) => fireAndForget(() => createWorkspace((window as WaveBrowserWindow) ?? ww)),
         },
         // MOLTENTERM-PATCH (#294): the workspace edit sheet of the window's workspace
@@ -215,6 +220,8 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
         // MOLTENTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
         // update feed even with auto-update disabled.
         { type: "separator" },
+        makeMoltentermSettingsMenuItem((window) => getWindowWebContents(window) ?? webContents), // MOLTENTERM-PATCH (#1325)
+        { type: "separator" },
         makeMoltentermSafeModeMenuItem(), // MOLTENTERM-PATCH (#20): start without mods to repair them
         { type: "separator" },
     ];
@@ -239,135 +246,48 @@ function makeViewMenu(
     fullscreenOnLaunch: boolean,
     fullConfig?: FullConfigType // MOLTENTERM-PATCH (#1279)
 ): Electron.MenuItemConstructorOptions[] {
-    const devToolsAccel = unamePlatform === "darwin" ? "Option+Command+I" : "Alt+Shift+I";
+    const wcOf = (window: electron.BaseWindow) => getWindowWebContents(window) ?? webContents;
     // MOLTENTERM-PATCH (#1279): View › Show or hide the sidebar, one of the ways back with the sidebar closed
     const sidebarItem = makeMoltentermSidebarMenuItem(
         fullConfig?.settings,
-        (window) => ((window as WaveBrowserWindow) ?? focusedWaveWindow)?.waveWindowId
+        (window) => ((window as WaveBrowserWindow) ?? focusedWaveWindow)?.waveWindowId,
+        unamePlatform
     );
-    return [
-        ...(sidebarItem != null && !isBuilderWindowFocused ? [sidebarItem, { type: "separator" as const }] : []),
-        {
-            label: mt(isBuilderWindowFocused ? "appMenu.reloadWindow" : "appMenu.reloadTab"), // MOLTENTERM-PATCH (#623)
-            accelerator: "Shift+CommandOrControl+R",
-            click: (_, window) => {
-                (getWindowWebContents(window) ?? webContents)?.reloadIgnoringCache();
-            },
-        },
-        {
-            label: mt("appMenu.relaunchAllWindows"), // MOLTENTERM-PATCH (#623)
-            click: () => callbacks.relaunchBrowserWindows(),
-        },
-        {
-            label: mt("appMenu.clearTabCache"), // MOLTENTERM-PATCH (#623)
-            click: () => clearTabCache(),
-        },
-        {
-            label: mt("appMenu.toggleDevTools"), // MOLTENTERM-PATCH (#623)
-            accelerator: devToolsAccel,
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
-                wc?.toggleDevTools();
-            },
-        },
-        { type: "separator" },
-        {
-            label: mt("appMenu.resetZoom"), // MOLTENTERM-PATCH (#623)
-            accelerator: "CommandOrControl+0",
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
+    // MOLTENTERM-PATCH (#1325): the View menu is built in moltenterm-app-menu.ts (FR-SHELL-096): Reload view, Zoom in
+    // and out, full screen at launch as a checkbox, cache and DevTools under Developer, no widgets bar.
+    return makeMoltentermViewMenu({
+        platform: unamePlatform,
+        builderFocused: isBuilderWindowFocused,
+        fullScreenOnLaunch: fullscreenOnLaunch,
+        sidebarItem,
+        actions: {
+            reload: (window) => wcOf(window)?.reloadIgnoringCache(),
+            relaunchAll: () => callbacks.relaunchBrowserWindows(),
+            clearCache: () => clearTabCache(),
+            toggleDevTools: (window) => wcOf(window)?.toggleDevTools(),
+            resetZoom: (window) => {
+                const wc = wcOf(window);
                 if (wc) {
                     resetZoomLevel(wc);
                 }
             },
-        },
-        {
-            label: mt("appMenu.zoomIn"), // MOLTENTERM-PATCH (#623)
-            accelerator: "CommandOrControl+=",
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
+            zoomIn: (window) => {
+                const wc = wcOf(window);
                 if (wc) {
                     increaseZoomLevel(wc);
                 }
             },
-        },
-        {
-            label: "Zoom In (hidden)",
-            accelerator: "CommandOrControl+Shift+=",
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
-                if (wc) {
-                    increaseZoomLevel(wc);
-                }
-            },
-            visible: false,
-            acceleratorWorksWhenHidden: true,
-        },
-        {
-            label: mt("appMenu.zoomOut"), // MOLTENTERM-PATCH (#623)
-            accelerator: "CommandOrControl+-",
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
+            zoomOut: (window) => {
+                const wc = wcOf(window);
                 if (wc) {
                     decreaseZoomLevel(wc);
                 }
             },
-        },
-        {
-            label: "Zoom Out (hidden)",
-            accelerator: "CommandOrControl+Shift+-",
-            click: (_, window) => {
-                const wc = getWindowWebContents(window) ?? webContents;
-                if (wc) {
-                    decreaseZoomLevel(wc);
-                }
-            },
-            visible: false,
-            acceleratorWorksWhenHidden: true,
-        },
-        {
-            label: mt("appMenu.fullScreenOnLaunch"), // MOLTENTERM-PATCH (#623)
-            submenu: [
-                {
-                    label: mt("common.on"), // MOLTENTERM-PATCH (#623)
-                    type: "radio",
-                    checked: fullscreenOnLaunch,
-                    click: () => {
-                        RpcApi.SetConfigCommand(ElectronWshClient, { "window:fullscreenonlaunch": true });
-                    },
-                },
-                {
-                    label: mt("common.off"), // MOLTENTERM-PATCH (#623)
-                    type: "radio",
-                    checked: !fullscreenOnLaunch,
-                    click: () => {
-                        RpcApi.SetConfigCommand(ElectronWshClient, { "window:fullscreenonlaunch": false });
-                    },
-                },
-            ],
-        },
-        { type: "separator" },
-        {
-            role: "togglefullscreen",
-        },
-        { type: "separator" },
-        {
-            label: mt("appMenu.toggleWidgetsBar"), // MOLTENTERM-PATCH (#623)
-            click: () => {
-                fireAndForget(async () => {
-                    const workspaceId = focusedWaveWindow?.workspaceId;
-                    if (!workspaceId) return;
-                    const oref = `workspace:${workspaceId}`;
-                    const meta = await RpcApi.GetMetaCommand(ElectronWshClient, { oref });
-                    const current = meta?.["layout:widgetsvisible"] ?? true;
-                    await RpcApi.SetMetaCommand(ElectronWshClient, {
-                        oref,
-                        meta: { "layout:widgetsvisible": !current },
-                    });
-                });
+            setFullScreenOnLaunch: (on) => {
+                RpcApi.SetConfigCommand(ElectronWshClient, { "window:fullscreenonlaunch": on });
             },
         },
-    ];
+    });
 }
 
 async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId?: string): Promise<Electron.Menu> {
@@ -393,13 +313,8 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     } catch (e) {
         console.error("getWorkspaceMenu error:", e);
     }
-    // MOLTENTERM-PATCH (#623): the menus' titles and role items in the interface language
-    const windowMenu: Electron.MenuItemConstructorOptions[] = [
-        { role: "minimize", label: mt("appMenu.minimize"), accelerator: "" },
-        { role: "zoom", label: mt("appMenu.zoom") },
-        { type: "separator" },
-        { role: "front", label: mt("appMenu.front") },
-    ];
+    // MOLTENTERM-PATCH (#623, #1325): the menus' titles and role items in the interface language; "Minimize window"
+    const windowMenu = makeMoltentermWindowMenu();
     const menuTemplate: Electron.MenuItemConstructorOptions[] = [
         { role: "appMenu", submenu: appMenuItems },
         { role: "fileMenu", label: mt("appMenu.file"), submenu: fileMenu },
