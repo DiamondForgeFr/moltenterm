@@ -75,8 +75,26 @@ func TestResolvePaneOnAnotherProject(t *testing.T) {
 	if term["cmd:cwd"] != "/sf" {
 		t.Fatalf("terminal: %v", term)
 	}
-	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, Project{})["url"] != "https://github.com" {
-		t.Fatal("a project without a repository opens GitHub")
+	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, Project{})["url"] != BlankPageUrl {
+		t.Fatal("a project without a repository opens a blank page, never GitHub's home page")
+	}
+}
+
+func TestResolvePaneWithoutRemoteNeverOpensGitHubHome(t *testing.T) {
+	meta := waveobj.MetaMapType{
+		"view":             "molten-browser",
+		"url":              RepoToken,
+		browserTabsMetaKey: []any{map[string]any{"id": "t1", "url": RepoToken + "/pulls"}},
+	}
+	for _, p := range []Project{{}, {Dir: "/sf"}} {
+		page := ResolvePane(meta, p)
+		if page["url"] != BlankPageUrl {
+			t.Fatalf("project %+v: url %v", p, page["url"])
+		}
+		tabs, _ := page[browserTabsMetaKey].([]any)
+		if len(tabs) != 1 || tabs[0].(map[string]any)["url"] != BlankPageUrl {
+			t.Fatalf("project %+v: tabs %v", p, tabs)
+		}
 	}
 }
 
