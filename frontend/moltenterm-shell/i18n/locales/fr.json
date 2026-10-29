@@ -8790,7 +8790,7 @@
         "automatic": "Automatique : {agent}",
         "noneInstalled": "Aucun agent pris en charge n'est installé sur cet ordinateur",
         "running": "En cours : {agents}",
-        "runningNotStartable": "en cours, mais MoltenTerm ne peut pas le lancer",
+        "runningNotStartable": "en cours ; lancement impossible d'ici",
         "missingRunning": "{agent} est choisi et en cours, mais MoltenTerm ne peut pas le lancer : choisissez-en un autre"
     },
     "hang": {

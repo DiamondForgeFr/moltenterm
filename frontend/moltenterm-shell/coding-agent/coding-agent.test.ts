@@ -73,7 +73,7 @@ describe("the Agent option (#845)", () => {
         expect(codingAgentDetail(none)).toBe("No supported agent is installed on this computer");
         expect(codingAgentDetail(none, running)).toBe("Running: Claude Code");
         expect(codingAgentOptions(none, running).map((o) => o.detail)).toEqual([
-            "running, but MoltenTerm cannot start it",
+            "running; can't be started from here",
             "not installed",
         ]);
         expect(
