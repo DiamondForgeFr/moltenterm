@@ -15,12 +15,12 @@ describe("the reopen toast (#512)", () => {
             kind: "success",
             title: "Reopened the browser",
         });
-        expect(reopenToast({ reopened: true, kind: "tab", name: "api" }).title).toBe("Reopened the tab “api”");
+        expect(reopenToast({ reopened: true, kind: "tab", name: "api" }).title).toBe("Reopened the view “api”");
     });
 
     it("names a default view never renamed by its name, not its key (#1311)", () => {
         expect(reopenToast({ reopened: true, kind: "tab", name: "workspaceViews.names.scoping" }).title).toBe(
-            "Reopened the tab “Scoping”"
+            "Reopened the view “Scoping”"
         );
     });
 

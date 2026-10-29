@@ -96,9 +96,9 @@ describe("review done state (#686)", () => {
     });
 
     it("names the tab's mark", () => {
-        expect(reviewDoneTabTitle(en, { state: "merged" })).toBe("Merged: you can close this tab");
-        expect(reviewDoneTabTitle(en, { state: "closed" })).toBe("Closed without merge: you can close this tab");
-        expect(reviewDoneTabTitle(fr, { state: "merged" })).toBe("Fusionnée : vous pouvez fermer cet onglet");
+        expect(reviewDoneTabTitle(en, { state: "merged" })).toBe("Merged: you can close this view");
+        expect(reviewDoneTabTitle(en, { state: "closed" })).toBe("Closed without merge: you can close this view");
+        expect(reviewDoneTabTitle(fr, { state: "merged" })).toBe("Fusionnée : vous pouvez fermer cette vue");
         expect(reviewDoneTabTitle(en, null)).toBe("");
     });
 
@@ -129,12 +129,12 @@ describe("review done state (#686)", () => {
         expect(mergedFooter(merged, cleanup([{ id: "local-branch", state: "done" } as ReviewCleanupStepResult]))).toBe(
             "done"
         );
-        expect(en("review.done.footer.done")).toBe("Merged and cleaned up. This review tab is no longer needed.");
+        expect(en("review.done.footer.done")).toBe("Merged and cleaned up. This review view is no longer needed.");
         for (const footer of ["cleaning", "needs", "failed", "done"]) {
             expect(en(`review.done.footer.${footer}`)).not.toBe(`review.done.footer.${footer}`);
             expect(fr(`review.done.footer.${footer}`)).not.toBe(en(`review.done.footer.${footer}`));
         }
-        expect(en("review.done.closeTab")).toBe("Close the review tab");
+        expect(en("review.done.closeTab")).toBe("Close the review view");
         expect(en("review.done.keepOpen")).toBe("Keep it open");
     });
 

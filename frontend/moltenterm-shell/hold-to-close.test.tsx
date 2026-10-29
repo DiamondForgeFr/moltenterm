@@ -208,10 +208,10 @@ describe("hold-to-close rendering", () => {
     });
 
     it("falls back to Wave's single-click button when the setting is off", () => {
-        const markup = renderWithSettings(<HoldToCloseButton onClose={() => null} plainLabel="Close tab" />, {
+        const markup = renderWithSettings(<HoldToCloseButton onClose={() => null} plainLabel="Close view" />, {
             "tab:holdtoclose": false,
         });
-        expect(markup).toContain('aria-label="Close tab"');
+        expect(markup).toContain('aria-label="Close view"');
         expect(markup).not.toContain("hold-ring");
     });
 

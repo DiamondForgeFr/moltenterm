@@ -201,7 +201,7 @@ describe("More (FR-SHELL-045-AC2, DS-SHELL-081)", () => {
         const items = railWorkspaceMenu(base());
         expect(labels(items)).toEqual([
             "Edit workspace…",
-            "Open Project tab",
+            "Open Project view",
             "Keep the Mac awake while it works",
             "# Group",
             "Group with…",

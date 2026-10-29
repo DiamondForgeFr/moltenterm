@@ -133,8 +133,8 @@ describe("order and rows (DS-SHELL-108)", () => {
             subtitle: "Closing it stops what runs in it.",
             confirm: "Close anyway",
         });
-        expect(busyCloseText("tab", "api").title).toBe("Close the tab “api”?");
-        expect(busyCloseText("tab").title).toBe("Close this tab?");
+        expect(busyCloseText("tab", "api").title).toBe("Close the view “api”?");
+        expect(busyCloseText("tab").title).toBe("Close this view?");
         expect(busyCloseText("replace").confirm).toBe("Replace anyway");
     });
 });

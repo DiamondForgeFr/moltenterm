@@ -91,7 +91,7 @@ describe("a failed release step's ways out (#945)", () => {
         });
         expect(
             resolveText(t, { status: "started", agentname: "Codex" }, "together", "Promote", "Release v1").text
-        ).toBe("Codex is in the “Release v1” tab, beside the failing logs.");
+        ).toBe("Codex is in the “Release v1” view, beside the failing logs.");
         expect(resolveText(t, { status: "noagent", message: "No coding agent" }, "background", "Promote", "x")).toEqual(
             {
                 text: "The agent could not be started: No coding agent",

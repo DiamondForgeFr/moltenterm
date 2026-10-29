@@ -91,12 +91,12 @@
             "quit": "Quit"
         },
         "closeWindow": {
-            "message": "Window has unsaved tabs, closing window will delete existing tabs.\n\nContinue?",
+            "message": "Window has unsaved views, closing window will delete existing views.\n\nContinue?",
             "button": "Close Window"
         },
         "closeTab": {
-            "message": "Are you sure you want to close this tab?",
-            "button": "Close Tab"
+            "message": "Are you sure you want to close this view?",
+            "button": "Close view"
         },
         "saveScrollback": {
             "title": "Save Scrollback",
@@ -112,26 +112,26 @@
     },
     "wave": {
         "launcher": {
-            "searchAria": "Search widgets",
-            "noneFound": "No widgets found. Press Escape to clear the search.",
+            "searchAria": "Search tools",
+            "noneFound": "No tools found. Press Escape to clear the search.",
             "hintIdle": "Type to filter, Enter to launch, arrow keys to navigate",
             "hintSearching": "Searching \"{query}\", Enter to launch, arrow keys to navigate"
         },
         "tab": {
-            "rename": "Rename tab",
-            "nameAria": "Tab name",
-            "copyId": "Copy tab id",
+            "rename": "Rename view",
+            "nameAria": "View name",
+            "copyId": "Copy view id",
             "view360": "360 view",
             "backgrounds": "View background…",
             "backgroundDefault": "Default",
-            "sectionTabBar": "Tab bar",
-            "tabBarPosition": "Tab bar position",
+            "sectionTabBar": "View bar",
+            "tabBarPosition": "View bar position",
             "tabBarTop": "Top",
             "tabBarLeft": "Left",
             "reopenClosed": "Reopen closed",
-            "close": "Close tab",
-            "add": "Add Tab",
-            "new": "New Tab"
+            "close": "Close view",
+            "add": "Add view",
+            "new": "New view"
         },
         "block": {
             "commandsAndOptions": "Commands and options ({shortcut})",
@@ -142,7 +142,7 @@
             "noView": "(No View)",
             "viewTerminal": "Terminal",
             "viewPreview": "Files",
-            "viewWeb": "Web",
+            "viewWeb": "Web page",
             "viewHelp": "Help",
             "viewTips": "Tips",
             "viewProcesses": "Processes"
@@ -375,10 +375,10 @@
             "processes": "Processes"
         },
         "actions": {
-            "projectTab": "Project tab",
+            "projectTab": "Project view",
             "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
-            "newTab": "New tab",
-            "reopenClosed": "Reopen the last closed pane or tab",
+            "newTab": "New view",
+            "reopenClosed": "Reopen the last closed pane or view",
             "splitPlace": "Split the panel…",
             "splitPlaceDetail": "choose the side: left, right, up or down",
             "newWorkspace": "New workspace",
@@ -394,7 +394,7 @@
             "agentCopy": "Copy {agent}'s last answer",
             "agentCopyDetail": "type {command} in {agent}, it reaches the clipboard through OSC 52",
             "openInBrowser": "Open in {browser}",
-            "openInBrowserDetail": "the browser panel's page, with your sessions and extensions",
+            "openInBrowserDetail": "the web page, with your sessions and extensions",
             "updateTerminals": "Update outdated terminals"
         },
         "panels": {
@@ -468,7 +468,7 @@
             "filesAndEditor": "Files and editor",
             "text": "Text",
             "openingPages": "Opening pages",
-            "browserPanel": "Browser panel",
+            "browserPanel": "Web page",
             "power": "Power",
             "window": "Window",
             "updates": "Updates",
@@ -493,8 +493,8 @@
                 "description": "A system-wide shortcut that brings MoltenTerm to the front."
             },
             "app:defaultnewblock": {
-                "label": "New tab content",
-                "description": "The view a new tab starts with, such as term."
+                "label": "New view content",
+                "description": "The panel a new view starts with, such as term."
             },
             "app:showoverlayblocknums": {
                 "label": "Panel numbers",
@@ -526,8 +526,8 @@
                 }
             },
             "app:tabbar": {
-                "label": "Tab bar position",
-                "description": "Where the tab bar sits.",
+                "label": "View bar position",
+                "description": "Where the view bar sits.",
                 "options": {
                     "top": "Top",
                     "left": "Left"
@@ -539,7 +539,7 @@
             },
             "feature:waveappbuilder": {
                 "label": "App builder",
-                "description": "Show the Apps tool in the rail outside development builds."
+                "description": "Show the Apps tool in the sidebar outside development builds."
             },
             "term:fontsize": {
                 "label": "Font size",
@@ -621,7 +621,7 @@
             },
             "term:bellindicator": {
                 "label": "Bell indicator",
-                "description": "Mark the tab when a program rings the bell."
+                "description": "Mark the view when a program rings the bell."
             },
             "term:osc52": {
                 "label": "Clipboard access",
@@ -715,11 +715,11 @@
             },
             "web:openlinksinternally": {
                 "label": "Open links in MoltenTerm",
-                "description": "Links clicked in a terminal or a page open in a browser panel."
+                "description": "Links clicked in a terminal or a page open in a Web page panel."
             },
             "web:defaulturl": {
                 "label": "Home page",
-                "description": "The page a new browser panel opens."
+                "description": "The page a new Web page panel opens."
             },
             "web:defaultsearch": {
                 "label": "Search engine",
@@ -758,7 +758,7 @@
             },
             "browser:agentsites": {
                 "label": "Agent site permissions",
-                "description": "Sites agents may use or are blocked from in the browser panel."
+                "description": "Sites agents may use or are blocked from in the Web page panel."
             },
             "markdown:fontsize": {
                 "label": "Markdown text size",
@@ -781,24 +781,24 @@
                 }
             },
             "tab:preset": {
-                "label": "Tab preset",
-                "description": "The preset new tabs start from."
+                "label": "View preset",
+                "description": "The preset new views start from."
             },
             "tab:confirmclose": {
-                "label": "Confirm before closing a tab",
-                "description": "Ask before closing a tab."
+                "label": "Confirm before closing a view",
+                "description": "Ask before closing a view."
             },
             "tab:background": {
-                "label": "Tab background",
-                "description": "The background new tabs get, from backgrounds.json."
+                "label": "View background",
+                "description": "The background new views get, from backgrounds.json."
             },
             "tab:holdtoclose": {
-                "label": "Hold to close a tab",
-                "description": "A tab's close button closes it after a press-and-hold, not a single click."
+                "label": "Hold to close a view",
+                "description": "A view's close button closes it after a press-and-hold, not a single click."
             },
             "tab:holdtoclosems": {
                 "label": "Hold duration",
-                "description": "How long the close button is held before the tab closes."
+                "description": "How long the close button is held before the view closes."
             },
             "power:sleeppolicy": {
                 "label": "Keep the computer awake",
@@ -811,7 +811,7 @@
                 }
             },
             "moltenterm:tabviewpriority": {
-                "label": "Load tabs at full priority",
+                "label": "Load views at full priority",
                 "description": "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them."
             },
             "moltenterm:tabviewbudget": {
@@ -827,8 +827,8 @@
                 "description": "Past this, the least recently used hidden workspace is unloaded."
             },
             "moltenterm:tabviewhost": {
-                "label": "Open tabs when ready",
-                "description": "A new tab replaces the one on screen once it has rendered, with a pending state if it is slow."
+                "label": "Open views when ready",
+                "description": "A new view replaces the one on screen once it has rendered, with a pending state if it is slow."
             },
             "moltenterm:hiddenpagefreeze": {
                 "label": "Pause hidden pages",
@@ -848,7 +848,7 @@
             },
             "moltenterm:confirmbusyclose": {
                 "label": "Ask before stopping what runs",
-                "description": "Closing a pane or a tab in which an agent or a command runs asks first and names what would stop."
+                "description": "Closing a pane or a view in which an agent or a command runs asks first and names what would stop."
             },
             "window:fullscreenonlaunch": {
                 "label": "Full screen at launch",
@@ -876,7 +876,7 @@
             },
             "window:tilegapsize": {
                 "label": "Gap between panels",
-                "description": "The space between the panels of a tab."
+                "description": "The space between the panels of a view."
             },
             "window:showmenubar": {
                 "label": "Menu bar",
@@ -891,8 +891,8 @@
                 "description": "Draw without the GPU; takes effect at the next launch."
             },
             "window:maxtabcachesize": {
-                "label": "Tabs kept in memory",
-                "description": "How many tabs stay loaded in the background."
+                "label": "Views kept in memory",
+                "description": "How many views stay loaded in the background."
             },
             "window:magnifiedblockopacity": {
                 "label": "Backdrop opacity",
@@ -900,7 +900,7 @@
             },
             "window:magnifiedblocksize": {
                 "label": "Magnified size",
-                "description": "How much of the tab a magnified panel covers."
+                "description": "How much of the view a magnified panel covers."
             },
             "window:magnifiedblockblurprimarypx": {
                 "label": "Magnified backdrop blur",
@@ -912,7 +912,7 @@
             },
             "window:confirmclose": {
                 "label": "Confirm before closing a window",
-                "description": "Ask before closing a window that holds several tabs."
+                "description": "Ask before closing a window that holds several views."
             },
             "window:savelastwindow": {
                 "label": "Reopen the last window",
@@ -972,11 +972,11 @@
             },
             "molten:project": {
                 "label": "Project folder",
-                "description": "The project this workspace is linked to, for Mission Control."
+                "description": "The project this workspace is linked to, for the Project panel."
             },
             "moltenterm:view360": {
                 "label": "360 view",
-                "description": "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
+                "description": "When a view fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
                 "options": {
                     "auto": "Automatic",
                     "always": "Always"
@@ -1059,12 +1059,12 @@
                 "description": "SSH hosts and their options."
             },
             "widgets": {
-                "name": "Rail widgets",
-                "description": "The custom tools of the rail."
+                "name": "Sidebar tools",
+                "description": "The custom tools of the sidebar."
             },
             "backgrounds": {
-                "name": "Tab backgrounds",
-                "description": "The backgrounds tabs can use."
+                "name": "View backgrounds",
+                "description": "The backgrounds views can use."
             },
             "secrets": {
                 "description": "Values kept in the system's keychain."
@@ -1111,11 +1111,11 @@
             },
             "browser": {
                 "title": "Browser",
-                "description": "The browser panel, how pages open, and the browser agents use."
+                "description": "The Web page panel, how pages open, and the browser agents use."
             },
             "mission": {
-                "title": "Mission Control",
-                "description": "Mission Control's CI/CD and line map."
+                "title": "Project",
+                "description": "The Project, CI/CD and Line map panels."
             },
             "keyboard": {
                 "title": "Keyboard",
@@ -1136,17 +1136,17 @@
         },
         "mods": {
             "label": "Mods",
-            "intro": "Each mod's cost in this tab: idle CPU over the last {seconds} s and the memory its activation took. The budget is {cpu} % CPU and {mb} MB.",
+            "intro": "Each mod's cost in this view: idle CPU over the last {seconds} s and the memory its activation took. The budget is {cpu} % CPU and {mb} MB.",
             "disableHint": "Turn a mod off with",
             "none": "No mods",
             "noneHint": "Ask your coding agent for one with /morph.",
             "builtin": "Built-in",
             "background": "Background",
-            "backgroundTitle": "Keeps running while its tab is hidden",
+            "backgroundTitle": "Keeps running while its view is hidden",
             "overBudget": "Over budget",
             "state": {
                 "active": "Running",
-                "pending": "Loads when this tab shows",
+                "pending": "Loads when this view shows",
                 "loading": "Loading",
                 "disabled": "Off",
                 "untrusted": "Not trusted",
@@ -1513,7 +1513,7 @@
         "unavailable": "The companion is not available",
         "unavailableHint": "MoltenTerm could not reach it. It tries again every 15 seconds.",
         "chooseSession": "Choose from the folder's sessions",
-        "noTerminalInTab": "No terminal in this tab",
+        "noTerminalInTab": "No terminal in this view",
         "permissionRequest": "Permission request",
         "answerInTerminal": "Answer it in the terminal.",
         "answer": {
@@ -1709,7 +1709,7 @@
         },
         "categories": {
             "panels": "Panels",
-            "tabs": "Tabs",
+            "tabs": "Views",
             "workspaces": "Workspaces",
             "terminal": "Terminal",
             "browser": "Browser",
@@ -1746,14 +1746,14 @@
             "refocus": "Focus the panel again",
             "connection": "Change the panel's connection",
             "search": "Search in the panel",
-            "new-tab": "New tab",
-            "close-tab": "Close the tab",
-            "reopen-closed": "Reopen the last closed pane or tab",
-            "reopen-closed-ctrl": "Reopen the last closed pane or tab",
-            "next-tab": "Next tab",
-            "previous-tab": "Previous tab",
-            "tab-number": "Go to tab by number",
-            "rename-tab": "Rename the tab",
+            "new-tab": "New view",
+            "close-tab": "Close the view",
+            "reopen-closed": "Reopen the last closed pane or view",
+            "reopen-closed-ctrl": "Reopen the last closed pane or view",
+            "next-tab": "Next view",
+            "previous-tab": "Previous view",
+            "tab-number": "Go to view by number",
+            "rename-tab": "Rename the view",
             "toggle-sidebar": "Hide or show the sidebar",
             "workspace-number": "Switch to workspace by number",
             "workspace-jump": "Jump to a workspace of the bottom bar",
@@ -1763,7 +1763,7 @@
             "term-paste": "Paste",
             "term-scroll": "Scroll a page up or down",
             "term-ends": "Scroll to the top or the bottom",
-            "multi-input": "Type in every terminal of the tab",
+            "multi-input": "Type in every terminal of the view",
             "review-ask": "Ask the AI about the selected lines",
             "review-comment": "Comment the selected lines",
             "browser-new-tab": "New browser tab",
@@ -1824,7 +1824,7 @@
             },
             "sessions": {
                 "title": "Sessions survive",
-                "text": "Terminals and agents keep running when MoltenTerm quits or updates. The Sessions icon on the rail lists every one still running."
+                "text": "Terminals and agents keep running when MoltenTerm quits or updates. The Sessions icon on the sidebar lists every one still running."
             },
             "palette": {
                 "title": "The command palette",
@@ -2151,7 +2151,7 @@
             "splitDown": "Split down",
             "title": "Panel",
             "closeTerminal": "Close terminal",
-            "closeBrowser": "Close browser",
+            "closeBrowser": "Close web page",
             "closePane": "Close pane"
         },
         "scope": {
@@ -2343,8 +2343,8 @@
                 "plural": "previews"
             },
             "web": {
-                "name": "Web",
-                "plural": "web panels"
+                "name": "Web page",
+                "plural": "web pages"
             },
             "help": {
                 "name": "Help",
@@ -2423,7 +2423,7 @@
             "allow": "Always",
             "allowDetail": "Terminals' blocks go through.",
             "untilWorkEnds": "Until work ends",
-            "untilWorkEndsDetail": "MoltenTerm keeps this computer awake while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a Mission Control run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
+            "untilWorkEndsDetail": "MoltenTerm keeps this computer awake while work runs (an agent working, or still busy with background subagents or commands after its turn; a foreground command that is not an idle shell; a project run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
             "letSleep": "Never",
             "letSleepDetail": "Terminals' blocks are stopped; this computer sleeps as planned and the work goes on after wake."
         },
@@ -2552,13 +2552,13 @@
             "anotherOpen": "another worktree dialog is open"
         },
         "tab": {
-            "titleOne": "Close a tab with a worktree?",
-            "titleOther": "Close a tab with {count} worktrees?",
+            "titleOne": "Close a view with a worktree?",
+            "titleOther": "Close a view with {count} worktrees?",
             "titleLose": "Remove and lose what only these worktrees hold?",
             "titleAnyway": "Remove these worktrees anyway?",
-            "removeAndClose": "Remove {count} and close the tab",
-            "close": "Close the tab",
-            "removeAnywayAndClose": "Remove anyway and close the tab",
+            "removeAndClose": "Remove {count} and close the view",
+            "close": "Close the view",
+            "removeAnywayAndClose": "Remove anyway and close the view",
             "subtitle": "Every worktree is kept unless you choose Remove."
         }
     },
@@ -2974,7 +2974,7 @@
             "behindNever": "Behind {source}: never synced",
             "behindOnNever": "Behind {source} on {branch}: never synced",
             "folderMissing": "Its folder is missing",
-            "notRead": "Not read yet: Mission Control reads it once its workspace has been open"
+            "notRead": "Not read yet: the Project panel reads it once its workspace has been open"
         },
         "release": {
             "change": "change",
@@ -2996,7 +2996,7 @@
             "milestoneOpen": "Ships milestone {title}, with {count}. They are reported; the release can still go ahead.",
             "prepareNow": "The preparation starts right away: {steps}.",
             "prepareNone": "Nothing runs right away: the pipeline declares no preparation.",
-            "note": "{start} Each next step will wait for your click in the Project tab.",
+            "note": "{start} Each next step will wait for your click in the Project view.",
             "noHistory": "The project's git history could not be read.",
             "running": "Release {tag}",
             "publicTitle": "Public release {tag}",
@@ -3153,10 +3153,10 @@
                 "analyze": "Analyze and resolve",
                 "analyzeTitle": "A work agent finds why {step} failed and resolves what it can within the release rules: a rerun of the failed jobs when the code is not the cause, or a fix in a pull request into the trunk. It never pushes the trunk, merges, tags or publishes; a notification tells you what it did.",
                 "together": "Investigate together",
-                "togetherTitle": "Opens a tab with the failing logs of {step} beside an agent that knows the failure, to work it out with you.",
+                "togetherTitle": "Opens a view with the failing logs of {step} beside an agent that knows the failure, to work it out with you.",
                 "asking": "Starting…",
                 "started": "{name} looks into {step} out of sight: a notification tells you what it did and whether the step can be retried.",
-                "startedTogether": "{name} is in the “{tab}” tab, beside the failing logs.",
+                "startedTogether": "{name} is in the “{tab}” view, beside the failing logs.",
                 "tab": "Release {tag}",
                 "failed": "The agent could not be started: {message}"
             },
@@ -3240,7 +3240,7 @@
             "copied": "Copied",
             "pipelineProblems": "The pipeline has problems",
             "connectPipeline": "Connect the pipeline",
-            "connectBody": "Mission Control runs this project's own CI, builds and releases once they are described in .molten/project.json. Your coding agent connects what the project already has and creates what is missing, following the project's workflow: open a terminal in the project, start your agent and type the command below.",
+            "connectBody": "The Project panel runs this project's own CI, builds and releases once they are described in .molten/project.json. Your coding agent connects what the project already has and creates what is missing, following the project's workflow: open a terminal in the project, start your agent and type the command below.",
             "notFoundBefore": "Command not found in your agent? Run",
             "notFoundAfter": "once.",
             "checkAgain": "Check again with molten project validate.",
@@ -3255,7 +3255,7 @@
             "linkButton": "Link a project…",
             "goneTitle": "The project's folder is gone",
             "goneHint": "{dir} no longer exists. Link the workspace to the project's new place.",
-            "errorTitle": "Mission Control could not answer",
+            "errorTitle": "The Project panel could not answer",
             "errorHint": "MoltenTerm could not read this project. Try again in a moment.",
             "tryAgain": "Try again",
             "folderEmpty": "This folder is empty.",
@@ -3266,12 +3266,12 @@
             "gitInitBody": "MoltenTerm runs git init in this folder. It adds an empty repository (a .git folder): your files stay as they are, nothing is committed.",
             "gitInitFailed": "Git could not create the repository.",
             "notRepoTitle": "This folder is not a git repository",
-            "notRepoHint": "Mission Control follows a project through its git history. Initialize git here or choose another folder.",
+            "notRepoHint": "The Project panel follows a project through its git history. Initialize git here or choose another folder.",
             "initGitHere": "Initialize git here",
             "readingHistory": "Reading the history…",
             "chooseFolder": "Choose another folder",
             "noGitTitle": "Git is not installed",
-            "noGitHint": "Mission Control reads the project's history with git. Install git, then try again.",
+            "noGitHint": "The Project panel reads the project's history with git. Install git, then try again.",
             "gitErrorTitle": "Git could not read this project",
             "gitErrorHint": "The history of this folder could not be read. Try again, or choose another folder."
         },
@@ -3295,7 +3295,7 @@
             "tookUsually": "{elapsed} (usually ~{usual})",
             "failedStepsList": "Failed: {steps}",
             "awaitedBy": "Awaited by the release {tag}",
-            "awaitedTitle": "The release is waiting for this run: show it in the Project tab",
+            "awaitedTitle": "The release is waiting for this run: show it in the Project view",
             "openOnGithub": "Open on GitHub",
             "scheduledTitle": "Scheduled jobs",
             "scheduledHint": "local times · GitHub may start them hours late",
@@ -4578,7 +4578,7 @@
             },
             "help": {
                 "question": "Question",
-                "questionTitle": "Ask your coding agent about this step, in the tab's terminal"
+                "questionTitle": "Ask your coding agent about this step, in the view's terminal"
             }
         }
     },
@@ -4590,7 +4590,7 @@
         "edit": {
             "emptyName": "A workspace needs a name. The previous name is kept.",
             "deleteLabel": "Delete workspace",
-            "deleteText": "Closes its tabs and panes. You land on another workspace.",
+            "deleteText": "Closes its views and panes. You land on another workspace.",
             "resetLabel": "Reset workspace…",
             "noDroppedFile": "Drop an image file from your disk",
             "importFailed": "The image could not be imported",
@@ -4604,9 +4604,9 @@
             "importImage": "Import an image…",
             "dropToUse": "Drop to use this image",
             "orDrop": "Or drop a PNG, JPG, WebP, SVG or ICO (1 MB) here",
-            "railBadge": "Rail badge: {icon}, {colour}",
-            "railBadgeKind": "Rail badge: {icon}, {colour}, {kind}",
-            "inTheRail": "In the rail",
+            "railBadge": "Sidebar badge: {icon}, {colour}",
+            "railBadgeKind": "Sidebar badge: {icon}, {colour}, {kind}",
+            "inTheRail": "In the sidebar",
             "inTheSidebar": "In the sidebar",
             "symbol": "Symbol",
             "image": "Image",
@@ -4617,7 +4617,7 @@
             "name": "Name",
             "icon": "Icon",
             "iconKind": "Icon kind",
-            "railShowsImage": "The rail shows an image instead.",
+            "railShowsImage": "The sidebar shows an image instead.",
             "useSymbol": "Use the symbol",
             "colour": "Colour",
             "fromLogo": "From the logo",
@@ -4747,7 +4747,7 @@
         },
         "link": {
             "title": "Link this workspace to {name}?",
-            "intro": "A terminal of this workspace is in this project. Linked, the workspace shows it in Mission Control (Project, CI/CD).",
+            "intro": "A terminal of this workspace is in this project. Linked, the workspace shows it in its Project and CI/CD panels.",
             "rename": "Name the workspace “{name}”",
             "now": "(now “{name}”)",
             "notNow": "Not now",
@@ -4764,10 +4764,10 @@
             "forgetFolder": "Forget it: the next folder your terminal goes to is used",
             "reset": "Reset",
             "outsideProject": "Outside the project: new panels start at its root.",
-            "startsHere": "New terminals, tabs and files start here.",
+            "startsHere": "New terminals, views and files start here.",
             "linkDialog": "Link a project",
             "linkFailed": "Could not link the project: {error}",
-            "mcShowsLinked": "Mission Control shows the linked project.",
+            "mcShowsLinked": "The Project panel shows the linked project.",
             "linkProject": "Link a project…",
             "unlink": "Unlink"
         }
@@ -4791,7 +4791,7 @@
             },
             "delete": {
                 "title": "Delete the workspace “{name}”?",
-                "subtitle": "Deleting it closes its tabs and stops what runs in its terminals.",
+                "subtitle": "Deleting it closes its views and stops what runs in its terminals.",
                 "confirm": "Delete anyway"
             },
             "switch": {
@@ -4810,8 +4810,8 @@
                 "confirm": "Clear anyway"
             },
             "tab": {
-                "title": "Close this tab?",
-                "titleNamed": "Close the tab “{name}”?",
+                "title": "Close this view?",
+                "titleNamed": "Close the view “{name}”?",
                 "subtitle": "Closing it stops what runs in its terminals."
             },
             "pane": {
@@ -4833,7 +4833,7 @@
             "missingWorktree": "Missing worktree",
             "unlink": "Unlink",
             "multiInput": "Multi input",
-            "multiInputTitle": "Input is sent to all the terminals of this tab (click to stop)",
+            "multiInputTitle": "Input is sent to all the terminals of this view (click to stop)",
             "connecting": "Connecting",
             "connectingTo": "Connecting to {connection}",
             "cantConnect": "Can't connect",
@@ -4866,7 +4866,7 @@
             "unlinkMissing": "Unlink this terminal from the missing worktree"
         },
         "hold": {
-            "closeLabel": "Close tab; hold with the pointer or activate to confirm",
+            "closeLabel": "Close view; hold with the pointer or activate to confirm",
             "closeHint": "Hold to close"
         },
         "pending": {
@@ -5019,7 +5019,7 @@
         "menu": {
             "groupSection": "Group",
             "editWorkspace": "Edit workspace…",
-            "openProjectTab": "Open Project tab",
+            "openProjectTab": "Open Project view",
             "stopGrouping": "Stop grouping",
             "groupWith": "Group with…",
             "removeFromGroup": "Remove from group",
@@ -5050,13 +5050,13 @@
                     "other": "{count} drafts"
                 }
             },
-            "moreWidgets": "{count} more widgets",
+            "moreWidgets": "{count} more tools",
             "apps": "Apps",
             "tips": "Tips",
             "settings": "Settings",
             "settingsErrors": "Settings · config errors",
             "configErrors": "Config errors",
-            "widget": "Widget"
+            "widget": "Tool"
         },
         "group": {
             "nameLabel": "Group name (empty: the first workspace's name)",
@@ -5099,7 +5099,7 @@
         "views": {
             "terminal": "Terminal",
             "files": "Files",
-            "web": "Web",
+            "web": "Web page",
             "browser": "Web page",
             "project": "Project",
             "sessions": "Sessions",
@@ -5150,7 +5150,7 @@
                 "other": "{count} commits on no remote"
             },
             "uncommitted": "uncommitted changes",
-            "openProjectTab": "Open the Project tab",
+            "openProjectTab": "Open the Project view",
             "detachedLabel": "detached at {at}",
             "onNoBranch": "on no branch",
             "noPr": "No pull request yet"
@@ -5166,7 +5166,7 @@
         },
         "viewName": "Project",
         "tabName": "Project",
-        "frameTitle": "The Project tab",
+        "frameTitle": "The Project view",
         "cardFailed": "{title} could not be shown: {error}",
         "unknownError": "unknown error",
         "openCicdTitle": "Open the CI/CD panel beside this view: history, detail and logs",
@@ -5473,7 +5473,7 @@
     "split": {
         "right": "Split right",
         "down": "Split down",
-        "tab": "Tab",
+        "tab": "View",
         "place": {
             "menu": "Split…",
             "title": "Split the panel",
@@ -5504,7 +5504,7 @@
     },
     "reopen": {
         "nothing": "Nothing to reopen",
-        "tab": "Reopened the tab “{name}”",
+        "tab": "Reopened the view “{name}”",
         "pane": "Reopened {name}",
         "freshShell": "A new shell started: the closed one cannot be brought back.",
         "freshShellIn": "A new shell started in {path}: the closed one cannot be brought back.",
@@ -5512,7 +5512,7 @@
     },
     "equalize": {
         "command": "Equalize panels",
-        "commandDetail": "every panel column of the tab at the same width",
+        "commandDetail": "every panel column of the view at the same width",
         "autoOn": "Auto equalize on",
         "autoOff": "Auto equalize off",
         "autoOffReason": "You adjusted a panel by hand.",
@@ -5539,12 +5539,12 @@
             "toggleLabel": "360",
             "toggleAutoMark": "A",
             "tooltipOn": "360 view is on: the first column stays fixed, the other panels scroll sideways on the carpet.",
-            "tooltipOff": "360 view is off: every panel shares the tab's width.",
+            "tooltipOff": "360 view is off: every panel shares the view's width.",
             "heldManual": "On demand: turned on from this button.",
             "heldAuto": "Automatic: the panels no longer fit side by side at a readable width.",
             "heldSetting": "From the 360 view setting (Always).",
             "heldColumns": "Automatic: more than {count} columns on this screen.",
-            "offManual": "Turned off for this tab until it is back to this screen's number of columns. It still turns on by itself if the panels no longer fit side by side at all.",
+            "offManual": "Turned off for this view until it is back to this screen's number of columns. It still turns on by itself if the panels no longer fit side by side at all.",
             "offColumns": "Automatic: turns on by itself beyond {count} columns on this screen, or when the panels no longer fit side by side.",
             "clickOn": "Click to turn it on.",
             "clickOff": "Click to leave it: the panels get back the proportions you gave them.",
@@ -5560,7 +5560,7 @@
         },
         "screens": {
             "title": "Columns per screen",
-            "hint": "On each screen, a tab with more columns than this switches to 360 view and keeps the proportions you set. A screen you never set takes a default from its width.",
+            "hint": "On each screen, a view with more columns than this switches to 360 view and keeps the proportions you set. A screen you never set takes a default from its width.",
             "none": "No screen yet.",
             "size": "{width} × {height}",
             "scale": "scale {scale}",
@@ -5793,7 +5793,7 @@
         "retryGoneTitle": "{name}'s session is gone: start a new agent on {what}",
         "work": {
             "button": "Open its work",
-            "title": "Put the diff of #{number} beside {name}'s terminal, in its tab, to take it over together",
+            "title": "Put the diff of #{number} beside {name}'s terminal, in its view, to take it over together",
             "failed": "Its work could not be opened. {message}",
             "gone": "Its terminal is no longer open."
         },
@@ -6910,7 +6910,7 @@
         },
         "from": {
             "reviews": "Integration",
-            "reviewTab": "Review tab",
+            "reviewTab": "Review view",
             "mergeQueue": "Merge queue",
             "reviewPanel": "Review panel",
             "label": "From {where}"
@@ -6999,9 +6999,9 @@
             "viewName": "AI panel",
             "viewNamePr": "AI panel · #{number}",
             "noPr": "No pull request",
-            "noPrHint": "Open the AI panel from a Review tab.",
+            "noPrHint": "Open the AI panel from a Review view.",
             "notOpen": "The review of #{number} is not open",
-            "notOpenHint": "Open the pull request's Review tab from the Integration panel: the AI panel follows it.",
+            "notOpenHint": "Open the pull request's Review view from the Integration panel: the AI panel follows it.",
             "cardsLabel": "Briefing and explanations",
             "worktreeAgent": "Worktree: the agent's",
             "worktreeReview": "Worktree: MoltenTerm's review copy",
@@ -7198,9 +7198,9 @@
             "closedTitle": "Closed on GitHub without merge",
             "closedAt": "Closed on GitHub without merge, {time}",
             "showResult": "Click to see the validation's result.",
-            "tabMerged": "Merged: you can close this tab",
-            "tabClosed": "Closed without merge: you can close this tab",
-            "closeTab": "Close the review tab",
+            "tabMerged": "Merged: you can close this view",
+            "tabClosed": "Closed without merge: you can close this view",
+            "closeTab": "Close the review view",
             "keepOpen": "Keep it open",
             "merged": "Merged",
             "close": "Close",
@@ -7214,10 +7214,10 @@
                 "plain": "Merged, on {base}. Nothing left to validate."
             },
             "footer": {
-                "cleaning": "Merged. The cleanup is finishing; this review tab is no longer needed.",
-                "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",
-                "failed": "Merged, but a cleanup step failed above. This review tab is no longer needed.",
-                "done": "Merged and cleaned up. This review tab is no longer needed."
+                "cleaning": "Merged. The cleanup is finishing; this review view is no longer needed.",
+                "needs": "Merged. A kept worktree waits for you above; this review view is then no longer needed.",
+                "failed": "Merged, but a cleanup step failed above. This review view is no longer needed.",
+                "done": "Merged and cleaned up. This review view is no longer needed."
             },
             "done": "Done",
             "footerSheet": {
@@ -7573,7 +7573,7 @@
             "panels": {
                 "agent": "An agent is still running in this folder: {panel}",
                 "terminal": "A terminal is still open in this folder: {panel}",
-                "untitled": "an untitled tab",
+                "untitled": "an untitled view",
                 "inWorkspace": "{tab} (workspace {workspace})",
                 "show": "Show the panel",
                 "showNamed": "Show {panel}",
@@ -7805,7 +7805,7 @@
             "sheet": {
                 "title": "Restart work · #{number}",
                 "what": "Review round {round}'s {count} published comments go to an agent in the worktree of {branch}: it applies them, commits in the project's format, pushes and replies on each thread.",
-                "who": "An idle agent already working there gets them; otherwise you choose how your agent starts: out of sight, or in a tab of its own, with your usual permissions.",
+                "who": "An idle agent already working there gets them; otherwise you choose how your agent starts: out of sight, or in a view of its own, with your usual permissions.",
                 "ticket": "The ticket keeps its status. Nothing starts until you click Restart work.",
                 "again": "This round was already handed over: a new click hands it again.",
                 "cancel": "Cancel"
@@ -7839,7 +7839,7 @@
             "keptHint": "Kept in the project's notes as \"{title}\"",
             "keptWhen": "kept {when}",
             "filter": "Filter the notes",
-            "empty": "Keep an AI explanation from a Review tab: it stays here, for this project, after the PR is merged.",
+            "empty": "Keep an AI explanation from a Review view: it stays here, for this project, after the PR is merged.",
             "noMatch": "No note matches the filter.",
             "readFailed": "The notes could not be read: {error}",
             "rename": "Rename",
@@ -7850,7 +7850,7 @@
             "deleteConfirm": "Delete this note?",
             "byAgent": "Explained by {agent}",
             "openLine": "Open the file at this line, as of the merged PR or the base branch",
-            "emptyLine": "none. Keep an AI explanation from a Review tab: it stays here after the merge."
+            "emptyLine": "none. Keep an AI explanation from a Review view: it stays here after the merge."
         }
     },
     "server": {
@@ -7908,7 +7908,7 @@
             "nosummary": "The review has no summary.",
             "onlystagedtranslated": "Only a staged comment is translated.",
             "summarytoolong": "The summary is too long (64 KB at most).",
-            "blocknotintab": "The review panel is not in this tab.",
+            "blocknotintab": "The review panel is not in this view.",
             "worktreelist": "The project's worktrees could not be listed: {detail}",
             "branchmissing": "The branch {branch} was found neither in the project nor on origin.",
             "worktreecreate": "A worktree on {branch} could not be created: {detail}",
@@ -7990,7 +7990,7 @@
             "noid": "No session was given.",
             "gone": "The session {session} is no longer running.",
             "endself": "A session cannot end itself: type exit instead.",
-            "notab": "There is no tab to open the session in.",
+            "notab": "There is no view to open the session in.",
             "welcomeback": {
                 "keptone": "1 session kept running while MoltenTerm was closed",
                 "keptother": "{count} sessions kept running while MoltenTerm was closed",
@@ -8521,7 +8521,7 @@
                 "background": "{agent}: background work",
                 "anycommand": "A command",
                 "command": "Command: {command}",
-                "mission": "Mission Control run",
+                "mission": "Project run",
                 "more": "{count} more"
             },
             "notice": {
@@ -8592,11 +8592,11 @@
                 "otherengine": "This page is open in another browser: open it in MoltenTerm to share it.",
                 "sessiongone": "This agent's browser session has ended.",
                 "elsewhere": "This agent runs in another workspace.",
-                "othertab": "This agent runs in another tab: share the page from a browser panel in its tab.",
+                "othertab": "This agent runs in another view: share the page from a Web page panel in its view.",
                 "notshared": "This tab is not shared with an agent.",
                 "nopage": "Open a page in this tab first.",
                 "toomanytabs": "This agent already holds too many tabs.",
-                "panelunknown": "MoltenTerm could not read the browser panel."
+                "panelunknown": "MoltenTerm could not read the Web page panel."
             }
         },
         "worktree": {
@@ -8651,7 +8651,7 @@
             "rebase": "Go through the rebase with the agent",
             "restart": "Go through the work with the agent",
             "investigate": "Analyze and resolve with the agent",
-            "text": "Opens a “{tab}” tab with its terminal, focused: you follow it and answer. The review stays for later.",
+            "text": "Opens a “{tab}” view with its terminal, focused: you follow it and answer. The review stays for later.",
             "finish": "Go through it with the agent"
         },
         "checkout": "Your main checkout is not touched. Once the branch is pushed and nothing is left in the copy, MoltenTerm closes the terminal and removes the copy.",
@@ -9204,7 +9204,7 @@
             "shared": "shared",
             "opened": "opened by the agent",
             "emptyTitle": "Nothing shared right now",
-            "empty": "A page you share with an agent from a browser panel shows here while the agent holds it."
+            "empty": "A page you share with an agent from a Web page panel shows here while the agent holds it."
         },
         "putaway": {
             "reopen": "Reopen",

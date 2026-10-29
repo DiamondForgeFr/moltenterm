@@ -91,12 +91,12 @@
             "quit": "Quitter"
         },
         "closeWindow": {
-            "message": "La fenêtre contient des onglets non enregistrés : la fermer supprimera ses onglets.\n\nContinuer ?",
+            "message": "La fenêtre contient des vues non enregistrées : la fermer supprimera ses vues.\n\nContinuer ?",
             "button": "Fermer la fenêtre"
         },
         "closeTab": {
-            "message": "Voulez-vous vraiment fermer cet onglet ?",
-            "button": "Fermer l'onglet"
+            "message": "Voulez-vous vraiment fermer cette vue ?",
+            "button": "Fermer la vue"
         },
         "saveScrollback": {
             "title": "Enregistrer l'historique",
@@ -112,26 +112,26 @@
     },
     "wave": {
         "launcher": {
-            "searchAria": "Rechercher des widgets",
-            "noneFound": "Aucun widget trouvé. Appuyez sur Échap pour effacer la recherche.",
+            "searchAria": "Rechercher des outils",
+            "noneFound": "Aucun outil trouvé. Appuyez sur Échap pour effacer la recherche.",
             "hintIdle": "Tapez pour filtrer, Entrée pour lancer, flèches pour naviguer",
             "hintSearching": "Recherche de « {query} », Entrée pour lancer, flèches pour naviguer"
         },
         "tab": {
-            "rename": "Renommer l'onglet",
-            "nameAria": "Nom de l'onglet",
-            "copyId": "Copier l'identifiant de l'onglet",
+            "rename": "Renommer la vue",
+            "nameAria": "Nom de la vue",
+            "copyId": "Copier l'identifiant de la vue",
             "view360": "Vue 360",
             "backgrounds": "Arrière-plan de la vue…",
             "backgroundDefault": "Par défaut",
-            "sectionTabBar": "Barre d'onglets",
-            "tabBarPosition": "Position de la barre d'onglets",
+            "sectionTabBar": "Barre de vues",
+            "tabBarPosition": "Position de la barre de vues",
             "tabBarTop": "En haut",
             "tabBarLeft": "À gauche",
             "reopenClosed": "Rouvrir ce qui a été fermé",
-            "close": "Fermer l'onglet",
-            "add": "Ajouter un onglet",
-            "new": "Nouvel onglet"
+            "close": "Fermer la vue",
+            "add": "Ajouter une vue",
+            "new": "Nouvelle vue"
         },
         "block": {
             "commandsAndOptions": "Commandes et options ({shortcut})",
@@ -142,7 +142,7 @@
             "noView": "(Aucune vue)",
             "viewTerminal": "Terminal",
             "viewPreview": "Fichiers",
-            "viewWeb": "Web",
+            "viewWeb": "Page web",
             "viewHelp": "Aide",
             "viewTips": "Astuces",
             "viewProcesses": "Processus"
@@ -375,10 +375,10 @@
             "processes": "Processus"
         },
         "actions": {
-            "projectTab": "Onglet projet",
+            "projectTab": "Vue Projet",
             "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
-            "newTab": "Nouvel onglet",
-            "reopenClosed": "Rouvrir le dernier panneau ou onglet fermé",
+            "newTab": "Nouvelle vue",
+            "reopenClosed": "Rouvrir le dernier panneau ou la dernière vue fermés",
             "splitPlace": "Diviser le panneau…",
             "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
@@ -394,14 +394,14 @@
             "agentCopy": "Copier la dernière réponse de {agent}",
             "agentCopyDetail": "tapez {command} dans {agent}, elle arrive dans le presse-papiers par OSC 52",
             "openInBrowser": "Ouvrir dans {browser}",
-            "openInBrowserDetail": "la page du panneau navigateur, avec vos sessions et extensions",
+            "openInBrowserDetail": "la page web, avec vos sessions et extensions",
             "updateTerminals": "Mettre à jour les terminaux périmés"
         },
         "panels": {
             "missionControl": "Projet",
             "missionControlDetail": "la vue d'ensemble du projet",
             "noProject": "aucun projet lié pour l'instant",
-            "lineMap": "Carte des lignes",
+            "lineMap": "Plan de lignes",
             "lineMapDetail": "les branches du projet en lignes",
             "companion": "Compagnon",
             "companionDetail": "l'agent de ce terminal",
@@ -499,12 +499,12 @@
                 "description": "Les hôtes SSH et leurs options."
             },
             "widgets": {
-                "name": "Widgets du rail",
-                "description": "Les outils personnalisés du rail."
+                "name": "Outils de la barre latérale",
+                "description": "Les outils personnalisés de la barre latérale."
             },
             "backgrounds": {
-                "name": "Fonds des onglets",
-                "description": "Les fonds que les onglets peuvent utiliser."
+                "name": "Fonds des vues",
+                "description": "Les fonds que les vues peuvent utiliser."
             },
             "secrets": {
                 "description": "Les valeurs gardées dans le trousseau du système."
@@ -551,11 +551,11 @@
             },
             "browser": {
                 "title": "Navigateur",
-                "description": "Le panneau navigateur, l'ouverture des pages, et le navigateur qu'utilisent les agents."
+                "description": "Le panneau Page web, l'ouverture des pages, et le navigateur qu'utilisent les agents."
             },
             "mission": {
-                "title": "Mission Control",
-                "description": "La CI/CD et le plan de lignes de Mission Control."
+                "title": "Projet",
+                "description": "Les panneaux Projet, CI/CD et Plan de lignes."
             },
             "keyboard": {
                 "title": "Clavier",
@@ -595,7 +595,7 @@
             "filesAndEditor": "Fichiers et éditeur",
             "text": "Texte",
             "openingPages": "Ouverture des pages",
-            "browserPanel": "Panneau navigateur",
+            "browserPanel": "Page web",
             "power": "Énergie",
             "window": "Fenêtre",
             "updates": "Mises à jour",
@@ -615,7 +615,7 @@
             },
             "molten:project": {
                 "label": "Dossier du projet",
-                "description": "Le projet auquel cet espace de travail est lié, pour Mission Control."
+                "description": "Le projet auquel cet espace de travail est lié, pour le panneau Projet."
             },
             "app:nativecontextmenu": {
                 "label": "Menus contextuels du système",
@@ -626,8 +626,8 @@
                 "description": "Un raccourci valable partout qui ramène MoltenTerm au premier plan."
             },
             "app:defaultnewblock": {
-                "label": "Contenu d'un nouvel onglet",
-                "description": "La vue par laquelle commence un nouvel onglet, comme term."
+                "label": "Contenu d'une nouvelle vue",
+                "description": "Le panneau par lequel commence une nouvelle vue, comme term."
             },
             "app:showoverlayblocknums": {
                 "label": "Numéros des panneaux",
@@ -659,8 +659,8 @@
                 }
             },
             "app:tabbar": {
-                "label": "Position de la barre d'onglets",
-                "description": "Où se trouve la barre d'onglets.",
+                "label": "Position de la barre de vues",
+                "description": "Où se trouve la barre de vues.",
                 "options": {
                     "top": "En haut",
                     "left": "À gauche"
@@ -672,7 +672,7 @@
             },
             "feature:waveappbuilder": {
                 "label": "Créateur d'apps",
-                "description": "Afficher l'outil Apps dans le rail en dehors des builds de développement."
+                "description": "Afficher l'outil Apps dans la barre latérale en dehors des builds de développement."
             },
             "term:fontsize": {
                 "label": "Taille du texte",
@@ -754,7 +754,7 @@
             },
             "term:bellindicator": {
                 "label": "Indicateur de cloche",
-                "description": "Marquer l'onglet quand un programme fait sonner la cloche."
+                "description": "Marquer la vue quand un programme fait sonner la cloche."
             },
             "term:osc52": {
                 "label": "Accès au presse-papiers",
@@ -848,11 +848,11 @@
             },
             "web:openlinksinternally": {
                 "label": "Ouvrir les liens dans MoltenTerm",
-                "description": "Les liens cliqués dans un terminal ou une page s'ouvrent dans un panneau navigateur."
+                "description": "Les liens cliqués dans un terminal ou une page s'ouvrent dans un panneau Page web."
             },
             "web:defaulturl": {
                 "label": "Page d'accueil",
-                "description": "La page qu'ouvre un nouveau panneau navigateur."
+                "description": "La page qu'ouvre un nouveau panneau Page web."
             },
             "web:defaultsearch": {
                 "label": "Moteur de recherche",
@@ -891,7 +891,7 @@
             },
             "browser:agentsites": {
                 "label": "Permissions des agents par site",
-                "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau navigateur."
+                "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau Page web."
             },
             "markdown:fontsize": {
                 "label": "Taille du texte Markdown",
@@ -914,24 +914,24 @@
                 }
             },
             "tab:preset": {
-                "label": "Préréglage d'onglet",
-                "description": "Le préréglage par lequel commencent les nouveaux onglets."
+                "label": "Préréglage de vue",
+                "description": "Le préréglage par lequel commencent les nouvelles vues."
             },
             "tab:confirmclose": {
-                "label": "Confirmer avant de fermer un onglet",
-                "description": "Demander avant de fermer un onglet."
+                "label": "Confirmer avant de fermer une vue",
+                "description": "Demander avant de fermer une vue."
             },
             "tab:background": {
-                "label": "Fond des onglets",
-                "description": "Le fond des nouveaux onglets, parmi backgrounds.json."
+                "label": "Fond des vues",
+                "description": "Le fond des nouvelles vues, parmi backgrounds.json."
             },
             "tab:holdtoclose": {
-                "label": "Maintenir pour fermer un onglet",
-                "description": "Le bouton de fermeture d'un onglet le ferme après un appui prolongé, pas un simple clic."
+                "label": "Maintenir pour fermer une vue",
+                "description": "Le bouton de fermeture d'une vue le ferme après un appui prolongé, pas un simple clic."
             },
             "tab:holdtoclosems": {
                 "label": "Durée de l'appui",
-                "description": "Combien de temps maintenir le bouton de fermeture avant que l'onglet se ferme."
+                "description": "Combien de temps maintenir le bouton de fermeture avant que la vue se ferme."
             },
             "power:sleeppolicy": {
                 "label": "Garder l'ordinateur éveillé",
@@ -944,7 +944,7 @@
                 }
             },
             "moltenterm:tabviewpriority": {
-                "label": "Charger les onglets en pleine priorité",
+                "label": "Charger les vues en pleine priorité",
                 "description": "Les espaces de travail en cours d'ouverture se chargent avec la priorité de celui à l'écran : un ordinateur chargé ne les bloque pas."
             },
             "moltenterm:tabviewbudget": {
@@ -960,8 +960,8 @@
                 "description": "Au-delà, l'espace de travail caché utilisé le moins récemment est déchargé."
             },
             "moltenterm:tabviewhost": {
-                "label": "Ouvrir les onglets une fois prêts",
-                "description": "Un nouvel onglet remplace celui à l'écran une fois affiché, avec un état d'attente s'il est lent."
+                "label": "Ouvrir les vues une fois prêtes",
+                "description": "Une nouvelle vue remplace celle à l'écran une fois affichée, avec un état d'attente si elle est lente."
             },
             "moltenterm:hiddenpagefreeze": {
                 "label": "Mettre en pause les pages cachées",
@@ -981,7 +981,7 @@
             },
             "moltenterm:confirmbusyclose": {
                 "label": "Demander avant d'arrêter ce qui tourne",
-                "description": "Fermer un panneau ou un onglet où tourne un agent ou une commande demande d'abord, en nommant ce qui s'arrêterait."
+                "description": "Fermer un panneau ou une vue où tourne un agent ou une commande demande d'abord, en nommant ce qui s'arrêterait."
             },
             "window:fullscreenonlaunch": {
                 "label": "Plein écran au lancement",
@@ -1009,7 +1009,7 @@
             },
             "window:tilegapsize": {
                 "label": "Espace entre les panneaux",
-                "description": "L'espace entre les panneaux d'un onglet."
+                "description": "L'espace entre les panneaux d'une vue."
             },
             "window:showmenubar": {
                 "label": "Barre de menus",
@@ -1024,8 +1024,8 @@
                 "description": "Dessiner sans le GPU ; prend effet au prochain lancement."
             },
             "window:maxtabcachesize": {
-                "label": "Onglets gardés en mémoire",
-                "description": "Combien d'onglets restent chargés en arrière-plan."
+                "label": "Vues gardées en mémoire",
+                "description": "Combien de vues restent chargées en arrière-plan."
             },
             "window:magnifiedblockopacity": {
                 "label": "Opacité de l'arrière-plan",
@@ -1033,7 +1033,7 @@
             },
             "window:magnifiedblocksize": {
                 "label": "Taille agrandie",
-                "description": "Quelle part de l'onglet couvre un panneau agrandi."
+                "description": "Quelle part de la vue couvre un panneau agrandi."
             },
             "window:magnifiedblockblurprimarypx": {
                 "label": "Flou derrière le panneau agrandi",
@@ -1045,7 +1045,7 @@
             },
             "window:confirmclose": {
                 "label": "Confirmer avant de fermer une fenêtre",
-                "description": "Demander avant de fermer une fenêtre qui contient plusieurs onglets."
+                "description": "Demander avant de fermer une fenêtre qui contient plusieurs vues."
             },
             "window:savelastwindow": {
                 "label": "Rouvrir la dernière fenêtre",
@@ -1101,7 +1101,7 @@
             },
             "moltenterm:view360": {
                 "label": "Vue 360",
-                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Son bouton 360 l'active aussi.",
+                "description": "Quand une vue fixe sa première colonne et pose les autres sur un tapis latéral. Son bouton 360 l'active aussi.",
                 "options": {
                     "auto": "Automatique",
                     "always": "Toujours"
@@ -1136,17 +1136,17 @@
         },
         "mods": {
             "label": "Mods",
-            "intro": "Ce que coûte chaque mod dans cet onglet : le CPU au repos sur les dernières {seconds} s et la mémoire prise par son activation. Le budget est de {cpu} % de CPU et {mb} Mo.",
+            "intro": "Ce que coûte chaque mod dans cette vue : le CPU au repos sur les dernières {seconds} s et la mémoire prise par son activation. Le budget est de {cpu} % de CPU et {mb} Mo.",
             "disableHint": "Désactivez un mod avec",
             "none": "Aucun mod",
             "noneHint": "Demandez-en un à votre agent de code avec /morph.",
             "builtin": "Intégré",
             "background": "Arrière-plan",
-            "backgroundTitle": "Continue de tourner quand son onglet est caché",
+            "backgroundTitle": "Continue de tourner quand sa vue est cachée",
             "overBudget": "Hors budget",
             "state": {
                 "active": "Actif",
-                "pending": "Se charge quand cet onglet s'affiche",
+                "pending": "Se charge quand cette vue s'affiche",
                 "loading": "Chargement",
                 "disabled": "Désactivé",
                 "untrusted": "Non approuvé",
@@ -1386,8 +1386,8 @@
         },
         "project": {
             "notRepo": "Ce dossier n'est pas un dépôt git : le panneau Projet suit les projets git.",
-            "connected": "{name} est déjà connecté au panneau Projet ({file}).",
-            "connect": "Connectez {name} au panneau Projet : dans votre agent, lancé dans ce dossier, demandez {file} (il réutilise les scripts et la CI du projet) avec :",
+            "connected": "{name} est déjà relié au panneau Projet ({file}).",
+            "connect": "Reliez {name} au panneau Projet : dans votre agent, lancé dans ce dossier, demandez {file} (il réutilise les scripts et la CI du projet) avec :",
             "sessionsTitle": "Vos sessions survivent",
             "sessionsText": "Les terminaux et les agents qu'ils contiennent continuent de tourner quand MoltenTerm se ferme ou se met à jour. À votre retour, ils sont là où vous les avez laissés, et Sessions liste tous ceux qui tournent encore, en local ou via SSH.",
             "openSessions": "Ouvrir Sessions",
@@ -1513,7 +1513,7 @@
         "unavailable": "Le compagnon n'est pas disponible",
         "unavailableHint": "MoltenTerm n'a pas pu le joindre. Il réessaie toutes les 15 secondes.",
         "chooseSession": "Choisir parmi les sessions du dossier",
-        "noTerminalInTab": "Aucun terminal dans cet onglet",
+        "noTerminalInTab": "Aucun terminal dans cette vue",
         "permissionRequest": "Demande d'autorisation",
         "answerInTerminal": "Répondez-y dans le terminal.",
         "answer": {
@@ -1709,7 +1709,7 @@
         },
         "categories": {
             "panels": "Panneaux",
-            "tabs": "Onglets",
+            "tabs": "Vues",
             "workspaces": "Espaces de travail",
             "terminal": "Terminal",
             "browser": "Navigateur",
@@ -1746,14 +1746,14 @@
             "refocus": "Réactiver le panneau",
             "connection": "Changer la connexion du panneau",
             "search": "Rechercher dans le panneau",
-            "new-tab": "Nouvel onglet",
-            "close-tab": "Fermer l'onglet",
-            "reopen-closed": "Rouvrir le dernier panneau ou onglet fermé",
-            "reopen-closed-ctrl": "Rouvrir le dernier panneau ou onglet fermé",
-            "next-tab": "Onglet suivant",
-            "previous-tab": "Onglet précédent",
-            "tab-number": "Aller à un onglet par son numéro",
-            "rename-tab": "Renommer l'onglet",
+            "new-tab": "Nouvelle vue",
+            "close-tab": "Fermer la vue",
+            "reopen-closed": "Rouvrir le dernier panneau ou la dernière vue fermés",
+            "reopen-closed-ctrl": "Rouvrir le dernier panneau ou la dernière vue fermés",
+            "next-tab": "Vue suivante",
+            "previous-tab": "Vue précédente",
+            "tab-number": "Aller à une vue par son numéro",
+            "rename-tab": "Renommer la vue",
             "toggle-sidebar": "Masquer ou afficher la barre latérale",
             "workspace-number": "Passer à un espace de travail par son numéro",
             "workspace-jump": "Aller à un espace de travail de la barre du bas",
@@ -1763,7 +1763,7 @@
             "term-paste": "Coller",
             "term-scroll": "Défiler d'une page vers le haut ou le bas",
             "term-ends": "Défiler jusqu'en haut ou en bas",
-            "multi-input": "Taper dans tous les terminaux de l'onglet",
+            "multi-input": "Taper dans tous les terminaux de la vue",
             "review-ask": "Interroger l'IA sur les lignes sélectionnées",
             "review-comment": "Commenter les lignes sélectionnées",
             "browser-new-tab": "Nouvel onglet de navigateur",
@@ -1824,7 +1824,7 @@
             },
             "sessions": {
                 "title": "Les sessions survivent",
-                "text": "Les terminaux et les agents continuent de tourner quand MoltenTerm quitte ou se met à jour. L'icône Sessions du rail liste tous ceux encore en cours."
+                "text": "Les terminaux et les agents continuent de tourner quand MoltenTerm quitte ou se met à jour. L'icône Sessions de la barre latérale liste tous ceux encore en cours."
             },
             "palette": {
                 "title": "La palette de commandes",
@@ -2088,7 +2088,7 @@
             "prReady": "Prête pour la revue",
             "prUnknown": "Pull requests pas encore lues pour ce projet",
             "noPr": "Aucune pull request",
-            "otherProject": "Cette app appartient à {name}, pas au projet de ce workspace : le panneau Intégration montre le projet du workspace.",
+            "otherProject": "Cette app appartient à {name}, pas au projet de cet espace de travail : le panneau Intégration montre le projet de l'espace de travail.",
             "openInReviews": "Ouvrir dans le panneau Intégration",
             "openPr": "Ouvrir la pull request",
             "reason": {
@@ -2151,7 +2151,7 @@
             "splitDown": "Diviser en bas",
             "title": "Panneau",
             "closeTerminal": "Fermer le terminal",
-            "closeBrowser": "Fermer le navigateur",
+            "closeBrowser": "Fermer la page web",
             "closePane": "Fermer le panneau"
         },
         "scope": {
@@ -2292,7 +2292,7 @@
             "days": "{count} jours",
             "animation": "Animation",
             "reducedMotion": "désactivée tant que le système réduit les animations",
-            "title": "Plan de ligne"
+            "title": "Plan de lignes"
         },
         "cicd": {
             "title": "CI/CD",
@@ -2343,8 +2343,8 @@
                 "plural": "aperçus"
             },
             "web": {
-                "name": "Web",
-                "plural": "panneaux web"
+                "name": "Page web",
+                "plural": "pages web"
             },
             "help": {
                 "name": "Aide",
@@ -2371,8 +2371,8 @@
                 "plural": "compagnons"
             },
             "linemap": {
-                "name": "Plan de ligne",
-                "plural": "plans de ligne"
+                "name": "Plan de lignes",
+                "plural": "plans de lignes"
             },
             "cicd": {
                 "name": "CI/CD",
@@ -2423,7 +2423,7 @@
             "allow": "Toujours",
             "allowDetail": "Les blocages demandés par les terminaux passent.",
             "untilWorkEnds": "Jusqu'à la fin du travail",
-            "untilWorkEndsDetail": "MoltenTerm garde cet ordinateur éveillé tant que du travail tourne (un agent au travail, ou encore occupé par des sous-agents ou des commandes en arrière-plan après son tour ; une commande au premier plan qui n'est pas un shell inactif ; une exécution de Mission Control), plus 2 minutes. Un agent qui attend une saisie sans rien exécuter ne travaille pas.",
+            "untilWorkEndsDetail": "MoltenTerm garde cet ordinateur éveillé tant que du travail tourne (un agent au travail, ou encore occupé par des sous-agents ou des commandes en arrière-plan après son tour ; une commande au premier plan qui n'est pas un shell inactif ; une exécution du projet), plus 2 minutes. Un agent qui attend une saisie sans rien exécuter ne travaille pas.",
             "letSleep": "Jamais",
             "letSleepDetail": "Les blocages des terminaux sont arrêtés ; cet ordinateur se met en veille comme prévu et le travail reprend au réveil."
         },
@@ -2552,13 +2552,13 @@
             "anotherOpen": "une autre fenêtre de worktree est ouverte"
         },
         "tab": {
-            "titleOne": "Fermer un onglet avec un worktree ?",
-            "titleOther": "Fermer un onglet avec {count} worktrees ?",
+            "titleOne": "Fermer une vue avec un worktree ?",
+            "titleOther": "Fermer une vue avec {count} worktrees ?",
             "titleLose": "Supprimer et perdre ce que ces worktrees sont seuls à contenir ?",
             "titleAnyway": "Supprimer ces worktrees quand même ?",
-            "removeAndClose": "Supprimer {count} et fermer l'onglet",
-            "close": "Fermer l'onglet",
-            "removeAnywayAndClose": "Supprimer quand même et fermer l'onglet",
+            "removeAndClose": "Supprimer {count} et fermer la vue",
+            "close": "Fermer la vue",
+            "removeAnywayAndClose": "Supprimer quand même et fermer la vue",
             "subtitle": "Chaque worktree est conservé sauf si vous choisissez Supprimer."
         }
     },
@@ -2587,8 +2587,8 @@
             "notOnGithub": "Pas sur GitHub"
         },
         "lineMap": {
-            "viewName": "Carte des lignes",
-            "frameTitle": "La carte des lignes",
+            "viewName": "Plan de lignes",
+            "frameTitle": "Le plan de lignes",
             "next": "suivante",
             "publicRelease": "version publique",
             "nothingToRelease": "rien à publier pour l'instant",
@@ -2685,16 +2685,16 @@
             },
             "legendTitle": "Ce que veulent dire les marques",
             "legendButton": "Légende",
-            "legendLabel": "Légende de la carte des lignes",
-            "replayTitle": "Rejouer le tracé de la carte",
+            "legendLabel": "Légende du plan de lignes",
+            "replayTitle": "Rejouer le tracé du plan de lignes",
             "replay": "Rejouer",
             "header": "Ligne · {days} derniers jours",
-            "fullSizeTitle": "Agrandir le plan sur toute la vue ; Échap ou ce bouton rétablit la disposition",
+            "fullSizeTitle": "Agrandir le plan de lignes sur toute la vue ; Échap ou ce bouton rétablit la disposition",
             "fullSize": "Pleine taille",
             "exitFullSizeTitle": "Revenir à la disposition (Échap)",
             "exitFullSize": "Quitter la pleine taille",
             "ciRunning": "CI en cours",
-            "svgLabel": "Carte des lignes des {days} derniers jours"
+            "svgLabel": "Plan de lignes des {days} derniers jours"
         },
         "deploy": {
             "revisionNoBranch": "le commit extrait dans le projet (aucune branche)",
@@ -2974,7 +2974,7 @@
             "behindNever": "En retard sur {source} : jamais synchronisé",
             "behindOnNever": "En retard sur {source} sur {branch} : jamais synchronisé",
             "folderMissing": "Son dossier est introuvable",
-            "notRead": "Pas encore lu : Mission Control le lit une fois son espace de travail ouvert"
+            "notRead": "Pas encore lu : le panneau Projet le lit une fois son espace de travail ouvert"
         },
         "release": {
             "change": "changement",
@@ -2996,7 +2996,7 @@
             "milestoneOpen": "Livre le jalon {title}, avec {count}. Ils sont signalés ; la release peut quand même partir.",
             "prepareNow": "La préparation démarre tout de suite : {steps}.",
             "prepareNone": "Rien ne démarre tout de suite : le pipeline ne déclare aucune préparation.",
-            "note": "{start} Chaque étape suivante attendra votre clic dans l'onglet Projet.",
+            "note": "{start} Chaque étape suivante attendra votre clic dans la vue Projet.",
             "noHistory": "Impossible de lire l'historique git du projet.",
             "running": "Release {tag}",
             "publicTitle": "Version publique {tag}",
@@ -3153,10 +3153,10 @@
                 "analyze": "Analyser et résoudre",
                 "analyzeTitle": "Un agent de travail trouve pourquoi {step} a échoué et résout ce qu'il peut dans les règles de la release : une relance des jobs en échec quand le code n'est pas en cause, ou un correctif dans une pull request vers la branche principale. Il ne pousse jamais la branche principale, ne fusionne, ne tague ni ne publie ; une notification vous dit ce qu'il a fait.",
                 "together": "Enquêter ensemble",
-                "togetherTitle": "Ouvre un onglet avec les logs en échec de {step} à côté d'un agent qui connaît l'échec, pour le résoudre avec vous.",
+                "togetherTitle": "Ouvre une vue avec les logs en échec de {step} à côté d'un agent qui connaît l'échec, pour le résoudre avec vous.",
                 "asking": "Démarrage…",
                 "started": "{name} examine {step} hors de vue : une notification vous dira ce qu'il a fait et si l'étape peut être relancée.",
-                "startedTogether": "{name} est dans l'onglet « {tab} », à côté des logs en échec.",
+                "startedTogether": "{name} est dans la vue « {tab} », à côté des logs en échec.",
                 "tab": "Release {tag}",
                 "failed": "L'agent n'a pas pu démarrer : {message}"
             },
@@ -3240,7 +3240,7 @@
             "copied": "Copié",
             "pipelineProblems": "Le pipeline a des problèmes",
             "connectPipeline": "Connecter le pipeline",
-            "connectBody": "Mission Control lance la CI, les builds et les releases du projet une fois qu'ils sont décrits dans .molten/project.json. Votre agent de code connecte ce que le projet a déjà et crée ce qui manque, en suivant le workflow du projet : ouvrez un terminal dans le projet, lancez votre agent et tapez la commande ci-dessous.",
+            "connectBody": "Le panneau Projet lance la CI, les builds et les releases du projet une fois qu'ils sont décrits dans .molten/project.json. Votre agent de code connecte ce que le projet a déjà et crée ce qui manque, en suivant le workflow du projet : ouvrez un terminal dans le projet, lancez votre agent et tapez la commande ci-dessous.",
             "notFoundBefore": "Commande introuvable dans votre agent ? Lancez",
             "notFoundAfter": "une fois.",
             "checkAgain": "Vérifiez de nouveau avec molten project validate.",
@@ -3255,7 +3255,7 @@
             "linkButton": "Lier un projet…",
             "goneTitle": "Le dossier du projet a disparu",
             "goneHint": "{dir} n'existe plus. Liez l'espace de travail au nouvel emplacement du projet.",
-            "errorTitle": "Mission Control n'a pas pu répondre",
+            "errorTitle": "Le panneau Projet n'a pas pu répondre",
             "errorHint": "MoltenTerm n'a pas pu lire ce projet. Réessayez dans un instant.",
             "tryAgain": "Réessayer",
             "folderEmpty": "Ce dossier est vide.",
@@ -3266,12 +3266,12 @@
             "gitInitBody": "MoltenTerm lance git init dans ce dossier. Cela ajoute un dépôt vide (un dossier .git) : vos fichiers restent tels quels, rien n'est commité.",
             "gitInitFailed": "Git n'a pas pu créer le dépôt.",
             "notRepoTitle": "Ce dossier n'est pas un dépôt git",
-            "notRepoHint": "Mission Control suit un projet à travers son historique git. Initialisez git ici ou choisissez un autre dossier.",
+            "notRepoHint": "Le panneau Projet suit un projet à travers son historique git. Initialisez git ici ou choisissez un autre dossier.",
             "initGitHere": "Initialiser git ici",
             "readingHistory": "Lecture de l'historique…",
             "chooseFolder": "Choisir un autre dossier",
             "noGitTitle": "Git n'est pas installé",
-            "noGitHint": "Mission Control lit l'historique du projet avec git. Installez git, puis réessayez.",
+            "noGitHint": "Le panneau Projet lit l'historique du projet avec git. Installez git, puis réessayez.",
             "gitErrorTitle": "Git n'a pas pu lire ce projet",
             "gitErrorHint": "L'historique de ce dossier n'a pas pu être lu. Réessayez, ou choisissez un autre dossier."
         },
@@ -3295,7 +3295,7 @@
             "tookUsually": "{elapsed} (d'habitude ~{usual})",
             "failedStepsList": "En échec : {steps}",
             "awaitedBy": "Attendue par la release {tag}",
-            "awaitedTitle": "La release attend cette exécution : l'afficher dans l'onglet Projet",
+            "awaitedTitle": "La release attend cette exécution : l'afficher dans la vue Projet",
             "openOnGithub": "Ouvrir sur GitHub",
             "scheduledTitle": "Jobs planifiés",
             "scheduledHint": "heures locales · GitHub peut les lancer avec des heures de retard",
@@ -4578,7 +4578,7 @@
             },
             "help": {
                 "question": "Question",
-                "questionTitle": "Interroger votre agent de code sur cette étape, dans le terminal de l'onglet"
+                "questionTitle": "Interroger votre agent de code sur cette étape, dans le terminal de la vue"
             }
         }
     },
@@ -4590,7 +4590,7 @@
         "edit": {
             "emptyName": "Un espace de travail a besoin d'un nom. Le nom précédent est conservé.",
             "deleteLabel": "Supprimer l'espace de travail",
-            "deleteText": "Ferme ses onglets et ses panneaux. Vous arrivez sur un autre espace de travail.",
+            "deleteText": "Ferme ses vues et ses panneaux. Vous arrivez sur un autre espace de travail.",
             "resetLabel": "Réinitialiser l'espace de travail…",
             "noDroppedFile": "Déposez un fichier image de votre disque",
             "importFailed": "L'image n'a pas pu être importée",
@@ -4604,9 +4604,9 @@
             "importImage": "Importer une image…",
             "dropToUse": "Déposez pour utiliser cette image",
             "orDrop": "Ou déposez ici un PNG, JPG, WebP, SVG ou ICO (1 Mo)",
-            "railBadge": "Badge du rail : {icon}, {colour}",
-            "railBadgeKind": "Badge du rail : {icon}, {colour}, {kind}",
-            "inTheRail": "Dans le rail",
+            "railBadge": "Badge de la barre latérale : {icon}, {colour}",
+            "railBadgeKind": "Badge de la barre latérale : {icon}, {colour}, {kind}",
+            "inTheRail": "Dans la barre latérale",
             "inTheSidebar": "Dans la barre latérale",
             "symbol": "Symbole",
             "image": "Image",
@@ -4617,7 +4617,7 @@
             "name": "Nom",
             "icon": "Icône",
             "iconKind": "Type d'icône",
-            "railShowsImage": "Le rail affiche une image à la place.",
+            "railShowsImage": "La barre latérale affiche une image à la place.",
             "useSymbol": "Utiliser le symbole",
             "colour": "Couleur",
             "fromLogo": "D'après le logo",
@@ -4733,7 +4733,7 @@
             "subtitle": "C'est votre seul espace de travail : il est réinitialisé plutôt que supprimé.",
             "button": "Réinitialiser l'espace de travail",
             "stops": "La réinitialisation arrête :",
-            "kept": "L'espace de travail repart avec une nouvelle vue. Son nom, son icône, sa couleur et son lien de projet sont conservés.",
+            "kept": "L'espace de travail repart avec une vue neuve. Son nom, son icône, sa couleur et son lien de projet sont conservés.",
             "undoNote": "Vous pouvez annuler pendant 10 secondes : l'espace de travail revient avec ses vues, mais ce qui a été arrêté ne redémarre pas.",
             "toastReset": "Espace de travail « {name} » réinitialisé",
             "toastDeleted": "Espace de travail « {name} » supprimé",
@@ -4747,7 +4747,7 @@
         },
         "link": {
             "title": "Lier cet espace de travail à {name} ?",
-            "intro": "Un terminal de cet espace de travail est dans ce projet. Une fois lié, l'espace de travail l'affiche dans Mission Control (Projet, CI/CD).",
+            "intro": "Un terminal de cet espace de travail est dans ce projet. Une fois lié, l'espace de travail l'affiche dans ses panneaux Projet et CI/CD.",
             "rename": "Nommer l'espace de travail « {name} »",
             "now": "(actuellement « {name} »)",
             "notNow": "Pas maintenant",
@@ -4764,10 +4764,10 @@
             "forgetFolder": "L'oublier : le prochain dossier où va votre terminal est utilisé",
             "reset": "Réinitialiser",
             "outsideProject": "Hors du projet : les nouveaux panneaux démarrent à sa racine.",
-            "startsHere": "Les nouveaux terminaux, onglets et fichiers démarrent ici.",
+            "startsHere": "Les nouveaux terminaux, vues et fichiers démarrent ici.",
             "linkDialog": "Lier un projet",
             "linkFailed": "Impossible de lier le projet : {error}",
-            "mcShowsLinked": "Mission Control affiche le projet lié.",
+            "mcShowsLinked": "Le panneau Projet affiche le projet lié.",
             "linkProject": "Lier un projet…",
             "unlink": "Délier"
         }
@@ -4791,7 +4791,7 @@
             },
             "delete": {
                 "title": "Supprimer l'espace de travail « {name} » ?",
-                "subtitle": "Le supprimer ferme ses onglets et arrête ce qui tourne dans ses terminaux.",
+                "subtitle": "Le supprimer ferme ses vues et arrête ce qui tourne dans ses terminaux.",
                 "confirm": "Supprimer quand même"
             },
             "switch": {
@@ -4810,8 +4810,8 @@
                 "confirm": "Effacer quand même"
             },
             "tab": {
-                "title": "Fermer cet onglet ?",
-                "titleNamed": "Fermer l'onglet « {name} » ?",
+                "title": "Fermer cette vue ?",
+                "titleNamed": "Fermer la vue « {name} » ?",
                 "subtitle": "Le fermer arrête ce qui tourne dans ses terminaux."
             },
             "pane": {
@@ -4833,7 +4833,7 @@
             "missingWorktree": "Worktree manquant",
             "unlink": "Délier",
             "multiInput": "Saisie multiple",
-            "multiInputTitle": "La saisie est envoyée à tous les terminaux de cet onglet (cliquez pour arrêter)",
+            "multiInputTitle": "La saisie est envoyée à tous les terminaux de cette vue (cliquez pour arrêter)",
             "connecting": "Connexion",
             "connectingTo": "Connexion à {connection}",
             "cantConnect": "Connexion impossible",
@@ -4866,7 +4866,7 @@
             "unlinkMissing": "Délier ce terminal du worktree manquant"
         },
         "hold": {
-            "closeLabel": "Fermer l'onglet ; maintenez avec le pointeur ou activez pour confirmer",
+            "closeLabel": "Fermer la vue ; maintenez avec le pointeur ou activez pour confirmer",
             "closeHint": "Maintenez pour fermer"
         },
         "pending": {
@@ -5019,7 +5019,7 @@
         "menu": {
             "groupSection": "Groupe",
             "editWorkspace": "Modifier l'espace de travail…",
-            "openProjectTab": "Ouvrir l'onglet Projet",
+            "openProjectTab": "Ouvrir la vue Projet",
             "stopGrouping": "Arrêter de grouper",
             "groupWith": "Grouper avec…",
             "removeFromGroup": "Retirer du groupe",
@@ -5050,13 +5050,13 @@
                     "other": "{count} brouillons"
                 }
             },
-            "moreWidgets": "{count} widgets de plus",
+            "moreWidgets": "{count} outils de plus",
             "apps": "Apps",
             "tips": "Astuces",
             "settings": "Réglages",
             "settingsErrors": "Réglages · erreurs de configuration",
             "configErrors": "Erreurs de configuration",
-            "widget": "Widget"
+            "widget": "Outil"
         },
         "group": {
             "nameLabel": "Nom du groupe (vide : le nom du premier espace de travail)",
@@ -5099,7 +5099,7 @@
         "views": {
             "terminal": "Terminal",
             "files": "Fichiers",
-            "web": "Web",
+            "web": "Page web",
             "browser": "Page web",
             "project": "Projet",
             "sessions": "Sessions",
@@ -5150,7 +5150,7 @@
                 "other": "{count} commits sans remote"
             },
             "uncommitted": "modifications non commitées",
-            "openProjectTab": "Ouvrir l'onglet Projet",
+            "openProjectTab": "Ouvrir la vue Projet",
             "detachedLabel": "détachée sur {at}",
             "onNoBranch": "sur aucune branche",
             "noPr": "Pas encore de pull request"
@@ -5166,7 +5166,7 @@
         },
         "viewName": "Projet",
         "tabName": "Projet",
-        "frameTitle": "L'onglet Projet",
+        "frameTitle": "La vue Projet",
         "cardFailed": "{title} n'a pas pu être affiché : {error}",
         "unknownError": "erreur inconnue",
         "openCicdTitle": "Ouvrir le panneau CI/CD à côté de cette vue : historique, détail et journaux",
@@ -5179,7 +5179,7 @@
         "cards": {
             "moltenterm:group-strip": "Produit",
             "moltenterm:next-station": "Prochaine station",
-            "moltenterm:linemap": "Plan des lignes",
+            "moltenterm:linemap": "Plan de lignes",
             "moltenterm:next-release": "Prochaine version publique",
             "moltenterm:releases": "Versions",
             "moltenterm:now": "En ce moment",
@@ -5473,7 +5473,7 @@
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",
-        "tab": "Onglet",
+        "tab": "Vue",
         "place": {
             "menu": "Diviser…",
             "title": "Diviser le panneau",
@@ -5504,7 +5504,7 @@
     },
     "reopen": {
         "nothing": "Rien à rouvrir",
-        "tab": "Onglet « {name} » rouvert",
+        "tab": "Vue « {name} » rouverte",
         "pane": "{name} rouvert",
         "freshShell": "Un nouveau shell a démarré : celui qui a été fermé ne peut pas revenir.",
         "freshShellIn": "Un nouveau shell a démarré dans {path} : celui qui a été fermé ne peut pas revenir.",
@@ -5512,7 +5512,7 @@
     },
     "equalize": {
         "command": "Égaliser les panneaux",
-        "commandDetail": "toutes les colonnes de panneaux de l'onglet à la même largeur",
+        "commandDetail": "toutes les colonnes de panneaux de la vue à la même largeur",
         "autoOn": "Égalisation auto activée",
         "autoOff": "Égalisation auto désactivée",
         "autoOffReason": "Vous avez ajusté un panneau à la main.",
@@ -5539,12 +5539,12 @@
             "toggleLabel": "360",
             "toggleAutoMark": "A",
             "tooltipOn": "La vue 360 est active : la première colonne reste fixe, les autres panneaux défilent latéralement sur le tapis.",
-            "tooltipOff": "La vue 360 est désactivée : tous les panneaux se partagent la largeur de l'onglet.",
+            "tooltipOff": "La vue 360 est désactivée : tous les panneaux se partagent la largeur de la vue.",
             "heldManual": "À la demande : activée depuis ce bouton.",
             "heldAuto": "Automatique : les panneaux ne tiennent plus côte à côte à une largeur lisible.",
             "heldSetting": "D'après le réglage Vue 360 (Toujours).",
             "heldColumns": "Automatique : plus de {count} colonnes sur cet écran.",
-            "offManual": "Désactivée pour cet onglet jusqu'à ce qu'il revienne au nombre de colonnes de cet écran. Elle s'active encore d'elle-même si les panneaux ne tiennent plus du tout côte à côte.",
+            "offManual": "Désactivée pour cette vue jusqu'à ce qu'elle revienne au nombre de colonnes de cet écran. Elle s'active encore d'elle-même si les panneaux ne tiennent plus du tout côte à côte.",
             "offColumns": "Automatique : s'active d'elle-même au-delà de {count} colonnes sur cet écran, ou quand les panneaux ne tiennent plus côte à côte.",
             "clickOn": "Cliquer pour l'activer.",
             "clickOff": "Cliquer pour la quitter : les panneaux retrouvent les proportions que vous leur avez données.",
@@ -5560,7 +5560,7 @@
         },
         "screens": {
             "title": "Colonnes par écran",
-            "hint": "Sur chaque écran, un onglet qui dépasse ce nombre de colonnes passe en vue 360 et garde les proportions que vous avez données. Un écran jamais réglé prend une valeur par défaut d'après sa largeur.",
+            "hint": "Sur chaque écran, une vue qui dépasse ce nombre de colonnes passe en vue 360 et garde les proportions que vous avez données. Un écran jamais réglé prend une valeur par défaut d'après sa largeur.",
             "none": "Aucun écran pour l'instant.",
             "size": "{width} × {height}",
             "scale": "échelle {scale}",
@@ -5793,7 +5793,7 @@
         "retryGoneTitle": "La session de {name} n'existe plus : lancer un nouvel agent sur {what}",
         "work": {
             "button": "Ouvrir son travail",
-            "title": "Mettre le diff de #{number} à côté du terminal de {name}, dans son onglet, pour reprendre ensemble",
+            "title": "Mettre le diff de #{number} à côté du terminal de {name}, dans sa vue, pour reprendre ensemble",
             "failed": "Son travail n'a pas pu être ouvert. {message}",
             "gone": "Son terminal n'est plus ouvert."
         },
@@ -6910,7 +6910,7 @@
         },
         "from": {
             "reviews": "Intégration",
-            "reviewTab": "Onglet de revue",
+            "reviewTab": "Vue Revue",
             "mergeQueue": "File de fusion",
             "reviewPanel": "Panneau de revue",
             "label": "Depuis {where}"
@@ -6999,9 +6999,9 @@
             "viewName": "Panneau IA",
             "viewNamePr": "Panneau IA · #{number}",
             "noPr": "Aucune pull request",
-            "noPrHint": "Ouvrez le panneau IA depuis un onglet Revue.",
+            "noPrHint": "Ouvrez le panneau IA depuis une vue Revue.",
             "notOpen": "La revue de #{number} n'est pas ouverte",
-            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis le panneau Intégration : le panneau IA le suit.",
+            "notOpenHint": "Ouvrez la vue Revue de la pull request depuis le panneau Intégration : le panneau IA la suit.",
             "cardsLabel": "Briefing et explications",
             "worktreeAgent": "Worktree : celui de l'agent",
             "worktreeReview": "Worktree : la copie de revue de MoltenTerm",
@@ -7198,9 +7198,9 @@
             "closedTitle": "Fermée sur GitHub sans fusion",
             "closedAt": "Fermée sur GitHub sans fusion, {time}",
             "showResult": "Cliquez pour voir le résultat de la validation.",
-            "tabMerged": "Fusionnée : vous pouvez fermer cet onglet",
-            "tabClosed": "Fermée sans fusion : vous pouvez fermer cet onglet",
-            "closeTab": "Fermer l'onglet de revue",
+            "tabMerged": "Fusionnée : vous pouvez fermer cette vue",
+            "tabClosed": "Fermée sans fusion : vous pouvez fermer cette vue",
+            "closeTab": "Fermer la vue de revue",
             "keepOpen": "Le garder ouvert",
             "merged": "Fusionnée",
             "close": "Fermer",
@@ -7214,10 +7214,10 @@
                 "plain": "Fusionnée, sur {base}. Plus rien à valider."
             },
             "footer": {
-                "cleaning": "Fusionnée. Le nettoyage se termine ; cet onglet de revue n'est plus utile.",
-                "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
-                "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus. Cet onglet de revue n'est plus utile.",
-                "done": "Fusionnée et nettoyée. Cet onglet de revue n'est plus utile."
+                "cleaning": "Fusionnée. Le nettoyage se termine ; cette vue de revue n'est plus utile.",
+                "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cette vue de revue ne sera ensuite plus utile.",
+                "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus. Cette vue de revue n'est plus utile.",
+                "done": "Fusionnée et nettoyée. Cette vue de revue n'est plus utile."
             },
             "done": "Terminé",
             "footerSheet": {
@@ -7573,8 +7573,8 @@
             "panels": {
                 "agent": "Un agent tourne encore dans ce dossier : {panel}",
                 "terminal": "Un terminal est encore ouvert dans ce dossier : {panel}",
-                "untitled": "un onglet sans titre",
-                "inWorkspace": "{tab} (espace {workspace})",
+                "untitled": "une vue sans titre",
+                "inWorkspace": "{tab} (espace de travail {workspace})",
                 "show": "Afficher le panneau",
                 "showNamed": "Afficher {panel}",
                 "button": {
@@ -7805,7 +7805,7 @@
             "sheet": {
                 "title": "Relancer le travail · #{number}",
                 "what": "Les {count} commentaires publiés du tour de revue {round} vont à un agent dans le worktree de {branch} : il les applique, commite au format du projet, pousse et répond sur chaque fil.",
-                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon vous choisissez comment votre agent démarre : hors de vue, ou dans son propre onglet, avec vos permissions habituelles.",
+                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon vous choisissez comment votre agent démarre : sans s'afficher, ou dans sa propre vue, avec vos permissions habituelles.",
                 "ticket": "Le ticket garde son statut. Rien ne démarre avant votre clic sur Relancer le travail.",
                 "again": "Ce tour a déjà été confié : un nouveau clic le confie à nouveau.",
                 "cancel": "Annuler"
@@ -7839,7 +7839,7 @@
             "keptHint": "Gardée dans les notes du projet sous « {title} »",
             "keptWhen": "gardée {when}",
             "filter": "Filtrer les notes",
-            "empty": "Gardez une explication de l'IA depuis un onglet Review : elle reste ici, pour ce projet, après le merge de la PR.",
+            "empty": "Gardez une explication de l'IA depuis une vue Revue : elle reste ici, pour ce projet, après le merge de la PR.",
             "noMatch": "Aucune note ne correspond au filtre.",
             "readFailed": "Les notes n'ont pas pu être lues : {error}",
             "rename": "Renommer",
@@ -7850,7 +7850,7 @@
             "deleteConfirm": "Supprimer cette note ?",
             "byAgent": "Expliquée par {agent}",
             "openLine": "Ouvrir le fichier à cette ligne, tel qu'après le merge de la PR ou sur la branche de base",
-            "emptyLine": "aucune. Gardez une explication de l'IA depuis un onglet Review : elle reste ici après le merge."
+            "emptyLine": "aucune. Gardez une explication de l'IA depuis une vue Revue : elle reste ici après le merge."
         }
     },
     "server": {
@@ -7908,7 +7908,7 @@
             "nosummary": "La revue n'a pas de résumé.",
             "onlystagedtranslated": "Seul un commentaire prêt est traduit.",
             "summarytoolong": "Le résumé est trop long (64 Ko au plus).",
-            "blocknotintab": "Le panneau de revue n'est pas dans cet onglet.",
+            "blocknotintab": "Le panneau de revue n'est pas dans cette vue.",
             "worktreelist": "Les worktrees du projet n'ont pas pu être listés : {detail}",
             "branchmissing": "La branche {branch} est introuvable dans le projet comme sur origin.",
             "worktreecreate": "Un worktree sur {branch} n'a pas pu être créé : {detail}",
@@ -7990,7 +7990,7 @@
             "noid": "Aucune session n'a été indiquée.",
             "gone": "La session {session} ne tourne plus.",
             "endself": "Une session ne peut pas se terminer elle-même : tapez exit à la place.",
-            "notab": "Aucun onglet où ouvrir la session.",
+            "notab": "Aucune vue où ouvrir la session.",
             "welcomeback": {
                 "keptone": "1 session a continué de tourner pendant que MoltenTerm était fermé",
                 "keptother": "{count} sessions ont continué de tourner pendant que MoltenTerm était fermé",
@@ -8521,7 +8521,7 @@
                 "background": "{agent} : travail en arrière-plan",
                 "anycommand": "Une commande",
                 "command": "Commande : {command}",
-                "mission": "Exécution de Mission Control",
+                "mission": "Exécution du projet",
                 "more": "{count} de plus"
             },
             "notice": {
@@ -8592,11 +8592,11 @@
                 "otherengine": "Cette page est ouverte dans un autre navigateur : ouvrez-la dans MoltenTerm pour la partager.",
                 "sessiongone": "La session de navigateur de cet agent est terminée.",
                 "elsewhere": "Cet agent tourne dans un autre espace de travail.",
-                "othertab": "Cet agent tourne dans un autre onglet : partagez la page depuis un panneau de navigateur de son onglet.",
+                "othertab": "Cet agent tourne dans une autre vue : partagez la page depuis un panneau Page web de sa vue.",
                 "notshared": "Cet onglet n'est pas partagé avec un agent.",
                 "nopage": "Ouvrez d'abord une page dans cet onglet.",
                 "toomanytabs": "Cet agent tient déjà trop d'onglets.",
-                "panelunknown": "MoltenTerm n'a pas pu lire le panneau du navigateur."
+                "panelunknown": "MoltenTerm n'a pas pu lire le panneau Page web."
             }
         },
         "worktree": {
@@ -8651,7 +8651,7 @@
             "rebase": "Faire le rebase avec l'agent",
             "restart": "Faire le travail avec l'agent",
             "investigate": "Analyser et résoudre avec l'agent",
-            "text": "Ouvre un onglet « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend.",
+            "text": "Ouvre une vue « {tab} » avec son terminal, focalisé : vous le suivez et lui répondez. La revue attend.",
             "finish": "Le faire avec l'agent"
         },
         "checkout": "Votre copie principale n'est pas touchée. Une fois la branche poussée et rien ne restant dans la copie, MoltenTerm ferme le terminal et supprime la copie.",
@@ -8965,7 +8965,7 @@
             }
         },
         "library": {
-            "label": "Bibliothèque : workspaces, panneaux, envoyé à l'IA, vues rangées et réglages"
+            "label": "Bibliothèque : espaces de travail, panneaux, envoyé à l'IA, vues rangées et réglages"
         },
         "plus": {
             "label": "Créer",
@@ -8989,7 +8989,7 @@
             "duplicated": "« {name} » créée : même configuration",
             "reordered": "Ordre modifié",
             "captionHere": "Garder dans {workspace}",
-            "captionEverywhere": "Partout · tous les workspaces",
+            "captionEverywhere": "Partout · tous les espaces de travail",
             "captionTemporary": "La rendre temporaire",
             "emptyTitle": "Cette vue épinglée n'a plus de panneau",
             "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
@@ -8999,11 +8999,11 @@
             "failed": "La vue n'a pas pu être épinglée ou ouverte",
             "undo": "Annuler",
             "pinnedHere": "« {name} » épinglée dans {workspace}",
-            "pinnedEverywhere": "« {name} » épinglée partout : même configuration dans chaque workspace, chacun sur son projet",
+            "pinnedEverywhere": "« {name} » épinglée partout : même configuration dans chaque espace de travail, chacun sur son projet",
             "pinnedOnlyHere": "« {name} » épinglée seulement dans {workspace}",
             "unpinned": "« {name} » désépinglée : elle est de nouveau temporaire et peut se fermer",
             "saved": "« {name} » garde son état actuel",
-            "savedEverywhere": "« {name} » enregistrée pour tous les workspaces",
+            "savedEverywhere": "« {name} » enregistrée pour tous les espaces de travail",
             "reverted": "« {name} » est revenue à son état épinglé",
             "closedFinished": {
                 "one": "1 vue terminée fermée",
@@ -9017,14 +9017,14 @@
             "revertTitle": "Revenir à l'état épinglé",
             "tileTitle": "{name} · épinglée dans {workspace}",
             "tileModifiedTitle": "{name} · épinglée dans {workspace} · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
-            "topTitle": "{name} · épinglée partout, ouverte sur le projet de ce workspace",
+            "topTitle": "{name} · épinglée partout, ouverte sur le projet de cet espace de travail",
             "topModifiedTitle": "{name} · épinglée partout · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
             "topRowLabel": "Vues épinglées partout",
             "forked": "Nouvelle vue « {name} »",
-            "forkedHint": "Les vues épinglées partout restent telles quelles dans tous les workspaces.",
+            "forkedHint": "Les vues épinglées partout restent telles quelles dans tous les espaces de travail.",
             "updatePinned": "Mettre à jour la vue épinglée",
-            "updatedPinned": "« {name} » mise à jour pour tous les workspaces",
-            "updatedPinnedHint": "Chaque workspace l'ouvre avec cette disposition.",
+            "updatedPinned": "« {name} » mise à jour pour tous les espaces de travail",
+            "updatedPinnedHint": "Chaque espace de travail l'ouvre avec cette disposition.",
             "closeFinished": {
                 "one": "Fermer la vue terminée",
                 "other": "Fermer les {count} vues terminées"
@@ -9036,7 +9036,7 @@
                     "everywhere": "Épinglée partout"
                 },
                 "save": "Enregistrer l'état actuel",
-                "saveEverywhere": "Enregistrer pour tous les workspaces",
+                "saveEverywhere": "Enregistrer pour tous les espaces de travail",
                 "revert": "Revenir à l'état épinglé",
                 "pinHere": "Épingler dans {workspace}…",
                 "pinEverywhere": "Épingler partout…",
@@ -9054,7 +9054,7 @@
                 "hereTitle": "Épinglée dans {workspace}",
                 "hereBody": "Une tuile dans {workspace}. Sa configuration (ses panneaux et leur disposition) reste ici ; son contenu suit le projet actif. Pour la fermer, il faudra d'abord la désépingler.",
                 "everywhereTitle": "Épinglée partout",
-                "everywhereBody": "Dans la rangée du haut de tous les workspaces. Même configuration partout ; chaque workspace l'ouvre sur son propre projet, avec son propre agent.",
+                "everywhereBody": "Dans la rangée du haut de tous les espaces de travail. Même configuration partout ; chaque espace de travail l'ouvre sur son propre projet, avec son propre agent.",
                 "pin": "Épingler"
             },
             "slot": {
@@ -9098,7 +9098,7 @@
         "groups": {
             "views": "Vues de {name}",
             "agents": "Agents",
-            "workspaces": "Workspaces"
+            "workspaces": "Espaces de travail"
         },
         "address": {
             "goTo": "Aller à",
@@ -9117,7 +9117,7 @@
             "inThisView": "dans cette vue"
         },
         "where": {
-            "workspace": "aller au workspace",
+            "workspace": "aller à l'espace",
             "agent": "agent",
             "pinnedView": "vue épinglée",
             "openView": "vue ouverte",
@@ -9143,8 +9143,8 @@
         "nothingFound": "Rien trouvé",
         "sections": {
             "workspaces": {
-                "label": "Workspaces",
-                "title": "Tous les workspaces",
+                "label": "Espaces de travail",
+                "title": "Tous les espaces de travail",
                 "sub": "Vos produits côte à côte : leurs vues, leurs agents, ce qui s'y passe."
             },
             "panels": {
@@ -9204,7 +9204,7 @@
             "shared": "partagée",
             "opened": "ouverte par l'agent",
             "emptyTitle": "Rien de partagé en ce moment",
-            "empty": "Une page que vous partagez avec un agent depuis un panneau navigateur s'affiche ici tant que l'agent la tient."
+            "empty": "Une page que vous partagez avec un agent depuis un panneau Page web s'affiche ici tant que l'agent la tient."
         },
         "putaway": {
             "reopen": "Rouvrir",
@@ -9225,7 +9225,7 @@
         },
         "suggest": {
             "title": "Proposer MoltenTerm",
-            "text": "Copiez le lien de téléchargement pour l'envoyer à un collègue ou un ami. Rien n'est partagé de vos workspaces.",
+            "text": "Copiez le lien de téléchargement pour l'envoyer à un collègue ou un ami. Rien n'est partagé de vos espaces de travail.",
             "copy": "Copier le lien de téléchargement",
             "copied": "Lien de téléchargement copié",
             "failed": "Le lien n'a pas pu être copié"
@@ -9252,9 +9252,9 @@
             "lineMap": "Plan de lignes"
         },
         "settings": {
-            "title": "Vues d'un nouveau workspace",
-            "hint": "Les vues avec lesquelles démarre un workspace que vous créez désormais, épinglées dans celui-ci. Les agents s'ouvrent à gauche, les autres panneaux à droite ; rien ne démarre avant que vous ouvriez une vue. Les workspaces existants ne changent pas.",
-            "empty": "Les nouveaux workspaces démarrent sans vue.",
+            "title": "Vues d'un nouvel espace de travail",
+            "hint": "Les vues avec lesquelles démarre un espace de travail que vous créez désormais, épinglées dans celui-ci. Les agents s'ouvrent à gauche, les autres panneaux à droite ; rien ne démarre avant que vous ouvriez une vue. Les espaces de travail existants ne changent pas.",
+            "empty": "Les nouveaux espaces de travail démarrent sans vue.",
             "name": "Nom de la vue {n}",
             "moveViewUp": "Monter {name}",
             "moveViewDown": "Descendre {name}",

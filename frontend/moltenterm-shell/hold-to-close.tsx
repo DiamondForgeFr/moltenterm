@@ -44,7 +44,7 @@ export const HoldToCloseDefaultMs = HoldDefaultMs;
 export const HoldToCloseHintMs = HoldHintMs;
 export const HoldToCloseReducedSteps = HoldReducedSteps;
 // English; the button shows shell.hold.closeLabel and shell.hold.closeHint in the interface language.
-export const HoldToCloseLabel = "Close tab; hold with the pointer or activate to confirm";
+export const HoldToCloseLabel = "Close view; hold with the pointer or activate to confirm";
 export const HoldToCloseHint = "Hold to close";
 
 export const HoldToCloseFlashMs = HoldFlashMs;
