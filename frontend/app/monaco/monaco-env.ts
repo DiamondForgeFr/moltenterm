@@ -14,6 +14,7 @@ import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import { moltenMonacoColours, readDocumentToken } from "../../moltenterm-shell/monaco-colours"; // MOLTENTERM-PATCH (#1340)
 import ymlWorker from "./yamlworker?worker";
 
 let monacoConfigured = false;
@@ -61,6 +62,9 @@ export function loadMonaco() {
             "editorStickyScroll.background": "#00000055",
             "minimap.background": "#00000077",
             focusBorder: "#00000000",
+            // MOLTENTERM-PATCH (#1340): the editor's text, lines, widgets and caret take the Coulée tokens; the
+            // background stays transparent over the panel's surface.
+            ...moltenMonacoColours(readDocumentToken),
         },
     });
     monaco.editor.defineTheme("wave-theme-light", {

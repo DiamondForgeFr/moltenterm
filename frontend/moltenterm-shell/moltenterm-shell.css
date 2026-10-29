@@ -374,7 +374,17 @@
 
     --main-bg-color: var(--mt-surface-0);
     --modal-bg-color: var(--mt-surface-3);
-    --panel-bg-color: color-mix(in srgb, var(--mt-surface-1) 50%, transparent);
+    /* Wave's panels sit on surface 1, not on black at 50 % (theme "Coulée" step 7, FR-SHELL-120): the editor, the
+       previews and every view drawn on Wave's frame. Terminals are not affected: they paint their theme's background
+       over the frame. An inset inside a panel (a code block, a quote, bg-panel) is raised to surface 2. */
+    --block-bg-color: var(--mt-surface-1);
+    --block-bg-solid-color: var(--mt-surface-1);
+    --panel-bg-color: var(--mt-surface-2);
+    --link-color: var(--mt-action-text);
+    --keybinding-color: var(--mt-text-1);
+    --scrollbar-thumb-color: var(--mt-line-2);
+    --scrollbar-thumb-hover-color: var(--mt-text-3);
+    --scrollbar-thumb-active-color: var(--mt-text-2);
     --border-color: var(--mt-line-2);
     --hover-bg-color: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
     --highlight-bg-color: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
@@ -390,7 +400,7 @@
 
     --color-background: var(--mt-surface-0);
     --color-modalbg: var(--mt-surface-3);
-    --color-panel: color-mix(in srgb, var(--mt-surface-1) 50%, transparent);
+    --color-panel: var(--mt-surface-2);
     --color-border: var(--mt-line-2);
     --color-hover: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
     --color-hoverbg: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
