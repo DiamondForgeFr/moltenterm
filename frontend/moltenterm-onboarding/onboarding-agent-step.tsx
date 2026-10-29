@@ -153,32 +153,55 @@ function GenericOption({ agent }: { agent: OnboardingAgent }) {
     );
 }
 
-function NoAgentFound({ agents, busy, onRetry }: { agents: OnboardingAgent[]; busy: boolean; onRetry: () => void }) {
+function NoAgentFound({
+    agents,
+    busy,
+    searched,
+    onRetry,
+}: {
+    agents: OnboardingAgent[];
+    busy: boolean;
+    searched: boolean;
+    onRetry: () => void;
+}) {
     const t = useT();
     return (
         <div className="flex flex-col gap-3" data-testid="first-run-no-agent">
             <StepText>{t("onboarding.agent.noneFound")}</StepText>
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col divide-y divide-border rounded-4 border border-border">
                 {agents.map((agent) => (
-                    <li key={agent.id} className="text-13">
+                    <li key={agent.id} className="flex items-center gap-3 px-3 py-2" data-agent={agent.id}>
+                        <span className="flex-1 text-13 text-secondary">{agent.name}</span>
                         {agent.installpage ? (
-                            <ExternalLink href={agent.installpage}>{agent.name}</ExternalLink>
-                        ) : (
-                            agent.name
-                        )}
+                            <ExternalLink href={agent.installpage}>{t("onboarding.agent.installLink")}</ExternalLink>
+                        ) : null}
                     </li>
                 ))}
             </ul>
-            <div>
+            <div className="flex items-center gap-3">
                 <button
                     type="button"
                     disabled={busy}
                     onClick={onRetry}
                     className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                    data-testid="first-run-search-again"
                 >
-                    {t("onboarding.agent.lookAgain")}
+                    {busy ? (
+                        <>
+                            <i className="fa-solid fa-spinner fa-spin mr-1.5" aria-hidden />
+                            {t("onboarding.agent.searching")}
+                        </>
+                    ) : (
+                        t("onboarding.agent.lookAgain")
+                    )}
                 </button>
+                {searched && !busy ? (
+                    <span className="text-12 text-muted" role="status" data-testid="first-run-search-result">
+                        {t("onboarding.agent.stillNone")}
+                    </span>
+                ) : null}
             </div>
+            <StepText className="text-12 text-muted">{t("onboarding.agent.noneFoundNote")}</StepText>
         </div>
     );
 }
@@ -205,6 +228,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
     const [error, setError] = useState<string>(null);
     const [busy, setBusy] = useState(false);
     const [picked, setPicked] = useState<string>(null);
+    const [searched, setSearched] = useState(false);
 
     const load = useCallback(async () => {
         setBusy(true);
@@ -253,7 +277,15 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
     if (found.length === 0) {
         return (
             <div className="flex flex-col gap-4">
-                <NoAgentFound agents={catalog} busy={busy} onRetry={() => fireAndForget(load)} />
+                <NoAgentFound
+                    agents={catalog}
+                    busy={busy}
+                    searched={searched}
+                    onRetry={() => {
+                        setSearched(true);
+                        fireAndForget(load);
+                    }}
+                />
                 <GenericOption agent={genericAgent(list)} />
                 {error ? <p className="text-12 text-danger">{error}</p> : null}
             </div>

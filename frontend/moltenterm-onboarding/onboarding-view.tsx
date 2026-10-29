@@ -175,7 +175,7 @@ function StepPage({ model, step, state }: { model: OnboardingViewModel; step: Fi
 function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: FirstRunStep; busy: boolean }) {
     const t = useT();
     return (
-        <div className="flex items-center gap-2 border-t border-border px-5 py-3">
+        <div className="flex items-center gap-2 border-t border-border px-5 py-3" data-box-inset>
             <button
                 type="button"
                 disabled={busy}

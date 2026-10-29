@@ -108,9 +108,16 @@ export function OnboardingStepper({
                                     )}
                                 >
                                     <Marker entry={entry} current={current} />
-                                    <span className="hidden @min-[540px]:inline">{entry.label}</span>
+                                    <span
+                                        className={cn(
+                                            "hidden whitespace-nowrap",
+                                            current ? "@min-[540px]:inline" : "@min-[900px]:inline"
+                                        )}
+                                    >
+                                        {entry.label}
+                                    </span>
                                     {entry.status === "skipped" ? (
-                                        <span className="hidden text-muted @min-[540px]:inline">
+                                        <span className="hidden whitespace-nowrap text-muted @min-[900px]:inline">
                                             {t("onboarding.status.skippedTitle")}
                                         </span>
                                     ) : null}
