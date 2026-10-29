@@ -72,6 +72,7 @@ import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } fro
 import { askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { closeTabAskingFirst } from "../worktree-close";
+import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
 import { PrPips, useCountsMotion, usePilotageBlock, useWorkspacePrCounts } from "./pr-counts";
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
@@ -125,7 +126,15 @@ import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown }
 import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
-import { windowButtonsVisible, WindowRowPx } from "./window-corner-model";
+import {
+    frameSizes,
+    MacButtonHeightPx,
+    MacButtonsLeftPx,
+    PeekInsetPx,
+    windowButtonsInPeek,
+    windowButtonsVisible,
+    WindowRowPx,
+} from "./window-corner-model";
 import { opensWorkspaceMenu, workspaceBackgroundMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
@@ -136,6 +145,8 @@ const MacTrafficLightsWidth = 74;
 const MacTahoeTrafficLightsWidth = 80;
 // The window's top edge to the top field's top edge, in window points (windowRowHeightPt draws the same in main).
 const WindowRowHeight = `max(${WindowRowPx}px, calc(${WindowRowPx}px * var(--zoomfactor-inv)))`;
+// The window buttons' height in window points, in page pixels: the floating panel's window row (#1293).
+const PeekWindowRowHeight = `calc(${MacButtonHeightPx}px * var(--zoomfactor-inv))`;
 const DragThresholdPx = 4;
 
 // Loaded on demand: the project page only shows while a project is added or edited, so its code stays out of the JS
@@ -377,16 +388,19 @@ function ToggleButton() {
 }
 
 // The window's own row: the room the window buttons take, then the toggle; keep-awake and notifications on the right.
-// It spans the whole band from the window's top edge to the top field (#1279): no sidebar gap below it, and in the
-// peeked card it starts above the card's top, so its icons and the window buttons share one centre line either way.
-function WindowRow({ leftInset, peeked }: { leftInset: number; peeked: boolean }) {
+// Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
+// margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
+// centre line.
+function WindowRow({ peeked }: { peeked: boolean }) {
     const isFullScreen = useAtomValue(atoms.isFullScreen);
     const zoomFactor = useAtomValue(atoms.zoomFactorAtom);
+    const leftInset = peeked ? MacButtonsLeftPx / (zoomFactor > 0 ? zoomFactor : 1) : 8;
     const room = Math.max(0, trafficLightsRoom(isFullScreen, zoomFactor) - leftInset);
     return (
         <div
             className={cn("mt-sb-window-row flex shrink-0 items-center gap-1.5", peeked && "is-peeked")}
-            style={{ height: WindowRowHeight, ...Drag }}
+            style={{ height: peeked ? PeekWindowRowHeight : WindowRowHeight, ...Drag }}
             data-testid="sidebar-window-row"
         >
             {room > 0 ? <div className="shrink-0" style={{ width: room }} /> : null}
@@ -404,17 +418,20 @@ function WindowRow({ leftInset, peeked }: { leftInset: number; peeked: boolean }
 function useWindowButtons(hidden: boolean, peek: boolean) {
     const fullScreen = useAtomValue(atoms.isFullScreen);
     const zoom = useAtomValue(atoms.zoomFactorAtom);
-    const visible = windowButtonsVisible({ sidebarHidden: hidden, peek, fullScreen });
+    const gap = frameSizes(useAtomValue(getSettingsKeyAtom("window:tilegapsize"))).marginPx;
+    const state = { sidebarHidden: hidden, peek, fullScreen };
+    const visible = windowButtonsVisible(state);
+    const peekGap = windowButtonsInPeek(state) ? gap : null;
     useEffect(() => {
         const send = () => {
             if (document.visibilityState === "visible") {
-                getApi()?.setWindowButtons?.({ visible, zoom });
+                getApi()?.setWindowButtons?.(peekGap == null ? { visible, zoom } : { visible, zoom, peekGap });
             }
         };
         send();
         document.addEventListener("visibilitychange", send);
         return () => document.removeEventListener("visibilitychange", send);
-    }, [visible, zoom]);
+    }, [visible, zoom, peekGap]);
     useEffect(() => {
         // Turning the sidebar off gives the window its own buttons back, where the tab bar expects them.
         return () => getApi()?.setWindowButtons?.(null);
@@ -1414,7 +1431,7 @@ function BranchSection() {
     return (
         <span className="flex min-w-0 items-center gap-1.5 overflow-hidden" data-testid="sidebar-branch">
             {probe}
-            {pane ? <WorktreeChip marker={tree} hideBranch={true} /> : null}
+            {pane ? <WorktreeChip marker={statusBarMarker(tree)} hideBranch={true} /> : null}
             {pane?.branch ? (
                 <button
                     type="button"
@@ -1461,11 +1478,16 @@ function BranchSection() {
     );
 }
 
+// The floating panel keeps this line although Arc shows none there (#1293): with the sidebar on it is the window's only
+// status bar, and the update notices and the build badge live nowhere else.
 function BranchLine() {
     const t = useT();
     const view = useStatusBarView();
     return (
-        <div className="flex shrink-0 items-center justify-between gap-2 pr-1 pl-1.5 font-mono text-11 whitespace-nowrap text-muted">
+        <div
+            className="flex shrink-0 items-center justify-between gap-2 pr-1 pl-1.5 font-mono text-11 whitespace-nowrap text-muted"
+            data-testid="sidebar-status-line"
+        >
             <BranchSection />
             <span className="flex shrink-0 items-center gap-1 font-sans">
                 <UpdateStatusBanner />
@@ -2277,12 +2299,12 @@ export function WorkspaceSidebar() {
                     hidden ? "is-hidden" : "pb-[var(--mt-frame-gap)] pl-[var(--mt-frame-gap)]",
                     hidden && peek && "is-peek"
                 )}
-                style={{ width }}
+                style={{ width, "--mt-peek-inset": `${PeekInsetPx}px` } as React.CSSProperties}
                 onMouseEnter={keepPeek}
                 onMouseLeave={endPeek}
                 onContextMenu={onWorkspaceMenu}
             >
-                <WindowRow leftInset={hidden ? 18 : 8} peeked={hidden} />
+                <WindowRow peeked={hidden} />
                 <TopField />
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
                 <div ref={viewportRef} className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -2337,7 +2359,7 @@ export function WorkspaceSidebar() {
                     <PullBadge side={1} pullRef={pullRightRef} />
                 </div>
                 <BranchLine />
-                <div className="flex shrink-0 items-center gap-1.5 border-t border-white/10 pt-1.5">
+                <div className="flex shrink-0 items-center gap-1.5" data-testid="sidebar-bottom-bar">
                     <LibraryButton />
                     <WorkspaceDots workspaces={workspaces} />
                     <PlusButton workspaces={workspaces} />

@@ -8,7 +8,10 @@ import {
     MacButtonHeightPx,
     MacButtonsLeftPx,
     macButtonsPosition,
+    peekButtonsInsetPx,
+    PeekInsetPx,
     readWindowButtonsMessage,
+    windowButtonsInPeek,
     windowButtonsVisible,
     windowRowCentrePt,
     windowRowHeightPt,
@@ -79,10 +82,52 @@ describe("the window row's centre line (#1279)", () => {
     });
 });
 
+describe("the window buttons in the floating sidebar (DS-SHELL-127, #1293)", () => {
+    it("has one 12 px inner margin", () => {
+        expect(PeekInsetPx).toBe(12);
+    });
+
+    it("insets the buttons by the frame margin plus the inner margin from the window's top and left edges", () => {
+        expect(peekButtonsInsetPx(8)).toBe(20);
+        expect(peekButtonsInsetPx(0)).toBe(12);
+        expect(peekButtonsInsetPx(16)).toBe(28);
+        expect(peekButtonsInsetPx(undefined)).toBe(20);
+        expect(macButtonsPosition(1, 8)).toEqual({ x: 20, y: 20 });
+    });
+
+    it("turns the panel's page pixels into window points with the zoom", () => {
+        expect(macButtonsPosition(1.5, 8)).toEqual({ x: 30, y: 30 });
+        expect(macButtonsPosition(0.8, 8)).toEqual({ x: 16, y: 16 });
+        expect(macButtonsPosition(Number.NaN, 8)).toEqual({ x: 20, y: 20 });
+    });
+
+    it("leaves the docked position of #1279 alone", () => {
+        expect(macButtonsPosition(1)).toEqual({ x: MacButtonsLeftPx, y: 12 });
+        expect(macButtonsPosition(1, undefined)).toEqual(macButtonsPosition(1));
+    });
+
+    it("belong to the panel whenever the sidebar is hidden, peeked or not, except in full screen", () => {
+        expect(windowButtonsInPeek(hidden)).toBe(true);
+        expect(windowButtonsInPeek({ ...hidden, peek: true })).toBe(true);
+        expect(windowButtonsInPeek({ ...hidden, sidebarHidden: false })).toBe(false);
+        expect(windowButtonsInPeek({ ...hidden, fullScreen: true })).toBe(false);
+    });
+});
+
 describe("the message the page sends about the window buttons", () => {
     it("reads the visibility and the zoom", () => {
         expect(readWindowButtonsMessage({ visible: true, zoom: 1.25 })).toEqual({ visible: true, zoom: 1.25 });
         expect(readWindowButtonsMessage({ visible: "yes", zoom: "2" })).toEqual({ visible: false, zoom: 1 });
+    });
+
+    it("reads the frame margin of the floating panel, a bad one as the default", () => {
+        expect(readWindowButtonsMessage({ visible: true, zoom: 1, peekGap: 6 })).toEqual({
+            visible: true,
+            zoom: 1,
+            peekGap: 6,
+        });
+        expect(readWindowButtonsMessage({ visible: true, zoom: 1, peekGap: -3 }).peekGap).toBe(8);
+        expect(readWindowButtonsMessage({ visible: true, zoom: 1 })).not.toHaveProperty("peekGap");
     });
 
     it("asks for the window's defaults back when it is not an object", () => {

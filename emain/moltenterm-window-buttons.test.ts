@@ -32,6 +32,14 @@ describe("the window buttons follow the sidebar (DS-SHELL-127, #1279)", () => {
         expect(win.setTitleBarOverlay).not.toHaveBeenCalled();
     });
 
+    it("places them inside the floating sidebar from the frame margin the page sends (#1293)", () => {
+        const win = makeWindow();
+        applyWindowButtons(win, { visible: true, zoom: 1, peekGap: 8 }, "darwin");
+        applyWindowButtons(win, { visible: true, zoom: 1 }, "darwin");
+        expect(win.setWindowButtonPosition.mock.calls).toEqual([[macButtonsPosition(1, 8)], [macButtonsPosition(1)]]);
+        expect(macButtonsPosition(1, 8)).toEqual({ x: 20, y: 20 });
+    });
+
     it("only shows them for a value that is exactly true", () => {
         const win = makeWindow();
         applyWindowButtons(win, { visible: "yes", zoom: 1 }, "darwin");
