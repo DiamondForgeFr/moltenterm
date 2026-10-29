@@ -487,12 +487,21 @@
                 "other": "{count} entrées"
             }
         },
-        "workspacePill": {
-            "title": "S'applique uniquement à l'espace de travail {name}",
-            "srOnly": "cet espace de travail uniquement"
+        "scope": {
+            "app": "Pour toute l'app",
+            "workspace": "Pour cet espace",
+            "project": "Pour ce projet"
+        },
+        "overridden": {
+            "one": "Remplacé dans 1 espace",
+            "other": "Remplacé dans {count} espaces",
+            "title": "Ces espaces de travail ont leur propre aspect de fenêtre : {names}"
+        },
+        "workspaceSheet": {
+            "text": "Le dossier de travail et le projet de l'espace « {name} » se règlent dans sa fiche.",
+            "open": "Modifier dans l'espace"
         },
         "error": {
-            "folder": "Ce dossier n'a pas pu être utilisé. Vérifiez qu'il existe.",
             "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé.",
             "sliderNotSaved": "Cette valeur n'a pas été enregistrée. Réessayez."
         },
@@ -548,7 +557,7 @@
         "sections": {
             "general": {
                 "title": "Général",
-                "description": "Cet espace de travail, quitter et fermer, le démarrage, les panneaux et les fichiers."
+                "description": "Quitter et fermer, le démarrage, les panneaux et les fichiers."
             },
             "appearance": {
                 "title": "Apparence",
@@ -1370,7 +1379,7 @@
             "copyBoxMissing": "La boîte de copie n'est pas chargée (mode sans échec, ou désactivée dans Réglages > Mods).",
             "noAgentIntro": "Avec un agent de code, {morph} suivi d'une demande simple (« ajoute une commande qui affiche la branche git courante dans une boîte ») fait écrire un mod à l'agent : MoltenTerm le vérifie, vous demande avant de l'exécuter, puis le charge. {undo} le retire.",
             "copyDemoTitle": "Votre première boîte",
-            "copyBoxIntro":"MoltenTerm embarque déjà un mod, la boîte de copie que les agents utilisent pour tout ce que vous devez copier. Depuis n'importe quel terminal MoltenTerm :",
+            "copyBoxIntro": "MoltenTerm embarque déjà un mod, la boîte de copie que les agents utilisent pour tout ce que vous devez copier. Depuis n'importe quel terminal MoltenTerm :",
             "showCopyBox": "Afficher une boîte de copie",
             "copyBoxShown": "La voici, à côté de ce guide.",
             "installAgent": "Installez un agent et choisissez-le à l'étape 1 pour essayer /morph ; Premiers pas ramène cette étape.",

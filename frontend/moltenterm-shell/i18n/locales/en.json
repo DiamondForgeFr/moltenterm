@@ -1031,12 +1031,21 @@
                 "other": "{count} entries"
             }
         },
-        "workspacePill": {
-            "title": "Applies to the workspace {name} only",
-            "srOnly": "workspace only"
+        "scope": {
+            "app": "For the whole app",
+            "workspace": "For this workspace",
+            "project": "For this project"
+        },
+        "overridden": {
+            "one": "Overridden in 1 workspace",
+            "other": "Overridden in {count} workspaces",
+            "title": "These workspaces use their own window look: {names}"
+        },
+        "workspaceSheet": {
+            "text": "The working folder and the project of the workspace “{name}” are set in its sheet.",
+            "open": "Edit in the workspace"
         },
         "error": {
-            "folder": "This folder could not be used. Check that it exists.",
             "notSaved": "This value was not saved. Check settings.json under Advanced.",
             "sliderNotSaved": "This value was not saved. Try again."
         },
@@ -1092,7 +1101,7 @@
         "sections": {
             "general": {
                 "title": "General",
-                "description": "This workspace, quitting and closing, startup, panels and files."
+                "description": "Quitting and closing, startup, panels and files."
             },
             "appearance": {
                 "title": "Appearance",
@@ -1370,7 +1379,7 @@
             "copyBoxMissing": "The copy box is not loaded (safe mode, or disabled in Settings > Mods).",
             "noAgentIntro": "With a coding agent, {morph} and a plain request (\"add a command that shows the current git branch in a box\") has the agent write a mod: MoltenTerm checks it, asks you before it runs, and loads it. {undo} takes it back.",
             "copyDemoTitle": "Your first box",
-            "copyBoxIntro":"MoltenTerm ships one mod already, the copy box agents use for anything you have to copy. From any MoltenTerm terminal:",
+            "copyBoxIntro": "MoltenTerm ships one mod already, the copy box agents use for anything you have to copy. From any MoltenTerm terminal:",
             "showCopyBox": "Show a copy box",
             "copyBoxShown": "There it is, next to this guide.",
             "installAgent": "Install an agent and pick it in step 1 to try /morph; Getting started brings this step back.",

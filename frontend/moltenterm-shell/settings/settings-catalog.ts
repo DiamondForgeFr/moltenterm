@@ -36,7 +36,7 @@ export const SettingsSections: SettingsSection[] = [
         id: "general",
         title: "General",
         icon: "sliders",
-        description: "This workspace, quitting and closing, startup, panels and files.",
+        description: "Quitting and closing, startup, panels and files.",
     },
     {
         id: "appearance",
@@ -218,7 +218,8 @@ export function buildCatalog(
 }
 
 // The settings of the current workspace (FR-SHELL-050-AC4): they live in the workspace's meta, not in settings.json,
-// so the schema cannot carry them. Each sits at the top of its section.
+// so the schema cannot carry them. They are edited in the workspace sheet, not in General, a section for the whole
+// app (FR-SHELL-101): the search still finds them and opens the sheet.
 export const WorkspaceSettings: SettingEntry[] = [
     {
         key: WorkspaceFolderMetaKey,
@@ -300,8 +301,9 @@ export function localizeSection(section: SettingsSection, tr: TFunction): Settin
     };
 }
 
+// The rows a section shows: the app's settings only, the workspace's live in its sheet (FR-SHELL-101).
 export function sectionEntries(entries: SettingEntry[], section: SettingsSectionId): SettingEntry[] {
-    return entries.filter((e) => e.section === section).sort((a, b) => a.order - b.order);
+    return entries.filter((e) => e.section === section && e.scope !== "workspace").sort((a, b) => a.order - b.order);
 }
 
 // The rows of a section by group, groups in the order of their first row.

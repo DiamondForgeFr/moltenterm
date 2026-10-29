@@ -119,6 +119,7 @@ export function ModsSection() {
             label={t("settings.mods.label")}
             hint={intro}
             icon={suiteIcon("mods")}
+            scope="app"
         >
             {mods.length === 0 ? (
                 <EmptyState
