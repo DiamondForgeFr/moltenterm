@@ -1943,7 +1943,7 @@ function LibraryButton() {
                     <span
                         className={cn(
                             "absolute top-1 right-1 h-2 w-2 rounded-full ring-2 ring-[var(--color-background)]",
-                            hasConfigErrors ? "bg-error" : "bg-[var(--mt-state-working)]"
+                            hasConfigErrors ? "bg-error" : "bg-[var(--mt-state-running)]"
                         )}
                         aria-hidden
                     />

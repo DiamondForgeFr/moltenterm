@@ -140,7 +140,7 @@ export function MergeQueueBlock({
                                     s.merged && "line-through opacity-55",
                                     hot.includes(s.number) &&
                                         !s.merged &&
-                                        "border-[var(--mt-state-waiting)] bg-[color-mix(in_srgb,var(--mt-state-waiting)_10%,transparent)] text-primary"
+                                        "border-[var(--mt-state-warning)] bg-[color-mix(in_srgb,var(--mt-state-warning)_10%,transparent)] text-primary"
                                 )}
                                 data-testid="reviews-queue-step"
                                 data-step={s.number}

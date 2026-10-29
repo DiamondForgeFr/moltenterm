@@ -29,9 +29,9 @@ export const CardStateKinds = [
 
 export type CardStateKind = (typeof CardStateKinds)[number];
 
-// The rail: green you can move it forward, amber your turn, orange an agent works, red broken and nobody on it, grey
-// waiting on the CI or a reviewer.
-export type CardTone = "ready" | "you" | "agent" | "broken" | "wait";
+// The rail, by heat (FR-SHELL-116): patina you can move it forward, violet your turn, incandescent an agent works or
+// the CI runs, ember broken and nobody on it, a line a draft left to its agent, grey waiting on a reviewer or nothing.
+export type CardTone = "ready" | "you" | "agent" | "broken" | "running" | "draft" | "wait";
 
 // Whose turn the card is, for the sections by turn (#1061). "ready" splits out of "yours" and "waiting" reads
 // "Running" (#1327) so the sidebar's status dots count exactly the PRs a section lists.
@@ -134,13 +134,13 @@ export type CardInput = {
 const Tones: Record<CardStateKind, CardTone> = {
     "agent-waiting": "you",
     "agent-working": "agent",
-    "agent-finish": "agent",
+    "agent-finish": "draft",
     interrupted: "you",
     conflicts: "broken",
     failing: "broken",
     "review-required": "you",
     "draft-ready": "you",
-    "ci-running": "wait",
+    "ci-running": "running",
     ready: "ready",
 };
 

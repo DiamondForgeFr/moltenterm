@@ -67,7 +67,7 @@ const ToneText: Record<CardTone, string> = {
 };
 
 const AgentStateText: Record<string, string> = {
-    waiting: "text-warning",
+    waiting: "text-[var(--mt-state-waiting)]",
     error: "text-danger",
     working: "text-[var(--mt-state-working)]",
     done: "text-success",
@@ -185,7 +185,7 @@ function AgentLine({ info, dir }: { info: AgentStateInfo; dir: string }) {
                         className={cn(
                             "inline-block h-2 w-2 shrink-0 rounded-full",
                             AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                            info.state === "working" && "mt-beat-blink"
+                            info.state === "working" && "mt-beat-turn"
                         )}
                         aria-hidden
                     />

@@ -55,10 +55,10 @@ function primary(html: string): string {
 }
 
 describe("Reviews card (#1060)", () => {
-    it("a ready PR: green rail, Ready to merge, Validate as the one molten button, a menu", () => {
+    it("a ready PR: patina rail, Ready to merge, Validate as the one molten button, a menu", () => {
         const html = rowHtml(pr(12));
         expect(html).toContain('data-state="ready"');
-        expect(html).toContain("background:var(--mt-state-done)");
+        expect(html).toContain("background:var(--mt-state-ready)");
         expect(html).toContain("Ready to merge");
         const button = primary(html);
         expect(button).toContain('data-action="validate"');
@@ -87,7 +87,7 @@ describe("Reviews card (#1060)", () => {
         expect(html).not.toContain('data-testid="reviews-validate"');
     });
 
-    it("a failed CI: red rail, the failure named once, Analyze and resolve, no Rerun beside it", () => {
+    it("a failed CI: ember rail, the failure named once, Analyze and resolve, no Rerun beside it", () => {
         const html = rowHtml(
             pr(5, {
                 merge: "failing",
@@ -101,7 +101,7 @@ describe("Reviews card (#1060)", () => {
             })
         );
         expect(html).toContain('data-state="failing"');
-        expect(html).toContain("background:var(--mt-state-error)");
+        expect(html).toContain("background:var(--mt-state-blocked)");
         const facts = /data-testid="reviews-card-facts".*?<\/div>/.exec(html)?.[0] ?? "";
         expect(/data-testid="reviews-card-state".*?<\/div>/.exec(html)?.[0]).toContain("CI failing: Backend");
         expect(facts).not.toContain("Backend");
@@ -115,14 +115,14 @@ describe("Reviews card (#1060)", () => {
         expect(rowHtml(pr(6, { report: { state: "missing" } }))).not.toContain("Analyze and resolve");
     });
 
-    it("review required: amber, Assisted review, Validate only in the menu", () => {
+    it("review required: violet, Assisted review, Validate only in the menu", () => {
         const html = rowHtml(pr(7, { merge: "blocked", reviewdecision: "REVIEW_REQUIRED" }));
         expect(html).toContain("background:var(--mt-state-waiting)");
         expect(html).toContain("Review required");
         expect(primary(html)).toContain('data-action="assisted-review"');
     });
 
-    it("CI running: grey, a calm Assisted review, no molten button", () => {
+    it("CI running: incandescent, a calm Assisted review, no molten button", () => {
         const html = rowHtml(
             pr(8, {
                 ci: {
@@ -135,6 +135,7 @@ describe("Reviews card (#1060)", () => {
             })
         );
         expect(html).toContain('data-state="ci-running"');
+        expect(html).toContain("background:color-mix(in srgb, var(--mt-state-running) 60%, transparent)");
         expect(html).not.toContain("molten-btn");
         expect(primary(html)).toContain("Assisted review");
     });

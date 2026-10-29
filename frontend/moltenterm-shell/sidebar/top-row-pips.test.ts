@@ -38,16 +38,25 @@ describe("the sidebar's status dots (#1304)", () => {
     });
 
     it("colour each state from the theme's state tokens", () => {
-        expect(rule(".mt-sb-prdot.is-blocked")).toContain("var(--mt-state-error)");
-        expect(rule(".mt-sb-prdot.is-ready")).toContain("var(--mt-state-done)");
+        expect(rule(".mt-sb-prdot.is-blocked")).toContain("var(--mt-state-blocked)");
+        expect(rule(".mt-sb-prdot.is-ready")).toContain("var(--mt-state-ready)");
         expect(rule(".mt-sb-prdot.is-yours")).toContain("var(--mt-state-waiting)");
-        expect(rule(".mt-sb-prdot.is-waiting")).toContain("var(--mt-state-working)");
+        expect(rule(".mt-sb-prdot.is-waiting")).toContain("var(--mt-state-running)");
+        expect(rule(".mt-sb-prdot.is-agents")).toContain("var(--mt-state-draft)");
     });
 
-    it("draw blocked as a diamond, the other sections round (WCAG 1.4.1, #1327)", () => {
+    it("give each section its state's shape, so the five stay apart in greyscale (#1327, FR-SHELL-116)", () => {
         const blocked = rule(".mt-sb-prdot.is-blocked");
         expect(blocked).toMatch(/transform:\s*rotate\(45deg\)/);
         expect(blocked).toMatch(/border-radius:\s*0;/);
+        expect(rule(".mt-sb-prdot.is-yours")).toMatch(/box-shadow:\s*0 0 0 1\.5px color-mix/);
+        const running = rule(".mt-sb-prdot.is-waiting");
+        expect(running).toMatch(/background:\s*transparent/);
+        expect(running).toMatch(/border-right-color:\s*color-mix/);
+        const agents = rule(".mt-sb-prdot.is-agents");
+        expect(agents).toMatch(/background:\s*transparent/);
+        expect(agents).toMatch(/border:\s*1\.5px solid currentColor/);
+        expect(rule(".mt-sb-prdot.is-ready")).not.toMatch(/background|border|box-shadow/);
         for (const kind of ["yours", "ready", "waiting", "agents"]) {
             expect(rule(`.mt-sb-prdot.is-${kind}`)).not.toMatch(/transform|border-radius/);
         }
@@ -58,10 +67,11 @@ describe("the sidebar's status dots (#1304)", () => {
         expect(block).not.toMatch(/\.mt-sb-dots?[\s.,:{]/);
     });
 
-    it("turn the modified pip into a ring", () => {
+    it("turn the modified pip into a neutral ring with a centre point, never a state's colour (FR-SHELL-116)", () => {
         const pip = rule(".mt-sb-modpip");
-        expect(pip).toMatch(/border:\s*1\.5px solid var\(--mt-state-waiting\)/);
-        expect(pip).toMatch(/background:\s*transparent/);
+        expect(pip).toMatch(/border:\s*1\.5px solid var\(--mt-text-2\)/);
+        expect(pip).toMatch(/background:\s*radial-gradient/);
+        expect(pip).not.toMatch(/--mt-(state|accent|action)/);
     });
 
     it("never move under reduced motion", () => {

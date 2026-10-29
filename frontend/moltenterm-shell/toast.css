@@ -15,19 +15,20 @@
 }
 
 /* The tone's edge: a short bar inside the left border, beside the tone's icon, so the kind reads at a glance without
-   tinting the whole toast. Information keeps the plain border. */
+   tinting the whole toast. Information keeps the plain border. The heat tokens (FR-SHELL-116): done is patina, a
+   warning straw (the "waiting" tone is the warning kind, with its triangle), an error ember. */
 .molten-toast[data-tone="done"],
 .molten-toast[data-tone="waiting"],
 .molten-toast[data-tone="error"] {
-    --mt-toast-edge: var(--mt-state-done);
+    --mt-toast-edge: var(--mt-state-ready);
 }
 
 .molten-toast[data-tone="waiting"] {
-    --mt-toast-edge: var(--mt-state-waiting);
+    --mt-toast-edge: var(--mt-state-warning);
 }
 
 .molten-toast[data-tone="error"] {
-    --mt-toast-edge: var(--mt-state-error);
+    --mt-toast-edge: var(--mt-state-blocked);
 }
 
 .molten-toast[data-tone="done"]::before,

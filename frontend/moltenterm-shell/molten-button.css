@@ -6,8 +6,9 @@
    They set colours and effects only, never sizes: padding, radius and font stay the caller's.
 
    Markup: a primary call to action is a button with the class molten-btn and <MoltenWave /> (molten-button.tsx) as its
-   last child; Wave's Button adds both itself (moltenButtonClasses). molten-btn-destructive and molten-btn-warning
-   recolour it. The calm variants (molten-btn-secondary, -outline, -ghost) carry no wave. */
+   last child; Wave's Button adds both itself (moltenButtonClasses). molten-btn-warning recolours it;
+   molten-btn-destructive turns it calm and hides its wave (FR-SHELL-116). The calm variants (molten-btn-secondary,
+   -outline, -ghost) carry no wave. */
 
 /* Each --molten-hi-* stays a plain `color-mix(in srgb, var(--molten-base) N%, rgb(...))`: molten-button.test.ts
    resolves them on the action colour and keeps the text at 4.5:1 over the rest colour and both highlights
@@ -37,17 +38,8 @@
     }
 }
 
-/* A destructive action reads as such with white text on a deep red: black on the error colour itself looked like a
-   warning. White only holds 4.5:1 on a red darkened by a quarter, under gentler highlights than the primary's. */
-.molten-btn-destructive {
-    --molten-base: color-mix(in srgb, var(--mt-state-error) 75%, black);
-    --molten-fg: #ffffff;
-    --molten-hi-1: color-mix(in srgb, var(--molten-base) 88%, rgb(255, 246, 222));
-    --molten-hi-2: color-mix(in srgb, var(--molten-base) 82%, rgb(255, 222, 140));
-}
-
 .molten-btn-warning {
-    --molten-base: var(--mt-state-waiting);
+    --molten-base: var(--mt-state-warning);
     --molten-fg: #000000;
 }
 
@@ -120,6 +112,26 @@
     to {
         rotate: 360deg;
     }
+}
+
+/* A destructive action is calm (FR-SHELL-116, decision 9): blocked-text words inside an ember line, no fill, a tint
+   on hover, and no wave, which only the molten actions keep. The line is an inset shadow, so the button keeps the
+   size of the molten one it replaces. Text 6.6:1 and line 4.2:1 on surface 3, the worst case (moltenterm-shell.test.ts). */
+.molten-btn.molten-btn-destructive {
+    --molten-base: var(--mt-state-blocked);
+    --molten-fg: var(--mt-state-blocked-text);
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--mt-state-blocked);
+}
+
+.molten-btn.molten-btn-destructive:hover,
+.molten-btn.molten-btn-destructive:active {
+    background-color: color-mix(in srgb, var(--mt-state-blocked) 12%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-state-blocked);
+}
+
+.molten-btn.molten-btn-destructive > .molten-btn-wave {
+    display: none;
 }
 
 .molten-btn:disabled,

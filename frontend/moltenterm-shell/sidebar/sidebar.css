@@ -388,16 +388,17 @@
     gap: 1.5px;
 }
 
-/* A pinned view changed since it was pinned (FR-SHELL-080): an amber ring in its corner, an outline so it never reads
-   as a pull request dot (#1304), and a revert button that shows under the pointer. */
+/* A pinned view changed since it was pinned (FR-SHELL-080): a neutral ring with a centre point in its corner, and a
+   revert button that shows under the pointer. Neutral, since a change is no state and orange marks actions only
+   (FR-SHELL-116); the centre point keeps it apart from a draft's hollow dot (#1304). */
 .mt-sb-modpip {
     width: 7px;
     height: 7px;
     flex-shrink: 0;
     box-sizing: border-box;
     border-radius: 9999px;
-    border: 1.5px solid var(--mt-state-waiting);
-    background: transparent;
+    border: 1.5px solid var(--mt-text-2);
+    background: radial-gradient(circle, var(--mt-text-2) 0 1px, transparent 1.5px);
     pointer-events: none;
 }
 
@@ -443,10 +444,12 @@
     background: rgb(0 0 0 / 0.45);
 }
 
-/* Pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one dot per
-   panel section with pull requests, in the corner column, red blocked (a diamond), amber yours, green ready to
-   merge, orange running (CI), grey with the agents. Colours are the fixed state tokens; a thin dark edge keeps them apart from light and translucent
-   looks. Dots showing up fade in once, a dot whose count changes glows once; nothing moves at rest. */
+/* Pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327;
+   FR-SHELL-116): one dot per panel section with pull requests, in the corner column, ember blocked (a diamond), violet
+   yours (a haloed dot), patina ready to merge (a filled dot), incandescent running (CI, a 270° arc), iron with the
+   agents (a hollow dot). Colours are the fixed state tokens; a thin dark edge keeps the filled ones apart from light
+   and translucent looks. Dots showing up fade in once, a dot whose count changes glows once; only the running arc
+   moves, a quarter turn per working beat. */
 .mt-sb-prdots {
     display: flex;
     flex-direction: column;
@@ -469,6 +472,7 @@
     width: 6px;
     height: 6px;
     flex-shrink: 0;
+    box-sizing: border-box;
     border-radius: 9999px;
     background: currentColor;
     box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.25);
@@ -483,29 +487,43 @@
     height: 4px;
 }
 
-/* Blocked is a diamond, the others round (#1327, WCAG 1.4.1): the state does not rest on its colour alone. A square
-   as wide as the round dots, turned a quarter: its corners reach into the gap between dots, which makes the shape
-   readable at this size. */
+/* Each dot takes its state's shape (#1327, FR-SHELL-116, .mt-state-mark, WCAG 1.4.1), so the five stay apart in
+   greyscale. Blocked is a square as wide as the round dots, turned a quarter: its corners reach into the gap between
+   dots, which makes the shape readable at this size. Running turns a quarter per working beat (pr-counts.tsx) and
+   stands still without the beat. */
 .mt-sb-prdot.is-blocked {
     border-radius: 0;
     transform: rotate(45deg) scale(0.9);
-    color: var(--mt-state-error);
+    color: var(--mt-state-blocked);
 }
 
 .mt-sb-prdot.is-yours {
     color: var(--mt-state-waiting);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 30%, transparent);
 }
 
 .mt-sb-prdot.is-ready {
-    color: var(--mt-state-done);
+    color: var(--mt-state-ready);
 }
 
 .mt-sb-prdot.is-waiting {
-    color: var(--mt-state-working);
+    color: var(--mt-state-running);
+    background: transparent;
+    border: 1.5px solid currentColor;
+    border-right-color: color-mix(in srgb, currentColor 25%, transparent);
+    box-shadow: none;
 }
 
 .mt-sb-prdot.is-agents {
-    color: var(--mt-sb-fg-3);
+    color: var(--mt-state-draft);
+    background: transparent;
+    border: 1.5px solid currentColor;
+    box-shadow: none;
+}
+
+.mt-sb-prdots.is-small .mt-sb-prdot.is-waiting,
+.mt-sb-prdots.is-small .mt-sb-prdot.is-agents {
+    border-width: 1px;
 }
 
 .mt-sb-prdot.is-bump {

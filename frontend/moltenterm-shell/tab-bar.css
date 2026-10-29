@@ -218,8 +218,9 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     display: none;
 }
 
-/* The agent mark (8 px): shape first, colour second. Working is a ring, waiting a filled dot; the ring blinks on the
-   shared working beat (mt-beat-blink, #473) instead of an expanding halo of its own. */
+/* The agent mark (8 px): shape first, colour second, the state marks' shapes (FR-SHELL-116). Working is an
+   incandescent 270° arc that turns a quarter per shared working beat (mt-beat-turn, #473) instead of an animation of
+   its own, waiting a violet dot with a halo, an error an ember diamond, done a small patina dot. */
 .molten-tab-dot {
     position: relative;
     display: inline-block;
@@ -231,11 +232,13 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
 }
 
 .molten-tab-dot[data-state="working"] {
-    border: 2px solid var(--mt-state-working);
+    border: 2px solid var(--mt-state-running);
+    border-right-color: color-mix(in srgb, var(--mt-state-running) 25%, transparent);
 }
 
 .molten-tab-dot[data-state="waiting"] {
     background: var(--mt-state-waiting);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 30%, transparent);
 }
 
 .molten-tab-dot[data-state="error"] {
@@ -244,14 +247,14 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     margin: 0 0.5px;
     border-radius: 0;
     transform: rotate(45deg);
-    background: var(--mt-state-error);
+    background: var(--mt-state-blocked);
 }
 
 .molten-tab-dot[data-state="done"] {
     width: 6px;
     height: 6px;
     margin: 0 1px;
-    background: var(--mt-state-done);
+    background: var(--mt-state-ready);
 }
 
 /* A Review tab whose PR is finished (#686): a check badge once merged, a neutral dash once closed without merge. */
@@ -262,7 +265,7 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
 }
 
 .molten-tab-review-done[data-state="merged"] {
-    color: var(--mt-state-done);
+    color: var(--mt-state-ready);
 }
 
 .molten-tab-review-done[data-state="closed"] {

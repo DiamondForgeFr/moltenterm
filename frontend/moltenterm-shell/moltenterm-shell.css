@@ -402,17 +402,14 @@
     --color-muted: var(--mt-text-3);
 
     /* The workspace accent marks place only (rail, active tab, focus border). Agent states use MoltenTerm's fixed
-       palette, working included, so a state reads the same in every workspace (#212). Working is the molten orange. */
-    --mt-state-working: rgb(255, 124, 13);
-    --mt-state-waiting: rgb(224, 185, 86);
-    --mt-state-error: rgb(229, 77, 46);
-    --mt-state-done: rgb(78, 154, 6);
-    /* MoltenTerm keeps the computer awake (the coffee, #276): a warm crema, apart from working's orange and waiting's
-       amber, fixed like the states. */
+       heat scale of tokens.css (FR-SHELL-116), so a state reads the same in every workspace (#212). Wave's warning
+       is the straw warning, never the violet of an agent waiting on you. */
+    /* MoltenTerm keeps the computer awake (the coffee, #276): a warm crema, apart from the action's orange and
+       running's incandescent, fixed like the states. */
     --color-awake: rgb(240, 168, 122);
     --color-awake-fg: #1f1208;
-    --warning-color: var(--mt-state-waiting);
-    --color-warning: var(--mt-state-waiting);
+    --warning-color: var(--mt-state-warning);
+    --color-warning: var(--mt-state-warning);
     --error-color: var(--mt-state-error);
     --color-error: var(--mt-state-error);
     --success-color: var(--mt-state-done);
@@ -436,11 +433,11 @@
 }
 
 /* Heat states (DS-SHELL-014): blockframe.tsx mirrors the pane's agent state (DS-SHELL-011) in data-mt-agent-state.
-   Working glows faintly in the molten orange, waiting holds a static amber edge, an error a static red one, done cools
-   back to neutral. The overlay sits 1px inside the frame so it never covers the focus border.
-   Never colour alone: the molten orange and the waiting amber are close, so the states also
-   differ by form. Working (and done, as it cools) is a diffuse glow without an edge; waiting and error are a solid 2px
-   edge without a glow. None of them moves (#473): the glow is the largest working mark, and breathing it cost a
+   Working glows faintly incandescent (FR-SHELL-116: never the action's orange), waiting holds a static violet edge, an
+   error a static ember one, done cools back to neutral. The overlay sits 1px inside the frame so it never covers the
+   focus border.
+   Never colour alone: the states also differ by form. Working (and done, as it cools) is a diffuse glow without an
+   edge; waiting and error are a solid 2px edge without a glow. None of them moves (#473): the glow is the largest working mark, and breathing it cost a
    frame at every display refresh; the panel header's segment carries the motion on the shared beat. */
 .block.block-frame-default[data-mt-agent-state]::after {
     --mt-heat: transparent;
@@ -456,14 +453,14 @@
 }
 
 .block.block-frame-default[data-mt-agent-state="working"]::after {
-    --mt-heat: var(--mt-state-working);
+    --mt-heat: var(--mt-state-running);
     opacity: 0.85;
 }
 
 /* A finished pane visibly cools instead of switching off. An animation, not the opacity transition: Chromium starts
    no transition when the breathing animation is removed in the same style change. */
 .block.block-frame-default[data-mt-agent-state="done"]::after {
-    --mt-heat: var(--mt-state-working);
+    --mt-heat: var(--mt-state-running);
     animation: mt-heat-cool 1.6s ease-out forwards;
 }
 
@@ -475,10 +472,49 @@
 }
 
 .block.block-frame-default[data-mt-agent-state="error"]::after {
-    --mt-heat: var(--mt-state-error);
+    --mt-heat: var(--mt-state-blocked);
     box-shadow: inset 0 0 0 2px var(--mt-heat);
     opacity: 0.85;
     animation: none;
+}
+
+/* The state marks (FR-SHELL-116, state-mark.tsx): each state has its shape, so the states stay apart without their
+   colour (WCAG 1.4.1, greyscale): blocked a diamond, running a 270° arc (its last quarter faint, so the ring still
+   reads), ready a filled dot, draft a hollow dot, waiting on you a dot with a halo. The arc turns a quarter on each
+   working beat (mt-beat-turn, #473: no animation of its own) and stands still without it (reduced motion, the view
+   not active): a three-quarter ring, still apart from a filled action. --mt-mark sets the size. */
+.mt-state-mark {
+    --mt-mark: 8px;
+    display: inline-block;
+    flex-shrink: 0;
+    width: var(--mt-mark);
+    height: var(--mt-mark);
+    box-sizing: border-box;
+    border-radius: 9999px;
+}
+
+.mt-state-mark.is-blocked {
+    border-radius: 0;
+    transform: rotate(45deg) scale(0.82);
+    background: var(--mt-state-blocked);
+}
+
+.mt-state-mark.is-running {
+    border: max(1.5px, calc(var(--mt-mark) / 4)) solid var(--mt-state-running);
+    border-right-color: color-mix(in srgb, var(--mt-state-running) 25%, transparent);
+}
+
+.mt-state-mark.is-ready {
+    background: var(--mt-state-ready);
+}
+
+.mt-state-mark.is-draft {
+    border: 1.5px solid var(--mt-state-draft);
+}
+
+.mt-state-mark.is-waiting {
+    background: var(--mt-state-waiting);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 30%, transparent);
 }
 
 @keyframes mt-heat-cool {
@@ -520,11 +556,11 @@
 }
 
 /* The Project overview's bars (FR-MC-024): what waits for the next public release, by kind. Fixed colours, like the
-   agent states (#212), so a share reads the same in every workspace: features in the molten orange, fixes a lighter
-   orange, the rest neutral. */
+   agent states (#212), so a share reads the same in every workspace: features in the fixed steel blue (FR-SHELL-116,
+   decision 5: a chart is no action and no state), fixes a lighter steel, the rest neutral. */
 :root {
-    --mt-chart-features: var(--mt-state-working);
-    --mt-chart-fixes: color-mix(in srgb, var(--mt-state-working) 50%, rgb(255, 230, 205));
+    --mt-chart-features: var(--mt-chart-1);
+    --mt-chart-fixes: color-mix(in srgb, var(--mt-chart-1) 55%, var(--mt-text-1));
     --mt-chart-rest: color-mix(in srgb, var(--mt-text-muted) 75%, transparent);
 }
 
@@ -807,8 +843,9 @@
    the root every second, so 3 or 10 agents cost 1 frame a second, not a frame per display refresh each. The beat
    only changes opacity or a transform, in steps, on small elements. It runs only while the view is active (#455) and
    not under reduced motion; without it every indicator keeps its static look, which alone tells the states apart.
-   mt-beat-blink: dims every other beat (1 s on, 1 s dimmed), the rail and tab dots and the running-work bar.
-   mt-beat-turn: a quarter turn per beat, the bell's ring. */
+   mt-beat-blink: dims every other beat (1 s on, 1 s dimmed), the running-work bar.
+   mt-beat-turn: a quarter turn per beat, the bell's ring and every running arc (the state marks, the rail and tab
+   dots and the CI dot of a tile, FR-SHELL-116). */
 :root[data-mt-motion="live"][data-mt-beat="1"] .mt-beat-blink,
 :root[data-mt-motion="live"][data-mt-beat="3"] .mt-beat-blink {
     opacity: 0.45;

@@ -4,8 +4,9 @@
 // The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one
 // small dot per section of the panel with pull requests, stacked in the block's corner column under its agent mark
 // or modified ring, the most critical at the top. No number on the block: each dot's tooltip and accessible name
-// give the section's title and the number of PRs it lists (blocked is a diamond, not a round dot). Dots showing up fade
-// in once, a dot whose count changes glows once: nothing moves at rest.
+// give the section's title and the number of PRs it lists. Each dot takes its state's shape (FR-SHELL-116: blocked a
+// diamond, yours a haloed dot, ready a filled dot, running an arc, the agents' a hollow dot). Dots showing up fade in
+// once, a dot whose count changes glows once; only the running arc moves, on the working beat.
 
 import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
@@ -19,6 +20,7 @@ import { rebaseAskKey, splitReviews } from "../reviews/reviews-model";
 import { cardStates } from "../reviews/reviews-sections-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { useUpcomingWatch } from "../reviews/reviews-upcoming-client";
+import { useWorkingBeat } from "../working-beat";
 import { readWorkspaceProject } from "../workspace-project";
 import {
     firstPilotageTab,
@@ -139,6 +141,10 @@ function useBumps(counts: PrCounts, motionKey: string): Partial<PrCounts> {
     return bumped;
 }
 
+// The dot of the Running section (the CI runs, #1327): an arc that turns a quarter per working beat (FR-SHELL-116),
+// the only dot that moves.
+const RunningKind: PrCountKind = "waiting";
+
 // The block's tooltip line and the column's accessible name: every state with pull requests, with its count.
 export function usePrCountsSummary(counts: PrCounts): string {
     const label = usePrCountLabel();
@@ -168,6 +174,7 @@ export function PrDots({
     const label = usePrCountLabel();
     const bumped = useBumps(counts, motionKey);
     const summary = usePrCountsSummary(counts);
+    useWorkingBeat(counts[RunningKind] > 0);
     if (!hasPrCounts(counts)) {
         return null;
     }
@@ -184,7 +191,12 @@ export function PrDots({
                 return (
                     <span
                         key={bump ? `${kind}-${counts[kind]}` : kind}
-                        className={cn("mt-sb-prdot", `is-${kind}`, bump && "is-bump")}
+                        className={cn(
+                            "mt-sb-prdot",
+                            `is-${kind}`,
+                            kind === RunningKind && "mt-beat-turn",
+                            bump && "is-bump"
+                        )}
                         role="img"
                         title={words}
                         aria-label={words}

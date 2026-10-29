@@ -11,7 +11,7 @@ import type { TreeMarker } from "../worktree-model";
 
 export const QuestionMaxChars = 48;
 
-export type PillTone = "neutral" | "warning" | "danger";
+export type PillTone = "neutral" | "warning" | "waiting" | "danger";
 
 // When several states apply, the most urgent wins: waiting > error > auto-approve > remote > durable (DS-SHELL-093).
 // Auto-approve ships with #386. Multi input (Wave's broadcast to every terminal of the tab) sits with the errors: a
@@ -65,7 +65,7 @@ export function waitingPill(agent: AgentStateInfo): HeaderPillSpec {
     const label = question ? truncateQuestion(question) : t("shell.header.waiting");
     return {
         kind: "waiting",
-        tone: "warning",
+        tone: "waiting",
         label,
         title: question ? t("shell.header.asks", { name, question }) : t("shell.header.waitingForYou", { name }),
         dot: true,

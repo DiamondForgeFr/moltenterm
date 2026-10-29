@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The sidebar's agents (FR-SHELL-084), sized as the #1181 prototype's agentBlock and agentTree. States use
-   MoltenTerm's fixed palette: waiting amber, done green, error red; working is the white dominoes alone. */
+   MoltenTerm's heat scale (FR-SHELL-116): waiting violet, done patina, error ember; working is the incandescent dominoes. */
 
 .mt-sb-agent {
     display: flex;
@@ -146,10 +146,11 @@
     color: var(--mt-state-error);
 }
 
-/* The suite's dominoes, in white at about 60 %: the working state, on the right of the row. */
+/* The suite's dominoes, incandescent (FR-SHELL-116, decision 2: an agent at work glows, never in the action's
+   orange): the working state, on the right of the row. */
 .mt-sb-agent-dom {
     flex: none;
-    color: rgb(255 255 255 / 0.62);
+    color: var(--mt-state-running);
 }
 
 .mt-sb-tree {

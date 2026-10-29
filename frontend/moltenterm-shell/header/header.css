@@ -101,7 +101,15 @@ button.molten-header-link:hover {
     color: var(--mt-text-secondary);
 }
 
+/* The tones by heat (FR-SHELL-116): a warning is straw, an agent waiting on you violet (its own tone since waiting
+   left amber, decision 1), danger ember. */
 .molten-pill.is-warning {
+    background: color-mix(in srgb, var(--mt-state-warning) 15%, transparent);
+    box-shadow: none;
+    color: var(--mt-state-warning);
+}
+
+.molten-pill.is-waiting {
     background: color-mix(in srgb, var(--mt-state-waiting) 15%, transparent);
     box-shadow: none;
     color: var(--mt-state-waiting);
@@ -123,6 +131,10 @@ button.molten-pill:hover {
 }
 
 button.molten-pill.is-warning:hover {
+    background: color-mix(in srgb, var(--mt-state-warning) 24%, transparent);
+}
+
+button.molten-pill.is-waiting:hover {
     background: color-mix(in srgb, var(--mt-state-waiting) 24%, transparent);
 }
 
@@ -142,6 +154,18 @@ button.molten-pill.is-danger:hover {
     flex-shrink: 0;
     border-radius: 50%;
     background: currentColor;
+}
+
+/* The dot takes its state's shape (FR-SHELL-116, .mt-state-mark): a halo for an agent waiting on you, a diamond for
+   an error. */
+.molten-pill.is-waiting .molten-pill-dot {
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.molten-pill.is-danger .molten-pill-dot {
+    border-radius: 0;
+    transform: rotate(45deg) scale(0.82);
+    background: var(--mt-state-blocked);
 }
 
 .molten-pill-icon {
