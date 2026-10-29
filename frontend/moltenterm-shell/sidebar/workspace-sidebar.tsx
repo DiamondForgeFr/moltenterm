@@ -108,6 +108,7 @@ import {
     TileGridColumns,
     type SidebarTabSplit,
 } from "./sidebar-model";
+import { pruneSnapshots, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
 import { setCurrentSwipe, SidebarSwipeController } from "./sidebar-swipe-view";
@@ -2174,6 +2175,7 @@ export function WorkspaceSidebar() {
     const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);
     const contentRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
     const ghostPrevRef = useRef<HTMLDivElement>(null);
     const ghostNextRef = useRef<HTMLDivElement>(null);
     const tintRef = useRef<HTMLDivElement>(null);
@@ -2200,6 +2202,26 @@ export function WorkspaceSidebar() {
     const onArrive = useCallback((intent: SwitchIntent) => swipe.arrived(intent), [swipe]);
     usePageSlide(contentRef, draft != null);
     useSwitchArrival(contentRef, onArrive);
+    const restRef = useRef<() => boolean>(null);
+    restRef.current = () =>
+        !hidden &&
+        pinDraft == null &&
+        projectPage == null &&
+        draft == null &&
+        !swipe.busy() &&
+        swipe.moved.size === 0 &&
+        (contentRef.current?.getAnimations?.().length ?? 0) === 0;
+    const snapshotSource = useMemo<SnapshotSource>(
+        () => ({ viewport: () => viewportRef.current, atRest: () => restRef.current?.() ?? false }),
+        []
+    );
+    useSidebarCapture(ws?.oid, snapshotSource);
+    const workspaceIdsKey = workspaces.entries.map((w) => w.id).join(" ");
+    useEffect(() => {
+        if (workspaceIdsKey) {
+            pruneSnapshots(workspaceIdsKey.split(" "));
+        }
+    }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
     useWindowButtons(hidden, peek);
     useEffect(() => {
@@ -2263,7 +2285,7 @@ export function WorkspaceSidebar() {
                 <WindowRow leftInset={hidden ? 18 : 8} peeked={hidden} />
                 <TopField />
                 <TopRow instances={sections.everywhere ?? {}} activeTabId={activeTabId} />
-                <div className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div ref={viewportRef} className="mt-sb-viewport relative flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div
                         ref={contentRef}
                         className="mt-sb-scroll mt-sb-page flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"

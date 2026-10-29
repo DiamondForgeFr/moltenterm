@@ -9,12 +9,13 @@
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { visibleTabIds } from "../hidden-tabs";
 import { useT } from "../i18n/i18n";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { workspaceShownName } from "../workspace-default-name";
 import { isPinnedTab, TileGridColumns } from "./sidebar-model";
+import { snapshotFits, useSidebarSnapshot } from "./sidebar-snapshot";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { GlobalPinMetaKey, PinMetaKey } from "./view-pins-model";
 
@@ -60,8 +61,43 @@ export const SidebarGhost = memo(function SidebarGhost({
 }) {
     const t = useT();
     const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId ?? ""));
+    const snap = useSidebarSnapshot(workspaceId);
+    const [size, setSize] = useState<{ width: number; height: number }>(null);
+    useEffect(() => {
+        const el = ghostRef.current;
+        if (el == null) {
+            return;
+        }
+        const measure = () => setSize({ width: el.offsetWidth, height: el.offsetHeight });
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [ghostRef]);
     const tabIds = ws != null ? visibleTabIds(ws) : [];
     const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
+    // The neighbour's own capture, the exact sidebar the swipe lands on (sidebar-snapshot.ts); the likeness otherwise.
+    if (workspaceId && size != null && snapshotFits(snap, size.width, size.height)) {
+        return (
+            <div
+                ref={ghostRef}
+                className={cn("mt-sb-ghost", side < 0 ? "is-prev" : "is-next")}
+                aria-hidden
+                data-testid={side < 0 ? "sidebar-ghost-prev" : "sidebar-ghost-next"}
+                data-workspace-id={workspaceId}
+                data-snapshot="true"
+            >
+                <img
+                    src={snap.url}
+                    alt=""
+                    decoding="async"
+                    draggable={false}
+                    className="pointer-events-none absolute top-0 left-0 max-w-none select-none"
+                    style={{ width: snap.width, height: snap.height }}
+                />
+            </div>
+        );
+    }
     return (
         <div
             ref={ghostRef}
