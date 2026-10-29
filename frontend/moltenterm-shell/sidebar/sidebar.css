@@ -482,21 +482,13 @@
     height: 4px;
 }
 
-/* Blocked is a diamond, the others round (#1327, WCAG 1.4.1): the state does not rest on its colour alone. The
-   diamond is a rotated square, so its side is smaller to keep the dot's footprint. */
+/* Blocked is a diamond, the others round (#1327, WCAG 1.4.1): the state does not rest on its colour alone. A square
+   as wide as the round dots, turned a quarter: its corners reach into the gap between dots, which makes the shape
+   readable at this size. */
 .mt-sb-prdot.is-blocked {
-    width: 5px;
-    height: 5px;
-    margin: 0.5px;
-    border-radius: 1px;
-    transform: rotate(45deg);
+    border-radius: 0;
+    transform: rotate(45deg) scale(0.9);
     color: var(--mt-state-error);
-}
-
-.mt-sb-prdots.is-small .mt-sb-prdot.is-blocked {
-    width: 3.5px;
-    height: 3.5px;
-    margin: 0.25px;
 }
 
 .mt-sb-prdot.is-yours {

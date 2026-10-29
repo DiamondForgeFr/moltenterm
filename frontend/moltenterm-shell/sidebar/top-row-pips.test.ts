@@ -47,7 +47,7 @@ describe("the sidebar's status dots (#1304)", () => {
     it("draw blocked as a diamond, the other sections round (WCAG 1.4.1, #1327)", () => {
         const blocked = rule(".mt-sb-prdot.is-blocked");
         expect(blocked).toMatch(/transform:\s*rotate\(45deg\)/);
-        expect(blocked).toMatch(/border-radius:\s*1px/);
+        expect(blocked).toMatch(/border-radius:\s*0;/);
         for (const kind of ["yours", "ready", "waiting", "agents"]) {
             expect(rule(`.mt-sb-prdot.is-${kind}`)).not.toMatch(/transform|border-radius/);
         }
