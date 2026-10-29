@@ -303,7 +303,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-project-done"
                 >
-                    {t(folder ? "onboarding.project.done" : "onboarding.project.chooseFirst")}
+                    {t(folder ? "onboarding.project.link" : "onboarding.project.chooseFirst")}
                     <MoltenWave />
                 </button>
             </div>

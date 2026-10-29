@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { MoltenModStatus } from "../molten/molten-host";
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import {
-    CopyDemoCommand,
+    copyDemoCommand,
     enabledModIds,
     morphAgent,
     morphRequests,
@@ -89,6 +89,6 @@ describe("your first morph step (FR-ONB-003)", () => {
     });
 
     it("shows the copy box with the same line molten copy takes", () => {
-        expect(CopyDemoCommand).toBe('molten copy --title "Your first box" Hello from MoltenTerm');
+        expect(copyDemoCommand("Your first box")).toBe('molten copy --title "Your first box" Hello from MoltenTerm');
     });
 });

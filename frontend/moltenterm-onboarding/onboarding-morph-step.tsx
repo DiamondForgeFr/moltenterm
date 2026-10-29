@@ -18,9 +18,8 @@ import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { OnboardingAgents } from "./onboarding-agent-model";
 import { ensureMorphDir, listOnboardingAgents } from "./onboarding-client";
 import {
-    CopyDemoCommand,
+    copyDemoCommand,
     CopyDemoText,
-    CopyDemoTitle,
     enabledModIds,
     morphAgent,
     MorphBaselineKey,
@@ -98,7 +97,7 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
         setError(null);
         const result = await MoltenHost.getInstance().runCommand({
             command: "copy",
-            args: ["--title", CopyDemoTitle, CopyDemoText],
+            args: ["--title", t("onboarding.morph.copyDemoTitle"), CopyDemoText],
             blockid: ctx.panelBlockId,
         });
         if (!result.found || result.exitcode !== 0) {
@@ -113,7 +112,7 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
                 {withCodes(t("onboarding.morph.noAgentIntro"), { morph: "/morph", undo: "molten undo" })}
             </StepText>
             <StepText>{t("onboarding.morph.copyBoxIntro")}</StepText>
-            <CopyLine text={CopyDemoCommand} />
+            <CopyLine text={copyDemoCommand(t("onboarding.morph.copyDemoTitle"))} />
             <div className="flex items-center gap-3">
                 <button
                     type="button"

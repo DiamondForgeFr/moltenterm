@@ -79,6 +79,7 @@ export function readMorphedMod(data: Record<string, any>): MorphedMod {
 }
 
 // The copy box shown without an agent, and the molten line that shows the same box.
-export const CopyDemoTitle = "Your first box";
 export const CopyDemoText = "Hello from MoltenTerm";
-export const CopyDemoCommand = `molten copy --title "${CopyDemoTitle}" ${CopyDemoText}`;
+export function copyDemoCommand(title: string): string {
+    return `molten copy --title "${title}" ${CopyDemoText}`;
+}
