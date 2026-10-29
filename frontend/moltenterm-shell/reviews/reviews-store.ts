@@ -12,9 +12,11 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import { CodingAgentChoice, codingAgentName, fetchCodingAgent } from "../coding-agent/coding-agent";
 import { errorPhrase, phrase, type Phrase } from "../i18n/phrase";
 import { openMoltentermView } from "../open-view";
 import { showTabFromHere } from "../opener-tab";
+import { requestAssist } from "../review/review-assist";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import {
     askReviewFinish,
@@ -30,6 +32,7 @@ import { showPanel } from "../review/review-panels";
 import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { AgentChoiceAnswer, agentChoiceOf, agentStartOf, askAgentChoice, showStartedAgent } from "./agent-choice";
+import { AssistedReviewModel } from "./assisted-review-dialog";
 import { BusyAgent, QueuedAsk, ReviewsAskQueue } from "./reviews-ask-queue";
 import { reviewsGet, reviewsRerunFailed } from "./reviews-client";
 import type { Forecast } from "./reviews-forecast-model";
@@ -115,6 +118,31 @@ export class ReviewsModel {
             return;
         }
         showTabFromHere(await openPullRequestTab(workspaceId, dir, pr, repoName));
+    }
+
+    // A card's Assisted review (FR-REV-033): the confirmation first; on Start the agent the Review tab opens with the
+    // agent on the left of the diff, on Diff only it opens as a row's click does, on Cancel nothing opens.
+    async openAssistedReview(dir: string, pr: ReviewPr, repo?: string): Promise<void> {
+        const repoName = repo || repoOfPrUrl(pr?.url);
+        if (!dir || pr == null || !repoName) {
+            return;
+        }
+        const dialog = AssistedReviewModel.getInstance();
+        const answer = dialog.ask({ number: pr.number, branch: pr.branch, base: pr.base });
+        fireAndForget(async () => {
+            const choice = await fetchCodingAgent(dir).catch((): CodingAgentChoice => null);
+            dialog.nameAgent(pr.number, choice?.agentname || codingAgentName(choice?.agent ?? ""));
+        });
+        const choice = await answer;
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        if (choice == null || !workspaceId) {
+            return;
+        }
+        const tabId = await openPullRequestTab(workspaceId, dir, pr, repoName);
+        if (choice === "agent") {
+            await requestAssist(tabId);
+        }
+        showTabFromHere(tabId);
     }
 
     // A row's Validate (#683, #707): the Validate sheet opens in place, over this tab, with no Review tab; it shows the

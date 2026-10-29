@@ -8629,6 +8629,15 @@
             "installFailed": "The guides of {agent} could not be installed: {detail}"
         }
     },
+    "assistedReview": {
+        "title": "Assisted review of PR #{number}",
+        "subtitle": "{branch} → {base}",
+        "what": "{agent} starts on PR #{number} in a copy of its branch, on the left of the diff. It reads the changes, prepares a briefing and answers your questions. It only reads: nothing changes on {branch}.",
+        "diffOnly": "You can also open the diff alone: the AI panel button starts the agent later.",
+        "yourAgent": "Your agent",
+        "openDiff": "Diff only",
+        "start": "Start the agent"
+    },
     "agentChoice": {
         "title": {
             "rebase": "Rebase #{number} with an agent",
