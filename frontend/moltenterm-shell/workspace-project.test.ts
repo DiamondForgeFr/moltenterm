@@ -5,17 +5,20 @@ import { describe, expect, it } from "vitest";
 import {
     checkAbsolutePath,
     checkPathInside,
+    declaredProjectIcon,
     effectiveWorkspaceFolder,
     linkUpdate,
-    declaredProjectIcon,
     logoProbeOrder,
     logoUrl,
     nextWorkspaceFolder,
     pathBaseName,
     pathParent,
     projectFilePath,
+    ProjectLogoChoiceMetaKey,
     ProjectLogoMetaKey,
+    projectLogoOf,
     ProjectLogoOfferMetaKey,
+    projectLogoUpdate,
     ProjectMetaKey,
     projectName,
     readmeFirstImage,
@@ -36,9 +39,36 @@ describe("readWorkspaceProject", () => {
             dir: "/p",
             logo: "/p/icon.png",
             logoOffer: "",
+            logoChoice: "",
         });
-        expect(readWorkspaceProject(ws(null))).toEqual({ dir: "", logo: "", logoOffer: "" });
+        expect(readWorkspaceProject(ws(null))).toEqual({ dir: "", logo: "", logoOffer: "", logoChoice: "" });
         expect(readWorkspaceProject(ws({ [ProjectMetaKey]: 42 })).dir).toBe("");
+    });
+});
+
+describe("the project's logo, chosen in the Project sheet only (FR-SHELL-105)", () => {
+    const project = (meta: Record<string, any>) => readWorkspaceProject(ws({ [ProjectMetaKey]: "/p", ...meta }));
+
+    it("is the chosen one, else the one shown, else the first image found", () => {
+        const found = ["/p/icon.png", "/p/logo.svg"];
+        expect(projectLogoOf(project({ [ProjectLogoChoiceMetaKey]: "/p/logo.svg" }), "/p", found)).toBe("/p/logo.svg");
+        expect(projectLogoOf(project({ [ProjectLogoMetaKey]: "/p/brand.png" }), "/p", found)).toBe("/p/brand.png");
+        expect(projectLogoOf(project({}), "/p", found)).toBe("/p/icon.png");
+        expect(projectLogoOf(project({}), "/p", [])).toBe("");
+    });
+
+    it("ignores a choice made for another folder", () => {
+        expect(projectLogoOf(project({ [ProjectLogoChoiceMetaKey]: "/old/icon.png" }), "/p", ["/p/icon.png"])).toBe(
+            "/p/icon.png"
+        );
+    });
+
+    it("moves the workspace's icon only when it already shows the project's logo", () => {
+        expect(projectLogoUpdate(project({}), "/p/logo.svg")).toEqual({ [ProjectLogoChoiceMetaKey]: "/p/logo.svg" });
+        expect(projectLogoUpdate(project({ [ProjectLogoMetaKey]: "/p/icon.png" }), "/p/logo.svg")).toEqual({
+            [ProjectLogoChoiceMetaKey]: "/p/logo.svg",
+            [ProjectLogoMetaKey]: "/p/logo.svg",
+        });
     });
 });
 

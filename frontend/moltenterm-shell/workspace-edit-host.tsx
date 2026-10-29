@@ -8,13 +8,14 @@
 import { atoms } from "@/app/store/global";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useEffect } from "react";
-import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
+import { listenWorkspaceMenu, openWorkspaceEditor, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import { WorkspaceEditIntentKey } from "./workspace-edit-model";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
 const WorkspaceEditSheet = lazy(() =>
     import("./workspace-edit-sheet").then((m) => ({ default: m.WorkspaceEditSheet }))
 );
+const ProjectSheet = lazy(() => import("./project-sheet").then((m) => ({ default: m.ProjectSheet })));
 
 export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
     const model = WorkspaceEditModel.getInstance();
@@ -37,6 +38,19 @@ export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
     }, [ws?.oid, ws?.activetabid, staticTabId]);
     if (request == null) {
         return null;
+    }
+    if (request.sheet === "project") {
+        return (
+            <Suspense fallback={null}>
+                <ProjectSheet
+                    key={`${request.workspaceId}:${request.projectId ?? ""}`}
+                    workspaceId={request.workspaceId}
+                    projectId={request.projectId}
+                    onBack={() => openWorkspaceEditor(request.workspaceId)}
+                    onClose={close}
+                />
+            </Suspense>
+        );
     }
     return (
         <Suspense fallback={null}>

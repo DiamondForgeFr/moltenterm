@@ -88,8 +88,19 @@ afterEach(() => {
 describe("one open request (DS-SHELL-035)", () => {
     it("opens a saved workspace as it is", async () => {
         expect(await WorkspaceEditModel.getInstance().open("w1", null)).toBe(true);
-        expect(request()).toEqual({ workspaceId: "w1", opener: null });
+        expect(request()).toEqual({ workspaceId: "w1", opener: null, sheet: "workspace", projectId: undefined });
         expect(services.UpdateWorkspace).not.toHaveBeenCalled();
+    });
+
+    it("goes to the Project sheet and back, keeping what first opened the sheet (FR-SHELL-105)", async () => {
+        const opener = { isConnected: true, focus: vi.fn() } as any;
+        const model = WorkspaceEditModel.getInstance();
+        await model.open("w1", opener);
+        await model.open("w1", null, { sheet: "project", projectId: "p2" });
+        expect(request()).toEqual({ workspaceId: "w1", opener, sheet: "project", projectId: "p2" });
+        await model.open("w1", null);
+        expect(request()).toEqual({ workspaceId: "w1", opener, sheet: "workspace", projectId: undefined });
+        expect(services.GetWorkspace).toHaveBeenCalledTimes(1);
     });
 
     it("saves an unsaved workspace with its default name and icon first (FR-SHELL-030-AC4)", async () => {

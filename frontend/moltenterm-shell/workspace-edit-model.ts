@@ -46,22 +46,16 @@ export function iconName(icon: string): string {
     return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
-// The sheet's two parts and the fields each holds, in order (#1280, DS-SHELL-036): what is the workspace's own, then
-// what follows its linked project. A field is in exactly one part.
-export type WorkspaceEditPart = "workspace" | "project";
-export type WorkspaceEditField =
-    | "name"
-    | "icon"
-    | "colour"
-    | "look"
-    | "linkedProject"
-    | "logo"
-    | "folder"
-    | "projectSettings";
+// The workspace sheet's blocks and the fields each holds, in order (FR-SHELL-105, DS-SHELL-036): who the workspace is,
+// how its window looks, then its projects. The project's own settings (type, branch, logo, pipeline, agent) are the
+// Project sheet's. A field is in exactly one block.
+export type WorkspaceEditPart = "identity" | "appearance" | "projects";
+export type WorkspaceEditField = "name" | "icon" | "useProjectLogo" | "colour" | "look" | "projects" | "folder";
 
 export const WorkspaceEditParts: Record<WorkspaceEditPart, readonly WorkspaceEditField[]> = {
-    workspace: ["name", "icon", "colour", "look"],
-    project: ["linkedProject", "logo", "folder", "projectSettings"],
+    identity: ["name", "icon", "useProjectLogo", "colour"],
+    appearance: ["look"],
+    projects: ["projects", "folder"],
 };
 
 export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {
@@ -70,25 +64,21 @@ export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {
     );
 }
 
-export type ProjectPartState = {
-    hasProject: boolean;
-    // Project settings… opens the sidebar's project page, which edits the workspace the window shows.
-    sidebarOn: boolean;
-    isWindowWorkspace: boolean;
+// The Project sheet's blocks and fields (FR-SHELL-105): every one is "For this project".
+export type ProjectSheetBlock = "repository" | "details" | "logo" | "pipeline" | "agent";
+
+export const ProjectSheetBlocks: Record<ProjectSheetBlock, readonly string[]> = {
+    repository: ["folder"],
+    details: ["type", "branch"],
+    logo: ["logo"],
+    pipeline: ["pipeline"],
+    agent: ["agent"],
 };
 
-// The Project part's fields that show. Without a linked project it offers the link and keeps the folder: nothing else
-// in the sheet waits on a project.
-export function projectPartFields(state: ProjectPartState): WorkspaceEditField[] {
-    return WorkspaceEditParts.project.filter((field) => {
-        if (field === "logo") {
-            return state.hasProject;
-        }
-        if (field === "projectSettings") {
-            return state.hasProject && state.sidebarOn && state.isWindowWorkspace;
-        }
-        return true;
-    });
+// The blocks that show: a project without a folder has no images, pipeline or agent to read yet.
+export function projectSheetBlocks(hasFolder: boolean): ProjectSheetBlock[] {
+    const all = Object.keys(ProjectSheetBlocks) as ProjectSheetBlock[];
+    return hasFolder ? all : all.filter((b) => b === "repository" || b === "details");
 }
 
 export type DangerAction = { kind: "delete" | "reset"; label: string; text: string };

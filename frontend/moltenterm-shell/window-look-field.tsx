@@ -252,6 +252,11 @@ export function OpacityControl({
     );
 }
 
+// Where the look is saved, for the Appearance block's scope tag (FR-SHELL-105): the project only when it holds it.
+export function useLookScope(ws: Workspace): LookScope {
+    return useShownLook(ws).scope === "project" ? "project" : "workspace";
+}
+
 export function OpacityField({ ws }: { ws: Workspace }) {
     const model = WindowLookModel.getInstance();
     const shown = useShownLook(ws);

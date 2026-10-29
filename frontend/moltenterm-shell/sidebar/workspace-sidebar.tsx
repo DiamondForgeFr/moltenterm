@@ -72,7 +72,7 @@ import { GoldUpdateButton } from "../update/update-dialog";
 import { View360ExitHost } from "../view360/view360-toggle";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
-import { openWorkspaceEditor } from "../workspace-edit";
+import { openProjectSheet, openWorkspaceEditor } from "../workspace-edit";
 import { WorkspaceIcon } from "../workspace-icon";
 import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
@@ -292,7 +292,7 @@ function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, 
     if (own != null) {
         items.push({
             label: t("sidebar.project.editMenu", { project: projectLabel(own) }),
-            click: () => SidebarModel.getInstance().openProjectPage(own),
+            click: () => openProjectSheet(own.id),
         });
     }
     return items;

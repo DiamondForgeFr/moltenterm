@@ -26,8 +26,8 @@ export async function addWorkspaceProject(draft: ProjectDraft): Promise<void> {
     });
 }
 
-export async function editWorkspaceProject(id: string, draft: ProjectDraft): Promise<void> {
-    const ws = activeWorkspace();
+// ws defaults to the window's workspace; the Project sheet (FR-SHELL-105) passes the one it edits.
+export async function editWorkspaceProject(id: string, draft: ProjectDraft, ws = activeWorkspace()): Promise<void> {
     const update = ws == null ? null : editProjectUpdate(ws, id, draft);
     if (update == null) {
         return;
@@ -35,8 +35,7 @@ export async function editWorkspaceProject(id: string, draft: ProjectDraft): Pro
     await writeMeta(ws, update);
 }
 
-export async function removeWorkspaceProject(id: string): Promise<void> {
-    const ws = activeWorkspace();
+export async function removeWorkspaceProject(id: string, ws = activeWorkspace()): Promise<void> {
     const update = ws == null ? null : removeProjectUpdate(ws, id);
     if (update == null) {
         return;

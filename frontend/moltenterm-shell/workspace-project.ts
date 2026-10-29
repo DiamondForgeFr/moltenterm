@@ -10,6 +10,9 @@ export const ProjectMetaKey = "molten:project";
 export const ProjectLogoMetaKey = "molten:projectlogo";
 // The project the logo was last offered for: the offer is made once per link, never again after a "no".
 export const ProjectLogoOfferMetaKey = "molten:projectlogooffer";
+// The image chosen as the project's logo in the Project sheet (FR-SHELL-105), kept while the workspace shows its own
+// icon; molten:projectlogo stays what the workspace shows. Frontend only: wavesrv reads molten:projectlogo.
+export const ProjectLogoChoiceMetaKey = "molten:projectlogochoice";
 // The folder the workspace works in (FR-SHELL-009). must match WorkspaceFolderMetaKey in pkg/molten/folder.go
 export const WorkspaceFolderMetaKey = "molten:folder";
 // The folders the workspace worked in, newest first (the command palette's recent folders, FR-SHELL-013).
@@ -64,7 +67,7 @@ export const LogoCandidatePaths = [
 
 export const LogoExtensions = ["svg", "png", "ico", "jpg", "jpeg", "webp", "gif"];
 
-export type WorkspaceProject = { dir: string; logo: string; logoOffer: string };
+export type WorkspaceProject = { dir: string; logo: string; logoOffer: string; logoChoice?: string };
 
 function metaString(meta: Record<string, any>, key: string): string {
     const value = meta?.[key];
@@ -77,7 +80,31 @@ export function readWorkspaceProject(ws: Workspace): WorkspaceProject {
         dir: metaString(meta, ProjectMetaKey),
         logo: metaString(meta, ProjectLogoMetaKey),
         logoOffer: metaString(meta, ProjectLogoOfferMetaKey),
+        logoChoice: metaString(meta, ProjectLogoChoiceMetaKey),
     };
+}
+
+// The project's logo (FR-SHELL-105): the one chosen in the Project sheet, else the one the workspace shows, else the
+// first image found. A choice made for another folder (the project was linked elsewhere since) is ignored.
+export function projectLogoOf(project: WorkspaceProject, dir: string, found: readonly string[]): string {
+    const inside = (path: string) => path !== "" && checkPathInside(path, dir);
+    if (inside(project?.logoChoice ?? "")) {
+        return project.logoChoice;
+    }
+    if (inside(project?.logo ?? "")) {
+        return project.logo;
+    }
+    return found?.[0] ?? "";
+}
+
+// The meta that makes `logo` the project's logo; the workspace's icon follows only when it already shows the project's
+// logo, so choosing a logo never replaces the workspace's own icon.
+export function projectLogoUpdate(project: WorkspaceProject, logo: string): Record<string, any> {
+    const update: Record<string, any> = { [ProjectLogoChoiceMetaKey]: logo || null };
+    if (project?.logo) {
+        update[ProjectLogoMetaKey] = logo || null;
+    }
+    return update;
 }
 
 // The folder the workspace's terminal last went to, as stored.
