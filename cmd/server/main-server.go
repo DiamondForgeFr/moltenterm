@@ -546,6 +546,10 @@ func main() {
 	}
 	if firstLaunch {
 		log.Printf("first launch detected")
+		// MOLTENTERM-PATCH (#1337): the Coulée terminal theme is the default of a fresh install only
+		if err := wconfig.SeedFirstLaunchTermTheme(); err != nil {
+			log.Printf("error seeding the terminal theme: %v\n", err)
+		}
 	}
 	// MOLTENTERM-PATCH (#132): saved web panes move to the browser panel before any window loads them
 	err = wcore.MigrateLegacyWebBlocks()
