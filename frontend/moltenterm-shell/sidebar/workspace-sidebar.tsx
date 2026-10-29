@@ -431,18 +431,21 @@ function usePanelArrived(peek: boolean, panelRef: React.RefObject<HTMLElement>):
             return;
         }
         let live = true;
-        // One frame so the slide's transition exists; reduced motion has none, and the buttons show at once.
-        const frame = requestAnimationFrame(() => {
-            const slides = panelRef.current?.getAnimations?.() ?? [];
-            void Promise.allSettled(slides.map((a) => a.finished)).then(() => {
-                if (live) {
-                    setArrived(true);
-                }
-            });
+        const panel = panelRef.current;
+        // The slide's transition only exists once the peek class's style is computed, which a frame callback still
+        // runs before (#1301: the buttons showed as the slide began). Reading the style computes it; reduced motion
+        // has no transition, and the buttons show at once.
+        if (panel != null) {
+            void getComputedStyle(panel).transform;
+        }
+        const slides = panel?.getAnimations?.() ?? [];
+        void Promise.allSettled(slides.map((a) => a.finished)).then(() => {
+            if (live) {
+                setArrived(true);
+            }
         });
         return () => {
             live = false;
-            cancelAnimationFrame(frame);
         };
     }, [peek]);
     return arrived;
