@@ -108,6 +108,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#1216, #1279): the window buttons show with the sidebar, on the window row's centre line (DS-SHELL-127)
     setWindowButtons: (state: { visible: boolean; zoom: number } | null) =>
         ipcRenderer.send("moltenterm-window-buttons", state),
+    // MOLTENTERM-PATCH (#1281): the workspace's look, see-through and blur (emain/moltenterm-window-look.ts)
+    setWindowLook: (look: { translucent: boolean; blur: boolean }) => ipcRenderer.send("moltenterm-window-look", look),
+    getWindowLookSupport: () => ipcRenderer.invoke("moltenterm-window-look-support"),
     closeBuilderWindow: () => ipcRenderer.send("close-builder-window"),
     incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>
         ipcRenderer.send("increment-term-commands", opts),

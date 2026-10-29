@@ -158,6 +158,8 @@ declare global {
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open
         setWindowButtons: (state: { visible: boolean; zoom: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279)
+        setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
+        getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste

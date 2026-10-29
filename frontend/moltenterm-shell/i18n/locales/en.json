@@ -4637,6 +4637,21 @@
             "projectSettings": "Project settings…",
             "projectSettingsHint": "Its type and the branch it follows, in the sidebar."
         },
+        "look": {
+            "title": "Look",
+            "opacity": "Opacity",
+            "percent": "{percent} percent",
+            "blur": "Blur what is behind",
+            "applyTo": "Apply to",
+            "thisWorkspace": "This workspace",
+            "theProject": "The project",
+            "framesOnly": "The window's frame and the sidebar let the desktop through; panels stay opaque.",
+            "fromProject": "Shared by every workspace on this project.",
+            "fromSettings": "From the window settings. A change here applies to this workspace only.",
+            "reducedTransparency": "Stays opaque: this computer is set to reduce transparency.",
+            "unsupported": "See-through windows are not available on this computer: the window stays opaque.",
+            "noBlur": "Blur is not available on this computer."
+        },
         "iconKind": {
             "imported": "imported image",
             "logo": "project logo"

@@ -4637,6 +4637,21 @@
             "projectSettings": "Réglages du projet…",
             "projectSettingsHint": "Son type et la branche suivie, dans la barre latérale."
         },
+        "look": {
+            "title": "Apparence",
+            "opacity": "Opacité",
+            "percent": "{percent} pour cent",
+            "blur": "Flouter l'arrière-plan",
+            "applyTo": "Appliquer à",
+            "thisWorkspace": "Cet espace de travail",
+            "theProject": "Le projet",
+            "framesOnly": "Le cadre de la fenêtre et la barre latérale laissent voir le bureau ; les panneaux restent opaques.",
+            "fromProject": "Partagée par tous les espaces de travail de ce projet.",
+            "fromSettings": "Issue des réglages de la fenêtre. Un changement ici ne vaut que pour cet espace de travail.",
+            "reducedTransparency": "Reste opaque : cet ordinateur est réglé pour réduire la transparence.",
+            "unsupported": "Les fenêtres transparentes ne sont pas disponibles sur cet ordinateur : la fenêtre reste opaque.",
+            "noBlur": "Le flou n'est pas disponible sur cet ordinateur."
+        },
         "iconKind": {
             "imported": "image importée",
             "logo": "logo du projet"

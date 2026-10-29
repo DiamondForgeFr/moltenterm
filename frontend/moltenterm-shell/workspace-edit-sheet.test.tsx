@@ -37,6 +37,7 @@ vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
 }));
+vi.mock("./window-look-field", () => ({ OpacityField: () => <div data-stub="opacity">Opacity</div> }));
 // The real frame portals into document.body; the sheet's content is what is checked here.
 vi.mock("./dialog-frame", () => ({
     useEscape: () => {},
@@ -108,7 +109,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         return rtn;
     }
 
-    it("puts name, icon and colour under Workspace, and the project, its logo, the folder and its settings under Project", () => {
+    it("puts name, icon, colour and look under Workspace, and the project, its logo, the folder and its settings under Project", () => {
         const enabledAtom = SidebarModel.getInstance().enabledAtom as PrimitiveAtom<boolean>;
         const store = getDefaultStore();
         const linked = { ...ws, meta: { "molten:project": "/code/client-a" } } as any as Workspace;
@@ -118,7 +119,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
             current.ws = linked;
             const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
             expect(fieldsByPart(html)).toEqual({
-                Workspace: ["name", "icon", "colour"],
+                Workspace: ["name", "icon", "colour", "look"],
                 Project: ["linkedProject", "logo", "folder", "projectSettings"],
                 "Danger zone": [],
             });
@@ -134,7 +135,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(fieldsByPart(html).Project).toEqual(["linkedProject", "folder"]);
         expect(html).toContain('data-stub="project"');
         expect(html).not.toContain("disabled");
-        expect(fieldsByPart(html).Workspace).toEqual(["name", "icon", "colour"]);
+        expect(fieldsByPart(html).Workspace).toEqual(["name", "icon", "colour", "look"]);
     });
 
     it("holds a labelled name field and a preview of the rail badge at its real size", () => {

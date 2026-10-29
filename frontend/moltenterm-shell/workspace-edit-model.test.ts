@@ -16,7 +16,6 @@ import {
     projectPartFields,
     radioTabStop,
     WorkspaceEditParts,
-    workspacePartFields,
 } from "./workspace-edit-model";
 import { LastWorkspaceReason } from "./workspace-reset-model";
 
@@ -154,10 +153,5 @@ describe("the Workspace part and the Project part (#1280, TC-SHELL-206, TC-SHELL
         expect(projectPartFields(linked)).toEqual(["linkedProject", "logo", "folder", "projectSettings"]);
         expect(projectPartFields({ ...linked, sidebarOn: false })).toEqual(["linkedProject", "logo", "folder"]);
         expect(projectPartFields({ ...linked, isWindowWorkspace: false })).toEqual(["linkedProject", "logo", "folder"]);
-    });
-
-    it("shows the look only once it is available", () => {
-        expect(workspacePartFields(false)).toEqual(["name", "icon", "colour"]);
-        expect(workspacePartFields(true)).toEqual(["name", "icon", "colour", "look"]);
     });
 });

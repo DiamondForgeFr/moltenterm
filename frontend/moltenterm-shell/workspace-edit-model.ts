@@ -91,11 +91,6 @@ export function projectPartFields(state: ProjectPartState): WorkspaceEditField[]
     });
 }
 
-// The Workspace part's fields that show; the look comes with the window's opacity (#1281).
-export function workspacePartFields(lookAvailable: boolean): WorkspaceEditField[] {
-    return WorkspaceEditParts.workspace.filter((field) => field !== "look" || lookAvailable);
-}
-
 export type DangerAction = { kind: "delete" | "reset"; label: string; text: string };
 
 // The last workspace is reset, never deleted (#222); both keep their confirmations.
