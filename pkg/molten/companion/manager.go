@@ -106,6 +106,8 @@ type SessionInfo struct {
 	// Ticket, Complexity: the ticket the main agent works on and its complexity label (#601).
 	Ticket     int    `json:"ticket,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
+	// LastPrompt: when the user's latest prompt was typed, the start of the agent's current turn (FR-SHELL-104).
+	LastPrompt int64 `json:"lastprompt,omitempty"`
 	// Earlier: the user chose an earlier session of the pane in the history; the agent's hook reported a newer one.
 	Earlier bool `json:"earlier,omitempty"`
 	// LivePath: with Earlier, the session the agent runs now.
@@ -1878,6 +1880,7 @@ func (w *watcher) view(elide bool) CompanionView {
 		Effort:   w.session.Effort(),
 	}
 	v.Session.Ticket, v.Session.Complexity = w.session.Ticket()
+	v.Session.LastPrompt = w.session.LastPromptAt()
 	if w.status == StatusUnsupportedFormat {
 		return v
 	}

@@ -7,11 +7,20 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useState } from "react";
 import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "../agent-info/agent-info-hooks";
-import { subagentRows, type SubagentRow } from "../agent-info/agent-info-model";
+import {
+    MaxRunningSubRows,
+    parentTurnStart,
+    subagentGroups,
+    subagentKindKey,
+    subagentRows,
+    type SubagentRow,
+} from "../agent-info/agent-info-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
 import { agentStateLabel, agentStateMessage, type AgentStateInfo } from "../agent-state-model";
 import { useCompanionFollow } from "../companion/companion-follow";
+import type { CompanionView } from "../companion/companion-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
 import { agentRowLook, agentRowTarget, type AgentTreeSection } from "./sidebar-agents-model";
@@ -102,19 +111,130 @@ function SectionTitle({
     );
 }
 
+// A sub-agent row (FR-SHELL-104): its description alone, so a long one keeps the width; its state is a mark, never a
+// word (F26). One loader only: the agent's own row, which works while its sub-agents do (#1092); the section's header
+// carries it only when that row does not (the agent waits on a question while its sub-agents run).
 function SubagentLeaf({ row, onOpen }: { row: SubagentRow; onOpen: () => void }) {
     const t = useT();
-    const title = [row.name, [row.kind, row.model].filter(Boolean).join(" · ")].filter(Boolean).join("\n");
+    const kindKey = subagentKindKey(row.kind);
+    const kind = kindKey ? t(kindKey) : row.kind;
+    const state = t(`agentInfo.subState.${row.state}`);
+    const title = [row.name, [state, kind, row.model].filter(Boolean).join(" · "), t("agentInfo.sub.open")]
+        .filter(Boolean)
+        .join("\n");
     return (
-        <button type="button" className="mt-sb-leaf" title={title} data-testid="sidebar-agent-sub" onClick={onOpen}>
+        <button
+            type="button"
+            className={cn("mt-sb-leaf", `is-sub-${row.state}`)}
+            title={title}
+            data-testid="sidebar-agent-sub"
+            data-state={row.state}
+            onClick={onOpen}
+        >
             <AgentGlyph name="sub" />
             <span className="mt-sb-leaf-t">{row.name}</span>
-            {row.state === "working" ? (
-                <WorkingDominoes />
-            ) : (
-                <span className="mt-sb-leaf-s">{t(`agentInfo.subState.${row.state}`)}</span>
-            )}
+            {row.state === "done" || row.state === "error" || row.state === "idle" ? (
+                <span className="mt-sb-sub-mark" aria-label={state} />
+            ) : null}
         </button>
+    );
+}
+
+function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: CompanionView }) {
+    const t = useT();
+    const tc = useTCount();
+    const model = AgentInfoModel.getInstance();
+    const clearedAll = useAtomValue(model.clearedSubsAtom);
+    const trees = useAtomValue(model.treesAtom);
+    const [allRunning, setAllRunning] = useState(false);
+    const [doneOpen, setDoneOpen] = useState(false);
+    const rows = subagentRows(companion);
+    const groups = subagentGroups(rows, parentTurnStart(companion), !!companion?.ended, clearedAll[info.blockid]);
+    const doneCount = groups.recent.length + groups.folded.length;
+    if (groups.running.length + doneCount === 0) {
+        return null;
+    }
+    const shut = !!trees[info.blockid]?.shut?.subs;
+    const running = allRunning ? groups.running : groups.running.slice(0, MaxRunningSubRows);
+    const more = groups.running.length - running.length;
+    const open = (s: SubagentRow) => model.openSub(info.blockid, s.id);
+    const counts = [
+        groups.running.length > 0 ? tc("agentInfo.sub.running", groups.running.length) : "",
+        doneCount > 0 ? tc("agentInfo.sub.done", doneCount) : "",
+    ]
+        .filter(Boolean)
+        .join(" · ");
+    return (
+        <>
+            <button
+                type="button"
+                className={cn("mt-sb-tl", shut && "is-shut")}
+                aria-expanded={!shut}
+                data-testid="sidebar-agent-section-subs"
+                onClick={() => model.toggleSection(info.blockid, "subs")}
+            >
+                <SidebarGlyph name="chev" size={10} />
+                <span title={t("agentInfo.subagents")}>{t("agentInfo.subagents")}</span>
+                {groups.working > 0 && agentRowLook(info) !== "working" ? (
+                    <WorkingDominoes label={agentStateLabel("working")} />
+                ) : null}
+                <span className="mt-sb-tl-n" data-testid="sidebar-agent-subs-count">
+                    {counts}
+                </span>
+            </button>
+            {shut ? null : (
+                <>
+                    {running.map((s) => (
+                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                    ))}
+                    {more > 0 ? (
+                        <button
+                            type="button"
+                            className="mt-sb-leaf mt-sb-more"
+                            data-testid="sidebar-agent-subs-more"
+                            onClick={() => setAllRunning(true)}
+                        >
+                            {t("agentInfo.sub.more", { count: more })}
+                        </button>
+                    ) : null}
+                    {groups.recent.map((s) => (
+                        <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
+                    ))}
+                    {groups.folded.length > 0 ? (
+                        <button
+                            type="button"
+                            className={cn("mt-sb-leaf mt-sb-fold", !doneOpen && "is-shut")}
+                            aria-expanded={doneOpen}
+                            data-testid="sidebar-agent-subs-done"
+                            onClick={() => setDoneOpen(!doneOpen)}
+                        >
+                            <SidebarGlyph name="chev" size={10} />
+                            <span className="mt-sb-leaf-t">
+                                {t("agentInfo.sub.doneFold", { count: groups.folded.length })}
+                            </span>
+                        </button>
+                    ) : null}
+                    {doneOpen
+                        ? groups.folded.map((s) => <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />)
+                        : null}
+                    {doneCount > 0 ? (
+                        <button
+                            type="button"
+                            className="mt-sb-sub-clear"
+                            data-testid="sidebar-agent-subs-clear"
+                            onClick={() =>
+                                model.clearDoneSubs(
+                                    info.blockid,
+                                    [...groups.recent, ...groups.folded].map((s) => s.id)
+                                )
+                            }
+                        >
+                            {t("agentInfo.sub.clearDone")}
+                        </button>
+                    ) : null}
+                </>
+            )}
+        </>
     );
 }
 
@@ -150,26 +270,12 @@ function LinkedLeaf({ row, workspaceId }: { row: LinkedAgentRow; workspaceId: st
 function AgentTree({ info, shut }: { info: AgentStateInfo; shut: Partial<Record<AgentTreeSection, boolean>> }) {
     const t = useT();
     const companion = useCompanionFollow(info.blockid);
-    const subs = subagentRows(companion);
     const links = useLinkedAgents(info.blockid);
     const name = agentDisplayName(info);
     const model = AgentInfoModel.getInstance();
     return (
         <div className="mt-sb-tree" data-testid="sidebar-agent-tree">
-            {subs.length > 0 ? (
-                <>
-                    <SectionTitle
-                        blockId={info.blockid}
-                        section="subs"
-                        label={t("agentInfo.subagents")}
-                        count={subs.length}
-                        shut={!!shut?.subs}
-                    />
-                    {shut?.subs
-                        ? null
-                        : subs.map((s) => <SubagentLeaf key={s.id} row={s} onOpen={() => model.open(info.blockid)} />)}
-                </>
-            ) : null}
+            <SubagentsGroup info={info} companion={companion} />
             {links.length > 0 ? (
                 <>
                     <SectionTitle

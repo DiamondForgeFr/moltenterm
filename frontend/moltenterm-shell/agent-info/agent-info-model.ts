@@ -91,6 +91,10 @@ export type SubagentRow = {
     kind: string;
     model: string;
     state: SubagentRowState;
+    effort?: string;
+    branch?: string;
+    started?: number;
+    ended?: number;
 };
 
 const SubagentStates: Record<string, SubagentRowState> = {
@@ -112,9 +116,105 @@ export function subagentRows(view: CompanionView): SubagentRow[] {
             kind: (s.kind ?? "").trim(),
             model: (s.model ?? "").trim(),
             state: SubagentStates[s.state] ?? "working",
+            effort: (s.effort ?? "").trim(),
+            branch: (s.branch ?? "").trim(),
+            started: s.started ?? 0,
+            ended: s.ended ?? 0,
         }))
         .filter((s) => s.name !== "")
         .sort((a, b) => rank[a.state] - rank[b.state]);
+}
+
+// The sidebar shows at most this many running sub-agents, then "+n" (FR-SHELL-104).
+export const MaxRunningSubRows = 5;
+
+export function subagentRunning(row: SubagentRow): boolean {
+    return row?.state === "working" || row?.state === "idle";
+}
+
+// The sub-agents of an agent as the sidebar groups them (FR-SHELL-104, #1333): the running ones (quiet included), the
+// finished ones that ended during the parent's current turn, still shown as rows, and the older ones, folded under
+// "Done (n)". A finished one is gone once cleared by hand, and all are once the parent no longer runs.
+export type SubagentGroups = {
+    running: SubagentRow[];
+    recent: SubagentRow[];
+    folded: SubagentRow[];
+    // working: how many are at work now (the header's one loader).
+    working: number;
+};
+
+export function subagentGroups(
+    rows: SubagentRow[],
+    turnStart: number,
+    parentEnded: boolean,
+    cleared: Record<string, boolean>
+): SubagentGroups {
+    const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
+    const done = parentEnded
+        ? []
+        : (rows ?? [])
+              .filter((r) => !subagentRunning(r) && !cleared?.[r.id])
+              .sort((a, b) => (b.ended ?? 0) - (a.ended ?? 0));
+    const isRecent = (r: SubagentRow) => turnStart > 0 && (!r.ended || r.ended >= turnStart);
+    return {
+        running,
+        recent: done.filter(isRecent),
+        folded: done.filter((r) => !isRecent(r)),
+        working: running.filter((r) => r.state === "working").length,
+    };
+}
+
+// The parent's current turn: when its latest prompt was typed, 0 when unknown (then every finished one is folded).
+// A topic only lists once its turn used a tool: the session's last prompt comes first.
+export function parentTurnStart(view: CompanionView): number {
+    let rtn = view?.session?.lastprompt ?? 0;
+    for (const t of view?.topics ?? []) {
+        rtn = Math.max(rtn, t.at ?? 0);
+    }
+    return rtn;
+}
+
+// The i18n key of a sub-agent type the agents name (Claude Code's subagent_type, Codex's agent_type); an unknown one
+// (a user's own agent) shows as the agent names it.
+const SubagentKindKeys: Record<string, string> = {
+    "general-purpose": "general",
+    default: "general",
+    explore: "explore",
+    explorer: "explore",
+    plan: "plan",
+    worker: "worker",
+    "statusline-setup": "statusline",
+    "claude-code-guide": "guide",
+    "output-style-setup": "outputStyle",
+};
+
+export function subagentKindKey(kind: string): string {
+    const key = SubagentKindKeys[(kind ?? "").trim().toLowerCase()];
+    return key ? `agentInfo.subKind.${key}` : "";
+}
+
+// How long a sub-agent ran, or runs so far: "45 s", "4 min", "1 h 20 min", in the interface language.
+export function subagentDuration(started: number, ended: number, now: number, locale: string): string {
+    if (!started) {
+        return "";
+    }
+    const end = ended || now;
+    if (end < started) {
+        return "";
+    }
+    const unit = (n: number, u: string) =>
+        new Intl.NumberFormat(locale, { style: "unit", unit: u, unitDisplay: "short" }).format(n);
+    const seconds = Math.floor((end - started) / 1000);
+    if (seconds < 60) {
+        return unit(seconds, "second");
+    }
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+        return unit(minutes, "minute");
+    }
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest > 0 ? `${unit(hours, "hour")} ${unit(rest, "minute")}` : unit(hours, "hour");
 }
 
 export type McpServerRow = { server: string; state: LinkState; live: boolean };

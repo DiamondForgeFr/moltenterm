@@ -43,6 +43,10 @@ export class AgentInfoModel {
     // The agent terminal whose window is open; null when none is.
     openAtom = atom(null) as PrimitiveAtom<string>;
     treesAtom = atom(readStoredTrees()) as PrimitiveAtom<AgentTreeStates>;
+    // The sub-agent whose own card is open (FR-SHELL-104): its parent's terminal and its id; null when none is.
+    openSubAtom = atom(null) as PrimitiveAtom<{ blockId: string; id: string }>;
+    // The finished sub-agents cleared by hand, per agent terminal; kept for this window's run only.
+    clearedSubsAtom = atom({}) as PrimitiveAtom<Record<string, Record<string, boolean>>>;
     started = false;
 
     private constructor() {}
@@ -105,11 +109,36 @@ export class AgentInfoModel {
         if (!blockId) {
             return;
         }
+        globalStore.set(this.openSubAtom, null);
         globalStore.set(this.openAtom, blockId);
     }
 
     close(): void {
         globalStore.set(this.openAtom, null);
+    }
+
+    openSub(blockId: string, id: string): void {
+        if (!blockId || !id) {
+            return;
+        }
+        globalStore.set(this.openAtom, null);
+        globalStore.set(this.openSubAtom, { blockId, id });
+    }
+
+    closeSub(): void {
+        globalStore.set(this.openSubAtom, null);
+    }
+
+    clearDoneSubs(blockId: string, ids: string[]): void {
+        if (!blockId || !(ids?.length > 0)) {
+            return;
+        }
+        const all = globalStore.get(this.clearedSubsAtom);
+        const own = { ...(all[blockId] ?? {}) };
+        for (const id of ids) {
+            own[id] = true;
+        }
+        globalStore.set(this.clearedSubsAtom, { ...all, [blockId]: own });
     }
 
     toggleTree(blockId: string): void {

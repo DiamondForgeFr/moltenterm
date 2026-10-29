@@ -3,7 +3,18 @@
 
 import { describe, expect, it } from "vitest";
 import type { HandoffHistoryEntry } from "../agent-links/agent-links-model";
-import { linkedAgents, mcpServerRows, sharedPages, startedAgo, subagentRows } from "./agent-info-model";
+import {
+    linkedAgents,
+    mcpServerRows,
+    parentTurnStart,
+    sharedPages,
+    startedAgo,
+    subagentDuration,
+    subagentGroups,
+    subagentKindKey,
+    subagentRows,
+    type SubagentRow,
+} from "./agent-info-model";
 
 const names: Record<string, string> = { a: "Valentin", b: "Olivia", c: "Victoire" };
 const nameOf = (id: string) => names[id] ?? "";
@@ -49,12 +60,103 @@ describe("subagentRows", () => {
                 { id: "4", state: "running" },
             ],
         });
+        const plain = { effort: "", branch: "", started: 0, ended: 0 };
         expect(rows).toEqual([
-            { id: "2", name: "Code review", kind: "general-purpose", model: "Opus 5.5", state: "working" },
-            { id: "3", name: "worker", kind: "worker", model: "", state: "error" },
-            { id: "1", name: "Screen inventory", kind: "Explore", model: "Haiku 5.5", state: "done" },
+            { id: "2", name: "Code review", kind: "general-purpose", model: "Opus 5.5", state: "working", ...plain },
+            { id: "3", name: "worker", kind: "worker", model: "", state: "error", ...plain },
+            { id: "1", name: "Screen inventory", kind: "Explore", model: "Haiku 5.5", state: "done", ...plain },
         ]);
         expect(subagentRows(null)).toEqual([]);
+    });
+});
+
+describe("subagentGroups", () => {
+    const row = (id: string, state: SubagentRow["state"], started: number, ended = 0): SubagentRow => ({
+        id,
+        name: `Ticket #${id}`,
+        kind: "general-purpose",
+        model: "",
+        state,
+        started,
+        ended,
+    });
+    // The audit's case (#1316 F8): 3 running, 9 finished before the parent's latest prompt.
+    const twelve = [
+        ...Array.from({ length: 9 }, (_, i) => row(`d${i}`, "done", 10 + i, 20 + i)),
+        row("r1", "working", 50),
+        row("r2", "working", 51),
+        row("r3", "idle", 52),
+    ];
+
+    it("shows the running ones and folds the ones finished before the parent's turn", () => {
+        const g = subagentGroups(twelve, 40, false, {});
+        expect(g.running.map((r) => r.id)).toEqual(["r1", "r2", "r3"]);
+        expect(g.recent).toEqual([]);
+        expect(g.folded).toHaveLength(9);
+        expect(g.folded[0].id).toBe("d8");
+        expect(g.working).toBe(2);
+    });
+
+    it("keeps the ones finished during the parent's turn as rows until its next one", () => {
+        const g = subagentGroups([...twelve, row("late", "done", 55, 60)], 40, false, {});
+        expect(g.recent.map((r) => r.id)).toEqual(["late"]);
+        expect(subagentGroups([...twelve, row("late", "done", 55, 60)], 70, false, {}).recent).toEqual([]);
+        expect(subagentGroups(twelve, 0, false, {}).folded).toHaveLength(9);
+    });
+
+    it("clears the finished ones once the parent stops, or by hand", () => {
+        expect(subagentGroups(twelve, 40, true, {}).folded).toEqual([]);
+        expect(subagentGroups(twelve, 40, true, {}).running).toHaveLength(3);
+        const g = subagentGroups(twelve, 40, false, { d0: true, d1: true, r1: true });
+        expect(g.folded).toHaveLength(7);
+        expect(g.running).toHaveLength(3);
+    });
+
+    it("reads the parent's turn from its last prompt, even one that used no tool yet", () => {
+        const topics = [{ text: "a", at: 5 }];
+        expect(
+            parentTurnStart({
+                blockid: "a",
+                version: 1,
+                status: "ok" as any,
+                topics,
+                session: { lastprompt: 12 } as any,
+            })
+        ).toBe(12);
+    });
+
+    it("reads the parent's turn from its latest topic", () => {
+        expect(
+            parentTurnStart({
+                blockid: "a",
+                version: 1,
+                status: "ok" as any,
+                topics: [
+                    { text: "a", at: 5 },
+                    { text: "b", at: 9 },
+                ],
+            })
+        ).toBe(9);
+        expect(parentTurnStart(null)).toBe(0);
+    });
+});
+
+describe("subagentKindKey", () => {
+    it("translates the types the agents name, and leaves a user's own type as it is", () => {
+        expect(subagentKindKey("general-purpose")).toBe("agentInfo.subKind.general");
+        expect(subagentKindKey("Explore")).toBe("agentInfo.subKind.explore");
+        expect(subagentKindKey("explorer")).toBe("agentInfo.subKind.explore");
+        expect(subagentKindKey("my-reviewer")).toBe("");
+        expect(subagentKindKey(undefined)).toBe("");
+    });
+});
+
+describe("subagentDuration", () => {
+    it("says how long it ran, or runs so far", () => {
+        expect(subagentDuration(1000, 46_000, 0, "en")).toBe("45 sec");
+        expect(subagentDuration(0, 46_000, 0, "en")).toBe("");
+        expect(subagentDuration(1, 4 * 60_000 + 1, 0, "fr").replace(/\s/g, " ")).toBe("4 min");
+        expect(subagentDuration(1, 0, 80 * 60_000 + 1, "en")).toBe("1 hr 20 min");
     });
 });
 
