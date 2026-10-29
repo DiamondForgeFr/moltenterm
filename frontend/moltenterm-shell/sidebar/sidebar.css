@@ -314,7 +314,7 @@
 }
 
 .mt-sb-corner.is-small {
-    top: 3px;
+    top: 2px;
     right: 4px;
     gap: 1.5px;
 }
@@ -378,25 +378,25 @@
    pull requests, in the corner column, red blocked on the developer, green ready to merge, orange CI running, grey
    the agents' turn. Colours are the fixed state tokens; a thin dark edge keeps them apart from light and translucent
    looks. Dots showing up fade in once, a dot whose count changes glows once; nothing moves at rest. */
-.mt-sb-dots {
+.mt-sb-prdots {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    animation: mt-sb-dots-in 320ms var(--mt-ease) both;
+    animation: mt-sb-prdots-in 320ms var(--mt-ease) both;
 }
 
-.mt-sb-dots.is-calm {
+.mt-sb-prdots.is-calm {
     animation: none;
 }
 
-@keyframes mt-sb-dots-in {
+@keyframes mt-sb-prdots-in {
     from {
         opacity: 0;
     }
 }
 
-.mt-sb-dot {
+.mt-sb-prdot {
     width: 6px;
     height: 6px;
     flex-shrink: 0;
@@ -405,36 +405,36 @@
     box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.25);
 }
 
-.mt-sb-dots.is-small {
+.mt-sb-prdots.is-small {
     gap: 1.5px;
 }
 
-.mt-sb-dots.is-small .mt-sb-dot {
+.mt-sb-prdots.is-small .mt-sb-prdot {
     width: 4px;
     height: 4px;
 }
 
-.mt-sb-dot.is-blocked {
+.mt-sb-prdot.is-blocked {
     color: var(--mt-state-error);
 }
 
-.mt-sb-dot.is-ready {
+.mt-sb-prdot.is-ready {
     color: var(--mt-state-done);
 }
 
-.mt-sb-dot.is-ci {
+.mt-sb-prdot.is-ci {
     color: var(--mt-state-working);
 }
 
-.mt-sb-dot.is-draft {
+.mt-sb-prdot.is-draft {
     color: var(--mt-sb-fg-3);
 }
 
-.mt-sb-dot.is-bump {
-    animation: mt-sb-dot-glow 700ms var(--mt-ease);
+.mt-sb-prdot.is-bump {
+    animation: mt-sb-prdot-glow 700ms var(--mt-ease);
 }
 
-@keyframes mt-sb-dot-glow {
+@keyframes mt-sb-prdot-glow {
     40% {
         box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 40%, transparent);
     }
@@ -462,8 +462,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mt-sb-dots,
-    .mt-sb-dot.is-bump,
+    .mt-sb-prdots,
+    .mt-sb-prdot.is-bump,
     .mt-sb-omni-pop {
         animation: none;
     }

@@ -659,8 +659,10 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 active
                     ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
                     : "bg-white/[0.09] hover:bg-white/15",
-                // The dots' column sits on the right: the name keeps clear of it, still centred.
-                hasCounts && "px-[15px]",
+                // The dots' column sits on the right: the glyph and the name keep clear of it (centred in what is left,
+                // so a three-panel glyph still fits); a wider glyph takes its small size and is clipped rather than
+                // run under the dots.
+                hasCounts && "pr-[15px]",
                 drag?.kind === "tile" && drag.id === tabId && "mt-sb-dragged",
                 dropSideClass(drag, "tiles", tabId)
             )}
@@ -684,7 +686,11 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             }}
             onContextMenu={onContextMenu}
         >
-            <ViewGlyph icons={glyph} />
+            {hasCounts ? (
+                <ViewGlyph icons={glyph} small={glyph.length > 1} className="max-w-full overflow-hidden" />
+            ) : (
+                <ViewGlyph icons={glyph} />
+            )}
             {renaming ? (
                 <span className="flex w-full px-0.5">
                     <RenameInput initial={identity.name} onDone={rename} />

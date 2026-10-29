@@ -164,7 +164,7 @@ export function PrDots({
     }
     return (
         <span
-            className={cn("mt-sb-dots", small && "is-small", calm && "is-calm")}
+            className={cn("mt-sb-prdots", small && "is-small", calm && "is-calm")}
             role="group"
             aria-label={summary}
             data-testid="sidebar-pr-counts"
@@ -175,7 +175,7 @@ export function PrDots({
                 return (
                     <span
                         key={bump ? `${kind}-${counts[kind]}` : kind}
-                        className={cn("mt-sb-dot", `is-${kind}`, bump && "is-bump")}
+                        className={cn("mt-sb-prdot",`is-${kind}`, bump && "is-bump")}
                         role="img"
                         title={label}
                         aria-label={label}
