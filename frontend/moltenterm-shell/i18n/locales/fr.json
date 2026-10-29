@@ -8906,10 +8906,40 @@
             "other": "{count} panneaux"
         },
         "ended": "Cet agent s'est arrêté : ce que l'on savait de lui reste ici.",
-        "moreLater": "D'autres informations viendront ici : coût, contexte utilisé, historique des échanges.",
         "connections": "Connexions",
         "close": "Fermer",
-        "goToView": "Aller à sa vue"
+        "goToView": "Aller à sa vue",
+        "subagent": "Sous-agent",
+        "sub": {
+            "of": "Sous-agent de {name}",
+            "gone": "Ce sous-agent n'est plus listé.",
+            "type": "Type",
+            "runningFor": "En cours depuis",
+            "duration": "Durée",
+            "lastMessage": "Dernier message",
+            "transcript": "Ouvrir sa transcription",
+            "open": "Cliquer pour voir sa fiche",
+            "running": {
+                "one": "{count} en cours",
+                "other": "{count} en cours"
+            },
+            "done": {
+                "one": "{count} fini",
+                "other": "{count} finis"
+            },
+            "more": "+{count}",
+            "doneFold": "Terminés ({count})",
+            "clearDone": "Effacer les terminés"
+        },
+        "subKind": {
+            "general": "Usage général",
+            "explore": "Exploration",
+            "plan": "Planification",
+            "worker": "Exécution",
+            "statusline": "Réglage de la ligne d'état",
+            "guide": "Guide",
+            "outputStyle": "Réglage du style de sortie"
+        }
     },
     "sidebar": {
         "label": "Barre latérale de {name}",

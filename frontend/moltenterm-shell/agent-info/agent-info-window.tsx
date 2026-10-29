@@ -7,6 +7,7 @@
 // servers, the commands it ran, the pages shared with it and its view. Sections are a list (AgentInfoSections), so
 // later stories add theirs (cost, context used) without touching the others; a section with nothing to show is left out.
 
+import { atoms } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -38,12 +39,21 @@ import { useTabIdentity } from "../tab-identity-ui";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readWorktreeLink } from "../worktree-model";
 import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "./agent-info-hooks";
-import { agentTool, mcpServerRows, sharedPages, startedAgo, subagentRows, type SharedPage } from "./agent-info-model";
+import {
+    agentTool,
+    mcpServerRows,
+    sharedPages,
+    startedAgo,
+    subagentKindKey,
+    subagentRows,
+    type SharedPage,
+} from "./agent-info-model";
+import { AgentInfoModel } from "./agent-info-store";
 
-const PlainButton =
+export const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
-const SectionTitle = "mt-3.5 mb-1.5 text-11 font-semibold tracking-[0.07em] text-muted uppercase";
+export const SectionTitle = "mt-3.5 mb-1.5 text-11 font-semibold tracking-[0.07em] text-muted uppercase";
 const Line = "flex w-full items-center gap-2 rounded-6 px-2 py-1.5 text-left text-12 text-secondary";
 const LineButton = cn(Line, "cursor-pointer hover:bg-white/[0.06] hover:text-primary");
 const Chip =
@@ -66,7 +76,7 @@ export type AgentInfoSection = {
     Component: React.ComponentType<{ ctx: AgentInfoContext }>;
 };
 
-function Fact({ label, value, title }: { label: string; value: string; title?: string }) {
+export function Fact({ label, value, title }: { label: string; value: string; title?: string }) {
     if (!value) {
         return null;
     }
@@ -116,21 +126,41 @@ function SubagentsSection({ ctx }: { ctx: AgentInfoContext }) {
     if (rows.length === 0) {
         return null;
     }
+    // One loader: the card's head shows the agent's own while it works.
+    const working = rows.some((s) => s.state === "working") && agentRowLook(ctx.info) !== "working";
     return (
         <section data-testid="agent-info-subagents">
-            <h5 className={SectionTitle}>{t("agentInfo.subagents")}</h5>
-            {rows.map((s) => (
-                <div key={s.id} className={Line}>
-                    <AgentGlyph name="sub" size={14} />
-                    <span className="min-w-0 truncate text-primary">{s.name}</span>
-                    <span className="shrink-0 truncate text-muted">
-                        {[s.kind !== s.name ? s.kind : "", s.model].filter(Boolean).join(" · ")}
-                    </span>
-                    <span className="ml-auto shrink-0 text-11 text-muted">
-                        {s.state === "working" ? <WorkingDominoes /> : t(`agentInfo.subState.${s.state}`)}
-                    </span>
-                </div>
-            ))}
+            <h5 className={cn(SectionTitle, "flex items-center gap-2")}>
+                {t("agentInfo.subagents")}
+                {working ? <WorkingDominoes /> : null}
+            </h5>
+            {rows.map((s) => {
+                const kindKey = subagentKindKey(s.kind);
+                const kind = kindKey ? t(kindKey) : s.kind !== s.name ? s.kind : "";
+                return (
+                    <button
+                        key={s.id}
+                        type="button"
+                        className={LineButton}
+                        data-testid="agent-info-sub"
+                        onClick={() => AgentInfoModel.getInstance().openSub(ctx.blockId, s.id)}
+                    >
+                        <AgentGlyph name="sub" size={14} />
+                        <span className="min-w-0 truncate text-primary">{s.name}</span>
+                        <span className="shrink-0 truncate text-muted">
+                            {[kind, s.model].filter(Boolean).join(" · ")}
+                        </span>
+                        <span
+                            className={cn(
+                                "ml-auto shrink-0 text-11",
+                                s.state === "error" ? "text-danger" : "text-muted"
+                            )}
+                        >
+                            {t(`agentInfo.subState.${s.state}`)}
+                        </span>
+                    </button>
+                );
+            })}
         </section>
     );
 }
@@ -419,6 +449,7 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
     const [block] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
     const meta = block?.meta as Record<string, any>;
     const pane = usePaneStatus(meta?.["cmd:cwd"] ?? "", blockId, readWorktreeLink(meta));
+    const activeTabId = useAtomValue(atoms.staticTabId);
     const [connectionsOpen, setConnectionsOpen] = useState(false);
     const connectionsRef = useRef<HTMLElement>(null);
     useEffect(() => {
@@ -455,7 +486,7 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
                     <button type="button" className={PlainButton} data-testid="agent-info-close" onClick={onClose}>
                         {t("agentInfo.close")}
                     </button>
-                    {live != null ? (
+                    {live != null && info.tabid !== activeTabId ? (
                         <button
                             type="button"
                             className={AccentButton}
@@ -488,7 +519,6 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
                         <AgentLinksPanel blockId={blockId} />
                     </section>
                 ) : null}
-                <div className="mt-3.5 text-11 text-muted">{t("agentInfo.moreLater")}</div>
             </div>
         </DialogFrame>
     );

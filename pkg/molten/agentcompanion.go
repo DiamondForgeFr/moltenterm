@@ -18,6 +18,8 @@ const (
 	CompanionDiffCommand    = "moltencompaniondiff"
 	CompanionSessionCommand = "moltencompanionsession"
 	CompanionUsageCommand   = "moltencompanionusage"
+	// A sub-agent's last message and transcript, for its card (FR-SHELL-104).
+	CompanionSubagentDetailCommand = "moltencompanionsubagentdetail"
 	// The sessions of a block's folder, its current one first: the companion's history.
 	CompanionSessionsCommand = "moltencompanionsessions"
 	// Show or hide plan usage for the agent of a block (FR-SHELL-027).
