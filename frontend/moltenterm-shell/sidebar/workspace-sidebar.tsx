@@ -421,6 +421,33 @@ function WindowRow({ peeked }: { peeked: boolean }) {
     );
 }
 
+// Whether the floating panel has finished sliding in. The system draws the window buttons: they cannot slide or fade
+// with the panel, so they show only once it has arrived and hide as soon as it leaves (#1301).
+function usePanelArrived(peek: boolean, panelRef: React.RefObject<HTMLElement>): boolean {
+    const [arrived, setArrived] = useState(false);
+    useEffect(() => {
+        setArrived(false);
+        if (!peek) {
+            return;
+        }
+        let live = true;
+        // One frame so the slide's transition exists; reduced motion has none, and the buttons show at once.
+        const frame = requestAnimationFrame(() => {
+            const slides = panelRef.current?.getAnimations?.() ?? [];
+            void Promise.allSettled(slides.map((a) => a.finished)).then(() => {
+                if (live) {
+                    setArrived(true);
+                }
+            });
+        });
+        return () => {
+            live = false;
+            cancelAnimationFrame(frame);
+        };
+    }, [peek]);
+    return arrived;
+}
+
 // Sends whether the window buttons show, and the zoom that sizes the window row they centre on. Each tab of the window
 // has its own page: only the one shown speaks, and it speaks again when it comes to the front.
 function useWindowButtons(hidden: boolean, peek: boolean) {
@@ -2268,7 +2295,8 @@ export function WorkspaceSidebar() {
         }
     }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
-    useWindowButtons(hidden, peek);
+    const panelArrived = usePanelArrived(hidden && peek, asideRef);
+    useWindowButtons(hidden, panelArrived);
     useEffect(() => {
         // ⌘Z undoes the sidebar's latest change while its toast shows (FR-SHELL-081); a field keeps its own undo.
         const onKey = (e: KeyboardEvent) => {
