@@ -27,6 +27,8 @@ import {
     LookSupport,
     lookWrites,
     OpaqueReason,
+    peekAlpha,
+    PeekBlurPx,
     readProjectLook,
     readWorkspaceLook,
     textureTone,
@@ -128,8 +130,12 @@ function drawLook(look: WindowLook) {
     root.classList.toggle("mt-window-blur", translucent && look.blur);
     if (translucent) {
         root.style.setProperty("--mt-window-alpha", String(look.opacity));
+        root.style.setProperty("--mt-peek-alpha", String(peekAlpha(look)));
+        root.style.setProperty("--mt-peek-blur", `${PeekBlurPx}px`);
     } else {
         root.style.removeProperty("--mt-window-alpha");
+        root.style.removeProperty("--mt-peek-alpha");
+        root.style.removeProperty("--mt-peek-blur");
     }
     const texture = textureBackground(look.texture, look.intensity, textureTone(look));
     root.classList.toggle("mt-textured", texture != null);

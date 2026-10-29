@@ -18,12 +18,16 @@ html.mt-translucent .mt-sb-frame {
     background-color: var(--mt-frame-tint-alpha);
 }
 
+/* The floating sidebar (#1298) lies over the app's own panels, which the window's vibrancy never blurs: it blurs them
+   itself and keeps its tint at --mt-peek-alpha (never under PeekMinAlpha), as Arc's floating sidebar. The slide moves
+   it with a transform only. */
 html.mt-translucent .mt-sb.is-hidden {
     background: color-mix(
         in srgb,
-        color-mix(in srgb, var(--mt-frame-tint) 88%, black) calc(var(--mt-window-alpha, 1) * 100%),
+        color-mix(in srgb, var(--mt-frame-tint) 88%, black) calc(var(--mt-peek-alpha, 1) * 100%),
         transparent
     );
+    backdrop-filter: blur(var(--mt-peek-blur, 20px));
 }
 
 /* A texture (#1294): over the frame's tint and the hidden sidebar's, under everything they hold. The image is one

@@ -174,6 +174,20 @@ export function isTranslucent(look: WindowLook): boolean {
     return look != null && (look.opacity < 1 || look.blur);
 }
 
+// The floating sidebar (#1298) lies over MoltenTerm's own panels, which the window's vibrancy never blurs: it blurs
+// them itself (window-look.css) and keeps its tint at least this opaque, so its text keeps 4.5:1 even over a white
+// page under it (window-look-model.test.ts computes it).
+export const PeekMinAlpha = 0.85;
+export const PeekBlurPx = 20;
+
+// The floating sidebar's tint alpha for a drawn look: opaque on an opaque window, never under PeekMinAlpha.
+export function peekAlpha(drawn: WindowLook): number {
+    if (!isTranslucent(drawn)) {
+        return 1;
+    }
+    return Math.max(PeekMinAlpha, Math.min(1, drawn.opacity));
+}
+
 // The meta writes for a change of look: on the workspace, or on the project (the workspace's own value is let go so the
 // project's applies, and every workspace on the project follows it).
 export function lookWrites(
