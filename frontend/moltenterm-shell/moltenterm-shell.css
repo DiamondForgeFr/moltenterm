@@ -6,8 +6,8 @@
 
 /* A view is columns of panels (FR-SHELL-086): flat panels set into the window, not sheets laid on it. 6 px corners
    (a token, so the build's radius cap leaves it), no drop shadow, a faint inner hairline; the focused panel carries a
-   calm accent hairline (60 %), drawn by the mask over the content, so it shows on every panel type, pages included,
-   and also when the panel is alone in its tab. */
+   calm hairline in the workspace colour (55 %, a place cue, #1319), drawn by the mask over the content, so it shows
+   on every panel type, pages included, and also when the panel is alone in its tab. */
 :root {
     --mt-panel-radius: var(--mt-radius-6);
     --block-border-radius: var(--mt-panel-radius);
@@ -48,8 +48,8 @@
 .block.block-frame-default.block-focused:not(.block-preview) .block-mask,
 .block.block-frame-default.block-focused.block-no-highlight:not(.block-preview) .block-mask {
     box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--mt-accent) 60%, transparent),
-        inset 0 0 12px -4px color-mix(in srgb, var(--mt-accent) 45%, transparent);
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-place) 55%, transparent),
+        inset 0 0 12px -4px color-mix(in srgb, var(--mt-place) 45%, transparent);
 }
 
 /* Only the focused panel shows its whole header (FR-SHELL-086): the others keep their glyph, their name, their state
@@ -79,13 +79,28 @@
     color: var(--mt-text-secondary);
 }
 
-/* Workspace accent (FR-SHELL-004). accent.ts sets --mt-accent from the active workspace's colour and --mt-accent-fg
-   for text drawn on it; every accent token of Wave's theme and Tailwind derives from them, so no component needs a
-   change. Unlayered, these win over Tailwind's @layer theme and come after Wave's theme.scss. */
+/* Action and place (FR-SHELL-004, theme "Coulée" #1318, MOLTENTERM-PATCH #1319). The action colour is always molten:
+   it colours only what can be activated (buttons, toggles, radios, focus, action links, suite chips), the same in
+   every workspace, so a red workspace never shows a red, destructive-looking button. The place colour is the
+   workspace's: accent.ts sets --mt-place (and the gradient's --mt-place-mid / --mt-place-end, --mt-place-fg for text on
+   it) and nothing else. It marks the place only: the workspace dot, the sidebar strip, the bar beside the workspace
+   name, the active tile's underline and the focused panel's frame.
+   --mt-accent, --mt-accent-fg and --mt-focus-ring stay as aliases of the action, so Wave's theme, Tailwind's accent
+   and the code not migrated yet turn molten without a change. Unlayered, these win over Tailwind's @layer theme and
+   come after Wave's theme.scss. */
 :root {
-    --mt-accent: rgb(255, 124, 13);
-    --mt-accent-fg: #000000;
-    --mt-focus-ring: rgb(255, 124, 13);
+    --mt-action: #ff7c0d;
+    --mt-action-hover: #ff9a45;
+    --mt-action-press: #e86a00;
+    --mt-action-fg: #1c0f04;
+    --mt-action-text: #ff9442;
+    --mt-action-wash: rgba(255, 124, 13, 0.12);
+    --mt-focus: #ffa45c;
+    --mt-place: rgb(255, 124, 13);
+    --mt-place-fg: #000000;
+    --mt-accent: var(--mt-action);
+    --mt-accent-fg: var(--mt-action-fg);
+    --mt-focus-ring: var(--mt-focus);
     --accent-color: var(--mt-accent);
     --form-element-primary-color: var(--mt-accent);
     --toggle-checked-bg-color: var(--mt-accent);
@@ -100,26 +115,24 @@
     --color-accent-700: color-mix(in srgb, var(--mt-accent) 55%, black);
     --color-accent-800: color-mix(in srgb, var(--mt-accent) 40%, black);
     --color-accent-900: color-mix(in srgb, var(--mt-accent) 28%, black);
-    --color-accentbg: color-mix(in srgb, var(--mt-accent) 50%, transparent);
-    --color-accenthover: color-mix(in srgb, var(--mt-accent) 80%, white);
+    --color-accentbg: var(--mt-action-wash);
+    --color-accenthover: var(--mt-action-hover);
 }
 
-/* The keyboard focus ring follows the workspace accent (#751), lightened by accent.ts where a dark accent would not
-   read on the panels. Without this, a control with no ring of its own showed Chromium's, in the system's highlight
-   colour (amber in a teal workspace). :where() keeps it at zero specificity: every component ring still wins. */
+/* The keyboard focus ring (#751, #1319): the fixed --mt-focus, 2 px with a 2 px offset, reading at 7.56:1 on the
+   lightest surface in every workspace. Without this, a control with no ring of its own showed Chromium's, in the
+   system's highlight colour. :where() keeps it at zero specificity: every component ring still wins. */
 :where(:focus-visible) {
     outline: 2px solid var(--mt-focus-ring);
-    outline-offset: 1px;
+    outline-offset: 2px;
 }
 
-/* Text on a solid accent stays readable whatever the workspace colour (NFR-SHELL-003).
-   Only a near-solid fill takes the accent's text colour: below /60 the fill is a tint of the dark panel, where the
-   panel's own text colours read better (#244). Over the workspace colours, the accent's text colour has the better
-   worst-case contrast from about /55 up, the panel's text below; /60 is the first Tailwind step past that crossover.
-   An opacity off the steps of 5 (/62) is not covered: moltenterm-shell.test.ts fails on one used in frontend/. */
+/* Text on a solid accent, the action colour, reads at 7.27:1 in every workspace (NFR-SHELL-003, #1319).
+   Only a near-solid fill takes the action's text colour: below /70 the fill is a tint of the dark panel, where the
+   panel's own text colours read better (#244). The action's dark text has the better contrast from about /67 up,
+   the panel's text below; /70 is the first Tailwind step past that crossover.
+   An opacity off the steps of 5 (/72) is not covered: moltenterm-shell.test.ts fails on one used in frontend/. */
 .bg-accent,
-[class*="bg-accent/60"],
-[class*="bg-accent/65"],
 [class*="bg-accent/70"],
 [class*="bg-accent/75"],
 [class*="bg-accent/80"],
@@ -161,13 +174,13 @@
     left: -6px;
     width: 3px;
     border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;
-    background-color: var(--mt-accent);
+    background-color: var(--mt-place);
     /* The workspace's gradient, top to bottom (#657); one colour when it has none. */
     background-image: linear-gradient(
         to bottom,
-        var(--mt-accent),
-        var(--mt-accent-mid, var(--mt-accent)),
-        var(--mt-accent-end, var(--mt-accent))
+        var(--mt-place),
+        var(--mt-place-mid, var(--mt-place)),
+        var(--mt-place-end, var(--mt-place))
     );
     pointer-events: none;
 }
@@ -344,20 +357,20 @@
 
 /* Molten visual language (FR-SHELL-014, DS-SHELL-014). */
 
-/* Warm neutrals: Wave's greys, each mixed with a few percent of the workspace accent so the chrome leans towards
-   the place's colour. Each --mt-neutral-* and --mt-text-* recipe stays a plain
-   `color-mix(in srgb, var(--mt-accent) N%, rgb(...))`: moltenterm-shell.test.ts resolves them for every workspace
+/* Warm neutrals: Wave's greys, each mixed with a few percent of the workspace colour (--mt-place) so the chrome leans
+   towards the place's colour. Each --mt-neutral-* and --mt-text-* recipe stays a plain
+   `color-mix(in srgb, var(--mt-place) N%, rgb(...))`: moltenterm-shell.test.ts resolves them for every workspace
    colour and keeps text at 4.5:1 on the backgrounds (NFR-SHELL-003). Terminals keep their black background (the
-   terminal theme owns it). */
+   terminal theme owns it). Theme "Coulée" step 2 replaces them with fixed neutrals (#1318). */
 :root {
-    --mt-neutral-bg: color-mix(in srgb, var(--mt-accent) 4%, rgb(31, 31, 31));
-    --mt-neutral-modal: color-mix(in srgb, var(--mt-accent) 5%, rgb(32, 32, 32));
-    --mt-neutral-panel: color-mix(in srgb, var(--mt-accent) 5%, rgb(30, 30, 30));
-    --mt-neutral-key: color-mix(in srgb, var(--mt-accent) 5%, rgb(50, 50, 50));
-    --mt-neutral-line: color-mix(in srgb, var(--mt-accent) 12%, rgb(255, 255, 255));
-    --mt-text-main: color-mix(in srgb, var(--mt-accent) 3%, rgb(247, 247, 247));
-    --mt-text-secondary: color-mix(in srgb, var(--mt-accent) 6%, rgb(198, 198, 198));
-    --mt-text-muted: color-mix(in srgb, var(--mt-accent) 6%, rgb(146, 146, 146));
+    --mt-neutral-bg: color-mix(in srgb, var(--mt-place) 4%, rgb(31, 31, 31));
+    --mt-neutral-modal: color-mix(in srgb, var(--mt-place) 5%, rgb(32, 32, 32));
+    --mt-neutral-panel: color-mix(in srgb, var(--mt-place) 5%, rgb(30, 30, 30));
+    --mt-neutral-key: color-mix(in srgb, var(--mt-place) 5%, rgb(50, 50, 50));
+    --mt-neutral-line: color-mix(in srgb, var(--mt-place) 12%, rgb(255, 255, 255));
+    --mt-text-main: color-mix(in srgb, var(--mt-place) 3%, rgb(247, 247, 247));
+    --mt-text-secondary: color-mix(in srgb, var(--mt-place) 6%, rgb(198, 198, 198));
+    --mt-text-muted: color-mix(in srgb, var(--mt-place) 6%, rgb(146, 146, 146));
 
     --main-bg-color: var(--mt-neutral-bg);
     --modal-bg-color: var(--mt-neutral-modal);
@@ -369,7 +382,7 @@
     --modal-header-bottom-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
     --form-element-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
     --keybinding-bg-color: var(--mt-neutral-key);
-    --keybinding-border-color: color-mix(in srgb, var(--mt-accent) 5%, rgb(68, 68, 68));
+    --keybinding-border-color: color-mix(in srgb, var(--mt-place) 5%, rgb(68, 68, 68));
     --main-text-color: var(--mt-text-main);
     --secondary-text-color: var(--mt-text-secondary);
     /* Wave's #666 read at 2.8:1 on its background; dim text now meets 4.5:1 like the rest. */

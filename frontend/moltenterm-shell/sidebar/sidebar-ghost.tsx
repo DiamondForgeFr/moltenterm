@@ -103,7 +103,7 @@ export const SidebarGhost = memo(function SidebarGhost({
         <div
             ref={ghostRef}
             className={cn("mt-sb-ghost flex flex-col gap-2", side < 0 ? "is-prev" : "is-next")}
-            style={{ "--mt-ghost-accent": accent || "var(--mt-accent)" } as React.CSSProperties}
+            style={{ "--mt-ghost-accent": accent || "var(--mt-place)" } as React.CSSProperties}
             aria-hidden
             data-testid={side < 0 ? "sidebar-ghost-prev" : "sidebar-ghost-next"}
             data-workspace-id={workspaceId ?? ""}

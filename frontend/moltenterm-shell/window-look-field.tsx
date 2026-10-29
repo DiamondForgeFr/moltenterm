@@ -61,7 +61,7 @@ export function lookNote(shown: ShownLook): string {
 // the ink is dark, so the tile lays the tint over a mid grey standing for what is behind.
 function textureTileStyle(kind: TextureKind, look: WindowLook, drawn: WindowLook, colour: string): React.CSSProperties {
     const translucent = isTranslucent(drawn);
-    const base = colour || "var(--mt-accent)";
+    const base = colour || "var(--mt-place)";
     const tint = `color-mix(in srgb, ${base} 18%, rgb(20 17 16))`;
     const backgroundColor = translucent
         ? `color-mix(in srgb, ${tint} ${Math.round(drawn.opacity * 100)}%, rgb(150 150 150))`

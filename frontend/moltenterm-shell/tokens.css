@@ -71,12 +71,12 @@
     --mt-radius-6: 6px;
     --mt-radius-10: 10px;
 
-    /* Each surface keeps the `color-mix(in srgb, var(--mt-accent) N%, rgb(...))` recipe of the warm neutrals:
+    /* Each surface keeps the `color-mix(in srgb, var(--mt-place) N%, rgb(...))` recipe of the warm neutrals:
        moltenterm-shell.test.ts holds text at 4.5:1 on each of them for every workspace colour. Surface 1 and 3 are
        today's panel and modal backgrounds, so adopting them changes nothing; later stories retune them here. */
-    --mt-surface-1: color-mix(in srgb, var(--mt-accent) 4%, rgb(31, 31, 31));
-    --mt-surface-2: color-mix(in srgb, var(--mt-accent) 5%, rgb(36, 36, 36));
-    --mt-surface-3: color-mix(in srgb, var(--mt-accent) 5%, rgb(32, 32, 32));
+    --mt-surface-1: color-mix(in srgb, var(--mt-place) 4%, rgb(31, 31, 31));
+    --mt-surface-2: color-mix(in srgb, var(--mt-place) 5%, rgb(36, 36, 36));
+    --mt-surface-3: color-mix(in srgb, var(--mt-place) 5%, rgb(32, 32, 32));
 
     /* Danger text is the error red lightened until it reads at 4.5:1 on every surface; the error colour itself
        (--mt-state-error) stays for fills, edges and dots. The info tone is the only blue of the shell. */
@@ -110,11 +110,11 @@
 }
 
 /* MoltenTerm's slots of the DiamondForge suite kit (suite/suite.css, #658, suite/suite-language.md). The
-   kit keeps Notulia's dimensions; MoltenTerm brings its accent (the workspace colour, molten orange by default), its
-   warm neutrals, its type scale and its motion tokens, so reduced motion stops the kit too. */
+   kit keeps Notulia's dimensions; MoltenTerm brings its accent (the action, molten orange in every workspace,
+   #1319), its warm neutrals, its type scale and its motion tokens, so reduced motion stops the kit too. */
 :root {
-    --df-accent: var(--mt-accent);
-    --df-accent-fg: var(--mt-accent-fg);
+    --df-accent: var(--mt-action);
+    --df-accent-fg: var(--mt-action-fg);
     --df-danger: var(--mt-state-error);
     --df-danger-fg: #ffffff;
     --df-page: var(--mt-surface-3);
@@ -138,7 +138,7 @@
     --df-weight-semibold: var(--mt-weight-semibold);
 
     --df-duration-fast: var(--mt-duration-fast);
-    --df-tile-fg: var(--mt-accent-fg);
+    --df-tile-fg: var(--mt-action-fg);
 }
 
 /* MoltenTerm's own reduced-motion setting (the app root's class) stills the turning light like the system's. */
@@ -179,7 +179,7 @@
    whatever the colour (a dark blue included); the caller sets --mt-glyph-color. On a dark surface, mixing towards
    the surface would lower the contrast, so the tone mixes towards the text. */
 .molten-glyph-tone {
-    --mt-glyph-tone: color-mix(in srgb, var(--mt-glyph-color, var(--mt-accent)) 50%, var(--mt-text-main));
+    --mt-glyph-tone: color-mix(in srgb, var(--mt-glyph-color, var(--mt-place)) 50%, var(--mt-text-main));
     color: var(--mt-glyph-tone);
 }
 

@@ -76,7 +76,7 @@
     width: 22px;
     height: 22px;
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 40%, #2a2623);
+    background: color-mix(in srgb, var(--mt-place) 40%, #2a2623);
     color: var(--color-primary);
     font-size: var(--mt-text-11);
     font-weight: 600;
@@ -98,7 +98,7 @@
     width: 8px;
     height: 8px;
     border-radius: 9999px;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-accent, black) 18%, rgb(20 17 16));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-place, black) 18%, rgb(20 17 16));
 }
 
 .mt-sb-av.is-waiting::after {
