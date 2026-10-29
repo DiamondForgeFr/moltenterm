@@ -241,7 +241,7 @@ export function ReviewRow({
                 }
                 return;
             case "assisted-review":
-                onOpen();
+                fireAndForget(() => model.openAssistedReview(dir, pr, repo));
                 return;
             case "mark-ready":
                 markReady.ask();

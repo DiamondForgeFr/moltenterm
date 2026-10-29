@@ -71,6 +71,7 @@ import {
     translateReview,
     useReviewRewrite,
 } from "./review-client";
+import { watchAssistRequests } from "./review-assist";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
 import {
     isReviewMerged,
@@ -403,13 +404,25 @@ export abstract class ReviewTabModel implements ViewModel {
             }),
             everyInPanel(this.blockId, whileShown(HeadCheckMs), () => this.checkHead(), "review-head"),
             watchReviewSheetRequests(globalStore.get(atoms.staticTabId), this),
-            globalStore.sub(this.doneAtom, () => this.syncDoneMeta())
+            globalStore.sub(this.doneAtom, () => this.syncDoneMeta()),
+            // Assisted review's confirmation, accepted in the Reviews view (FR-REV-033).
+            watchAssistRequests(globalStore.get(atoms.staticTabId), () => this.assist())
         );
         const onFocus = () => this.checkHead();
         window.addEventListener("focus", onFocus);
         this.cleanups.push(() => window.removeEventListener("focus", onFocus));
         fireAndForget(() => this.open());
         return () => this.stop();
+    }
+
+    // assist lays the agent out on the left of the diff (DS-REV-012): the AI panel, the review session started (or
+    // the running one), and the session's terminal shown under the panel.
+    async assist() {
+        await this.openAi();
+        if (globalStore.get(this.aiAtom).session?.blockid == null) {
+            return;
+        }
+        this.showSessionTerminal();
     }
 
     stop() {

@@ -8657,6 +8657,15 @@
             "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}"
         }
     },
+    "assistedReview": {
+        "title": "Revue assistée de la PR #{number}",
+        "subtitle": "{branch} → {base}",
+        "what": "{agent} démarre sur la PR #{number} dans une copie de sa branche, à gauche du diff. Il lit les changements, prépare un résumé et répond à vos questions. Il ne fait que lire : rien ne change sur {branch}.",
+        "diffOnly": "Vous pouvez aussi ouvrir le diff seul : le bouton Panneau IA démarre l'agent plus tard.",
+        "yourAgent": "Votre agent",
+        "openDiff": "Diff seul",
+        "start": "Démarrer l'agent"
+    },
     "agentChoice": {
         "title": {
             "rebase": "Rebaser #{number} avec un agent",
