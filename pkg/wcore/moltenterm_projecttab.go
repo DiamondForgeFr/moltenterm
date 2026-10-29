@@ -40,8 +40,9 @@ func projectTabLayout() PortableLayout {
 // project view. A workspace with neither link nor record and no request has nothing to decide: its tabs are not read.
 func readProjectTabFacts(ctx context.Context, ws *waveobj.Workspace, open bool) mission.ProjectTabFacts {
 	facts := mission.ProjectTabFacts{
-		Dir:         ws.Meta.GetString(molten.ProjectMetaKey, ""),
-		RecordedDir: ws.Meta.GetString(mission.ProjectTabDirMetaKey, ""),
+		Dir:           ws.Meta.GetString(molten.ProjectMetaKey, ""),
+		RecordedDir:   ws.Meta.GetString(mission.ProjectTabDirMetaKey, ""),
+		TemplateViews: ws.Meta.GetBool(mission.TemplateViewsMetaKey, false),
 	}
 	if !open && facts.Dir == "" && facts.RecordedDir == "" {
 		return facts

@@ -20,6 +20,8 @@ const (
 	ProjectTabMetaKey = "molten:projecttab"
 	// Workspace meta: the project folder the Project tab was last made for.
 	ProjectTabDirMetaKey = "molten:projecttabdir"
+	// Workspace meta: the workspace was made from the new-workspace views template (FR-SHELL-092, #1315).
+	TemplateViewsMetaKey = "molten:templateviews"
 	// The stored name, in English: the windows show it in the interface language while the user has not renamed it.
 	// must match ProjectTabName in frontend/moltenterm-shell/project/project-model.ts
 	ProjectTabName = "Project"
@@ -64,6 +66,9 @@ type ProjectTabFacts struct {
 	TabId string
 	// The marked tab holds a project view.
 	HasView bool
+	// The workspace was made from the new-workspace views template (FR-SHELL-092, #1315): its views already show the
+	// project, so the tab is made only when the user asks.
+	TemplateViews bool
 }
 
 // DecideProjectTab says what to do for a workspace, from what it holds and whether the user asked.
@@ -76,6 +81,9 @@ func DecideProjectTab(facts ProjectTabFacts, open bool) string {
 	}
 	if open {
 		return ProjectTabCreate
+	}
+	if facts.TemplateViews {
+		return ProjectTabNone
 	}
 	if facts.Dir == "" {
 		if facts.RecordedDir != "" {

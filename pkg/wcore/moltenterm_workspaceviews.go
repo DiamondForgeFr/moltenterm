@@ -6,13 +6,17 @@ package wcore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -165,26 +169,51 @@ func workspaceViewTabs(views []wconfig.NewWorkspaceViewType) []workspaceViewTab 
 	return rtn
 }
 
-// addWorkspaceViews appends the template's views to a new workspace, after its first view, without making them
-// active, in one transaction.
-func addWorkspaceViews(ctx context.Context, workspaceId string, views []wconfig.NewWorkspaceViewType) error {
+// createWorkspaceWithViews makes a workspace holding only the template's views, the first one active, in one
+// transaction (#1315): Wave's first tab is never made, so nothing of it is left to remove. Without a valid view, the
+// workspace gets Wave's usual first tab. A workspace made from the template gets no Project tab on its own
+// (mission.TemplateViewsMetaKey): its views already show the project.
+func createWorkspaceWithViews(ctx context.Context, name string, icon string, color string, applyDefaults bool, views []wconfig.NewWorkspaceViewType) (*waveobj.Workspace, error) {
 	tabs := workspaceViewTabs(views)
 	if len(tabs) == 0 {
-		return nil
+		return CreateWorkspace(ctx, name, icon, color, applyDefaults, false)
 	}
-	return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		for _, tab := range tabs {
-			if _, err := createTabObj(tx.Context(), workspaceId, tab.Name, tab.Meta); err != nil {
+	ws := &waveobj.Workspace{
+		OID:    uuid.NewString(),
+		TabIds: []string{},
+		Meta:   waveobj.MetaMapType{mission.TemplateViewsMetaKey: true},
+	}
+	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
+		tctx := tx.Context()
+		if err := wstore.DBInsert(tctx, ws); err != nil {
+			return fmt.Errorf("error inserting workspace: %w", err)
+		}
+		for i, tab := range tabs {
+			tabObj, err := createTabObj(tctx, ws.OID, tab.Name, tab.Meta)
+			if err != nil {
+				return err
+			}
+			if i > 0 {
+				continue
+			}
+			if err := SetActiveTab(tctx, ws.OID, tabObj.OID); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_WorkspaceUpdate})
+	ws, _, err = UpdateWorkspace(ctx, ws.OID, name, icon, color, applyDefaults)
+	return ws, err
 }
 
-// AddNewWorkspaceViews gives a workspace the developer just created the template's views.
-func AddNewWorkspaceViews(ctx context.Context, workspaceId string) error {
-	return addWorkspaceViews(ctx, workspaceId, wconfig.GetWatcher().GetFullConfig().Settings.AppNewWorkspaceViews)
+// CreateWorkspaceWithViews makes a workspace the developer asked for, with the template's views.
+func CreateWorkspaceWithViews(ctx context.Context, name string, icon string, color string, applyDefaults bool) (*waveobj.Workspace, error) {
+	views := wconfig.GetWatcher().GetFullConfig().Settings.AppNewWorkspaceViews
+	return createWorkspaceWithViews(ctx, name, icon, color, applyDefaults, views)
 }
 
 func samePane(a waveobj.MetaMapType, b waveobj.MetaMapType) bool {
