@@ -12,7 +12,7 @@ describe("PrDots (FR-SHELL-085, #1304)", () => {
         );
         const kinds = [...html.matchAll(/data-kind="(\w+)"/g)].map((m) => m[1]);
         expect(kinds).toEqual(["blocked", "ready", "ci", "draft"]);
-        expect(html).toMatch(/class="mt-sb-dot is-ready"[^>]*><\/span>/);
+        expect(html).toMatch(/class="mt-sb-prdot is-ready"[^>]*><\/span>/);
         expect(html.replace(/<[^>]*>/g, "")).toBe("");
         expect(html).not.toContain("is-calm");
         expect(html).not.toContain("is-bump");
@@ -44,6 +44,6 @@ describe("PrDots (FR-SHELL-085, #1304)", () => {
         const html = renderToStaticMarkup(
             <PrDots counts={{ blocked: 0, ready: 1, ci: 0, draft: 0 }} motionKey="k" calm small />
         );
-        expect(html).toContain("mt-sb-dots is-small");
+        expect(html).toContain("mt-sb-prdots is-small");
     });
 });

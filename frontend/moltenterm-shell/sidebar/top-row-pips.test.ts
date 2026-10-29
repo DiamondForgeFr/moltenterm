@@ -31,16 +31,21 @@ describe("the sidebar's status dots (#1304)", () => {
         expect(corner).toMatch(/position:\s*absolute/);
         expect(corner).toMatch(/right:\s*6px/);
         expect(corner).toMatch(/flex-direction:\s*column/);
-        expect(rule(".mt-sb-dots")).toMatch(/flex-direction:\s*column/);
-        const dot = rule(".mt-sb-dot");
+        expect(rule(".mt-sb-prdots")).toMatch(/flex-direction:\s*column/);
+        const dot = rule(".mt-sb-prdot");
         expect(dot).toMatch(/width:\s*6px/);
         expect(dot).toMatch(/border-radius:\s*9999px/);
     });
 
     it("colour each state from the theme's state tokens", () => {
-        expect(rule(".mt-sb-dot.is-blocked")).toContain("var(--mt-state-error)");
-        expect(rule(".mt-sb-dot.is-ready")).toContain("var(--mt-state-done)");
-        expect(rule(".mt-sb-dot.is-ci")).toContain("var(--mt-state-working)");
+        expect(rule(".mt-sb-prdot.is-blocked")).toContain("var(--mt-state-error)");
+        expect(rule(".mt-sb-prdot.is-ready")).toContain("var(--mt-state-done)");
+        expect(rule(".mt-sb-prdot.is-ci")).toContain("var(--mt-state-working)");
+    });
+
+    it("never restyle the workspace switcher's own dots (.mt-sb-dots / .mt-sb-dot)", () => {
+        const block = css.slice(css.indexOf("/* Pull request status dots"), css.indexOf("/* The top field's results"));
+        expect(block).not.toMatch(/\.mt-sb-dots?[\s.,:{]/);
     });
 
     it("turn the modified pip into a ring", () => {
@@ -51,7 +56,7 @@ describe("the sidebar's status dots (#1304)", () => {
 
     it("never move under reduced motion", () => {
         const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
-        expect(reduced).toMatch(/\.mt-sb-dots,\s*\n\s*\.mt-sb-dot\.is-bump/);
+        expect(reduced).toMatch(/\.mt-sb-prdots,\s*\n\s*\.mt-sb-prdot\.is-bump/);
     });
 
     it("live in the corner column of tiles and top-row blocks, the mark first", () => {
