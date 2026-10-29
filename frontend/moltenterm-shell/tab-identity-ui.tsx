@@ -18,6 +18,7 @@ import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
 import { tabAgentName, tabAgentsByRun, tabAgentsTitle } from "./tab-agents";
 import { AiIcon, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
 import { useWorkingBeat } from "./working-beat";
+import { ViewNameKeyMetaKey, viewShownName } from "./workspace-views/workspace-views-model";
 
 let homeDir: string = null;
 
@@ -57,6 +58,7 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
                 meta: (first?.meta ?? null) as PanelMeta,
                 pinned: !!(tab?.meta as Record<string, unknown>)?.[ProjectTabMetaKey],
                 agentId: agents[0]?.agent ?? "",
+                nameKey: (tab?.meta as Record<string, unknown>)?.[ViewNameKeyMetaKey] ?? null,
             };
         });
     }, [tabId]);
@@ -75,7 +77,10 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
     const agents = useAtomValue(agentsAtom);
     const t = useT();
     const icon = facts.agentId ? AiIcon : panelIcon(facts.meta);
-    const shownName = facts.pinned && tabName === ProjectTabName ? t("project.tabName") : tabName;
+    const shownName =
+        facts.pinned && tabName === ProjectTabName
+            ? t("project.tabName")
+            : viewShownName(tabName, { [ViewNameKeyMetaKey]: facts.nameKey }, t);
     return {
         name: tabDisplayName(shownName, facts.meta, getHomeDir()),
         icon,

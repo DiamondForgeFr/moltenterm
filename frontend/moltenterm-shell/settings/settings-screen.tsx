@@ -40,6 +40,7 @@ import {
     WorkspaceFolderMetaKey,
 } from "../workspace-project";
 import { linkWorkspaceProject, setWorkspaceFolder, unlinkWorkspaceProject } from "../workspace-project-store";
+import { NewWorkspaceViewsCard } from "../workspace-views/workspace-views-settings";
 import {
     clampSetting,
     effectiveSetting,
@@ -762,7 +763,11 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const groups = groupEntries(entries);
     // Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
     // Secrets keeps its stacked blocks in one column.
-    const flowBlocks = groups.length + (section === "advanced" ? 1 : 0) + (section === "mods" ? 1 : 0);
+    const flowBlocks =
+        groups.length +
+        (section === "advanced" ? 1 : 0) +
+        (section === "mods" ? 1 : 0) +
+        (section === "general" ? 1 : 0);
     const flowColumns = pageColumns(flowBlocks);
     // A short result list reads best as one list.
     const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
@@ -934,6 +939,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 ) : null}
                                             </PageCard>
                                         ))}
+                                        {section === "general" ? <NewWorkspaceViewsCard /> : null}
                                         {section === "mods" ? <ModsSection /> : null}
                                     </PageFlow>
                                 ) : null}

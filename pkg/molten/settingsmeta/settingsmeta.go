@@ -122,6 +122,8 @@ var settings = []Setting{
 	// #1232: the choices are the launcher's entries, filled by the screen; the favourites have their own editor below.
 	{Key: "app:newviewopen", Section: SectionGeneral, Group: "New views", Label: "When a new view opens", Description: "Ask shows the chooser; or open one type directly, without it.", Control: ControlSelect, OptionsFrom: OptionsNewViewChoices, UnsetLabel: "Ask"},
 	hidden("app:newviewfavorites"),
+	// #1305: edited by its own card, General › New workspace views (frontend/moltenterm-shell/workspace-views).
+	hidden("app:newworkspaceviews"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
 	{Key: "power:sleeppolicy", Section: SectionGeneral, Group: "Power", Label: "Keep the computer awake", Description: "Whether a program in a terminal may keep the computer awake.", Control: ControlSelect, UnsetLabel: "Ask the first time", Options: []Option{{Value: "allow", Label: "When a terminal asks"}, {Value: "untilworkends", Label: "Until work ends"}, {Value: "letsleep", Label: "Never"}}},

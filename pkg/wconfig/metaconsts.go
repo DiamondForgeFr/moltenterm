@@ -123,6 +123,7 @@ const (
 
 	ConfigKey_AppNewViewOpen                 = "app:newviewopen"
 	ConfigKey_AppNewViewFavorites            = "app:newviewfavorites"
+	ConfigKey_AppNewWorkspaceViews           = "app:newworkspaceviews"
 
 	ConfigKey_MoltentermTabViewPriority      = "moltenterm:tabviewpriority"
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
