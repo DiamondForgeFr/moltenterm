@@ -260,6 +260,9 @@ export type RailWorkspaceMenu = {
     onEdit: () => void;
     // Set where MoltenTerm can keep the computer awake (FR-SHELL-023).
     coffee?: { label: string; on: boolean; onToggle: () => void };
+    // The sidebar's menu points at Preferences › Energy instead of repeating the setting (FR-SHELL-103); the current
+    // option is its sub-label.
+    energy?: { label: string; current: string; onOpen: () => void };
     // Set for a saved workspace outside the project products (FR-MC-032).
     group?: { connecting: boolean; onGroupWith: () => void; onRemove?: () => void };
     // Set for the active workspace with a project (FR-SHELL-015).
@@ -291,6 +294,14 @@ export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
             checked: menu.coffee.on,
             icon: "mug-hot",
             click: menu.coffee.onToggle,
+        });
+    }
+    if (menu.energy != null) {
+        items.push({
+            label: menu.energy.label,
+            sublabel: menu.energy.current,
+            icon: "mug-hot",
+            click: menu.energy.onOpen,
         });
     }
     if (menu.group != null) {

@@ -45,7 +45,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     panels: "panels",
     newViews: "panels",
     filesAndEditor: "notes",
-    power: "power",
+    energy: "power",
     updates: "updates",
     language: "language",
     window: "window",

@@ -31,7 +31,7 @@ import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
-import { coffeeCondition, coffeeSupported } from "../keepawake-model";
+import { coffeeCondition, coffeeSupported, SleepPolicySetting, sleepPolicyLabel } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { KeepAwakeStatusItem, usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
@@ -51,6 +51,7 @@ import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
 import { useReviewsRailWatch } from "../reviews/reviews-client";
 import { DurableSessions } from "../sessions/sessions-store";
+import { openSettingsKey } from "../settings/settings-open";
 import { acceleratorById, formatShortcutById } from "../shortcuts/format";
 import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
 import { ChannelClasses, ItemButton, useFocusedPane, useStatusBarView } from "../status-bar";
@@ -287,8 +288,8 @@ function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, 
     return items;
 }
 
-// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, keep awake while working, add a project,
-// reset, delete.
+// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, the link to Preferences › Energy (#1332),
+// add a project, reset, delete.
 function workspaceMenuItems(
     entry: WorkspaceRailEntry,
     workspaces: SidebarWorkspaces,
@@ -316,24 +317,15 @@ function baseWorkspaceMenuItems(
     platform: string,
     t: (key: string, vars?: Record<string, any>) => string
 ): ContextMenuItem[] {
-    const keepAwake = KeepAwakeModel.getInstance();
-    const coffee = globalStore.get(keepAwake.coffeeAtom(entry.id));
     const ws = globalStore.get(atoms.workspace);
     const projectDir = entry.active ? readWorkspaceProject(ws).dir : "";
     return railWorkspaceMenu({
         onEdit: () => openWorkspaceEditor(entry.id, anchor),
-        coffee: coffeeSupported(platform)
+        energy: coffeeSupported(platform)
             ? {
-                  label: t("rail.keepAwakeWhileWorking"),
-                  on: coffee != null,
-                  onToggle: () =>
-                      fireAndForget(async () => {
-                          try {
-                              await keepAwake.setCoffee(entry.id, coffee == null);
-                          } catch (err) {
-                              console.log("keep-awake coffee:", err);
-                          }
-                      }),
+                  label: t("sidebar.workspaceMenu.keepAwake"),
+                  current: sleepPolicyLabel(globalStore.get(getSettingsKeyAtom(SleepPolicySetting))),
+                  onOpen: () => fireAndForget(() => openSettingsKey("general", SleepPolicySetting)),
               }
             : undefined,
         onProjectTab: projectDir ? () => fireAndForget(openProjectTab) : undefined,
