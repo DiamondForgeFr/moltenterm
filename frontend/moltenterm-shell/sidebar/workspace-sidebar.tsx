@@ -1460,7 +1460,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
             role="radio"
             aria-checked={draft.scope === value}
             className={cn(
-                "mt-sb-scope flex w-full cursor-pointer items-start gap-2.5 rounded-8 border p-2.5 text-left text-secondary transition-colors duration-120 ease-mt",
+                "mt-sb-scope flex w-full cursor-pointer items-start gap-2.5 rounded-6 border p-2.5 text-left text-secondary transition-colors duration-120 ease-mt",
                 draft.scope === value
                     ? "border-accent bg-[color-mix(in_srgb,var(--mt-accent)_12%,rgb(0_0_0/0.18))] text-primary"
                     : "border-white/[0.12] bg-black/[0.18] hover:border-white/25"

@@ -27,7 +27,7 @@
     height: 72px;
     margin-bottom: 22px;
     border: 1px solid var(--mt-line-2);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: var(--mt-surface-2);
 }
 

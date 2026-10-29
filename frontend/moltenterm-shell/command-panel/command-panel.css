@@ -81,7 +81,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     color: var(--mt-text-muted, rgb(140, 145, 140));
     font-size: var(--mt-text-11);
     transition: background-color var(--mt-duration-fast) var(--mt-ease);
@@ -139,7 +139,7 @@
     width: 16px;
     height: 16px;
     overflow: hidden;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
 }
 

@@ -65,7 +65,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     if (source.image || source.logo || source.icon) {
         return (
             <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 border border-border bg-hover text-icon-20"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-6 border border-border bg-hover text-icon-20"
                 aria-hidden
             >
                 <WorkspaceIcon source={source} />
@@ -74,7 +74,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     }
     return (
         <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 bg-[var(--mt-accent)] text-20 leading-none font-semibold text-[var(--mt-accent-fg)]"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-6 bg-[var(--mt-accent)] text-20 leading-none font-semibold text-[var(--mt-accent-fg)]"
             aria-hidden
         >
             {(name || "?").slice(0, 1).toUpperCase()}

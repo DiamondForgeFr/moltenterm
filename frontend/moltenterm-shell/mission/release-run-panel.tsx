@@ -550,7 +550,7 @@ function Detail({
     const tail = phase.log?.tail ?? [];
     return (
         <div
-            className="mt-4 rounded-10 border border-border bg-black/20 p-3"
+            className="mt-4 rounded-6 border border-border bg-black/20 p-3"
             data-testid={`release-run-detail-${phase.id}`}
         >
             <div className="flex items-baseline justify-between gap-2">

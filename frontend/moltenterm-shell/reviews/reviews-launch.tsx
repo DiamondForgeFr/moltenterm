@@ -116,7 +116,7 @@ export function LaunchCardActions({
     };
     return (
         <span className="flex items-center gap-1.5" data-testid="reviews-launch-running">
-            <span className="inline-flex items-center gap-1 rounded-3 border border-success/40 bg-success/10 px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap text-success">
+            <span className="inline-flex items-center gap-1 rounded-4 border border-success/40 bg-success/10 px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap text-success">
                 {state.state === "running" ? (
                     <i className="fa fa-solid fa-circle text-10" aria-hidden />
                 ) : (
@@ -311,7 +311,7 @@ export function LaunchBar({ dir, mergedNumbers, trunk }: { dir: string; mergedNu
                         <button
                             type="button"
                             className={cn(
-                                "flex cursor-pointer items-center gap-1 rounded-3 border px-1.5 py-0.5 text-11 leading-4 hover:bg-hover",
+                                "flex cursor-pointer items-center gap-1 rounded-4 border px-1.5 py-0.5 text-11 leading-4 hover:bg-hover",
                                 step.state === "failed" ? "border-error/50 text-danger" : "border-border text-secondary"
                             )}
                             onClick={() => setLogStep(step.id)}

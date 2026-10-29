@@ -48,7 +48,7 @@ describe("working indicator (#739)", () => {
 
     it("steps the dominoes on a 1/24 s grid (NFR-MC-004)", () => {
         expect(shellCss).toMatch(
-            /\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation-name: mt-dominos-24;\s*animation-timing-function: step-end;/
+            /\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation-name: mt-dominos-24;\s*animation-duration: var\(--mt-duration-dominoes\);\s*animation-timing-function: step-end;/
         );
         const delays = [22, 19, 16, 13, 10, 7, 3];
         delays.forEach((n, i) => {

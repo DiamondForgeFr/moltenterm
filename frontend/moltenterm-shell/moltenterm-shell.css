@@ -9,7 +9,7 @@
    calm hairline in the workspace colour (55 %, a place cue, #1319), drawn by the mask over the content, so it shows
    on every panel type, pages included, and also when the panel is alone in its tab. */
 :root {
-    --mt-panel-radius: var(--mt-radius-6);
+    --mt-panel-radius: var(--mt-radius-panel);
     --block-border-radius: var(--mt-panel-radius);
 }
 
@@ -173,7 +173,7 @@
     bottom: 6px;
     left: -6px;
     width: 3px;
-    border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;
+    border-radius: 0 var(--mt-radius-control) var(--mt-radius-control) 0;
     background-color: var(--mt-place);
     /* The workspace's gradient, top to bottom (#657); one colour when it has none. */
     background-image: linear-gradient(
@@ -270,7 +270,7 @@
     max-width: calc(var(--molten-rail-tray-lead) + 176px);
     padding: 0 6px 0 var(--molten-rail-tray-lead);
     border: 1px solid var(--mt-line-2);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background-color: var(--mt-surface-3);
     box-shadow: var(--mt-shadow-command);
     opacity: 0;
@@ -312,7 +312,7 @@
     padding: 3px;
     box-sizing: border-box;
     border: 1.5px solid color-mix(in srgb, var(--mt-group-color, var(--mt-neutral-line)) 45%, transparent);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
 }
 
 /* Expanded, a group's workspaces follow it in the rail's flow, indented along a 2 px guide in the group's colour, so
@@ -454,7 +454,7 @@
     content: "";
     position: absolute;
     inset: 1px;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     pointer-events: none;
     z-index: var(--zindex-block-mask-inner);
     box-shadow: inset 0 0 24px -2px color-mix(in srgb, var(--mt-heat) 45%, transparent);
@@ -545,7 +545,7 @@
 
 /* The browser panel's load line under the address bar (#210): the webview reports no progress, so it sweeps. */
 .molten-browser-progress-bar {
-    animation: mt-browser-progress 1.1s ease-in-out infinite;
+    animation: mt-browser-progress var(--mt-duration-spin) ease-in-out infinite;
 }
 
 @keyframes mt-browser-progress {
@@ -692,6 +692,7 @@
 .df-dominos > span,
 .df-domino-loader > span {
     animation-name: mt-dominos-24;
+    animation-duration: var(--mt-duration-dominoes);
     animation-timing-function: step-end;
 }
 

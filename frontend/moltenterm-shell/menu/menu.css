@@ -23,7 +23,7 @@
     overflow-y: auto;
     box-sizing: border-box;
     border: 1px solid var(--border-color, #555);
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     padding: 4px;
     background: var(--mt-surface-3, #242424);
     color: var(--main-text-color, #eee);
@@ -43,7 +43,7 @@
     min-height: var(--mt-row-28);
     padding: 4px 8px;
     border: 0;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: transparent;
     color: inherit;
     text-align: left;

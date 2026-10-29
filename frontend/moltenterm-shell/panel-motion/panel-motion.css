@@ -45,7 +45,7 @@
     z-index: var(--zindex-block-mask-inner);
     overflow: hidden;
     container-type: size;
-    border-radius: var(--block-border-radius, var(--mt-radius-6));
+    border-radius: var(--block-border-radius, var(--mt-radius-panel));
     padding: 2px;
     pointer-events: none;
     -webkit-mask:

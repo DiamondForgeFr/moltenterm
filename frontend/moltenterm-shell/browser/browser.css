@@ -19,7 +19,7 @@
     min-width: 0;
     padding: 0 10px;
     box-sizing: border-box;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     transition: background-color var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -92,7 +92,7 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-name {
     width: 18px;
     height: 18px;
     padding: 0;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     font-size: var(--mt-text-11);
     color: var(--mt-text-secondary);
     opacity: 0;
@@ -121,7 +121,7 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     width: 24px;
     height: 24px;
     justify-content: center;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     font-size: var(--mt-text-12);
     color: var(--mt-text-secondary);
     opacity: 1;

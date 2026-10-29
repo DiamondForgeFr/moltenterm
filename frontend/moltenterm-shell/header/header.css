@@ -67,7 +67,7 @@
 
 button.molten-header-title,
 button.molten-header-link {
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     cursor: pointer;
 }
 
@@ -91,7 +91,7 @@ button.molten-header-link:hover {
     align-items: center;
     gap: var(--mt-space-4);
     padding: 0 var(--mt-space-8);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-medium);
     line-height: 20px;
@@ -180,7 +180,7 @@ button.molten-pill.is-danger:hover {
     align-items: center;
     margin-right: calc(var(--mt-space-4) * -1);
     padding: 0 6px;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     font-weight: var(--mt-weight-semibold);
     background: color-mix(in srgb, currentColor 18%, transparent);
     color: inherit;

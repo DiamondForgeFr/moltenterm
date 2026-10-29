@@ -528,7 +528,7 @@ export function OpenField({
                       id="molten-top-field-list"
                       aria-label={t("topField.resultsLabel")}
                       data-testid="top-field-results"
-                      className="mt-sb-omni-pop fixed z-[650] flex max-h-[70vh] flex-col rounded-8 p-[5px]"
+                      className="mt-sb-omni-pop fixed z-[650] flex max-h-[70vh] flex-col rounded-4 p-[5px]"
                       style={{ left: place.left, top: place.top, width: place.width }}
                       onMouseDown={(e) => e.preventDefault()}
                   >

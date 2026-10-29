@@ -14,7 +14,7 @@
 /* The panel the drop goes to: a quiet ring, so the centre (where nothing drops) still tells which panel it is. */
 .molten-drop-panel {
     position: absolute;
-    border-radius: var(--block-border-radius, var(--mt-radius-6));
+    border-radius: var(--block-border-radius, var(--mt-radius-panel));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-accent) 35%, transparent);
 }
 
@@ -26,7 +26,7 @@
     justify-content: center;
     overflow: hidden;
     border: 1px dashed color-mix(in srgb, var(--mt-accent) 70%, transparent);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
     transition:
         left var(--mt-duration-fast) var(--mt-ease),
@@ -57,7 +57,7 @@
     max-width: calc(100% - 16px);
     padding: 3px 9px;
     overflow: hidden;
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: color-mix(in srgb, var(--mt-accent) 85%, black);
     color: var(--mt-accent-fg);
     font-size: var(--mt-text-12);
@@ -79,7 +79,7 @@
     padding: 2px var(--mt-space-8);
     overflow: hidden;
     border: 1px solid var(--mt-line-2);
-    border-radius: var(--mt-radius-6);
+    border-radius: var(--mt-radius-panel);
     background: var(--mt-surface-2);
     box-shadow: var(--mt-shadow-e2);
     color: var(--mt-text-main);
