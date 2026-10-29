@@ -44,6 +44,14 @@ import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
+import { PourLight } from "../panel-motion/view-pour";
+import {
+    isAgentWorking,
+    TileAgentMark,
+    useTabUrgentAgent,
+    withWorkingTitle,
+    WorkingLight,
+} from "../panel-motion/working-light";
 import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { railWorkspaceMenu } from "../rail-tray-model";
@@ -721,7 +729,9 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
           : pin.state === "workspace"
             ? t("sidebar.pins.tileTitle", { name: identity.name, workspace })
             : identity.name;
-    const title = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
+    const working = isAgentWorking(identity.agent);
+    const titled = baseTitle != null && summary ? `${baseTitle}\n${summary}` : baseTitle;
+    const title = withWorkingTitle(titled, identity.agent);
     // The glyph is decoration: the tile is named for what it is, whatever its icons.
     const label = renaming
         ? undefined
@@ -806,11 +816,13 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 {modified ? (
                     <span className="mt-sb-modpip" data-testid="sidebar-modpip" aria-hidden />
                 ) : (
-                    <TabAgentMark info={identity.agent} />
+                    <TileAgentMark info={identity.agent} />
                 )}
                 {hasCounts ? <PrDots counts={counts} motionKey={`tile:${tabId}`} calm={!fresh} /> : null}
             </span>
             {active ? <span className="mt-sb-tile-place" data-testid="sidebar-tile-place" aria-hidden /> : null}
+            <WorkingLight on={working} />
+            <PourLight active={active} />
             {modified ? (
                 <>
                     <span
@@ -1348,10 +1360,11 @@ function TopRowBlock({
     const pins = ViewPins.getInstance();
     const drag = useAtomValue(sidebarDragAtom);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
+    const agent = useTabUrgentAgent(tabId);
     const baseTitle = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", {
         name: pin.name,
     });
-    const title = summary ? `${baseTitle}\n${summary}` : baseTitle;
+    const title = withWorkingTitle(summary ? `${baseTitle}\n${summary}` : baseTitle, agent);
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1401,6 +1414,8 @@ function TopRowBlock({
                 {!modified && tabId ? <TopRowAgentMark tabId={tabId} /> : null}
                 {hasCounts ? <PrDots counts={counts} motionKey={motionKey} calm={!fresh} small /> : null}
             </span>
+            <WorkingLight on={isAgentWorking(agent)} />
+            <PourLight active={active} />
         </button>
     );
 }
@@ -1409,7 +1424,7 @@ function TopRowBlock({
 // block's icon stays the same in every workspace (#1270).
 function TopRowAgentMark({ tabId }: { tabId: string }) {
     const identity = useTabIdentity(tabId, "");
-    return <TabAgentMark info={identity.agent} />;
+    return <TileAgentMark info={identity.agent} />;
 }
 
 // The pin page (FR-SHELL-080): the view's name, and the two scopes in plain words. It takes the place of the

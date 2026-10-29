@@ -94,6 +94,12 @@ pipeline setup's agent board (#1163); later screens adopt the same module, never
 - **Rules**: motion follows a change, never decorates a screen at rest. The first render of a list shows it as it
   is. Keep the terminal side free of layout work, and animate only `transform`, `opacity`, `filter`, `box-shadow`,
   the row's own `grid-template-rows` and an SVG path's `d`.
+- **Panel motion** (FR-SHELL-112, `panel-motion/`): three moments, and only one moves at a time.
+  - **The view pour**: at a switch, the view's panels slide 8 px from the tiles' side and fade in, and the clicked tile lights up in the action orange. It takes `--mt-duration-base` with `--mt-ease` (`useViewPour`, `PourLight`).
+  - **A panel's arrival**: when a panel is added beside others, an orange edge runs once around its frame, then goes out. If the view's pour is still running, the edge waits for it (`PanelArrivalEdge`).
+  - **A working agent**: the turning light of `GlowRing` goes round its view's tile in incandescent (`#FFB547`) instead of the dot. It turns in `--mt-duration-turn` (8 s), in 32 steps so that it costs 4 frames a second. It cools in `--mt-duration-cool` with `--mt-ease-cool` once the agent is done (`WorkingLight`).
+  - **Under reduced motion**: the pour is instant; the arrival edge stands still as a full ring, then fades; the light stands still on the tile's top-right corner.
+  - Only working indicators move continuously.
 
 ## Extraction plan
 

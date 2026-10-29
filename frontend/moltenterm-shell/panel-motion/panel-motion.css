@@ -1,0 +1,169 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Panel motion (FR-SHELL-112, #1349): the three moments of theme Coulée, one at a time (the proposal's rule 5), on the
+   molten motion of #1163 and its tokens. Only transform and opacity change, so the compositor runs them and no
+   layout is redone while a view switches.
+   - The view pour (view-pour.ts): the content slides 8 px from the sidebar and fades in, while the clicked tile
+     lights up (.mt-pour-lit), in --mt-duration-base.
+   - A panel's arrival (panel-arrival.tsx): an orange edge runs once around the new panel's frame, then goes out.
+   - A working agent (working-light.tsx): the suite's turning light on its view's tile, in incandescent, turning in
+     --mt-duration-turn; it cools in --mt-duration-cool once the agent is done.
+   Reduced motion (NFR-SHELL-027, the system's preference or MoltenTerm's own setting): the pour is instant and the
+   tile simply shows as active; the arrival edge stands still as a full ring, then leaves through the module's short
+   fade; the turning light stands still on the tile's top-right corner; the cool-down is instant. */
+
+/* The clicked tile lights up: an orange veil and ring over the tile that fades out. The light is the action's colour:
+   a click is an action. */
+.mt-pour-lit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--mt-action) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-action) 80%, transparent);
+    opacity: 0;
+    animation: mt-pour-lit var(--mt-duration-base) var(--mt-ease) both;
+}
+
+@keyframes mt-pour-lit {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* A panel's arrival: a 2 px ring masked out of the frame, with a conic light turning once behind it (a transform, as
+   the suite's turning light). The light is sized from the frame's longer side (a size container), so a tall narrow
+   panel is covered as well as a wide one. */
+.mt-panel-arrival {
+    position: absolute;
+    inset: 0;
+    z-index: var(--zindex-block-mask-inner);
+    overflow: hidden;
+    container-type: size;
+    border-radius: var(--block-border-radius, var(--mt-radius-6));
+    padding: 2px;
+    pointer-events: none;
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: mt-arrival-out calc(var(--mt-duration-slow) * 3) var(--mt-ease) var(--mt-arrival-delay, 0ms) both;
+}
+
+.mt-panel-arrival > span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(2 * max(100cqw, 100cqh));
+    aspect-ratio: 1;
+    background: conic-gradient(
+        transparent 0%,
+        transparent 66%,
+        color-mix(in srgb, var(--mt-action) 45%, transparent) 84%,
+        var(--mt-action) 94%,
+        color-mix(in srgb, var(--mt-action) 70%, #fff6de) 99%,
+        transparent 100%
+    );
+    transform: translate(-50%, -50%) rotate(0deg);
+    animation: mt-arrival-run calc(var(--mt-duration-slow) * 3) var(--mt-ease) var(--mt-arrival-delay, 0ms) both;
+}
+
+@keyframes mt-arrival-run {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+/* Out of sight while it waits for the view's pour (its delay), then lit for the lap and put out. */
+@keyframes mt-arrival-out {
+    0% {
+        opacity: 0;
+    }
+    4% {
+        opacity: 1;
+    }
+    75% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* A working agent's turning light (the suite's .df-glow ring) in incandescent: hotter and yellower than the action
+   orange, never read as a button (theme decision 2). It turns in 32 steps a lap, 4 frames a second: a working agent
+   must not cost a frame at every display refresh (#455, #473), which a smooth turn would for hours. It holds still
+   while the view is not the active one, and cools to cast iron once the agent is done. */
+.mt-working-light {
+    --df-accent: var(--mt-state-running, #ffb547);
+    --df-glow-width: 1.5px;
+}
+
+.mt-working-light::before {
+    animation: df-glow-turn var(--mt-duration-turn) steps(32) infinite;
+}
+
+.mt-working-light[data-cooling] {
+    animation: mt-light-cool var(--mt-duration-cool) var(--mt-ease-cool) both;
+}
+
+@keyframes mt-light-cool {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+:root[data-mt-motion="still"] .mt-working-light::before {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-pour-lit {
+        display: none;
+    }
+
+    .mt-panel-arrival {
+        animation: mt-fade-out var(--mt-duration-fade) linear calc(var(--mt-arrival-delay, 0ms) + 600ms) both;
+    }
+
+    .mt-panel-arrival > span {
+        animation: none;
+        background: var(--mt-action);
+    }
+
+    .mt-working-light::before {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-pour-lit {
+    display: none;
+}
+
+.prefers-reduced-motion .mt-panel-arrival {
+    animation: mt-fade-out var(--mt-duration-fade) linear calc(var(--mt-arrival-delay, 0ms) + 600ms) both;
+}
+
+.prefers-reduced-motion .mt-panel-arrival > span {
+    animation: none;
+    background: var(--mt-action);
+}
+
+.prefers-reduced-motion .mt-working-light::before {
+    animation: none;
+}

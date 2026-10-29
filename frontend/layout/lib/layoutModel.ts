@@ -74,6 +74,8 @@ import { isHiddenMeta } from "../../moltenterm-shell/hidden-panel-meta";
 import { View360Model } from "../../moltenterm-shell/view360/view360-model";
 // MOLTENTERM-PATCH (#825): equalize the panel columns once, or after every change while the tab's auto mode is on
 import { EqualizeModel } from "../../moltenterm-shell/equalize/equalize-model";
+// MOLTENTERM-PATCH (#1349): a panel added to the view arrives instead of appearing
+import { notePanelsArrived } from "../../moltenterm-shell/panel-motion/panel-arrival-model";
 
 interface ResizeContext {
     handleId: string;
@@ -858,6 +860,8 @@ export class LayoutModel {
                 }
                 // MOLTENTERM-PATCH (#614): the carpet scrolls to a panel just laid on it
                 this.moltenView360?.onBlocksAdded(added);
+                // MOLTENTERM-PATCH (#1349): the added panels arrive (an edge runs around their frames)
+                notePanelsArrived(added, this.treeState.leafOrder?.length ?? 0);
             }
         }
     }

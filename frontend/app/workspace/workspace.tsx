@@ -23,6 +23,7 @@ import {
     PanelResizeHandle,
 } from "react-resizable-panels";
 // MOLTENTERM-PATCH (#44, #55, #110)
+import { useViewPour } from "../../moltenterm-shell/panel-motion/view-pour"; // MOLTENTERM-PATCH (#1349)
 import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
 import { SidebarModel } from "../../moltenterm-shell/sidebar/sidebar-store"; // MOLTENTERM-PATCH (#1183)
 import { SidebarContentStrip, WorkspaceSidebar } from "../../moltenterm-shell/sidebar/workspace-sidebar"; // MOLTENTERM-PATCH (#1183)
@@ -72,6 +73,8 @@ const WorkspaceElem = memo(() => {
     const panelContainerRef = useRef<HTMLDivElement>(null);
     const aiPanelWrapperRef = useRef<HTMLDivElement>(null);
     const vtabPanelWrapperRef = useRef<HTMLDivElement>(null);
+    // MOLTENTERM-PATCH (#1349): a switch to this view pours its panels in from the side of the tiles
+    useViewPour(panelContainerRef, sidebarOn || showLeftTabBar ? "x" : "y");
 
     // showLeftTabBar is passed as a seed value only; subsequent changes are handled by setShowLeftTabBar below.
     // Do NOT add showLeftTabBar as a dep here — re-registering refs on config changes would redundantly re-run commitLayouts.
