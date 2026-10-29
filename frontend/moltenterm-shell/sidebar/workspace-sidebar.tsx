@@ -22,7 +22,6 @@ import { UpdateStatusBanner } from "@/app/tab/updatebanner";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, type WidgetsEnv } from "@/app/workspace/widgets";
 import { deleteLayoutModelForTab } from "@/layout/index";
-import { validateCssColor } from "@/util/color-validator";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
@@ -517,19 +516,6 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     );
 }
 
-function useFlagColor(tab: Tab): string {
-    const raw = tab?.meta?.["tab:flagcolor"];
-    if (!raw) {
-        return null;
-    }
-    try {
-        validateCssColor(raw);
-        return raw;
-    } catch {
-        return null;
-    }
-}
-
 // What the view menu needs of a view (FR-SHELL-080, FR-SHELL-081): its state, whether it changed since pinned, its
 // shown name and the icon the developer chose (its pin's for a view pinned everywhere).
 type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: string };
@@ -833,7 +819,6 @@ function ViewRow({
     const trees = useTabTreesTooltip(tabId);
     const [hoverNow, setHoverNow] = useState(() => Date.now());
     const title = useTabTooltip(identity, trees.title, hoverNow);
-    const flagColor = useFlagColor(tab);
     const rename = (name: string) => {
         setRenaming(false);
         if (name !== identity.name) {
@@ -907,7 +892,7 @@ function ViewRow({
             <span className="flex-1" />
             <TabReviewMark done={identity.reviewDone} />
             <TabAgentMark info={identity.agent} />
-            <TabBadges badges={badges} flagColor={flagColor} className="static w-auto translate-y-0" />
+            <TabBadges badges={badges} className="static w-auto translate-y-0" />
             <span className="mt-sb-hover-ctl flex shrink-0 items-center" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                     type="button"
