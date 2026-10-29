@@ -3,6 +3,8 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { describe, expect, it, vi } from "vitest";
+import { AgentStatesData, EmptyAgentStates } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { effectiveValue } from "../command-panel/panel-model";
 import { PanelChoice, PanelContext } from "../command-panel/panel-types";
 import { codingAgentItem, codingAgentSections, CodingAgentViews } from "../command-panel/providers/coding-agent";
@@ -13,6 +15,7 @@ import {
     CodingAgentModel,
     codingAgentOptions,
     fetchCodingAgent,
+    runningCodingAgents,
 } from "./coding-agent";
 
 vi.mock("./coding-agent", async (importOriginal) => {
@@ -47,6 +50,43 @@ describe("the Agent option (#845)", () => {
         expect(
             codingAgentDetail({ source: "project", chosen: "codex", chosenname: "Codex", missing: true, agents: [] })
         ).toBe("Codex is chosen but not installed on this computer: choose another one");
+    });
+
+    it("names the agents running in a pane instead of saying none is installed (FR-SHELL-100)", () => {
+        const states: AgentStatesData = {
+            states: {
+                b1: { blockid: "b1", agent: "claude", state: "working", version: 1 },
+                b2: { blockid: "b2", agent: "someother", state: "idle", version: 1 },
+            },
+            versions: {},
+        };
+        const running = runningCodingAgents(states);
+        expect(running).toEqual(["claude"]);
+        const none: CodingAgentChoice = {
+            source: "order",
+            order: "",
+            agents: [
+                { id: "claude", name: "Claude Code", installed: false },
+                { id: "codex", name: "Codex", installed: false },
+            ],
+        };
+        expect(codingAgentDetail(none)).toBe("No supported agent is installed on this computer");
+        expect(codingAgentDetail(none, running)).toBe("Running: Claude Code");
+        expect(codingAgentOptions(none, running).map((o) => o.detail)).toEqual([
+            "running, but MoltenTerm cannot start it",
+            "not installed",
+        ]);
+        expect(
+            codingAgentDetail(
+                { source: "project", chosen: "claude", chosenname: "Claude Code", missing: true, agents: [] },
+                running
+            )
+        ).toBe("Claude Code is chosen and running, but MoltenTerm cannot start it: choose another one");
+
+        known("/run", none);
+        globalStore.set(AgentStates.getInstance().dataAtom, states);
+        expect(codingAgentItem("/run").detail).toBe("Running: Claude Code");
+        globalStore.set(AgentStates.getInstance().dataAtom, EmptyAgentStates);
     });
 
     it("is one choice per project with a global default, in every panel that starts an agent", () => {

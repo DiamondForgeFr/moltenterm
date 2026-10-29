@@ -1436,8 +1436,9 @@ function CommandPanel({ open }: CommandPanelProps) {
                     </div>
                 )}
             </div>
+            {/* Wraps rather than clips: a long named close action (French) leaves Dismiss no room on one line. */}
             <div
-                className="flex shrink-0 items-center gap-0.5 border-t border-line px-1 py-1"
+                className="flex shrink-0 flex-wrap items-center gap-0.5 border-t border-line px-1 py-1"
                 role="group"
                 aria-label={t("cmdpanel.aria.actions")}
             >

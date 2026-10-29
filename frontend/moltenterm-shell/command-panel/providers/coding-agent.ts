@@ -7,6 +7,7 @@
 // global default, so a change in one panel shows in all of them.
 
 import { atoms, globalStore } from "@/app/store/global";
+import { AgentStates } from "../../agent-state-store";
 import {
     codingAgentDetail,
     CodingAgentModel,
@@ -14,6 +15,7 @@ import {
     CodingAgentSettingKey,
     rememberedProjectAgent,
     rememberProjectAgent,
+    runningCodingAgents,
 } from "../../coding-agent/coding-agent";
 import { t } from "../../i18n/i18n";
 import { MoltentermPipelineView, PipelinePanelMetaKey, readPipelineTarget } from "../../mission/pipeline-tab-model";
@@ -73,15 +75,16 @@ function globalBinding(dir: string): ScopeBinding<string> {
 
 export function codingAgentItem(dir: string): PanelItem {
     const choice = CodingAgentModel.getInstance().choiceOf(dir);
+    const running = runningCodingAgents(globalStore.get(AgentStates.getInstance().dataAtom));
     return {
         id: "codingagent",
         type: "choice",
         label: t("codingAgent.label"),
-        detail: codingAgentDetail(choice),
+        detail: codingAgentDetail(choice, running),
         icon: "robot",
         keywords: ["coding agent", "claude", "codex", "ai", "review", "release notes"],
         defaultValue: choice?.order || undefined,
-        options: codingAgentOptions(choice),
+        options: codingAgentOptions(choice, running),
         scopes: dir ? [projectBinding(dir), globalBinding(dir)] : [globalBinding(dir)],
     };
 }

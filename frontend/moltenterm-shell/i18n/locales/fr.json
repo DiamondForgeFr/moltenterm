@@ -3300,6 +3300,8 @@
             "scheduledTitle": "Jobs planifiés",
             "scheduledHint": "heures locales · GitHub peut les lancer avec des heures de retard",
             "noScheduled": "Aucun workflow planifié.",
+            "scheduledOnGithub": "Planifié sur GitHub, pas de fichier local",
+            "unknownDuration": "Durée inconnue",
             "last": "dernier {when}",
             "failedSteps": "Les étapes en échec",
             "wholeLog": "Le journal complet",
@@ -8786,7 +8788,10 @@
         "notInstalled": "non installé",
         "missing": "{agent} est choisi mais n'est pas installé sur cet ordinateur : choisissez-en un autre",
         "automatic": "Automatique : {agent}",
-        "noneInstalled": "Aucun agent pris en charge n'est installé sur cet ordinateur"
+        "noneInstalled": "Aucun agent pris en charge n'est installé sur cet ordinateur",
+        "running": "En cours : {agents}",
+        "runningNotStartable": "en cours, mais MoltenTerm ne peut pas le lancer",
+        "missingRunning": "{agent} est choisi et en cours, mais MoltenTerm ne peut pas le lancer : choisissez-en un autre"
     },
     "hang": {
         "title": "La fenêtre n'a pas répondu pendant {seconds} s",

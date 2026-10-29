@@ -60,7 +60,9 @@ vi.mock("@/app/store/wshrpcutil", () => ({
 }));
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
 vi.mock("../../agent-state-store", () => ({
-    AgentStates: { getInstance: () => ({ blockAtom: (id: string) => ({ key: `agent:${id}` }) }) },
+    AgentStates: {
+        getInstance: () => ({ blockAtom: (id: string) => ({ key: `agent:${id}` }), dataAtom: { key: "agent-states" } }),
+    },
 }));
 vi.mock("../../companion/companion-session-store", () => ({
     CompanionSessions: { getInstance: () => ({ sessionAtom: (id: string) => ({ key: `session:${id}` }) }) },
