@@ -77,7 +77,8 @@ export type CardAction = {
 // running: checks still run, with a still mark (the card's one animation is its state line or its agent line, #1085).
 export type CardFactTone = "ok" | "soft" | "bad" | "muted" | "running";
 
-export type CardFact = { id: string; text: Phrase; tone: CardFactTone };
+// title: what the fact means, on hover, when its few words alone do not say it.
+export type CardFact = { id: string; text: Phrase; tone: CardFactTone; title?: Phrase };
 
 export type CardState = {
     kind: CardStateKind;
@@ -334,7 +335,13 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
     if (pr.report?.state === "present") {
         facts.push({ id: "report", text: phrase("reviews.card.fact.report"), tone: "ok" });
     } else if (pr.report?.state === "missing") {
-        facts.push({ id: "report", text: phrase("reviews.card.fact.noReport"), tone: "soft" });
+        // A missing report is a fact, not an alarm (#1351, FR-REV-032): grey, and its hover says what it means.
+        facts.push({
+            id: "report",
+            text: phrase("reviews.card.fact.noReport"),
+            tone: "muted",
+            title: phrase("reviews.card.fact.noReportTitle"),
+        });
     }
     if (pr.merge === "conflicts" && !said.has("conflicts")) {
         facts.push({ id: "conflicts", text: phrase("reviews.card.fact.conflicts", { base: pr.base }), tone: "bad" });

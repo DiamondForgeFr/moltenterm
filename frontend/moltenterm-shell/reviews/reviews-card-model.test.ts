@@ -327,7 +327,10 @@ describe("cardState: the nine states (#1060)", () => {
         expect(wordPhrase(s.sentence)).toBe("Draft to test");
         expect(s.primary.id).toBe("mark-ready");
         expect(wordPhrase(s.primary.confirm)).toBe("No test report yet.");
-        expect(s.facts.find((f) => f.id === "report").tone).toBe("soft");
+        // Grey with its meaning on hover, never the warning colour (#1351, FR-REV-032 AC3).
+        const report = s.facts.find((f) => f.id === "report");
+        expect(report.tone).toBe("muted");
+        expect(wordPhrase(report.title)).toContain("No test report comment on this pull request yet.");
     });
 
     it("CI running: calm Assisted review, Validate still in the menu, behind is a fact", () => {

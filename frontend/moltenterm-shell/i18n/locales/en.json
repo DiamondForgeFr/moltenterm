@@ -6671,6 +6671,7 @@
                 "ciSkipped": "CI {success}/{total}, {skipped} skipped",
                 "report": "report",
                 "noReport": "no test report",
+                "noReportTitle": "No test report comment on this pull request yet. The agent posts one once it has tested the change. Nothing is blocked without it: it is information, not a problem.",
                 "conflicts": "conflicts with {base}",
                 "behind": "behind {base}, GitHub will update it",
                 "changes": "changes requested",

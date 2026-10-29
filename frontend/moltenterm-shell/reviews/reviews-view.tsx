@@ -48,7 +48,7 @@ import { forecastRequestOf, forecastStatus } from "./reviews-forecast-model";
 import { LaunchBar, LaunchDialogs } from "./reviews-launch";
 import { useLeftoverAsks } from "./reviews-leftover-asks";
 import { LeftoverOwnerCard } from "./reviews-leftover-owner";
-import { leftoverTurnRows } from "./reviews-leftover-owner-model";
+import { leftoverOwnerCard, leftoverTurnRows } from "./reviews-leftover-owner-model";
 import { leftoverRows } from "./reviews-leftovers-model";
 import { MergedSection } from "./reviews-merged";
 import {
@@ -81,7 +81,14 @@ import {
     withMerged,
 } from "./reviews-queue-model";
 import { SectionHeading } from "./reviews-section-heading";
-import { cardStates, sectionOf, sectionRows, sectionsByTurn, withTurnShown } from "./reviews-sections-model";
+import {
+    cardStates,
+    filledAction,
+    sectionOf,
+    sectionRows,
+    sectionsByTurn,
+    withTurnShown,
+} from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
 import { UpcomingSection } from "./reviews-upcoming";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
@@ -355,6 +362,18 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         rtn = withTurnShown(rtn, "agents", (leftoverTurns.agents?.length ?? 0) > 0);
         return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
     }, [listed, cards, sort, ranks, batchVisible, batchPointer, leftoverTurns]);
+    const filled = useMemo(
+        () =>
+            filledAction(
+                sections,
+                cards,
+                (leftoverTurns.yours ?? []).map((row) => ({
+                    key: `leftover:${row.leftover.branch}`,
+                    molten: !!leftoverOwnerCard(row.ask, "")?.molten,
+                }))
+            ),
+        [sections, cards, leftoverTurns]
+    );
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
     for (const s of sections) {
@@ -502,6 +521,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const rowProps = (pr: ReviewPr) => ({
         pr,
         card: cards[pr.number],
+        filled: filled === `pr:${pr.number}`,
         selected: selected === pr.number,
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
@@ -663,6 +683,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                             dir={dir}
                                             row={row}
                                             repoUrl={answer.url}
+                                            filled={filled === `leftover:${row.leftover.branch}`}
                                         />
                                     ))}
                                 </div>
