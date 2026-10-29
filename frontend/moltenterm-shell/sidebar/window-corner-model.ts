@@ -29,6 +29,9 @@ export const MacButtonHeightPx = 16;
 export const MacButtonsLeftPx = 12;
 // The window controls' own height on the platforms that draw them over the page (top right), when nothing sets it.
 export const DefaultControlsOverlayPx = 32;
+// The floating sidebar's one inner margin (#1293), as Arc's: on its four sides, the window buttons inset by it from
+// the panel's top and left edges, and one more of it between the buttons and the top field.
+export const PeekInsetPx = 12;
 
 function validZoom(zoom: unknown): number {
     return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
@@ -44,9 +47,21 @@ export function windowRowCentrePt(zoom: unknown): number {
     return windowRowHeightPt(zoom) / 2;
 }
 
-// Where Electron places the system's window buttons (setWindowButtonPosition): their centre on the row's centre line.
-export function macButtonsPosition(zoom: unknown): { x: number; y: number } {
+// Where Electron places the system's window buttons (setWindowButtonPosition). Docked: their centre on the row's centre
+// line. With the sidebar hidden (peekGap set, the frame margin in page pixels): inside the floating panel, which sits
+// one frame margin from the window's top and left edges, one inner margin from its top and left edges. The page's
+// pixels are window points times the zoom; the buttons' own size is not.
+export function macButtonsPosition(zoom: unknown, peekGap?: number): { x: number; y: number } {
+    if (peekGap != null) {
+        const inset = Math.round(peekButtonsInsetPx(peekGap) * validZoom(zoom));
+        return { x: inset, y: inset };
+    }
     return { x: MacButtonsLeftPx, y: Math.round(windowRowCentrePt(zoom) - MacButtonHeightPx / 2) };
+}
+
+// The window buttons' distance from the window's top and left edges in the floating panel, in page pixels.
+export function peekButtonsInsetPx(peekGap: unknown): number {
+    return frameSizes(peekGap).marginPx + PeekInsetPx;
 }
 
 // The window controls drawn over the page on the right take the row's height, so they share its centre line.
@@ -66,7 +81,14 @@ export function windowButtonsVisible(state: WindowButtonsState): boolean {
     return !state.sidebarHidden || state.peek || state.fullScreen;
 }
 
-export type WindowButtonsMessage = { visible: boolean; zoom: number };
+// The buttons sit inside the floating panel whenever the sidebar is hidden, peeked or not, so they never jump when the
+// panel slides in. Full screen leaves them to the system.
+export function windowButtonsInPeek(state: WindowButtonsState): boolean {
+    return state.sidebarHidden && !state.fullScreen;
+}
+
+// peekGap: the frame margin, sent only while the buttons belong to the floating panel.
+export type WindowButtonsMessage = { visible: boolean; zoom: number; peekGap?: number };
 
 // What the page sends to Electron main; null (or anything else) puts the window's own defaults back.
 export function readWindowButtonsMessage(value: unknown): WindowButtonsMessage | null {
@@ -74,5 +96,9 @@ export function readWindowButtonsMessage(value: unknown): WindowButtonsMessage |
         return null;
     }
     const msg = value as Record<string, unknown>;
-    return { visible: msg.visible === true, zoom: validZoom(msg.zoom) };
+    const read: WindowButtonsMessage = { visible: msg.visible === true, zoom: validZoom(msg.zoom) };
+    if (msg.peekGap != null) {
+        read.peekGap = frameSizes(msg.peekGap).marginPx;
+    }
+    return read;
 }

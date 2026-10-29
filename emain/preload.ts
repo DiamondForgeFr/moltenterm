@@ -105,8 +105,8 @@ contextBridge.exposeInMainWorld("api", {
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
     setWaveAIOpen: (isOpen: boolean) => ipcRenderer.send("set-waveai-open", isOpen),
-    // MOLTENTERM-PATCH (#1216, #1279): the window buttons show with the sidebar, on the window row's centre line (DS-SHELL-127)
-    setWindowButtons: (state: { visible: boolean; zoom: number } | null) =>
+    // MOLTENTERM-PATCH (#1216, #1279, #1293): the window buttons show with the sidebar, on the window row's centre line or inside the floating panel (DS-SHELL-127)
+    setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) =>
         ipcRenderer.send("moltenterm-window-buttons", state),
     // MOLTENTERM-PATCH (#1281): the workspace's look, see-through and blur (emain/moltenterm-window-look.ts)
     setWindowLook: (look: { translucent: boolean; blur: boolean }) => ipcRenderer.send("moltenterm-window-look", look),

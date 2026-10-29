@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Spaces frame (DS-SHELL-127, #1216, #1279): the window buttons come and go with the workspace sidebar, and sit on
-// the window row's centre line. macOS draws them at the top left: they are placed and shown or hidden. Elsewhere the
+// the window row's centre line, or inside the floating panel while the sidebar is hidden (#1293). macOS draws them at the top left: they are placed and shown or hidden. Elsewhere the
 // window controls are drawn over the page at the top right: they take the row's height so they share its centre line.
 // The page only sends while it is the tab shown (workspace-sidebar.tsx), so a cached tab never speaks for the window.
 
@@ -28,7 +28,7 @@ export function applyWindowButtons(win: ButtonsWindow, value: unknown, platform:
     }
     const msg = readWindowButtonsMessage(value);
     if (platform === "darwin") {
-        win.setWindowButtonPosition?.(msg == null ? null : macButtonsPosition(msg.zoom));
+        win.setWindowButtonPosition?.(msg == null ? null : macButtonsPosition(msg.zoom, msg.peekGap));
         win.setWindowButtonVisibility?.(msg == null || msg.visible);
         return true;
     }
