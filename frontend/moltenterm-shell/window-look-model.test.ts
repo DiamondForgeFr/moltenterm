@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     clampOpacity,
@@ -15,6 +17,9 @@ import {
     MinOpacityBlur,
     OpaqueLook,
     parseLook,
+    peekAlpha,
+    PeekBlurPx,
+    PeekMinAlpha,
     ProjectLooksMetaKey,
     readProjectLook,
     resolveLook,
@@ -237,5 +242,57 @@ describe("the texture under reduced transparency (#1294, TC-SHELL-225)", () => {
     it("takes light ink on an opaque frame, dark ink on a see-through one", () => {
         expect(textureTone(effectiveLook(look, true, Supported).look)).toBe("light");
         expect(textureTone(effectiveLook(look, false, Supported).look)).toBe("dark");
+    });
+});
+
+describe("the floating sidebar over the panels (#1298, TC-SHELL-227)", () => {
+    const css = fs.readFileSync(path.join(__dirname, "window-look.css"), "utf8");
+
+    function rule(selector: string): string {
+        const at = css.indexOf(`${selector} {`);
+        return at < 0 ? null : css.slice(at, css.indexOf("}", at));
+    }
+
+    it("blurs what is under it and keeps its tint at the peek alpha when the window is see-through", () => {
+        const peek = rule("html.mt-translucent .mt-sb.is-hidden");
+        expect(peek).toMatch(/backdrop-filter:\s*blur\(var\(--mt-peek-blur/);
+        expect(peek).toContain("var(--mt-peek-alpha");
+        expect(peek).not.toContain("--mt-window-alpha");
+    });
+
+    it("never lets the tint under the readable minimum, and stays opaque on an opaque window", () => {
+        expect(peekAlpha({ opacity: 0.5, blur: true })).toBe(PeekMinAlpha);
+        expect(peekAlpha({ opacity: 0.7, blur: false })).toBe(PeekMinAlpha);
+        expect(peekAlpha({ opacity: 0.95, blur: false })).toBe(0.95);
+        expect(peekAlpha({ opacity: 1, blur: true })).toBe(1);
+        expect(peekAlpha(OpaqueLook)).toBe(1);
+        expect(peekAlpha(effectiveLook({ opacity: 0.6, blur: true }, true, Supported).look)).toBe(1);
+        expect(PeekBlurPx).toBeGreaterThanOrEqual(12);
+    });
+
+    // The worst spot: a white page under the panel (the blur cannot darken a flat white), a hovered row's highlight on
+    // top, the lightest workspace colour.
+    it("keeps the sidebar's text at 4.5:1 over a white page under it", () => {
+        const lin = (c: number) => {
+            const s = c / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        const lum = (rgb: number[]) => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+        const over = (top: number[], a: number, under: number[]) => under.map((c, i) => a * top[i] + (1 - a) * c);
+        const contrastAt = (alpha: number, accent: number[]) => {
+            const tint = over([0, 0, 0], 0.12, over(accent, 0.18, [20, 17, 16]));
+            const spot = over([255, 255, 255], 0.1, over(tint, alpha, [255, 255, 255]));
+            const text = over(accent, 0.03, [247, 247, 247]);
+            return (lum(text) + 0.05) / (lum(spot) + 0.05);
+        };
+        for (const accent of [
+            [255, 255, 255],
+            [255, 124, 13],
+            [0, 255, 219],
+            [214, 221, 230],
+        ]) {
+            expect(contrastAt(PeekMinAlpha, accent)).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(contrastAt(MinOpacity, [255, 255, 255])).toBeLessThan(4.5);
     });
 });
