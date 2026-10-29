@@ -14,6 +14,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 // Env is what the keeper needs from wavesrv, injected so tests run without it.
@@ -243,7 +244,7 @@ func askNotification(tool string, parentName string, wsId string, tabName string
 	}
 	where := ""
 	if tabName != "" {
-		where = " in " + tabName
+		where = " in " + wconfig.ViewNameText(tabName)
 	}
 	message := fmt.Sprintf("%s%s ran %s. Choose once what MoltenTerm does with such requests: let them through, keep "+
 		"%s awake itself until the work ends, or let it sleep.", who, where, tool, computerName())

@@ -9,6 +9,7 @@ import { t } from "./i18n/i18n";
 import { ServerText, serverText } from "./i18n/server-text";
 import type { PaneState } from "./status-bar-model";
 import { pathBaseName } from "./workspace-project";
+import { viewNameText } from "./workspace-views/workspace-views-model";
 
 // must match WorktreeMetaKey and WorktreeDismissedMetaKey in pkg/molten/worktree.go
 export const WorktreeMetaKey = "molten:worktree";
@@ -330,7 +331,9 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
               terminals: plural(terminals.length, "worktree.plan.otherTerminals"),
               list: terminals
                   .map(
-                      (term) => [term.workspace, term.tab].filter((s) => s).join(" › ") || t("worktree.plan.aTerminal")
+                      (term) =>
+                          [term.workspace, viewNameText(term.tab, t)].filter((s) => s).join(" › ") ||
+                          t("worktree.plan.aTerminal")
                   )
                   .join(", "),
           })

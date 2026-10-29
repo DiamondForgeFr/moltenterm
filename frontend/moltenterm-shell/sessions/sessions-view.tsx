@@ -39,6 +39,7 @@ import {
     SessionsStateMetaKey,
 } from "../widget-options";
 import { effectiveWorkspaceFolder } from "../workspace-project";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
 import { MergedPrMark, sessionMergedPr, useMergedPrs } from "./merged-prs";
 import { showPane } from "./pane-focus";
@@ -529,7 +530,9 @@ function SessionRow({
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
                             className="max-w-[16rem] min-w-[3rem] shrink truncate text-12 font-medium text-primary"
-                            title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
+                            title={[viewNameText(session.tabname, translate) || name, session.folder]
+                                .filter((p) => !!p)
+                                .join(" · ")}
                             data-testid="session-name"
                         >
                             {shownName}

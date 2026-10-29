@@ -18,6 +18,7 @@ import { showPanel } from "../review/review-panels";
 import { DurableSession, sessionName } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { DominoLoader } from "../suite/suite";
+import { viewNameText } from "../workspace-views/workspace-views-model";
 import type { WorktreeTerminal } from "../worktree-model";
 import { ActionSecondaryClass } from "./action-button";
 import {
@@ -84,7 +85,9 @@ export function branchHolders(b: BranchPlan, sessions: DurableSession[], home: s
     }
     return (b.terminals ?? []).map((term: WorktreeTerminal) => {
         const session = (sessions ?? []).find((s) => s.blockid === term.blockid);
-        const name = session ? sessionName(session, home) : (term.tab ?? "").trim() || t("sessions.terminal");
+        const name = session
+            ? sessionName(session, home)
+            : viewNameText((term.tab ?? "").trim(), t) || t("sessions.terminal");
         return { blockid: term.blockid, name };
     });
 }
@@ -621,9 +624,7 @@ export function CheckedTreesGroup({
                             <span className="break-all text-12 text-secondary">
                                 {t("mc.branches.deletesFolder", { path: b.worktree })}
                             </span>
-                            {facts.length > 0 ? (
-                                <span className="text-12 text-muted">{facts.join(" · ")}</span>
-                            ) : null}
+                            {facts.length > 0 ? <span className="text-12 text-muted">{facts.join(" · ")}</span> : null}
                         </span>
                     </label>
                 );

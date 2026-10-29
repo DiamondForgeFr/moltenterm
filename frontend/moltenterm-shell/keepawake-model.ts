@@ -8,6 +8,7 @@
 import { t } from "./i18n/i18n";
 import { ServerText, serverText, serverTexts } from "./i18n/server-text";
 import { workspaceShownName } from "./workspace-default-name";
+import { viewNameText } from "./workspace-views/workspace-views-model";
 
 export const KeepAwakeRoute = "molten:keepawake";
 export const KeepAwakeEvent = "molten:keepawake";
@@ -225,7 +226,7 @@ export type KeepAwakeSession = {
 };
 
 function sessionLabel(tabname: string, workspacename: string): string {
-    const parts = [tabname, workspaceShownName(workspacename, t)].filter((p) => p);
+    const parts = [viewNameText(tabname, t), workspaceShownName(workspacename, t)].filter((p) => p);
     return parts.length > 0 ? parts.join(" · ") : t("keepawake.aTerminal");
 }
 
@@ -309,7 +310,7 @@ export function coffeeSessions(state: KeepAwakeState, workspaceId: string): Keep
 export function sessionWhere(session: KeepAwakeAutoApprove): string {
     return t("keepawake.sessionWhere", {
         agent: session.agentname || session.agent,
-        where: session.tabname || t("keepawake.aTerminalLower"),
+        where: viewNameText(session.tabname, t) || t("keepawake.aTerminalLower"),
     });
 }
 

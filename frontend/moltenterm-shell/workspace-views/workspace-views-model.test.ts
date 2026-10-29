@@ -19,6 +19,7 @@ import {
     replacePanel,
     templateViewName,
     ViewNameKeyMetaKey,
+    viewNameText,
     viewShownName,
     WorkspaceViewPanels,
 } from "./workspace-views-model";
@@ -42,6 +43,17 @@ describe("names of a new workspace's views (#1305)", () => {
         } as unknown as Tab;
         expect(tabShownName(tab, fr)).toBe("Intégration");
         expect(tabShownName(tab, en)).toBe("Integration");
+    });
+
+    it("words a name sent without its tab's meta, never shows the key (#1311)", () => {
+        expect(viewNameText("workspaceViews.names.scoping", fr)).toBe("Cadrage");
+        expect(viewNameText("workspaceViews.names.integration", en)).toBe("Integration");
+        expect(viewNameText("workspaceViews.names.later", fr)).toBe("Vue");
+        expect(viewNameText("workspaceViews.names.later", en)).toBe("View");
+        expect(viewNameText("My scoping", fr)).toBe("My scoping");
+        expect(viewNameText("T2", fr)).toBe("T2");
+        expect(viewNameText("", fr)).toBe("");
+        expect(viewNameText(undefined, fr)).toBe("");
     });
 });
 

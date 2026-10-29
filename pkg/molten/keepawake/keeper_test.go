@@ -329,3 +329,15 @@ func TestCleanPolicy(t *testing.T) {
 		}
 	}
 }
+
+// #1311: a default view never renamed is named by its key; the English says its name, the code keeps the key for the
+// window to word.
+func TestAskNotificationNamesADefaultView(t *testing.T) {
+	n := askNotification("caffeinate", "Olivia", "ws1", "workspaceViews.names.scoping")
+	if !strings.HasPrefix(n.Message, "Olivia in Scoping ran caffeinate.") {
+		t.Fatalf("message %q", n.Message)
+	}
+	if n.MessageText == nil || n.MessageText.Vars["tab"] != "workspaceViews.names.scoping" {
+		t.Fatalf("message text %+v", n.MessageText)
+	}
+}

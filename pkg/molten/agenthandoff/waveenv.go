@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -75,7 +76,7 @@ func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 	}
 	rtn.TabId = tabId
 	if tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId); err == nil && tab != nil {
-		rtn.TabName = tab.Name
+		rtn.TabName = wconfig.ViewNameText(tab.Name)
 	}
 	wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
 	if err != nil {

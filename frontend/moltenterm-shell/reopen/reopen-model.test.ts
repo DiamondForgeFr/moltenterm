@@ -18,6 +18,12 @@ describe("the reopen toast (#512)", () => {
         expect(reopenToast({ reopened: true, kind: "tab", name: "api" }).title).toBe("Reopened the tab “api”");
     });
 
+    it("names a default view never renamed by its name, not its key (#1311)", () => {
+        expect(reopenToast({ reopened: true, kind: "tab", name: "workspaceViews.names.scoping" }).title).toBe(
+            "Reopened the tab “Scoping”"
+        );
+    });
+
     it("says a terminal got a new shell, in its folder", () => {
         const t = reopenToast(
             { reopened: true, kind: "pane", name: "the terminal", freshshell: true, cwd: "/Users/me/w" },

@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"golang.org/x/term"
@@ -176,7 +177,7 @@ func moltenSessionWhere(s molten.DurableSession) string {
 		parts = append(parts, s.WorkspaceName)
 	}
 	if s.TabName != "" {
-		parts = append(parts, s.TabName)
+		parts = append(parts, wconfig.ViewNameText(s.TabName))
 	}
 	if len(parts) == 0 {
 		return "in a pane"

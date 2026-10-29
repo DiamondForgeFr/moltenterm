@@ -82,6 +82,7 @@ describe("sessions table columns", () => {
         expect(sessionName(shell, Home)).toBe("moltenterm");
         expect(agentCell(shell)).toEqual({ label: "Shell", kind: "shell" });
         expect(sessionName({ ...shell, tabname: "API server" }, Home)).toBe("API server");
+        expect(sessionName({ ...shell, tabname: "workspaceViews.names.scoping" }, Home)).toBe("Scoping");
         expect(sessionName({ ...shell, folder: Home }, Home)).toBe("Home");
         expect(sessionName({ ...shell, folder: undefined }, Home)).toBe("Terminal");
         // A shell whose integration said nothing yet is named by wavesrv with the shell alone.
