@@ -18,5 +18,10 @@ func SeedFirstLaunchTermTheme() error {
 	if _, ok := m[ConfigKey_TermTheme]; ok {
 		return nil
 	}
-	return SetBaseConfigValue(waveobj.MetaMapType{ConfigKey_TermTheme: FirstLaunchTermTheme})
+	toWrite := waveobj.MetaMapType{ConfigKey_TermTheme: FirstLaunchTermTheme}
+	// Wave draws a terminal at 50 % over the window's tint; Coulée's background is the opaque surface-term #100E0C.
+	if _, ok := m[ConfigKey_TermTransparency]; !ok {
+		toWrite[ConfigKey_TermTransparency] = float64(0)
+	}
+	return SetBaseConfigValue(toWrite)
 }
