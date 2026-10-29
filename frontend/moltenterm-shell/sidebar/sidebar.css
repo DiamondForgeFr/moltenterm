@@ -427,9 +427,9 @@
     background: rgb(0 0 0 / 0.45);
 }
 
-/* Pull request status dots on the block that shows Integration (FR-SHELL-085, #1304): one round dot per state with
-   pull requests, in the corner column, red blocked on the developer, green ready to merge, orange CI running, grey
-   the agents' turn. Colours are the fixed state tokens; a thin dark edge keeps them apart from light and translucent
+/* Pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one dot per
+   panel section with pull requests, in the corner column, red blocked (a diamond), amber yours, green ready to
+   merge, orange running (CI), grey with the agents. Colours are the fixed state tokens; a thin dark edge keeps them apart from light and translucent
    looks. Dots showing up fade in once, a dot whose count changes glows once; nothing moves at rest. */
 .mt-sb-prdots {
     display: flex;
@@ -467,19 +467,36 @@
     height: 4px;
 }
 
+/* Blocked is a diamond, the others round (#1327, WCAG 1.4.1): the state does not rest on its colour alone. The
+   diamond is a rotated square, so its side is smaller to keep the dot's footprint. */
 .mt-sb-prdot.is-blocked {
+    width: 5px;
+    height: 5px;
+    margin: 0.5px;
+    border-radius: 1px;
+    transform: rotate(45deg);
     color: var(--mt-state-error);
+}
+
+.mt-sb-prdots.is-small .mt-sb-prdot.is-blocked {
+    width: 3.5px;
+    height: 3.5px;
+    margin: 0.25px;
+}
+
+.mt-sb-prdot.is-yours {
+    color: var(--mt-state-waiting);
 }
 
 .mt-sb-prdot.is-ready {
     color: var(--mt-state-done);
 }
 
-.mt-sb-prdot.is-ci {
+.mt-sb-prdot.is-waiting {
     color: var(--mt-state-working);
 }
 
-.mt-sb-prdot.is-draft {
+.mt-sb-prdot.is-agents {
     color: var(--mt-sb-fg-3);
 }
 

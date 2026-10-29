@@ -111,7 +111,7 @@ describe("the card of a PR in a running group merge", () => {
     it("goes back to its own section once the queue left it: done, voided, set aside or the queue ended", () => {
         expect(cardOf(pr(1118), run(item(1118, 1102, "merged"))).turn).toBe("blocked");
         expect(cardOf(pr(1118), run(item(1118, 1102, "voided"))).turn).toBe("blocked");
-        expect(cardOf(pr(1118, { merge: "clean" }), run(item(1118, 1102, "failed"))).turn).toBe("yours");
+        expect(cardOf(pr(1118, { merge: "clean" }), run(item(1118, 1102, "failed"))).turn).toBe("ready");
         expect(cardOf(pr(1118), run(item(1118, 1102, "rebasing"), { state: "cancelled" })).turn).toBe("blocked");
     });
 
@@ -135,7 +135,7 @@ describe("the card of a PR in a running group merge", () => {
         const r = run(item(1118, 1102, "waitingchecks", { source: "validate" }), { blockid: "", agentname: "" });
         expect(batchWorkItem(r, pr(1118, { merge: "clean" }))).toBeNull();
         const card = cardOf(pr(1118, { merge: "clean" }), r);
-        expect(card.turn).toBe("yours");
+        expect(card.turn).toBe("ready");
     });
 
     it("names the merge queue when the PRs came from Validate", () => {

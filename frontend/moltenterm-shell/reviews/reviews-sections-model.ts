@@ -25,7 +25,7 @@ import {
 } from "./reviews-upcoming-model";
 
 // The PR sections, in the order the panel shows them.
-export const TurnOrder: CardTurn[] = ["yours", "agents", "blocked", "waiting"];
+export const TurnOrder: CardTurn[] = ["yours", "ready", "agents", "blocked", "waiting"];
 
 // must match the sort choices of reviews-order-store.ts; "learn" joins with the learning grades (#788, #1064).
 export type ReviewsSort = "state" | "merge";

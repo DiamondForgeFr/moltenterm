@@ -5,45 +5,41 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PrDots } from "./pr-counts";
 
-describe("PrDots (FR-SHELL-085, #1304)", () => {
-    it("draws one dot per state with pull requests, top to bottom red, green, orange, grey, without numbers", () => {
+const Counts = { blocked: 0, yours: 0, ready: 0, waiting: 0, agents: 0 };
+
+describe("PrDots (FR-SHELL-085, #1304; FR-SHELL-098, #1327)", () => {
+    it("draws one dot per section with pull requests, top to bottom, without numbers", () => {
         const html = renderToStaticMarkup(
-            <PrDots counts={{ blocked: 1, ready: 3, ci: 1, draft: 2 }} motionKey="tile:a" calm={false} />
+            <PrDots
+                counts={{ blocked: 1, yours: 2, ready: 3, waiting: 1, agents: 2 }}
+                motionKey="tile:a"
+                calm={false}
+            />
         );
         const kinds = [...html.matchAll(/data-kind="(\w+)"/g)].map((m) => m[1]);
-        expect(kinds).toEqual(["blocked", "ready", "ci", "draft"]);
+        expect(kinds).toEqual(["blocked", "yours", "ready", "waiting", "agents"]);
         expect(html).toMatch(/class="mt-sb-prdot is-ready"[^>]*><\/span>/);
         expect(html.replace(/<[^>]*>/g, "")).toBe("");
         expect(html).not.toContain("is-calm");
         expect(html).not.toContain("is-bump");
     });
 
-    it("gives each dot its count as tooltip and accessible name, and the column one summary", () => {
-        const html = renderToStaticMarkup(
-            <PrDots counts={{ blocked: 1, ready: 2, ci: 0, draft: 0 }} motionKey="k" calm />
-        );
-        expect(html).toContain('title="1 pull request waiting on your decision"');
-        expect(html).toContain('aria-label="2 pull requests ready to merge"');
-        expect(html).toContain(
-            'role="group" aria-label="1 pull request waiting on your decision, 2 pull requests ready to merge"'
-        );
+    it("names each dot after the panel's section, with the count of the PRs it lists", () => {
+        const html = renderToStaticMarkup(<PrDots counts={{ ...Counts, blocked: 1, ready: 2 }} motionKey="k" calm />);
+        expect(html).toContain('title="Blocked: 1 pull request"');
+        expect(html).toContain('aria-label="Ready: 2 pull requests"');
+        expect(html).toContain('role="group" aria-label="Blocked: 1 pull request, Ready: 2 pull requests"');
     });
 
-    it("leaves out an empty state and draws nothing without pull requests", () => {
-        const html = renderToStaticMarkup(
-            <PrDots counts={{ blocked: 0, ready: 0, ci: 0, draft: 4 }} motionKey="k" calm />
-        );
+    it("leaves out an empty section and draws nothing without pull requests", () => {
+        const html = renderToStaticMarkup(<PrDots counts={{ ...Counts, agents: 4 }} motionKey="k" calm />);
         expect(html).not.toContain("is-ready");
         expect(html).toContain("is-calm");
-        expect(
-            renderToStaticMarkup(<PrDots counts={{ blocked: 0, ready: 0, ci: 0, draft: 0 }} motionKey="k" calm />)
-        ).toBe("");
+        expect(renderToStaticMarkup(<PrDots counts={Counts} motionKey="k" calm />)).toBe("");
     });
 
     it("takes the small size in the top row", () => {
-        const html = renderToStaticMarkup(
-            <PrDots counts={{ blocked: 0, ready: 1, ci: 0, draft: 0 }} motionKey="k" calm small />
-        );
+        const html = renderToStaticMarkup(<PrDots counts={{ ...Counts, ready: 1 }} motionKey="k" calm small />);
         expect(html).toContain("mt-sb-prdots is-small");
     });
 });

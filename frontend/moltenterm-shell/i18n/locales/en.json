@@ -6668,11 +6668,14 @@
         },
         "sections": {
             "yours": "Yours",
-            "yoursHint": "merge, answer, unblock",
-            "agents": "Agents on it",
-            "blocked": "Blocked, nobody on it",
-            "waiting": "Waiting",
-            "waitingHint": "CI or a reviewer",
+            "yoursHint": "answer, review, test",
+            "ready": "Ready",
+            "readyHint": "merge",
+            "agents": "With the agents",
+            "blocked": "Blocked",
+            "blockedHint": "nobody on it",
+            "waiting": "Running",
+            "waitingHint": "waiting on CI",
             "none": "No pull request open into",
             "working": "Work in progress in this section"
         }
@@ -8913,21 +8916,9 @@
             "label": "Views pinned in {name}"
         },
         "prCounts": {
-            "blocked": {
-                "one": "{count} pull request waiting on your decision",
-                "other": "{count} pull requests waiting on your decision"
-            },
-            "ready": {
-                "one": "{count} pull request ready to merge",
-                "other": "{count} pull requests ready to merge"
-            },
-            "ci": {
-                "one": "{count} pull request with CI running",
-                "other": "{count} pull requests with CI running"
-            },
-            "draft": {
-                "one": "{count} draft or pull request with an agent",
-                "other": "{count} drafts or pull requests with an agent"
+            "line": {
+                "one": "{section}: {count} pull request",
+                "other": "{section}: {count} pull requests"
             }
         },
         "temporary": {

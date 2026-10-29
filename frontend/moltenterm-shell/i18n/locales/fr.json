@@ -6668,11 +6668,14 @@
         },
         "sections": {
             "yours": "À vous",
-            "yoursHint": "fusionner, répondre, débloquer",
-            "agents": "Les agents s'en occupent",
-            "blocked": "Bloquées, personne dessus",
-            "waiting": "En attente",
-            "waitingHint": "CI ou relecteur",
+            "yoursHint": "répondre, relire, tester",
+            "ready": "Prêtes",
+            "readyHint": "à fusionner",
+            "agents": "Aux agents",
+            "blocked": "Bloquées",
+            "blockedHint": "personne dessus",
+            "waiting": "En cours",
+            "waitingHint": "en attente de la CI",
             "none": "Aucune pull request ouverte vers",
             "working": "Du travail est en cours dans cette section"
         }
@@ -8913,21 +8916,9 @@
             "label": "Vues épinglées dans {name}"
         },
         "prCounts": {
-            "blocked": {
-                "one": "{count} PR attend votre décision",
-                "other": "{count} PR attendent votre décision"
-            },
-            "ready": {
-                "one": "{count} PR prête à fusionner",
-                "other": "{count} PR prêtes à fusionner"
-            },
-            "ci": {
-                "one": "{count} PR avec la CI en cours",
-                "other": "{count} PR avec la CI en cours"
-            },
-            "draft": {
-                "one": "{count} brouillon ou PR confiée à un agent",
-                "other": "{count} brouillons ou PR confiées à un agent"
+            "line": {
+                "one": "{section} : {count} pull request",
+                "other": "{section} : {count} pull requests"
             }
         },
         "temporary": {

@@ -1,76 +1,37 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304): blocked, ready, CI running,
-// the agents' turn. Pure, read from the panel's own answer, split and card states, so the dots never disagree with
-// the panel's lists and sections.
+// The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one
+// dot per section of the panel, named and counted as the section is. A PR counts under the dot of the section its
+// card is listed in (the card's turn), so the dots never disagree with the panel's lists and sections. Pure.
 
-import type { CardState, CardStateKind } from "../reviews/reviews-card-model";
-import {
-    checksOf,
-    MoltentermReviewsView,
-    ReadiedPrs,
-    ReviewPr,
-    ReviewsAnswer,
-    splitReviews,
-} from "../reviews/reviews-model";
+import { CardState, cardState, CardTurn, TurnTitleKeys } from "../reviews/reviews-card-model";
+import { MoltentermReviewsView, ReadiedPrs, ReviewPr, ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
 
-export type PrCountKind = "blocked" | "ready" | "ci" | "draft";
+export type PrCountKind = CardTurn;
 
 export type PrCounts = Record<PrCountKind, number>;
 
 // The order the dots read in, top to bottom: the most critical first.
-export const PrCountKinds: PrCountKind[] = ["blocked", "ready", "ci", "draft"];
+export const PrCountKinds: PrCountKind[] = ["blocked", "yours", "ready", "waiting", "agents"];
 
-// Tooltip and accessible name keys, a plural each (.one / .other).
-export const PrCountKeys: Record<PrCountKind, string> = {
-    blocked: "sidebar.prCounts.blocked",
-    ready: "sidebar.prCounts.ready",
-    ci: "sidebar.prCounts.ci",
-    draft: "sidebar.prCounts.draft",
-};
+// A dot's tooltip and accessible name: the section's title (the panel's own words) and the count, a plural
+// (.one / .other).
+export const PrCountKey = "sidebar.prCounts.line";
 
-// The card states that wait on the developer's decision: an agent stopped on a question, a stopped task, a conflict
-// or a failure nobody works on (the card picks an agent at work before them).
-const BlockedCards = new Set<CardStateKind>(["agent-waiting", "interrupted", "conflicts", "failing"]);
-
-// The card states that are the agents' turn, like a draft.
-const AgentCards = new Set<CardStateKind>(["agent-working", "agent-finish"]);
+// The key of the section title a dot is named after.
+export function prCountSectionKey(kind: PrCountKind): string {
+    return TurnTitleKeys[kind];
+}
 
 export function emptyPrCounts(): PrCounts {
-    return { blocked: 0, ready: 0, ci: 0, draft: 0 };
+    return { blocked: 0, yours: 0, ready: 0, waiting: 0, agents: 0 };
 }
 
-// Without a card (no agent data), the PR alone: a conflict or a failing CI blocks.
-function prKind(pr: ReviewPr): PrCountKind {
-    if (pr.draft) {
-        return "draft";
-    }
-    if (pr.merge === "conflicts" || pr.merge === "failing" || checksOf(pr.ci, "failure").length > 0) {
-        return "blocked";
-    }
-    const ci = pr.ci?.state ?? "none";
-    if (ci === "pending" || ci === "failure" || pr.merge === "running") {
-        return "ci";
-    }
-    return "ready";
-}
-
-// prCountKind: the one dot a PR counts in. With its card (the Integration panel's state for it), the card decides.
+// prCountKind: the one dot a PR counts in. With its card (the Integration panel's state for it), the card decides;
+// without one (no agent data yet) the PR alone is read through the same card model, with no agent on its branch.
 export function prCountKind(pr: ReviewPr, card?: CardState): PrCountKind {
-    if (card == null) {
-        return prKind(pr);
-    }
-    if (BlockedCards.has(card.kind)) {
-        return "blocked";
-    }
-    if (pr.draft || AgentCards.has(card.kind)) {
-        return "draft";
-    }
-    if (card.kind === "ci-running") {
-        return "ci";
-    }
-    return "ready";
+    return (card ?? cardState({ pr, agents: [] })).turn;
 }
 
 // prCounts: every PR the panel lists, ready group and drafts, counted once. Nothing while GitHub could not be read.

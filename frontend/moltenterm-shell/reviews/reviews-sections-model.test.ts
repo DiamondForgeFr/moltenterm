@@ -101,7 +101,8 @@ function turns(prs: ReviewPr[], sort: "state" | "merge" = "state", ranks?: Recor
 describe("sections by turn (FR-REV-001 AC12)", () => {
     it("puts every card in its turn's section, in the panel's order", () => {
         expect(turns(panel())).toEqual([
-            ["yours", [1104, 1107, 1101]],
+            ["yours", [1104, 1107]],
+            ["ready", [1101]],
             ["agents", [1106]],
             ["blocked", [1103, 1102]],
             ["waiting", [1105]],
@@ -110,7 +111,7 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
 
     it("leaves out a section without a card", () => {
         expect(turns([pr(1101), pr(1105, {}, [{ name: "Build", state: "pending" }])])).toEqual([
-            ["yours", [1101]],
+            ["ready", [1101]],
             ["waiting", [1105]],
         ]);
         expect(turns([])).toEqual([]);
@@ -144,12 +145,13 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
 
     it("by state, cards of one state follow the merge queue's ranks, ranked first (#1062)", () => {
         const ready = [pr(1201), pr(1202), pr(1203), pr(1204)];
-        expect(turns(ready, "state", { 1203: 1, 1201: 2, 1204: 3 })).toEqual([["yours", [1203, 1201, 1204, 1202]]]);
+        expect(turns(ready, "state", { 1203: 1, 1201: 2, 1204: 3 })).toEqual([["ready", [1203, 1201, 1204, 1202]]]);
     });
 
     it("sorts by merge order: ranked cards first, the others by state (AC13)", () => {
-        expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1101, 1104, 1107]]);
-        expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1101, 1104, 1107]]);
+        expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[0]).toEqual(["yours", [1104, 1107]]);
+        expect(turns(panel(), "merge", { 1104: 2, 1101: 1 })[0]).toEqual(["yours", [1104, 1107]]);
+        expect(turns(panel(), "merge", { 1101: 1, 1104: 2 })[1]).toEqual(["ready", [1101]]);
     });
 
     it("walks the open sections only, and finds a card's section", () => {

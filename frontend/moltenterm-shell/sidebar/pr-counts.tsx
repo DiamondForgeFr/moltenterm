@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304): one small dot per state
-// with pull requests, stacked in the block's corner column under its agent mark or modified ring, the most critical
-// at the top. No number on the block: the counts are in each dot's tooltip and accessible name. Dots showing up fade
+// The pull request status dots on the block that shows Integration (FR-SHELL-085, #1304; FR-SHELL-098, #1327): one
+// small dot per section of the panel with pull requests, stacked in the block's corner column under its agent mark
+// or modified ring, the most critical at the top. No number on the block: each dot's tooltip and accessible name
+// give the section's title and the number of PRs it lists (blocked is a diamond, not a round dot). Dots showing up fade
 // in once, a dot whose count changes glows once: nothing moves at rest.
 
 import { atoms } from "@/app/store/global";
@@ -11,7 +12,7 @@ import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import { useTCount } from "../i18n/i18n";
+import { useT, useTCount } from "../i18n/i18n";
 import { useCardContext } from "../reviews/reviews-agent-bar";
 import { useListedReviewsAnswer } from "../reviews/reviews-client";
 import { rebaseAskKey, splitReviews } from "../reviews/reviews-model";
@@ -22,10 +23,11 @@ import { readWorkspaceProject } from "../workspace-project";
 import {
     firstPilotageTab,
     hasPrCounts,
-    PrCountKeys,
+    PrCountKey,
     PrCountKind,
     PrCountKinds,
     PrCounts,
+    prCountSectionKey,
     prCounts,
     shownPrKinds,
     ViewBlocks,
@@ -139,10 +141,17 @@ function useBumps(counts: PrCounts, motionKey: string): Partial<PrCounts> {
 
 // The block's tooltip line and the column's accessible name: every state with pull requests, with its count.
 export function usePrCountsSummary(counts: PrCounts): string {
-    const tc = useTCount();
+    const label = usePrCountLabel();
     return shownPrKinds(counts)
-        .map((kind) => tc(PrCountKeys[kind], counts[kind]))
+        .map((kind) => label(kind, counts[kind]))
         .join(", ");
+}
+
+// A dot's words: the name of the panel's section it counts and the number of PRs that section lists (FR-SHELL-098).
+function usePrCountLabel(): (kind: PrCountKind, count: number) => string {
+    const t = useT();
+    const tc = useTCount();
+    return (kind, count) => tc(PrCountKey, count, { section: t(prCountSectionKey(kind)) });
 }
 
 export function PrDots({
@@ -156,7 +165,7 @@ export function PrDots({
     calm: boolean;
     small?: boolean;
 }) {
-    const tc = useTCount();
+    const label = usePrCountLabel();
     const bumped = useBumps(counts, motionKey);
     const summary = usePrCountsSummary(counts);
     if (!hasPrCounts(counts)) {
@@ -171,14 +180,14 @@ export function PrDots({
         >
             {shownPrKinds(counts).map((kind: PrCountKind) => {
                 const bump = bumped[kind] === counts[kind];
-                const label = tc(PrCountKeys[kind], counts[kind]);
+                const words = label(kind, counts[kind]);
                 return (
                     <span
                         key={bump ? `${kind}-${counts[kind]}` : kind}
-                        className={cn("mt-sb-prdot",`is-${kind}`, bump && "is-bump")}
+                        className={cn("mt-sb-prdot", `is-${kind}`, bump && "is-bump")}
                         role="img"
-                        title={label}
-                        aria-label={label}
+                        title={words}
+                        aria-label={words}
                         data-kind={kind}
                         data-count={counts[kind]}
                     />
