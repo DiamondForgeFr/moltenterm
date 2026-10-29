@@ -38,7 +38,9 @@
                molten-button.css.
    Motion      duration-120 (hover, press) · duration-180 (open, fold) · duration-240 (panels, toasts), always with
                ease-mt; in CSS var(--mt-duration-fast|base|slow) and var(--mt-ease). Every token duration is 0 under
-               reduced motion. Loops (pulses, the heat glow) keep their own cycle, at most 1.6 s (var(--mt-duration-loop)). */
+               reduced motion. Loops (pulses, the heat glow) keep their own cycle, at most 1.6 s (var(--mt-duration-loop)),
+               except a working agent's turning light (var(--mt-duration-turn), 8 s); a finished one cools in
+               var(--mt-duration-cool) with var(--mt-ease-cool). */
 
 :root {
     --mt-text-11: 11px;
@@ -122,7 +124,13 @@
     --mt-duration-flow: 320ms;
     /* The reduced-motion form of a flow: opacity only, so a change still reads without anything moving. */
     --mt-duration-fade: 120ms;
+    /* Theme Coulée's motion tokens (proposal #1318, added by #1349 ahead of #1338): a working agent's turning light
+       goes round in --mt-duration-turn (it stops under reduced motion, standing on the top-right corner), and what has
+       finished working cools to cast iron in --mt-duration-cool with --mt-ease-cool, the long tail. */
+    --mt-duration-turn: 8s;
+    --mt-duration-cool: 1600ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
+    --mt-ease-cool: cubic-bezier(0.3, 0, 0.1, 1);
 }
 
 /* MoltenTerm's slots of the DiamondForge suite kit (suite/suite.css, #658, suite/suite-language.md). The
@@ -180,6 +188,7 @@
         --mt-duration-slow: 0ms;
         --mt-duration-glow: 0ms;
         --mt-duration-flow: 0ms;
+        --mt-duration-cool: 0ms;
     }
 }
 
@@ -189,6 +198,7 @@
     --mt-duration-slow: 0ms;
     --mt-duration-glow: 0ms;
     --mt-duration-flow: 0ms;
+    --mt-duration-cool: 0ms;
 }
 
 /* A workspace's glyph in its own colour, pulled towards the main text colour so it reads at 4.5:1 on every surface

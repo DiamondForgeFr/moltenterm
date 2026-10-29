@@ -21,6 +21,7 @@ import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#112)
+import { PanelArrivalEdge } from "../../moltenterm-shell/panel-motion/panel-arrival"; // MOLTENTERM-PATCH (#1349)
 import { openBlockBodyMenu } from "../../moltenterm-shell/split/split-body-menu"; // MOLTENTERM-PATCH (#370)
 import { SplitPlaceOverlay } from "../../moltenterm-shell/split/split-place-overlay"; // MOLTENTERM-PATCH (#370, #701)
 import { BlockEnv } from "./blockenv";
@@ -217,6 +218,8 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
             </div>
             {/* MOLTENTERM-PATCH (#677, #701): the split placement mode over the panel; the edge handles of #370 are gone */}
             {preview ? null : <SplitPlaceOverlay blockId={nodeModel.blockId} />}
+            {/* MOLTENTERM-PATCH (#1349): a panel added to the view arrives: an orange edge runs once around its frame */}
+            {preview ? null : <PanelArrivalEdge blockId={nodeModel.blockId} />}
             {preview || viewModel == null || !connModalOpen ? null : (
                 <ChangeConnectionBlockModal
                     blockId={nodeModel.blockId}
