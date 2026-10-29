@@ -23,6 +23,9 @@ func TestDecideProjectTab(t *testing.T) {
 		{"unlinked after a close", ProjectTabFacts{RecordedDir: "/p"}, false, ProjectTabClear},
 		{"never linked", ProjectTabFacts{}, false, ProjectTabNone},
 		{"unlinked, tab kept", ProjectTabFacts{RecordedDir: "/p", TabId: "t", HasView: true}, false, ProjectTabKeep},
+		{"template views, linked", ProjectTabFacts{Dir: "/p", TemplateViews: true}, false, ProjectTabNone},
+		{"template views, asked", ProjectTabFacts{Dir: "/p", TemplateViews: true}, true, ProjectTabCreate},
+		{"template views, asked tab kept", ProjectTabFacts{Dir: "/p", RecordedDir: "/p", TabId: "t", HasView: true, TemplateViews: true}, false, ProjectTabKeep},
 	}
 	for _, c := range cases {
 		if got := DecideProjectTab(c.facts, c.open); got != c.want {
