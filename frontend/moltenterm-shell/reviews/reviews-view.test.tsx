@@ -32,10 +32,11 @@ function pr(number: number, extra: Partial<ReviewPr> = {}): ReviewPr {
     };
 }
 
-function rowHtml(p: ReviewPr): string {
+function rowHtml(p: ReviewPr, filled?: boolean): string {
     return renderToStaticMarkup(
         <ReviewRow
             pr={p}
+            filled={filled}
             selected={false}
             marked={false}
             onSelect={() => {}}
@@ -168,6 +169,37 @@ describe("Reviews card (#1060)", () => {
         expect(html).not.toContain("Analyze and resolve");
     });
 
+    it("outlines its action when the panel gives the filled button to another card (#1351)", () => {
+        const html = rowHtml(pr(12), false);
+        const button = primary(html);
+        expect(button).toContain('data-action="validate"');
+        expect(button).toContain("Validate");
+        expect(html).not.toMatch(/molten-btn\b(?!-)/);
+        expect(button).toContain("border-border");
+        expect(primary(rowHtml(pr(12), true))).toContain("molten-btn");
+    });
+
+    it("leads with the ticket; the PR's number is a muted fact (#1351, FR-REV-032 AC2)", () => {
+        const html = rowHtml(pr(17, { ticket: 11, tickettitle: "Invoice PDF drops line items" }));
+        const head = /data-testid="reviews-card-number"[^>]*>([^<]*)</.exec(html)?.[1];
+        expect(head).toBe("#11");
+        const facts = /data-testid="reviews-card-facts"[^>]*>(.*?)<\/div>/.exec(html)?.[1] ?? "";
+        expect(facts).toMatch(/^<span class="[^"]*text-muted[^"]*"[^>]*data-testid="reviews-card-pr">PR #17</);
+        expect(html.indexOf("reviews-card-pr")).toBeGreaterThan(html.indexOf("Invoice PDF drops line items"));
+        // Without a ticket the PR's number is the card's one number, never twice.
+        const alone = rowHtml(pr(18));
+        expect(alone).not.toContain('data-testid="reviews-card-pr"');
+        expect(alone).toMatch(/data-testid="reviews-card-number">#18</);
+    });
+
+    it("says a missing test report in grey, with a tooltip (#1351, FR-REV-032 AC3)", () => {
+        const html = rowHtml(pr(12, { report: { state: "missing" } }));
+        const fact = /<span[^>]*data-testid="reviews-fact-report"[^>]*>/.exec(html)?.[0] ?? "";
+        expect(fact).toContain("text-muted");
+        expect(fact).not.toContain("mt-state-warning");
+        expect(fact).toContain('title="No test report comment on this pull request yet.');
+    });
+
     it("the card's accessible name carries its state and facts", () => {
         const html = rowHtml(pr(12));
         expect(html).toMatch(/aria-label="PR 12, pull request #12, Ready to merge, CI 2\/2, report"/);
@@ -181,6 +213,11 @@ describe("Reviews card (#1060)", () => {
             expect(html).toContain("Brouillon à tester");
             expect(html).toContain(">brouillon<");
             expect(primary(html)).toContain("Passer en revue");
+        });
+        it("words the missing report and its tooltip", () => {
+            const html = rowHtml(pr(12, { report: { state: "missing" } }));
+            expect(html).toContain(">sans rapport de test<");
+            expect(html).toContain('title="Pas encore de commentaire de rapport de test');
         });
     });
 });

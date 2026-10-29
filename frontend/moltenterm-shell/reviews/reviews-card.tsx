@@ -141,9 +141,12 @@ export function ReviewRow({
     queued,
     batchMark,
     card: cardProp,
+    filled,
 }: {
     // The state the list computed for the card's section (#1061).
     card?: CardState;
+    // Whether the panel gives this card its one filled button (#1351, filledAction); alone, the card's state says.
+    filled?: boolean;
     pr: ReviewPr;
     selected: boolean;
     marked: boolean;
@@ -346,7 +349,7 @@ export function ReviewRow({
     const primary = card.primary;
     // Every Validate looks the same (developer decision 2026-10-25, #1108): the suggested order is a proposal for the
     // group merge, never a constraint on which PR to validate first.
-    const molten = card.molten;
+    const molten = card.molten && filled !== false;
     const relationFact = word(relation?.fact);
     const relationTag = word(relation?.tag);
     const primaryName =
@@ -412,7 +415,8 @@ export function ReviewRow({
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
                         <MergeOrderRank rank={rank} />
-                        {/* One number per card (#1108): the ticket, else the PR's; the PR's chip beside a ticket. */}
+                        {/* One number per card (#1108): the ticket, else the PR's; beside a ticket the PR's number is a
+                            muted fact (#1351). */}
                         <span className="shrink-0 text-accent" data-testid="reviews-card-number">
                             {head.ticket || `#${pr.number}`}
                         </span>
@@ -422,15 +426,6 @@ export function ReviewRow({
                         >
                             {head.title}
                         </span>
-                        {head.ticket ? (
-                            <span
-                                className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-normal text-muted tabular-nums"
-                                title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
-                                data-testid="reviews-card-pr"
-                            >
-                                {t("reviews.card.prChip", { number: pr.number })}
-                            </span>
-                        ) : null}
                         {pr.draft ? (
                             <span
                                 className="shrink-0 rounded-2 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase"
@@ -465,6 +460,15 @@ export function ReviewRow({
                         className="relative flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4"
                         data-testid="reviews-card-facts"
                     >
+                        {head.ticket ? (
+                            <span
+                                className="shrink-0 whitespace-nowrap text-muted tabular-nums"
+                                title={t("reviews.card.prChipTitle", { number: pr.number, branch: pr.branch })}
+                                data-testid="reviews-card-pr"
+                            >
+                                {t("reviews.card.prChip", { number: pr.number })}
+                            </span>
+                        ) : null}
                         {facts.map((f) => (
                             <CardFactView key={f.id} fact={f} pr={pr} />
                         ))}
@@ -715,6 +719,7 @@ function CardFactView({ fact, pr }: { fact: CardFact; pr: ReviewPr }) {
     return (
         <span
             className={cn("inline-flex items-center gap-1 whitespace-nowrap", FactClasses[fact.tone])}
+            title={word(fact.title) || undefined}
             data-testid={`reviews-fact-${fact.id}`}
         >
             {mark}

@@ -33,7 +33,18 @@ function folderName(path: string): string {
     return parts[parts.length - 1] ?? path;
 }
 
-export function LeftoverOwnerCard({ dir, row, repoUrl }: { dir: string; row: LeftoverTurnRow; repoUrl: string }) {
+export function LeftoverOwnerCard({
+    dir,
+    row,
+    repoUrl,
+    filled,
+}: {
+    dir: string;
+    row: LeftoverTurnRow;
+    repoUrl: string;
+    // Whether the panel gives this card its one filled button (#1351, filledAction); alone, the card's own state says.
+    filled?: boolean;
+}) {
     const t = useT();
     useLocale();
     const word = useWordPhrase();
@@ -108,7 +119,7 @@ export function LeftoverOwnerCard({ dir, row, repoUrl }: { dir: string; row: Lef
                 <div className="flex shrink-0 items-center gap-1">
                     <CardPrimaryButton
                         primary={card.primary}
-                        molten={card.molten}
+                        molten={card.molten && filled !== false}
                         title={word(agentActionTitle(card.primary, name))}
                         busy={false}
                         onRun={() => fireAndForget(() => showPanel(card.primary.blockId))}

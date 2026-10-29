@@ -14,6 +14,7 @@ import {
     CardContext,
     cardInputOf,
     cardStates,
+    filledAction,
     mergedGroups,
     mergedTitle,
     mergedWho,
@@ -161,6 +162,25 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         expect(sectionRows(sections, { blocked: true }).map((p) => p.number)).toEqual([1104, 1107, 1101, 1106, 1105]);
         expect(sectionOf(sections, 1102)).toBe("blocked");
         expect(sectionOf(sections, 9)).toBeNull();
+    });
+
+    it("gives one filled button to the panel, the first of Yours (#1351, FR-REV-032 AC1)", () => {
+        const prs = panel();
+        const cards = cardStates(prs, {}, (n) => `/p#${n}`, Ctx);
+        const sections = sectionsByTurn(prs, cards, "state");
+        // Validate (ready), Hand the rebase over and Analyse (blocked) are molten on their own: only one stays filled.
+        expect([1101, 1103, 1102].every((n) => cards[n].molten)).toBe(true);
+        expect(filledAction(sections, cards)).toBe("pr:1104");
+        // A Yours card that asks nothing filled passes the button to the next one, then to its leftovers.
+        const quiet = { ...cards, 1104: { ...cards[1104], molten: false } };
+        expect(filledAction(sections, quiet)).toBe("pr:1107");
+        const none = { ...quiet, 1107: { ...cards[1107], molten: false } };
+        expect(filledAction(sections, none, [{ key: "leftover:feature/9-x", molten: true }])).toBe(
+            "leftover:feature/9-x"
+        );
+        // Without a Yours card, no section gets a filled button: elsewhere every action is outlined.
+        const noYours = sections.filter((s) => s.turn !== "yours");
+        expect(filledAction(noYours, cards)).toBeNull();
     });
 
     it("builds the card's input as the card does", () => {

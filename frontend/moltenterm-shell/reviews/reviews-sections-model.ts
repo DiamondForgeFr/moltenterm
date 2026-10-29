@@ -163,6 +163,26 @@ export function sectionRows(sections: readonly TurnSection[], folded: Partial<Re
     return sections.filter((s) => !folded?.[s.turn]).flatMap((s) => s.prs);
 }
 
+// A card of "Yours" that may carry the panel's filled button: a PR card by "pr:<number>", a leftover card by
+// "leftover:<branch>".
+export type FilledCandidate = { key: string; molten: boolean };
+
+// filledAction: the one card whose primary stays a filled molten button (#1351, FR-REV-032), the first of "Yours" in
+// its shown order whose primary is the developer's move: its PR cards, then its leftover cards. Every other card's
+// primary is outlined, so the eye has one entry point. Null when "Yours" asks nothing: no section gets a filled one.
+export function filledAction(
+    sections: readonly TurnSection[],
+    cards: Record<number, CardState>,
+    yoursLeftovers?: readonly FilledCandidate[]
+): string {
+    const yours = sections.find((s) => s.turn === "yours");
+    const candidates: FilledCandidate[] = [
+        ...(yours?.prs ?? []).map((pr) => ({ key: `pr:${pr.number}`, molten: !!cards[pr.number]?.molten })),
+        ...(yoursLeftovers ?? []),
+    ];
+    return candidates.find((c) => c.molten)?.key ?? null;
+}
+
 // The section a PR's card is in, to unfold it when another surface asks for that PR.
 export function sectionOf(sections: readonly TurnSection[], number: number): CardTurn {
     return sections.find((s) => s.prs.some((pr) => pr.number === number))?.turn ?? null;
