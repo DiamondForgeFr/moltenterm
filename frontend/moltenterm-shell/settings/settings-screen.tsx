@@ -9,6 +9,8 @@
 
 import { atoms, getApi, globalStore } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { isMacOS } from "@/util/platformutil";
@@ -659,8 +661,10 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
     const [section, setSectionState] = useState<SettingsSectionId>(
-        () => initialSection ?? LastSection.get(blockId) ?? openedOnSection(blockId) ?? "general"
+        () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
     );
+    const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
+    const askedSection = readSettingsSection(block?.meta?.[SettingsSectionMetaKey]);
     const [query, setQuery] = useState("");
     const [active, setActive] = useState(0);
     const [highlight, setHighlight] = useState<string>(null);
@@ -695,6 +699,21 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     };
 
     useEffect(() => setActive(0), [query]);
+
+    // A section asked while the screen is open (Preferences opened again from elsewhere, FR-SHELL-094) shows here; it
+    // is cleared once shown, so asking the same section again later is a change the screen sees.
+    useEffect(() => {
+        if (askedSection == null) {
+            return;
+        }
+        setSection(askedSection);
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: { [SettingsSectionMetaKey]: null } as MetaType,
+            })
+        );
+    }, [askedSection, blockId]);
 
     // After a jump the row is rendered in its section: bring it to the middle, focus its control, light it briefly.
     useEffect(() => {

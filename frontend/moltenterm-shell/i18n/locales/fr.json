@@ -2688,8 +2688,10 @@
             "replayTitle": "Rejouer le tracé de la carte",
             "replay": "Rejouer",
             "header": "Ligne · {days} derniers jours",
-            "fullSizeTitle": "Ouvrir la carte des lignes dans son propre bloc, sur une fenêtre plus large",
+            "fullSizeTitle": "Agrandir le plan sur toute la vue ; Échap ou ce bouton rétablit la disposition",
             "fullSize": "Pleine taille",
+            "exitFullSizeTitle": "Revenir à la disposition (Échap)",
+            "exitFullSize": "Quitter la pleine taille",
             "ciRunning": "CI en cours",
             "svgLabel": "Carte des lignes des {days} derniers jours"
         },
@@ -5512,7 +5514,6 @@
         }
     },
     "view360": {
-        "carpet": "tapis",
         "empty": "Les panneaux que vous ouvrez se placent ici",
         "addStart": "Ajouter un panneau à gauche",
         "addEnd": "Ajouter un panneau à droite",
@@ -9166,6 +9167,9 @@
         },
         "panels": {
             "addTo": "Ajouter à « {view} »",
+            "askPinned": "« {view} » est une vue épinglée : ce panneau la modifiera.",
+            "askEverywhere": "« {view} » est épinglée dans tous les espaces de travail : ce panneau en fera une vue temporaire ici.",
+            "inNewView": "Dans une nouvelle vue",
             "show": "L'afficher",
             "thisView": "cette vue",
             "about": {

@@ -37,7 +37,6 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
     return (
         <div className="mt-carpet-surface" style={rectStyle(layout.surface)} data-testid="mt-carpet">
             {signal !== mountSignal && <span key={signal} className="mt-carpet-glow" aria-hidden="true" />}
-            <span className="mt-carpet-label">{t("view360.carpet")}</span>
             {layout.columns.length === 0 && <span className="mt-carpet-empty">{t("view360.empty")}</span>}
             <CarpetSensors layoutModel={layoutModel} layout={layout} />
             <CarpetInvites layoutModel={layoutModel} layout={layout} />

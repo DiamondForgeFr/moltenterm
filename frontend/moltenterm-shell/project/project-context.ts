@@ -35,6 +35,9 @@ export type ProjectCardProps = {
     group: ProjectGroup;
     // The Project panel, whose command panel options (its branch filter) the cards follow (FR-SHELL-049).
     blockId?: string;
+    // The line map's Full size (FR-SHELL-094): the map over the whole Project panel, the panel magnified.
+    mapFull?: boolean;
+    toggleMapFull?: () => void;
 };
 
 export const ProjectCards = new ProjectCardRegistry<ProjectCardProps>();
