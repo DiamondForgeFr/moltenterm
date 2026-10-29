@@ -26,7 +26,7 @@ import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENT
 import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
-import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
+import { askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
 import {
@@ -454,6 +454,11 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "deleteworkspace", workspaceId });
     }
 
+    // MOLTENTERM-PATCH (#1324)
+    async queueUndoWorkspace(undoId: string) {
+        await this._queueActionInternal({ op: "undoworkspace", undoId });
+    }
+
     // MOLTENTERM-PATCH (#1250): the active view is a tab of the workspace emain says is shown
     private async showsTabOfItsWorkspace(): Promise<boolean> {
         const tabId = this.activeTabView?.waveTabId;
@@ -680,24 +685,8 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
         // still comes (a stale rail) makes a new workspace for the window to land on, never an empty window
         const isLast = !(await WorkspaceService.CanCloseWorkspace(workspaceId));
 
-        // MOLTENTERM-PATCH (#490): when its terminals run something, MoltenTerm's dialog replaces this box
-        const busy = await askDeleteStops(event.sender, workspaceId);
-        if (busy === BusyOutcomeCancel) {
-            console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
-            return;
-        }
-        if (busy !== BusyOutcomeClose) {
-            const choice = dialog.showMessageBoxSync(this, {
-                type: "question",
-                buttons: [mt("common.cancel"), mt("dialog.deleteWorkspace.button")], // MOLTENTERM-PATCH (#623)
-                title: mt("common.confirm"),
-                message: mt("dialog.deleteWorkspace.message"),
-            });
-            if (choice === 0) {
-                console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
-                return;
-            }
-        }
+        // MOLTENTERM-PATCH (#1324): the renderer has already confirmed in its own dialog, which lists what runs
+        // (workspace-reset.tsx, FR-SHELL-095); Wave's native box and the busy ask of #490 are gone
         // MOLTENTERM-PATCH (#1250)
         if (isLast) {
             const newWsId = await WorkspaceService.CreateWorkspace("", "", "", true);
@@ -711,6 +700,7 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
         // MOLTENTERM-PATCH (#449): applied by the action queue of the window that shows the workspace or is switching to
         // it (runDeleteWorkspace), so it cannot race that switch
         const owner = getAllWaveWindows().find((w) => w.isOnWorkspace(workspaceId)) ?? ww;
+        await captureWorkspaceUndo(workspaceId, "delete", ww, ww != null && ww.isOnWorkspace(workspaceId)); // MOLTENTERM-PATCH (#1324)
         if (owner == null) {
             await WorkspaceService.DeleteWorkspace(workspaceId);
             console.log("delete-workspace done", workspaceId);
@@ -727,6 +717,8 @@ onAppIpc("reset-workspace", (event, workspaceId: string) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWorkspaceId(workspaceId) ?? getWaveWindowByWebContentsId(event.sender.id);
         console.log("reset-workspace", workspaceId, ww?.waveWindowId);
+        // MOLTENTERM-PATCH (#1324): the undo is offered in the window that asked
+        await captureWorkspaceUndo(workspaceId, "reset", getWaveWindowByWebContentsId(event.sender.id) ?? ww, false);
         if (ww == null || ww.workspaceId != workspaceId) {
             // Not on screen: the views a window kept for it (#68) belong to tabs that no longer exist.
             const oldWs = await WorkspaceService.GetWorkspace(workspaceId);
@@ -737,6 +729,41 @@ onAppIpc("reset-workspace", (event, workspaceId: string) => {
             return;
         }
         await ww.queueResetWorkspace();
+    });
+});
+
+// MOLTENTERM-PATCH (#1324): undo after a reset or a delete (FR-SHELL-095). wavesrv keeps the snapshot and the offer;
+// emain remembers which deletes took a workspace off the asking window's screen, so their undo shows it there again,
+// while an undo of what was not on screen only brings it back in the sidebar.
+const undoReshows = new Map<string, boolean>();
+
+async function captureWorkspaceUndo(workspaceId: string, kind: string, ww: WaveBrowserWindow, wasShown: boolean) {
+    try {
+        const undoId = await WorkspaceService.CaptureWorkspaceUndo(workspaceId, kind, ww?.waveWindowId ?? "");
+        if (wasShown && undoId) {
+            undoReshows.set(undoId, true);
+            setTimeout(() => undoReshows.delete(undoId), 60_000);
+        }
+    } catch (e) {
+        console.log("no undo for this workspace", kind, workspaceId, e);
+    }
+}
+
+onAppIpc("undo-workspace", (event, undoId: string, workspaceId: string) => {
+    fireAndForget(async () => {
+        const sender = getWaveWindowByWebContentsId(event.sender.id);
+        const reshow = undoReshows.get(undoId) == true;
+        undoReshows.delete(undoId);
+        const owner = getAllWaveWindows().find((w) => w.isOnWorkspace(workspaceId)) ?? (reshow ? sender : null);
+        console.log("undo-workspace", undoId, workspaceId, owner?.waveWindowId);
+        if (owner != null) {
+            await owner.queueUndoWorkspace(undoId);
+            return;
+        }
+        const rtn = await WorkspaceService.RestoreWorkspaceUndo(undoId);
+        for (const tabId of rtn?.closedtabids ?? []) {
+            getWaveWindowByTabId(tabId)?.removeTabView(tabId, false);
+        }
     });
 });
 

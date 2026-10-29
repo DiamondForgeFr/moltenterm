@@ -82,7 +82,7 @@ import { readWorkspaceProject } from "./workspace-project";
 import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
-import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
+import { askDeleteWorkspace, askResetWorkspace, WorkspaceResetHost, WorkspaceUndoHost } from "./workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "./workspace-reset-model";
 import { WorktreeCloseHost } from "./worktree-close";
 
@@ -257,7 +257,7 @@ function RailButton({
             remove: {
                 enabled: closable,
                 reason: lastWorkspaceReason(),
-                onDelete: () => getApi().deleteWorkspace(entry.id),
+                onDelete: () => askDeleteWorkspace(entry.id),
             },
         });
     const onContextMenu = (e: React.MouseEvent) => {
@@ -831,6 +831,7 @@ export function WorkspaceRailHosts({ entries }: { entries: WorkspaceRailEntry[] 
             <WorktreeCloseHost />
             <AgentChoiceHost />
             <WorkspaceResetHost />
+            <WorkspaceUndoHost />
             <WorkspaceEditHost entries={entries} />
         </>
     );

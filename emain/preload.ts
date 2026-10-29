@@ -92,6 +92,7 @@ contextBridge.exposeInMainWorld("api", {
     switchWorkspace: (workspaceId) => ipcRenderer.send("switch-workspace", workspaceId),
     deleteWorkspace: (workspaceId) => ipcRenderer.send("delete-workspace", workspaceId),
     resetWorkspace: (workspaceId) => ipcRenderer.send("reset-workspace", workspaceId), // MOLTENTERM-PATCH (#222)
+    undoWorkspace: (undoId, workspaceId) => ipcRenderer.send("undo-workspace", undoId, workspaceId), // MOLTENTERM-PATCH (#1324)
     setActiveTab: (tabId) => ipcRenderer.send("set-active-tab", tabId),
     createTab: (blockDef?: BlockDef) => ipcRenderer.send("create-tab", blockDef ? { blockdef: blockDef } : undefined), // MOLTENTERM-PATCH (#1232): a new view may start with a given block
     closeTab: (workspaceId, tabId, confirmClose) => ipcRenderer.invoke("close-tab", workspaceId, tabId, confirmClose),

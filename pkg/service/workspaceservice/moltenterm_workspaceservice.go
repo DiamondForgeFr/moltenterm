@@ -137,3 +137,53 @@ func sendWorkspaceIconUpdates(ctx context.Context) waveobj.UpdatesRtnType {
 	}()
 	return updates
 }
+
+// Undo after a reset or a delete (FR-SHELL-095): Electron keeps the snapshot just before the action, the window that
+// asked reads the offer to show its toast, and Undo restores it through the window's action queue.
+
+func (svc *WorkspaceService) CaptureWorkspaceUndo_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"workspaceId", "kind", "windowId"},
+		ReturnDesc: "undoId",
+	}
+}
+
+func (svc *WorkspaceService) CaptureWorkspaceUndo(workspaceId string, kind string, windowId string) (string, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	return wcore.CaptureWorkspaceUndo(ctx, workspaceId, kind, windowId)
+}
+
+func (svc *WorkspaceService) PendingWorkspaceUndo_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames: []string{"windowId"},
+	}
+}
+
+func (svc *WorkspaceService) PendingWorkspaceUndo(windowId string) (*wcore.WorkspaceUndoOffer, error) {
+	return wcore.PendingWorkspaceUndo(windowId), nil
+}
+
+func (svc *WorkspaceService) RestoreWorkspaceUndo_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames: []string{"undoId"},
+	}
+}
+
+func (svc *WorkspaceService) RestoreWorkspaceUndo(undoId string) (*wcore.WorkspaceUndoResult, waveobj.UpdatesRtnType, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	rtn, err := wcore.RestoreWorkspaceUndo(ctx, undoId)
+	if err != nil {
+		return nil, nil, err
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:RestoreWorkspaceUndo:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return rtn, updates, nil
+}

@@ -21,6 +21,7 @@ class FakeBackend {
     next = 1;
     calls: string[] = [];
     faults = new Map<string, "throw" | "null">();
+    undos = new Map<string, { kind: string; ws: FakeWs; index: number }>();
 
     newId(prefix: string) {
         return `${prefix}${this.next++}`;
@@ -397,6 +398,34 @@ function makeServices() {
                 ws.activetabid = tabId;
                 return tabId;
             }),
+        // #1324: the snapshot is the workspace as it was; undo makes its views again under new ids.
+        CaptureWorkspaceUndo: (wsId: string, kind: string, winId: string) =>
+            backendCall(() => {
+                const undoId = b().newId("undo-");
+                b().calls.push(`CaptureWorkspaceUndo ${kind} ${wsId} ${winId}`);
+                b().undos.set(undoId, { kind, ws: b().getWs(wsId), index: b().order.indexOf(wsId) });
+                return undoId;
+            }),
+        RestoreWorkspaceUndo: (undoId: string) =>
+            backendCall(() => {
+                const undo = b().undos.get(undoId);
+                b().undos.delete(undoId);
+                b().calls.push(`RestoreWorkspaceUndo ${undoId}`);
+                if (undo == null) {
+                    throw new Error("nothing to undo");
+                }
+                const tabids = undo.ws.tabids.map(() => b().newId("tab-"));
+                tabids.forEach((t) => b().tabs.add(t));
+                const activetabid = tabids[undo.ws.tabids.indexOf(undo.ws.activetabid)] ?? tabids[0];
+                const existing = b().workspaces.get(undo.ws.oid);
+                const closedtabids = existing?.tabids ?? [];
+                closedtabids.forEach((t) => b().tabs.delete(t));
+                b().workspaces.set(undo.ws.oid, { ...undo.ws, tabids, activetabid });
+                if (existing == null) {
+                    b().order.splice(Math.max(undo.index, 0), 0, undo.ws.oid);
+                }
+                return { kind: undo.kind, workspaceid: undo.ws.oid, activetabid, closedtabids };
+            }),
     };
     const WindowService = {
         GetWindow: (winId: string) => backendCall(() => structuredClone(b().windows.get(winId))),
@@ -709,6 +738,62 @@ describe("window action queue: single operations", () => {
         expect(win.workspaceId).toBe(starter.oid);
         expect(h.onScreen()).toBe(starter.activetabid);
         expect(h.backend.windows.get("win-1").workspaceid).toBe(starter.oid);
+    });
+
+    // #1324: the renderer has confirmed in its own dialog; Electron never shows a native box for a delete.
+    it("deletes without a native dialog and keeps an undo for the window", async () => {
+        await setup();
+        const other = h.backend.addWorkspace("Other");
+        ipc("delete-workspace", other.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.dialogs).toEqual([]);
+        expect(h.backend.calls).toContain(`CaptureWorkspaceUndo delete ${other.oid} win-1`);
+        expect(h.backend.workspaces.has(other.oid)).toBe(false);
+    });
+
+    it("undoes the delete of the workspace on screen and shows it again", async () => {
+        const starter = await setup();
+        const other = await addVisitedWorkspace();
+        ipc("delete-workspace", other.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(win.workspaceId).toBe(starter.oid);
+        const undoId = [...h.backend.undos.keys()][0];
+        ipc("undo-workspace", undoId, other.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(h.backend.workspaces.has(other.oid)).toBe(true);
+        expect(win.workspaceId).toBe(other.oid);
+        expect(h.onScreen()).toBe(h.backend.workspaces.get(other.oid).activetabid);
+    });
+
+    it("undoes the delete of a workspace not on screen without leaving the one shown", async () => {
+        const starter = await setup();
+        const other = h.backend.addWorkspace("Other");
+        ipc("delete-workspace", other.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        const undoId = [...h.backend.undos.keys()][0];
+        ipc("undo-workspace", undoId, other.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.backend.workspaces.has(other.oid)).toBe(true);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(h.onScreen()).toBe(starter.activetabid);
+    });
+
+    it("undoes a reset: the views come back and the fresh one goes", async () => {
+        const starter = await setup();
+        const before = starter.activetabid;
+        ipc("reset-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        const fresh = h.backend.workspaces.get(starter.oid).activetabid;
+        expect(fresh).not.toBe(before);
+        expect(h.onScreen()).toBe(fresh);
+        const undoId = [...h.backend.undos.keys()][0];
+        ipc("undo-workspace", undoId, starter.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        const back = h.backend.workspaces.get(starter.oid);
+        expect(back.tabids).not.toContain(fresh);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(h.onScreen()).toBe(back.activetabid);
+        expect(liveTabViews()).not.toContain(fresh);
     });
 });
 

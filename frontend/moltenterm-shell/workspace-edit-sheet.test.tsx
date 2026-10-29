@@ -21,7 +21,7 @@ vi.mock("./workspace-edit", () => ({
     listenWorkspaceMenu: () => {},
     pickUpWorkspaceEdit: () => false,
 }));
-vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {} }));
+vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {}, askDeleteWorkspace: () => {} }));
 vi.mock("./sidebar/sidebar-store", async () => {
     const { atom } = await import("jotai");
     const enabledAtom = atom(false);

@@ -51,6 +51,8 @@ export type ToastInput = {
     actions?: ToastAction[];
     // Stays until dismissed; by default only waiting and error toasts do.
     stays?: boolean;
+    // How long a toast that does not stay shows, when not ToastDismissMs (an undo offer's time left, FR-SHELL-095).
+    dismissMs?: number;
     // A click on the toast itself, besides its buttons.
     onOpen?: () => void | Promise<void>;
     onDismiss?: (reason: ToastDismissReason) => void;

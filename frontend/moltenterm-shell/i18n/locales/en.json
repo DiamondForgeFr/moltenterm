@@ -98,10 +98,6 @@
             "message": "Are you sure you want to close this tab?",
             "button": "Close Tab"
         },
-        "deleteWorkspace": {
-            "message": "Deleting workspace will also delete its contents.\n\nContinue?",
-            "button": "Delete Workspace"
-        },
         "saveScrollback": {
             "title": "Save Scrollback",
             "filter": "Text Files"
@@ -4714,21 +4710,31 @@
         "reset": {
             "lastReason": "The only workspace: reset it instead",
             "tabs": {
-                "one": "{count} tab",
-                "other": "{count} tabs"
+                "one": "{count} view",
+                "other": "{count} views"
             },
             "panes": {
-                "one": "{count} pane",
-                "other": "{count} panes"
+                "one": "{count} panel",
+                "other": "{count} panels"
             },
-            "lossTabs": "Its {tabs} will be closed.",
-            "lossTabsPanes": "Its {tabs} and the {panes} they hold will be closed: their terminals and agents stop and the layout is lost.",
+            "lossTabs": "Its {tabs} will close.",
+            "lossTabsPanes": "Its {tabs} and their {panes} will close; terminals and agents stop.",
             "unsaved": "Unsaved workspace",
             "title": "Reset the workspace \"{name}\"?",
             "subtitle": "It is your only workspace, so it is reset rather than deleted.",
             "button": "Reset workspace",
             "stops": "Resetting stops:",
-            "kept": "The workspace starts again with one new tab. Its name, icon, colour and project link are kept."
+            "kept": "The workspace starts again with one new view. Its name, icon, colour and project link are kept.",
+            "undoNote": "You can undo for 10 seconds: the workspace comes back with its views, but what was stopped does not restart.",
+            "toastReset": "Workspace \"{name}\" reset",
+            "toastDeleted": "Workspace \"{name}\" deleted",
+            "undo": "Undo",
+            "tooLate": "Too late to undo: the workspace cannot be brought back any more."
+        },
+        "delete": {
+            "title": "Delete the workspace \"{name}\"?",
+            "button": "Delete workspace",
+            "stops": "Deleting stops:"
         },
         "link": {
             "title": "Link this workspace to {name}?",
