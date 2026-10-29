@@ -279,6 +279,7 @@ function MenuBranch({
                                                 : undefined
                                         }
                                         data-context-menu-item={menuLabel(entry)}
+                                        title={entry.tooltip || undefined}
                                         data-destructive={entry.destructive || undefined}
                                         onClick={() => onSelect(entry)}
                                     >

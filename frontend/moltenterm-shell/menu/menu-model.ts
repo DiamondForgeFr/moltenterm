@@ -3,15 +3,59 @@
 
 import { isMacOS } from "@/util/platformutil";
 
-// An Electron accelerator ("Command+Shift+D") as the menus show it (⇧⌘D on macOS).
-export function shortcutLabel(accelerator: string): string {
+const MacAcceleratorMods: Record<string, string> = {
+    Control: "⌃",
+    Ctrl: "⌃",
+    Option: "⌥",
+    Alt: "⌥",
+    Shift: "⇧",
+    Command: "⌘",
+    Cmd: "⌘",
+    CommandOrControl: "⌘",
+    CmdOrCtrl: "⌘",
+    Super: "⌘",
+    Meta: "⌘",
+};
+const OtherAcceleratorMods: Record<string, string> = {
+    Control: "Ctrl",
+    Ctrl: "Ctrl",
+    CommandOrControl: "Ctrl",
+    CmdOrCtrl: "Ctrl",
+    Alt: "Alt",
+    Option: "Alt",
+    Super: "Meta",
+    Meta: "Meta",
+    Shift: "Shift",
+};
+// The order of shortcuts/format.ts keyCaps: one order for every shortcut the app shows (FR-SHELL-107).
+const MacModOrder = ["⌃", "⌥", "⇧", "⌘"];
+const OtherModOrder = ["Ctrl", "Alt", "Meta", "Shift"];
+const MacAcceleratorKeys: Record<string, string> = {
+    Left: "←",
+    Right: "→",
+    Up: "↑",
+    Down: "↓",
+    Return: "↵",
+    Enter: "↵",
+    Esc: "esc",
+    Escape: "esc",
+    Tab: "⇥",
+    Backspace: "⌫",
+    Delete: "⌦",
+};
+const OtherAcceleratorKeys: Record<string, string> = { Left: "←", Right: "→", Up: "↑", Down: "↓" };
+
+// An Electron accelerator ("Command+Shift+D") as the menus show it: ⇧⌘D on macOS, Ctrl+Shift+D elsewhere, with the
+// modifiers in the order the shortcut sheet and the overlay use, whatever order the accelerator lists them in.
+export function shortcutLabel(accelerator: string, mac = isMacOS()): string {
     if (!accelerator) return "";
-    if (!isMacOS()) return accelerator.replace(/Control/g, "Ctrl").replace(/Super/g, "Meta");
-    return accelerator
-        .replace(/Control\+/g, "⌃")
-        .replace(/(?:Option|Alt)\+/g, "⌥")
-        .replace(/Shift\+/g, "⇧")
-        .replace(/(?:Command|Cmd)\+/g, "⌘");
+    const parts = accelerator.endsWith("++") ? [...accelerator.slice(0, -2).split("+"), "+"] : accelerator.split("+");
+    const key = parts.pop() ?? "";
+    const names = mac ? MacAcceleratorMods : OtherAcceleratorMods;
+    const order = mac ? MacModOrder : OtherModOrder;
+    const mods = parts.map((p) => names[p] ?? p).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const shownKey = (mac ? MacAcceleratorKeys : OtherAcceleratorKeys)[key] ?? key;
+    return [...mods, shownKey].join(mac ? "" : "+");
 }
 
 // The English labels of the edit roles: what identifies a role row (keys, the command panel). The text a menu shows

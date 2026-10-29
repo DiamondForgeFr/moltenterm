@@ -200,6 +200,7 @@ declare global {
         enabled?: boolean;
         sublabel?: string;
         accelerator?: string; // MOLTENTERM-PATCH (#370): an Electron accelerator, from the shortcut registry
+        tooltip?: string; // MOLTENTERM-PATCH (#1344): shown on hover by MoltenTerm's menus, not by native ones
     };
 
     type KeyPressDecl = {

@@ -8899,13 +8899,11 @@
         "label": "Barre latérale de {name}",
         "workspaceMenu": {
             "header": "{name} · Espace de travail",
-            "rename": "Renommer…",
-            "changeIcon": "Changer l’icône…",
-            "editColour": "Modifier la couleur…",
             "edit": "Modifier l’espace de travail…",
             "keepAwake": "Garder éveillé…",
-            "newView": "Nouvelle vue",
             "manage": "Gérer les espaces de travail…",
+            "projects": "Projets · {count}",
+            "removeSection": "Supprimer ou réinitialiser",
             "delete": "Supprimer l’espace de travail…"
         },
         "hide": "Masquer la barre latérale ({keys})",
@@ -8998,8 +8996,13 @@
         },
         "plus": {
             "label": "Créer",
+            "inThisView": "Dans cette vue",
+            "terminal": "Terminal",
+            "webPage": "Page web",
+            "agent": "Agent",
+            "otherPanel": "Autre panneau",
             "inWorkspace": "Dans {name}",
-            "everywhere": "Partout",
+            "workspaces": "Espaces de travail",
             "newView": "Nouvelle vue",
             "newWorkspace": "Nouvel espace de travail"
         },

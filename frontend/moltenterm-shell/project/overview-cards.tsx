@@ -7,7 +7,6 @@
 // pipeline's overview steps, FR-MC-018). They are contributions like a mod's card (project-builtin-cards.tsx).
 
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
-import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
@@ -20,7 +19,6 @@ import {
 } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { agentWorkText, batchOriginOf } from "../agent-work-model";
-import { useBatchRun } from "../reviews/reviews-batch-client";
 import { useCompanionFollow } from "../companion/companion-follow";
 import { useLocale, useT } from "../i18n/i18n";
 import { AdapterSteps } from "../mission/adapter-steps";
@@ -31,6 +29,8 @@ import { BuildRunCard, useDeliveredManifest } from "../mission/runs-view";
 import { releaseState, treeRules } from "../mission/versions";
 import { MoltentermNotifications } from "../notifications-store";
 import { usePaneStatus } from "../pane-status";
+import { useBatchRun } from "../reviews/reviews-batch-client";
+import { formatShortcutById } from "../shortcuts/format";
 import { blockFolder, makePaneView } from "../status-bar-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import { useWorkingBeat } from "../working-beat";
@@ -75,7 +75,7 @@ const AgentStateText: Record<string, string> = {
 };
 
 function paletteShortcut(): string {
-    return isMacOS() ? "⌘⇧K" : "Ctrl+Shift+K";
+    return formatShortcutById("palette");
 }
 
 function useReleaseState(snapshot: MissionSnapshot) {

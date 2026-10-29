@@ -38,7 +38,7 @@ import { LibraryHost } from "../library/library-host";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
-import { openNewView } from "../newview/new-view";
+import { currentNewViewChoices, openNewView } from "../newview/new-view";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
@@ -52,9 +52,9 @@ import {
     withWorkingTitle,
     WorkingLight,
 } from "../panel-motion/working-light";
+import { runPaletteEntry } from "../palette/palette-actions";
 import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
-import { railWorkspaceMenu } from "../rail-tray-model";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
 import { useReviewsRailWatch } from "../reviews/reviews-client";
@@ -82,6 +82,7 @@ import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model
 import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
+import { plusMenuItems } from "./plus-menu-model";
 import {
     PrDots,
     useCountsMotion,
@@ -153,7 +154,7 @@ import {
     windowButtonsVisible,
     WindowRowPx,
 } from "./window-corner-model";
-import { opensWorkspaceMenu, workspaceBackgroundMenuItems } from "./workspace-menu-model";
+import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
 
@@ -296,54 +297,58 @@ function projectMenuItems(ws: Workspace, t: (key: string, vars?: Record<string, 
     return items;
 }
 
-// The menu of a workspace (the rail's, FR-SHELL-045): edit, Project tab, the link to Preferences › Energy (#1332),
-// add a project, reset, delete.
-function workspaceMenuItems(
-    entry: WorkspaceRailEntry,
-    workspaces: SidebarWorkspaces,
-    anchor: HTMLElement,
-    platform: string,
-    t: (key: string, vars?: Record<string, any>) => string
-): ContextMenuItem[] {
-    const items = baseWorkspaceMenuItems(entry, workspaces.entries, anchor, platform, t);
-    const at = items.findIndex((item) => item.type === "separator");
-    if (!entry.active || at < 0) {
-        return items;
+// The link to Preferences › Energy (#1332), the current option as its sub-label, where the computer supports it.
+function keepAwakeItem(platform: string, t: (key: string, vars?: Record<string, any>) => string): ContextMenuItem {
+    if (!coffeeSupported(platform)) {
+        return undefined;
     }
-    const add: ContextMenuItem = {
-        label: t("sidebar.project.addMenu"),
-        icon: "folder-plus",
-        click: () => SidebarModel.getInstance().openProjectPage(),
+    return {
+        label: t("sidebar.workspaceMenu.keepAwake"),
+        sublabel: sleepPolicyLabel(globalStore.get(getSettingsKeyAtom(SleepPolicySetting))),
+        icon: "mug-hot",
+        click: () => fireAndForget(() => openSettingsKey("general", SleepPolicySetting)),
     };
-    return [...items.slice(0, at), add, ...items.slice(at)];
 }
 
-function baseWorkspaceMenuItems(
-    entry: WorkspaceRailEntry,
+// The workspace menu of the header's ⋯, a dot and the sidebar's background (FR-SHELL-107): the same entries
+// everywhere, its projects listed when the workspace is the one on screen.
+function workspaceMenuFor(
+    entry: { id: string; name: string; active: boolean },
     entries: WorkspaceRailEntry[],
     anchor: HTMLElement,
     platform: string,
     t: (key: string, vars?: Record<string, any>) => string
 ): ContextMenuItem[] {
-    const ws = globalStore.get(atoms.workspace);
-    const projectDir = entry.active ? readWorkspaceProject(ws).dir : "";
-    return railWorkspaceMenu({
-        onEdit: () => openWorkspaceEditor(entry.id, anchor),
-        energy: coffeeSupported(platform)
-            ? {
-                  label: t("sidebar.workspaceMenu.keepAwake"),
-                  current: sleepPolicyLabel(globalStore.get(getSettingsKeyAtom(SleepPolicySetting))),
-                  onOpen: () => fireAndForget(() => openSettingsKey("general", SleepPolicySetting)),
-              }
-            : undefined,
-        onProjectTab: projectDir ? () => fireAndForget(openProjectTab) : undefined,
-        onReset: () => askResetWorkspace(entry.id),
-        remove: {
-            enabled: canCloseWorkspace(entries, entry.id),
-            reason: lastWorkspaceReason(),
-            onDelete: () => askDeleteWorkspace(entry.id),
+    const ws = entry.active ? globalStore.get(atoms.workspace) : null;
+    const current = ws != null ? currentProjectId(ws) : null;
+    return workspaceMenuItems(
+        {
+            name: entry.name,
+            onEdit: () => openWorkspaceEditor(entry.id, anchor),
+            keepAwake: keepAwakeItem(platform, t),
+            onManage: () => SidebarModel.getInstance().openLibrary(),
+            projects:
+                ws != null
+                    ? {
+                          list: readProjects(ws).map((project) => ({
+                              id: project.id,
+                              label: projectChipLabel(project),
+                              current: project.id === current,
+                              onSwitch: () => runProjectCall(() => switchWorkspaceProject(project.id)),
+                          })),
+                          onAdd: () => SidebarModel.getInstance().openProjectPage(),
+                          onProjectTab: readWorkspaceProject(ws).dir ? () => fireAndForget(openProjectTab) : undefined,
+                      }
+                    : undefined,
+            onReset: () => askResetWorkspace(entry.id),
+            remove: {
+                enabled: canCloseWorkspace(entries, entry.id),
+                reason: lastWorkspaceReason(),
+                onDelete: () => askDeleteWorkspace(entry.id),
+            },
         },
-    });
+        t
+    );
 }
 
 function trafficLightsRoom(isFullScreen: boolean, zoomFactor: number): number {
@@ -582,7 +587,9 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
             return;
         }
         setMenuOpen(true);
-        showMenuUnder(anchor, workspaceMenuItems(entry, workspaces, anchor, platform, t), () => setMenuOpen(false));
+        showMenuUnder(anchor, workspaceMenuFor(entry, workspaces.entries, anchor, platform, t), () =>
+            setMenuOpen(false)
+        );
     };
     return (
         <div className="mt-sb-hdr flex shrink-0 items-center gap-1.5 px-0.5 pt-1.5" data-testid="sidebar-header">
@@ -1752,7 +1759,7 @@ function WorkspaceDot({
                     return;
                 }
                 const anchor = e.currentTarget;
-                showMenuUnder(anchor, workspaceMenuItems(entry, workspaces, anchor, platform, t));
+                showMenuUnder(anchor, workspaceMenuFor(entry, workspaces.entries, anchor, platform, t));
             }}
         >
             <i className="font-semibold" style={{ background: paint, color: letterColour }}>
@@ -1982,30 +1989,27 @@ function startCreateWorkspace(workspaces: SidebarWorkspaces) {
     SidebarModel.getInstance().startCreate(freshColour(used, workspaces.entries.length));
 }
 
-// Today's create actions: a new view (the tab bar's +) and a new workspace (the rail's +, now the sidebar's
-// new-workspace page, FR-SHELL-082).
+// The create menu (FR-SHELL-107): a panel in this view, a view or a project in the workspace (the tab bar's +), and a
+// new workspace (the rail's +, now the sidebar's new-workspace page, FR-SHELL-082).
 function PlusButton({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const [open, setOpen] = useState(false);
     const label = t("sidebar.plus.label");
     const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-        const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
-        const items: ContextMenuItem[] = [
+        const items = plusMenuItems(
             {
-                label: t("sidebar.plus.newView"),
-                icon: "plus",
-                section: t("sidebar.plus.inWorkspace", { name }),
-                accelerator: acceleratorById("new-tab"),
-                click: () => openNewView(),
+                workspace: workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace"),
+                choices: currentNewViewChoices(),
+                onOpenHere: (entry) =>
+                    fireAndForget(() => runPaletteEntry(entry.run, { placement: "new", blockId: null })),
+                onNewView: () => openNewView(),
+                newViewKeys: acceleratorById("new-tab"),
+                onAddProject: () => SidebarModel.getInstance().openProjectPage(),
+                onNewWorkspace: () => startCreateWorkspace(workspaces),
             },
-            {
-                label: t("sidebar.plus.newWorkspace"),
-                icon: "layer-group",
-                section: t("sidebar.plus.everywhere"),
-                click: () => startCreateWorkspace(workspaces),
-            },
-        ];
+            t
+        );
         setOpen(true);
         showMenuUnder(e.currentTarget, items, () => setOpen(false));
     };
@@ -2270,37 +2274,21 @@ function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
     );
 }
 
-// The workspace menu of the background and of the name (FR-SHELL-079, #1252): the same actions as the edit sheet, the
-// rail menu, the library and the + menu.
+// The workspace menu of the background and of the name (FR-SHELL-079, #1252): the header's ⋯ menu (FR-SHELL-107).
 function useWorkspaceMenu(workspaces: SidebarWorkspaces) {
     const t = useT();
+    const platform = usePlatform();
     const ws = useAtomValue(atoms.workspace);
     return (e: React.MouseEvent<HTMLElement>) => {
         if (!opensWorkspaceMenu(e.target as Element, e.defaultPrevented)) {
             return;
         }
-        const id = ws?.oid;
-        const anchor = e.currentTarget;
-        const edit = () => openWorkspaceEditor(id, anchor);
-        const items = workspaceBackgroundMenuItems(
-            {
-                name: workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace"),
-                onRename: edit,
-                onChangeIcon: edit,
-                onEditColour: edit,
-                onEdit: edit,
-                onNewView: () => openNewView(),
-                newViewKeys: acceleratorById("new-tab"),
-                onAddProject: () => SidebarModel.getInstance().openProjectPage(),
-                onManage: () => SidebarModel.getInstance().openLibrary(),
-                remove: {
-                    enabled: canCloseWorkspace(workspaces.entries, id),
-                    reason: lastWorkspaceReason(),
-                    onDelete: () => askDeleteWorkspace(id),
-                },
-            },
-            t
-        );
+        const entry = {
+            id: ws?.oid,
+            name: workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace"),
+            active: true,
+        };
+        const items = workspaceMenuFor(entry, workspaces.entries, e.currentTarget, platform, t);
         ContextMenuModel.getInstance().showContextMenu(items, e);
     };
 }

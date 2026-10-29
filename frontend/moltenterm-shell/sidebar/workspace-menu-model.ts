@@ -1,51 +1,83 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The workspace menu of the sidebar's background and of its workspace name (FR-SHELL-079, #1252): every item is an
-// action that already exists elsewhere, so this module only decides what the menu offers and when a right-click opens it.
+// The workspace menu (FR-SHELL-079, FR-SHELL-107): one list for the header's ⋯, a workspace dot and the sidebar's
+// background, in three families: the workspace itself, its projects, and Delete or reset last. Every item is an action
+// that already exists elsewhere, so this module only decides what the menu offers and when a right-click opens it.
 
 type TFn = (key: string, vars?: Record<string, any>) => string;
 
+export type WorkspaceMenuProject = { id: string; label: string; current: boolean; onSwitch: () => void };
+
 export type WorkspaceMenuActions = {
     name: string;
-    // The edit sheet holds the name, the icon and the colour: three entries, one sheet.
-    onRename: () => void;
-    onChangeIcon: () => void;
-    onEditColour: () => void;
+    // The edit sheet holds the name, the icon and the colour: one entry, not one per field.
     onEdit: () => void;
-    onNewView: () => void;
-    onAddProject: () => void;
+    // Keep awake (FR-SHELL-023), built by the sidebar where the computer supports it.
+    keepAwake?: ContextMenuItem;
     onManage: () => void;
-    newViewKeys?: string;
+    // Set for the workspace on screen, whose projects the window knows (FR-SHELL-087).
+    projects?: {
+        list: WorkspaceMenuProject[];
+        onAdd: () => void;
+        // Set when the current project has a folder (FR-SHELL-015).
+        onProjectTab?: () => void;
+    };
+    onReset: () => void;
+    // Disabled with its reason on the last workspace (#222).
     remove: { enabled: boolean; reason: string; onDelete: () => void };
 };
 
-export function workspaceBackgroundMenuItems(actions: WorkspaceMenuActions, t: TFn): ContextMenuItem[] {
-    return [
-        { type: "header", label: t("sidebar.workspaceMenu.header", { name: actions.name }) },
-        { label: t("sidebar.workspaceMenu.rename"), icon: "pen", click: actions.onRename },
-        { label: t("sidebar.workspaceMenu.changeIcon"), icon: "icons", click: actions.onChangeIcon },
-        { label: t("sidebar.workspaceMenu.editColour"), icon: "palette", click: actions.onEditColour },
-        { label: t("sidebar.workspaceMenu.edit"), icon: "sliders", click: actions.onEdit },
-        { type: "separator" },
-        {
-            label: t("sidebar.workspaceMenu.newView"),
-            icon: "plus",
-            accelerator: actions.newViewKeys,
-            click: actions.onNewView,
-        },
-        { label: t("sidebar.project.addMenu"), icon: "folder-plus", click: actions.onAddProject },
-        { label: t("sidebar.workspaceMenu.manage"), icon: "layer-group", click: actions.onManage },
-        { type: "separator" },
+export function workspaceMenuItems(actions: WorkspaceMenuActions, t: TFn): ContextMenuItem[] {
+    const workspace = t("sidebar.workspaceMenu.header", { name: actions.name });
+    const items: ContextMenuItem[] = [
+        { label: t("sidebar.workspaceMenu.edit"), icon: "pen", section: workspace, click: actions.onEdit },
+    ];
+    if (actions.keepAwake != null) {
+        items.push({ ...actions.keepAwake, section: workspace });
+    }
+    items.push({
+        label: t("sidebar.workspaceMenu.manage"),
+        icon: "layer-group",
+        section: workspace,
+        click: actions.onManage,
+    });
+    const projects = actions.projects;
+    if (projects != null) {
+        const section = t("sidebar.workspaceMenu.projects", { count: projects.list.length });
+        for (const project of projects.list) {
+            items.push({
+                label: project.label,
+                type: "checkbox",
+                checked: project.current,
+                section,
+                click: project.onSwitch,
+            });
+        }
+        items.push({ label: t("sidebar.project.addMenu"), icon: "folder-plus", section, click: projects.onAdd });
+        if (projects.onProjectTab != null) {
+            items.push({
+                label: t("rail.menu.openProjectTab"),
+                icon: "folder-open",
+                section,
+                click: projects.onProjectTab,
+            });
+        }
+    }
+    const remove = t("sidebar.workspaceMenu.removeSection");
+    items.push(
+        { label: t("rail.menu.resetWorkspace"), icon: "rotate-left", section: remove, click: actions.onReset },
         {
             label: t("sidebar.workspaceMenu.delete"),
             icon: "trash",
             destructive: true,
+            section: remove,
             enabled: actions.remove.enabled,
             sublabel: actions.remove.enabled ? undefined : actions.remove.reason,
             click: actions.remove.onDelete,
-        },
-    ];
+        }
+    );
+    return items;
 }
 
 // Views, agent rows and pinned blocks open their own menu, which stops the event before it reaches the sidebar; the
