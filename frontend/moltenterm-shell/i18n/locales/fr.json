@@ -8899,17 +8899,21 @@
             "label": "Vues épinglées dans {name}"
         },
         "prCounts": {
+            "blocked": {
+                "one": "{count} PR attend votre décision",
+                "other": "{count} PR attendent votre décision"
+            },
             "ready": {
-                "one": "{count} PR prête",
-                "other": "{count} PR prêtes"
+                "one": "{count} PR prête à fusionner",
+                "other": "{count} PR prêtes à fusionner"
             },
             "ci": {
-                "one": "{count} PR avec la CI en cours ou en échec",
-                "other": "{count} PR avec la CI en cours ou en échec"
+                "one": "{count} PR avec la CI en cours",
+                "other": "{count} PR avec la CI en cours"
             },
             "draft": {
-                "one": "{count} PR en brouillon",
-                "other": "{count} PR en brouillon"
+                "one": "{count} brouillon ou PR confiée à un agent",
+                "other": "{count} brouillons ou PR confiées à un agent"
             }
         },
         "temporary": {

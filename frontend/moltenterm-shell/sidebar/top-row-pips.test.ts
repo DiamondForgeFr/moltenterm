@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Pilotage's pull request counts sit under its block, outside it (FR-SHELL-085, sidebar.css .mt-sb-pips): a top-row
-// block that clipped its overflow kept their room and hid them (#1283).
+// The Integration block's pull request status dots sit in the block's corner column, under its agent mark or modified
+// ring (FR-SHELL-085, #1304, sidebar.css .mt-sb-corner). A top-row block that clipped its overflow hid what it carries
+// (#1283): its glyph is clipped on its own.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,24 +12,63 @@ import { describe, expect, it } from "vitest";
 const src = fs.readFileSync(path.join(__dirname, "workspace-sidebar.tsx"), "utf8");
 const css = fs.readFileSync(path.join(__dirname, "sidebar.css"), "utf8");
 
-function topRowBlockSource(): string {
-    const start = src.indexOf("function TopRowBlock(");
+function functionSource(name: string): string {
+    const start = src.indexOf(`function ${name}(`);
     expect(start).toBeGreaterThanOrEqual(0);
     return src.slice(start, src.indexOf("\n}\n", start));
 }
 
-describe("the top row's pull request counts (#1283)", () => {
-    it("are drawn outside the block", () => {
-        expect(css).toMatch(/\.mt-sb-pips\s*{[^}]*top:\s*calc\(100% \+ 3px\)/);
+function rule(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = css.match(new RegExp(`(^|\\n)${escaped}\\s*{([^}]*)}`));
+    expect(match, selector).not.toBeNull();
+    return match[2];
+}
+
+describe("the sidebar's status dots (#1304)", () => {
+    it("stack in one column at the block's right, under the corner mark", () => {
+        const corner = rule(".mt-sb-corner");
+        expect(corner).toMatch(/position:\s*absolute/);
+        expect(corner).toMatch(/right:\s*6px/);
+        expect(corner).toMatch(/flex-direction:\s*column/);
+        expect(rule(".mt-sb-dots")).toMatch(/flex-direction:\s*column/);
+        const dot = rule(".mt-sb-dot");
+        expect(dot).toMatch(/width:\s*6px/);
+        expect(dot).toMatch(/border-radius:\s*9999px/);
     });
 
-    it("are not clipped by the block, whose glyph is clipped on its own", () => {
-        const block = topRowBlockSource();
+    it("colour each state from the theme's state tokens", () => {
+        expect(rule(".mt-sb-dot.is-blocked")).toContain("var(--mt-state-error)");
+        expect(rule(".mt-sb-dot.is-ready")).toContain("var(--mt-state-done)");
+        expect(rule(".mt-sb-dot.is-ci")).toContain("var(--mt-state-working)");
+    });
+
+    it("turn the modified pip into a ring", () => {
+        const pip = rule(".mt-sb-modpip");
+        expect(pip).toMatch(/border:\s*1\.5px solid var\(--mt-state-waiting\)/);
+        expect(pip).toMatch(/background:\s*transparent/);
+    });
+
+    it("never move under reduced motion", () => {
+        const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+        expect(reduced).toMatch(/\.mt-sb-dots,\s*\n\s*\.mt-sb-dot\.is-bump/);
+    });
+
+    it("live in the corner column of tiles and top-row blocks, the mark first", () => {
+        for (const name of ["Tile", "TopRowBlock"]) {
+            const block = functionSource(name);
+            const corner = block.slice(block.indexOf('className="mt-sb-corner'));
+            expect(corner.indexOf("<PrDots")).toBeGreaterThan(corner.indexOf("mt-sb-modpip"));
+            expect(corner.indexOf("<PrDots")).toBeGreaterThan(corner.indexOf("AgentMark"));
+        }
+    });
+
+    it("are not clipped by the top-row block, whose glyph is clipped on its own", () => {
+        const block = functionSource("TopRowBlock");
         const button = block.slice(block.indexOf("<button"), block.indexOf("<ViewGlyph"));
         expect(button).not.toMatch(/overflow-hidden/);
         expect(block).toContain(
             '<ViewGlyph icons={glyph} small={glyph.length > 1} className="max-w-full overflow-hidden" />'
         );
-        expect(block).toContain("<PrPips");
     });
 });
