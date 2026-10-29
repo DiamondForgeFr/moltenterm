@@ -35,6 +35,9 @@ func TestSeedFirstLaunchTermThemeWritesCoulee(t *testing.T) {
 	if settings.TermTheme != "coulee" || settings.TermFontSize != 13 {
 		t.Fatalf("theme %q fontsize %v, want coulee and 13", settings.TermTheme, settings.TermFontSize)
 	}
+	if settings.TermTransparency == nil || *settings.TermTransparency != 0 {
+		t.Fatalf("term:transparency = %v, want 0", settings.TermTransparency)
+	}
 }
 
 func TestSeedFirstLaunchTermThemeKeepsAChosenTheme(t *testing.T) {
