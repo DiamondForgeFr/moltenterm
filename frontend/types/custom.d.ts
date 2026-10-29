@@ -236,6 +236,7 @@ declare global {
         title?: string;
         disabled?: boolean;
         noAction?: boolean;
+        pressed?: boolean; // MOLTENTERM-PATCH (#1328): a button that switches something on or off says which
     };
 
     type IconButtonDecl = IconButtonCommon & {
