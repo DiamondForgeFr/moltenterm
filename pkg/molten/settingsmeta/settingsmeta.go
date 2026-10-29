@@ -9,7 +9,9 @@
 package settingsmeta
 
 const (
-	SectionGeneral    = "general"
+	SectionGeneral = "general"
+	// Workspaces and views (FR-SHELL-106): the sidebar, the top row, new views and the new workspace template.
+	SectionSpaces     = "spaces"
 	SectionAppearance = "appearance"
 	SectionTerminal   = "terminal"
 	SectionAgents     = "agents"
@@ -42,6 +44,7 @@ const OptionsNewViewChoices = "newviewchoices"
 
 var Sections = []string{
 	SectionGeneral,
+	SectionSpaces,
 	SectionAppearance,
 	SectionTerminal,
 	SectionAgents,
@@ -119,10 +122,13 @@ var settings = []Setting{
 	{Key: "moltenterm:releasecandidates", Section: SectionGeneral, Group: "Updates", Label: "Also get release candidates", Description: "Release candidates preview the next version and may be less stable. Off: public releases only.", Control: ControlToggle},
 	{Key: "window:savelastwindow", Section: SectionGeneral, Group: "Startup", Label: "Reopen the last window", Description: "Closing the last window keeps it, so it opens again at the next launch.", Control: ControlToggle},
 	{Key: "window:fullscreenonlaunch", Section: SectionGeneral, Group: "Startup", Label: "Full screen at launch", Description: "Open windows in full screen.", Control: ControlToggle},
+	// Workspaces and views (FR-SHELL-106): the sidebar first; its docked or floating mode is the window's, drawn by the
+	// screen beside this row.
+	{Key: "moltenterm:sidebartint", Section: SectionSpaces, Group: "Sidebar", Label: "Tint the sidebar", Description: "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks.", Control: ControlToggle},
 	// #1232: the choices are the launcher's entries, filled by the screen; the favourites have their own editor below.
-	{Key: "app:newviewopen", Section: SectionGeneral, Group: "New views", Label: "When a new view opens", Description: "Ask shows the chooser; or open one type directly, without it.", Control: ControlSelect, OptionsFrom: OptionsNewViewChoices, UnsetLabel: "Ask"},
+	{Key: "app:newviewopen", Section: SectionSpaces, Group: "New views", Label: "When a new view opens", Description: "Ask shows the chooser; or open one type directly, without it.", Control: ControlSelect, OptionsFrom: OptionsNewViewChoices, UnsetLabel: "Ask"},
 	hidden("app:newviewfavorites"),
-	// #1305: edited by its own card, General › New workspace views (frontend/moltenterm-shell/workspace-views).
+	// #1305: edited by its own card, Workspaces and views › New workspace views (frontend/moltenterm-shell/workspace-views).
 	hidden("app:newworkspaceviews"),
 	{Key: "app:tilelauncher", Section: SectionGeneral, Group: "Panels", Label: "Tile launcher in empty panes", Description: "An empty pane shows the tile launcher instead of the command palette.", Control: ControlToggle},
 	{Key: "app:focusfollowscursor", Section: SectionGeneral, Group: "Panels", Label: "Focus follows the pointer", Description: "Focus the panel under the pointer without a click.", Control: ControlSelect, Options: onOff},
@@ -137,7 +143,6 @@ var settings = []Setting{
 	// Appearance
 	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "always", Label: "Always"}}},
 	{Key: "window:reducedmotion", Section: SectionAppearance, Group: "Window", Label: "Reduce motion", Description: "Turn off animations, as the system's reduced motion setting does.", Control: ControlToggle},
-	{Key: "moltenterm:sidebartint", Section: SectionAppearance, Group: "Window", Label: "Tint the sidebar", Description: "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks.", Control: ControlToggle},
 	{Key: "window:tilegapsize", Section: SectionAppearance, Group: "Window", Label: "Gap between panels", Description: "The space between the panels of a tab.", Control: ControlNumber, Range: rng(0, 20, 1), Unit: "px"},
 	{Key: "window:transparent", Section: SectionAppearance, Group: "Window", Label: "Transparent window", Description: "Let the desktop show through the window's background.", Control: ControlToggle},
 	{Key: "window:blur", Section: SectionAppearance, Group: "Window", Label: "Blur behind the window", Description: "Blur the desktop behind a transparent window.", Control: ControlToggle},

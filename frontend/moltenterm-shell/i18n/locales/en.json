@@ -494,7 +494,8 @@
             "otherSettings": "Other settings",
             "360View": "360 view",
             "codingAgent": "Coding agent",
-            "newViews": "New views"
+            "newViews": "New views",
+            "sidebar": "Sidebar"
         },
         "items": {
             "app:nativecontextmenu": {
@@ -1138,6 +1139,18 @@
             "advanced": {
                 "title": "Advanced",
                 "description": "Window and app internals, debugging, and the JSON files behind every setting."
+            },
+            "spaces": {
+                "title": "Workspaces and views",
+                "description": "The sidebar, the views pinned everywhere, new views and what a new workspace starts with."
+            },
+            "notifications": {
+                "title": "Notifications",
+                "description": "What each subject tells you, and when the notification panel opens by itself."
+            },
+            "tips": {
+                "title": "Tips",
+                "description": "Reshape MoltenTerm, work faster, every shortcut."
             }
         },
         "mods": {
@@ -1205,6 +1218,41 @@
             "none": "No secret yet.",
             "edit": "Edit",
             "addOne": "Add a secret"
+        },
+        "spaces": {
+            "sidebar": {
+                "label": "Sidebar",
+                "description": "For this window.",
+                "descriptionKeys": "For this window. {keys} switches it too.",
+                "docked": "Docked",
+                "dockedHint": "beside the views",
+                "floating": "Floating",
+                "floatingHint": "over the views when the pointer reaches the left edge"
+            },
+            "topRow": {
+                "title": "Views pinned everywhere",
+                "hint": "The top row of the sidebar, the same in every workspace. Pin a view everywhere from its menu.",
+                "empty": "No view is pinned everywhere.",
+                "dragHint": "Drag a tile to reorder, or Alt with an arrow."
+            }
+        },
+        "sites": {
+            "empty": "No site yet. The bar of the Web page panel adds them.",
+            "remove": "Remove {site}",
+            "engineFor": "Browser for {site}",
+            "agentsOn": "Agents on {site}",
+            "kindOn": "{what} for {site}",
+            "forget": "Forget the answer: {what} for {site}",
+            "decision": {
+                "allow": "Allow",
+                "block": "Block"
+            },
+            "kind": {
+                "camera": "Camera",
+                "microphone": "Microphone",
+                "location": "Location",
+                "notifications": "Notifications"
+            }
         }
     },
     "molten": {
@@ -4956,11 +5004,11 @@
             "clear": "Clear",
             "markAllRead": "Mark all as read",
             "settingsTitle": "What each subject may tell",
-            "settingsLabel": "Notification settings",
             "runningHeading": "Running",
             "emptyArchived": "Nothing archived.",
             "empty": "Nothing needs your attention.",
-            "more": "+{count} more"
+            "more": "+{count} more",
+            "settingsLink": "Settings"
         },
         "work": {
             "stop": "Stop",
@@ -4975,9 +5023,11 @@
         },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
-            "openPanel": "Open this panel for every new notification",
+            "openPanel": "Open the notification panel for every new notification",
             "openPanelHint": "Otherwise it opens by itself only for what needs your answer; the rest shows for a few seconds at the bottom right.",
-            "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it."
+            "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it.",
+            "subjectsTitle": "Subjects",
+            "panelTitle": "Notification panel"
         },
         "subjects": {
             "agents": "Agents",
@@ -9304,9 +9354,6 @@
             "emptyTitle": "Nothing put away",
             "empty": "The views you close stay here, with their agent and its history."
         },
-        "settings": {
-            "tipsSub": "Short tips on what MoltenTerm can do"
-        },
         "suggest": {
             "title": "Suggest MoltenTerm",
             "text": "Copy the download link to send to a colleague or a friend. Nothing from your workspaces is shared.",
@@ -9340,16 +9387,15 @@
             "hint": "The views a workspace you create from now on starts with, pinned in it. Agents open on the left, the other panels on the right; nothing starts until you open a view. Existing workspaces do not change.",
             "empty": "New workspaces start without views.",
             "name": "Name of view {n}",
-            "moveViewUp": "Move {name} up",
-            "moveViewDown": "Move {name} down",
             "removeView": "Remove {name}",
             "panel": "Panel {n} of {name}",
-            "movePanelUp": "Move the panel up",
-            "movePanelDown": "Move the panel down",
-            "removePanel": "Remove the panel",
             "addPanel": "Add a panel",
             "addView": "Add a view",
-            "reset": "Reset"
+            "reset": "Reset",
+            "panelsOf": "Panels of {name}",
+            "removePanelNamed": "Remove {panel}",
+            "tilesLabel": "Views of a new workspace",
+            "dragHint": "Drag a tile or a panel to reorder, or Alt with an arrow."
         }
     },
     "newView": {

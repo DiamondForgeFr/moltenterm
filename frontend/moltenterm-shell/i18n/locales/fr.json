@@ -594,6 +594,18 @@
             "advanced": {
                 "title": "Avancé",
                 "description": "Les rouages de la fenêtre et de l'app, le débogage, et les fichiers JSON derrière chaque réglage."
+            },
+            "spaces": {
+                "title": "Espaces et vues",
+                "description": "La barre latérale, les vues épinglées partout, les nouvelles vues et ce avec quoi démarre un nouvel espace de travail."
+            },
+            "notifications": {
+                "title": "Notifications",
+                "description": "Ce que chaque sujet vous signale, et quand le panneau des notifications s'ouvre de lui-même."
+            },
+            "tips": {
+                "title": "Astuces",
+                "description": "Remodeler MoltenTerm, travailler plus vite, tous les raccourcis."
             }
         },
         "groups": {
@@ -628,7 +640,8 @@
             "appBuilder": "Créateur d'apps",
             "360View": "Vue 360",
             "codingAgent": "Agent de code",
-            "newViews": "Nouvelles vues"
+            "newViews": "Nouvelles vues",
+            "sidebar": "Barre latérale"
         },
         "items": {
             "molten:folder": {
@@ -1205,6 +1218,41 @@
             "none": "Aucun secret pour l'instant.",
             "edit": "Modifier",
             "addOne": "Ajouter un secret"
+        },
+        "spaces": {
+            "sidebar": {
+                "label": "Barre latérale",
+                "description": "Pour cette fenêtre.",
+                "descriptionKeys": "Pour cette fenêtre. {keys} la bascule aussi.",
+                "docked": "Fixe",
+                "dockedHint": "à côté des vues",
+                "floating": "Flottante",
+                "floatingHint": "par-dessus les vues quand le pointeur touche le bord gauche"
+            },
+            "topRow": {
+                "title": "Vues épinglées partout",
+                "hint": "La rangée du haut de la barre latérale, la même dans chaque espace de travail. Épinglez une vue partout depuis son menu.",
+                "empty": "Aucune vue n'est épinglée partout.",
+                "dragHint": "Glissez une tuile pour changer l'ordre, ou Alt avec une flèche."
+            }
+        },
+        "sites": {
+            "empty": "Aucun site pour l'instant. La barre du panneau Page web les ajoute.",
+            "remove": "Retirer {site}",
+            "engineFor": "Navigateur pour {site}",
+            "agentsOn": "Agents sur {site}",
+            "kindOn": "{what} pour {site}",
+            "forget": "Oublier la réponse : {what} pour {site}",
+            "decision": {
+                "allow": "Autoriser",
+                "block": "Bloquer"
+            },
+            "kind": {
+                "camera": "Caméra",
+                "microphone": "Micro",
+                "location": "Position",
+                "notifications": "Notifications"
+            }
         }
     },
     "molten": {
@@ -4956,11 +5004,11 @@
             "clear": "Vider",
             "markAllRead": "Tout marquer comme lu",
             "settingsTitle": "Ce que chaque sujet peut signaler",
-            "settingsLabel": "Réglages des notifications",
             "runningHeading": "En cours",
             "emptyArchived": "Rien d'archivé.",
             "empty": "Rien ne demande votre attention.",
-            "more": "+{count} de plus"
+            "more": "+{count} de plus",
+            "settingsLink": "Réglages"
         },
         "work": {
             "stop": "Arrêter",
@@ -4975,9 +5023,11 @@
         },
         "settings": {
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
-            "openPanel": "Ouvrir ce panneau à chaque nouvelle notification",
+            "openPanel": "Ouvrir le panneau des notifications à chaque nouvelle notification",
             "openPanelHint": "Sinon, il ne s'ouvre de lui-même que pour ce qui attend votre réponse ; le reste s'affiche quelques secondes en bas à droite.",
-            "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas."
+            "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas.",
+            "subjectsTitle": "Sujets",
+            "panelTitle": "Panneau des notifications"
         },
         "subjects": {
             "agents": "Agents",
@@ -9304,9 +9354,6 @@
             "emptyTitle": "Rien de rangé",
             "empty": "Les vues que vous fermez restent ici, avec leur agent et son historique."
         },
-        "settings": {
-            "tipsSub": "De courtes astuces sur ce que MoltenTerm sait faire"
-        },
         "suggest": {
             "title": "Proposer MoltenTerm",
             "text": "Copiez le lien de téléchargement pour l'envoyer à un collègue ou un ami. Rien n'est partagé de vos espaces de travail.",
@@ -9340,16 +9387,15 @@
             "hint": "Les vues avec lesquelles démarre un espace de travail que vous créez désormais, épinglées dans celui-ci. Les agents s'ouvrent à gauche, les autres panneaux à droite ; rien ne démarre avant que vous ouvriez une vue. Les espaces de travail existants ne changent pas.",
             "empty": "Les nouveaux espaces de travail démarrent sans vue.",
             "name": "Nom de la vue {n}",
-            "moveViewUp": "Monter {name}",
-            "moveViewDown": "Descendre {name}",
             "removeView": "Retirer {name}",
             "panel": "Panneau {n} de {name}",
-            "movePanelUp": "Monter le panneau",
-            "movePanelDown": "Descendre le panneau",
-            "removePanel": "Retirer le panneau",
             "addPanel": "Ajouter un panneau",
             "addView": "Ajouter une vue",
-            "reset": "Rétablir"
+            "reset": "Rétablir",
+            "panelsOf": "Panneaux de {name}",
+            "removePanelNamed": "Retirer {panel}",
+            "tilesLabel": "Vues d'un nouvel espace de travail",
+            "dragHint": "Glissez une tuile ou un panneau pour changer l'ordre, ou Alt avec une flèche."
         }
     },
     "newView": {

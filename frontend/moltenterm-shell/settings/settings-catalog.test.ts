@@ -67,21 +67,49 @@ describe("settings catalog (FR-SHELL-050)", () => {
     it("lists the sections in the screen's order, Advanced last", () => {
         expect(SettingsSections.map((s) => s.title)).toEqual([
             "General",
+            "Workspaces and views",
             "Appearance",
             "Terminal",
             "Agents",
             "Browser",
             "Project",
+            "Notifications",
             "Keyboard",
             "Mods",
             "Secrets",
+            "Tips",
             "Advanced",
         ]);
     });
 
+    // FR-SHELL-106: the sidebar and new views live with the workspaces; the per-site lists stay in Browser.
+    it("gathers the sidebar and new views in Workspaces and views", () => {
+        const spaces = sectionEntries(catalog(), "spaces").map((e) => e.key);
+        expect(spaces).toEqual(["moltenterm:sidebartint", "app:newviewopen"]);
+        expect(sectionEntries(catalog(), "general").map((e) => e.key)).not.toContain("app:newviewopen");
+        expect(sectionEntries(catalog(), "appearance").map((e) => e.key)).not.toContain("moltenterm:sidebartint");
+        const browser = sectionEntries(catalog(), "browser").map((e) => e.key);
+        for (const key of ["browser:sites", "browser:agentsites", "browser:sitepermissions"]) {
+            expect(browser).toContain(key);
+        }
+    });
+
+    // The Library's Settings page lists SettingsSections as they are: Tips is one of them, so the lists cannot drift.
+    it("gives Preferences and the Library one list of sections, Tips included", () => {
+        const ids = SettingsSections.map((s) => s.id as string);
+        expect(ids).toContain("tips");
+        expect(ids).toContain("notifications");
+        for (const s of SettingsSections) {
+            expect(s.icon, s.id).toBeTruthy();
+            expect(SettingsSectionConcepts[s.id], s.id).toBeTruthy();
+        }
+    });
+
+    // Notifications, Mods, Secrets and Tips hold what settings.json does not.
     it("gives each section but Advanced and Keyboard its own settings", () => {
         const all = [...WorkspaceSettings, ...catalog()];
-        for (const s of SettingsSections.filter((s) => s.id !== "mods" && s.id !== "secrets")) {
+        const noKeys = ["mods", "secrets", "notifications", "tips"];
+        for (const s of SettingsSections.filter((s) => !noKeys.includes(s.id))) {
             expect(sectionEntries(all, s.id).length, s.id).toBeGreaterThan(0);
         }
     });
