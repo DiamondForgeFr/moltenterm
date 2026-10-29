@@ -1904,6 +1904,12 @@
         }
     },
     "browser": {
+        "start": {
+            "title": "Scope the next change",
+            "hintProject": "Scoping is where you frame the work with your agent before it writes code. This page shows the project's repository once its folder has a GitHub remote.",
+            "hintNoProject": "Scoping is where you frame the work with your agent before it writes code. Link a project folder to this workspace: this page then shows its repository or its README.",
+            "readme": "README of {project}"
+        },
         "tabMenu": {
             "reload": "Reload",
             "duplicate": "Duplicate",

@@ -25,9 +25,10 @@ const (
 
 	// RepoToken stands for the project's repository web address (https://github.com/owner/name) in a pinned page.
 	RepoToken = "molten:repo"
-	// BlankPageUrl is what a repository page opens on a project without a GitHub remote (FR-SHELL-111): an empty page,
+	// StartPageUrl is what a repository page opens on a project without a GitHub remote (FR-SHELL-111): an empty page
+	// the browser panel draws MoltenTerm's start page over (frontend/moltenterm-shell/browser/browser-start-page.tsx),
 	// never GitHub's home page.
-	BlankPageUrl = "about:blank"
+	StartPageUrl = "about:blank#moltenterm-start"
 	// ProjectToken stands for the project's folder in a pinned file view.
 	ProjectToken = "molten:projectdir"
 	// AgentSlotMetaKey: a terminal that held an agent when the view was pinned; it offers to start one.
@@ -173,7 +174,12 @@ func PaneConfig(meta waveobj.MetaMapType, agent bool, p Project) waveobj.MetaMap
 	return rtn
 }
 
+// tokenizeUrl names a page of the project's repository by RepoToken. The start page stands for the repository page of a
+// project without a remote, so a view pinned there opens the repository on a project that has one.
 func tokenizeUrl(url string, repoUrl string) string {
+	if url == StartPageUrl {
+		return RepoToken
+	}
 	if repoUrl == "" || len(url) < len(repoUrl) || !strings.EqualFold(url[:len(repoUrl)], repoUrl) {
 		return url
 	}
@@ -217,13 +223,13 @@ func resolvePath(path string, dir string) string {
 }
 
 // resolveUrl gives a pinned page's address on a project; a repository page on a project without a GitHub remote opens
-// a blank page (FR-SHELL-111).
+// MoltenTerm's start page (FR-SHELL-111).
 func resolveUrl(url string, repoUrl string) string {
 	if !strings.HasPrefix(url, RepoToken) {
 		return url
 	}
 	if repoUrl == "" {
-		return BlankPageUrl
+		return StartPageUrl
 	}
 	return repoUrl + strings.TrimPrefix(url, RepoToken)
 }

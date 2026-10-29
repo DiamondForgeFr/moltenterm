@@ -13,7 +13,10 @@ import {
     BrowserTabsMetaKey,
     browserTabTitle,
     closeTab,
+    addressOfPage,
     isBlankPage,
+    isStartPage,
+    StartPageUrl,
     moveTab,
     PanelTabs,
     readBrowserState,
@@ -212,5 +215,14 @@ describe("one page per panel (#1187)", () => {
         expect(isBlankPage("about:blank")).toBe(true);
         expect(isBlankPage("")).toBe(true);
         expect(isBlankPage("https://a.dev")).toBe(false);
+    });
+
+    it("the start page is an empty page without an address of its own (FR-SHELL-111)", () => {
+        expect(isStartPage(StartPageUrl)).toBe(true);
+        expect(isStartPage("about:blank")).toBe(false);
+        expect(isStartPage("https://github.com")).toBe(false);
+        expect(isBlankPage(StartPageUrl)).toBe(true);
+        expect(addressOfPage(StartPageUrl)).toBe("");
+        expect(addressOfPage("https://a.dev/x")).toBe("https://a.dev/x");
     });
 });

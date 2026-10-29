@@ -131,7 +131,7 @@ export async function readProjectFacts(dir: string): Promise<ProjectFacts> {
     };
 }
 
-async function readReadme(dir: string): Promise<string> {
+export async function readReadme(dir: string): Promise<string> {
     for (const name of ["README.md", "readme.md", "Readme.md"]) {
         const text = await readText(projectFilePath(dir, name), MaxReadmeBytes);
         if (text != null) {
