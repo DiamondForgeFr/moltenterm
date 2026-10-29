@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // One menu per view (FR-SHELL-081): the same on a tile, a top-row block and a temporary row, headed "<name> · <state>"
-// and offering only what the state allows (view-menu-model.ts). The tab's own actions of the former tab bar (flag,
-// backgrounds, layout of the view on screen, copy id, reopen closed) stay in it, so nothing the tab menu offered is lost.
+// and offering only what the state allows (view-menu-model.ts). The tab's own actions of the former tab bar that are
+// about the view (backgrounds, layout of the view on screen) stay in it; Reopen what was closed (its shortcut, the palette) and
+// Copy id (the developer's, the panel menu) are not about one view and left it (FR-SHELL-107).
 
 import { atoms, globalStore } from "@/app/store/global";
 import type { TabEnv } from "@/app/tab/tab";
@@ -115,6 +116,8 @@ function pinItems(target: ViewMenuTarget, t: TFn): ContextMenuItem[] {
     if (plan.makeTemporary) {
         items.push({
             label: t("sidebar.pins.menu.makeTemporary"),
+            // Why a pinned view has no Close: on hover, not as a greyed row (FR-SHELL-107).
+            tooltip: plan.closeNote && !target.projectTab ? t("sidebar.views.closeNote") : undefined,
             icon: "thumbtack-slash",
             click: () => fireAndForget(() => (tabId ? pins.unpin(tabId) : pins.unpinGlobal(target.ref.pinId))),
         });
@@ -205,9 +208,15 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
         }
     }
     if (tabId && hooks.env != null) {
-        // The tab's own menu without what the view menu replaces: its rename, the tab bar position the sidebar
-        // replaces, and Close where the state forbids it.
-        const drop = new Set([t("wave.tab.rename"), t("wave.tab.tabBarPosition")]);
+        // The tab's own menu without what the view menu replaces (its rename), what is not about this view (FR-SHELL-107:
+        // the app's tab bar position, the workspace's Reopen what was closed, the developer's Copy id), and Close
+        // where the state forbids it.
+        const drop = new Set([
+            t("wave.tab.rename"),
+            t("wave.tab.tabBarPosition"),
+            t("wave.tab.reopenClosed"),
+            t("wave.tab.copyId"),
+        ]);
         if (!plan.close) {
             drop.add(t("wave.tab.close"));
         }
@@ -221,8 +230,5 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
         );
     }
     items.push(...closeFinishedItems(target));
-    if (plan.closeNote && !target.projectTab) {
-        items.push({ label: t("sidebar.views.closeNote"), icon: "lock", enabled: false });
-    }
     return items;
 }

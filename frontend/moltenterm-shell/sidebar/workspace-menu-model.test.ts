@@ -2,53 +2,80 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
-import { opensWorkspaceMenu, workspaceBackgroundMenuItems, WorkspaceMenuActions } from "./workspace-menu-model";
+import { layoutMenuItems } from "../menu/menu-model";
+import { opensWorkspaceMenu, WorkspaceMenuActions, workspaceMenuItems } from "./workspace-menu-model";
 
-const t = (key: string, vars?: Record<string, any>) => (vars?.name ? `${key}:${vars.name}` : key);
+const t = (key: string, vars?: Record<string, any>) =>
+    vars?.name != null ? `${key}:${vars.name}` : vars?.count != null ? `${key}:${vars.count}` : key;
 
-function actions(enabled: boolean): WorkspaceMenuActions {
+function actions(enabled: boolean, withProjects = true): WorkspaceMenuActions {
     const fn = () => {};
     return {
         name: "Acme",
-        onRename: fn,
-        onChangeIcon: fn,
-        onEditColour: fn,
         onEdit: fn,
-        onNewView: fn,
-        onAddProject: fn,
+        keepAwake: { label: "keep awake", type: "checkbox", checked: false, click: fn },
         onManage: fn,
-        newViewKeys: "Cmd+T",
+        projects: withProjects
+            ? {
+                  list: [
+                      { id: "p1", label: "Desktop", current: true, onSwitch: vi.fn() },
+                      { id: "p2", label: "Website", current: false, onSwitch: vi.fn() },
+                  ],
+                  onAdd: fn,
+                  onProjectTab: fn,
+              }
+            : undefined,
+        onReset: fn,
         remove: { enabled, reason: "only one", onDelete: vi.fn() },
     };
 }
 
-describe("the workspace menu (FR-SHELL-079, #1252)", () => {
-    it("lists the header and the items in order", () => {
-        const items = workspaceBackgroundMenuItems(actions(true), t);
-        const labels = items.filter((i) => i.type !== "separator").map((i) => i.label);
-        expect(labels).toEqual([
-            "sidebar.workspaceMenu.header:Acme",
-            "sidebar.workspaceMenu.rename",
-            "sidebar.workspaceMenu.changeIcon",
-            "sidebar.workspaceMenu.editColour",
+const shown = (items: ContextMenuItem[]) =>
+    layoutMenuItems(items).map((i) => (i.type === "header" ? `# ${i.label}` : i.type === "separator" ? "—" : i.label));
+
+describe("the workspace menu by family (FR-SHELL-107)", () => {
+    it("draws the sections Workspace, Projects and Delete or reset, in that order", () => {
+        expect(shown(workspaceMenuItems(actions(true), t))).toEqual([
+            "# sidebar.workspaceMenu.header:Acme",
             "sidebar.workspaceMenu.edit",
-            "sidebar.workspaceMenu.newView",
-            "sidebar.project.addMenu",
+            "keep awake",
             "sidebar.workspaceMenu.manage",
+            "# sidebar.workspaceMenu.projects:2",
+            "Desktop",
+            "Website",
+            "sidebar.project.addMenu",
+            "rail.menu.openProjectTab",
+            "# sidebar.workspaceMenu.removeSection",
+            "rail.menu.resetWorkspace",
             "sidebar.workspaceMenu.delete",
         ]);
-        expect(items[0].type).toBe("header");
-        expect(items.find((i) => i.label === "sidebar.workspaceMenu.newView").accelerator).toBe("Cmd+T");
+    });
+
+    it("lists the projects with the current one checked, and switches on a pick", () => {
+        const menu = actions(true);
+        const items = workspaceMenuItems(menu, t);
+        const desktop = items.find((i) => i.label === "Desktop");
+        const website = items.find((i) => i.label === "Website");
+        expect(desktop).toMatchObject({ type: "checkbox", checked: true });
+        expect(website).toMatchObject({ type: "checkbox", checked: false });
+        website.click();
+        expect(menu.projects.list[1].onSwitch).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves out the projects of a workspace not on screen", () => {
+        const items = shown(workspaceMenuItems(actions(true, false), t));
+        expect(items.some((l) => l.includes("projects"))).toBe(false);
+        expect(items.at(-1)).toBe("sidebar.workspaceMenu.delete");
     });
 
     it("enables Delete when another workspace exists", () => {
-        const del = workspaceBackgroundMenuItems(actions(true), t).at(-1);
+        const del = workspaceMenuItems(actions(true), t).at(-1);
         expect(del.enabled).toBe(true);
         expect(del.sublabel).toBeUndefined();
     });
 
     it("disables Delete on the last workspace and says why", () => {
-        const del = workspaceBackgroundMenuItems(actions(false), t).at(-1);
+        const del = workspaceMenuItems(actions(false), t).at(-1);
         expect(del.enabled).toBe(false);
         expect(del.sublabel).toBe("only one");
     });

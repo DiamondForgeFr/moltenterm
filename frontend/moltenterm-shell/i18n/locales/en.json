@@ -8899,13 +8899,11 @@
         "label": "Sidebar of {name}",
         "workspaceMenu": {
             "header": "{name} · Workspace",
-            "rename": "Rename…",
-            "changeIcon": "Change icon…",
-            "editColour": "Edit colour…",
             "edit": "Edit workspace…",
             "keepAwake": "Keep awake…",
-            "newView": "New view",
             "manage": "Manage workspaces…",
+            "projects": "Projects · {count}",
+            "removeSection": "Delete or reset",
             "delete": "Delete workspace…"
         },
         "hide": "Hide the sidebar ({keys})",
@@ -8998,8 +8996,13 @@
         },
         "plus": {
             "label": "Create",
+            "inThisView": "In this view",
+            "terminal": "Terminal",
+            "webPage": "Web page",
+            "agent": "Agent",
+            "otherPanel": "Other panel",
             "inWorkspace": "In {name}",
-            "everywhere": "Everywhere",
+            "workspaces": "Workspaces",
             "newView": "New view",
             "newWorkspace": "New workspace"
         },

@@ -51,9 +51,10 @@ export function newViewChoices(input: NewViewChoiceInput): PaletteEntry[] {
     ];
 }
 
-// The chooser already is a new view: its list leaves out "New tab", which only opened yet another one (#1238).
+// The chooser offers only what goes in the view (FR-SHELL-107): panels, agents and folders, and the Project view it
+// may hold. Workspace actions, settings and "New tab" (which only opened yet another view, #1238) stay in the palette.
 export function chooserListEntries(entries: PaletteEntry[]): PaletteEntry[] {
-    return entries.filter((e) => e.id !== "action:newtab");
+    return entries.filter((e) => fillsPanel(e.run) || ChoiceActionIds.includes(e.id));
 }
 
 function idList(setting: unknown): string[] {

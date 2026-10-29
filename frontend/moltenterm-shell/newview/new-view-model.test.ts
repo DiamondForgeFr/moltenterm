@@ -210,9 +210,26 @@ describe("favourites (FR-SHELL-089)", () => {
     });
 });
 
-describe("the chooser list (#1238)", () => {
-    it("leaves out New tab, which only opened another new view", () => {
-        const entries = [{ id: "action:newtab" }, { id: "action:sessions" }] as PaletteEntry[];
-        expect(chooserListEntries(entries).map((e) => e.id)).toEqual(["action:sessions"]);
+describe("the chooser list (#1238, FR-SHELL-107)", () => {
+    it("offers only what goes in the view: panels, agents, folders and the Project view", () => {
+        const entries = [
+            { id: "action:newtab", run: { kind: "newtab" } },
+            { id: "panel:sessions", run: { kind: "widget", blockdef: { meta: { view: "sessions" } } } },
+            { id: "agent:claude", run: { kind: "agent", command: "claude" } },
+            { id: "folder:/tmp", run: { kind: "folder", path: "/tmp" } },
+            { id: "action:projecttab", run: { kind: "projecttab" } },
+            { id: "action:newworkspace", run: { kind: "newworkspace" } },
+            { id: "action:editworkspace", run: { kind: "editworkspace" } },
+            { id: "action:switch:ws2", run: { kind: "switchworkspace", workspaceId: "ws2" } },
+            { id: "action:gettingstarted", run: { kind: "gettingstarted" } },
+            { id: "action:settings", run: { kind: "settings" } },
+            { id: "action:reopenclosed", run: { kind: "reopenclosed" } },
+        ] as PaletteEntry[];
+        expect(chooserListEntries(entries).map((e) => e.id)).toEqual([
+            "panel:sessions",
+            "agent:claude",
+            "folder:/tmp",
+            "action:projecttab",
+        ]);
     });
 });
