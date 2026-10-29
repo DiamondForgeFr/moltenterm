@@ -24,8 +24,10 @@
     padding: 6px;
     flex-direction: column;
 
+    // MOLTENTERM-PATCH (#1340): Coulée text, line and selection tokens instead of opacities, white lines and the
+    // accent: the picker's dim text meets 4.5:1, and its selected suggestion is neutral (a selection is not an action).
     .label {
-        opacity: 0.5;
+        color: var(--mt-text-3);
         font-size: 13px;
         white-space: nowrap;
     }
@@ -54,7 +56,7 @@
 
     &.has-suggestions {
         .input {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid var(--mt-line-1);
         }
     }
 
@@ -70,7 +72,7 @@
             font-style: normal;
             font-weight: 500;
             line-height: 12px;
-            opacity: 0.7;
+            color: var(--mt-text-2);
             letter-spacing: 0.11px;
             padding: 4px 0px 0px 4px;
         }
@@ -86,12 +88,12 @@
             border-radius: 4px;
 
             &.selected {
-                background-color: rgb(from var(--accent-color) r g b / 0.5);
+                background-color: var(--highlight-bg-color);
                 color: var(--main-text-color);
             }
 
             &:hover:not(.selected) {
-                background-color: var(--highlight-bg-color);
+                background-color: var(--hover-bg-color);
             }
 
             .typeahead-item-name {
