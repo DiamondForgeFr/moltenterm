@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { AgentStatesData } from "../agent-state-model";
+import { StartPageUrl } from "../browser/browser-model";
 import { sameTabSplit, splitSidebarTabs } from "./sidebar-model";
 import {
     agentBlocksOf,
@@ -117,6 +118,7 @@ describe("a pinned view's changes (FR-SHELL-080)", () => {
     it("names a panel by its kind and a page by its site", () => {
         expect(paneKey({ view: "term", "cmd:cwd": "/a" })).toBe(paneKey({ view: "term", "molten:agentslot": true }));
         expect(paneKey({ view: "molten-browser", url: RepoToken })).toBe("molten-browser:github.com");
+        expect(paneKey({ view: "molten-browser", url: StartPageUrl })).toBe(paneKey({ view: "molten-browser", url: RepoToken }));
         expect(paneKey({ view: "molten-browser", url: "https://npmjs.com/x" })).toBe("molten-browser:npmjs.com");
     });
 

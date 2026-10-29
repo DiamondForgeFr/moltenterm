@@ -7,6 +7,7 @@
 // can be tested without the app; pkg/molten/viewpin reads and makes the configurations.
 
 import { AgentStatesData, agentStatesOfBlocks } from "../agent-state-model";
+import { StartPageUrl } from "../browser/browser-model";
 
 // must match pkg/molten/viewpin/viewpin.go
 export const ViewPinRoute = "molten:viewpin";
@@ -253,7 +254,8 @@ function hostOf(url: string): string {
     if (typeof url !== "string" || url === "") {
         return "";
     }
-    if (url.startsWith(RepoToken)) {
+    // The start page stands for the repository page on a project without a GitHub remote (FR-SHELL-111).
+    if (url.startsWith(RepoToken) || url === StartPageUrl) {
         return "github.com";
     }
     try {

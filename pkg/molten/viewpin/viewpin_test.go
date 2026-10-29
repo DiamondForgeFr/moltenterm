@@ -75,8 +75,8 @@ func TestResolvePaneOnAnotherProject(t *testing.T) {
 	if term["cmd:cwd"] != "/sf" {
 		t.Fatalf("terminal: %v", term)
 	}
-	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, Project{})["url"] != BlankPageUrl {
-		t.Fatal("a project without a repository opens a blank page, never GitHub's home page")
+	if ResolvePane(waveobj.MetaMapType{"view": "web", "url": RepoToken}, Project{})["url"] != StartPageUrl {
+		t.Fatal("a project without a repository opens the start page, never GitHub's home page")
 	}
 }
 
@@ -88,13 +88,24 @@ func TestResolvePaneWithoutRemoteNeverOpensGitHubHome(t *testing.T) {
 	}
 	for _, p := range []Project{{}, {Dir: "/sf"}} {
 		page := ResolvePane(meta, p)
-		if page["url"] != BlankPageUrl {
+		if page["url"] != StartPageUrl {
 			t.Fatalf("project %+v: url %v", p, page["url"])
 		}
 		tabs, _ := page[browserTabsMetaKey].([]any)
-		if len(tabs) != 1 || tabs[0].(map[string]any)["url"] != BlankPageUrl {
+		if len(tabs) != 1 || tabs[0].(map[string]any)["url"] != StartPageUrl {
 			t.Fatalf("project %+v: tabs %v", p, tabs)
 		}
+	}
+}
+
+func TestStartPagePinsAsTheRepositoryPage(t *testing.T) {
+	pinned := PaneConfig(waveobj.MetaMapType{"view": "molten-browser", "url": StartPageUrl}, false, Project{Dir: "/sf"})
+	if pinned["url"] != RepoToken {
+		t.Fatalf("pinned: %v", pinned)
+	}
+	other := "https://github.com/DiamondForgeFr/saasfoundry"
+	if ResolvePane(pinned, Project{Dir: "/sf", RepoUrl: other})["url"] != other {
+		t.Fatal("a project with a remote opens its repository")
 	}
 }
 

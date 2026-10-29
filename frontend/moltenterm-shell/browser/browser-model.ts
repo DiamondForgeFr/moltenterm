@@ -147,10 +147,23 @@ export function splitOutTabs(state: BrowserState): { kept: BrowserState; moved: 
     };
 }
 
+// A repository page on a project without a GitHub remote (FR-SHELL-111, viewpin.StartPageUrl): an empty page the panel
+// draws MoltenTerm's start page over.
+export const StartPageUrl = "about:blank#moltenterm-start";
+
+export function isStartPage(url: string): boolean {
+    return (url ?? "").trim() === StartPageUrl;
+}
+
 // An empty page a new page may replace instead of opening beside it.
 export function isBlankPage(url: string): boolean {
     const text = (url ?? "").trim();
-    return text === "" || text === "about:blank";
+    return text === "" || text === "about:blank" || text === StartPageUrl;
+}
+
+// What the address field shows: nothing for the start page, which has no address of its own.
+export function addressOfPage(url: string): string {
+    return isStartPage(url) ? "" : (url ?? "");
 }
 
 // Where a link opened inside Moltenterm goes (#140): the most recently focused browser panel of the tab that still

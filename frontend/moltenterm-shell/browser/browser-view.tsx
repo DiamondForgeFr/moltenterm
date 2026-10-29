@@ -88,6 +88,7 @@ import {
 } from "./browser-engine";
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
+import { BrowserStartPage } from "./browser-start-page";
 import {
     BrowserLifecycleModel,
     PageScroll,
@@ -111,7 +112,9 @@ import {
     consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
     isAgentTabId,
+    addressOfPage,
     isBlankPage,
+    isStartPage,
     makeTabId,
     MoltentermBrowserView,
     readBrowserState,
@@ -1600,7 +1603,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
 function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const t = useT();
     const active = state.tabs.find((t) => t.id === state.activeId);
-    const [draft, setDraft] = useState(active?.url ?? "");
+    const [draft, setDraft] = useState(addressOfPage(active?.url));
     const [editing, setEditing] = useState(false);
     const loads = useAtomValue(model.loads.loadsAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
@@ -1608,7 +1611,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     const loading = !active?.engine && !!loads[state.activeId]?.loading;
     useEffect(() => {
         if (!editing) {
-            setDraft(active?.url ?? "");
+            setDraft(addressOfPage(active?.url));
         }
     }, [active?.url, active?.id, editing]);
     const navButton = (
@@ -1676,7 +1679,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === "Escape") {
-                                setDraft(active?.url ?? "");
+                                setDraft(addressOfPage(active?.url));
                                 e.currentTarget.blur();
                                 return;
                             }
@@ -1947,6 +1950,16 @@ function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: Br
     );
 }
 
+// MoltenTerm's start page, drawn over the shown tab's empty page while it stays on it (FR-SHELL-111).
+function ActiveStartPage({ model, tabId }: { model: BrowserViewModel; tabId: string }) {
+    const state = useAtomValue(model.stateAtom);
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (tab == null || tab.engine || !isStartPage(tab.url)) {
+        return null;
+    }
+    return <BrowserStartPage />;
+}
+
 // The shown tab's failed page, drawn over its webview (DS-SHELL-092); the failed URL stays in the address bar.
 function ActiveErrorPage({ model, tabId }: { model: BrowserViewModel; tabId: string }) {
     const errors = useAtomValue(model.errors.errorsAtom);
@@ -2047,6 +2060,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
                     <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
                 ) : null}
+                <ActiveStartPage model={model} tabId={state.activeId} />
                 <ActiveErrorPage model={model} tabId={state.activeId} />
                 <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
