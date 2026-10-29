@@ -64,7 +64,9 @@ function withCode(text: string): React.ReactNode[] {
     });
 }
 
-const linkClassName = "cursor-pointer text-secondary underline decoration-border underline-offset-2 hover:text-primary";
+// Important: Wave's global link colour is the action's orange, which is for actions only (#1319).
+const linkClassName =
+    "cursor-pointer !text-secondary underline decoration-border underline-offset-2 hover:!text-primary";
 
 export function OnboardingWelcome({
     busy,
