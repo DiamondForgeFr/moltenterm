@@ -6,8 +6,8 @@
    --mt-carpet-scroll variable. */
 
 .tile-layout {
-    --mt-carpet-bg: color-mix(in srgb, var(--mt-place) 3%, rgb(14, 14, 14));
-    --mt-carpet-edge: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
+    --mt-carpet-bg: var(--mt-surface-term);
+    --mt-carpet-edge: var(--mt-line-1);
 }
 
 .mt-carpet-surface {

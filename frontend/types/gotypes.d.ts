@@ -1490,6 +1490,7 @@ declare global {
         "moltenterm:releasenotify"?: boolean;
         "moltenterm:releasecandidates"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
+        "moltenterm:sidebartint"?: boolean;
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;
         "moltenterm:codingagent"?: string;

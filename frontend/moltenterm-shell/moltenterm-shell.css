@@ -357,49 +357,49 @@
 
 /* Molten visual language (FR-SHELL-014, DS-SHELL-014). */
 
-/* Warm neutrals: Wave's greys, each mixed with a few percent of the workspace colour (--mt-place) so the chrome leans
-   towards the place's colour. Each --mt-neutral-* and --mt-text-* recipe stays a plain
-   `color-mix(in srgb, var(--mt-place) N%, rgb(...))`: moltenterm-shell.test.ts resolves them for every workspace
-   colour and keeps text at 4.5:1 on the backgrounds (NFR-SHELL-003). Terminals keep their black background (the
-   terminal theme owns it). Theme "Coulée" step 2 replaces them with fixed neutrals (#1318). */
+/* Cast-iron neutrals (theme "Coulée" step 2, FR-SHELL-115): the --mt-neutral-* and --mt-text-main / secondary /
+   muted names of the earlier warm neutrals stay as aliases of the fixed tokens of tokens.css, for the code not yet
+   migrated, and Wave's and Tailwind's names point at the same tokens. Nothing here mixes the workspace colour: the
+   chrome is the same warm grey in every workspace, and the place shows only through its cues (#1319). Terminals keep
+   their theme's background (the terminal theme owns it). */
 :root {
-    --mt-neutral-bg: color-mix(in srgb, var(--mt-place) 4%, rgb(31, 31, 31));
-    --mt-neutral-modal: color-mix(in srgb, var(--mt-place) 5%, rgb(32, 32, 32));
-    --mt-neutral-panel: color-mix(in srgb, var(--mt-place) 5%, rgb(30, 30, 30));
-    --mt-neutral-key: color-mix(in srgb, var(--mt-place) 5%, rgb(50, 50, 50));
-    --mt-neutral-line: color-mix(in srgb, var(--mt-place) 12%, rgb(255, 255, 255));
-    --mt-text-main: color-mix(in srgb, var(--mt-place) 3%, rgb(247, 247, 247));
-    --mt-text-secondary: color-mix(in srgb, var(--mt-place) 6%, rgb(198, 198, 198));
-    --mt-text-muted: color-mix(in srgb, var(--mt-place) 6%, rgb(146, 146, 146));
+    --mt-neutral-bg: var(--mt-surface-0);
+    --mt-neutral-panel: var(--mt-surface-1);
+    --mt-neutral-key: var(--mt-surface-2);
+    --mt-neutral-modal: var(--mt-surface-3);
+    --mt-neutral-line: var(--mt-text-1);
+    --mt-text-main: var(--mt-text-1);
+    --mt-text-secondary: var(--mt-text-2);
+    --mt-text-muted: var(--mt-text-3);
 
-    --main-bg-color: var(--mt-neutral-bg);
-    --modal-bg-color: var(--mt-neutral-modal);
-    --panel-bg-color: color-mix(in srgb, var(--mt-neutral-panel) 50%, transparent);
-    --border-color: color-mix(in srgb, var(--mt-neutral-line) 16%, transparent);
+    --main-bg-color: var(--mt-surface-0);
+    --modal-bg-color: var(--mt-surface-3);
+    --panel-bg-color: color-mix(in srgb, var(--mt-surface-1) 50%, transparent);
+    --border-color: var(--mt-line-2);
     --hover-bg-color: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
     --highlight-bg-color: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
-    --modal-border-color: color-mix(in srgb, var(--mt-neutral-line) 12%, transparent);
-    --modal-header-bottom-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
-    --form-element-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
-    --keybinding-bg-color: var(--mt-neutral-key);
-    --keybinding-border-color: color-mix(in srgb, var(--mt-place) 5%, rgb(68, 68, 68));
-    --main-text-color: var(--mt-text-main);
-    --secondary-text-color: var(--mt-text-secondary);
+    --modal-border-color: var(--mt-line-2);
+    --modal-header-bottom-border-color: var(--mt-line-2);
+    --form-element-border-color: var(--mt-line-control);
+    --keybinding-bg-color: var(--mt-surface-2);
+    --keybinding-border-color: var(--mt-line-2);
+    --main-text-color: var(--mt-text-1);
+    --secondary-text-color: var(--mt-text-2);
     /* Wave's #666 read at 2.8:1 on its background; dim text now meets 4.5:1 like the rest. */
-    --grey-text-color: var(--mt-text-muted);
+    --grey-text-color: var(--mt-text-3);
 
-    --color-background: var(--mt-neutral-bg);
-    --color-modalbg: var(--mt-neutral-modal);
-    --color-panel: color-mix(in srgb, var(--mt-neutral-panel) 50%, transparent);
-    --color-border: color-mix(in srgb, var(--mt-neutral-line) 16%, transparent);
+    --color-background: var(--mt-surface-0);
+    --color-modalbg: var(--mt-surface-3);
+    --color-panel: color-mix(in srgb, var(--mt-surface-1) 50%, transparent);
+    --color-border: var(--mt-line-2);
     --color-hover: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
     --color-hoverbg: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
     --color-highlightbg: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
-    --color-foreground: var(--mt-text-main);
-    --color-primary: var(--mt-text-main);
-    --color-secondary: var(--mt-text-secondary);
-    --color-muted-foreground: var(--mt-text-secondary);
-    --color-muted: var(--mt-text-muted);
+    --color-foreground: var(--mt-text-1);
+    --color-primary: var(--mt-text-1);
+    --color-secondary: var(--mt-text-2);
+    --color-muted-foreground: var(--mt-text-2);
+    --color-muted: var(--mt-text-3);
 
     /* The workspace accent marks place only (rail, active tab, focus border). Agent states use MoltenTerm's fixed
        palette, working included, so a state reads the same in every workspace (#212). Working is the molten orange. */

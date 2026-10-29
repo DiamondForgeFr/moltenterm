@@ -20,11 +20,13 @@
                · rounded-6 (buttons, items, tabs, pills) · rounded-10 (large tiles inside a page only, never an
                overlay); rounded-full only for state dots and status pills. The DiamondForge suite surfaces (Settings,
                the workspace editor, #658) take the low scale: rounded-2 · rounded-3 · rounded-4.
-   Colour      bg-surface-1 (rail, panels) · bg-surface-2 (raised: cards, hover fills) · bg-surface-3 (overlays);
+   Colour      bg-surface-0 (window, sidebar) · bg-surface-1 (rail, panels) · bg-surface-2 (raised: cards, hover
+               fills) · bg-surface-3 (overlays), fixed cast iron in every workspace (FR-SHELL-115); text in
+               var(--mt-text-1|2|3), never a text with an opacity;
                text-danger (danger text, never the error fill) · text-info / bg-info (the only blue);
                .molten-glyph-tone with --mt-glyph-color set to a workspace's colour draws its glyph at a readable tone.
-   Lines       border-line (8 %, inside a surface) · border-line-strong (14 %, around overlays and controls); dashed
-               only for drop targets.
+   Lines       border-line (8 %, inside a surface) · border-line-strong (14 %, around overlays and secondary buttons)
+               · border-line-control (a field, an unchecked toggle, a radio); dashed only for drop targets.
    Elevation   shadow-e1 (raised) · shadow-e2 (small floating hints and toasts) · shadow-e3 (dialogs) · shadow-command
                (command surfaces: palette, command panel, menus, popovers), each with a 4 % top highlight.
    Overlays    (FR-SHELL-054, DS-SHELL-096) a modal, which blocks the app until answered, dims it with the scrim of
@@ -71,20 +73,34 @@
     --mt-radius-6: 6px;
     --mt-radius-10: 10px;
 
-    /* Each surface keeps the `color-mix(in srgb, var(--mt-place) N%, rgb(...))` recipe of the warm neutrals:
-       moltenterm-shell.test.ts holds text at 4.5:1 on each of them for every workspace colour. Surface 1 and 3 are
-       today's panel and modal backgrounds, so adopting them changes nothing; later stories retune them here. */
-    --mt-surface-1: color-mix(in srgb, var(--mt-place) 4%, rgb(31, 31, 31));
-    --mt-surface-2: color-mix(in srgb, var(--mt-place) 5%, rgb(36, 36, 36));
-    --mt-surface-3: color-mix(in srgb, var(--mt-place) 5%, rgb(32, 32, 32));
+    /* Cast iron (theme "Coulée" step 2, FR-SHELL-115): fixed warm greys, the same in every workspace. None of them
+       mixes the workspace colour, which marks the place only (--mt-place, #1319), so a contrast holds once for every
+       workspace (moltenterm-shell.test.ts). Elevation comes from the lines, not from shadows, except on overlays.
+       Surface 0 is the window and the sidebar, 1 panels and cards, 2 hover, selection and the top field, 3 dialogs,
+       menus and toasts; the terminal's is the darkest. */
+    --mt-surface-0: #141210;
+    --mt-surface-1: #1a1815;
+    --mt-surface-2: #23201c;
+    --mt-surface-3: #2b2723;
+    --mt-surface-term: #100e0c;
+
+    /* Text 1 is the main text, 2 secondary text and icons, 3 the discreet one (meta, section titles, shortcuts), at
+       5.10:1 on surface 3, its worst case. Never put an opacity on a text: pick one of these. */
+    --mt-text-1: #f2ede6;
+    --mt-text-2: #c3bbb1;
+    --mt-text-3: #a0968b;
 
     /* Danger text is the error red lightened until it reads at 4.5:1 on every surface; the error colour itself
        (--mt-state-error) stays for fills, edges and dots. The info tone is the only blue of the shell. */
     --mt-danger-text: rgb(240, 128, 108);
     --mt-info: rgb(122, 170, 220);
 
-    --mt-line-1: color-mix(in srgb, var(--mt-neutral-line) 8%, transparent);
-    --mt-line-2: color-mix(in srgb, var(--mt-neutral-line) 14%, transparent);
+    /* Line 1 separates inside a surface, line 2 outlines an overlay or a secondary button (both decorative, their
+       text carries the contrast); the control line edges a field, an unchecked toggle or a radio at 3:1 (WCAG 1.4.11)
+       on surfaces 0 to 3. */
+    --mt-line-1: rgba(242, 237, 230, 0.08);
+    --mt-line-2: rgba(242, 237, 230, 0.14);
+    --mt-line-control: #857b70;
 
     --mt-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
     --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(0 0 0 / 0.3);
@@ -223,6 +239,7 @@
     --radius-6: var(--mt-radius-6);
     --radius-10: var(--mt-radius-10);
 
+    --color-surface-0: var(--mt-surface-0);
     --color-surface-1: var(--mt-surface-1);
     --color-surface-2: var(--mt-surface-2);
     --color-surface-3: var(--mt-surface-3);
@@ -230,6 +247,7 @@
     --color-info: var(--mt-info);
     --color-line: var(--mt-line-1);
     --color-line-strong: var(--mt-line-2);
+    --color-line-control: var(--mt-line-control);
 
     --shadow-e1: var(--mt-shadow-e1);
     --shadow-e2: var(--mt-shadow-e2);

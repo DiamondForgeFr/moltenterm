@@ -26,7 +26,6 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { MoltentermDefaultAccent } from "../accent";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
@@ -136,9 +135,9 @@ import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import {
     frameSizes,
+    macButtonDiscs,
     MacButtonHeightPx,
     MacButtonsLeftPx,
-    macButtonDiscs,
     PeekInsetPx,
     StandInOverlapMs,
     windowButtonsInPeek,
@@ -2079,11 +2078,12 @@ type SwipeRefs = {
     shadowRight: React.RefObject<HTMLDivElement>;
 };
 
-// A workspace's frame colour (sidebar.css .mt-sb-frame), for the tint that fades in during a swipe toward it.
-function frameTint(color: string): string {
-    const accent = colourStops(color)[0] ?? MoltentermDefaultAccent;
-    return `color-mix(in srgb, ${accent} 18%, rgb(20 17 16))`;
-}
+// The opt-in sidebar tint (FR-SHELL-115, Coulée decision 3): off by default, it tints the sidebar only.
+export const SidebarTintSettingKey = "moltenterm:sidebartint";
+
+// The frame colour (sidebar.css .mt-sb-frame) that fades in over the content during a swipe: cast iron for every
+// workspace (FR-SHELL-115), the opt-in sidebar tint staying on the sidebar, which is drawn above it.
+const FrameTint = "var(--mt-surface-0)";
 
 // The new-workspace page left by a swipe already stands in place: it does not slide in again.
 let skipNextPageSlide = false;
@@ -2141,7 +2141,7 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
                 },
                 tintColour: (id) => {
                     const entry = latest.current.entries.find((w) => w.id === id);
-                    return entry == null ? null : frameTint(entry.color);
+                    return entry == null ? null : FrameTint;
                 },
                 reduced: () => prefersReducedMotion(),
             },
@@ -2310,6 +2310,7 @@ export function WorkspaceSidebar() {
         }
     }, [seedMark]);
     const projectPage = useAtomValue(model.projectPageAtom);
+    const tinted = useAtomValue(getSettingsKeyAtom(SidebarTintSettingKey)) === true;
     const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -2415,7 +2416,8 @@ export function WorkspaceSidebar() {
                 className={cn(
                     "mt-sb flex h-full shrink-0 flex-col gap-2 select-none",
                     hidden ? "is-hidden" : "pb-[var(--mt-frame-gap)] pl-[var(--mt-frame-gap)]",
-                    hidden && peek && "is-peek"
+                    hidden && peek && "is-peek",
+                    tinted && "is-tinted"
                 )}
                 style={{ width, "--mt-peek-inset": `${PeekInsetPx}px` } as React.CSSProperties}
                 onMouseEnter={keepPeek}

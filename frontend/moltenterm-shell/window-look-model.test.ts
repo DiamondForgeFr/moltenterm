@@ -31,7 +31,8 @@ import {
 const Supported = { translucent: true, blur: true };
 
 describe("the readable minimum (#1281, TC-SHELL-209)", () => {
-    // The sidebar's text (--mt-text-main) over the frame's tint (orange accent, the warmest) laid over a white desktop.
+    // The sidebar's text (--mt-text-1) over the opt-in sidebar tint (orange accent, the warmest) laid over a white
+    // desktop: the cast-iron frame without the tint is darker, so it reads better (FR-SHELL-115).
     function contrastOverWhite(alpha: number): number {
         const tint = [0.18 * 255 + 0.82 * 20, 0.18 * 124 + 0.82 * 17, 0.18 * 13 + 0.82 * 16];
         const lin = (c: number) => {
@@ -40,7 +41,7 @@ describe("the readable minimum (#1281, TC-SHELL-209)", () => {
         };
         const lum = (rgb: number[]) => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
         const bg = tint.map((c) => alpha * c + (1 - alpha) * 255);
-        const text = [0.03 * 255 + 0.97 * 247, 0.03 * 124 + 0.97 * 247, 0.03 * 13 + 0.97 * 247];
+        const text = [242, 237, 230];
         return (lum(text) + 0.05) / (lum(bg) + 0.05);
     }
 
@@ -271,7 +272,7 @@ describe("the floating sidebar over the panels (#1298, TC-SHELL-227)", () => {
     });
 
     // The worst spot: a white page under the panel (the blur cannot darken a flat white), a hovered row's highlight on
-    // top, the lightest workspace colour.
+    // top, the lightest workspace colour through the opt-in tint (18 % over the cast-iron panel, FR-SHELL-115).
     it("keeps the sidebar's text at 4.5:1 over a white page under it", () => {
         const lin = (c: number) => {
             const s = c / 255;
@@ -280,9 +281,9 @@ describe("the floating sidebar over the panels (#1298, TC-SHELL-227)", () => {
         const lum = (rgb: number[]) => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
         const over = (top: number[], a: number, under: number[]) => under.map((c, i) => a * top[i] + (1 - a) * c);
         const contrastAt = (alpha: number, accent: number[]) => {
-            const tint = over([0, 0, 0], 0.12, over(accent, 0.18, [20, 17, 16]));
-            const spot = over([255, 255, 255], 0.1, over(tint, alpha, [255, 255, 255]));
-            const text = over(accent, 0.03, [247, 247, 247]);
+            const panel = over([20, 18, 16], alpha, [255, 255, 255]);
+            const spot = over([255, 255, 255], 0.1, over(accent, 0.18, panel));
+            const text = [242, 237, 230];
             return (lum(text) + 0.05) / (lum(spot) + 0.05);
         };
         for (const accent of [

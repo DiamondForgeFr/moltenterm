@@ -99,7 +99,8 @@ describe("the sidebar's text over a texture (#1294, TC-SHELL-225)", () => {
     const White = [255, 255, 255];
     const Black = [0, 0, 0];
 
-    // Every accent on a 0/64/…/255 grid, white the lightest: the frame's tint (sidebar.css) and the text (--mt-text-main).
+    // Every accent on a 0/64/…/255 grid, white the lightest: the opt-in sidebar tint (sidebar.css, 18 % over the frame)
+    // and the fixed main text (--mt-text-1, FR-SHELL-115).
     const accents: number[][] = [];
     for (const r of [0, 64, 128, 192, 255]) {
         for (const g of [0, 64, 128, 192, 255]) {
@@ -109,7 +110,7 @@ describe("the sidebar's text over a texture (#1294, TC-SHELL-225)", () => {
         }
     }
     const tintOf = (accent: number[]) => over(accent, 0.18, [20, 17, 16]);
-    const textOf = (accent: number[]) => over(accent, 0.03, [247, 247, 247]);
+    const textOf = (_accent: number[]) => [242, 237, 230];
 
     it("keeps 4.5:1 at the lightest spot of every texture at full intensity, under a hovered row's highlight", () => {
         let worst = Infinity;

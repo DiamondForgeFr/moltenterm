@@ -11,7 +11,7 @@ import { contrastRatio, mixColor, MoltentermDefaultAccent, parseColor } from "./
 const shellCss = readFileSync(new URL("./moltenterm-shell.css", import.meta.url), "utf8");
 
 // Moltenterm's workspace colours (pkg/wcore/workspace.go), Wave's flag colours (frontend/app/tab/tabcontextmenu.ts)
-// and a dark blue, the worst case for warm greys.
+// and a dark blue, the worst case for a glyph tone on cast iron.
 const WorkspaceColours = [
     MoltentermDefaultAccent,
     "#00FFDB",
@@ -24,69 +24,146 @@ const WorkspaceColours = [
     "#1E3A8A",
 ];
 
-type Recipe = { pct: number; base: string };
+type Rgb = ReturnType<typeof parseColor>;
 
 // The action tokens (#1319): fixed, the same in every workspace.
-function shellToken(name: string): ReturnType<typeof parseColor> {
+function shellToken(name: string): Rgb {
     return parseColor(new RegExp(`${name}: (#[0-9a-f]{6});`).exec(shellCss)?.[1]);
 }
 const Action = shellToken("--mt-action");
 const ActionFg = shellToken("--mt-action-fg");
 
-// The --mt-neutral-* and --mt-text-* tokens, read from the stylesheet so the test follows any retuning.
-function readRecipes(): Record<string, Recipe> {
-    const recipes: Record<string, Recipe> = {};
-    const re = /(--mt-(?:neutral|text)-[a-z]+):\s*color-mix\(in srgb, var\(--mt-place\) (\d+)%, (rgb\([^)]*\))\);/g;
-    for (const m of shellCss.matchAll(re)) {
-        recipes[m[1]] = { pct: Number(m[2]), base: m[3] };
-    }
-    return recipes;
+// Design tokens v2 (FR-SHELL-044, DS-SHELL-077) and the cast-iron neutrals (FR-SHELL-115) of tokens.css.
+const tokensCss = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+const tokensRoot = /\n:root \{([^}]*)\}/.exec(tokensCss)[1];
+
+function token(name: string): Rgb {
+    return parseColor(new RegExp(`${name}: (#[0-9a-f]{6});`).exec(tokensRoot)?.[1]);
 }
 
-const Recipes = readRecipes();
-const Backgrounds = ["--mt-neutral-bg", "--mt-neutral-modal", "--mt-neutral-panel"];
-const Texts = ["--mt-text-main", "--mt-text-secondary", "--mt-text-muted"];
-
-function resolve(token: string, accent: string) {
-    const recipe = Recipes[token];
-    return mixColor(parseColor(accent), parseColor(recipe.base), recipe.pct);
+function tokenColour(name: string): Rgb {
+    return parseColor(new RegExp(`${name}:\\s*(rgb\\([^)]*\\))`).exec(tokensCss)[1]);
 }
 
-describe("warm neutrals (FR-SHELL-014)", () => {
-    it("reads every recipe from moltenterm-shell.css", () => {
-        for (const token of [...Backgrounds, ...Texts, "--mt-neutral-line", "--mt-neutral-key"]) {
-            expect(Recipes[token], token).toBeDefined();
+const Surfaces = ["--mt-surface-0", "--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
+const Texts = ["--mt-text-1", "--mt-text-2", "--mt-text-3"];
+// The surfaces Wave's and Tailwind's backgrounds point at: the window, the panels and the dialogs.
+const Backgrounds = ["--mt-surface-0", "--mt-surface-1", "--mt-surface-3"];
+const MainText = token("--mt-text-1");
+
+// Theme "Coulée" step 2 (FR-SHELL-115, FR-SHELL-014, FR-SHELL-044, NFR-SHELL-003): surfaces, text and lines are the
+// same warm grey in every workspace, so each contrast holds once for all of them.
+describe("cast-iron neutrals (FR-SHELL-115)", () => {
+    it("has the proposal's values", () => {
+        const values: Record<string, string> = {
+            "--mt-surface-0": "#141210",
+            "--mt-surface-1": "#1a1815",
+            "--mt-surface-2": "#23201c",
+            "--mt-surface-3": "#2b2723",
+            "--mt-surface-term": "#100e0c",
+            "--mt-text-1": "#f2ede6",
+            "--mt-text-2": "#c3bbb1",
+            "--mt-text-3": "#a0968b",
+            "--mt-line-control": "#857b70",
+        };
+        for (const [name, value] of Object.entries(values)) {
+            expect(tokensRoot, name).toContain(`${name}: ${value};`);
+        }
+        expect(tokensRoot).toContain("--mt-line-1: rgba(242, 237, 230, 0.08);");
+        expect(tokensRoot).toContain("--mt-line-2: rgba(242, 237, 230, 0.14);");
+    });
+
+    it("mixes no workspace colour into a surface, a text or a line (AC-4)", () => {
+        for (const name of [...Surfaces, "--mt-surface-term", ...Texts, "--mt-line-1", "--mt-line-2"]) {
+            const decl = new RegExp(`${name}:\\s*([^;]+);`).exec(tokensRoot)?.[1];
+            expect(decl, name).toBeDefined();
+            expect(decl, name).not.toContain("--mt-place");
+        }
+        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        expect(neutrals).not.toContain("--mt-place");
+    });
+
+    it("rises from the terminal to the overlays, each surface lighter than the one under it", () => {
+        const lum = (rgb: Rgb) => rgb.r + rgb.g + rgb.b;
+        const order = ["--mt-surface-term", ...Surfaces].map((s) => lum(token(s)));
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+        expect(new Set(order).size).toBe(order.length);
+    });
+
+    it("keeps the earlier names as aliases of the fixed tokens", () => {
+        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        const aliases: Record<string, string> = {
+            "--mt-neutral-bg": "--mt-surface-0",
+            "--mt-neutral-panel": "--mt-surface-1",
+            "--mt-neutral-key": "--mt-surface-2",
+            "--mt-neutral-modal": "--mt-surface-3",
+            "--mt-neutral-line": "--mt-text-1",
+            "--mt-text-main": "--mt-text-1",
+            "--mt-text-secondary": "--mt-text-2",
+            "--mt-text-muted": "--mt-text-3",
+            "--main-bg-color": "--mt-surface-0",
+            "--modal-bg-color": "--mt-surface-3",
+            "--main-text-color": "--mt-text-1",
+            "--secondary-text-color": "--mt-text-2",
+            "--grey-text-color": "--mt-text-3",
+            "--border-color": "--mt-line-2",
+            "--modal-border-color": "--mt-line-2",
+            "--form-element-border-color": "--mt-line-control",
+            "--keybinding-bg-color": "--mt-surface-2",
+            "--color-background": "--mt-surface-0",
+            "--color-modalbg": "--mt-surface-3",
+            "--color-border": "--mt-line-2",
+            "--color-primary": "--mt-text-1",
+            "--color-secondary": "--mt-text-2",
+            "--color-muted": "--mt-text-3",
+        };
+        for (const [alias, target] of Object.entries(aliases)) {
+            expect(neutrals, alias).toContain(`${alias}: var(${target});`);
         }
     });
 
-    it("stays a nuance: no neutral takes more than 12% of the accent", () => {
-        for (const recipe of Object.values(Recipes)) {
-            expect(recipe.pct).toBeGreaterThan(0);
-            expect(recipe.pct).toBeLessThanOrEqual(12);
-        }
+    it.each(Texts.flatMap((text) => Surfaces.map((s) => [text, s])))("%s reads at 4.5:1 on %s (AC-2)", (text, s) => {
+        expect(contrastRatio(token(text), token(s))).toBeGreaterThanOrEqual(4.5);
     });
 
-    describe.each(WorkspaceColours)("on workspace colour %s", (accent) => {
-        it.each(Texts.flatMap((text) => Backgrounds.map((bg) => [text, bg])))(
-            "%s reads at 4.5:1 or more on %s (NFR-SHELL-003)",
-            (text, bg) => {
-                expect(contrastRatio(resolve(text, accent), resolve(bg, accent))).toBeGreaterThanOrEqual(4.5);
-            }
-        );
+    it("reads the discreet text at 5.10:1 at worst, on surface 3", () => {
+        expect(contrastRatio(token("--mt-text-3"), token("--mt-surface-3"))).toBeCloseTo(5.1, 1);
+    });
 
-        // Step 2 of the Coulée theme (#1318) replaces these tints with fixed neutrals.
-        it("leans towards the workspace colour", () => {
-            const warm = resolve("--mt-neutral-bg", accent);
-            const grey = parseColor(Recipes["--mt-neutral-bg"].base);
-            const a = parseColor(accent);
-            const dist = (x: typeof a, y: typeof a) => Math.hypot(x.r - y.r, x.g - y.g, x.b - y.b);
-            expect(dist(warm, a)).toBeLessThan(dist(grey, a));
+    it.each(Surfaces)("edges a control at 3:1 on %s (WCAG 1.4.11)", (s) => {
+        expect(contrastRatio(token("--mt-line-control"), token(s))).toBeGreaterThanOrEqual(3);
+    });
+
+    it.each(Surfaces)("danger text and info read at 4.5:1 on %s", (s) => {
+        expect(contrastRatio(tokenColour("--mt-danger-text"), token(s))).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(tokenColour("--mt-info"), token(s))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("never dims a sidebar or library text with an opacity", () => {
+        const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
+        const libraryCss = readFileSync(new URL("./library/library.css", import.meta.url), "utf8");
+        expect(sidebarCss).toContain("--mt-sb-fg-3: var(--mt-text-3);");
+        expect(libraryCss).toContain("--mt-lib-fg-3: var(--mt-text-3);");
+    });
+});
+
+// The only cues a workspace colour still draws on the cast iron (FR-SHELL-004, #1319): its glyph and its dot.
+describe("place cues on cast iron (FR-SHELL-115)", () => {
+    const glyphPct = Number(
+        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-place\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
+            tokensCss
+        )?.[1]
+    );
+
+    it("reads the glyph tone from tokens.css", () => {
+        expect(glyphPct).toBeGreaterThan(0);
+    });
+
+    describe.each(WorkspaceColours)("workspace colour %s", (place) => {
+        it.each(Surfaces)("its glyph tone reads at 4.5:1 on %s", (s) => {
+            const tone = mixColor(parseColor(place), MainText, glyphPct);
+            expect(contrastRatio(tone, token(s))).toBeGreaterThanOrEqual(4.5);
         });
-    });
-
-    it("tints the default orange background warm (red over blue)", () => {
-        const bg = resolve("--mt-neutral-bg", MoltentermDefaultAccent);
-        expect(bg.r).toBeGreaterThan(bg.b);
     });
 });
 
@@ -162,20 +239,18 @@ describe("text on the accent (NFR-SHELL-003, #244)", () => {
         return found;
     }
 
-    // The worst case, over the workspace colours (the panels still take their tint, #1318 step 2) and the panel
-    // backgrounds, of a text colour on a `pct`% tint of the accent, which is the fixed action colour (#1319).
-    function worstContrast(pct: number, text: (place: string) => ReturnType<typeof parseColor>): number {
+    // The worst case, over the window, panel and dialog backgrounds (fixed cast iron, FR-SHELL-115), of a text colour
+    // on a `pct`% tint of the accent, which is the fixed action colour (#1319).
+    function worstContrast(pct: number, text: Rgb): number {
         let worst = Infinity;
-        for (const place of WorkspaceColours) {
-            for (const bg of Backgrounds) {
-                const tint = mixColor(Action, resolve(bg, place), pct);
-                worst = Math.min(worst, contrastRatio(text(place), tint));
-            }
+        for (const bg of Backgrounds) {
+            const tint = mixColor(Action, token(bg), pct);
+            worst = Math.min(worst, contrastRatio(text, tint));
         }
         return worst;
     }
-    const panelText = (place: string) => resolve("--mt-text-main", place);
-    const accentText = () => ActionFg;
+    const panelText = MainText;
+    const accentText = ActionFg;
 
     it("draws the accent's text in the action's fixed text colour", () => {
         expect(shellCss).toMatch(/:root \{[^}]*--mt-accent-fg: var\(--mt-action-fg\);/);
@@ -258,62 +333,7 @@ describe("running indicators (NFR-MC-004)", () => {
     });
 });
 
-// Design tokens v2 (FR-SHELL-044, DS-SHELL-077): the colour and motion tokens of tokens.css.
-const tokensCss = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
-
-function tokenRecipe(name: string): Recipe {
-    const m = new RegExp(`${name}:\\s*color-mix\\(in srgb, var\\(--mt-place\\) (\\d+)%, (rgb\\([^)]*\\))\\);`).exec(
-        tokensCss
-    );
-    return m == null ? null : { pct: Number(m[1]), base: m[2] };
-}
-
-function tokenColour(name: string): ReturnType<typeof parseColor> {
-    return parseColor(new RegExp(`${name}:\\s*(rgb\\([^)]*\\))`).exec(tokensCss)[1]);
-}
-
 describe("design tokens v2: colours (FR-SHELL-044 AC2, AC5)", () => {
-    const Surfaces = ["--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
-    const surface = (name: string, accent: string) => {
-        const recipe = tokenRecipe(name);
-        return mixColor(parseColor(accent), parseColor(recipe.base), recipe.pct);
-    };
-    const glyphPct = Number(
-        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-place\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
-            tokensCss
-        )?.[1]
-    );
-
-    it("reads every surface recipe and the glyph tone from tokens.css", () => {
-        for (const name of Surfaces) {
-            expect(tokenRecipe(name), name).not.toBeNull();
-        }
-        expect(glyphPct).toBeGreaterThan(0);
-    });
-
-    it("keeps surfaces 1 and 3 on today's panel and modal backgrounds", () => {
-        expect(tokenRecipe("--mt-surface-1")).toEqual(Recipes["--mt-neutral-bg"]);
-        expect(tokenRecipe("--mt-surface-3")).toEqual(Recipes["--mt-neutral-modal"]);
-    });
-
-    describe.each(WorkspaceColours)("on workspace colour %s", (accent) => {
-        it.each(Texts.flatMap((text) => Surfaces.map((s) => [text, s])))("%s reads at 4.5:1 on %s", (text, s) => {
-            expect(contrastRatio(resolve(text, accent), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
-        });
-
-        it.each(Surfaces)("danger text and info read at 4.5:1 on %s", (s) => {
-            expect(contrastRatio(tokenColour("--mt-danger-text"), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
-            expect(contrastRatio(tokenColour("--mt-info"), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
-        });
-
-        it.each(Surfaces)("every workspace's glyph tone reads at 4.5:1 on %s", (s) => {
-            for (const glyph of WorkspaceColours) {
-                const tone = mixColor(parseColor(glyph), resolve("--mt-text-main", accent), glyphPct);
-                expect(contrastRatio(tone, surface(s, accent)), glyph).toBeGreaterThanOrEqual(4.5);
-            }
-        });
-    });
-
     // The shell's only blue is the info tone; the menus' hard-coded pink became the danger text.
     it("leaves no stray blue and no #ff9a9a in MoltenTerm-owned code", () => {
         const frontend = fileURLToPath(new URL("..", import.meta.url));
@@ -377,14 +397,6 @@ describe("focus ring (#751, #1319)", () => {
 // Theme "Coulée" step 1 (#1319, FR-SHELL-004, NFR-SHELL-003): the action is molten in every workspace, the workspace
 // colour only marks the place.
 describe("action and place (#1319)", () => {
-    const Surfaces = ["--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
-    const surface = (name: string, place: string) => {
-        const recipe = tokenRecipe(name);
-        return mixColor(parseColor(place), parseColor(recipe.base), recipe.pct);
-    };
-    // The lightest surface a ring is drawn on: a key cap or a hovered row.
-    const keyCap = (place: string) => resolve("--mt-neutral-key", place);
-
     it("has the proposal's action values", () => {
         const values: Record<string, string> = {
             "--mt-action": "#ff7c0d",
@@ -433,17 +445,13 @@ describe("action and place (#1319)", () => {
         }
     });
 
-    describe.each(WorkspaceColours)("in workspace colour %s", (place) => {
-        it.each(Surfaces)("action text reads at 4.5:1, the action and the focus ring at 3:1 on %s", (s) => {
-            const bg = surface(s, place);
-            expect(contrastRatio(shellToken("--mt-action-text"), bg)).toBeGreaterThanOrEqual(4.5);
-            expect(contrastRatio(Action, bg)).toBeGreaterThanOrEqual(3);
-            expect(contrastRatio(shellToken("--mt-focus"), bg)).toBeGreaterThanOrEqual(3);
-        });
-
-        it("the focus ring reads at 3:1 on a key cap", () => {
-            expect(contrastRatio(shellToken("--mt-focus"), keyCap(place))).toBeGreaterThanOrEqual(3);
-        });
+    // The surfaces no longer follow the workspace (FR-SHELL-115): one check holds in every workspace, a key cap
+    // (surface 2) included.
+    it.each(Surfaces)("action text reads at 4.5:1, the action and the focus ring at 3:1 on %s", (s) => {
+        const bg = token(s);
+        expect(contrastRatio(shellToken("--mt-action-text"), bg)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(Action, bg)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(shellToken("--mt-focus"), bg)).toBeGreaterThanOrEqual(3);
     });
 
     it("draws the place on the focused panel's frame and the sidebar's place cues", () => {
@@ -454,6 +462,32 @@ describe("action and place (#1319)", () => {
         for (const cue of ["mt-sb-place-strip", "mt-sb-place-bar", "mt-sb-tile-place"]) {
             expect(sidebarCss).toMatch(new RegExp(`\\.${cue} \\{[^}]*var\\(--mt-place\\)`));
         }
+    });
+
+    it("keeps the window, the floating sidebar, the library, the 360 carpet and the agent avatar on cast iron (AC-1)", () => {
+        const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
+        const agentsCss = readFileSync(new URL("./sidebar/sidebar-agents.css", import.meta.url), "utf8");
+        const lookCss = readFileSync(new URL("./window-look.css", import.meta.url), "utf8");
+        const view360Css = readFileSync(new URL("./view360/view360.css", import.meta.url), "utf8");
+        const libraryCss = readFileSync(new URL("./library/library.css", import.meta.url), "utf8");
+        const rule = (css: string, selector: string) =>
+            new RegExp(`\\n${selector.replace(/[.()[\]-]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+        expect(rule(sidebarCss, ".mt-sb-frame")).toContain("background-color: var(--mt-surface-0);");
+        expect(rule(sidebarCss, ".mt-sb.is-hidden")).toContain("background: var(--mt-surface-0);");
+        expect(rule(agentsCss, ".mt-sb-av")).toContain("background: var(--mt-surface-3);");
+        expect(rule(libraryCss, ".mt-lib")).toContain("background: var(--mt-surface-0);");
+        expect(view360Css).toContain("--mt-carpet-bg: var(--mt-surface-term);");
+        for (const css of [agentsCss, lookCss, view360Css]) {
+            expect(css).not.toContain("--mt-place");
+        }
+    });
+
+    it("tints only the sidebar, and only when the opt-in is on (AC-3)", () => {
+        const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
+        const tinted = [...sidebarCss.matchAll(/\n([^\n{]+) \{[^}]*color-mix\(in srgb, var\(--mt-place\) \d+%/g)].map(
+            (m) => m[1]
+        );
+        expect(tinted).toEqual([".mt-sb.is-tinted::before"]);
     });
 
     it("keeps the workspace colour off the buttons, the hold-to-confirm and the suite kit", () => {

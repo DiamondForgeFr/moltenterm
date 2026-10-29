@@ -840,7 +840,6 @@ export function Library({
     const [query, setQuery] = useState("");
     const [suggest, setSuggest] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
-    const workspace = useAtomValue(atoms.workspace);
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
     useEffect(() => setQuery(""), [section]);
@@ -888,11 +887,6 @@ export function Library({
             aria-label={t("library.label")}
             data-testid="library"
             data-section={section}
-            style={
-                {
-                    ["--mt-lib-tint" as string]: colourStops(workspace?.color)[0] ?? "var(--mt-place)",
-                } as React.CSSProperties
-            }
         >
             <nav className="mt-lib-nav" aria-label={t("library.navLabel")}>
                 <div className="mt-lib-navtop" />
