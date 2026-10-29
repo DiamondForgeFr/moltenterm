@@ -40,7 +40,17 @@ describe("the sidebar's status dots (#1304)", () => {
     it("colour each state from the theme's state tokens", () => {
         expect(rule(".mt-sb-prdot.is-blocked")).toContain("var(--mt-state-error)");
         expect(rule(".mt-sb-prdot.is-ready")).toContain("var(--mt-state-done)");
-        expect(rule(".mt-sb-prdot.is-ci")).toContain("var(--mt-state-working)");
+        expect(rule(".mt-sb-prdot.is-yours")).toContain("var(--mt-state-waiting)");
+        expect(rule(".mt-sb-prdot.is-waiting")).toContain("var(--mt-state-working)");
+    });
+
+    it("draw blocked as a diamond, the other sections round (WCAG 1.4.1, #1327)", () => {
+        const blocked = rule(".mt-sb-prdot.is-blocked");
+        expect(blocked).toMatch(/transform:\s*rotate\(45deg\)/);
+        expect(blocked).toMatch(/border-radius:\s*1px/);
+        for (const kind of ["yours", "ready", "waiting", "agents"]) {
+            expect(rule(`.mt-sb-prdot.is-${kind}`)).not.toMatch(/transform|border-radius/);
+        }
     });
 
     it("never restyle the workspace switcher's own dots (.mt-sb-dots / .mt-sb-dot)", () => {

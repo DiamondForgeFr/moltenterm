@@ -19,6 +19,7 @@ import { SidebarModel } from "../sidebar/sidebar-store";
 import { projectLabel, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import { workspaceShownName } from "../workspace-default-name";
 import { useCardContext } from "./reviews-agent-bar";
+import { TurnTitleKeys } from "./reviews-card-model";
 import { useReviews } from "./reviews-client";
 import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
 import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
@@ -102,12 +103,7 @@ function ProjectProbe({
     return null;
 }
 
-const TurnTitle: Record<string, string> = {
-    yours: "reviews.sections.yours",
-    agents: "reviews.sections.agents",
-    blocked: "reviews.sections.blocked",
-    waiting: "reviews.sections.waiting",
-};
+const TurnTitle = TurnTitleKeys;
 
 export function AllProjectsList({ workspace, projects }: { workspace: Workspace; projects: WorkspaceProjectEntry[] }) {
     const t = useT();

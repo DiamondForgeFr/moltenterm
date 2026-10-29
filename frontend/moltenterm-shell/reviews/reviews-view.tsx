@@ -39,7 +39,7 @@ import {
     queueOrder,
 } from "./reviews-batch-model";
 import { ReviewRow } from "./reviews-card";
-import { busyAgentOf, type CardTurn } from "./reviews-card-model";
+import { busyAgentOf, type CardTurn, TurnTitleKeys } from "./reviews-card-model";
 import { CheckAgentsButton, CheckAgentsReport, useCheckAgents } from "./reviews-check";
 import { useReviews } from "./reviews-client";
 import { EdgeWhere, ForecastLinks } from "./reviews-forecast";
@@ -276,10 +276,11 @@ function Loading() {
 
 // The sections by turn (#1061): each section's title key, hint key and test id.
 const TurnSectionText: Record<CardTurn, { title: string; hint?: string }> = {
-    yours: { title: "reviews.sections.yours", hint: "reviews.sections.yoursHint" },
-    agents: { title: "reviews.sections.agents" },
-    blocked: { title: "reviews.sections.blocked" },
-    waiting: { title: "reviews.sections.waiting", hint: "reviews.sections.waitingHint" },
+    yours: { title: TurnTitleKeys.yours, hint: "reviews.sections.yoursHint" },
+    ready: { title: TurnTitleKeys.ready, hint: "reviews.sections.readyHint" },
+    agents: { title: TurnTitleKeys.agents },
+    blocked: { title: TurnTitleKeys.blocked, hint: "reviews.sections.blockedHint" },
+    waiting: { title: TurnTitleKeys.waiting, hint: "reviews.sections.waitingHint" },
 };
 
 function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
@@ -535,8 +536,10 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     };
     // Check the agents sits on the heading of the agents' section, else of the first PR section shown.
     const checkTurn = sections.some((s) => s.turn === "agents") ? "agents" : sections[0]?.turn;
-    // The queue and the after-merge line sit at the top of "Yours", else above the sections.
-    const queueTurn: CardTurn = sections[0]?.turn === "yours" ? "yours" : null;
+    // The queue and the after-merge line sit at the top of the first section when it is the developer's ("Yours" or
+    // "Ready"), else above the sections.
+    const firstTurn = sections[0]?.turn;
+    const queueTurn: CardTurn = firstTurn === "yours" || firstTurn === "ready" ? firstTurn : null;
     const queueBlock = (
         <>
             <AfterMergeLine

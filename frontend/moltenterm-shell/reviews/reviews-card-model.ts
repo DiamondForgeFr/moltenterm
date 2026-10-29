@@ -33,8 +33,19 @@ export type CardStateKind = (typeof CardStateKinds)[number];
 // waiting on the CI or a reviewer.
 export type CardTone = "ready" | "you" | "agent" | "broken" | "wait";
 
-// Whose turn the card is, for the sections by turn (#1061).
-export type CardTurn = "yours" | "agents" | "blocked" | "waiting";
+// Whose turn the card is, for the sections by turn (#1061). "ready" splits out of "yours" and "waiting" reads
+// "Running" (#1327) so the sidebar's status dots count exactly the PRs a section lists.
+export type CardTurn = "yours" | "ready" | "agents" | "blocked" | "waiting";
+
+// The one vocabulary of the turns (#1327, FR-SHELL-098): a section's title, a status dot's tooltip and its accessible
+// name all read these keys, so a PR counted under a dot is listed in the section of the same name.
+export const TurnTitleKeys: Record<CardTurn, string> = {
+    yours: "reviews.sections.yours",
+    ready: "reviews.sections.ready",
+    agents: "reviews.sections.agents",
+    blocked: "reviews.sections.blocked",
+    waiting: "reviews.sections.waiting",
+};
 
 export type CardActionId =
     | "answer"
@@ -143,7 +154,7 @@ const Turns: Record<CardStateKind, CardTurn> = {
     "review-required": "yours",
     "draft-ready": "yours",
     "ci-running": "waiting",
-    ready: "yours",
+    ready: "ready",
 };
 
 // Calm primaries: nothing is the developer's to do right now. The same states are the ones where something works
