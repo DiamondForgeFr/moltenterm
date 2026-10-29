@@ -14,6 +14,9 @@ const OldPanelName = /\b(Reviews|Revues)\b|\b(Reviews|review) list\b|liste des r
 // "Pilotage par un agent" is the browser tab an agent drives, not the panel.
 const FormerPanelName = /Control room|\bPilotage\b(?! par un agent)/i;
 
+// The default view that holds the panel is named Control room / Pilotage (#1315): a view name, not the panel's.
+const ViewNameKeys = new Set(["workspaceViews.names.pilotage"]);
+
 const PanelNameKeys = [
     "reviews.viewName",
     "tabs.views.reviews",
@@ -50,6 +53,7 @@ describe("the PR panel's name (#1303)", () => {
             const dict = shippedDictionary(code);
             const left = flattenKeys(dict)
                 .map((k) => `${k}: ${resolveKey(dict, k)}`)
+                .filter((line) => !ViewNameKeys.has(line.slice(0, line.indexOf(": "))))
                 .filter((line) => FormerPanelName.test(line.slice(line.indexOf(": ") + 2)));
             expect(left).toEqual([]);
         });
