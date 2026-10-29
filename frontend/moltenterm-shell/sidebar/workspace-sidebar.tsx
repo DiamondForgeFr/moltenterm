@@ -85,6 +85,7 @@ import {
 import { hasPrCounts, PrCounts } from "./pr-counts-model";
 import { AgentsSection } from "./sidebar-agents";
 import { sidebarSections, workspaceAgents } from "./sidebar-agents-model";
+import { topRowBlocks, type TopRowBlock as TopRowBlockFacts } from "./sidebar-blocks";
 import { CreateWorkspacePage } from "./sidebar-create";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import {
@@ -127,10 +128,10 @@ import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./tem
 import { useTemporaryViewsMotion } from "./temporary-views-motion";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
-import { topGlyph, ViewGlyph, viewGlyphAtom } from "./view-glyph";
+import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
-import { GlobalPin, GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
+import { GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
 import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
 import {
@@ -1218,14 +1219,13 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
             data-cap={t("sidebar.views.captionEverywhere")}
             {...zoneProps("top")}
         >
-            {pins.map((pin) => (
+            {topRowBlocks(pins, instances).map((block) => (
                 <TopRowBlock
-                    key={pin.id}
-                    pin={pin}
-                    tabId={instances[pin.id] ?? ""}
-                    active={!!instances[pin.id] && instances[pin.id] === activeTabId}
-                    counts={pin.id === pilotagePin ? counts : undefined}
-                    motionKey={`top:${pin.id}:${workspaceId}`}
+                    key={block.pin.id}
+                    block={block}
+                    active={!!block.tabId && block.tabId === activeTabId}
+                    counts={block.pin.id === pilotagePin ? counts : undefined}
+                    motionKey={`top:${block.pin.id}:${workspaceId}`}
                 />
             ))}
         </div>
@@ -1233,18 +1233,17 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
 }
 
 function TopRowBlock({
-    pin,
-    tabId,
+    block,
     active,
     counts,
     motionKey,
 }: {
-    pin: GlobalPin;
-    tabId: string;
+    block: TopRowBlockFacts;
     active: boolean;
     counts?: PrCounts;
     motionKey: string;
 }) {
+    const { pin, tabId, glyph } = block;
     const t = useT();
     const hasCounts = hasPrCounts(counts);
     const { fresh } = useCountsMotion(motionKey, hasCounts);
@@ -1253,7 +1252,6 @@ function TopRowBlock({
     const pins = ViewPins.getInstance();
     const drag = useAtomValue(sidebarDragAtom);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
-    const glyph = topGlyph(pin);
     const baseTitle = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", {
         name: pin.name,
     });

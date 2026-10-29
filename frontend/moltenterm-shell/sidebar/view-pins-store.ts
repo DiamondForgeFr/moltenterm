@@ -15,14 +15,15 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
-import { t, tCount } from "../i18n/i18n";
+import { I18nModel, t, tCount } from "../i18n/i18n";
+import { translate } from "../i18n/i18n-core";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
 import { typeCommandWhenReady } from "../palette/palette-actions";
 import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
 import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
-import { SeedGlobalPinsMetaKey, seedPinsMeta } from "./default-pins";
+import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
 import {
@@ -113,12 +114,16 @@ export class ViewPins {
 
     private constructor() {
         this.globalPinsAtom = jotai.atom((get) => {
+            const i18n = I18nModel.getInstance();
+            get(i18n.languagesVersionAtom);
+            const locale = get(i18n.localeAtom);
+            const tr = (key: string) => translate(locale, key);
             const pending = get(this.pendingPinsAtom);
             if (pending != null) {
-                return pending;
+                return pending.map((p) => localizedPin(p, tr));
             }
             const clientAtom = ClientModel.getInstance().clientAtom;
-            return readGlobalPins(clientAtom == null ? null : get(clientAtom)?.meta);
+            return readGlobalPins(clientAtom == null ? null : get(clientAtom)?.meta).map((p) => localizedPin(p, tr));
         });
         this.seedMarkAtom = jotai.atom((get) => {
             const clientAtom = ClientModel.getInstance().clientAtom;
@@ -496,7 +501,7 @@ export class ViewPins {
         try {
             const pin = this.pinOf(ref);
             if (pin != null && pin.name !== value) {
-                await this.writeGlobalPins(replacePin(this.globalPins(), { ...pin, name: value }));
+                await this.writeGlobalPins(replacePin(this.globalPins(), typedNamePin(pin, value)));
             }
             const tab = ref.tabId ? globalStore.get(tabAtom(ref.tabId)) : null;
             if (tab != null && tab.name !== value) {
@@ -555,7 +560,7 @@ export class ViewPins {
             const config = tab != null ? await this.capture(ref.tabId) : pin.config;
             let newPin: GlobalPin = null;
             if (pin != null) {
-                newPin = { ...pin, id: makeGlobalPinId(Date.now(), Math.random()), name, rev: 1, config };
+                newPin = { ...typedNamePin(pin, name), id: makeGlobalPinId(Date.now(), Math.random()), rev: 1, config };
                 const pins = this.globalPins();
                 const at = pins.findIndex((p) => p.id === pin.id) + 1;
                 await this.writeGlobalPins([...pins.slice(0, at), newPin, ...pins.slice(at)]);

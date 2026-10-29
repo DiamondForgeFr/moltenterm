@@ -35,7 +35,9 @@ export type PinNode = { dir?: string; children?: PinNode[]; blockid?: string; pa
 
 export type PinConfig = { tree: PinNode; panes: Record<string, any>[] };
 
-export type GlobalPin = { id: string; name: string; icon?: string; rev: number; config: PinConfig };
+// namekey: a seeded pin whose name the developer never chose (#1296, #1307); it shows the key's text in the interface
+// language, name being the fallback. A rename drops it.
+export type GlobalPin = { id: string; name: string; namekey?: string; icon?: string; rev: number; config: PinConfig };
 
 export type ViewState = "temporary" | "workspace" | "everywhere";
 
