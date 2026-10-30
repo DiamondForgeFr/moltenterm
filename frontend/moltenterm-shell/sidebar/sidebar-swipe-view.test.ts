@@ -35,7 +35,8 @@ function fixture(
 ): Fixture {
     const page = fakeElement();
     const aside = fakeElement(240, "aside");
-    const library = opts.libraryOpen ? fakeElement(1200, "library") : null;
+    const libraryEl = fakeElement(1200, "library");
+    let library = opts.libraryOpen ? libraryEl : null;
     const els = new Map<string, HTMLElement>();
     const el = (key: string) => {
         if (!els.has(key)) {
@@ -62,8 +63,12 @@ function fixture(
     };
     const actions = {
         switchTo: vi.fn(),
-        openLibrary: vi.fn(),
-        closeLibrary: vi.fn(),
+        openLibrary: vi.fn(() => {
+            library = libraryEl;
+        }),
+        closeLibrary: vi.fn(() => {
+            library = null;
+        }),
         startCreate: vi.fn(),
         leaveCreate: vi.fn(),
     };
@@ -249,6 +254,41 @@ describe("where a swipe starts: over the sidebar only (FR-SHELL-082, #1389)", ()
         vi.advanceTimersByTime(600);
         expect(actions.closeLibrary).toHaveBeenCalledTimes(1);
         expect(actions.switchTo).not.toHaveBeenCalled();
+    });
+
+    // The pointer stays where the gesture began, over the sidebar; while the library is open it lies over it.
+    function replay(f: Fixture, dxs: number[]): { libraryShown: number; pageMoved: number } {
+        let libraryShown = 0;
+        let pageMoved = 0;
+        for (const dx of dxs) {
+            if (f.view.library() != null) {
+                wheels(f.controller.onWindowWheel, inLibrary, [dx]);
+                libraryShown++;
+            } else {
+                wheels(f.controller.onAsideWheel, inAside, [dx]);
+                if (f.view.page().style.transform) {
+                    pageMoved++;
+                }
+            }
+        }
+        return { libraryShown, pageMoved };
+    }
+
+    it("a library opened by a pull and closed by a swipe back stays closed through a long momentum tail (#1392)", () => {
+        const f = fixture({ activeId: "a" });
+        replay(f, [...Array(20).fill(-12), ...momentum(-12, 60)]);
+        vi.advanceTimersByTime(400);
+        expect(f.actions.openLibrary).toHaveBeenCalledTimes(1);
+        expect(f.view.library()).not.toBeNull();
+        replay(f, Array(14).fill(14));
+        const tail = replay(f, momentum(14, 240));
+        vi.advanceTimersByTime(2000);
+        expect(f.actions.closeLibrary).toHaveBeenCalledTimes(1);
+        expect(f.actions.openLibrary).toHaveBeenCalledTimes(1);
+        expect(f.view.library()).toBeNull();
+        expect(tail.pageMoved).toBe(0);
+        expect(f.actions.switchTo).not.toHaveBeenCalled();
+        expect(f.actions.startCreate).not.toHaveBeenCalled();
     });
 });
 

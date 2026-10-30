@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { parseSnapshot, snapshotFits, snapshotKey, staleSnapshotKeys } from "./sidebar-snapshot";
+import { parseSnapshot, sidebarAtRest, snapshotFits, snapshotKey, staleSnapshotKeys } from "./sidebar-snapshot";
 
 describe("the neighbour's captured sidebar (#1261, TC-SHELL-218)", () => {
     it("reads back only a well-formed image capture", () => {
@@ -25,5 +25,13 @@ describe("the neighbour's captured sidebar (#1261, TC-SHELL-218)", () => {
     it("drops the captures of workspaces that no longer exist, and nothing else", () => {
         const keys = [snapshotKey("a"), snapshotKey("b"), "moltenterm:sidebar-switch", "other"];
         expect(staleSnapshotKeys(keys, ["a"])).toEqual([snapshotKey("b")]);
+    });
+
+    it("never captures while the library covers the sidebar (#1392)", () => {
+        const rest = { hidden: false, pageOver: false, libraryOpen: false, swiping: false, animating: false };
+        expect(sidebarAtRest(rest)).toBe(true);
+        expect(sidebarAtRest({ ...rest, libraryOpen: true })).toBe(false);
+        expect(sidebarAtRest({ ...rest, pageOver: true })).toBe(false);
+        expect(sidebarAtRest({ ...rest, swiping: true })).toBe(false);
     });
 });
