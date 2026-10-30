@@ -2114,6 +2114,7 @@
         "notice": {
             "siteChoiceNotSaved": "The site choice could not be saved: {error}",
             "decisionNotForgotten": "The agents' decision could not be forgotten: {error}",
+            "linkNotCopied": "The link could not be copied.",
             "shareFailed": "The tab could not be shared: {error}",
             "tellFailed": "The line could not be typed: {error}",
             "fallback": "{reason} Opened in MoltenTerm instead.",
@@ -2192,7 +2193,9 @@
         },
         "address": {
             "title": "Its full address shows in the top field while the panel is active ({keys})",
-            "label": "Page address: {address}"
+            "label": "Page address: {address}",
+            "copy": "Copy link",
+            "copied": "Link copied"
         }
     },
     "cmdpanel": {
