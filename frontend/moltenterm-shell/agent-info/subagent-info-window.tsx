@@ -165,7 +165,7 @@ export function SubagentInfoWindow({
                         {lastMessage ? (
                             <section data-testid="subagent-info-last">
                                 <h5 className={SectionTitle}>{t("agentInfo.sub.lastMessage")}</h5>
-                                <div className="max-h-[220px] overflow-y-auto rounded-8 bg-white/[0.05] px-3 py-2 text-12 whitespace-pre-wrap text-secondary">
+                                <div className="max-h-[220px] overflow-y-auto rounded-4 bg-white/[0.05] px-3 py-2 text-12 whitespace-pre-wrap text-secondary">
                                     {lastMessage}
                                 </div>
                             </section>
