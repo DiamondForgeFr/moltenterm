@@ -70,7 +70,7 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
     it("is a toggle named for the workspace, pressed while its coffee is on and lit while something holds", () => {
         setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
         const html = item();
-        expect(html).toContain('aria-label="Keep awake while Alpha works"');
+        expect(html).toContain('aria-label="Keep awake while “Alpha” works"');
         expect(html).toContain('aria-pressed="true"');
         expect(html).toContain("data-lit");
         expect(html).not.toContain("fa-moon");

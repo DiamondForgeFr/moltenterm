@@ -107,7 +107,7 @@ export function PageHeader({
     return (
         <header className="flex items-start gap-3 pb-2">
             {icon ? (
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-4 bg-surface-2 text-accent">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-4 bg-surface-2 text-secondary">
                     {Icon ? (
                         <Icon className="h-4 w-4" aria-hidden />
                     ) : (

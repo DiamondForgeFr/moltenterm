@@ -49,7 +49,7 @@ export function View360Screens() {
                                         : ""}
                                 </span>
                                 {row.current ? (
-                                    <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 text-accent">
+                                    <span className="shrink-0 rounded-4 border border-line-strong px-1.5 text-11 text-secondary">
                                         {t("view360.screens.current")}
                                     </span>
                                 ) : null}

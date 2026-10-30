@@ -376,6 +376,20 @@
     --df-accent-ink: var(--mt-action-text);
 }
 
+/* Orange marks actions only (#1319, #1435): the kit paints a block's label chip, its icon tile and the "Selected" mark
+   with the accent, but they name a section or a state and do nothing. They take a neutral wash of the main text colour
+   over the surface, which holds in both themes. The radio, the toggles and the glow keep the action. */
+.df-chip,
+.df-icon-tile {
+    --df-accent: color-mix(in srgb, var(--mt-text-main) 16%, var(--mt-surface-2));
+    --df-accent-fg: var(--mt-text-main);
+    --df-tile-fg: var(--mt-text-main);
+}
+
+.df-option-selected {
+    color: var(--df-text-muted);
+}
+
 /* MoltenTerm's own reduced-motion setting (the app root's class) stills the turning light like the system's. */
 .prefers-reduced-motion .df-glow::before {
     animation: none !important;

@@ -250,9 +250,9 @@ export type PlanUsageActions = {
 };
 
 const BarColours: Record<GaugeLevel, string> = {
-    normal: "bg-accent",
-    warning: "bg-warning",
-    error: "bg-error",
+    normal: "bg-[var(--mt-text-muted)]",
+    warning: "bg-[var(--mt-state-running)]",
+    error: "bg-[var(--mt-state-error)]",
 };
 
 const PercentColours: Record<GaugeLevel, string> = {
