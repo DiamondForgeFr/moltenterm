@@ -21,17 +21,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import {
-    BrowserAgentControlCommand,
-    BrowserAgentListCommand,
     BrowserAgentRouteId,
-    BrowserAgentShareCommand,
     BrowserAgentStateCommand,
-    type AgentSession,
     type AgentTab,
     type PanelAgentState,
-    type ShareResult,
 } from "../browser/browser-agent";
 import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
+import { giveAccessBack, removeAccess } from "./share-access";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
@@ -80,7 +76,6 @@ import {
     sentToAiRows,
     sharedAgentGroups,
     suggestClipboardText,
-    undoSessionId,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -569,57 +564,6 @@ function pageHost(url: string): string {
     }
 }
 
-// Remove access is the panel's Stop sharing (the browser agent's stop control): the page stays open, as the
-// developer's. It answers the pages it took back.
-async function removeAccess(rows: SentRow[]): Promise<SentRow[]> {
-    const removed: SentRow[] = [];
-    for (const row of rows) {
-        try {
-            await TabRpcClient.wshRpcCall(
-                BrowserAgentControlCommand,
-                { blockid: row.panelBlockId, browsertabid: row.browserTabId, action: "stop" },
-                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
-            );
-            removed.push(row);
-        } catch (e) {
-            console.log("library: remove access", e);
-        }
-    }
-    return removed;
-}
-
-// Undo shares the pages again with the agent's session (the panel's Share with), while that session lasts. It answers
-// how many it could not give back.
-async function giveAccessBack(rows: SentRow[]): Promise<number> {
-    let failed = 0;
-    for (const row of rows) {
-        try {
-            const res: { sessions: AgentSession[] } = await TabRpcClient.wshRpcCall(
-                BrowserAgentListCommand,
-                { blockid: row.panelBlockId },
-                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
-            );
-            const sessionId = undoSessionId(res?.sessions, row.agentBlockId);
-            if (!sessionId) {
-                failed++;
-                continue;
-            }
-            const shared: ShareResult = await TabRpcClient.wshRpcCall(
-                BrowserAgentShareCommand,
-                { blockid: row.panelBlockId, browsertabid: row.browserTabId, sessionid: sessionId, move: false },
-                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
-            );
-            if (shared?.result !== "shared") {
-                failed++;
-            }
-        } catch (e) {
-            console.log("library: give access back", e);
-            failed++;
-        }
-    }
-    return failed;
-}
-
 function accessToastText(removed: SentRow[], name: string, all: boolean) {
     const title = all
         ? tNow("library.ai.removedAll", { name })
@@ -701,7 +645,10 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
         setRemoving((cur) => new Set([...cur, ...keys]));
         fireAndForget(async () => {
             const removed = await removeAccess(target);
-            showAccessUndo(removed, name, all, reload);
+            showAccessUndo(removed, name, all && removed.length === target.length, reload);
+            if (removed.length > 0 && removed.length < target.length) {
+                showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) });
+            }
             setRows((cur) => (cur ?? []).filter((r) => !removed.some((x) => x.key === r.key)));
             setRemoving((cur) => new Set([...cur].filter((k) => !keys.includes(k))));
             reload();

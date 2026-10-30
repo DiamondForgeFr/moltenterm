@@ -99,6 +99,7 @@ type PanelAgentTab struct {
 	AgentName    string `json:"agentname"`
 	// AgentBlockId: the agent's terminal, which the agent window finds its pages by (FR-SHELL-084).
 	AgentBlockId string `json:"agentblockid,omitempty"`
+	SessionId    string `json:"sessionid"`
 	Origin       string `json:"origin"`
 	State        string `json:"state"`
 	Action       string `json:"action,omitempty"`
@@ -139,9 +140,10 @@ type PanelState struct {
 }
 
 type ControlRequest struct {
-	BlockId      string `json:"blockid"`
-	BrowserTabId string `json:"browsertabid"`
-	Action       string `json:"action"`
+	BlockId           string `json:"blockid"`
+	BrowserTabId      string `json:"browsertabid"`
+	Action            string `json:"action"`
+	ExpectedSessionId string `json:"expectedsessionid,omitempty"`
 }
 
 type StateRequest struct {

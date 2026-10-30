@@ -4,6 +4,7 @@
 package browseragent
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -13,6 +14,94 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
+
+func TestRouteStaleStopKeepsReplacementHolder(t *testing.T) {
+	m, _, e, link := makeRouteWorld(t)
+	a := hello(t, m, "proc:a", "tok-a", "a")
+	b := hello(t, m, "proc:b", "tok-b", "b")
+	share(t, m, a, false)
+	if _, err := m.Share(context.Background(), "tab:t1", ShareRequest{BlockId: "p1", BrowserTabId: "user-tab", SessionId: b, Move: true}); err != nil {
+		t.Fatal(err)
+	}
+	_, errStr := routetest.Ask(t, link, e.Window(), mcpbrowser.ControlCommand, map[string]any{
+		"blockid": "p1", "browsertabid": "user-tab", "action": ControlStop, "expectedsessionid": a,
+	})
+	if errStr == "" {
+		t.Fatal("stale stop must report that the holder changed")
+	}
+	if got := holderOf(m); got != b {
+		t.Fatalf("stale stop removed the replacement holder: got %q, want %q", got, b)
+	}
+}
+
+func TestRouteUndoUsesOriginalSession(t *testing.T) {
+	m, _, e, link := makeRouteWorld(t)
+	a := hello(t, m, "proc:a", "tok-a", "a")
+	share(t, m, a, false)
+	snapshot, _ := m.PanelSnapshot("tab:t1", "p1")
+	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0].SessionId != a {
+		t.Fatalf("snapshot must identify the holder: %+v", snapshot)
+	}
+	_, errStr := routetest.Ask(t, link, e.Window(), mcpbrowser.ControlCommand, map[string]any{
+		"blockid": "p1", "browsertabid": "user-tab", "action": ControlStop, "expectedsessionid": a,
+	})
+	if errStr != "" {
+		t.Fatalf("stop: %s", errStr)
+	}
+	m.Bye("proc:a", a)
+	b := hello(t, m, "proc:b", "tok-a", "replacement")
+	if b == a {
+		t.Fatal("replacement must have a distinct session")
+	}
+	_, errStr = routetest.Ask(t, link, e.Window(), mcpbrowser.ShareCommand, ShareRequest{
+		BlockId: "p1", BrowserTabId: "user-tab", SessionId: a,
+	})
+	if errStr == "" || holderOf(m) != "" {
+		t.Fatalf("undo of ended session must not grant replacement access: error %q holder %q", errStr, holderOf(m))
+	}
+}
+
+func TestRouteUndoAfterSameSessionReconnect(t *testing.T) {
+	m, _, e, link := makeRouteWorld(t)
+	m.LinkReported(context.Background(), "term-a", "proc:a1", "molten-browser", 4242, "a")
+	a := listed(t, m)["term-a"]
+	share(t, m, a, false)
+	_, errStr := routetest.Ask(t, link, e.Window(), mcpbrowser.ControlCommand, map[string]any{
+		"blockid": "p1", "browsertabid": "user-tab", "action": ControlStop, "expectedsessionid": a,
+	})
+	if errStr != "" {
+		t.Fatalf("stop: %s", errStr)
+	}
+	m.EndSessionsForRoute("proc:a1")
+	m.LinkReported(context.Background(), "term-a", "proc:a2", "molten-browser", 4242, "a")
+	if listed(t, m)["term-a"] != a {
+		t.Fatal("reconnect did not retain the original session")
+	}
+	_, errStr = routetest.Ask(t, link, e.Window(), mcpbrowser.ShareCommand, ShareRequest{
+		BlockId: "p1", BrowserTabId: "user-tab", SessionId: a,
+	})
+	if errStr != "" || holderOf(m) != a {
+		t.Fatalf("undo after reconnect: error %q holder %q", errStr, holderOf(m))
+	}
+	snapshot, _ := m.PanelSnapshot("tab:t1", "p1")
+	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0].State != TabStateActive || snapshot.Tabs[0].SessionId != a {
+		t.Fatalf("restored page must be active: %+v", snapshot)
+	}
+}
+
+func TestTabForIgnoresEarlierStoppedGrant(t *testing.T) {
+	key := TabKey{PanelId: "p1", BrowserTabId: "user-tab"}
+	stopped := &agentTab{key: key, state: TabStateStopped}
+	active := &agentTab{key: key, state: TabStateActive}
+	s := &session{tabs: map[int64]*agentTab{1: stopped}}
+	if s.tabFor(key) != nil {
+		t.Fatal("a stopped grant is not a current holder")
+	}
+	s.tabs[2] = active
+	if s.tabFor(key) != active {
+		t.Fatal("the restored grant must be selected over the stopped one")
+	}
+}
 
 func makeRouteWorld(t *testing.T) (*Manager, *fakeEnv, *routetest.Env, *localroute.Link) {
 	t.Helper()

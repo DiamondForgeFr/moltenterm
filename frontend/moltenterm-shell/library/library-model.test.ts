@@ -17,7 +17,6 @@ import {
     sentToAiRows,
     sharedAgentGroups,
     suggestClipboardText,
-    undoSessionId,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -171,22 +170,12 @@ describe("Shared with agents (#1538)", () => {
                 tabId: "t",
                 workspaceId: "w",
                 agentTabs: [
-                    { browsertabid: "x", agentname: "Olivia", agentblockid: "t1", origin: "agent", state: "takenover" },
+                    { browsertabid: "x", agentname: "Olivia", agentblockid: "t1", sessionid: "s1", origin: "agent", state: "takenover" },
                 ],
                 browserTabs: [{ id: "x", url: "https://x.example", title: "X" }],
             } as any,
         ]);
-        expect(rows[0]).toMatchObject({ takenOver: true, agentBlockId: "t1", shared: false });
-    });
-
-    it("undoes with the session of the agent's own terminal only", () => {
-        const sessions = [
-            { sessionid: "s1", blockid: "t1" },
-            { sessionid: "s2", blockid: "t2" },
-        ];
-        expect(undoSessionId(sessions, "t2")).toBe("s2");
-        expect(undoSessionId(sessions, "t9")).toBe("");
-        expect(undoSessionId(sessions, "")).toBe("");
+        expect(rows[0]).toMatchObject({ takenOver: true, agentBlockId: "t1", sessionId: "s1", shared: false });
     });
 
     it("has its words in both languages", () => {

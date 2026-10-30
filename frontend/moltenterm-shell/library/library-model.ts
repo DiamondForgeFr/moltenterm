@@ -106,6 +106,7 @@ export type SentRow = {
     agentName: string;
     // The agent's terminal: its group, and the session Undo shares the page with again.
     agentBlockId: string;
+    sessionId: string;
     workspaceId: string;
     tabId: string;
     panelBlockId: string;
@@ -152,15 +153,6 @@ export function sharedAgentGroups(rows: SentRow[], kindOf?: (agentBlockId: strin
     return groups;
 }
 
-// Undo shares a page again with the session of the agent's terminal, the newest when it has several.
-export function undoSessionId(sessions: { sessionid: string; blockid: string }[], agentBlockId: string): string {
-    if (!agentBlockId) {
-        return "";
-    }
-    const ofBlock = (sessions ?? []).filter((s) => s?.sessionid && s.blockid === agentBlockId);
-    return ofBlock.length > 0 ? ofBlock[ofBlock.length - 1].sessionid : "";
-}
-
 // The pages agents hold now, from every browser panel: the ones the developer shared first, then the ones the agents
 // opened, the most recent first in each. A tab the panel no longer has is left out.
 export function sentToAiRows(panels: SentPanel[]): SentRow[] {
@@ -180,6 +172,7 @@ export function sentToAiRows(panels: SentPanel[]): SentRow[] {
                 url: tab.url,
                 agentName: (held.agentname ?? "").trim(),
                 agentBlockId: held.agentblockid ?? "",
+                sessionId: held.sessionid ?? "",
                 workspaceId: panel.workspaceId,
                 tabId: panel.tabId,
                 panelBlockId: panel.panelBlockId,

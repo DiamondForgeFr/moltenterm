@@ -432,7 +432,10 @@ func (m *Manager) Control(source string, req ControlRequest) error {
 		return fmt.Errorf("unknown control action %q", req.Action)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
-	changed, info, released := m.applyControl(key, req.Action)
+	changed, info, released, mismatch := m.applyControl(key, req.Action, req.ExpectedSessionId)
+	if mismatch {
+		return errors.New("the page's agent session has changed")
+	}
 	if !changed {
 		return nil
 	}
@@ -449,16 +452,19 @@ func (m *Manager) Control(source string, req ControlRequest) error {
 	return nil
 }
 
-func (m *Manager) applyControl(key TabKey, action string) (bool, sessionInfo, bool) {
+func (m *Manager) applyControl(key TabKey, action string, expectedSessionId string) (bool, sessionInfo, bool, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	if expectedSessionId != "" && m.owners[key] != expectedSessionId {
+		return false, sessionInfo{}, false, true
+	}
 	s := m.sessions[m.owners[key]]
 	if s == nil {
-		return false, sessionInfo{}, false
+		return false, sessionInfo{}, false, expectedSessionId != ""
 	}
 	t := s.tabFor(key)
 	if t == nil {
-		return false, sessionInfo{}, false
+		return false, sessionInfo{}, false, expectedSessionId != ""
 	}
 	info := sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}
 	switch action {
@@ -468,30 +474,30 @@ func (m *Manager) applyControl(key TabKey, action string) (bool, sessionInfo, bo
 		t.state = TabStateStopped
 		t.viewport = nil
 		delete(m.owners, key)
-		return true, info, true
+		return true, info, true, false
 	case ControlTakeOver:
 		if t.state != TabStateActive {
-			return false, info, false
+			return false, info, false, false
 		}
 		cancelCallsLocked(t)
 		t.state = TabStateTakenOver
 		// emain clears the emulated viewport when control ends.
 		t.viewport = nil
-		return true, info, false
+		return true, info, false, false
 	case ControlGiveBack:
 		if t.state != TabStateTakenOver {
-			return false, info, false
+			return false, info, false, false
 		}
 		t.state = TabStateActive
 		s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
-		return true, info, false
+		return true, info, false, false
 	}
-	return false, info, false
+	return false, info, false, false
 }
 
 func (s *session) tabFor(key TabKey) *agentTab {
 	for _, t := range s.tabs {
-		if t.key == key {
+		if t.key == key && t.state != TabStateStopped {
 			return t
 		}
 	}
@@ -526,6 +532,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			BrowserTabId: key.BrowserTabId,
 			AgentName:    s.agentName,
 			AgentBlockId: s.blockId,
+			SessionId:    s.id,
 			Origin:       t.origin,
 			State:        t.state,
 			Action:       t.action,

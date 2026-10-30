@@ -71,6 +71,7 @@ export type AgentTab = {
     agentname: string;
     // The agent's terminal (FR-SHELL-084): the agent window finds the pages shared with an agent by it.
     agentblockid?: string;
+    sessionid?: string;
     origin: string;
     state: string;
     action?: string;
