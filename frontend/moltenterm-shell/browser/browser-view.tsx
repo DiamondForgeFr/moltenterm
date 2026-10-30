@@ -39,6 +39,7 @@ import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import { serverErrorText, serverText } from "../i18n/server-text";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
+import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
 import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { SidebarModel } from "../sidebar/sidebar-store";
@@ -610,6 +611,7 @@ export class BrowserViewModel implements ViewModel {
     // The widths are those of the folds, read when the menu opens.
     showOverflowMenu(e: React.MouseEvent, tab: BrowserTab, rowWidth: number): void {
         e.preventDefault();
+        const opener = anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget as Element));
         fireAndForget(async () => {
             const menu: ContextMenuItem[] = [];
             if (rowWidth < FoldNavPx) {
@@ -639,7 +641,7 @@ export class BrowserViewModel implements ViewModel {
             if (engine.length > 0) {
                 menu.push({ type: "separator" }, ...engine);
             }
-            ContextMenuModel.getInstance().showContextMenu(menu, e);
+            ContextMenuModel.getInstance().showContextMenu(menu, opener);
         });
     }
 
