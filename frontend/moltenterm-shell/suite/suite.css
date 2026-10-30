@@ -264,7 +264,9 @@
         background:
             linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, var(--df-surface))),
             var(--df-surface);
-        box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--df-accent) 40%, transparent);
+        /* Below the chip only (#1591): the blur never reaches above it, so the chip cuts the block's outline like a
+           fieldset legend and only the page shows around its top half. */
+        box-shadow: 0 5px 8px -5px color-mix(in srgb, var(--df-accent) 40%, transparent);
         color: var(--df-accent-fg);
         font-size: var(--df-text-chip);
         font-weight: var(--df-weight-semibold);
@@ -302,9 +304,12 @@
         height: var(--df-tile-size);
         border-radius: var(--df-radius-lg);
         background: linear-gradient(to bottom right, var(--df-accent), color-mix(in srgb, var(--df-accent) 75%, black));
+        /* The ring cuts the outline in the page's colour; an app whose blocks sit on several backgrounds sets
+           --df-tile-ring to an empty shadow (0 0 0 0 transparent), since a ring of one colour shows as a lighter frame above the outline (#1591). The
+           drop shadow stays below the tile. */
         box-shadow:
-            0 0 0 2px var(--df-page),
-            0 4px 10px -2px color-mix(in srgb, var(--df-accent) 25%, transparent);
+            var(--df-tile-ring, 0 0 0 2px var(--df-page)),
+            0 6px 8px -6px color-mix(in srgb, var(--df-accent) 25%, transparent);
         color: var(--df-tile-fg);
         font-size: var(--df-text-tile-icon);
     }

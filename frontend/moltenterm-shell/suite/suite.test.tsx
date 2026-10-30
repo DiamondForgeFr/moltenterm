@@ -176,6 +176,23 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(chip.match(/background:[^;]*;/)?.[0]).not.toContain("transparent");
     });
 
+    it("lets the chip and the tile cut the outline cleanly: no shadow above them, no page ring in MoltenTerm (#1591)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        // A shadow reaches above its box by blur + spread - y offset; zero or less keeps the page clean there.
+        const reachAbove = (shadow: string) => {
+            const [, y, blur, spread] = shadow.trim().split(/\s+/).map((v) => parseFloat(v));
+            return blur + spread - y;
+        };
+        const chip = css.match(/\.df-chip \{[^}]*\}/)?.[0] ?? "";
+        expect(reachAbove(chip.match(/box-shadow:\s*([^;]*?)\s*color-mix/)[1])).toBeLessThanOrEqual(0);
+        const tile = css.match(/\.df-icon-tile \{[^}]*\}/)?.[0] ?? "";
+        const tileShadow = tile.match(/box-shadow:([^;]*);/)[1];
+        expect(tileShadow).toContain("var(--df-tile-ring, 0 0 0 2px var(--df-page))");
+        expect(reachAbove(tileShadow.split("),")[1].split("color-mix")[0])).toBeLessThanOrEqual(0);
+        const tokens = readFileSync(join(KitDir, "..", "tokens.css"), "utf8");
+        expect(tokens).toMatch(/\.df-icon-tile \{\s*--df-tile-ring: 0 0 0 0 transparent;\s*\}/);
+    });
+
     it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
         const css = readFileSync(join(KitDir, "suite.css"), "utf8");
         expect(css).toMatch(/\.df-dominos \{[^}]*width: 110px;\s*height: 44px;/);
