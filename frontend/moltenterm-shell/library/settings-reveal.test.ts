@@ -156,7 +156,7 @@ function endOf(timing: KeyframeAnimationOptions): number {
     return ((timing.delay as number) ?? 0) + (timing.duration as number);
 }
 
-describe("settings reveal timeline (DS-SHELL-134)", () => {
+describe("settings reveal timeline (DS-SHELL-138)", () => {
     it("starts the cards in the page's order and ends by 700 ms whatever their number", () => {
         for (let n = 1; n <= 30; n++) {
             const starts = revealStarts(n);

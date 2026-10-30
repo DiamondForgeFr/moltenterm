@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The molten reveal of a settings block opened in the library (FR-SHELL-088, DS-SHELL-134, #1407). From the clicked
+// The molten reveal of a settings block opened in the library (FR-SHELL-088, DS-SHELL-138, #1407). From the clicked
 // tile, one molten stream per card of the block pours to the card's place and spreads over it; the slab cools to cast
 // iron, cracks and breaks open, and the card appears under it. Each card runs RevealMs.card, staggered in the page's
 // order so the whole reveal ends by RevealMs.card + RevealMs.window. One overlay layer holds the molten pieces for the
