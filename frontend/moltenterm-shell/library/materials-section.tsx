@@ -22,6 +22,7 @@ import { t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
+import { DominoLoader } from "../suite/suite";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
 import { useTabIdentity } from "../tab-identity-ui";
@@ -503,7 +504,7 @@ function RecoverStatus({ state, onDismiss }: { state: RecoverState; onDismiss: (
             data-testid="library-materials-recover-status"
             data-state={state.running ? "running" : state.failed != null ? "failed" : "done"}
         >
-            {state.running ? <i className={makeIconClass("spinner", true) + " fa-spin"} aria-hidden /> : null}
+            {state.running ? <DominoLoader /> : null}
             <span className="min-w-0 flex-1">{text}</span>
             {!state.running ? (
                 <button type="button" className="mt-lib-link" onClick={onDismiss}>
