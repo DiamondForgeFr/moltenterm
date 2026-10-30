@@ -15,9 +15,9 @@ import {
     shift,
     size,
     useDismiss,
-    useFloating,
     useInteractions,
 } from "@floating-ui/react";
+import { useFloatingInPlace } from "../floating-in-place";
 
 const EdgePadding = 8;
 const MinMenuHeight = 160;
@@ -51,7 +51,7 @@ export function MenuPopover({
     ariaLabel?: string;
 }) {
     const boundary = paneOf(anchor);
-    const { refs, floatingStyles, context } = useFloating({
+    const { refs, floatingStyles, context } = useFloatingInPlace({
         open: true,
         onOpenChange: (open) => {
             if (!open) {

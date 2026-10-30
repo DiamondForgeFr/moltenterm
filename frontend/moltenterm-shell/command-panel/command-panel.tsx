@@ -12,12 +12,13 @@ import * as WOS from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
-import { autoUpdate, flip, offset, Placement, shift, size, useFloating } from "@floating-ui/react";
+import { autoUpdate, flip, offset, Placement, shift, size } from "@floating-ui/react";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { EqualizeShortcutId } from "../equalize/equalize-actions";
+import { useFloatingInPlace } from "../floating-in-place";
 import { labelled, t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
@@ -843,7 +844,7 @@ function CommandPanel({ open }: CommandPanelProps) {
     useEffect(() => {
         listRef.current?.querySelector(`[data-index="${selected}"]`)?.scrollIntoView({ block: "nearest" });
     }, [selected]);
-    const { refs, floatingStyles, isPositioned, placement } = useFloating({
+    const { refs, floatingStyles, isPositioned, placement } = useFloatingInPlace({
         open: true,
         placement: lockedPlacement ?? placementFor(open),
         strategy: "fixed",
@@ -1298,12 +1299,12 @@ function CommandPanel({ open }: CommandPanelProps) {
             aria-label={t("cmdpanel.aria.commands", { panel: panelName })}
             data-role="command-panel"
             data-blockid-for={blockId}
+            data-placed={isPositioned || undefined}
             className="molten-cmdpanel flex flex-col overflow-hidden rounded-4 border border-line-strong bg-surface-2 shadow-command"
             style={{
                 ...floatingStyles,
                 width: PanelWidthPx,
                 maxWidth: "calc(100vw - 16px)",
-                visibility: isPositioned ? "visible" : "hidden",
             }}
             onKeyDown={onKeyDown}
             onKeyUp={(e) => e.stopPropagation()}
