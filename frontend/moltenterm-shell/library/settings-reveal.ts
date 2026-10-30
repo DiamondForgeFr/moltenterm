@@ -292,7 +292,8 @@ function runPieces(doc: Document, r: ChannelRun, t: (d: number) => number, total
     const len = runLength(r);
     const t0 = t(r.d0);
     const t1 = Math.max(t0, t(r.d1));
-    const out = `translate${axis}(${-r.dir * len}px)`;
+    // Out of the box by its length and its glow, or the glow would show at the run's start before the front comes.
+    const out = `translate${axis}(${-r.dir * (len + 3 * ChannelPx.glow)}px)`;
     const fillKeys = onClock(total, [
         [t0, { transform: out, opacity: 1 }],
         [t1, { transform: `translate${axis}(0px)`, opacity: 1 }],

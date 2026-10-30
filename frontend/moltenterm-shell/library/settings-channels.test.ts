@@ -11,6 +11,7 @@ import {
     channelNetwork,
     ChannelPx,
     channelRoutes,
+    FrameGridPerSecond,
     networkPath,
     runLength,
     setAmbientMotion,
@@ -154,12 +155,18 @@ describe("settings channels: the network", () => {
 });
 
 describe("settings channels: the ambient flow", () => {
-    it("moves one tile per whole-second cycle, in steps of 1/15 s, transform only, with no delay", () => {
+    it("moves one tile per whole-second cycle, stepping on the 1/15 s grid, transform only, with no delay", () => {
         const timing = ambientTiming();
         expect(timing.iterations).toBe(Infinity);
         expect(timing.delay ?? 0).toBe(0);
         expect((timing.duration as number) % 1000).toBe(0);
-        expect(timing.easing).toBe(`steps(${((timing.duration as number) / 1000) * 15})`);
+        const steps = Number(/^steps\((\d+)\)$/.exec(timing.easing)?.[1]);
+        expect(steps).toBe(((timing.duration as number) / 1000) * AmbientFlow.stepsPerSecond);
+        // every step falls on a frame of the shared grid
+        const stepMs = (timing.duration as number) / steps;
+        const gridMs = 1000 / FrameGridPerSecond;
+        expect(stepMs / gridMs).toBeCloseTo(Math.round(stepMs / gridMs), 9);
+        expect(Math.round(stepMs / gridMs)).toBeGreaterThanOrEqual(1);
         const run = { a: { x: 0, y: 0 }, b: { x: 200, y: 0 }, axis: "x" as const, dir: 1 as const, d0: 0, d1: 200 };
         expect(ambientKeyframes(run)).toEqual([
             { transform: "translateX(0px)" },
@@ -172,6 +179,7 @@ describe("settings channels: the ambient flow", () => {
 
     it("starts on a whole cycle of the document timeline", () => {
         expect(snappedStart(12345)).toBe(12000);
+        expect(snappedStart(13345)).toBe(12000);
         expect(snappedStart(12345) % AmbientFlow.cycleMs).toBe(0);
     });
 
@@ -191,7 +199,8 @@ describe("settings channels: the ambient flow", () => {
         setAmbientMotion(anims, false, 9000);
         expect(anims.every((a) => a.playState === "paused")).toBe(true);
         setAmbientMotion(anims, true, 9100);
-        expect(anims.every((a) => a.startTime === 8000)).toBe(true);
+        expect(anims.every((a) => a.startTime === snappedStart(9100))).toBe(true);
+        expect(snappedStart(9100) % AmbientFlow.cycleMs).toBe(0);
     });
 
     it("is pre-painted, in the running colour, and gone under reduced motion", () => {
@@ -205,5 +214,18 @@ describe("settings channels: the ambient flow", () => {
         const channels = css.slice(css.indexOf(".mt-ch-layer {"));
         expect(channels).not.toContain("@container");
         expect(channels).not.toContain("stroke-dashoffset");
+    });
+});
+
+describe("the ambient flow costs no main-thread frame", () => {
+    it("the sidebar's rest check asks for its animations only once everything else says it is at rest", () => {
+        // getAnimations() forces a style update, which costs a main-thread frame while the channels' loops run; the
+        // sidebar asks every 700 ms while the library is open (#1549).
+        const sidebar = readFileSync("frontend/moltenterm-shell/sidebar/workspace-sidebar.tsx", "utf8");
+        const rest = sidebar.slice(sidebar.indexOf("restRef.current = () => {"));
+        const early = rest.indexOf("if (!sidebarAtRest(facts))");
+        expect(early).toBeGreaterThan(0);
+        expect(rest.indexOf("getAnimations")).toBeGreaterThan(early);
+        expect(rest.slice(0, early)).toContain("animating: false");
     });
 });

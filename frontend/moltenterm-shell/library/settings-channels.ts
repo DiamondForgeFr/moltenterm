@@ -9,7 +9,7 @@
 //
 // The channels are engraved grooves of cast iron behind the page (the cards cover them, never text). Once the block is
 // shown, a faint molten flow keeps running in them: one pre-painted tile per straight run, moved along the flow by
-// exactly one tile per whole-second cycle on the 1/15 s grid of the sidebar's heat (#1388, #1399, #1457), transform
+// exactly one tile per whole-second cycle on the 1/15 s grid of the sidebar's heat (#1388, #1399, #1457, every other step), transform
 // only, and paused whenever the view stands still (data-mt-motion). The reveal itself (settings-reveal.ts) pours the
 // molten along the same network.
 
@@ -28,12 +28,17 @@ export const ChannelPx = {
     minAmbientRun: 24,
 } as const;
 
-// The ambient flow: a tile of faint streaks moved by exactly one tile per cycle, in steps of 1/15 s.
+// The ambient flow: a tile of faint streaks moved by exactly one tile per cycle (about 9 px a second). It steps on
+// every other frame of the 1/15 s grid: with nothing else moving in the library, each step is a compositor frame of its
+// own, and 15 a second cost about 4 % of a core where 7.5 keep the slow flow as smooth (measured, #1549).
 export const AmbientFlow = {
     tile: 56,
-    cycleMs: 4000,
-    stepsPerSecond: 15,
+    cycleMs: 6000,
+    stepsPerSecond: 7.5,
 } as const;
+
+// The shared grid the steps fall on (#1388, #1399, #1457).
+export const FrameGridPerSecond = 15;
 
 export type ChannelPoint = { x: number; y: number };
 export type ChannelRect = { x: number; y: number; w: number; h: number };
