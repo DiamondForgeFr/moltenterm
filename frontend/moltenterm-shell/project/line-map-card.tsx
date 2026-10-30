@@ -14,7 +14,7 @@ import { ProjectCardProps } from "./project-context";
 
 const NoFilter = atom(null) as Atom<unknown>;
 
-export function LineMapCard({ project, snapshot, ci, release, blockId, mapFull, toggleMapFull }: ProjectCardProps) {
+export function LineMapCard({ project, projectName, snapshot, ci, release, blockId, mapFull, toggleMapFull }: ProjectCardProps) {
     const branchFilter = useAtomValue(
         blockId ? getBlockMetaKeyAtom(blockId, ProjectBranchesMetaKey as keyof MetaType) : NoFilter
     );
@@ -22,6 +22,7 @@ export function LineMapCard({ project, snapshot, ci, release, blockId, mapFull, 
         <div className={cn(mapFull && "flex h-full min-h-0 flex-col")} data-testid="project-linemap">
             <LineMap
                 dir={project.dir}
+                projectName={projectName}
                 snapshot={snapshot}
                 ciBranches={ci?.branches}
                 ciRunning={ciRunningBranch(ci)}

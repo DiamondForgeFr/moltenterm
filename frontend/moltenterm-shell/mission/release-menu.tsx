@@ -15,7 +15,7 @@ import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-b
 import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, PipelineDrift, releaseMilestone, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
-import { openPipelineSetupTab } from "./pipeline-tab-open";
+import { openSetupTab } from "./pipeline-tab-open";
 import {
     milestoneWarning,
     MilestoneWarning,
@@ -35,17 +35,6 @@ import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
 const MilestoneReadDelayMs = 300;
-
-// The setup actions open the setup's own tab (#1150), focused when it is already open; a failure is said in place.
-function openSetupTab(dir: string, projectName: string, openAt: StepperStep, onError: (text: string) => void) {
-    fireAndForget(async () => {
-        try {
-            await openPipelineSetupTab(dir, projectName, openAt);
-        } catch (e) {
-            onError(serverErrorText(e));
-        }
-    });
-}
 
 export function ReleaseMenu({
     dir,

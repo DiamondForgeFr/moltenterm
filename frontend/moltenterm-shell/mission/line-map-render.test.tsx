@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MapSvg, MotionStyles, ReplayButton } from "./line-map";
 import { layoutLineMap } from "./line-map-geometry";
-import { LineMapBranch, LineMapModel, LineMapStation } from "./line-map-model";
+import { canSetUpRelease, LineMapBranch, LineMapModel, LineMapStation } from "./line-map-model";
 
 const Day = 86_400_000;
 const NOW = new Date("2026-10-05T12:00:00Z").getTime();
@@ -67,11 +67,29 @@ function model(): LineMapModel {
     } as LineMapModel;
 }
 
-function render(ciRunning: string): string {
+function render(ciRunning: string, canSetUp = true): string {
     const m = model();
     const geo = layoutLineMap(m, { width: 1400 });
-    return renderToStaticMarkup(<MapSvg geo={geo} model={m} ciRunning={ciRunning} hit={() => ({})} />);
+    return renderToStaticMarkup(
+        <MapSvg geo={geo} model={m} ciRunning={ciRunning} hit={() => ({})} canSetUp={canSetUp} />
+    );
 }
+
+describe("the next version as a button (#1384)", () => {
+    const terminus = (state: string, tag: string) => ({ tag, state, chip: "", note: "", waiting: 1 }) as never;
+
+    it("is one only when something waits and no release is under way", () => {
+        expect(canSetUpRelease(terminus("decision", "v1.1.0"), null)).toBe(true);
+        expect(canSetUpRelease(terminus("derived", "v1.1.0"), null)).toBe(true);
+        expect(canSetUpRelease(terminus("nothing", null), null)).toBe(false);
+        expect(canSetUpRelease(terminus("chosen", "v1.1.0"), { channel: "public", tag: "v1.1.0" } as never)).toBe(false);
+    });
+
+    it("draws the ring and the route in the neutral state when it is not", () => {
+        expect(render(null, true)).toContain('data-setup="on"');
+        expect(render(null, false)).toContain('data-setup="off"');
+    });
+});
 
 describe("line map motion hooks in the drawing", () => {
     it("marks CI running on develop, idle otherwise", () => {

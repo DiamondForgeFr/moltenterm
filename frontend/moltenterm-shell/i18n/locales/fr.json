@@ -2688,6 +2688,7 @@
                 "build": "build {label}, commit {commit}",
                 "earlier": "{count} versions plus anciennes",
                 "terminus": "Prochaine version publique",
+                "setUpRelease": "Mettre en place la release {tag}",
                 "day": "{count} commits le {day}",
                 "hidden": "{count} branches ouvertes de plus"
             },
@@ -2704,6 +2705,7 @@
             "commits": "{count} commits",
             "fullSizeLanes": "La pleine taille les montre sur leurs propres voies.",
             "clickToOpen": "Cliquez pour ouvrir {what} sur GitHub.",
+            "clickToSetUp": "Cliquez pour mettre en place la release.",
             "notOnGithub": "Pas sur GitHub : le détail vient de git seul.",
             "tagged": "Tagué le {when} ({ago})",
             "fromDevelop": "depuis develop",

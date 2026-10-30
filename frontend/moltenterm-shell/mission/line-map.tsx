@@ -28,6 +28,7 @@ import { BuildMarker } from "./line-map-builds";
 import { GeometryBranch, GeometryBuild, GeometryStation, layoutLineMap, LineMapGeometry } from "./line-map-geometry";
 import {
     buildLineMap,
+    canSetUpRelease,
     commitUrl,
     FullLineMapDayChoices,
     gitFingerprint,
@@ -58,6 +59,7 @@ import {
 import { useLineMapDays, useLocalBuilds } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
 import { MissionSnapshot } from "./mission-model";
+import { openSetupTab } from "./pipeline-tab-open";
 import { ReleaseSession } from "./release-model";
 import { formatDay, formatWhen, timeAgo } from "./time-format";
 import { readableSubject } from "./versions";
@@ -118,6 +120,7 @@ const Styles = `
 .lm-dev { fill: none; stroke: var(--mt-chart-1); stroke-width: 6; stroke-linecap: round; }
 .lm-future { fill: none; stroke: var(--color-primary); stroke-opacity: .35; stroke-width: 3; stroke-dasharray: 4 7; }
 .lm-route { fill: none; stroke: var(--mt-action); stroke-width: 3; stroke-dasharray: 6 8; }
+.lm-svg[data-setup="off"] .lm-route { stroke: var(--color-muted); }
 .lm-br { fill: none; stroke: color-mix(in srgb, var(--color-muted) 80%, var(--color-background)); stroke-width: 2.5; stroke-linecap: round; }
 .lm-br-open { fill: none; stroke: color-mix(in srgb, var(--mt-chart-1) 55%, white); stroke-width: 3; stroke-linecap: round; }
 .lm-br-guess { stroke-dasharray: 2 4; }
@@ -147,6 +150,10 @@ const Styles = `
 .lm-head { fill: var(--mt-chart-1); }
 .lm-term { fill: var(--color-background); stroke: var(--mt-action); stroke-width: 3; }
 .lm-termcore { fill: var(--mt-action); }
+.lm-svg[data-setup="off"] .lm-term { stroke: var(--color-muted); }
+.lm-svg[data-setup="off"] .lm-termcore { fill: var(--color-muted); }
+.lm-hit-act:hover .lm-term, .lm-hit-act:focus-visible .lm-term { fill: color-mix(in srgb, var(--mt-action) 18%, var(--color-background)); }
+.lm-hit-act:hover .lm-termtxt, .lm-hit-act:focus-visible .lm-termtxt { text-decoration: underline; }
 .lm-termtxt { font-family: var(--font-sans); font-weight: 700; font-size: 20px; fill: var(--color-primary); }
 .lm-termsub { font-family: var(--font-sans); font-size: 12px; fill: var(--color-secondary); }
 .lm-termstatus { font-family: var(--font-sans); font-size: 11px; fill: var(--color-muted); }
@@ -240,7 +247,7 @@ function itemUrl(item: MapItem, model: LineMapModel): string {
     return null;
 }
 
-function itemLabel(item: MapItem, model: LineMapModel): string {
+function itemLabel(item: MapItem, model: LineMapModel, setup: boolean): string {
     switch (item.kind) {
         case "station":
             return translate("mc.lineMap.label.station", {
@@ -271,7 +278,9 @@ function itemLabel(item: MapItem, model: LineMapModel): string {
         case "earlier":
             return translate("mc.lineMap.label.earlier", { count: model.earlier.length });
         case "terminus":
-            return translate("mc.lineMap.label.terminus");
+            return setup
+                ? translate("mc.lineMap.label.setUpRelease", { tag: model.terminus.tag })
+                : translate("mc.lineMap.label.terminus");
         case "day":
             return translate("mc.lineMap.label.day", { count: item.commits.length, day: formatDay(item.day) });
         case "hidden":
@@ -553,7 +562,17 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
     );
 }
 
-function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; trunkCi: string }) {
+function Detail({
+    item,
+    model,
+    trunkCi,
+    setup,
+}: {
+    item: MapItem;
+    model: LineMapModel;
+    trunkCi: string;
+    setup: boolean;
+}) {
     const t = useT();
     switch (item.kind) {
         case "station":
@@ -650,6 +669,7 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                             })}
                         </div>
                     )}
+                    {setup ? <div className="pt-1 text-11 text-muted">{t("mc.lineMap.clickToSetUp")}</div> : null}
                 </>
             );
         case "day":
@@ -925,6 +945,8 @@ export type LineMapProps = {
     // Off draws the map as reduced motion does.
     animation?: boolean;
     branchFilter?: unknown;
+    // The project's name, for the setup the next version opens; the folder's name when absent.
+    projectName?: string;
 };
 
 // The same value as last render when its key did not change: every snapshot event decodes new objects, and the map
@@ -948,8 +970,10 @@ export function LineMap({
     blockId,
     animation = true,
     branchFilter,
+    projectName,
 }: LineMapProps) {
     const t = useT();
+    const [setupError, setSetupError] = useState<string>(null);
     // The model and its layout carry words: they are built again in a new interface language.
     const locale = useLocale();
     const [days, setDays] = useLineMapDays(dir, full, blockId);
@@ -1069,11 +1093,18 @@ export function LineMap({
         [keep]
     );
 
+    const canSetUp = model != null && !!dir && canSetUpRelease(model.terminus, release);
     // Stable while the model is: hovering re-renders the frame and the detail, never the map itself.
     const hit = useCallback(
         (item: MapItem): React.SVGProps<SVGGElement> => {
             const url = model ? itemUrl(item, model) : null;
+            const setup = canSetUp && item.kind === "terminus";
             const open = () => {
+                if (setup) {
+                    setSetupError(null);
+                    openSetupTab(dir, projectName, undefined, setSetupError);
+                    return;
+                }
                 if (!url) {
                     return;
                 }
@@ -1082,8 +1113,8 @@ export function LineMap({
             return {
                 tabIndex: 0,
                 role: url ? "link" : "button",
-                "aria-label": model ? itemLabel(item, model) : undefined,
-                className: cn("lm-hit", url && "cursor-pointer"),
+                "aria-label": model ? itemLabel(item, model, setup) : undefined,
+                className: cn("lm-hit", (url || setup) && "cursor-pointer", setup && "lm-hit-act"),
                 onPointerEnter: (e: React.PointerEvent<SVGGElement>) => show(item, e.currentTarget),
                 onPointerLeave: hideSoon,
                 onFocus: (e: React.FocusEvent<SVGGElement>) => show(item, e.currentTarget),
@@ -1100,7 +1131,7 @@ export function LineMap({
                 },
             };
         },
-        [model, show, hideSoon]
+        [model, show, hideSoon, canSetUp, dir, projectName]
     );
 
     const choices = full ? FullLineMapDayChoices : LineMapDayChoices;
@@ -1152,7 +1183,14 @@ export function LineMap({
                 {geo && model ? (
                     <div className="flex w-max min-w-full">
                         <LineLabels model={model} geo={geo} width={labelWidth} />
-                        <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
+                        <MapSvg
+                            key={intro.run}
+                            geo={geo}
+                            model={model}
+                            ciRunning={ciRunning}
+                            hit={hit}
+                            canSetUp={canSetUp}
+                        />
                     </div>
                 ) : (
                     <div
@@ -1171,8 +1209,13 @@ export function LineMap({
                     onPointerLeave={hideSoon}
                     className="flex w-80 flex-col gap-1 p-2.5 text-12"
                 >
-                    <Detail item={hover.item} model={model} trunkCi={trunkCi} />
+                    <Detail item={hover.item} model={model} trunkCi={trunkCi} setup={canSetUp} />
                 </MenuPopover>
+            ) : null}
+            {setupError ? (
+                <div className="text-11 text-danger" data-testid="line-map-setup-error">
+                    {setupError}
+                </div>
             ) : null}
         </section>
     );
@@ -1297,11 +1340,13 @@ export const MapSvg = memo(function MapSvg({
     model,
     ciRunning,
     hit,
+    canSetUp,
 }: {
     geo: LineMapGeometry;
     model: LineMapModel;
     ciRunning: string;
     hit: HitProps;
+    canSetUp: boolean;
 }) {
     const trunkCi = ciRunning && ciRunning === model.trunk ? "running" : "idle";
     const dev = `M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`;
@@ -1317,6 +1362,7 @@ export const MapSvg = memo(function MapSvg({
                 role="group"
                 aria-label={translate("mc.lineMap.svgLabel", { days: model.days })}
                 data-ci={trunkCi}
+                data-setup={canSetUp ? "on" : "off"}
                 data-single={geo.single ? "true" : undefined}
             >
                 {/* Times the load sequence: its end tells the map the sequence played. */}
