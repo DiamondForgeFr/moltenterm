@@ -28,7 +28,7 @@ import { openWebLink } from "../open-web-link";
 import { sessionRowDragProps } from "../split/drop-zones";
 import { whileShown } from "../tab-activity";
 import { copyText } from "../term-copy/term-copy";
-import { TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
+import { previousLoginBlockIds, TermUpdateOutcome, updateAllSummary } from "../termupdate/termupdate-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { showToast } from "../toast-store";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
@@ -382,7 +382,8 @@ function Check({
     );
 }
 
-function VersionChip({ mark }: { mark: VersionMark }) {
+// lostNetwork: the terminal started before the current login and no longer reaches the network (#1194).
+function VersionChip({ mark, lostNetwork }: { mark: VersionMark; lostNetwork: boolean }) {
     const t = useT();
     if (mark !== "outdated") {
         return null;
@@ -390,10 +391,10 @@ function VersionChip({ mark }: { mark: VersionMark }) {
     return (
         <span
             className="shrink-0 rounded-4 bg-warning/15 px-1 text-11 whitespace-nowrap text-warning"
-            title={t("sessions.view.outdatedTitle")}
+            title={lostNetwork ? t("sessions.view.noNetworkTitle") : t("sessions.view.outdatedTitle")}
             data-testid="session-outdated"
         >
-            {t("sessions.view.outdated")}
+            {lostNetwork ? t("sessions.view.noNetwork") : t("sessions.view.outdated")}
         </span>
     );
 }
@@ -443,6 +444,7 @@ function SessionRow({
     home,
     now,
     version,
+    lostNetwork,
     mergedPr,
     rowRef,
     onFocusRow,
@@ -463,6 +465,7 @@ function SessionRow({
     home: string;
     now: number;
     version: VersionMark;
+    lostNetwork: boolean;
     mergedPr: number;
     rowRef: (elem: HTMLDivElement) => void;
     onFocusRow: () => void;
@@ -552,7 +555,7 @@ function SessionRow({
                                 {reasonLabel(session.reason)}
                             </span>
                         ) : null}
-                        <VersionChip mark={version} />
+                        <VersionChip mark={version} lostNetwork={lostNetwork} />
                         <WorktreeMark session={session} />
                         <MergedPrMark session={session} pr={mergedPr} />
                         <ConnectionChip session={session} />
@@ -626,7 +629,7 @@ function SessionRow({
                         tabIndex={tabIndex}
                         className={RowButton}
                         disabled={!!busy}
-                        title={t("sessions.view.outdatedTitle")}
+                        title={lostNetwork ? t("sessions.view.noNetworkTitle") : t("sessions.view.outdatedTitle")}
                         data-testid="session-update"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -923,6 +926,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const orderKey = order.join("\n");
     const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
     const outdatedBlocks = useMemo(() => new Set(outdated.terminals.map((term) => term.blockid)), [outdated]);
+    const previousLoginBlocks = useMemo(() => previousLoginBlockIds(outdated), [outdated]);
     const updatable = order.map((id) => byId.get(id)).filter((s) => s != null && canUpdate(s, outdatedBlocks));
     const mergedPrs = useMergedPrs(allSessions, panelId);
 
@@ -1317,6 +1321,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                                                     : ""
                                             }
                                             version={versionMark(s, outdatedBlocks)}
+                                            lostNetwork={s.blockid != null && previousLoginBlocks.has(s.blockid)}
                                             onInterrupt={() => interrupt(s)}
                                             onUpdate={canUpdate(s, outdatedBlocks) ? () => askUpdate(s) : null}
                                             onCopied={() => setNotice({ text: t("sessions.view.copied") })}

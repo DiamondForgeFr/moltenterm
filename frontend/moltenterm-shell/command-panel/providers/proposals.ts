@@ -11,6 +11,7 @@ import { fireAndForget } from "@/util/util";
 import { AgentHookOffers } from "../../agent-hooks-store";
 import { HeaderProposals } from "../../header/header-proposals";
 import { t } from "../../i18n/i18n";
+import { updateProposalLabel } from "../../termupdate/termupdate-model";
 import { TermUpdates } from "../../termupdate/termupdate-store";
 import { pathBaseName } from "../../workspace-project";
 import { linkWorktree } from "../../worktree-store";
@@ -20,10 +21,11 @@ export function proposalSuggestions(ctx: PanelContext): PanelSuggestion[] {
     const proposals = HeaderProposals.getInstance();
     const blockId = ctx.blockId;
     const rtn: PanelSuggestion[] = [];
-    if (globalStore.get(TermUpdates.getInstance().blockAtom(blockId)) != null) {
+    const outdated = globalStore.get(TermUpdates.getInstance().blockAtom(blockId));
+    if (outdated != null) {
         rtn.push({
             id: "molten:termupdate",
-            label: t("cmdpanel.proposals.updateTerminal"),
+            label: updateProposalLabel(outdated),
             icon: "arrows-rotate",
             tone: "accent",
             run: () => proposals.request(blockId, "termupdate"),

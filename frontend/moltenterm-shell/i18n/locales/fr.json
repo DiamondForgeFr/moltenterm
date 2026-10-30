@@ -428,6 +428,8 @@
             "agentStarted": "Démarré avant la mise à jour : {agent} tourne sans le navigateur ni les hooks de MoltenTerm.",
             "olderShell": "Ce shell a été démarré par une ancienne version de MoltenTerm : les agents lancés ici n'ont pas le navigateur ni les hooks de MoltenTerm.",
             "olderEnv": "Ce shell a encore un ancien environnement MoltenTerm.",
+            "noNetwork": "Démarré avant votre dernière ouverture de session sur cet ordinateur : ce shell n'atteint plus le réseau ni les services du système.",
+            "agentNoNetwork": "Démarré avant votre dernière ouverture de session sur cet ordinateur : {agent} n'atteint plus le réseau ni les services du système.",
             "agentAction": "Mettre à jour le terminal redémarre {agent} dans un nouveau shell, sur la même conversation.",
             "shellAction": "Mettre à jour le terminal remplace le shell dans le même dossier ; l'historique reste."
         },
@@ -451,6 +453,7 @@
         "dialog": {
             "title": "Redémarrer {agent} ?",
             "subtitle": "Il a été démarré avant la mise à jour de MoltenTerm, sans son navigateur ni ses hooks.",
+            "subtitleNoNetwork": "Il a été démarré avant votre dernière ouverture de session sur cet ordinateur et n'atteint plus le réseau.",
             "restart": "Redémarrer {agent}",
             "body": "MoltenTerm tape la commande de sortie de {agent}, attend qu'il se termine, démarre un nouveau shell dans le même dossier et relance {agent} sur la même conversation, avec la connexion de MoltenTerm.",
             "note": "Avant cela, Échap répond Non à une question que {agent} pose peut-être, et un brouillon non envoyé dans sa saisie est effacé. Rien n'est tué : si {agent} ne se termine pas, il continue de tourner."
@@ -2298,6 +2301,7 @@
         },
         "proposals": {
             "updateTerminal": "Mettre à jour le terminal",
+            "restartNoNetwork": "Redémarrer le terminal (plus de réseau)",
             "setupHooks": "Configurer les hooks de {agent}",
             "linkWorktree": "Lier le worktree {name}"
         },
@@ -7129,6 +7133,8 @@
             "updateAll": "Tout mettre à jour ({count})…",
             "outdated": "pas à jour",
             "outdatedTitle": "Lancée sur une ancienne version de MoltenTerm : ses outils et réglages ne sont pas les actuels.",
+            "noNetwork": "sans réseau",
+            "noNetworkTitle": "Lancée avant votre dernière ouverture de session sur cet ordinateur : elle n'atteint plus le réseau. Mettre à jour la redémarre dans un shell neuf, son agent sur la même conversation.",
             "copied": "Chemin copié",
             "copyPathTitle": "{title}\nCliquer pour copier le chemin"
         },
@@ -8489,6 +8495,11 @@
             }
         },
         "notif": {
+            "termupdate": {
+                "previousLoginTitle": "Des terminaux n'ont plus accès au réseau",
+                "previousLogin": "{count} terminal(aux) ont démarré avant votre dernière ouverture de session sur cet ordinateur : ni eux ni leurs agents n'atteignent plus le réseau. Redémarrez-les avec Mettre à jour le terminal.",
+                "showSessions": "Voir les sessions"
+            },
             "railgroups": {
                 "movedTitle": "{workspace} a rejoint {product}",
                 "moved": "{workspace} appartient désormais à {product}, déclaré dans ses fichiers de projet : il a donc quitté le groupe {group}. Les groupes de projet passent en premier."

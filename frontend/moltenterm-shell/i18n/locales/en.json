@@ -428,6 +428,8 @@
             "agentStarted": "Started before the update: {agent} runs without MoltenTerm's browser and hooks.",
             "olderShell": "This shell was started by an older MoltenTerm: agents started here miss MoltenTerm's browser and hooks.",
             "olderEnv": "This shell still has an older MoltenTerm environment.",
+            "noNetwork": "Started before you last logged in to this computer: this shell can no longer reach the network or the system's services.",
+            "agentNoNetwork": "Started before you last logged in to this computer: {agent} can no longer reach the network or the system's services.",
             "agentAction": "Update terminal restarts {agent} in a fresh shell, on the same conversation.",
             "shellAction": "Update terminal replaces the shell in the same folder; the scrollback stays."
         },
@@ -451,6 +453,7 @@
         "dialog": {
             "title": "Restart {agent}?",
             "subtitle": "It was started before MoltenTerm's update, without its browser and hooks.",
+            "subtitleNoNetwork": "It was started before you last logged in to this computer and can no longer reach the network.",
             "restart": "Restart {agent}",
             "body": "MoltenTerm types {agent}'s exit command, waits for it to exit, starts a fresh shell in the same folder and starts {agent} again on the same conversation, with MoltenTerm's agent hookup.",
             "note": "Before that, Escape answers No to a question {agent} may be asking and an unsent draft in its input is cleared. Nothing is killed: if {agent} does not exit, it keeps running."
@@ -2298,6 +2301,7 @@
         },
         "proposals": {
             "updateTerminal": "Update terminal",
+            "restartNoNetwork": "Restart terminal (no network)",
             "setupHooks": "Set up {agent}'s hooks",
             "linkWorktree": "Link the worktree {name}"
         },
@@ -7129,6 +7133,8 @@
             "updateAll": "Update all outdated ({count})…",
             "outdated": "outdated",
             "outdatedTitle": "Started on an older MoltenTerm version: its tools and settings are not the current ones.",
+            "noNetwork": "no network",
+            "noNetworkTitle": "Started before you last logged in to this computer: it can no longer reach the network. Update restarts it in a fresh shell, its agent on the same conversation.",
             "copied": "Path copied",
             "copyPathTitle": "{title}\nClick to copy the path"
         },
@@ -8489,6 +8495,11 @@
             }
         },
         "notif": {
+            "termupdate": {
+                "previousLoginTitle": "Some terminals lost network access",
+                "previousLogin": "{count} terminal(s) were started before you last logged in to this computer: they and their agents can no longer reach the network. Restart them with Update terminal.",
+                "showSessions": "Show sessions"
+            },
             "railgroups": {
                 "movedTitle": "{workspace} moved to {product}",
                 "moved": "{workspace} now belongs to {product}, declared in its project files, so it left the group {group}. Project groups come first."

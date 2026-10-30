@@ -15,7 +15,8 @@ export const TermUpdateListCommand = "moltentermupdatelist";
 export const TermUpdateCheckCommand = "moltentermupdatecheck";
 export const TermUpdateRunCommand = "moltentermupdaterun";
 
-export type OutdatedReason = "nogeneration" | "oldergeneration" | "agentbeforerefresh";
+// previouslogin: started before the current login on this computer, so cut off from the network (#1194).
+export type OutdatedReason = "nogeneration" | "oldergeneration" | "agentbeforerefresh" | "previouslogin";
 
 export type OutdatedTerminal = {
     blockid: string;
@@ -74,7 +75,9 @@ export function outdatedTitle(term: OutdatedTerminal): string {
     }
     const name = term.agentname || term.agent;
     const lines: string[] = [];
-    if (name) {
+    if (term.reason === "previouslogin") {
+        lines.push(name ? t("termupdate.title.agentNoNetwork", { agent: name }) : t("termupdate.title.noNetwork"));
+    } else if (name) {
         lines.push(t("termupdate.title.agentStarted", { agent: name }));
     } else if (term.reason === "nogeneration") {
         lines.push(t("termupdate.title.olderShell"));
@@ -87,6 +90,22 @@ export function outdatedTitle(term: OutdatedTerminal): string {
         lines.push(t("termupdate.title.shellAction"));
     }
     return lines.join("\n");
+}
+
+export function previousLoginBlockIds(data: OutdatedData): Set<string> {
+    return new Set((data?.terminals ?? []).filter((t) => t.reason === "previouslogin").map((t) => t.blockid));
+}
+
+// The header proposal's label: a terminal cut off from the network says so, the others offer the update.
+export function updateProposalLabel(term: OutdatedTerminal): string {
+    return term?.reason === "previouslogin"
+        ? t("cmdpanel.proposals.restartNoNetwork")
+        : t("cmdpanel.proposals.updateTerminal");
+}
+
+// The restart dialog's line under its title.
+export function restartDialogSubtitle(reason: OutdatedReason): string {
+    return reason === "previouslogin" ? t("termupdate.dialog.subtitleNoNetwork") : t("termupdate.dialog.subtitle");
 }
 
 // What the palette entry says it will do.

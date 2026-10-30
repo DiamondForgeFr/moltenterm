@@ -15,7 +15,7 @@ import { t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { TermUpdateOutcome } from "./termupdate-model";
+import { OutdatedReason, restartDialogSubtitle, TermUpdateOutcome } from "./termupdate-model";
 import { termupdateMessage } from "./termupdate-text";
 import { TermUpdates } from "./termupdate-store";
 
@@ -76,6 +76,7 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
     return (
         <TermUpdateDialog
             state={dialog}
+            reason={outdated?.reason}
             pending={pending}
             onConfirm={() => run(true)}
             onClose={() => setDialog(null)}
@@ -85,11 +86,13 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
 
 function TermUpdateDialog({
     state,
+    reason,
     pending,
     onConfirm,
     onClose,
 }: {
     state: DialogState;
+    reason: OutdatedReason;
     pending: boolean;
     onConfirm: () => void;
     onClose: () => void;
@@ -103,7 +106,7 @@ function TermUpdateDialog({
                 role="molten-termupdate-dialog"
                 onEscape={pending ? undefined : onClose}
                 title={t("termupdate.dialog.title", { agent: name })}
-                subtitle={t("termupdate.dialog.subtitle")}
+                subtitle={restartDialogSubtitle(reason)}
                 trapFocus
                 buttons={
                     <>
