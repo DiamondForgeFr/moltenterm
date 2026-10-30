@@ -247,7 +247,9 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     }, []);
 
     const agent = names[firstBlockId] || t("view360.places.fallbackAgent");
-    const panel = names[blockId] || t("view360.places.fallbackPanel");
+    const panel = names[blockId]
+        ? t("view360.places.quotedName", { name: names[blockId] })
+        : t("view360.places.fallbackPanel");
     const why = optionsWhy(options);
     const planLines = groupPlanLines(
         choices.plan,

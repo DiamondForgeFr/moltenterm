@@ -5790,7 +5790,8 @@
             "groupUnder": {
                 "one": "{panels} sera épinglé sous {agent}, faute de place à côté",
                 "other": "{panels} seront épinglés sous {agent}, faute de place à côté"
-            }
+            },
+            "quotedName": "«�{name}�»"
         }
     },
     "termcopy": {
