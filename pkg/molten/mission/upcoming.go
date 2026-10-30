@@ -103,6 +103,10 @@ type BranchAgent struct {
 	Model       string `json:"model,omitempty"`
 	Description string `json:"description,omitempty"`
 	State       string `json:"state,omitempty"`
+	// Signed (#1603): a background agent named by its work's signature (FirstName, AgentName: the CLI's name as
+	// signed, Agent when the catalog knows it); BlockId is then the signer's session when it is still open.
+	Signed    bool   `json:"signed,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
 }
 
 // PaneSubagent is a sub-agent of a running agent panel, as its own files describe it.
@@ -340,7 +344,14 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	if u.env.Subagents != nil {
 		answer.Agents = append(answer.Agents, SubagentBranchAgents(trees, answer.Agents, u.env.Subagents(places))...)
 	}
-	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes)...)
+	targetRef := answer.Target
+	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
+		targetRef = "refs/remotes/origin/" + answer.Target
+	}
+	procs := u.procsReader()
+	answer.Agents = append(answer.Agents, u.backgroundAgents(ctx, trees, answer.Agents, places, ticketRes, backgroundFacts{
+		procs: procs, targetRef: targetRef, prBodies: openPrBodies(snap),
+	})...)
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
 	if !known {
@@ -348,11 +359,7 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 		return answer
 	}
 	candidates := UpcomingCandidates(refs, heads, ticketRes, answer.Target, trees, agentBranches(answer.Agents))
-	targetRef := answer.Target
-	if _, err := g.out("rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+answer.Target); err == nil {
-		targetRef = "refs/remotes/origin/" + answer.Target
-	}
-	ownerOf := u.lockOwners(places, answer.Agents)
+	ownerOf := lockOwners(places, answer.Agents, procs)
 	closed := closedPrsByBranch(snap)
 	remotes := remoteBranches(refs)
 	prTickets := openPrTickets(snap, ticketRes)
@@ -799,7 +806,10 @@ func (u *Upcoming) treeActivity(ctx context.Context, tree string) int64 {
 	return newest
 }
 
-func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, panels []BranchAgent, places []AgentPlace, ticketRes []*regexp.Regexp) []BranchAgent {
+// backgroundAgents finds the agents of the linked ticket worktrees no agent terminal is placed in, in the order of
+// #1603: a live agent panel whose process tree works inside the worktree, then (for a worktree with recent activity)
+// its signature, then its agent's own worktrees folder, else an unnamed background agent.
+func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, panels []BranchAgent, places []AgentPlace, ticketRes []*regexp.Regexp, facts backgroundFacts) []BranchAgent {
 	if len(trees) < 2 {
 		return nil
 	}
@@ -807,20 +817,46 @@ func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, pane
 	for _, a := range panels {
 		busy[a.Worktree] = true
 	}
-	activity := map[string]int64{}
-	read := 0
+	var cands []treeEntry
 	for _, tree := range trees[1:] {
-		if busy[tree.path] || tree.branch == "" || ticketOfBranch(tree.branch, ticketRes) == 0 || read >= backgroundMaxTrees {
+		if busy[tree.path] || tree.branch == "" || ticketOfBranch(tree.branch, ticketRes) == 0 {
 			continue
 		}
 		// The session that locked it for its agent ended (#1121): no agent runs there, however recent its files.
 		if ended, _ := LockEnded(tree.lockReason); tree.locked && ended {
 			continue
 		}
+		cands = append(cands, tree)
+	}
+	if len(cands) == 0 {
+		return nil
+	}
+	var rtn []BranchAgent
+	if hasAgentPids(places) && facts.procs != nil {
+		rtn = LiveTreeAgents(cands, places, facts.procs())
+	}
+	known := append([]BranchAgent{}, panels...)
+	known = append(known, rtn...)
+	for _, a := range rtn {
+		busy[a.Worktree] = true
+	}
+	activity := map[string]int64{}
+	read := 0
+	for _, tree := range cands {
+		if busy[tree.path] || read >= backgroundMaxTrees {
+			continue
+		}
 		read++
 		activity[tree.path] = u.treeActivity(ctx, tree.path)
 	}
-	return BackgroundAgents(trees, panels, places, activity, u.env.Now())
+	for _, agent := range BackgroundAgents(trees, known, places, activity, u.env.Now()) {
+		sig, ok := u.treeSignature(ctx, agent.Worktree, facts.targetRef, facts.prBodies[agent.Branch])
+		if ok {
+			agent = SignedAgent(agent, sig, places)
+		}
+		rtn = append(rtn, agent)
+	}
+	return rtn
 }
 
 // BackgroundAgents reports the linked worktrees without an agent terminal whose activity is recent. The parent is the

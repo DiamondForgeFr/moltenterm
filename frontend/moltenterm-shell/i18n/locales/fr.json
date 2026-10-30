@@ -5856,7 +5856,8 @@
             "waiting": "vous attend",
             "done": "terminé",
             "idle": "inactif",
-            "background": "probablement actif"
+            "background": "probablement actif",
+            "signed": "signé · probablement actif"
         },
         "duration": {
             "lessThanMinute": "moins d'une minute",
@@ -5915,7 +5916,8 @@
                 "idle": "{name} est inactif",
                 "subagent": "Un sous-agent de {name} s'en occupe",
                 "subagentDone": "Un sous-agent de {name} a terminé",
-                "background": "Un agent s'en occupe probablement"
+                "background": "Un agent s'en occupe probablement",
+                "signed": "{name} s'en occupe probablement"
             },
             "session": {
                 "title": "Session de {name}",

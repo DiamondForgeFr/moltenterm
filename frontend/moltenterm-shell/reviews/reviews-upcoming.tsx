@@ -84,7 +84,7 @@ function agentPanel(agent: AgentBarFacts): string {
     if (agent == null) {
         return "";
     }
-    return agent.kind === "panel" ? (agent.blockId ?? "") : (agent.parentBlockId ?? "");
+    return agent.kind === "panel" || agent.signed ? (agent.blockId ?? "") : (agent.parentBlockId ?? "");
 }
 
 export function UpcomingSection({
@@ -220,6 +220,9 @@ export function upcomingState(t: TFunction, branch: UpcomingBranch, agent: Agent
             .filter(Boolean)
             .join(", ");
         return { tone: "wait", sentence: t("reviewsAgents.upcoming.state.nobody"), why, saysStatus: true };
+    }
+    if (agent.kind === "background" && agent.signed && agent.name) {
+        return { tone: "agent", sentence: t("reviewsAgents.upcoming.state.signed", { name: agent.name }) };
     }
     if (agent.kind === "background") {
         return agent.parentName

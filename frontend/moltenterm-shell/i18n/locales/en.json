@@ -5856,7 +5856,8 @@
             "waiting": "waiting for you",
             "done": "done",
             "idle": "idle",
-            "background": "probably active"
+            "background": "probably active",
+            "signed": "signed · probably active"
         },
         "duration": {
             "lessThanMinute": "less than a minute",
@@ -5915,7 +5916,8 @@
                 "idle": "{name} is idle",
                 "subagent": "A sub-agent of {name} is on it",
                 "subagentDone": "A sub-agent of {name} has finished",
-                "background": "An agent is probably on it"
+                "background": "An agent is probably on it",
+                "signed": "{name} is probably on it"
             },
             "session": {
                 "title": "{name}'s session",

@@ -104,6 +104,26 @@ describe("AgentBar (#712 AC2, AC4)", () => {
         expect(html).toMatch(/data-testid="reviews-agent-parent"[\s\S]*Valentin&#x27;s session/);
     });
 
+    it("names a signed background agent, its CLI as data, Go to only while its session is open (#1603)", () => {
+        const facts: AgentBarFacts = {
+            kind: "background",
+            agent: "codex",
+            agentName: "Codex",
+            name: "Jérôme",
+            signed: true,
+            state: "background",
+            since: Now - 3.5 * 60_000,
+        };
+        const html = renderToStaticMarkup(<AgentBar facts={facts} />);
+        expect(html).toMatch(/data-testid="reviews-agent-name"[^>]*>Jérôme</);
+        expect(html).toMatch(/data-testid="reviews-agent-details"[^>]*>Codex</);
+        expect(html).toContain("signed · probably active");
+        expect(html).not.toContain("Background agent");
+        expect(html).not.toContain('data-testid="reviews-agent-goto"');
+        const live = renderToStaticMarkup(<AgentBar facts={{ ...facts, blockId: "b4" }} />);
+        expect(live).toContain('data-testid="reviews-agent-goto"');
+    });
+
     it("names a sub-agent by its parent, tool, model and task, Go to showing the parent (#1035)", () => {
         const facts: AgentBarFacts = {
             kind: "subagent",
