@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom, getDefaultStore } from "jotai";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +27,8 @@ vi.mock("./keepawake-store", async () => {
     const stateAtom = makeAtom({});
     const model = {
         stateAtom,
-        coffeeAtom: () => makeAtom((get) => (get(stateAtom) as any).coffees.find((c: any) => c.workspaceid === "ws1") ?? null),
+        coffeeAtom: () =>
+            makeAtom((get) => (get(stateAtom) as any).coffees.find((c: any) => c.workspaceid === "ws1") ?? null),
         setCoffee: vi.fn(),
         setOverride: vi.fn(),
     };
@@ -58,10 +61,11 @@ beforeEach(() => {
 describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
     it("stays in the window row while nothing keeps the computer awake, calm and not pressed", () => {
         for (const html of [item(), item("status")]) {
-            expect(html).toContain("fa-mug-hot");
+            expect(html).toContain('data-testid="keepawake-cup-icon"');
             expect(html).toContain('aria-pressed="false"');
             expect(html).toContain("text-muted");
             expect(html).not.toContain("data-lit");
+            expect(html).not.toContain("data-on");
         }
         setState({ attempts: [attempt({ outcome: "neutralised" })] });
         expect(item()).not.toContain("data-lit");
@@ -76,6 +80,47 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         expect(html).not.toContain("fa-moon");
     });
 
+    it("shows coffee mode on by the icon itself (coloured, steaming), never by a background (#1470)", () => {
+        setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
+        for (const html of [item(), item("status")]) {
+            expect(html).toMatch(/class="mt-cup [^"]*"[^>]*data-on=""/);
+            expect(html.match(/mt-cup-steam mt-cup-steam-/g)).toHaveLength(3);
+            expect(html).not.toMatch(/<button[^>]*class="([^"]* )?bg-hover[ "]/);
+        }
+        setState({});
+        expect(item()).not.toContain("data-on");
+    });
+
+    it("starts its tooltip with the state of coffee mode (#1470)", () => {
+        setState({ hold: true, coffees: [{ workspaceid: "ws1", workspacename: "Alpha", since: 1, working: true }] });
+        expect(item()).toContain('title="Coffee mode on · Keeping this computer awake:');
+        setState({});
+        expect(item()).toContain('title="Coffee mode off · Not keeping this computer awake');
+    });
+
+    it("does not show on when only something else holds: the icon is not coloured, a click turns coffee on", () => {
+        setState({ attempts: [attempt({})] });
+        expect(item()).not.toContain("data-on");
+    });
+
+    it("keeps the steam's motion cheap and still under reduced motion (DS-SHELL-151, #1470)", () => {
+        const css = readFileSync(join(__dirname, "keepawake-cup.css"), "utf8");
+        expect(css).toMatch(/\.mt-cup\[data-on\] \{\s*color: var\(--mt-state-running\);/);
+        expect(css).not.toContain("--mt-action");
+        expect(css).not.toMatch(/@container|container-type/);
+        const motion = css.match(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}\n/)?.[1] ?? "";
+        expect(motion).toContain("animation-duration: 4s;");
+        expect(motion).toContain("animation-timing-function: steps(30);");
+        expect(motion).toContain("animation-delay: 0s;");
+        for (const i of [1, 2, 3]) {
+            expect(motion).toContain(`animation-name: mt-cup-steam-${i};`);
+            expect(css).toContain(`@keyframes mt-cup-steam-${i} {`);
+        }
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-cup\[data-on\] \.mt-cup-steam,[^{]*\{\s*animation: none;/);
+        const keyframes = css.slice(css.indexOf("@keyframes"));
+        expect(keyframes.replace(/transform|opacity/g, "")).not.toMatch(/\b(top|left|width|height|margin|filter)\s*:/);
+    });
+
     it("is lit but not pressed when only a terminal holds: a click turns this workspace's coffee on", () => {
         setState({ attempts: [attempt({})] });
         const html = item();
@@ -87,7 +132,7 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
         Hoisted.policy = "untilworkends";
         setState({ attempts: [attempt({})] });
         const html = item();
-        expect(html).toContain("Keeping this computer awake: a terminal asked to stay awake");
+        expect(html).toContain("Coffee mode off · Keeping this computer awake: a terminal asked to stay awake");
         expect(html).toContain("Energy setting: Until work ends");
         expect(html).toContain("Click: on/off · Right-click: options");
         expect(html).not.toContain("Open Preferences");
