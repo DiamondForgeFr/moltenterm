@@ -14,7 +14,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { readBuildInfo, readRuntimeChannel } from "./build/current-build";
 import { useLocale, useT } from "./i18n/i18n";
-import { KeepAwakeStatusItem } from "./keepawake-ui";
+import { KeepAwakeStatusItem } from "./keepawake-cup";
 import { MoltentermCicdView } from "./mission/cicd-view";
 import { openMoltentermView } from "./open-view";
 import { openWebLink } from "./open-web-link";

@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // What the windows show of the keep-awake (FR-SHELL-023, DS-SHELL-062; FR-SHELL-103): the coffee droplet on a rail item
-// and on a collapsed product, the cup that appears in the window row only while something keeps the computer awake and
-// links to Preferences › Energy, and that card's details: the workspace's coffee, what holds the computer awake now
-// and the terminals that asked, with the per-session override. The OS-level detection and the marks on panes, tabs and
-// the Sessions view are FR-SHELL-022's.
+// and on a collapsed product, and the Energy card's details: the workspace's coffee, what holds the computer awake now
+// and the terminals that asked, with the per-session override. The cup of the window row is keepawake-cup.tsx
+// (#1408). The OS-level detection and the marks on panes, tabs and the Sessions view are FR-SHELL-022's.
 
 import { atoms, useSettingsKeyAtom } from "@/app/store/global";
 import { PLATFORM } from "@/util/platformutil";
@@ -27,9 +26,6 @@ import {
     KeepAwakeApproval,
     KeepAwakeCoffee,
     keepAwakeActive,
-    keepAwakeCount,
-    keepAwakeIndicatorLabel,
-    keepAwakeIndicatorTitle,
     KeepAwakeSession,
     keepAwakeSessions,
     KeepAwakeState,
@@ -39,7 +35,6 @@ import {
     sleepPolicyDetail,
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
-import { openSettingsKey } from "./settings/settings-open";
 import { TabActivity, whileShown } from "./tab-activity";
 import { workspaceShownName } from "./workspace-default-name";
 
@@ -319,42 +314,5 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
                 <span className="text-11 text-muted">{t("keepawake.everyDecision", { log: approvalLogText() })}</span>
             ) : null}
         </li>
-    );
-}
-
-// The sleep indicator (FR-SHELL-103): a cup that exists only while MoltenTerm keeps the computer awake or a terminal's
-// block went through. Its name says what holds it and the current option; a click opens Preferences › Energy, where the
-// four options live. It opens nothing of its own, so there is no pressed state to leave behind. The workspace sidebar
-// (#1183) draws it as a 28 px icon button, with a count when more than one thing holds.
-export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status" | "sidebar" }) {
-    const platform = usePlatform();
-    const state = useAtomValue(KeepAwakeModel.getInstance().stateAtom);
-    const policy = useSettingsKeyAtom(SleepPolicySetting);
-    if (!coffeeSupported(platform) || !keepAwakeActive(state)) {
-        return null;
-    }
-    const count = keepAwakeCount(state);
-    const sidebar = variant === "sidebar";
-    return (
-        <button
-            type="button"
-            aria-label={keepAwakeIndicatorLabel(state)}
-            title={keepAwakeIndicatorTitle(state, policy ?? "")}
-            data-testid="keepawake-item"
-            onClick={() => fireAndForget(() => openSettingsKey("general", SleepPolicySetting))}
-            style={sidebar ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined}
-            className={cn(
-                "flex cursor-pointer items-center gap-1 rounded-6 text-[var(--color-awake)] hover:bg-hover hover:text-primary",
-                sidebar ? "relative h-7 w-7 shrink-0 justify-center transition-colors duration-120 ease-mt" : "px-1"
-            )}
-        >
-            <i className={cn("fa fa-solid fa-mug-hot", sidebar ? "text-icon-14" : "text-11")} aria-hidden />
-            {count > 1 && !sidebar ? <span>{count}</span> : null}
-            {count > 1 && sidebar ? (
-                <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary/85 px-[3px] text-11 leading-none font-semibold text-[var(--mt-text-inverse)] tabular-nums">
-                    {count}
-                </span>
-            ) : null}
-        </button>
     );
 }

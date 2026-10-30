@@ -19,7 +19,6 @@ import {
     KeepAwakeAttempt,
     keepAwakeCount,
     keepAwakeIndicatorLabel,
-    keepAwakeIndicatorTitle,
     keepAwakeReasons,
     keepAwakeSessions,
     KeepAwakeState,
@@ -208,11 +207,6 @@ describe("keep-awake model", () => {
             "kept awake by you in 2 workspaces",
         ]);
         const s = state({ attempts: [attempt({})] });
-        expect(keepAwakeIndicatorLabel(s)).toBe(
-            "Keeping this computer awake: a terminal asked to stay awake. Open Preferences › Energy"
-        );
-        expect(keepAwakeIndicatorTitle(s, "untilworkends")).toBe(
-            `${keepAwakeIndicatorLabel(s)}\nEnergy setting: Until work ends`
-        );
+        expect(keepAwakeIndicatorLabel(s)).toBe("Keeping this computer awake: a terminal asked to stay awake");
     });
 });

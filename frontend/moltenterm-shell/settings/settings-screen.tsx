@@ -39,7 +39,7 @@ import { NotificationPanelCard, NotificationSubjectsCard } from "../notification
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
-import { OptionList, OptionRow, SuiteSignature } from "../suite/suite";
+import { SuiteSignature } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { TipsCards } from "../tips/tips-view";
 import { View360SettingKey } from "../view360/view360-decision";
@@ -68,7 +68,8 @@ import {
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
-import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
+import { ChoiceRows } from "./settings-choice-rows";
+import { settingsGroupIcon, SettingsSectionConcepts } from "./settings-icons";
 import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
 import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
@@ -497,40 +498,6 @@ function useChoices(entry: SettingEntry): SettingChoice[] {
     const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
     const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
     return settingChoices(entry, languages, t("language.system", { name: languageName(systemLocale) }));
-}
-
-function ChoiceRows({
-    entry,
-    name,
-    choices,
-    value,
-    onSet,
-}: {
-    entry: SettingEntry;
-    name: string;
-    choices: SettingChoice[];
-    value: unknown;
-    onSet: (v: unknown) => void;
-}) {
-    const t = useT();
-    const shown = effectiveSetting(entry, value);
-    const current = shown == null ? "" : String(shown);
-    return (
-        <OptionList aria-label={entry.label} data-setting-control>
-            {choices.map((c) => (
-                <OptionRow
-                    key={c.value}
-                    name={name}
-                    value={c.value}
-                    label={c.label}
-                    icon={settingsOptionIcon(entry.key, c.value)}
-                    selected={c.value === current}
-                    selectedLabel={t("common.selected")}
-                    onSelect={() => onSet(c.value === "" ? null : c.value)}
-                />
-            ))}
-        </OptionList>
-    );
 }
 
 const SettingRow = memo(({ entry, rowId, value, overriddenIn, themes, highlighted, onOpenJson }: RowProps) => {

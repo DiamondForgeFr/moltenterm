@@ -24,7 +24,7 @@ vi.mock("./keepawake-store", async () => {
 });
 
 import { EmptyKeepAwakeState, KeepAwakeAttempt, KeepAwakeState } from "./keepawake-model";
-import { KeepAwakeDetails, KeepAwakeStatusItem } from "./keepawake-ui";
+import { KeepAwakeDetails } from "./keepawake-ui";
 import { KeepAwakeModel } from "./keepawake-store";
 
 const model = KeepAwakeModel.getInstance() as unknown as { stateAtom: ReturnType<typeof atom> };
@@ -37,46 +37,9 @@ function attempt(partial: Partial<KeepAwakeAttempt>): KeepAwakeAttempt {
     return { id: "1", blockid: "b1", tool: "caffeinate", pid: 10, since: 0, outcome: "allowed", ...partial };
 }
 
-function item(variant: "status" | "sidebar" = "sidebar") {
-    return renderToStaticMarkup(<KeepAwakeStatusItem variant={variant} />);
-}
-
 beforeEach(() => {
     Hoisted.policy = "";
     setState({});
-});
-
-describe("sleep indicator (FR-SHELL-103)", () => {
-    it("shows no icon while nothing keeps the computer awake (AC1)", () => {
-        expect(item()).toBe("");
-        expect(item("status")).toBe("");
-        setState({ attempts: [attempt({ outcome: "neutralised" })] });
-        expect(item()).toBe("");
-    });
-
-    it("is a cup, not a moon, and names the reason and the setting (AC2)", () => {
-        Hoisted.policy = "untilworkends";
-        setState({ attempts: [attempt({})] });
-        const html = item();
-        expect(html).toContain("fa-mug-hot");
-        expect(html).not.toContain("fa-moon");
-        expect(html).toContain(
-            'aria-label="Keeping this computer awake: a terminal asked to stay awake. Open Preferences › Energy"'
-        );
-        expect(html).toContain("Energy setting: Until work ends");
-    });
-
-    it("opens a link, not a popover: it carries no pressed state (B5)", () => {
-        setState({ attempts: [attempt({})] });
-        expect(item()).not.toContain("aria-expanded");
-    });
-
-    it("counts only when more than one thing keeps it awake", () => {
-        setState({ attempts: [attempt({})] });
-        expect(item()).not.toContain("tabular-nums");
-        setState({ hold: true, coffees: [{ workspaceid: "a", since: 1, working: true }], attempts: [attempt({})] });
-        expect(item()).toContain(">2<");
-    });
 });
 
 describe("Energy card details (FR-SHELL-103)", () => {

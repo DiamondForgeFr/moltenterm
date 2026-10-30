@@ -2507,8 +2507,14 @@
             "other": "kept awake by you in {count} workspaces"
         },
         "byWork": "work is running",
-        "indicatorLabel": "Keeping this computer awake: {reasons}. Open Preferences › Energy",
+        "indicatorLabel": "Keeping this computer awake: {reasons}",
         "indicatorPolicy": "Energy setting: {policy}",
+        "cupIdle": "Not keeping this computer awake",
+        "cupHint": "Click: on/off · Right-click: options",
+        "popover": {
+            "title": "Keep this computer awake",
+            "moreSettings": "More settings…"
+        },
         "coffeeFor": "Keep awake while {name} works",
         "coffeeHint": "This computer stays awake while work runs in this workspace, whatever the setting above.",
         "approvalLog": "{path} in MoltenTerm's data folder",
