@@ -8,7 +8,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { placeOptions } from "./carpet-places";
 import type { PanelPlacement } from "./view360-model";
-import { CarpetHeaderButton, headerPlacement, optionCaption, optionsWhy } from "./view360-places";
+import { CarpetGroup, GroupAll, GroupPages } from "./carpet-group";
+import type { View360Model } from "./view360-model";
+import {
+    CarpetHeaderButton,
+    chooserChoices,
+    groupPlanLines,
+    headerPlacement,
+    optionCaption,
+    optionsWhy,
+} from "./view360-places";
 
 const fake = vi.hoisted(() => ({ view360: null as unknown }));
 
@@ -88,5 +97,46 @@ describe("the chooser's words (AC2, AC3, AC13)", () => {
         expect(few.map(optionCaption).slice(1)).toEqual(["Nothing to store", "Nothing to store"]);
         expect(optionsWhy(few)).toContain("nothing would be stored");
         expect(optionsWhy(placeOptions(6, 3160))).toBeNull();
+    });
+});
+
+describe("On the carpet: All panels · The pages (FR-SHELL-124)", () => {
+    function fakeModel(offered: boolean, group: CarpetGroup) {
+        return {
+            groupOffered: () => offered,
+            effectiveGroup: () => (offered ? group : GroupAll),
+            placeOptions: (g: CarpetGroup) => placeOptions(g === GroupPages ? 2 : 3, 2400),
+            groupCarpetCount: (g: CarpetGroup) => (g === GroupPages ? 2 : 3),
+            groupPlan: () => [{ blockId: "int", mode: "beside" }],
+        } as unknown as View360Model;
+    }
+
+    it("offers both choices with their counts, the view's grouping selected on opening", () => {
+        const choices = chooserChoices(fakeModel(true, GroupPages));
+        expect(choices).toMatchObject({ offered: true, initial: GroupPages, allCount: 3, pagesCount: 2 });
+        expect(choices.pages.map((o) => o.stored)).toEqual([1, 0, 0]);
+        expect(choices.all.map((o) => o.stored)).toEqual([2, 1, 0]);
+    });
+
+    it("leaves the choice out when it would change nothing", () => {
+        const choices = chooserChoices(fakeModel(false, GroupPages));
+        expect(choices).toMatchObject({ offered: false, initial: GroupAll, pages: [], plan: [] });
+    });
+
+    it("says before the click where the other panels go", () => {
+        const titles: Record<string, string> = { int: "Integration", files: "Files", rev: "Review" };
+        const lines = groupPlanLines(
+            [
+                { blockId: "int", mode: "beside" },
+                { blockId: "files", mode: "stacked" },
+                { blockId: "rev", mode: "stacked" },
+            ],
+            (id) => titles[id],
+            "Leon"
+        );
+        expect(lines).toEqual([
+            { mode: "beside", text: "Integration will be pinned beside Leon" },
+            { mode: "stacked", text: "Files, Review will be pinned under Leon, as there is no room beside it" },
+        ]);
     });
 });

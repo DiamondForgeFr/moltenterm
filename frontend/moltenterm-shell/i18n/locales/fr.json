@@ -5756,7 +5756,19 @@
                 "other": "Ranger sur le tapis : {count} panneaux visibles à droite"
             },
             "fallbackAgent": "La première colonne",
-            "fallbackPanel": "Ce panneau"
+            "fallbackPanel": "Ce panneau",
+            "introPages": "{agent} reste à gauche. {panel} prend la première place, les autres pages sont rangées sur le tapis, toujours actives, et les autres panneaux sont épinglés près de {agent}.",
+            "groupLabel": "Sur le tapis",
+            "groupAll": "Tous les panneaux",
+            "groupPages": "Les pages",
+            "groupBeside": {
+                "one": "{panels} sera épinglé à côté de {agent}",
+                "other": "{panels} seront épinglés à côté de {agent}"
+            },
+            "groupUnder": {
+                "one": "{panels} sera épinglé sous {agent}, faute de place à côté",
+                "other": "{panels} seront épinglés sous {agent}, faute de place à côté"
+            }
         }
     },
     "termcopy": {

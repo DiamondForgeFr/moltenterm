@@ -5756,7 +5756,19 @@
                 "other": "Store on the carpet: {count} visible panels on the right"
             },
             "fallbackAgent": "The first column",
-            "fallbackPanel": "This panel"
+            "fallbackPanel": "This panel",
+            "introPages": "{agent} stays on the left. {panel} takes the first place, the other pages are stored on the carpet, still active, and the other panels are pinned next to {agent}.",
+            "groupLabel": "On the carpet",
+            "groupAll": "All panels",
+            "groupPages": "The pages",
+            "groupBeside": {
+                "one": "{panels} will be pinned beside {agent}",
+                "other": "{panels} will be pinned beside {agent}"
+            },
+            "groupUnder": {
+                "one": "{panels} will be pinned under {agent}, as there is no room beside it",
+                "other": "{panels} will be pinned under {agent}, as there is no room beside it"
+            }
         }
     },
     "termcopy": {

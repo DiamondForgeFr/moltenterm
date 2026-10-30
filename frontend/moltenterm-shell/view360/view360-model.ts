@@ -82,7 +82,18 @@ import {
 } from "./carpet-places";
 import { showPlacesToast } from "./carpet-places-toast";
 import {
+    CarpetGroup,
+    GroupAll,
+    groupedPins,
+    groupOffered,
+    GroupPages,
+    groupPinPlan,
+    type GroupPin,
+} from "./carpet-group";
+import {
     countBeside,
+    handPins,
+    hasGroupPins,
     partPinnedColumns,
     PinnedColumn,
     TabPins,
@@ -126,9 +137,11 @@ import {
     setTabView360,
     storedFixedPx,
     storedFractions,
+    storedGroup,
     storedPins,
     storedPlaces,
     tabManualView360,
+    View360PlacesState,
     writePlacesState,
 } from "./view360-meta";
 
@@ -150,6 +163,7 @@ export type PanelPlacement = "first" | "carpet" | PinMode;
 // What a 360 × N changes, kept for its Undo (FR-SHELL-123-AC8).
 export type PlacesSnapshot = {
     places: number;
+    group: CarpetGroup;
     pins: TabPins;
     grippedFixedPx: number;
     savedFixedPx: number;
@@ -224,6 +238,10 @@ export class View360Model {
     // The places drawn at the last pass: the view's N, or fewer while the window is too narrow for N (AC7); null when
     // the view has no N or is not drawn in 360 view.
     shownPlacesAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
+    // The view's "360 on the pages" (FR-SHELL-124): from the tab's meta, or this window's last write ahead of its round
+    // trip.
+    pendingGroupAtom: PrimitiveAtom<{ group: CarpetGroup }> = atom(null) as PrimitiveAtom<{ group: CarpetGroup }>;
+    groupAtom: Atom<CarpetGroup>;
 
     layout: CarpetLayout = null;
     // The tab's width at the last layout pass.
@@ -289,6 +307,9 @@ export class View360Model {
             return pending != null ? pending.n : get(metaPlacesAtom);
         });
         globalStore.sub(metaPlacesAtom, () => globalStore.set(this.pendingPlacesAtom, null));
+        const metaGroupAtom = selectAtom(tabAtom, (tab) => storedGroup(tab));
+        this.groupAtom = atom((get) => get(this.pendingGroupAtom)?.group ?? get(metaGroupAtom));
+        globalStore.sub(metaGroupAtom, () => globalStore.set(this.pendingGroupAtom, null));
         this.decisionAtom = atom((get) =>
             decideView360({
                 setting: normalizeView360Setting(get(this.settingAtom)),
@@ -400,7 +421,9 @@ export class View360Model {
             normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ||
             this.autoWantsNow(false, count, this.lastEvalWidth, this.lastEvalGap, this.lastColumnMins);
         globalStore.set(this.autoOnAtom, false);
-        // Leaving forgets the view's 360 × N (FR-SHELL-123-AC10).
+        // Leaving forgets the view's 360 × N (FR-SHELL-123-AC10) and its grouping, whose pins leave with it
+        // (FR-SHELL-124-AC4).
+        this.dropGrouping();
         this.writePlaces(null);
         this.setManual(holds ? false : null);
         this.layoutModel.updateTree();
@@ -795,34 +818,140 @@ export class View360Model {
         }
     }
 
-    // The tree's carpet columns as 360 view would lay them: the top-level columns other than the first and the pinned.
-    private carpetColumnsNow(): { carpet: LayoutNode[]; besidePx: number } {
+    // N, the grouping and the pins in one meta write, so a restart never finds one without the others. pins undefined
+    // leaves them as they are.
+    private writePlacesWithGroup(n: number, group: CarpetGroup, pins: TabPins) {
+        const state: View360PlacesState = {};
+        if (this.places() !== n) {
+            state.places = n;
+            globalStore.set(this.pendingPlacesAtom, { n });
+        }
+        if (this.group() !== group) {
+            state.group = group;
+            globalStore.set(this.pendingGroupAtom, { group });
+        }
+        if (pins !== undefined) {
+            state.pins = pins;
+            globalStore.set(this.pendingPinsAtom, pins);
+        }
+        const tabId = this.tabId;
+        if (tabId != null && Object.keys(state).length) {
+            fireAndForget(() => writePlacesState(tabId, state));
+        }
+    }
+
+    // ---- 360 on the pages (FR-SHELL-124) -----------------------------------------------------------------------
+
+    group(): CarpetGroup {
+        return globalStore.get(this.groupAtom);
+    }
+
+    private treeCarpetColumns(): LayoutNode[] {
+        return splitCarpetColumns(this.layoutModel.treeState?.rootNode)?.carpet ?? [];
+    }
+
+    private viewOf = (blockId: string): string => cachedBlockView(blockId);
+
+    // Whether the chooser shows "On the carpet: All panels · The pages" (AC1).
+    groupOffered(): boolean {
+        return groupOffered(this.treeCarpetColumns(), globalStore.get(this.pinsAtom), this.viewOf);
+    }
+
+    // The grouping a 360 × N applies when none is chosen (the view menu, the command panel): the view's own, while the
+    // choice makes a difference.
+    effectiveGroup(): CarpetGroup {
+        return this.group() === GroupPages && this.groupOffered() ? GroupPages : GroupAll;
+    }
+
+    // The pins the view would hold under a grouping, the pins of panels no longer in the tab dropped.
+    private pinsUnder(group: CarpetGroup): TabPins {
+        const pins = groupedPins(
+            group,
+            this.treeCarpetColumns(),
+            globalStore.get(this.pinsAtom),
+            this.viewOf,
+            this.lastEvalWidth
+        );
+        const live = this.liveBlockIds();
+        if (live == null) {
+            return pins;
+        }
+        const ids = new Set(live);
+        return Object.fromEntries(Object.entries(pins).filter(([id]) => ids.has(id)));
+    }
+
+    // Where the grouping would pin the other panels (beside or under the agent), for the chooser to say it before the
+    // click (AC3).
+    groupPlan(): GroupPin[] {
+        return groupPinPlan(this.treeCarpetColumns(), globalStore.get(this.pinsAtom), this.viewOf, this.lastEvalWidth);
+    }
+
+    // How many columns lie on the carpet under each choice (the segment's counts).
+    groupCarpetCount(group: CarpetGroup): number {
+        return this.carpetColumnsNow(group).carpet.length;
+    }
+
+    // Leaving the 360 view (AC4): exactly the marked pins leave, the panels go back to the carpet at their place in
+    // the tree, and the view forgets its grouping.
+    private dropGrouping() {
+        const pins = globalStore.get(this.pinsAtom);
+        const marked = hasGroupPins(pins);
+        if (!marked && this.group() === GroupAll) {
+            return;
+        }
+        const next = handPins(pins);
+        if (marked) {
+            globalStore.set(this.pendingPinsAtom, next);
+        }
+        globalStore.set(this.pendingGroupAtom, { group: GroupAll });
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => writePlacesState(tabId, { group: GroupAll, ...(marked ? { pins: next } : {}) }));
+        }
+    }
+
+    // The tree's carpet columns as 360 view would lay them under a grouping: the top-level columns other than the
+    // first and the pinned.
+    private carpetColumnsNow(group: CarpetGroup = this.effectiveGroup()): { carpet: LayoutNode[]; besidePx: number } {
         const split = splitCarpetColumns(this.layoutModel.treeState?.rootNode);
         if (split == null) {
             return { carpet: [], besidePx: 0 };
         }
-        const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
-        const beside = pinned.filter((p) => p.pin.mode === "beside").map((p) => p.pin.px ?? this.columnWidthPx(p.node));
+        const { carpet, pinned } = partPinnedColumns(split.carpet, this.pinsUnder(group));
+        const beside = pinned.filter((p) => p.pin.mode === "beside").map((p) => p.pin.px ?? this.pinnedRestPx(p.node));
         return { carpet, besidePx: besideZonePx(beside) };
     }
 
-    // What the chooser offers right now (AC3): computed each time it opens, from the view's width and its columns.
-    placeOptions(): PlaceOption[] {
-        const { carpet, besidePx } = this.carpetColumnsNow();
+    // The width a column takes once pinned beside without a width of its own: never its carpet slot, a place's width
+    // under a 360 × N that the pin does not keep.
+    private pinnedRestPx(column: LayoutNode): number {
+        if (this.slotPx.has(column.id) && !this.carpetPx.has(column.id)) {
+            const kind = carpetColumnKind(cachedBlockView(columnLeadLeaf(column)?.data?.blockId));
+            return rememberedPanelPx(currentPanelSizes(), kind, "width") ?? defaultCarpetWidthPx(kind);
+        }
+        return this.columnWidthPx(column);
+    }
+
+    // What the chooser offers right now (AC3): computed each time it opens, from the view's width and its columns as
+    // the grouping would leave them (with the pages, C counts the pages only and the grouping's beside pins widen the
+    // fixed zone).
+    placeOptions(group: CarpetGroup = this.effectiveGroup()): PlaceOption[] {
+        const { carpet, besidePx } = this.carpetColumnsNow(group);
         return placeOptions(carpet.length, this.lastEvalWidth, currentFirstColumnFloorPx() ?? 0, besidePx);
     }
 
-    // How many columns are pinned to the fixed zone (the chooser says they stay).
+    // How many columns the developer pinned to the fixed zone (the chooser says they stay).
     pinnedColumnCount(): number {
         const split = splitCarpetColumns(this.layoutModel.treeState?.rootNode);
-        return split == null ? 0 : partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom)).pinned.length;
+        return split == null ? 0 : partPinnedColumns(split.carpet, handPins(globalStore.get(this.pinsAtom))).pinned.length;
     }
 
     // A 360 × N from a panel (AC5, AC6, AC8): the view keeps its N, the fixed zone and the places take equal parts
-    // (hand resizes are replaced), the panel takes the first place and gets the focus. A message says what happened
-    // and offers Undo for 10 s. Returns false when the number is not offered.
-    applyPlaces(blockId: string, n: number): boolean {
-        const option = this.placeOptions().find((o) => o.n === n);
+    // (hand resizes are replaced), the panel takes the first place and gets the focus. With "The pages"
+    // (FR-SHELL-124) the other panels are pinned in the same write; "All panels" removes those pins. A message says
+    // what happened and offers Undo for 10 s. Returns false when the number is not offered.
+    applyPlaces(blockId: string, n: number, group: CarpetGroup = this.effectiveGroup()): boolean {
+        const option = this.placeOptions(group).find((o) => o.n === n);
         const column = this.rootColumnOfBlock(blockId);
         if (option == null || !option.offered || column == null) {
             return false;
@@ -830,9 +959,15 @@ export class View360Model {
         const before = this.placesSnapshot();
         this.grippedFixedPx = null;
         this.carpetPx.clear();
-        this.pendingStart = { columnId: column.id };
+        const pins = this.pinsUnder(group);
+        const { carpet } = partPinnedColumns(this.treeCarpetColumns(), pins);
+        // A panel the grouping pins does not take a place: the first page does.
+        const start = carpet.includes(column) ? column : carpet[0];
+        this.pendingStart = start == null ? null : { columnId: start.id };
+        const pinsChanged = JSON.stringify(pins) !== JSON.stringify(globalStore.get(this.pinsAtom));
+        // Another N redraws by itself (placesAtom); otherwise the pass is asked for here.
         const changed = this.places() !== n;
-        this.writePlaces(n);
+        this.writePlacesWithGroup(n, group, pinsChanged ? pins : undefined);
         if (!changed) {
             this.layoutModel.updateTree();
         }
@@ -858,6 +993,7 @@ export class View360Model {
     placesSnapshot(): PlacesSnapshot {
         return {
             places: this.places(),
+            group: this.group(),
             pins: globalStore.get(this.pinsAtom),
             grippedFixedPx: this.grippedFixedPx,
             savedFixedPx: this.savedFixedPx,
@@ -874,13 +1010,11 @@ export class View360Model {
         this.savedFixedPx = snapshot.savedFixedPx;
         this.carpetPx = new Map(snapshot.carpetPx);
         this.pendingRestore = { scrollLeft: snapshot.scrollLeft, focusNodeId: snapshot.focusNodeId };
+        // The grouping and its marked pins come back too (FR-SHELL-124-AC6).
         const pinsChanged = JSON.stringify(snapshot.pins) !== JSON.stringify(globalStore.get(this.pinsAtom));
-        if (pinsChanged) {
-            this.writePins(snapshot.pins);
-        }
         const changed = this.places() !== snapshot.places;
-        this.writePlaces(snapshot.places);
-        if (!changed && !pinsChanged) {
+        this.writePlacesWithGroup(snapshot.places, snapshot.group, pinsChanged ? snapshot.pins : undefined);
+        if (!changed) {
             this.layoutModel.updateTree();
         }
     }
