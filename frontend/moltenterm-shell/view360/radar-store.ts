@@ -8,7 +8,7 @@ import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { findNode } from "@/layout/lib/layoutNode";
 import type { LayoutNode } from "@/layout/lib/types";
 import { atom, Atom } from "jotai";
-import { agentLabel } from "../agent-state-model";
+import { agentCallName } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { browserTabTitle, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
 import { I18nModel } from "../i18n/i18n";
@@ -95,7 +95,7 @@ export function makeRadarFactsAtom(blockIds: string[]): Atom<Record<string, Rada
             const agent = agents[blockId];
             const title =
                 (meta["frame:title"] ?? "").trim() ||
-                (agent != null ? agentLabel(agent) : pageTitle(meta) || panelTitle(meta, getHomeDir()));
+                (agent != null ? agentCallName(agent) : pageTitle(meta) || panelTitle(meta, getHomeDir()));
             next[blockId] = {
                 view: meta.view ?? null,
                 agent: agent != null,
