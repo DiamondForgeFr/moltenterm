@@ -293,6 +293,30 @@ describe("settings reveal runner", () => {
     });
 });
 
+describe("settings blocks stay on screen (#1548)", () => {
+    const library = readFileSync("frontend/moltenterm-shell/library/library.tsx", "utf8");
+    const css = readFileSync("frontend/moltenterm-shell/library/library.css", "utf8");
+
+    it("keeps the blocks mounted and marks the open one, with no step back to the blocks", () => {
+        expect(library).toContain('aria-current={s.id === block ? "true" : undefined}');
+        expect(library).not.toContain("library-settings-back");
+        expect(library).not.toContain("library.settings.back");
+        expect(css).not.toContain(".mt-lib-setback");
+    });
+
+    it("turns the blocks into a sticky row that scrolls sideways while one is open", () => {
+        const row = css.match(/\.mt-lib-setstage\[data-state="open"\] > \.mt-lib-setgrid \{[^}]*\}/)?.[0] ?? "";
+        expect(row).toContain("position: sticky");
+        expect(row).toContain("top: 0");
+        expect(row).toContain("overflow-x: auto");
+        expect(row).not.toContain("display: none");
+    });
+
+    it("starts the reveal from the clicked chip of the row, whichever state it is clicked in", () => {
+        expect(library).toContain("onClick={(e) => openFromTile(s.id, e.currentTarget)}");
+    });
+});
+
 describe("settings reveal wiring", () => {
     it("the library's Escape asks the reveal first, and the setting is in Preferences", () => {
         const library = readFileSync("frontend/moltenterm-shell/library/library.tsx", "utf8");

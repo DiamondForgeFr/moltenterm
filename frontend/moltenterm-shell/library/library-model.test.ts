@@ -245,10 +245,9 @@ describe("Add to on a pinned view (FR-SHELL-094)", () => {
     });
 });
 
-describe("Escape in the library (#1406)", () => {
-    it("closes the innermost thing first: the popover, then an open settings block, then the library", () => {
-        expect(libraryEscapeStep(true, true)).toBe("suggest");
-        expect(libraryEscapeStep(false, true)).toBe("settingsBlock");
-        expect(libraryEscapeStep(false, false)).toBe("close");
+describe("Escape in the library (#1406, #1548)", () => {
+    it("closes the popover first, then the library, whatever settings block is open", () => {
+        expect(libraryEscapeStep(true)).toBe("suggest");
+        expect(libraryEscapeStep(false)).toBe("close");
     });
 });

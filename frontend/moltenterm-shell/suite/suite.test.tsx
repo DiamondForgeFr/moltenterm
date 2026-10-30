@@ -169,6 +169,13 @@ describe("DiamondForge suite kit (#658)", () => {
         );
     });
 
+    it("draws the label chip solid: the surface under its gradient, never a see-through end (#1548)", () => {
+        const css = readFileSync(join(KitDir, "suite.css"), "utf8");
+        const chip = css.match(/\.df-chip \{[^}]*\}/)?.[0] ?? "";
+        expect(chip).toMatch(/background:\s*linear-gradient\([^;]*var\(--df-surface\)\)\),\s*var\(--df-surface\);/);
+        expect(chip.match(/background:[^;]*;/)?.[0]).not.toContain("transparent");
+    });
+
     it("keeps Notulia's dominoes: geometry, 1 s cycle, delays, and still under reduced motion (#739)", () => {
         const css = readFileSync(join(KitDir, "suite.css"), "utf8");
         expect(css).toMatch(/\.df-dominos \{[^}]*width: 110px;\s*height: 44px;/);

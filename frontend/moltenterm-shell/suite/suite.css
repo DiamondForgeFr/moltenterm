@@ -258,7 +258,12 @@
         padding: 0 var(--df-chip-pad);
         border: 1px solid color-mix(in srgb, var(--df-accent) 60%, transparent);
         border-radius: var(--df-radius-md);
-        background: linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, transparent));
+        /* Solid, never see-through (#1548): the gradient's end is mixed with the surface, not with transparency, and
+           the surface is laid under it, so neither the page above the block's line nor the line itself shows through
+           the chip, as in Notulia's blocks. */
+        background:
+            linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, var(--df-surface))),
+            var(--df-surface);
         box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--df-accent) 40%, transparent);
         color: var(--df-accent-fg);
         font-size: var(--df-text-chip);
