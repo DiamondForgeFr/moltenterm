@@ -7,8 +7,7 @@
 // render happens while the fingers move. A switch is asked once the commit's settle landed on the neighbour's likeness
 // (#1261): the view that appears shows the same place at rest, and its frame already has the tint's colour.
 
-import type { WebviewTag } from "electron";
-import { canScrollX, SwipeWheelChannel, SwipeWheelMessage } from "../view360/carpet-wheel";
+import { canScrollX } from "../view360/carpet-wheel";
 import {
     absorbGapMs,
     arrivedSwipeState,
@@ -36,29 +35,14 @@ import {
 } from "./sidebar-swipe";
 import type { SwitchIntent, SwitchSwipe } from "./sidebar-switch";
 
-// A gesture over the content starts only when it is clearly sideways.
-export const ContentIntentRatio = 2;
 // A switch the main process refused (the developer kept the workspace) leaves this view on screen: it comes back.
 const SwitchGiveUpMs = 1500;
 // The ring's completion pulse lasts 260 ms (sidebar.css .mt-sb-pull.is-done); past this it is cleared anyway.
 const PulseFallbackMs = 600;
 
-export type SwipePlace = "sidebar" | "library" | "content";
-
-// Where a wheel event may start a gesture: nothing under it scrolls sideways that way, it was not taken, and it is
-// clearly sideways when it is over the content.
-export function contentMayStart(
-    e: { deltaX: number; deltaY: number; defaultPrevented: boolean; target: EventTarget },
-    canScroll: (target: EventTarget, delta: number) => boolean
-): boolean {
-    if (e.defaultPrevented || e.deltaX === 0) {
-        return false;
-    }
-    if (Math.abs(e.deltaX) < ContentIntentRatio * Math.abs(e.deltaY)) {
-        return false;
-    }
-    return !canScroll(e.target, e.deltaX);
-}
+// The swipe starts only over the sidebar (#1389): over the content a sideways scroll belongs to what is under the
+// pointer, a web page included. The library covers the window, the sidebar with it, while it is open.
+export type SwipePlace = "sidebar" | "library";
 
 // Both halves of the ring turn: the right one fills the first half of the progress, the left one the second.
 export function ringTurns(progress: number): { right: number; left: number } {
@@ -118,38 +102,20 @@ export class SidebarSwipeController {
         }
     };
 
-    // The window's listener, passive: the library, and the content when nothing there wants the gesture.
+    // The window's listener, passive: the open library only, which lies outside the aside.
     onWindowWheel = (e: WheelEvent) => {
         if (e.ctrlKey) {
             return;
         }
         const target = e.target as Node;
-        if (this.view.aside()?.contains(target)) {
-            return;
-        }
-        const at = e.timeStamp || performance.now();
         const lib = this.view.library();
-        if (lib != null) {
-            if (lib.contains(target) && (this.busy() || !canScrollX(e.target, e.deltaX))) {
-                this.handle(e.deltaX, e.deltaY, at, "library");
-            }
+        if (lib == null || !lib.contains(target) || this.view.aside()?.contains(target)) {
             return;
         }
-        if (this.busy() || contentMayStart(e, canScrollX)) {
-            this.handle(e.deltaX, e.deltaY, at, "content");
+        if (this.busy() || !canScrollX(e.target, e.deltaX)) {
+            this.handle(e.deltaX, e.deltaY, e.timeStamp || performance.now(), "library");
         }
     };
-
-    // A web page's horizontal wheel it cannot use, forwarded by its preload.
-    feedForwarded(dx: number, dy: number) {
-        if (this.view.library() != null) {
-            return;
-        }
-        if (!this.busy() && Math.abs(dx) < ContentIntentRatio * Math.abs(dy)) {
-            return;
-        }
-        this.handle(dx, dy, performance.now(), "content");
-    }
 
     // A gesture or its momentum is under way.
     busy(): boolean {
@@ -568,32 +534,4 @@ export class SidebarSwipeController {
             this.fade(shadow, look.shadow);
         }
     }
-}
-
-// The controller of this view's sidebar, for the browser panels' forwarded wheel (their page's events never reach
-// this document).
-let current: SidebarSwipeController = null;
-
-export function setCurrentSwipe(controller: SidebarSwipeController) {
-    current = controller;
-}
-
-export function feedForwardedWheel(dx: number, dy: number) {
-    current?.feedForwarded(dx, dy);
-}
-
-// A browser panel's page sends the sideways wheel it cannot use (emain/preload-webview.ts).
-export function attachSwipeWheel(webview: WebviewTag): () => void {
-    const onMessage = (e: Electron.IpcMessageEvent) => {
-        if (e.channel !== SwipeWheelChannel) {
-            return;
-        }
-        const msg = e.args?.[0] as SwipeWheelMessage;
-        if (!Number.isFinite(msg?.dx) || !Number.isFinite(msg?.dy)) {
-            return;
-        }
-        feedForwardedWheel(msg.dx, msg.dy);
-    };
-    webview.addEventListener("ipc-message", onMessage);
-    return () => webview.removeEventListener("ipc-message", onMessage);
 }

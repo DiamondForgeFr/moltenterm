@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { contentMayStart, ringTurns, SidebarSwipeController, SwipeActions, SwipeView } from "./sidebar-swipe-view";
+import { ringTurns, SidebarSwipeController, SwipeActions, SwipeView } from "./sidebar-swipe-view";
 
-function fakeElement(width = 240): HTMLElement {
+function fakeElement(width = 240, holds?: string): HTMLElement {
     const classes = new Set<string>();
     return {
         style: {} as CSSStyleDeclaration,
@@ -19,7 +19,7 @@ function fakeElement(width = 240): HTMLElement {
         removeEventListener: () => {},
         getBoundingClientRect: () => ({ width }),
         querySelectorAll: () => [],
-        contains: () => false,
+        contains: (target: any) => holds != null && target?.where === holds,
     } as unknown as HTMLElement;
 }
 
@@ -27,10 +27,15 @@ type Fixture = {
     controller: SidebarSwipeController;
     actions: { [K in keyof SwipeActions]: ReturnType<typeof vi.fn> };
     pull: (side: -1 | 1) => HTMLElement;
+    view: SwipeView;
 };
 
-function fixture(opts: { ids?: string[]; activeId?: string; creating?: boolean; reduced?: boolean } = {}): Fixture {
+function fixture(
+    opts: { ids?: string[]; activeId?: string; creating?: boolean; reduced?: boolean; libraryOpen?: boolean } = {}
+): Fixture {
     const page = fakeElement();
+    const aside = fakeElement(240, "aside");
+    const library = opts.libraryOpen ? fakeElement(1200, "library") : null;
     const els = new Map<string, HTMLElement>();
     const el = (key: string) => {
         if (!els.has(key)) {
@@ -44,8 +49,8 @@ function fixture(opts: { ids?: string[]; activeId?: string; creating?: boolean; 
         tint: () => el("tint"),
         pull: (side) => el(`pull${side}`),
         shadow: (side) => el(`shadow${side}`),
-        library: () => null,
-        aside: () => el("aside"),
+        library: () => library,
+        aside: () => aside,
         position: () => ({
             ids: opts.ids ?? ["a", "b", "c"],
             activeId: opts.activeId ?? "b",
@@ -62,7 +67,7 @@ function fixture(opts: { ids?: string[]; activeId?: string; creating?: boolean; 
         startCreate: vi.fn(),
         leaveCreate: vi.fn(),
     };
-    return { controller: new SidebarSwipeController(view, actions), actions, pull: view.pull };
+    return { controller: new SidebarSwipeController(view, actions), actions, pull: view.pull, view };
 }
 
 // Feeds deltas every 8 ms on the faked clock, as a 120 Hz trackpad does.
@@ -185,14 +190,65 @@ describe("workspace swipe on screen (FR-SHELL-082, #1248, TC-SHELL-201 to TC-SHE
     });
 });
 
-describe("where a gesture over the content may start", () => {
-    const never = () => false;
-    it("only when clearly sideways, not taken, and nothing scrolls that way", () => {
-        const e = { deltaX: 10, deltaY: 2, defaultPrevented: false, target: null as EventTarget };
-        expect(contentMayStart(e, never)).toBe(true);
-        expect(contentMayStart({ ...e, deltaY: 6 }, never)).toBe(false);
-        expect(contentMayStart({ ...e, defaultPrevented: true }, never)).toBe(false);
-        expect(contentMayStart(e, () => true)).toBe(false);
+describe("where a swipe starts: over the sidebar only (FR-SHELL-082, #1389)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
+        vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) =>
+            setTimeout(() => fn(performance.now()), 16)
+        );
+        vi.stubGlobal("cancelAnimationFrame", (id: any) => clearTimeout(id));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
+
+    const inAside = { where: "aside" } as unknown as EventTarget;
+    const inContent = { where: "content" } as unknown as EventTarget;
+    const inLibrary = { where: "library" } as unknown as EventTarget;
+
+    function wheels(listener: (e: WheelEvent) => void, target: EventTarget, dxs: number[]): number {
+        let prevented = 0;
+        for (const dx of dxs) {
+            listener({
+                deltaX: dx,
+                deltaY: 0,
+                ctrlKey: false,
+                timeStamp: performance.now(),
+                target,
+                preventDefault: () => prevented++,
+            } as unknown as WheelEvent);
+            vi.advanceTimersByTime(8);
+        }
+        return prevented;
+    }
+
+    it("a sideways wheel over the content, a browser panel's included, never starts one", () => {
+        const { controller, actions, view } = fixture();
+        wheels(controller.onWindowWheel, inContent, Array(20).fill(12));
+        vi.advanceTimersByTime(600);
+        expect(actions.switchTo).not.toHaveBeenCalled();
+        expect(controller.state.phase).toBe("idle");
+        expect(view.page().style.transform).toBeUndefined();    });
+
+    it("over the sidebar it starts one and switches", () => {
+        const { controller, actions } = fixture();
+        const prevented = wheels(controller.onAsideWheel, inAside, Array(14).fill(12));
+        vi.advanceTimersByTime(600);
+        expect(prevented).toBeGreaterThan(0);
+        expect(actions.switchTo).toHaveBeenCalledWith("c", 1, expect.anything());
+    });
+
+    it("over the open library, which covers the sidebar, a swipe back still leaves it", () => {
+        const { controller, actions } = fixture({ libraryOpen: true });
+        wheels(controller.onWindowWheel, inContent, Array(14).fill(12));
+        vi.advanceTimersByTime(600);
+        expect(actions.closeLibrary).not.toHaveBeenCalled();
+        wheels(controller.onWindowWheel, inLibrary, Array(14).fill(12));
+        vi.advanceTimersByTime(600);
+        expect(actions.closeLibrary).toHaveBeenCalledTimes(1);
+        expect(actions.switchTo).not.toHaveBeenCalled();
     });
 });
 

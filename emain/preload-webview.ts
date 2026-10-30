@@ -11,8 +11,6 @@ import {
     CarpetWheelStateChannel,
     horizontalWheelDelta,
     routeHorizontalWheel,
-    SwipeWheelChannel, // MOLTENTERM-PATCH (#1248)
-    SwipeWheelMessage,
 } from "../frontend/moltenterm-shell/view360/carpet-wheel";
 // MOLTENTERM-PATCH (#971)
 import { GateEventTypes, WebviewInputGate } from "./moltenterm-webview-input-gate";
@@ -93,24 +91,5 @@ ipcRenderer.on(CarpetWheelStateChannel, (_event, state: CarpetWheelState) => {
         window.removeEventListener("wheel", moltentermOnCarpetWheel, { capture: true });
     }
 });
-
-// MOLTENTERM-PATCH (#1248): a sideways wheel the page cannot use goes to the host, which may swipe workspaces
-// (FR-SHELL-082). Passive and on bubbling, after the page's own listeners: the page keeps its scrolling off the main
-// thread, and what it took (prevented) or can scroll stays with it. On a 360 carpet the carpet's routing above applies.
-window.addEventListener(
-    "wheel",
-    (event: WheelEvent) => {
-        if (!event.isTrusted || event.ctrlKey || event.defaultPrevented || moltentermCarpetWheel.onCarpet) {
-            return;
-        }
-        if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) || canScrollX(event.target, event.deltaX)) {
-            return;
-        }
-        const unit = event.deltaMode === 1 ? 16 : 1;
-        const message: SwipeWheelMessage = { dx: event.deltaX * unit, dy: event.deltaY * unit };
-        ipcRenderer.sendToHost(SwipeWheelChannel, message);
-    },
-    { passive: true }
-);
 
 console.log("loaded wave preload-webview.ts");
