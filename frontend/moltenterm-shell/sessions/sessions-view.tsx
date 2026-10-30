@@ -18,6 +18,7 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentStateLabel } from "../agent-state-model";
 import { AgentStateDot } from "../agent-state-ui";
+import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { InterruptAction } from "../command-panel/agent-commands";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
@@ -875,6 +876,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const store = DurableSessions.getInstance();
     const data = useAtomValue(store.dataAtom);
     const workspace = useAtomValue(atoms.workspace);
+    const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
+    useEffect(() => CodingAgentModel.getInstance().refresh(""), []);
     const agentFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsAgentMetaKey as keyof MetaType));
     const folderFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsFolderMetaKey as keyof MetaType));
     const stateFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsStateMetaKey as keyof MetaType));
@@ -900,11 +903,20 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
 
     const allSessions = data?.sessions ?? [];
     const filters = { agent: agentFilter, folder: folderFilter, state: stateFilter };
-    const filtered = sessionsFiltered(filters);
+    const knownAgents = useMemo(
+        () => [
+            ...new Set([
+                ...(agentChoices[""]?.choice?.known ?? []).map((a) => a.id),
+                ...allSessions.map((s) => s.agent).filter((id) => id),
+            ]),
+        ],
+        [agentChoices, data]
+    );
+    const filtered = sessionsFiltered(filters, knownAgents);
     const workspaceFolder = effectiveWorkspaceFolder(workspace);
     const sessions = useMemo(
-        () => (filtered ? filterSessions(allSessions, filters, workspaceFolder) : allSessions),
-        [data, filtered, agentFilter, folderFilter, stateFilter, workspaceFolder]
+        () => (filtered ? filterSessions(allSessions, filters, workspaceFolder, knownAgents) : allSessions),
+        [data, filtered, agentFilter, folderFilter, stateFilter, workspaceFolder, knownAgents]
     );
     const groups = useMemo(() => groupSessions(sessions, workspace?.oid), [sessions, workspace?.oid]);
     const order = useMemo(() => flattenGroups(groups), [groups]);

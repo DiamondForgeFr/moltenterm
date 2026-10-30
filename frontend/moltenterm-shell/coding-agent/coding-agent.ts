@@ -27,7 +27,7 @@ const GetTimeoutMs = 8000;
 // The agents the flows can start, in the default order, before wavesrv says which are installed.
 export const CodingAgentIds = ["claude", "codex"];
 
-export type CodingAgent = { id: string; name: string; installed: boolean };
+export type CodingAgent = { id: string; name: string; installed: boolean; command?: string };
 
 // must match Choice in pkg/molten/agentchoice/agentchoice.go
 export type CodingAgentChoice = {
@@ -41,6 +41,9 @@ export type CodingAgentChoice = {
     global?: string;
     order?: string;
     agents: CodingAgent[];
+    // Every agent MoltenTerm knows with whether it is on this computer: the ones the flows cannot run included, which
+    // the companion can still start.
+    known?: CodingAgent[];
 };
 
 export function codingAgentName(id: string): string {

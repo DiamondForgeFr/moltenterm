@@ -3,7 +3,14 @@
 
 import { describe, expect, it } from "vitest";
 import type { DurableSession } from "./sessions/sessions-model";
-import { cicdRuns, filterBranches, filterSessions, projectBranches, sessionsFiltered } from "./widget-options";
+import {
+    cicdRuns,
+    filterBranches,
+    filterSessions,
+    projectBranches,
+    sessionsAgentChoices,
+    sessionsFiltered,
+} from "./widget-options";
 
 function session(id: string, extra: Partial<DurableSession> = {}): DurableSession {
     return {
@@ -28,6 +35,7 @@ const Sessions = [
 ];
 
 const ids = (list: DurableSession[]) => list.map((s) => s.id);
+const Known = ["claude", "codex"];
 
 describe("widget options (FR-SHELL-049, DS-SHELL-090)", () => {
     it("filters sessions by agent", () => {
@@ -37,8 +45,20 @@ describe("widget options (FR-SHELL-049, DS-SHELL-090)", () => {
             "hidden-claude",
             "remote",
         ]);
-        expect(ids(filterSessions(Sessions, { agent: "codex" }, ""))).toEqual(["codex-working"]);
+        expect(ids(filterSessions(Sessions, { agent: "codex" }, "", Known))).toEqual(["codex-working"]);
         expect(ids(filterSessions(Sessions, { agent: "shells" }, ""))).toEqual(["shell"]);
+    });
+
+    it("#1460: offers the agents the registry knows, and filters by any of them", () => {
+        const choices = sessionsAgentChoices([
+            { id: "claude", name: "Claude Code" },
+            { id: "myagent", name: "My Agent" },
+        ]);
+        expect(choices.map((c) => c.value)).toEqual(["all", "agents", "claude", "myagent", "shells"]);
+        expect(sessionsAgentChoices(undefined).map((c) => c.value)).toEqual(["all", "agents", "shells"]);
+        const mine = [session("m", { agent: "myagent" }), session("s")];
+        expect(ids(filterSessions(mine, { agent: "myagent" }, "", ["myagent"]))).toEqual(["m"]);
+        expect(ids(filterSessions(mine, { agent: "myagent" }, ""))).toEqual(["m", "s"]);
     });
 
     it("filters sessions by the workspace's folder, local ones only", () => {
@@ -53,9 +73,9 @@ describe("widget options (FR-SHELL-049, DS-SHELL-090)", () => {
         expect(ids(filterSessions(Sessions, { state: "waiting" }, ""))).toEqual(["claude-waiting"]);
         expect(ids(filterSessions(Sessions, { state: "idle" }, ""))).toEqual(["hidden-claude", "remote"]);
         expect(ids(filterSessions(Sessions, { state: "hidden" }, ""))).toEqual(["hidden-claude"]);
-        expect(ids(filterSessions(Sessions, { agent: "claude", state: "idle", folder: "workspace" }, "/p"))).toEqual([
-            "hidden-claude",
-        ]);
+        expect(
+            ids(filterSessions(Sessions, { agent: "claude", state: "idle", folder: "workspace" }, "/p", Known))
+        ).toEqual(["hidden-claude"]);
     });
 
     it("treats unknown or missing values as no filter", () => {

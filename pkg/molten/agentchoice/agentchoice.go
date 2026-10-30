@@ -39,11 +39,21 @@ const (
 // review flow today.
 var Supported = []string{molten.AgentIdClaude, molten.AgentIdCodex}
 
-// Agent is one agent the flows can start, and whether it is installed on this computer.
+// Agent is one agent the flows can start, and whether it is installed on this computer. Command is the program that
+// starts it, set on the known agents.
 type Agent struct {
 	Id        string `json:"id"`
 	Name      string `json:"name"`
 	Installed bool   `json:"installed"`
+	Command   string `json:"command,omitempty"`
+}
+
+// KnownAgent is an agent MoltenTerm knows (an adapter of the registry, or one planned), whether the flows can run it
+// or not: the companion starts any of them interactively, and the settings list them.
+type KnownAgent struct {
+	Id         string
+	Name       string
+	Executable string
 }
 
 // Choice is the agent a flow starts for a project. Agent is "" when none can start: none is installed, or the chosen
@@ -59,12 +69,16 @@ type Choice struct {
 	Global     string  `json:"global,omitempty"`
 	Order      string  `json:"order,omitempty"`
 	Agents     []Agent `json:"agents"`
+	// Known: every agent MoltenTerm knows with whether it is on this computer, the ones the flows cannot run included.
+	Known []Agent `json:"known"`
 }
 
 // Resolver reads the choices and what is installed; the tests give fakes.
 type Resolver struct {
 	// Order: the agent ids in the preferred order (agentcontinuity's registry); Supported when empty.
-	Order     []string
+	Order []string
+	// Roster: the known agents, the registry's adapters then the planned ones.
+	Roster    []KnownAgent
 	Installed func(id string) bool
 	Global    func() string
 	Project   func(dir string) string
@@ -108,7 +122,10 @@ func validChoice(id string) string {
 // Resolve is the agent to start in dir: run (the developer's pick for this run), else the project's choice, else the
 // global default, else the first installed in the order.
 func (r Resolver) Resolve(dir string, run string) Choice {
-	c := Choice{Agents: []Agent{}}
+	c := Choice{Agents: []Agent{}, Known: []Agent{}}
+	for _, k := range r.Roster {
+		c.Known = append(c.Known, Agent{Id: k.Id, Name: k.Name, Installed: r.installed(k.Id), Command: k.Executable})
+	}
 	for _, id := range r.order() {
 		ok := r.installed(id)
 		c.Agents = append(c.Agents, Agent{Id: id, Name: molten.AgentDisplayName(id), Installed: ok})

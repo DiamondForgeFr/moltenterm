@@ -8,6 +8,11 @@
 // Advanced, with its key as label; adding its entry moves it to its section. Hidden keys stay in the JSON file only.
 package settingsmeta
 
+import (
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+)
+
 const (
 	SectionGeneral = "general"
 	// Workspaces and views (FR-SHELL-106): the sidebar, the top row, new views and the new workspace template.
@@ -105,6 +110,16 @@ func rng(min, max, step float64) *Range {
 
 func hidden(key string) Setting {
 	return Setting{Key: key, Hidden: true}
+}
+
+// codingAgentOptions are the agents the flows can start, named by the agent registry (#1460): an agent added there
+// shows up without a change here.
+func codingAgentOptions() []Option {
+	var rtn []Option
+	for _, id := range agentchoice.Supported {
+		rtn = append(rtn, Option{Value: id, Label: molten.AgentDisplayName(id)})
+	}
+	return rtn
 }
 
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
@@ -259,7 +274,7 @@ var settings = []Setting{
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
-	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: codingAgentOptions()},
 
 	// Terminal accessibility (#808): append to preserve existing row orders; the screen groups it under Behaviour.
 	{Key: "moltenterm:terminalscreenreader", Section: SectionTerminal, Group: "Behaviour", Label: "Screen reader support", Description: "Automatic follows system detection. On and Off override it, without restarting terminals.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "on", Label: "On"}, {Value: "off", Label: "Off"}}},
