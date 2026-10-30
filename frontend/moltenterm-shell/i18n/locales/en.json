@@ -9506,6 +9506,7 @@
         },
         "materials": {
             "thisProject": "This project · {name}",
+            "thisProjectUnnamed": "This project",
             "noProject": "No project",
             "emptyTitle": "No materials yet",
             "empty": "What an agent produces outside the repository and shows you (a published page, a document, an image, a link it names) is kept here, per project.",

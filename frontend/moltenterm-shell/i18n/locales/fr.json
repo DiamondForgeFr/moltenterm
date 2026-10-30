@@ -9506,6 +9506,7 @@
         },
         "materials": {
             "thisProject": "Ce projet · {name}",
+            "thisProjectUnnamed": "Ce projet",
             "noProject": "Sans projet",
             "emptyTitle": "Aucun matériau pour l'instant",
             "empty": "Ce qu'un agent produit hors du dépôt et vous montre (une page publiée, un document, une image, un lien qu'il nomme) est gardé ici, par projet.",

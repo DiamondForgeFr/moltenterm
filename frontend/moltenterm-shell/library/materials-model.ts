@@ -306,6 +306,19 @@ export function newMaterialsCount(materials: Material[], lastSeen: number): numb
     return (materials ?? []).filter((m) => (m?.created ?? 0) > (lastSeen ?? 0)).length;
 }
 
+// The name the sidebar gives the workspace's project (#1508): the workspace's own project name, else the drawer's
+// repository folder name. Never the drawer's key: a drawer that never held a material has no folder on record yet.
+export function materialsProjectName(workspaceProjectName: string, project: MaterialsProject): string {
+    if (workspaceProjectName) {
+        return workspaceProjectName;
+    }
+    if (project?.name) {
+        return project.name;
+    }
+    const folder = (project?.folder ?? "").replace(/[\\/]+$/, "");
+    return folder.split(/[\\/]/).pop() ?? "";
+}
+
 export function materialsSeenStorageKey(project: string): string {
     return `molten:materials:seen:${project ?? ""}`;
 }
