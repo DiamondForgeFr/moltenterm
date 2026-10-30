@@ -13,12 +13,14 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useMemo } from "react";
 import { useT } from "../i18n/i18n";
+import { offerPanelCapture } from "../library/materials-panel-capture";
 import {
     CaptureRect,
     CaptureThumbPx,
     carpetCaptureAtom,
     CarpetCaptureScheduler,
     dropCarpetCaptures,
+    writeCarpetCapture,
 } from "./carpet-captures";
 import { CarpetLayout } from "./carpet-model";
 import { CaptureColumn, captureProbePoints, captureTargets, peekNeighbours, peekRect, PeekSide } from "./carpet-peeks";
@@ -56,32 +58,48 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
         }
         const leaves = new Map(columns.map((c) => [c.columnId, c.leafNodeIds]));
         const root = () => layoutModel.displayContainerRef.current?.parentElement;
-        const scheduler = new CarpetCaptureScheduler({
-            atRest: () =>
-                document.visibilityState === "visible" &&
-                view360.layout != null &&
-                view360.smoothFrame == null &&
-                root()?.dataset.mtCarpetScrolling == null &&
-                view360.dragColumn == null &&
-                view360.dragFixedPx == null &&
-                view360.dragPin == null &&
-                !globalStore.get(layoutModel.activeDrag) &&
-                globalStore.get(layoutModel.magnifiedNodeIdAtom) == null,
-            targets: () => {
-                const container = layoutModel.displayContainerRef.current;
-                if (container == null) {
-                    return [];
-                }
-                const origin = container.getBoundingClientRect();
-                return captureTargets(
-                    view360.layout,
-                    view360.scrollLeft,
-                    { x: origin.left, y: origin.top },
-                    halfGapPx(layoutModel)
-                ).filter((t) => leaves.has(t.columnId) && uncovered(t.rect, leaves.get(t.columnId)));
+        const scheduler = new CarpetCaptureScheduler(
+            {
+                atRest: () =>
+                    document.visibilityState === "visible" &&
+                    view360.layout != null &&
+                    view360.smoothFrame == null &&
+                    root()?.dataset.mtCarpetScrolling == null &&
+                    view360.dragColumn == null &&
+                    view360.dragFixedPx == null &&
+                    view360.dragPin == null &&
+                    !globalStore.get(layoutModel.activeDrag) &&
+                    globalStore.get(layoutModel.magnifiedNodeIdAtom) == null,
+                targets: () => {
+                    const container = layoutModel.displayContainerRef.current;
+                    if (container == null) {
+                        return [];
+                    }
+                    const origin = container.getBoundingClientRect();
+                    return captureTargets(
+                        view360.layout,
+                        view360.scrollLeft,
+                        { x: origin.left, y: origin.top },
+                        halfGapPx(layoutModel)
+                    ).filter((t) => leaves.has(t.columnId) && uncovered(t.rect, leaves.get(t.columnId)));
+                },
+                capture: (rect) => api.captureScreenshot(rect, { width: CaptureThumbPx }),
             },
-            capture: (rect) => api.captureScreenshot(rect, { width: CaptureThumbPx }),
-        });
+            undefined,
+            undefined,
+            (columnId, capture) => {
+                writeCarpetCapture(columnId, capture);
+                // The same capture is the card visual of the materials the panel shows (#1560).
+                const nodeIds = leaves.get(columnId) ?? [];
+                const blockIds = nodeIds.map(
+                    (id) => globalStore.get(layoutModel.leafs).find((l) => l.id === id)?.data?.blockId
+                );
+                offerPanelCapture(
+                    blockIds.filter((b) => b != null),
+                    capture.url
+                );
+            }
+        );
         const wake = () => scheduler.noteChange();
         const unsubs = [
             globalStore.sub(view360.scrollLeftAtom, wake),
