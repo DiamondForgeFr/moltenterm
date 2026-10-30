@@ -495,7 +495,7 @@
         "overridden": {
             "one": "Remplacé dans 1 espace",
             "other": "Remplacé dans {count} espaces",
-            "title": "Ces espaces de travail ont leur propre aspect de fenêtre : {names}"
+            "title": "Ces espaces de travail ont leur propre aspect de fenêtre : {names}"
         },
         "workspaceSheet": {
             "text": "Le dossier de travail et le projet de l'espace « {name} » se règlent dans sa fiche.",
@@ -1242,7 +1242,7 @@
             "engineFor": "Navigateur pour {site}",
             "agentsOn": "Agents sur {site}",
             "kindOn": "{what} pour {site}",
-            "forget": "Oublier la réponse : {what} pour {site}",
+            "forget": "Oublier la réponse : {what} pour {site}",
             "decision": {
                 "allow": "Autoriser",
                 "block": "Bloquer"
@@ -5025,7 +5025,7 @@
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
             "openPanel": "Ouvrir le panneau des notifications à chaque nouvelle notification",
             "openPanelHint": "Sinon, il ne s'ouvre de lui-même que pour ce qui attend votre réponse ; le reste s'affiche quelques secondes en bas à droite.",
-            "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas.",
+            "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas.",
             "subjectsTitle": "Sujets",
             "panelTitle": "Panneau des notifications"
         },
