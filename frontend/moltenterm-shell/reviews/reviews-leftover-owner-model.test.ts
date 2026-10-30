@@ -143,7 +143,7 @@ describe("a leftover's owner asked (#1143)", () => {
             "worktree agent-a44bcb44e87d5cd93, locked by Valentin: Clean up asks Valentin to remove it"
         );
         expect(leftoverParts(fr, { ...leftover, owner: { ...valentin, via: "parent" } }, [])[0].text).toBe(
-            "worktree agent-a44bcb44e87d5cd93, verrouillé par la session de Valentin : Nettoyer demande à Valentin de le supprimer"
+            "worktree agent-a44bcb44e87d5cd93, verrouillé par la session de Valentin : Nettoyer demande à Valentin de le supprimer"
         );
     });
 

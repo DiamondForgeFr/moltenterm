@@ -37,7 +37,9 @@ export function toneOf(kind: MoltentermNotificationKind): ToastToneView {
 
 export type ToastDismissReason = "user" | "timeout" | "collapsed" | "gone";
 
-export type ToastAction = { id: string; label: string; run: () => void | Promise<void> };
+export type ToastText = { title: string; message?: string; actionLabels?: Record<string, string> };
+
+export type ToastAction ={ id: string; label: string; run: () => void | Promise<void> };
 
 // What a caller pushes: a notification's toast, or a question of its own that needs no record in the center (#413's
 // "Use the repository's logo?"). Pushing the same id again replaces that toast and makes it the newest.
@@ -46,6 +48,9 @@ export type ToastInput = {
     kind?: MoltentermNotificationKind;
     title: string;
     message?: string;
+    // Resolves the texts when the toast renders, so a toast that waits for an answer follows a language switch
+    // (FR-I18N-001); title, message and the action labels are then only the first values.
+    text?: () => ToastText;
     // An image URL shown at 32 px in place of the tone's icon (the project icon offer, DS-SHELL-101).
     thumbnail?: string;
     actions?: ToastAction[];

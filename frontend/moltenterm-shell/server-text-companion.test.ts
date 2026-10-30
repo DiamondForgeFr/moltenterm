@@ -50,7 +50,7 @@ describe("server sentences in French", () => {
             },
         } as CompanionView;
         expect(integrationProblem(stepped)).toBe(
-            "MoltenTerm n'a rien ajouté à cette exécution : lancé par un agent en cours."
+            "MoltenTerm n'a rien ajouté à cette exécution : lancé par un agent en cours."
         );
     });
 
@@ -65,7 +65,7 @@ describe("server sentences in French", () => {
                 { code: "keepawake.why.command", vars: { command: "npm test" } },
             ],
         };
-        expect(coffeeReason(coffee)).toBe("Claude Code : au travail, Commande : npm test");
+        expect(coffeeReason(coffee)).toBe("Claude Code : au travail, Commande : npm test");
         expect(
             approvalReasonText({ reason: "reads the keychain", reasontext: { code: "keepawake.deny.keychain" } })
         ).toBe("lit le trousseau");

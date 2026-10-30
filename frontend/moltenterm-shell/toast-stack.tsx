@@ -9,9 +9,9 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { useT } from "./i18n/i18n";
+import { labelled, useT } from "./i18n/i18n";
 import { InlineCodeText, plainInlineText } from "./inline-code";
-import { Toast, ToastDismissMs, toneOf } from "./toast-model";
+import { Toast, ToastDismissMs, ToastText, toneOf } from "./toast-model";
 import { Toasts } from "./toast-store";
 import "./toast.css";
 
@@ -57,14 +57,15 @@ function ToastItem({ toast }: { toast: Toast }) {
         });
     };
 
+    const shown = toast.text ? toast.text() : toast;
     const body = (
         <>
-            <div className="truncate text-12 font-semibold text-primary" title={plainInlineText(toast.title)}>
-                <InlineCodeText text={toast.title} />
+            <div className="truncate text-12 font-semibold text-primary" title={plainInlineText(shown.title)}>
+                <InlineCodeText text={shown.title} />
             </div>
-            {toast.message ? (
-                <div className="mt-0.5 line-clamp-2 text-12 text-secondary" title={plainInlineText(toast.message)}>
-                    <InlineCodeText text={toast.message} />
+            {shown.message ? (
+                <div className="mt-0.5 line-clamp-2 text-12 text-secondary" title={plainInlineText(shown.message)}>
+                    <InlineCodeText text={shown.message} />
                 </div>
             ) : null}
         </>
@@ -110,7 +111,7 @@ function ToastItem({ toast }: { toast: Toast }) {
                     )}
                 />
             )}
-            <span className="sr-only">{tone.label}: </span>
+            <span className="sr-only">{labelled(tone.label, "")}</span>
             <div className="min-w-0 flex-1">
                 {toast.onOpen ? (
                     <button
@@ -133,7 +134,9 @@ function ToastItem({ toast }: { toast: Toast }) {
                                 onClick={() => run(action.id, action.run)}
                                 className={i === 0 ? FirstActionClass : OtherActionClass}
                             >
-                                {running === action.id ? t("notif.center.running") : action.label}
+                                {running === action.id
+                                    ? t("notif.center.running")
+                                    : ((shown as ToastText).actionLabels?.[action.id] ?? action.label)}
                             </button>
                         ))}
                     </div>

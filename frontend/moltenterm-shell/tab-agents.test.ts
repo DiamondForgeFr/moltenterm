@@ -85,7 +85,7 @@ describe("the agent a tab names (FR-SHELL-056, #1033)", () => {
             ].join("\n")
         );
         expect(tabAgentsTitle(fr, sorted.slice(1, 2), Now)).toBe(
-            `Olivia · Codex : ${fr("agent.state.waiting")}, depuis 12 min`
+            `Olivia · Codex : ${fr("agent.state.waiting")}, depuis 12 min`
         );
     });
 

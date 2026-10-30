@@ -175,7 +175,7 @@ describe("pending page (#450)", () => {
             const retrying = makePendingPageHtml({ phase: "retrying", workspaceName: "A" });
             expect(retrying).toContain('<html lang="fr">');
             expect(retrying).toContain("Ouverture en cours. Cet ordinateur est occupé.");
-            expect(retrying).toContain('aria-label="Ouverture de A"');
+            expect(retrying).toContain('aria-label="Ouverture d&#39;A"');
             const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
             expect(failed).toContain("A ne s&#39;est pas ouvert");
             expect(failed).toContain(">Recharger</a>");

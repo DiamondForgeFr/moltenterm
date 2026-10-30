@@ -343,10 +343,10 @@ describe("notificationTitle (#727)", () => {
         expect(notificationTitle(plain)).toBe("#1120: CI green again");
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
-            expect(notificationTitle(ticketed)).toBe("#1107 (PR #1120) : la CI est de nouveau verte");
-            expect(notificationTitle(plain)).toBe("#1120 : la CI est de nouveau verte");
+            expect(notificationTitle(ticketed)).toBe("#1107 (PR #1120) : la CI est de nouveau verte");
+            expect(notificationTitle(plain)).toBe("#1120 : la CI est de nouveau verte");
             expect(notificationTitle(conflict)).toBe(
-                "#1107 (PR #1120) a besoin de vous : la file de fusion s'est arrêtée dessus"
+                "#1107 (PR #1120) a besoin de vous : la file de fusion s'est arrêtée dessus"
             );
             expect(
                 notificationActionLabel({ label: "Show in Integration", labeltext: { code: "notif.review.openCard" } })

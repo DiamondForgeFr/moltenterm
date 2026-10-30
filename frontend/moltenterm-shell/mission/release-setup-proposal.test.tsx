@@ -72,7 +72,7 @@ describe("the agent's step changes (#1099, FR-MC-039)", () => {
         const html = cards(["1"]);
         expect(html).toContain("Proposition de l’agent");
         expect(html).toContain("Claude Code propose 3 changements.");
-        expect(html).toContain("Cochés : 1 sur 3.");
+        expect(html).toContain("Cochés : 1 sur 3.");
         expect(html).toContain("Après changelog-fr");
         expect(html).toContain("Ajoutée");
         expect(html).toContain("Retirée");

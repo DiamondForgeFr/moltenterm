@@ -6,7 +6,7 @@
 // pill and the context can be tested without the app.
 
 import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
-import { t } from "../i18n/i18n";
+import { labelled, t } from "../i18n/i18n";
 import type { TreeMarker } from "../worktree-model";
 
 export const QuestionMaxChars = 48;
@@ -83,7 +83,7 @@ export function agentErrorPill(agent: AgentStateInfo): HeaderPillSpec {
         kind: "error",
         tone: "danger",
         label: message ? truncateQuestion(message) : t("shell.header.error"),
-        title: message ? `${name}: ${message}` : t("shell.header.stoppedOnError", { name }),
+        title: message ? labelled(name, message) : t("shell.header.stoppedOnError", { name }),
         dot: true,
     };
 }

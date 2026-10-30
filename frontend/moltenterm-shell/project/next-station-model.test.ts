@@ -105,12 +105,12 @@ describe("next station", () => {
     it("words the plan's reason in the interface language (#745)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
-            expect(nextStation(git(), null).note).toBe("Première version publique : un choix, pas un calcul.");
-            expect(nextStation(Released, null).note).toBe("Déduit des commits : 3 nouvelles fonctionnalités.");
+            expect(nextStation(git(), null).note).toBe("Première version publique : un choix, pas un calcul.");
+            expect(nextStation(Released, null).note).toBe("Déduit des commits : 3 nouvelles fonctionnalités.");
             const fixOnly = nextStation(git({ ...Released, sincepublic: commits("fix: a") }), null);
-            expect(fixOnly.note).toBe("Déduit des commits : 1 correction, aucune nouvelle fonctionnalité.");
+            expect(fixOnly.note).toBe("Déduit des commits : 1 correction, aucune nouvelle fonctionnalité.");
             const breaking = nextStation(git({ ...Released, sincepublic: commits("feat!: a") }), null);
-            expect(breaking.note).toBe("Déduit des commits : 1 changement incompatible.");
+            expect(breaking.note).toBe("Déduit des commits : 1 changement incompatible.");
             const nothing = nextStation(git({ ...Released, sincepublic: commits("chore: bump") }), null);
             expect(nothing.note).toMatch(/^Rien qu'un utilisateur verrait depuis v1\.1\.0 /);
         } finally {
@@ -148,7 +148,7 @@ describe("next station", () => {
                 tag: station.tag,
                 state: station.state,
             });
-            expect({ name, status: chip ? status.startsWith(chip) : status === "nothing to release yet" }).toEqual({
+            expect({ name, status: chip ? status.startsWith(chip) : status === "nothing to release yet" }).toEqual({
                 name,
                 status: true,
             });

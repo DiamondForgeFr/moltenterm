@@ -44,6 +44,11 @@ export function workspaceNumberBindings(mac: boolean): string[] {
     return rtn;
 }
 
+// The keys that jump to the nth workspace, as the menu and the sidebar hints show them (#1345).
+export function workspaceJumpKeys(n: number, mac: boolean): string {
+    return mac ? `Alt:${n}` : `Ctrl:Alt:${n}`;
+}
+
 export function registerSidebarKeys(keyMap: Map<string, (e: WaveKeyboardEvent) => boolean>) {
     const shortcut = findShortcut(ToggleSidebarShortcutId);
     if (shortcut != null) {

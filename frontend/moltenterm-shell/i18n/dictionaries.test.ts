@@ -57,6 +57,13 @@ describe("shipped dictionaries", () => {
         it(`${code} has no key English lacks`, () => {
             expect(flattenKeys(dict).filter((k) => resolveKey(en, k) == null)).toEqual([]);
         });
+        if (/^fr(-|$)/.test(code)) {
+            // French sets a no-break space (U+00A0) before a colon, so it never starts a line (#1379).
+            it(`${code} puts a no-break space, never a plain one, before a colon`, () => {
+                const plain = flattenKeys(dict).filter((k) => / :/.test(resolveKey(dict, k)));
+                expect(plain).toEqual([]);
+            });
+        }
     }
 
     it("every key the code asks for exists in en.json", () => {

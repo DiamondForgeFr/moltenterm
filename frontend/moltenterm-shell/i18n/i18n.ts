@@ -17,6 +17,7 @@ import {
     formatNumber as formatLocaleNumber,
     I18nVars,
     isLanguageReady,
+    labelled as labelledText,
     LanguageInfo,
     loadFallbackLanguage,
     loadLanguage,
@@ -152,6 +153,11 @@ export function getLocale(): string {
 // The text of a key in the current language, for models, menus and anything outside React.
 export function t(key: string, vars?: I18nVars): string {
     return translate(getLocale(), key, vars);
+}
+
+// "label: value" with the current language's colon spacing (French: no-break space before the colon).
+export function labelled(label: string, value: string): string {
+    return labelledText(getLocale(), label, value);
 }
 
 // The plural form of `key` (`key`.one / `key`.other) for count, by the current language's rule.

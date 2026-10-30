@@ -48,14 +48,19 @@ export function makeIconOffer(input: IconOfferInput): ToastInput {
         dismissToast(id);
     };
     const name = input.projectName || pathBaseName(input.dir);
-    return {
-        id,
-        kind: "info",
-        stays: true,
+    const text = () => ({
         title: t("shell.iconOffer.title", { name }),
         message: input.workspaceName
             ? t("shell.iconOffer.asIconOf", { name: input.workspaceName })
             : t("shell.iconOffer.asThisIcon"),
+        actionLabels: { use: t("shell.iconOffer.use"), dismiss: t("common.dismiss") },
+    });
+    return {
+        id,
+        kind: "info",
+        stays: true,
+        ...text(),
+        text,
         thumbnail: input.thumbnailUrl(logo),
         actions: [
             { id: "use", label: t("shell.iconOffer.use"), run: () => answer(true) },

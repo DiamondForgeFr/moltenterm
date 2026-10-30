@@ -50,9 +50,9 @@ describe("agent work (#1123)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         const meta = origin("batch", { base: "develop", count: 2 });
         expect(batchOriginOf(meta)?.base).toBe("develop");
-        expect(agentWorkText(meta, goldRun())).toBe("fusion groupée : #1102 → #1105 · 1 sur 2 fusionnée");
+        expect(agentWorkText(meta, goldRun())).toBe("fusion groupée : #1102 → #1105 · 1 sur 2 fusionnée");
         const both = { ...goldRun(), items: [item(1118, 1102, "merged"), item(1119, 1105, "merged")] };
-        expect(agentWorkText(meta, both)).toBe("fusion groupée : #1102 → #1105 · 2 sur 2 fusionnées");
+        expect(agentWorkText(meta, both)).toBe("fusion groupée : #1102 → #1105 · 2 sur 2 fusionnées");
         I18nModel.getInstance().setLanguageSetting("en");
         expect(agentWorkText(meta, goldRun())).toBe("group merge: #1102 → #1105 · 1 of 2 merged");
         // The run not read yet, or another run's: the origin's count and base.
@@ -85,16 +85,16 @@ describe("agent work (#1123)", () => {
     it("leads the queue's banner with the agent and the cards' numbers", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         const run = goldRun();
-        expect(batchHeadline(run, "Pauline")).toBe("Pauline · fusion groupée : #1102 → #1105");
-        expect(batchHeadline(run, "")).toBe("Fusion groupée : #1102 → #1105");
+        expect(batchHeadline(run, "Pauline")).toBe("Pauline · fusion groupée : #1102 → #1105");
+        expect(batchHeadline(run, "")).toBe("Fusion groupée : #1102 → #1105");
         const validated = { ...run, items: run.items.map((it) => ({ ...it, source: "validate" as const })) };
-        expect(batchHeadline(validated, "Pauline")).toBe("Pauline · file de fusion : #1102 → #1105");
+        expect(batchHeadline(validated, "Pauline")).toBe("Pauline · file de fusion : #1102 → #1105");
         expect(batchTitle(run)).toContain("#1105 attend ses checks");
         expect(batchHeadline(run, "Pauline", { 1118: 1118, 1119: 1119 })).toBe(
-            "Pauline · fusion groupée : #1118 → #1119"
+            "Pauline · fusion groupée : #1118 → #1119"
         );
         const ended = { ...run, state: "done" as const, current: -1, items: [run.items[0], { ...run.items[1], state: "voided" as const, reason: "pushed" as const }] };
-        expect(batchSummary(ended)).toContain("Fusionnées : #1102.");
+        expect(batchSummary(ended)).toContain("Fusionnées : #1102.");
         expect(batchSummary(ended)).toContain("#1105 (");
     });
 });
