@@ -158,9 +158,21 @@ function reloadWaveObject<T extends WaveObj>(oref: string): Promise<T> {
     }
     const prtn = GetObject<T>(oref);
     prtn.then((val) => {
-        globalStore.set(wov.dataAtom, { value: val, loading: false });
+        setLoadedValue(wov, val);
     });
     return prtn;
+}
+
+// MOLTENTERM-PATCH (#1397): a GetObject answer is a snapshot taken when the server read it; an update event that
+// arrived while it was in flight is newer and must not be overwritten by it (a freshly opened Preferences block lost
+// the meta clears its screen sent right after mounting, so the next ask for the same section and setting was no change).
+function setLoadedValue<T extends WaveObj>(wov: WaveObjectValue<T>, val: T) {
+    const cur = globalStore.get(wov.dataAtom).value;
+    if (cur != null && val != null && cur.version > val.version) {
+        globalStore.set(wov.dataAtom, { value: cur, loading: false });
+        return;
+    }
+    globalStore.set(wov.dataAtom, { value: val, loading: false });
 }
 
 function createWaveValueObject<T extends WaveObj>(oref: string, shouldFetch: boolean): WaveObjectValue<T> {
@@ -186,7 +198,7 @@ function createWaveValueObject<T extends WaveObj>(oref: string, shouldFetch: boo
             }
         }
         wov.pendingPromise = null;
-        globalStore.set(wov.dataAtom, { value: val, loading: false });
+        setLoadedValue(wov, val); // MOLTENTERM-PATCH (#1397)
         console.log("WaveObj resolved", oref, Date.now() - startTs + "ms");
     });
     return wov;
