@@ -5627,7 +5627,8 @@
     "reopen": {
         "nothing": "Nothing to reopen",
         "tab": "Reopened the view “{name}”",
-        "pane": "Reopened {name}",
+        "pane": "Reopened “{name}”",
+        "panelFallback": "Panel",
         "freshShell": "A new shell started: the closed one cannot be brought back.",
         "freshShellIn": "A new shell started in {path}: the closed one cannot be brought back.",
         "failed": "The last closed pane could not be reopened"

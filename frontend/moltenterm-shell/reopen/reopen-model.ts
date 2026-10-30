@@ -6,6 +6,7 @@
 
 import { t } from "../i18n/i18n";
 import { MoltentermNotificationKind } from "../notifications-model";
+import { placeSentenceName } from "../view360/places-names";
 import { viewNameText } from "../workspace-views/workspace-views-model";
 
 export const ReopenRoute = "molten:reopen";
@@ -32,15 +33,22 @@ function displayPath(path: string, home: string): string {
     return path;
 }
 
-export function reopenToast(result: ReopenResult, home?: string): ReopenToast {
+// How the toast names a reopened pane: its agent's first name, else the name every other surface gives it (title,
+// page, folder, view). The name the backend sends is English and never used (#1482).
+export function reopenPaneName(meta: Record<string, any>, home = ""): string {
+    const agent = readResumeAgent(meta?.[ResumeAgentMetaKey]);
+    const agentName = (agent?.name ?? "").trim();
+    return agentName || placeSentenceName(meta, null, home) || t("reopen.panelFallback");
+}
+
+export function reopenToast(result: ReopenResult, home?: string, paneMeta?: Record<string, any>): ReopenToast {
     if (!result?.reopened) {
         return { kind: "info", title: t("reopen.nothing") };
     }
-    // A pane's name comes worded (pkg/molten/reopen PaneName: "the terminal", or its own title).
     const title =
         result.kind === "tab"
             ? t("reopen.tab", { name: viewNameText(result.name, t) })
-            : t("reopen.pane", { name: result.name });
+            : t("reopen.pane", { name: reopenPaneName(paneMeta, home) });
     if (!result.freshshell) {
         return { kind: "success", title };
     }

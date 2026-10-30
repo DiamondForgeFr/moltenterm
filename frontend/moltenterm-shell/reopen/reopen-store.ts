@@ -5,6 +5,7 @@
 // (pkg/molten/reopen); Cmd+Shift+T asks for the last one back and says what came back.
 
 import { atoms, getApi, globalStore } from "@/app/store/global";
+import { loadAndPinWaveObject, makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
@@ -153,7 +154,11 @@ export async function reopenLastClosed(): Promise<void> {
             { workspaceid: globalStore.get(atoms.workspaceId), tabid: globalStore.get(atoms.staticTabId) },
             { route: ReopenRoute, timeout: ReopenTimeoutMs }
         );
-        showToast(reopenToast(res, getApi().getHomeDir()));
+        const block =
+            res?.kind !== "tab" && res?.blockid
+                ? await loadAndPinWaveObject<Block>(makeORef("block", res.blockid)).catch(() => null)
+                : null;
+        showToast(reopenToast(res, getApi().getHomeDir(), block?.meta));
         fireAndForget(() => showReopenedPane(res));
     } catch (e) {
         showToast({
