@@ -315,13 +315,9 @@ export function keepAwakeReasons(state: KeepAwakeState): string[] {
     return reasons;
 }
 
-// The indicator's name for assistive technology, and its tooltip, which adds the current option.
+// What the cup says is holding the computer awake, for its tooltip and the popover.
 export function keepAwakeIndicatorLabel(state: KeepAwakeState): string {
     return t("keepawake.indicatorLabel", { reasons: keepAwakeReasons(state).join(" · ") });
-}
-
-export function keepAwakeIndicatorTitle(state: KeepAwakeState, policy: string): string {
-    return `${keepAwakeIndicatorLabel(state)}\n${t("keepawake.indicatorPolicy", { policy: sleepPolicyLabel(policy) })}`;
 }
 
 export function cleanSleepPolicy(value: string): SleepPolicy {

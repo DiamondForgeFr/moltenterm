@@ -2507,7 +2507,13 @@
             "other": "gardé éveillé par vous dans {count} espaces de travail"
         },
         "byWork": "du travail est en cours",
-        "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}. Ouvrir Réglages › Énergie",
+        "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}",
+        "cupIdle": "Cet ordinateur n'est pas gardé éveillé",
+        "cupHint": "Clic : activer/désactiver · Clic droit : options",
+        "popover": {
+            "title": "Garder cet ordinateur éveillé",
+            "moreSettings": "Plus de réglages…"
+        },
         "indicatorPolicy": "Réglage d’énergie : {policy}",
         "coffeeFor": "Garder éveillé pendant que {name} travaille",
         "coffeeHint": "Cet ordinateur reste éveillé tant que du travail tourne dans cet espace de travail, quel que soit le réglage ci-dessus.",
