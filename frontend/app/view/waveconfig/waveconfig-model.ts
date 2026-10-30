@@ -60,7 +60,8 @@ function validateWaveAiJson(parsed: any): ValidationResult {
     return { success: true };
 }
 
-function makeConfigFiles(isWindows: boolean): ConfigFile[] {
+// MOLTENTERM-PATCH (#1406): exported for the library's Advanced block, which lists the same files.
+export function makeConfigFiles(isWindows: boolean): ConfigFile[] {
     return [
         {
             name: "Settings", // MOLTENTERM-PATCH (#404): Wave named it General

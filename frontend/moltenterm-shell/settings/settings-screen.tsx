@@ -65,6 +65,7 @@ import {
     SettingEntry,
     SettingOption,
     settingsCatalog,
+    SettingsSection,
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
@@ -73,7 +74,7 @@ import { IntegrationRuns } from "./settings-integration-runs";
 import { ModsSection } from "./settings-mods";
 import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSectionMetaKey } from "./settings-open";
 import { settingOverriders } from "./settings-overrides";
-import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
+import { flowColumnsClass, PageCard, PageColumns, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { OverriddenNotice, ScopeLine } from "./settings-scope";
 import { SecretsSection } from "./settings-secrets";
 import { SiteList } from "./settings-site-lists";
@@ -691,13 +692,171 @@ function KeyboardShortcuts() {
     );
 }
 
-export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+// What a section's page reads, computed once for the screen or the library that shows it (#1406).
+export type SettingsPageData = {
+    catalog: SettingEntry[];
+    sections: SettingsSection[];
+    settings: Record<string, unknown>;
+    themes: SettingOption[];
+    groupSlugByKey: Map<string, string>;
+    // One array per setting, stable while nothing changes, so the memoized rows do not redraw.
+    overriddenIn: Map<string, string[]>;
+    workspaceName: string;
+};
+
+export function useSettingsPageData(): SettingsPageData {
     const t = useT();
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
     const allWorkspaces = useAllWorkspaces();
     const clientMeta = useClientMeta();
+    // Rebuilt when the language changes, so the rows and the search speak the shown language.
+    const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
+    // A group's icon follows its English name, which the interface language does not change.
+    const groupSlugByKey = useMemo(
+        () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
+        []
+    );
+    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const themes = useMemo(
+        () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
+        [fullConfig?.termthemes]
+    );
+    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
+    const overriddenIn = useMemo(() => {
+        const byKey = new Map<string, string[]>();
+        for (const entry of catalog) {
+            const names = settingOverriders(entry.key, allWorkspaces, clientMeta).map(
+                (ws) => workspaceShownName(ws.name, t) || ws.oid
+            );
+            if (names.length > 0) {
+                byKey.set(entry.key, names);
+            }
+        }
+        return byKey;
+    }, [catalog, allWorkspaces, clientMeta, t]);
+    return { catalog, sections, settings, themes, groupSlugByKey, overriddenIn, workspaceName };
+}
+
+// Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
+// Secrets keeps its stacked blocks in one column.
+function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
+    return (
+        groups +
+        (section === "advanced" ? 1 : 0) +
+        (section === "mods" ? 1 : 0) +
+        (section === "general" ? 1 : 0) +
+        (section === "spaces" ? 2 : 0) +
+        (section === "notifications" ? 2 : 0)
+    );
+}
+
+export function sectionPageWidth(data: SettingsPageData, section: SettingsSectionId): PageColumns {
+    if (section === "keyboard") {
+        return 3;
+    }
+    if (section === "tips") {
+        return 2;
+    }
+    return pageColumns(sectionFlowBlocks(section, groupEntries(sectionEntries(data.catalog, section)).length));
+}
+
+export type SettingsSectionPageProps = {
+    section: SettingsSectionId;
+    data: SettingsPageData;
+    rowId: (key: string) => string;
+    highlight?: string;
+    files: SettingsFile[];
+    onOpenFile: (path: string) => void;
+    model?: WaveConfigViewModel;
+    // Beside the page's title (the library's "Open in a view").
+    actions?: React.ReactNode;
+};
+
+// One section's page: its header, its blocks and their rows. The settings screen and the library's Settings page both
+// show it, so a block opened in the library behaves as in Preferences (FR-SHELL-106, #1406).
+export function SettingsSectionPage({
+    section,
+    data,
+    rowId,
+    highlight,
+    files,
+    onOpenFile,
+    model,
+    actions,
+}: SettingsSectionPageProps) {
+    const t = useT();
+    const currentSection = data.sections.find((s) => s.id === section);
+    const groups = groupEntries(sectionEntries(data.catalog, section));
+    const flowBlocks = sectionFlowBlocks(section, groups.length);
+    const openSettingsJson = () => onOpenFile("settings.json");
+    return (
+        <>
+            <div className="pt-6">
+                <PageHeader
+                    title={currentSection?.title ?? section}
+                    description={currentSection?.description}
+                    icon={suiteIcon(SettingsSectionConcepts[section])}
+                >
+                    {actions}
+                </PageHeader>
+            </div>
+            {flowBlocks > 0 ? (
+                <PageFlow columns={pageColumns(flowBlocks)}>
+                    {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                    {groups.map((g) => (
+                        <PageCard
+                            key={g.group}
+                            title={g.group}
+                            icon={suiteIcon(settingsGroupIcon(data.groupSlugByKey.get(g.entries[0].key)))}
+                            glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                            scope="app"
+                        >
+                            {g.entries.some((e) => e.key === SidebarTintKey) ? <SidebarModeRows /> : null}
+                            {g.entries.map((entry) => (
+                                <SettingRow
+                                    key={entry.key}
+                                    entry={entry}
+                                    rowId={rowId(entry.key)}
+                                    value={data.settings?.[entry.key]}
+                                    overriddenIn={data.overriddenIn.get(entry.key)}
+                                    themes={data.themes}
+                                    highlighted={highlight === entry.key}
+                                    onOpenJson={openSettingsJson}
+                                />
+                            ))}
+                            {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
+                            {g.entries.some((e) => e.key === SleepPolicySetting) ? <KeepAwakeDetails /> : null}
+                            {g.entries.some((e) => e.key === View360SettingKey) ? <View360Screens /> : null}
+                            {g.entries.some((e) => e.key === NewViewOpenKey) ? <NewViewFavorites /> : null}
+                        </PageCard>
+                    ))}
+                    {section === "spaces" ? <TopRowCard /> : null}
+                    {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
+                    {section === "general" ? <WorkspaceSheetCard name={data.workspaceName} /> : null}
+                    {section === "notifications" ? <NotificationSubjectsCard /> : null}
+                    {section === "notifications" ? <NotificationPanelCard /> : null}
+                    {section === "mods" ? <ModsSection /> : null}
+                </PageFlow>
+            ) : null}
+            {section === "tips" ? <TipsCards /> : null}
+            {section === "keyboard" ? <KeyboardShortcuts /> : null}
+            {section === "secrets" ? (
+                model != null ? (
+                    <SecretsSection model={model} />
+                ) : (
+                    <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
+                )
+            ) : null}
+        </>
+    );
+}
+
+export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+    const t = useT();
+    const data = useSettingsPageData();
+    const { catalog, sections } = data;
     const [section, setSectionState] = useState<SettingsSectionId>(
         () => initialSection ?? openedOnSection(blockId) ?? LastSection.get(blockId) ?? "general"
     );
@@ -711,38 +870,10 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const searchRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Rebuilt when the language changes, so the rows and the search speak the shown language.
-    const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
-    // A group's icon follows its English name, which the interface language does not change.
-    const groupSlugByKey = useMemo(
-        () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
-        []
-    );
-    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
     const appVersion = useMemo(() => currentBuildIdentity(getApi().getAboutModalDetails()?.version ?? "").version, []);
-    const currentSection = sections.find((s) => s.id === section);
-    const themes = useMemo(
-        () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
-        [fullConfig?.termthemes]
-    );
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspaceShownName(workspace?.name, t) || t("settings.thisWorkspace");
-    // One array per setting, stable while nothing changes, so the memoized rows do not redraw.
-    const overriddenIn = useMemo(() => {
-        const byKey = new Map<string, string[]>();
-        for (const entry of catalog) {
-            const names = settingOverriders(entry.key, allWorkspaces, clientMeta).map(
-                (ws) => workspaceShownName(ws.name, t) || ws.oid
-            );
-            if (names.length > 0) {
-                byKey.set(entry.key, names);
-            }
-        }
-        return byKey;
-    }, [catalog, allWorkspaces, clientMeta, t]);
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
-    const openSettingsJson = () => onOpenFile("settings.json");
 
     const setSection = (id: SettingsSectionId) => {
         LastSection.set(blockId, id);
@@ -852,21 +983,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         }
     };
 
-    const entries = sectionEntries(catalog, section);
-    const groups = groupEntries(entries);
-    // Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
-    // Secrets keeps its stacked blocks in one column.
-    const flowBlocks =
-        groups.length +
-        (section === "advanced" ? 1 : 0) +
-        (section === "mods" ? 1 : 0) +
-        (section === "general" ? 1 : 0) +
-        (section === "spaces" ? 2 : 0) +
-        (section === "notifications" ? 2 : 0);
-    const flowColumns = pageColumns(flowBlocks);
     // A short result list reads best as one list.
     const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
-    const width = searching ? resultColumns : section === "keyboard" ? 3 : section === "tips" ? 2 : flowColumns;
+    const width = searching ? resultColumns : sectionPageWidth(data, section);
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
@@ -990,76 +1109,15 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 </>
                             )
                         ) : (
-                            <>
-                                <div className="pt-6">
-                                    <PageHeader
-                                        title={currentSection?.title ?? section}
-                                        description={currentSection?.description}
-                                        icon={suiteIcon(SettingsSectionConcepts[section])}
-                                    />
-                                </div>
-                                {flowBlocks > 0 ? (
-                                    <PageFlow columns={flowColumns}>
-                                        {section === "advanced" ? (
-                                            <FileRows files={files} onOpenFile={onOpenFile} />
-                                        ) : null}
-                                        {groups.map((g) => (
-                                            <PageCard
-                                                key={g.group}
-                                                title={g.group}
-                                                icon={suiteIcon(
-                                                    settingsGroupIcon(groupSlugByKey.get(g.entries[0].key))
-                                                )}
-                                                glow={highlight != null && g.entries.some((e) => e.key === highlight)}
-                                                scope="app"
-                                            >
-                                                {g.entries.some((e) => e.key === SidebarTintKey) ? (
-                                                    <SidebarModeRows />
-                                                ) : null}
-                                                {g.entries.map((entry) => (
-                                                    <SettingRow
-                                                        key={entry.key}
-                                                        entry={entry}
-                                                        rowId={rowId(entry.key)}
-                                                        value={settings?.[entry.key]}
-                                                        overriddenIn={overriddenIn.get(entry.key)}
-                                                        themes={themes}
-                                                        highlighted={highlight === entry.key}
-                                                        onOpenJson={openSettingsJson}
-                                                    />
-                                                ))}
-                                                {g.entries.some((e) => e.key === IntegrateOffKey) ? (
-                                                    <IntegrationRuns />
-                                                ) : null}
-                                                {g.entries.some((e) => e.key === SleepPolicySetting) ? (
-                                                    <KeepAwakeDetails />
-                                                ) : null}
-                                                {g.entries.some((e) => e.key === View360SettingKey) ? (
-                                                    <View360Screens />
-                                                ) : null}
-                                                {g.entries.some((e) => e.key === NewViewOpenKey) ? (
-                                                    <NewViewFavorites />
-                                                ) : null}
-                                            </PageCard>
-                                        ))}
-                                        {section === "spaces" ? <TopRowCard /> : null}
-                                        {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
-                                        {section === "general" ? <WorkspaceSheetCard name={workspaceName} /> : null}
-                                        {section === "notifications" ? <NotificationSubjectsCard /> : null}
-                                        {section === "notifications" ? <NotificationPanelCard /> : null}
-                                        {section === "mods" ? <ModsSection /> : null}
-                                    </PageFlow>
-                                ) : null}
-                                {section === "tips" ? <TipsCards /> : null}
-                                {section === "keyboard" ? <KeyboardShortcuts /> : null}
-                                {section === "secrets" ? (
-                                    model != null ? (
-                                        <SecretsSection model={model} />
-                                    ) : (
-                                        <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
-                                    )
-                                ) : null}
-                            </>
+                            <SettingsSectionPage
+                                section={section}
+                                data={data}
+                                rowId={rowId}
+                                highlight={highlight}
+                                files={files}
+                                onOpenFile={onOpenFile}
+                                model={model}
+                            />
                         )}
                     </PageFill>
                 </div>

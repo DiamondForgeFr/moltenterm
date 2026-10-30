@@ -6,6 +6,7 @@ import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import {
     libraryAddAsk,
+    libraryEscapeStep,
     librarySectionAt,
     LibrarySections,
     liveAgents,
@@ -171,5 +172,13 @@ describe("Add to on a pinned view (FR-SHELL-094)", () => {
             expect(lookup(en, key)).toContain("{view}");
             expect(lookup(fr, key)).toContain("{view}");
         }
+    });
+});
+
+describe("Escape in the library (#1406)", () => {
+    it("closes the innermost thing first: the popover, then an open settings block, then the library", () => {
+        expect(libraryEscapeStep(true, true)).toBe("suggest");
+        expect(libraryEscapeStep(false, true)).toBe("settingsBlock");
+        expect(libraryEscapeStep(false, false)).toBe("close");
     });
 });

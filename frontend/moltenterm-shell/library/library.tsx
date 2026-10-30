@@ -13,6 +13,8 @@ import * as WOS from "@/app/store/wos";
 import { useWaveObjectValue } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { makeConfigFiles } from "@/app/view/waveconfig/waveconfig-model";
+import { isWindows } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,8 +39,10 @@ import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../review
 import { ReviewsModel } from "../reviews/reviews-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
-import { localizeSection, SettingsSections } from "../settings/settings-catalog";
+import { localizeSection, SettingsSectionId, SettingsSections } from "../settings/settings-catalog";
 import { openSettings, openSettingsSection } from "../settings/settings-open";
+import { PageFill } from "../settings/settings-page";
+import { sectionPageWidth, SettingsSectionPage, useSettingsPageData } from "../settings/settings-screen";
 import { formatShortcutById } from "../shortcuts/format";
 import { workspaceBlocks, type TopRowBlock } from "../sidebar/sidebar-blocks";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
@@ -58,6 +62,7 @@ import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import { viewNameText } from "../workspace-views/workspace-views-model";
 import {
     libraryAddAsk,
+    libraryEscapeStep,
     LibrarySection,
     librarySectionAt,
     LibrarySections,
@@ -721,27 +726,118 @@ function PutAwaySection({ entries, query }: { entries: WorkspaceRailEntry[]; que
 
 // ---------- Settings ----------
 
-function SettingsSection() {
+// Leaves the library for a Preferences view: only on the developer's explicit ask (#1406).
+function openInView(run: () => Promise<unknown>) {
+    close();
+    fireAndForget(run);
+}
+
+function isFieldInSettingsBlock(target: EventTarget): boolean {
+    const el = target as HTMLElement;
+    return el?.closest?.(".mt-lib-setpage") != null && el.matches?.("input, textarea, select, [contenteditable]");
+}
+
+const LibraryRowIdPrefix = "molten-setting-library-";
+
+function libraryRowId(key: string): string {
+    return `${LibraryRowIdPrefix}${key.replace(/[^a-z0-9]/gi, "-")}`;
+}
+
+// A settings block open in the library's page, with the rows of Preferences (FR-SHELL-088, #1406). What needs a
+// Preferences view (a JSON file in the editor, Secrets) opens one, as "Open in a view" does.
+function LibrarySettingsBlock({ block, onBack }: { block: SettingsSectionId; onBack: () => void }) {
+    const t = useT();
+    const data = useSettingsPageData();
+    const files = useMemo(
+        () => makeConfigFiles(isWindows()).map((f) => ({ path: f.path, name: f.name, description: f.description })),
+        []
+    );
+    const blockTitle = data.sections.find((s) => s.id === block)?.title ?? block;
+    return (
+        <div
+            className="mt-lib-setpage @container/page min-w-0"
+            data-testid="library-settings-block"
+            data-section={block}
+            onKeyDown={(e) => {
+                if (e.key !== "Escape" || e.defaultPrevented) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                onBack();
+            }}
+        >
+            <button
+                type="button"
+                className="mt-lib-setback"
+                data-testid="library-settings-back"
+                title={t("library.settings.backTitle")}
+                onClick={onBack}
+            >
+                <SidebarGlyph name="back" size={14} />
+                {t("library.settings.back")}
+            </button>
+            <PageFill width={sectionPageWidth(data, block)} className="pt-0 pb-6">
+                <SettingsSectionPage
+                    section={block}
+                    data={data}
+                    rowId={libraryRowId}
+                    files={files}
+                    onOpenFile={(path) => openInView(() => openSettings(path))}
+                    actions={
+                        <button
+                            type="button"
+                            className="molten-btn-secondary inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12"
+                            data-testid="library-settings-openview"
+                            title={t("library.settings.openInViewTitle", { name: blockTitle })}
+                            onClick={() => openInView(() => openSettingsSection(block))}
+                        >
+                            <i className={makeIconClass("arrow-up-right-from-square", true)} aria-hidden />
+                            {t("library.settings.openInView")}
+                        </button>
+                    }
+                />
+            </PageFill>
+        </div>
+    );
+}
+
+// The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
+// order while one is open, so the reveal of #1407 can animate between the two from data-state.
+function SettingsSection({
+    block,
+    onOpen,
+    onBack,
+}: {
+    block: SettingsSectionId;
+    onOpen: (block: SettingsSectionId) => void;
+    onBack: () => void;
+}) {
     const t = useT();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
-    const open = (run: () => Promise<unknown>) => {
-        close();
-        fireAndForget(run);
-    };
     return (
-        <div className="flex flex-col gap-3">
-            {hasConfigErrors ? (
+        <div
+            className="mt-lib-setstage flex flex-col gap-3"
+            data-testid="library-settings-stage"
+            data-state={block != null ? "open" : "tiles"}
+            data-open={block ?? undefined}
+        >
+            {hasConfigErrors && block == null ? (
                 <button
                     type="button"
                     className="mt-lib-set is-error"
                     data-testid="library-settings-errors"
-                    onClick={() => open(() => openSettings())}
+                    onClick={() => openInView(() => openSettings())}
                 >
                     <i className={makeIconClass("triangle-exclamation", true)} aria-hidden />
                     <span>{t("rail.tools.settingsErrors")}</span>
                 </button>
             ) : null}
-            <div className="mt-lib-setgrid" data-testid="library-settings">
+            <div
+                className="mt-lib-setgrid"
+                data-testid="library-settings"
+                aria-hidden={block != null ? true : undefined}
+            >
                 {SettingsSections.map((s) => {
                     const section = localizeSection(s, t);
                     return (
@@ -750,7 +846,9 @@ function SettingsSection() {
                             type="button"
                             className="mt-lib-set"
                             data-testid="library-settings-section"
-                            onClick={() => open(() => openSettingsSection(s.id))}
+                            data-section={s.id}
+                            tabIndex={block != null ? -1 : undefined}
+                            onClick={() => onOpen(s.id)}
                         >
                             <i className={makeIconClass(s.icon, true)} aria-hidden />
                             <span>
@@ -761,6 +859,7 @@ function SettingsSection() {
                     );
                 })}
             </div>
+            {block != null ? <LibrarySettingsBlock block={block} onBack={onBack} /> : null}
         </div>
     );
 }
@@ -826,10 +925,28 @@ export function Library({
     const t = useT();
     const [query, setQuery] = useState("");
     const [suggest, setSuggest] = useState(false);
+    const [settingsBlock, setSettingsBlock] = useState<SettingsSectionId>(null);
     const rootRef = useRef<HTMLDivElement>(null);
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
-    useEffect(() => setQuery(""), [section]);
+    useEffect(() => {
+        setQuery("");
+        setSettingsBlock(null);
+    }, [section]);
+    // Back to the blocks, the focus on the one just closed.
+    const backToBlocks = () => {
+        const shown = settingsBlock;
+        setSettingsBlock(null);
+        requestAnimationFrame(() =>
+            rootRef.current?.querySelector<HTMLElement>(`.mt-lib-set[data-section="${shown}"]`)?.focus()
+        );
+    };
+    const openSettingsBlock = (block: SettingsSectionId) => {
+        setSettingsBlock(block);
+        requestAnimationFrame(() =>
+            rootRef.current?.querySelector<HTMLElement>('[data-testid="library-settings-back"]')?.focus()
+        );
+    };
     useEffect(() => {
         const previous = document.activeElement as HTMLElement;
         rootRef.current?.querySelector<HTMLElement>(".mt-lib-ni.is-on")?.focus();
@@ -840,17 +957,27 @@ export function Library({
             if (e.key !== "Escape") {
                 return;
             }
+            const step = libraryEscapeStep(suggest, settingsBlock != null);
+            // A field of the open block takes Escape first (a text field puts its saved value back); the block's own
+            // handler goes back to the blocks when the field leaves it.
+            if (step === "settingsBlock" && isFieldInSettingsBlock(e.target)) {
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
-            if (suggest) {
+            if (step === "suggest") {
                 setSuggest(false);
+                return;
+            }
+            if (step === "settingsBlock") {
+                backToBlocks();
                 return;
             }
             close();
         };
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
-    }, [suggest]);
+    }, [suggest, settingsBlock]);
     // Each view of the window draws its own library: one left for another view (a workspace dot, a reopened view)
     // must not wait open for the developer's return.
     useEffect(() => {
@@ -959,7 +1086,9 @@ export function Library({
                     {section === "panels" ? <PanelsSection onApps={onApps} /> : null}
                     {section === "ai" ? <SentToAiSection entries={entries} query={query} /> : null}
                     {section === "putaway" ? <PutAwaySection entries={entries} query={query} /> : null}
-                    {section === "settings" ? <SettingsSection /> : null}
+                    {section === "settings" ? (
+                        <SettingsSection block={settingsBlock} onOpen={openSettingsBlock} onBack={backToBlocks} />
+                    ) : null}
                 </div>
             </section>
         </div>

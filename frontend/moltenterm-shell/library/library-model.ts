@@ -33,6 +33,20 @@ export function suggestClipboardText(): string {
     return PublicDownloadUrl;
 }
 
+export type LibraryEscapeStep = "suggest" | "settingsBlock" | "close";
+
+// What Escape closes, the innermost first: the Suggest popover, then a settings block open in the page (back to the
+// blocks, #1406), then the library itself.
+export function libraryEscapeStep(suggestOpen: boolean, settingsBlockOpen: boolean): LibraryEscapeStep {
+    if (suggestOpen) {
+        return "suggest";
+    }
+    if (settingsBlockOpen) {
+        return "settingsBlock";
+    }
+    return "close";
+}
+
 export function librarySectionAt(section: LibrarySection, step: number): LibrarySection {
     const i = LibrarySections.findIndex((s) => s.id === section);
     const n = LibrarySections.length;
