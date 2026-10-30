@@ -323,7 +323,7 @@
     margin: 0 2px 2px 0;
     padding: 2px 6px;
     border: 0;
-    border-radius: var(--mt-radius-4);
+    border-radius: var(--mt-radius-control);
     background: transparent;
     color: var(--mt-sb-fg-3);
     font-size: var(--mt-text-11);
