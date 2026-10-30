@@ -137,6 +137,7 @@ function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
 
 export class WaveBrowserWindow extends BaseWindow {
     waveWindowId: string;
+    readonly hasTitleBarOverlay: boolean;
     workspaceId: string;
     private canClose: boolean;
     private deleteAllowed: boolean;
@@ -212,6 +213,7 @@ export class WaveBrowserWindow extends BaseWindow {
         }
 
         super(winOpts);
+        this.hasTitleBarOverlay = opts.unamePlatform !== "darwin" && winOpts.titleBarStyle !== "default";
         // MOLTENTERM-PATCH (#1281): what this window can become without a restart
         noteWindowCreatedLook(this, winOpts.transparent === true, winOpts.vibrancy != null, opts.unamePlatform);
 

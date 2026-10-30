@@ -36,7 +36,8 @@ export class Toasts {
     }
 
     push(input: ToastInput): string {
-        const toast = makeToast(input, `toast:${++this.nextId}`);
+        const revision = ++this.nextId;
+        const toast = { ...makeToast(input, `toast:${revision}`), revision };
         const { stack, collapsed } = pushToast(this.stack(), toast);
         globalStore.set(this.stackAtom, stack);
         const collapsedNotifications = collapsed.filter((t) => t.notificationId != null).length;
@@ -47,9 +48,9 @@ export class Toasts {
         return toast.id;
     }
 
-    dismiss(id: string, reason: ToastDismissReason = "user"): void {
+    dismiss(id: string, reason: ToastDismissReason = "user", expected?: Toast): void {
         const toast = this.stack().find((t) => t.id === id);
-        if (toast == null) {
+        if (toast == null || (expected != null && toast !== expected)) {
             return;
         }
         globalStore.set(this.stackAtom, removeToast(this.stack(), id));

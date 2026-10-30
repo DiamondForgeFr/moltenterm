@@ -8,6 +8,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import * as electron from "electron";
+import { getAllWaveWindows } from "./emain-window";
 
 export type ThemeSource = "dark" | "light" | "system";
 
@@ -54,7 +55,10 @@ function refreshTitleBars() {
     if (process.platform === "darwin") {
         return;
     }
-    for (const win of electron.BrowserWindow.getAllWindows()) {
+    for (const win of getAllWaveWindows()) {
+        if (!win.hasTitleBarOverlay || win.isDestroyed()) {
+            continue;
+        }
         try {
             if (process.platform === "win32") {
                 win.setTitleBarOverlay({ color: opaqueBackground(), symbolColor: titleBarSymbolColor("#c3c8c2") });

@@ -3,8 +3,16 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-const nativeTheme = vi.hoisted(() => ({ themeSource: "system", shouldUseDarkColors: true, on: () => {} }));
+const state = vi.hoisted(() => ({ windows: [] as any[], updated: null as (() => void) | null }));
+const nativeTheme = vi.hoisted(() => ({
+    themeSource: "system",
+    shouldUseDarkColors: true,
+    on: (_: string, cb: () => void) => {
+        state.updated = cb;
+    },
+}));
 vi.mock("electron", () => ({ nativeTheme, BrowserWindow: { getAllWindows: () => [] } }));
+vi.mock("./emain-window", () => ({ getAllWaveWindows: () => state.windows }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: () => {} }));
 
 import {
@@ -51,5 +59,38 @@ describe("theme source (FR-SHELL-121)", () => {
     it("draws the title bar buttons dark on the light background only", () => {
         expect(titleBarSymbolColorFor("#222222", "white")).toBe("white");
         expect(titleBarSymbolColorFor("#efeae3", "white")).toBe("#1f1a15");
+    });
+
+    it.each(["win32", "linux"])("refreshes eligible BaseWindows on %s for settings and system changes", (platform) => {
+        vi.stubGlobal("process", { ...process, platform });
+        const overlay = vi.fn();
+        const native = vi.fn();
+        state.windows = [
+            { hasTitleBarOverlay: true, isDestroyed: () => false, setTitleBarOverlay: overlay },
+            { hasTitleBarOverlay: false, isDestroyed: () => false, setTitleBarOverlay: native },
+        ];
+        initMoltentermThemeDefault();
+        noteThemeSetting({ "moltenterm:theme": "system" });
+        overlay.mockClear();
+        nativeTheme.shouldUseDarkColors = false;
+        state.updated();
+        expect(overlay).toHaveBeenCalledWith(
+            platform === "win32" ? { color: "#efeae3", symbolColor: "#1f1a15" } : { symbolColor: "#1f1a15" }
+        );
+        noteThemeSetting({ "moltenterm:theme": "dark" });
+        expect(overlay).toHaveBeenCalledTimes(2);
+        expect(native).not.toHaveBeenCalled();
+        state.windows = [];
+        vi.unstubAllGlobals();
+    });
+
+    it("leaves macOS titlebars alone", () => {
+        vi.stubGlobal("process", { ...process, platform: "darwin" });
+        const overlay = vi.fn();
+        state.windows = [{ hasTitleBarOverlay: true, isDestroyed: () => false, setTitleBarOverlay: overlay }];
+        noteThemeSetting({ "moltenterm:theme": "light" });
+        expect(overlay).not.toHaveBeenCalled();
+        state.windows = [];
+        vi.unstubAllGlobals();
     });
 });

@@ -46,7 +46,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
         const bell = bellRef?.current?.getBoundingClientRect();
         const own = rootRef.current?.getBoundingClientRect();
         if (toast.notificationId == null || bell == null || own == null || bell.right <= 0) {
-            model.dismiss(toast.id, "timeout");
+            model.dismiss(toast.id, "timeout", toast);
             return;
         }
         setFlight({ x: bell.left + bell.width / 2 - own.left, y: bell.top + bell.height / 2 - own.top });
@@ -70,7 +70,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
         if (flight == null) {
             return;
         }
-        const timer = setTimeout(() => model.dismiss(toast.id, "timeout"), FlightFallbackMs);
+        const timer = setTimeout(() => model.dismiss(toast.id, "timeout", toast), FlightFallbackMs);
         return () => clearTimeout(timer);
     }, [flight, toast.id]);
 
@@ -129,7 +129,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
             }
             onAnimationEnd={(e) => {
                 if (flight != null && e.animationName === "molten-toast-to-bell") {
-                    model.dismiss(toast.id, "timeout");
+                    model.dismiss(toast.id, "timeout", toast);
                 }
             }}
             onPointerEnter={() => setHeld(true)}
@@ -143,7 +143,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
                     e.stopPropagation();
-                    model.dismiss(toast.id, "user");
+                    model.dismiss(toast.id, "user", toast);
                 }
             }}
         >
@@ -201,7 +201,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
                 type="button"
                 aria-label={t("common.dismiss")}
                 title={t("common.dismiss")}
-                onClick={() => model.dismiss(toast.id, "user")}
+                onClick={() => model.dismiss(toast.id, "user", toast)}
                 className="molten-btn-ghost -mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-muted hover:text-primary"
             >
                 <i aria-hidden className="fa fa-solid fa-xmark text-icon-14" />
@@ -275,7 +275,7 @@ export function ToastStack({
             className="molten-toast-stack pointer-events-none fixed z-[9400] flex flex-col items-stretch gap-2"
         >
             {bellOrder(stack).map((toast) => (
-                <ToastItem key={toast.id} toast={toast} bellRef={bellRef} />
+                <ToastItem key={`${toast.id}:${toast.revision}`} toast={toast} bellRef={bellRef} />
             ))}
             {collapsed > 0 && stack.length > 0 ? (
                 <button

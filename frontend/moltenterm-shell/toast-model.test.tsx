@@ -144,6 +144,20 @@ describe("the stack comes from the bell (#1403)", () => {
 describe("toast store", () => {
     beforeEach(() => Toasts.resetInstance());
 
+    it("ignores a predecessor's timeout after replacement and gives the replacement a new lifecycle", () => {
+        const model = Toasts.getInstance();
+        const dismissed = vi.fn();
+        showToast({ id: "same", title: "old", notificationId: "n" });
+        const old = model.stack()[0];
+        showToast({ id: "same", title: "new", stays: true, onDismiss: dismissed });
+        const replacement = model.stack()[0];
+        expect(replacement.revision).not.toBe(old.revision);
+        model.dismiss(old.id, "timeout", old);
+        expect(model.stack()).toEqual([replacement]);
+        expect(globalStore.get(model.landedAtom)).toBe(0);
+        expect(dismissed).not.toHaveBeenCalled();
+    });
+
     it("counts the notification toasts that collapsed into the center and tells each caller why it left", () => {
         const left: string[] = [];
         for (const id of ["a", "b", "c", "d"]) {
