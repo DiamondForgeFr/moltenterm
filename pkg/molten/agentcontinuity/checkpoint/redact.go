@@ -218,6 +218,9 @@ func replaceAssignments(text string, count *int) string {
 	var b strings.Builder
 	last := 0
 	for _, idx := range assignRegex.FindAllStringSubmatchIndex(text, -1) {
+		if idx[0] < last {
+			continue
+		}
 		group := func(i int) string {
 			if idx[2*i] < 0 {
 				return ""
@@ -229,13 +232,27 @@ func replaceAssignments(text string, count *int) string {
 			continue
 		}
 		quoted := group(1) != "" && group(1) == group(3)
-		if !secretValue(value, sep, quoted, strongName(name)) || proseColon(name, sep, value, quoted, text[idx[1]:]) {
+		lineStart := strings.LastIndex(text[:idx[0]], "\n") + 1
+		prefix := strings.TrimSpace(text[lineStart:idx[0]])
+		mapping := strings.TrimSpace(sep) == ":" && (prefix == "" || prefix == "-")
+		if !secretValue(value, sep, quoted || mapping, strongName(name)) {
+			continue
+		}
+		end := idx[11]
+		if mapping && !strings.HasPrefix(value, `"`) && !strings.HasPrefix(value, "'") {
+			// YAML plain scalars may contain spaces; redacting only their first word would leak the rest.
+			if lineEnd := strings.IndexByte(text[end:], '\n'); lineEnd >= 0 {
+				end += lineEnd
+			} else {
+				end = len(text)
+			}
+		} else if !mapping && proseColon(name, sep, value, quoted, text[idx[1]:]) {
 			continue
 		}
 		*count++
 		b.WriteString(text[last:idx[10]])
 		b.WriteString(quoteLike(value, Redacted))
-		last = idx[11]
+		last = end
 	}
 	if last == 0 {
 		return text
@@ -244,7 +261,7 @@ func replaceAssignments(text string, count *int) string {
 	return b.String()
 }
 
-// proseColon tells French prose ("le secret : des copies gardées sur cet ordinateur"): a plain word, a space before the
+// proseColon tells inline French prose ("le secret : des copies gardées sur cet ordinateur"): a plain word, a space before the
 // colon as French typography puts it, a plain word, and at least two more words on the same line. A value alone at
 // the end of its line, or followed by anything else, is an assignment ("password : swordfish"), strong name or not.
 func proseColon(name string, rawSep string, value string, quotedName bool, rest string) bool {
