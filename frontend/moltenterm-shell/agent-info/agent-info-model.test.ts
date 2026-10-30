@@ -120,12 +120,16 @@ describe("subagentGroups", () => {
         expect(subagentGroups(failed, Now, false, {}).lingering.map((r) => r.id)).toEqual(["f"]);
         expect(subagentGroups(failed, Now + 24 * 60 * Minute, false, {}).lingering).toHaveLength(1);
         expect(subagentGroups(failed, Now, true, {}).lingering).toHaveLength(1);
-        expect(subagentGroups(failed, Now, false, { f: true }).lingering).toHaveLength(0);
+        expect(
+            subagentGroups(failed, Now, false, { f: `${failed[0].started}:${failed[0].ended}` }).lingering
+        ).toHaveLength(0);
     });
 
     it("drops a failure as soon as it is seen, even one that just ended", () => {
         const failed = [row("f", "error", Now - 3 * Minute, Now - Minute)];
-        expect(subagentGroups(failed, Now, false, { f: true }).lingering).toHaveLength(0);
+        expect(
+            subagentGroups(failed, Now, false, { f: `${failed[0].started}:${failed[0].ended}` }).lingering
+        ).toHaveLength(0);
     });
 
     it("lists no finished one once the parent stops, and still the running ones", () => {
@@ -179,7 +183,7 @@ describe("subagentCardGroups", () => {
             row("f2", "error", 25),
             row("r", "working"),
         ];
-        const g = subagentCardGroups(rows, { f2: true });
+        const g = subagentCardGroups(rows, { f2: "1:25" });
         expect(g.running.map((r) => r.id)).toEqual(["r"]);
         expect(g.unseen.map((r) => r.id)).toEqual(["f1"]);
         expect(g.finished.map((r) => r.id)).toEqual(["d2", "f2", "d1"]);

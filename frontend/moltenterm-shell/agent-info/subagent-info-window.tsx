@@ -89,6 +89,16 @@ export function SubagentInfoWindow({
         lastRef.current = live;
     }
     const row = live ?? lastRef.current;
+    const activity = TabActivity.getInstance();
+    const activityState = useAtomValue(activity.stateAtom);
+    useEffect(() => {
+        activity.start();
+    }, [activity]);
+    useEffect(() => {
+        if (activity.state() === "active" || activity.state() === "visible") {
+            AgentInfoModel.getInstance().markSubSeen(blockId, live);
+        }
+    }, [activity, activityState, blockId, live?.id, live?.state, live?.started, live?.ended]);
     const detail = useSubagentDetail(blockId, row);
     const running = row?.state === "working" || row?.state === "idle";
     const now = useNow(running);

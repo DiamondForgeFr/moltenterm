@@ -137,8 +137,12 @@ export function subagentRunning(row: SubagentRow): boolean {
 export const SubagentLingerMs = 5 * 60 * 1000;
 
 // Whether a sub-agent is a failure nobody has looked at yet: it stays listed until it is seen.
-export function subagentUnseenFailure(row: SubagentRow, seen: Record<string, boolean>): boolean {
-    return row?.state === "error" && !seen?.[row.id];
+export function subagentFailureKey(row: SubagentRow): string {
+    return `${row.started ?? 0}:${row.ended ?? 0}`;
+}
+
+export function subagentUnseenFailure(row: SubagentRow, seen: Record<string, string>): boolean {
+    return row?.state === "error" && seen?.[row.id] !== subagentFailureKey(row);
 }
 
 // One with no recorded end cannot be timed, so it does not linger.
@@ -160,7 +164,7 @@ export function subagentGroups(
     rows: SubagentRow[],
     now: number,
     parentEnded: boolean,
-    seen: Record<string, boolean>
+    seen: Record<string, string>
 ): SubagentGroups {
     const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
     const lingering = (rows ?? [])
@@ -195,7 +199,7 @@ export type SubagentCardGroups = {
     working: number;
 };
 
-export function subagentCardGroups(rows: SubagentRow[], seen: Record<string, boolean>): SubagentCardGroups {
+export function subagentCardGroups(rows: SubagentRow[], seen: Record<string, string>): SubagentCardGroups {
     const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
     const rest = (rows ?? []).filter((r) => !subagentRunning(r));
     const byEnd = (a: SubagentRow, b: SubagentRow) => (b.ended ?? 0) - (a.ended ?? 0);
