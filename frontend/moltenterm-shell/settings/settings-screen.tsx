@@ -35,7 +35,7 @@ import { SleepPolicySetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
-import { NotificationSettingsCards } from "../notification-settings";
+import { NotificationPanelCard, NotificationSubjectsCard } from "../notification-settings";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
@@ -1045,7 +1045,8 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                         {section === "spaces" ? <TopRowCard /> : null}
                                         {section === "spaces" ? <NewWorkspaceViewsCard /> : null}
                                         {section === "general" ? <WorkspaceSheetCard name={workspaceName} /> : null}
-                                        {section === "notifications" ? <NotificationSettingsCards /> : null}
+                                        {section === "notifications" ? <NotificationSubjectsCard /> : null}
+                                        {section === "notifications" ? <NotificationPanelCard /> : null}
                                         {section === "mods" ? <ModsSection /> : null}
                                     </PageFlow>
                                 ) : null}

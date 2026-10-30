@@ -60,11 +60,10 @@ function DeliveryChoice({
     );
 }
 
-export function NotificationSettingsCards() {
+export function NotificationSubjectsCard() {
     const t = useT();
     const model = MoltentermNotifications.getInstance();
     const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
-    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
     const highlight = useAtomValue(NotificationSubjectHighlightAtom, { store: globalStore });
     useEffect(() => {
         if (highlight == null) {
@@ -77,57 +76,64 @@ export function NotificationSettingsCards() {
         return () => clearTimeout(timer);
     }, [highlight]);
     return (
-        <>
-            <PageCard
-                title={t("notif.settings.subjectsTitle")}
-                hint={t("notif.settings.intro")}
-                icon={suiteIcon("notifications")}
-                scope="app"
-                glow={highlight != null}
-            >
-                <div data-testid="notification-settings">
-                    {NotificationSubjects.map((subject) => (
-                        <div
-                            key={subject.id}
-                            data-notification-subject={subject.id}
-                            className={cn(
-                                PageRowClass,
-                                "transition-colors duration-240 ease-mt",
-                                highlight === subject.id && "bg-surface-2"
-                            )}
-                        >
-                            <span className="min-w-0 flex-1 truncate text-12 font-medium text-primary">
-                                {t(subject.labelKey)}
-                            </span>
-                            <DeliveryChoice
-                                label={t(subject.labelKey)}
-                                chosen={prefs[subject.id] ?? "notify"}
-                                onChoose={(d) => model.setDelivery(subject.id, d)}
-                            />
-                        </div>
-                    ))}
-                    <div className="px-5 pb-3 text-11 text-muted">{t("notif.settings.footer")}</div>
-                </div>
-            </PageCard>
-            <PageCard title={t("notif.settings.panelTitle")} icon={suiteIcon("display")} scope="app">
-                <div className={PageRowClass}>
-                    <div className="min-w-0 flex-1">
-                        <div className="text-12 font-medium text-primary">{t("notif.settings.openPanel")}</div>
-                        <div className="text-12 text-muted">{t("notif.settings.openPanelHint")}</div>
-                    </div>
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={panelPolicy === "all"}
-                        aria-label={t("notif.settings.openPanel")}
-                        data-testid="notification-panel-policy"
-                        onClick={() => model.setPanelPolicy(panelPolicy === "all" ? "answers" : "all")}
-                        className="inline-flex h-row shrink-0 cursor-pointer items-center rounded-4 px-1"
+        <PageCard
+            title={t("notif.settings.subjectsTitle")}
+            hint={t("notif.settings.intro")}
+            icon={suiteIcon("notifications")}
+            scope="app"
+            glow={highlight != null}
+        >
+            <div data-testid="notification-settings">
+                {NotificationSubjects.map((subject) => (
+                    <div
+                        key={subject.id}
+                        data-notification-subject={subject.id}
+                        className={cn(
+                            PageRowClass,
+                            "transition-colors duration-240 ease-mt",
+                            highlight === subject.id && "bg-surface-2"
+                        )}
                     >
-                        <span className={cn("molten-cmdpanel-switch", panelPolicy === "all" && "is-on")} aria-hidden />
-                    </button>
+                        <span className="min-w-0 flex-1 truncate text-12 font-medium text-primary">
+                            {t(subject.labelKey)}
+                        </span>
+                        <DeliveryChoice
+                            label={t(subject.labelKey)}
+                            chosen={prefs[subject.id] ?? "notify"}
+                            onChoose={(d) => model.setDelivery(subject.id, d)}
+                        />
+                    </div>
+                ))}
+                <div className="px-5 pb-3 text-11 text-muted">{t("notif.settings.footer")}</div>
+            </div>
+        </PageCard>
+    );
+}
+
+// Its own block: PageFlow gives each child its cell and gap, which a fragment would not get.
+export function NotificationPanelCard() {
+    const t = useT();
+    const model = MoltentermNotifications.getInstance();
+    const panelPolicy = useAtomValue(model.panelPolicyAtom, { store: globalStore });
+    return (
+        <PageCard title={t("notif.settings.panelTitle")} icon={suiteIcon("display")} scope="app">
+            <div className={PageRowClass}>
+                <div className="min-w-0 flex-1">
+                    <div className="text-12 font-medium text-primary">{t("notif.settings.openPanel")}</div>
+                    <div className="text-12 text-muted">{t("notif.settings.openPanelHint")}</div>
                 </div>
-            </PageCard>
-        </>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={panelPolicy === "all"}
+                    aria-label={t("notif.settings.openPanel")}
+                    data-testid="notification-panel-policy"
+                    onClick={() => model.setPanelPolicy(panelPolicy === "all" ? "answers" : "all")}
+                    className="inline-flex h-row shrink-0 cursor-pointer items-center rounded-4 px-1"
+                >
+                    <span className={cn("molten-cmdpanel-switch", panelPolicy === "all" && "is-on")} aria-hidden />
+                </button>
+            </div>
+        </PageCard>
     );
 }

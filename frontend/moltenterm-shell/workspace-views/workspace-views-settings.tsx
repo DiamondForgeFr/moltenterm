@@ -122,8 +122,8 @@ function ViewTile({
             className={cn(
                 TileClass,
                 selected
-                    ? "bg-surface-3 shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
-                    : "bg-surface-2 hover:bg-surface-3",
+                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
+                    : "bg-white/[0.09] hover:bg-white/15",
                 dragged && "opacity-40",
                 mark
             )}
