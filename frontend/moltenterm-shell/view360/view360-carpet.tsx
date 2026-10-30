@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115), drawn by the tile layout around its
-// panels: the surface under them, then the edge fades, the fixed zone's grip and the radar scrubber (#617) above them.
+// The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115, DS-SHELL-152), drawn by the tile layout
+// around its panels: the surface under them (no frame since #1545: it holds the observer's sensors), then the fixed
+// zone's grip, the edge peeks and the tab strip (#617, #1395) above them.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
@@ -10,7 +11,7 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { CarpetMarginPx, Rect } from "./carpet-model";
+import { Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
@@ -102,33 +103,18 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     if (layout == null) {
         return null;
     }
-    const surface = layout.surface;
-    const fadeTop = layout.viewport.top;
-    const fadeHeight = layout.viewport.height;
     const gripStuck = view360.gripNoRoom() != null;
+    // The edge fades went with the carpet's frame (#1545): the peeks of View360Radar sit in the gutters instead.
     return (
         <div className="mt-carpet-chrome">
             {layout.fixedNodeId != null && (
                 <div
                     className={cn("mt-fixed-grip", gripStuck && "mt-fixed-grip-stuck")}
                     style={{
-                        transform: `translate3d(${layout.fixed.width + CarpetMarginPx / 2 - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
+                        transform: `translate3d(${layout.fixed.width - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
                     }}
                 />
             )}
-            <div
-                className="mt-carpet-fade mt-carpet-fade-left"
-                style={rectStyle({ top: fadeTop, left: surface.left, width: 28, height: fadeHeight })}
-            />
-            <div
-                className="mt-carpet-fade mt-carpet-fade-right"
-                style={rectStyle({
-                    top: fadeTop,
-                    left: surface.left + surface.width - 28,
-                    width: 28,
-                    height: fadeHeight,
-                })}
-            />
             <View360Radar layoutModel={layoutModel} layout={layout} />
         </div>
     );

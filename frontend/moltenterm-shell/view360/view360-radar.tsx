@@ -7,6 +7,9 @@
 // reorders the carpet (or shows the panel, dropped inside the visible area), a right click opens the tab menu, and the
 // "+" adds a panel at the end. When the tabs no longer fit they keep only their icon, then fall back to the radar's
 // ticks. It renders when the columns, the set in view, the focus or a panel's facts change, never per scroll frame.
+// Since #1545 (DS-SHELL-152) the strip floats under the places, a tab hovered or focused for a moment rises and shows a
+// preview card with the panel's capture and who its pages are shared with, and the carpet's edge peeks are drawn here
+// from the same tabs.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms } from "@/app/store/global";
@@ -24,14 +27,17 @@ import { suiteIcon } from "../suite/suite-icons";
 import { confirmTerminalClose } from "../worktree-close";
 import { addCarpetPanel } from "./carpet-add";
 import { closeCarpetOthers } from "./carpet-close-others";
-import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
+import { carpetCaptureAtom } from "./carpet-captures";
+import { CarpetLayout, CarpetScrubberPx, CarpetStripPx } from "./carpet-model";
 import { activePageTab, CarpetPageFacts, carpetPageModel, makeCarpetPagesAtom } from "./carpet-page-store";
 import { CarpetStrip, StripDrag, StripHandlers } from "./carpet-tabs";
 import {
     carpetMoveAction,
     carpetTabMenu,
     dropIndex,
+    NoShare,
     rovingColumnId,
+    shareLine,
     stepIndex,
     stripLayout,
     StripPlusPx,
@@ -51,13 +57,17 @@ import {
 import { makeRadarFactsAtom, radarColumns } from "./radar-store";
 import "./radar.css";
 import type { View360Model } from "./view360-model";
+import { CarpetPeeks, useCarpetCaptures } from "./view360-peeks";
 import { pinMenuItems } from "./view360-pin";
 import { View360Text } from "./view360-text";
 
 const DragThresholdPx = 3;
 const EdgePadPx = 8;
 const AutoMarkPx = 20;
-const CardWidthPx = 220;
+const CardWidthPx = 240;
+// The preview's intent delay, and how long after a card hides the next one shows at once (FR-SHELL-125 AC14).
+export const PreviewDelayMs = 300;
+const PreviewWarmMs = 400;
 const EyeIcon = suiteIcon("visibleArea");
 const NoPages = atom({} as Record<string, CarpetPageFacts>);
 const ClosingCarpets = new WeakSet<LayoutModel>();
@@ -105,6 +115,40 @@ function useAutoMarkShown(view360: View360Model): boolean {
     return sidebarOn && decision.active && decision.source === "auto";
 }
 
+// A hover card's state behind the pointer's or the focus's intent (FR-SHELL-125 AC14): a value is shown after
+// PreviewDelayMs, at once while a card is shown or was just hidden (moving from tab to tab), and null hides it at once.
+function useIntentState<T>(): [T, (next: T) => void] {
+    const [value, setValue] = useState<T>(null);
+    const ref = useRef<{ value: T; timer: ReturnType<typeof setTimeout>; warmUntil: number }>({
+        value: null,
+        timer: null,
+        warmUntil: 0,
+    });
+    ref.current.value = value;
+    useEffect(() => () => clearTimeout(ref.current.timer), []);
+    const set = (next: T) => {
+        const intent = ref.current;
+        clearTimeout(intent.timer);
+        intent.timer = null;
+        if (next == null) {
+            if (intent.value != null) {
+                intent.warmUntil = performance.now() + PreviewWarmMs;
+            }
+            setValue(null);
+            return;
+        }
+        if (intent.value != null || performance.now() < intent.warmUntil) {
+            setValue(next);
+            return;
+        }
+        intent.timer = setTimeout(() => {
+            intent.timer = null;
+            setValue(next);
+        }, PreviewDelayMs);
+    };
+    return [value, set];
+}
+
 function centerOf(r: DOMRect): number {
     return r.left + r.width / 2;
 }
@@ -117,6 +161,11 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const autoShown = useAutoMarkShown(view360);
     const rootNode = layoutModel.treeState?.rootNode;
     const columns = useMemo(() => radarColumns(rootNode, layout), [rootNode, layout]);
+    const captureColumns = useMemo(
+        () => columns.map((c) => ({ columnId: c.columnId, leafNodeIds: c.leaves.map((l) => l.nodeId) })),
+        [columns]
+    );
+    useCarpetCaptures(layoutModel, captureColumns);
     const blockKey = columns.flatMap((c) => c.leaves.map((l) => l.blockId)).join(",");
     const factsAtom = useMemo(() => makeRadarFactsAtom(blockKey ? blockKey.split(",") : []), [blockKey]);
     const facts = useAtomValue(factsAtom);
@@ -151,11 +200,11 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
             ),
         [ticks, leafOrder, ctrlShiftHeld]
     );
-    const [hover, setHover] = useState<Hover>(null);
+    const [hover, setHover] = useIntentState<Hover>();
     const [scrubbing, setScrubbing] = useState(false);
     const [drag, setDrag] = useState<StripDrag>(null);
     // The window's centre in the row while the pointer is over it, null otherwise.
-    const [windowX, setWindowX] = useState<number>(null);
+    const [windowX, setWindowX] = useIntentState<number>();
     const rowRef = useRef<HTMLDivElement>(null);
     const scrubRef = useRef<Scrub>(null);
     const tabDragRef = useRef<TabDrag>(null);
@@ -173,7 +222,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const rowStyle: CSSProperties = {
         transform: `translate3d(${surface.left}px, ${surface.top + surface.height - CarpetScrubberPx}px, 0)`,
         width: surface.width,
-        height: CarpetScrubberPx,
+        height: CarpetStripPx,
     };
     const columnIds = ticks.map((t) => t.columnId);
 
@@ -421,6 +470,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         menu: showMenu,
         add: () => fireAndForget(() => addCarpetPanel(layoutModel, "end")),
         hover: onHover,
+        unhover: () => setHover(null),
         tabPointerDown: onTabPointerDown,
         tabPointerMove: onTabPointerMove,
         tabPointerUp: onTabPointerUp,
@@ -438,67 +488,102 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const cardX = windowCard ? windowX : (hover?.x ?? 0);
     const cardLeft = Math.min(Math.max(cardX - CardWidthPx / 2, 4), surface.width - CardWidthPx - 4);
     const busy = scrubbing || drag != null;
-    const opener = hovered?.page ? (pages[hovered.focusBlockId]?.agentName ?? "") : "";
+    const hoveredPage = hovered?.page ? pages[hovered.focusBlockId] : null;
+    const shared = hoveredPage == null ? "" : shareLine(hoveredPage.share ?? NoShare);
+    const opener = shared ? "" : (hoveredPage?.agentName ?? "");
+    const previewShown = hovered != null && !busy;
+    const previewId = previewShown ? `mt-strip-preview-${hovered.columnId}` : undefined;
 
     return (
-        <div
-            ref={rowRef}
-            className="mt-radar"
-            style={rowStyle}
-            data-mode={strip.mode}
-            data-testid="mt-carpet-radar"
-            onPointerLeave={() => {
-                // The frame may have moved under a still pointer (a tab added): leaving the strip ends both cards.
-                setHover(null);
-                setWindowX(null);
-            }}
-        >
-            <CarpetStrip
-                ticks={ticks}
-                layout={strip}
-                pitch={pitch}
-                focusedColumnId={focusedColumnId}
-                rovingColumnId={rovingColumnId(ticks, focusedColumnId)}
-                pages={pages}
-                numbers={numbers}
-                drag={drag}
-                scrubbing={scrubbing}
-                handlers={handlers}
-                lead={<RadarAutoMark view360={view360} />}
-            />
-            {hovered != null && !busy && (
-                <div
-                    className="mt-radar-card"
-                    style={{ left: cardLeft, width: CardWidthPx }}
-                    data-attention={hovered.attention ?? undefined}
-                    role="tooltip"
-                >
-                    <b>{hovered.title}</b>
-                    <i>{radarHint(hovered)}</i>
-                    {opener && <i className="mt-radar-card-opener">{StripText.openedBy(opener)}</i>}
-                    {hovered.visible && windowX != null && (
-                        <span className="mt-radar-card-window">
+        <>
+            <CarpetPeeks layoutModel={layoutModel} layout={layout} ticks={ticks} onGo={goTo} />
+            <div
+                ref={rowRef}
+                className="mt-radar"
+                style={rowStyle}
+                data-mode={strip.mode}
+                data-testid="mt-carpet-radar"
+                onPointerLeave={() => {
+                    // The frame may have moved under a still pointer (a tab added): leaving the strip ends both cards.
+                    setHover(null);
+                    setWindowX(null);
+                }}
+            >
+                <CarpetStrip
+                    ticks={ticks}
+                    layout={strip}
+                    pitch={pitch}
+                    focusedColumnId={focusedColumnId}
+                    rovingColumnId={rovingColumnId(ticks, focusedColumnId)}
+                    pages={pages}
+                    numbers={numbers}
+                    drag={drag}
+                    scrubbing={scrubbing}
+                    handlers={handlers}
+                    lead={<RadarAutoMark view360={view360} />}
+                    previewColumnId={previewShown ? hovered.columnId : null}
+                    previewId={previewId}
+                />
+                {previewShown && (
+                    <div
+                        id={previewId}
+                        className="mt-radar-card mt-strip-preview"
+                        style={{ left: cardLeft, width: CardWidthPx }}
+                        data-attention={hovered.attention ?? undefined}
+                        data-testid="mt-carpet-preview"
+                        role="tooltip"
+                    >
+                        <PreviewShot tick={hovered} />
+                        <b>{hovered.title}</b>
+                        <i>{`${StripText.kind(hovered.kind)} · ${radarHint(hovered)}`}</i>
+                        {shared && (
+                            <i className="mt-radar-card-opener" data-testid="mt-carpet-preview-share">
+                                {shared}
+                            </i>
+                        )}
+                        {opener && <i className="mt-radar-card-opener">{StripText.openedBy(opener)}</i>}
+                        {hovered.visible && windowX != null && (
+                            <span className="mt-radar-card-window">
+                                <EyeIcon strokeWidth={2} aria-hidden />
+                                {radarWindowLine()}
+                            </span>
+                        )}
+                    </div>
+                )}
+                {windowCard && !busy && (
+                    <div
+                        className="mt-radar-card"
+                        style={{ left: cardLeft, width: CardWidthPx }}
+                        data-window=""
+                        role="tooltip"
+                    >
+                        <b>
                             <EyeIcon strokeWidth={2} aria-hidden />
-                            {radarWindowLine()}
-                        </span>
-                    )}
-                </div>
-            )}
-            {windowCard && !busy && (
-                <div
-                    className="mt-radar-card"
-                    style={{ left: cardLeft, width: CardWidthPx }}
-                    data-window=""
-                    role="tooltip"
-                >
-                    <b>
-                        <EyeIcon strokeWidth={2} aria-hidden />
-                        {RadarText.window}
-                    </b>
-                    <i>{RadarText.windowHint}</i>
-                </div>
-            )}
-        </div>
+                            {RadarText.window}
+                        </b>
+                        <i>{RadarText.windowHint}</i>
+                    </div>
+                )}
+            </div>
+        </>
     );
 });
 View360Radar.displayName = "View360Radar";
+
+// The preview's still image (AC14): the panel's last capture, the same as its edge peek, or its kind's placeholder.
+function PreviewShot({ tick }: { tick: RadarTick }) {
+    const capture = useAtomValue(carpetCaptureAtom(tick.columnId));
+    const style = { "--mt-radar-color": tick.color } as CSSProperties;
+    if (capture == null) {
+        return (
+            <span className="mt-strip-preview-shot" style={style} data-empty="" aria-hidden="true">
+                <i className={`fa fa-solid fa-${tick.icon}`} />
+            </span>
+        );
+    }
+    return (
+        <span className="mt-strip-preview-shot" style={style} aria-hidden="true">
+            <img src={capture.url} alt="" draggable={false} />
+        </span>
+    );
+}

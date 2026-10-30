@@ -272,12 +272,22 @@ export function initIpcHandlers() {
         event.returnValue = retVal;
     });
 
-    handleAppIpc("capture-screenshot", async (event, rect) => {
+    handleAppIpc("capture-screenshot", async (event, rect, opts?: { width?: number }) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
         }
-        const image = await tabView.webContents.capturePage(rect);
+        let image = await tabView.webContents.capturePage(rect);
+        // MOLTENTERM-PATCH (#1545): a thumbnail for the 360 view's peeks and tab previews, resized here and sent as a
+        // JPEG, so the renderer never holds full-size captures of every carpet panel.
+        const thumbWidth = Number(opts?.width);
+        if (Number.isFinite(thumbWidth) && thumbWidth > 0) {
+            const width = Math.min(Math.round(thumbWidth), 1024);
+            if (image.getSize().width > width) {
+                image = image.resize({ width, quality: "good" });
+            }
+            return `data:image/jpeg;base64,${image.toJPEG(72).toString("base64")}`;
+        }
         const base64String = image.toPNG().toString("base64");
         return `data:image/png;base64,${base64String}`;
     });

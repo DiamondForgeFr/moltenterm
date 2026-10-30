@@ -5723,6 +5723,12 @@
             "visible": "visible",
             "stored": "stored on the carpet",
             "openedBy": "opened by {name}",
+            "share": {
+                "opened": "Opened by {names}",
+                "shared": "Shared with {names}",
+                "both": "Opened by {opened} · shared with {shared}",
+                "state": "shared with {names}"
+            },
             "kinds": {
                 "agent": "Agent",
                 "term": "Terminal",
@@ -5733,6 +5739,9 @@
                 "files": "Files",
                 "other": "Panel"
             }
+        },
+        "peek": {
+            "show": "Show {title}"
         },
         "pin": {
             "pinBeside": "Pin beside",

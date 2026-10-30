@@ -514,3 +514,89 @@
     color: var(--mt-text-1);
     outline: none;
 }
+
+/* The floating strip (FR-SHELL-125 AC13, #1545): no band behind it since the carpet lost its frame, so the tabs and the
+   visible area carry their own subtle shadow over the window. */
+.mt-strip-tabs .mt-strip-tab,
+.mt-strip-tabs .mt-radar-window,
+.mt-radar-ticks,
+.mt-strip-plus {
+    box-shadow: 0 4px 12px -6px rgb(0 0 0 / 0.55);
+}
+
+.mt-light .mt-strip-tabs .mt-strip-tab,
+.mt-light .mt-strip-tabs .mt-radar-window,
+.mt-light .mt-radar-ticks,
+.mt-light .mt-strip-plus {
+    box-shadow: 0 4px 12px -6px rgb(31 26 21 / 0.22);
+}
+
+.mt-strip-tabs .mt-radar-window .mt-strip-tab {
+    box-shadow: none;
+}
+
+.mt-strip-tabs .mt-radar-window .mt-strip-tab[data-focus] {
+    box-shadow: inset 0 -2px 0 var(--mt-place);
+}
+
+/* The previewed tab rises a few pixels (AC14), transform only; under reduced motion it stays put. */
+.mt-strip-tab {
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-strip-tab[data-preview]:not(.dragging) {
+    transform: translateY(-3px);
+}
+
+.prefers-reduced-motion .mt-strip-tab[data-preview]:not(.dragging) {
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-strip-tab[data-preview]:not(.dragging) {
+        transform: none;
+    }
+}
+
+/* The share mark (AC15): neutral, never the action orange. */
+.mt-strip-agent.mt-strip-shared {
+    font-size: var(--mt-text-11);
+}
+
+/* The preview card's still image: the panel's capture, or its kind's placeholder. */
+.mt-strip-preview {
+    padding-top: 6px;
+}
+
+.mt-strip-preview-shot {
+    display: grid;
+    place-items: center;
+    height: 134px;
+    margin: 0 -5px 8px;
+    overflow: hidden;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--mt-radar-color) 24%, var(--mt-surface-2)),
+        var(--mt-surface-2)
+    );
+    color: color-mix(in srgb, var(--mt-radar-color) 70%, var(--mt-text-2));
+    font-size: var(--mt-icon-20);
+}
+
+.mt-strip-preview-shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: left top;
+}
+
+.mt-light .mt-radar-card {
+    box-shadow: 0 10px 24px rgb(31 26 21 / 0.22);
+}

@@ -10,7 +10,7 @@ import { atom, Atom } from "jotai";
 import type { BrowserState, BrowserTab } from "../browser/browser-model";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import type { BrowserTabActions } from "../browser/browser-tab-menu";
-import { pageOpener, type PageAgentTab } from "./carpet-tabs-model";
+import { pageOpener, pageShareOf, type PageAgentTab, type PageShare } from "./carpet-tabs-model";
 
 // The part of BrowserViewModel the strip uses.
 export type CarpetPageModel = BrowserTabActions & {
@@ -21,7 +21,10 @@ export type CarpetPageModel = BrowserTabActions & {
     shareItems?: (tab: BrowserTab) => Promise<ContextMenuItem[]>;
 };
 
-export type CarpetPageFacts = { favicon: string; agentName: string };
+// share (#1545, FR-SHELL-125 AC15): who can read or drive the panel's pages, from the panel's agent state (wavesrv's
+// browser agent state and its events, the source of the library's Shared with agents), so it goes as soon as the
+// access is removed.
+export type CarpetPageFacts = { favicon: string; agentName: string; share?: PageShare };
 
 export function carpetPageModel(blockId: string): CarpetPageModel {
     const vm = (blockId ? getBlockComponentModel(blockId)?.viewModel : null) as unknown as CarpetPageModel;
@@ -40,7 +43,20 @@ function samePages(a: Record<string, CarpetPageFacts>, b: Record<string, CarpetP
     if (ka.length !== Object.keys(b).length) {
         return false;
     }
-    return ka.every((k) => b[k] != null && a[k].favicon === b[k].favicon && a[k].agentName === b[k].agentName);
+    return ka.every(
+        (k) =>
+            b[k] != null &&
+            a[k].favicon === b[k].favicon &&
+            a[k].agentName === b[k].agentName &&
+            sameNames(a[k].share?.openedBy, b[k].share?.openedBy) &&
+            sameNames(a[k].share?.sharedWith, b[k].share?.sharedWith)
+    );
+}
+
+function sameNames(a: string[], b: string[]): boolean {
+    const x = a ?? [];
+    const y = b ?? [];
+    return x.length === y.length && x.every((name, i) => name === y[i]);
 }
 
 // One atom per set of page blocks. It hands back the same object while no favicon nor opener changed, so a page's
@@ -58,6 +74,10 @@ export function makeCarpetPagesAtom(blockIds: string[]): Atom<Record<string, Car
             next[blockId] = {
                 favicon: active?.engine ? null : (loads?.[active?.id]?.favicon ?? null),
                 agentName: pageOpener(active?.id, agentTabs),
+                share: pageShareOf(
+                    (state?.tabs ?? []).map((tab) => tab.id),
+                    agentTabs
+                ),
             };
         }
         if (samePages(last, next)) {

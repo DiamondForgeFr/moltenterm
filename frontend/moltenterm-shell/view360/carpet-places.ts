@@ -7,8 +7,7 @@
 
 import {
     CarpetColumnGapPx,
-    CarpetMarginPx,
-    CarpetPadXPx,
+    CarpetEdgePx,
     CarpetLayout,
     clampFixedPx,
     clampScroll,
@@ -41,9 +40,9 @@ export function readPlaces(raw: unknown): number {
     return typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= MaxPlaces ? raw : null;
 }
 
-// What the carpet's chrome takes beside the fixed zone: its margins and its padding.
+// What the carpet's chrome takes beside the fixed zone: the peeks' gutters (#1545).
 function carpetChromePx(): number {
-    return 2 * CarpetMarginPx + 2 * CarpetPadXPx;
+    return 2 * CarpetEdgePx;
 }
 
 // The width each of n places gets on a carpet whose band is viewportPx wide: the whole band (FR-SHELL-125-AC7).
@@ -64,7 +63,10 @@ export function placesSlotPx(widthPx: number, zonePx: number, n: number): number
 
 // The fixed zone's extra width from the columns pinned beside the first one, each with its gap.
 export function besideZonePx(pinnedPx: number[]): number {
-    return (pinnedPx ?? []).reduce((acc, px) => acc + Math.max(PinnedColumnMinPx, px > 0 ? px : 0) + FixedColumnGapPx, 0);
+    return (pinnedPx ?? []).reduce(
+        (acc, px) => acc + Math.max(PinnedColumnMinPx, px > 0 ? px : 0) + FixedColumnGapPx,
+        0
+    );
 }
 
 // The equal parts (AC5): the first column and every visible place share the width alike, the columns pinned beside

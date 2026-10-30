@@ -5723,6 +5723,12 @@
             "visible": "visible",
             "stored": "rangé sur le tapis",
             "openedBy": "ouvert par {name}",
+            "share": {
+                "opened": "Ouvert par {names}",
+                "shared": "Partagé avec {names}",
+                "both": "Ouvert par {opened} · partagé avec {shared}",
+                "state": "partagé avec {names}"
+            },
             "kinds": {
                 "agent": "Agent",
                 "term": "Terminal",
@@ -5733,6 +5739,9 @@
                 "files": "Fichiers",
                 "other": "Panneau"
             }
+        },
+        "peek": {
+            "show": "Afficher {title}"
         },
         "pin": {
             "pinBeside": "Épingler à côté",

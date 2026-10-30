@@ -81,14 +81,69 @@ export const StripText = {
     openedBy: (name: string) => t("view360.strip.openedBy", { name }),
 };
 
-// A tab's accessible name (AC10): its kind, its title and its state (visible or stored, and what it waits for).
-export function carpetTabName(tick: RadarTick, agentName = ""): string {
+// Who can read or drive a page panel's pages right now (AC15): the agents that opened one, then those one is shared
+// with, first names only, each named once (an agent that opened a page is not also listed as shared with).
+export type PageShare = { openedBy: string[]; sharedWith: string[] };
+
+export const NoShare: PageShare = { openedBy: [], sharedWith: [] };
+
+export function pageShareOf(pageTabIds: readonly string[], agentTabs: Record<string, PageAgentTab>): PageShare {
+    const live = new Set(pageTabIds ?? []);
+    const openedBy: string[] = [];
+    const sharedWith: string[] = [];
+    for (const [tabId, held] of Object.entries(agentTabs ?? {})) {
+        const name = (held?.agentname ?? "").trim();
+        if (!name || !live.has(tabId)) {
+            continue;
+        }
+        const list = held.origin === "opened" ? openedBy : sharedWith;
+        if (!list.includes(name)) {
+            list.push(name);
+        }
+    }
+    return { openedBy, sharedWith: sharedWith.filter((name) => !openedBy.includes(name)) };
+}
+
+export function shareAgents(share: PageShare): string[] {
+    return [...(share?.openedBy ?? []), ...(share?.sharedWith ?? [])];
+}
+
+// The tab's mark (AC15): the agent's initial when one agent holds the panel's pages, a share glyph when several do,
+// nothing otherwise.
+export function shareMark(share: PageShare): { initial: string } | "several" | null {
+    const agents = shareAgents(share);
+    if (agents.length === 0) {
+        return null;
+    }
+    return agents.length === 1 ? { initial: agentInitial(agents[0]) } : "several";
+}
+
+// The preview card's line (AC15): « Partagé avec Adrien », « Ouvert par Léon · partagé avec Adrien, Gaspard ».
+export function shareLine(share: PageShare): string {
+    const opened = (share?.openedBy ?? []).join(", ");
+    const shared = (share?.sharedWith ?? []).join(", ");
+    if (opened && shared) {
+        return t("view360.strip.share.both", { opened, shared });
+    }
+    if (opened) {
+        return t("view360.strip.share.opened", { names: opened });
+    }
+    return shared ? t("view360.strip.share.shared", { names: shared }) : "";
+}
+
+// A tab's accessible name (AC10): its kind, its title and its state (visible or stored, and what it waits for, who
+// its pages are shared with).
+export function carpetTabName(tick: RadarTick, agentName = "", share: PageShare = NoShare): string {
     const state = [tick.visible ? t("view360.strip.visible") : t("view360.strip.stored")];
     if (tick.attention != null) {
         state.push(RadarText[tick.attention]);
     }
-    if (agentName) {
-        state.push(StripText.openedBy(agentName));
+    const opened = share.openedBy.length ? share.openedBy : agentName ? [agentName] : [];
+    if (opened.length) {
+        state.push(StripText.openedBy(opened.join(", ")));
+    }
+    if (share.sharedWith.length) {
+        state.push(t("view360.strip.share.state", { names: share.sharedWith.join(", ") }));
     }
     return t("view360.strip.tabName", { kind: StripText.kind(tick.kind), title: tick.title, state: state.join(", ") });
 }

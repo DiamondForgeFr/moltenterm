@@ -14,28 +14,31 @@ import { LegacyTimelineView, MoltentermProjectView } from "../project/project-mo
 // and a minimum above half lets the zone grow up to what leaves the carpet one readable column (#829).
 export const FixedMinPx = 520;
 export const FixedMaxShare = 0.5;
-// Room around the carpet surface, so it reads as a recessed area beside the fixed zone.
-export const CarpetMarginPx = 8;
-// Room between the carpet surface's edges and the panels laid on it; the top one holds the "carpet" label.
-export const CarpetPadXPx = 12;
-export const CarpetPadTopPx = 16;
-// The bottom of the carpet is reserved for its tab strip (FR-SHELL-125, formerly the radar scrubber of #617): the
-// tabs, the frame of the visible area around them and some air.
-export const CarpetScrubberPx = 40;
-export const CarpetColumnGapPx = 12;
+// The carpet has no frame (#1545, FR-SHELL-065 AC4): its surface runs from the fixed zone's edge to the window's, and
+// columns touch, so the tile gap (half on each panel) gives the gaps of the normal layout. Each side of the band of
+// places keeps a gutter for the peek of the neighbouring panel (AC11).
+export const CarpetEdgePx = 16;
+// The tab strip (FR-SHELL-125 AC13) floats under the places: they end its height (the visible area's frame) plus the
+// half tile gap every panel keeps at the window's edges above the bottom, and nothing more.
+export const CarpetStripPx = 36;
+export const CarpetStripGapPx = 4;
+export const CarpetScrubberPx = CarpetStripPx + CarpetStripGapPx;
+export const CarpetColumnGapPx = 0;
 export const MinCarpetColumnPx = 280;
 export const DefaultCarpetColumnPx = 560;
 // With a column pinned beside it (FR-SHELL-067), every fixed column (the first one included) keeps this width at
-// least, so a terminal and a side panel fit side by side in half of a laptop's window. Fixed columns are separated
-// by the carpet's margin.
+// least, so a terminal and a side panel fit side by side in half of a laptop's window. Fixed columns touch, like the
+// carpet's (#1545): the tile gap separates them as in the normal layout.
 export const PinnedColumnMinPx = 320;
-export const FixedColumnGapPx = CarpetMarginPx;
+export const FixedColumnGapPx = 0;
 // Below this, two scroll positions are the same panel edge (slots from proportions are fractional).
 const EdgeEpsilonPx = 0.5;
+// Below this, a column overlapping the band is not in view: what shows of it is its own half gap.
+const TouchEpsilonPx = 1;
 // The readable minimum of a column other than the first (FR-SHELL-066's automatic decision counts it too).
 export const ReadableCarpetColumnPx = 360;
-// What the carpet needs to show one column at its readable minimum: the column, the carpet's padding and margins.
-export const CarpetReservePx = ReadableCarpetColumnPx + 2 * CarpetPadXPx + 2 * CarpetMarginPx;
+// What the carpet needs to show one column at its readable minimum: the column and the peeks' gutters.
+export const CarpetReservePx = ReadableCarpetColumnPx + 2 * CarpetEdgePx;
 
 // The width a column takes on the carpet when none is remembered for its kind.
 const DefaultCarpetWidths: Record<string, number> = {
@@ -81,7 +84,7 @@ export type CarpetLayout = {
     fixed: Rect;
     // The fixed zone's columns: the first one, then the pinned ones in the tree's order.
     fixedColumns: FixedColumn[];
-    // The recessed surface, and inside it the band the columns are laid in.
+    // The carpet's whole area (no frame is drawn), and inside it the band the columns are laid in.
     surface: Rect;
     viewport: Rect;
     columns: CarpetColumn[];
@@ -313,18 +316,17 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
     const fixedColumns = layoutFixedColumns(input, width, height);
     const fixedPx = Math.max(...fixedColumns.map((c) => c.rect.left + c.rect.width));
     const fixed: Rect = { top: 0, left: 0, width: fixedPx, height };
-    const surfaceLeft = fixedPx + CarpetMarginPx;
     const surface: Rect = {
-        top: CarpetMarginPx,
-        left: surfaceLeft,
-        width: Math.max(0, width - surfaceLeft - CarpetMarginPx),
-        height: Math.max(0, height - 2 * CarpetMarginPx),
+        top: 0,
+        left: fixedPx,
+        width: Math.max(0, width - fixedPx),
+        height,
     };
     const viewport: Rect = {
-        top: surface.top + CarpetPadTopPx,
-        left: surface.left + CarpetPadXPx,
-        width: Math.max(0, surface.width - 2 * CarpetPadXPx),
-        height: Math.max(0, surface.height - CarpetPadTopPx - CarpetScrubberPx),
+        top: 0,
+        left: surface.left + CarpetEdgePx,
+        width: Math.max(0, surface.width - 2 * CarpetEdgePx),
+        height: Math.max(0, surface.height - CarpetScrubberPx),
     };
     // The panels take the whole band (FR-SHELL-125-AC7): the "+" of the tab strip replaced the invitations laid at
     // each end, so N places are equal and no edge of a stored panel shows beside them.
@@ -402,7 +404,11 @@ export function visibleCarpetColumnIds(layout: CarpetLayout, scrollLeft: number)
     }
     const start = clampScroll(layout, scrollLeft);
     const end = start + layout.viewport.width;
-    return layout.columns.filter((c) => c.x + c.width > start && c.x < end).map((c) => c.nodeId);
+    // Columns touch (#1545) and slots are floored: the next one may start less than a pixel inside the band, in its
+    // own transparent half gap. It is not in view.
+    return layout.columns
+        .filter((c) => c.x + c.width > start + TouchEpsilonPx && c.x < end - TouchEpsilonPx)
+        .map((c) => c.nodeId);
 }
 
 // The scroll position that brings a column fully into view: the current one when it already is, otherwise the nearest
@@ -470,10 +476,11 @@ export function carpetNodeTransform(rect: Rect, layout: CarpetLayout): { transfo
     const left = Math.floor(rect.left);
     const top = Math.floor(rect.top);
     const width = Math.ceil(rect.width);
-    const edgeLeft = layout.surface.left;
-    const edgeRight = layout.surface.left + layout.surface.width;
+    // The band of places, not the surface: the gutters beside it hold the peeks (#1545).
+    const edgeLeft = layout.viewport.left;
+    const edgeRight = layout.viewport.left + layout.viewport.width;
     const scroll = `var(${CarpetScrollVar}, 0px)`;
-    // Amount cut on each side: the part of the node past the surface's left or right edge once scrolled.
+    // Amount cut on each side: the part of the node past the band's left or right edge once scrolled.
     const cutLeft = `max(-${ShadowRoomPx}px, calc(${scroll} - ${left - edgeLeft}px))`;
     const cutRight = `max(-${ShadowRoomPx}px, calc(${left + width - edgeRight}px - ${scroll}))`;
     return {
