@@ -5,7 +5,7 @@ versions or advisory metadata change. `dependencies.json` binds each assessment 
 affected range, locked occurrence/version, surface, reachability and listed targets. There are **no accepted
 high-impact exceptions**. A changed advisory or a new Go package/symbol trace must be reviewed again.
 
-The complete npm audit still reports 61 vulnerable package/meta-vulnerability entries. They resolve to **15 distinct
+The 2026-10-17 npm audit reported 61 vulnerable package/meta-vulnerability entries. They resolved to **15 distinct
 GHSA IDs / 18 leaf occurrences**; the full parent graph remains in the raw report. Go reports **GO-2026-5932** at module
 level in the root graph, with no affected-package or called-symbol finding; standalone Tsunami has none on the scanned
 targets. These numbers describe scanner evidence, not an exploit count or a claim that every dependency is safe.
@@ -18,14 +18,11 @@ targets. These numbers describe scanner evidence, not an exploit count or a clai
   literal `sleeping %ds` and a locally bounded reconnect delay. Neither accepts a format or precision from files,
   terminal/network content or settings. This condition is nonapplicable to these callers. Follow-up: replace these
   two formatting calls and remove the direct dependency; no upstream fixed version is available.
-- [KaTeX / GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7), 0.16.47: keep a **low-impact,
-  potentially applicable** finding visible. Math text may be untrusted. The advisory needs a separate existing
-  prototype-pollution primitive or attacker control of an options prototype; this review has not established either
-  in these rendering paths and does not prove their universal absence. `WaveStreamdown` supplies text/components,
-  not user-derived KaTeX options; Streamdown's default pipeline runs KaTeX then `rehype-sanitize`. Mermaid builds
-  fixed rendering options and calls `sanitizeText` on its math output. Default `trust=false` and Mermaid strict mode
-  alone are **not** immunity to inherited settings or every resource-limit effect. Follow-up: qualify KaTeX >=0.18.2
-  through Mermaid/Streamdown with math, URL and resource-limit regressions before changing their supported ranges.
+- [KaTeX / GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7): #1602 replaces the affected
+  0.16.47 occurrence with 0.18.10, outside the affected range. The original condition required a separate existing
+  prototype-pollution primitive or attacker control of an options prototype; neither was established in these paths.
+  The exact override is outside the current consumers' declared ranges and must be requalified when they change;
+  see `UPGRADES.md`. Existing Streamdown math formatting and MathML stripping is tracked separately in #1610.
 - [OpenPGP / GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932), x/crypto v0.58.0: the unmaintained APIs are
   `golang.org/x/crypto/openpgp` and its subpackages. The application's static imports and complete source-scan traces
   do not include them. x/crypto is used for other APIs, including SSH; that does not make OpenPGP present. All recorded

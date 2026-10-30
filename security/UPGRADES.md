@@ -1,5 +1,13 @@
 # Dependency upgrades for #810
 
+KaTeX 0.18.10 is pinned by an exact npm override for Mermaid, Streamdown, rehype-katex and
+micromark-extension-math (#1602). Their current 0.16 dependency ranges do not include it; the override is a
+qualified compatibility exception, not an upstream-supported range. Reassess and remove it when all consumers
+support a patched version, and repeat renderer, trust and resource-limit tests on consumer upgrades. Registry
+0.18.11 is deprecated by its publisher for accidentally introduced breaking changes; 0.18.10 is not deprecated.
+Its Commander 15 CLI dependency requires Node >=22.12.0; the renderer does not use that CLI. CI uses Node 22.
+Existing Streamdown sanitization strips KaTeX formatting and MathML, including before this change (#1610).
+
 Electron is pinned to 45.2.0 (#1590), with the developer-approved macOS 13+ minimum. Electron 42 is out of support;
 the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines keep their
 recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review expires
