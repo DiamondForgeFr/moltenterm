@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Loaded once while the file is collected, which has no timeout: each test's fresh import then only re-evaluates it,
 // instead of the first test paying for the module graph within its own 5 s timeout on a loaded machine (#651).
 import "./worktree-close";
+import { closeCarpetOthers } from "./view360/carpet-close-others";
 
 const app = vi.hoisted(() => ({
     objects: {} as Record<string, any>,
@@ -17,6 +18,7 @@ const app = vi.hoisted(() => ({
     readCalls: [] as string[][],
     asks: [] as any[],
     answer: true,
+    decide: null as ((request: any) => Promise<boolean>) | null,
 }));
 
 vi.mock("@/app/store/wos", async () => {
@@ -56,7 +58,7 @@ vi.mock("./busy-close-store", () => ({
     },
     askBusyClose: async (request: any) => {
         app.asks.push(request);
-        return app.answer;
+        return app.decide ? app.decide(request) : app.answer;
     },
 }));
 
@@ -100,6 +102,103 @@ beforeEach(async () => {
     app.readCalls = [];
     app.asks = [];
     app.answer = true;
+    app.decide = null;
+});
+
+describe("carpet close others", () => {
+    it("waits for each busy terminal, and stops on cancellation", async () => {
+        block("b1", { view: "term" });
+        block("b2", { view: "term" });
+        busy("b1");
+        busy("b2");
+        const answers: Array<(answer: boolean) => void> = [];
+        app.decide = () => new Promise((resolve) => answers.push(resolve));
+        const closed: string[] = [];
+        const batch = closeCarpetOthers(["b1", "b2"], {
+            active: () => true,
+            exists: (id) => app.inLayout.has(id),
+            confirm: guard.confirmTerminalClose,
+            close: async (id) => { closed.push(id); app.inLayout.delete(id); },
+        });
+        await vi.waitFor(() => expect(answers).toHaveLength(1));
+        expect(app.asks.map((a) => a.blockId)).toEqual(["b1"]);
+        answers[0](true);
+        await vi.waitFor(() => expect(answers).toHaveLength(2));
+        expect(closed).toEqual(["b1"]);
+        answers[1](false);
+        await batch;
+        expect(closed).toEqual(["b1"]);
+        expect(app.inLayout.has("b2")).toBe(true);
+    });
+
+    it("skips a target removed during a confirmation and continues", async () => {
+        block("b1", { view: "term" });
+        block("b2", { view: "term" });
+        busy("b1");
+        let answer: (value: boolean) => void;
+        app.decide = () => new Promise((resolve) => { answer = resolve; });
+        const closed: string[] = [];
+        const batch = closeCarpetOthers(["b1", "b2"], {
+            active: () => true,
+            exists: (id) => app.inLayout.has(id),
+            confirm: guard.confirmTerminalClose,
+            close: async (id) => { closed.push(id); app.inLayout.delete(id); },
+        });
+        await vi.waitFor(() => expect(answer).toBeDefined());
+        app.inLayout.delete("b1");
+        answer(false);
+        await batch;
+        expect(closed).toEqual(["b2"]);
+    });
+
+    it("waits for each worktree decision before asking about the next", async () => {
+        block("b1", { view: "term", "molten:worktree": "/w/one" });
+        block("b2", { view: "term", "molten:worktree": "/w/two" });
+        const { globalStore } = await import("@/app/store/jotaiStore");
+        const set = vi.spyOn(globalStore, "set");
+        const closed: string[] = [];
+        const batch = closeCarpetOthers(["b1", "b2"], {
+            active: () => true,
+            exists: (id) => app.inLayout.has(id),
+            confirm: guard.confirmTerminalClose,
+            close: async (id) => { closed.push(id); app.inLayout.delete(id); },
+        });
+        const requests = () => set.mock.calls.filter((call) => (call[1] as any)?.path?.startsWith("/w/"));
+        await vi.waitFor(() => expect(requests()).toHaveLength(1));
+        const first = requests()[0];
+        expect((first[1] as any).blockId).toBe("b1");
+        globalStore.set(first[0] as any, null);
+        (first[1] as any).close();
+        await vi.waitFor(() => expect(requests()).toHaveLength(2));
+        expect(closed).toEqual(["b1"]);
+        const second = requests()[1];
+        expect((second[1] as any).blockId).toBe("b2");
+        globalStore.set(second[0] as any, null);
+        (second[1] as any).close();
+        await batch;
+        expect(closed).toEqual(["b1", "b2"]);
+        set.mockRestore();
+    });
+
+    it("stops if the original view is no longer active while a decision is pending", async () => {
+        block("b1", { view: "term" });
+        busy("b1");
+        let active = true;
+        let answer: (value: boolean) => void;
+        app.decide = () => new Promise((resolve) => { answer = resolve; });
+        const close = vi.fn(async () => {});
+        const batch = closeCarpetOthers(["b1"], {
+            active: () => active,
+            exists: (id) => app.inLayout.has(id),
+            confirm: guard.confirmTerminalClose,
+            close,
+        });
+        await vi.waitFor(() => expect(answer).toBeDefined());
+        active = false;
+        answer(true);
+        await batch;
+        expect(close).not.toHaveBeenCalled();
+    });
 });
 
 describe("closing a pane (FR-SHELL-061 AC1, AC2, AC4, AC6)", () => {
