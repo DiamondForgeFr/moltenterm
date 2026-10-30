@@ -127,6 +127,11 @@
     transform: translateX(10px);
 }
 
+/* In the light theme (#1341) the main text is dark: on the accent, the knob turns white, 5.76:1 on the action text. */
+.mt-light .molten-cmdpanel-switch.is-on::after {
+    background: var(--mt-surface-2);
+}
+
 .molten-cmdpanel-slider {
     width: 64px;
     height: 16px;
