@@ -11,7 +11,6 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, createBlock, getApi } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import { useWaveObjectValue } from "@/app/store/wos";
-import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getWebServerEndpoint } from "@/util/endpoints";
@@ -64,10 +63,7 @@ import {
     MaterialRenameCommand,
     MaterialRestoreCommand,
     MaterialsCardsMinWidth,
-    MaterialsChanged,
-    MaterialsEvent,
     materialSizeText,
-    MaterialsListCommand,
     MaterialsNoProject,
     materialsProjectName,
     MaterialsRecoverCommand,
@@ -122,58 +118,7 @@ async function copyText(text: string, doneKey: string): Promise<void> {
 // ---------- The drawer ----------
 
 // The drawer of the workspace the developer is in, kept current by the registry's event (scoped to the drawer).
-export function useMaterialsDrawer(workspaceId: string): { view: MaterialsView; failed: boolean } {
-    const [view, setView] = useState<MaterialsView>(null);
-    const [failed, setFailed] = useState(false);
-    const key = view?.project?.key ?? "";
-    const loadRef = useRef<() => void>(null);
-    useEffect(() => {
-        let cancelled = false;
-        const load = () =>
-            fireAndForget(async () => {
-                try {
-                    const next = await callMaterials<MaterialsView>(MaterialsListCommand, {
-                        workspaceid: workspaceId,
-                    });
-                    if (!cancelled) {
-                        setView(next ?? null);
-                        setFailed(false);
-                    }
-                } catch (e) {
-                    console.log("library: materials", e);
-                    if (!cancelled) {
-                        setFailed(true);
-                    }
-                }
-            });
-        loadRef.current = load;
-        load();
-        return () => {
-            cancelled = true;
-        };
-    }, [workspaceId]);
-    useEffect(() => {
-        if (!key) {
-            return;
-        }
-        try {
-            return waveEventSubscribeSingle({
-                eventType: MaterialsEvent as WaveEventName,
-                scope: key,
-                handler: (event) => {
-                    const data = event.data as MaterialsChanged;
-                    if (data?.project && data.project !== key) {
-                        return;
-                    }
-                    loadRef.current?.();
-                },
-            });
-        } catch (e) {
-            console.log("library: materials, no event bus", e);
-        }
-    }, [key]);
-    return { view, failed };
-}
+export { useMaterialsDrawer } from "./use-materials-drawer";
 
 function readSeen(project: string): number {
     try {
