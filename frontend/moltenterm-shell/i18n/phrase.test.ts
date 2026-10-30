@@ -29,8 +29,8 @@ describe("phrases follow the interface language (#1058)", () => {
         const server = serverPhrase({ code: "review.worktreecreate", vars: { branch: "b", detail: "busy" } }, "x");
         setLanguage("fr");
         const fr = wordPhrase(stored);
-        expect(fr).toContain("Un worktree sur b n'a pas pu être créé : busy");
-        expect(wordPhrase(server)).toBe("Un worktree sur b n'a pas pu être créé : busy");
+        expect(fr).toContain("Un worktree sur b n'a pas pu être créé\u00a0: busy");
+        expect(wordPhrase(server)).toBe("Un worktree sur b n'a pas pu être créé\u00a0: busy");
         setLanguage("en");
         expect(wordPhrase(stored)).not.toBe(fr);
         expect(wordPhrase(stored)).toContain("The rebase could not be asked");

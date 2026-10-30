@@ -319,7 +319,7 @@ describe("batch merge model", () => {
     it("words the banner in French", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         expect(batchTitle(run())).toBe(
-            "File de fusion : 5 PR validées — 1 sur 5 fusionnées, #2 est en cours de rebase"
+            "File de fusion\u00a0: 5 PR validées — 1 sur 5 fusionnées, #2 est en cours de rebase"
         );
     });
 

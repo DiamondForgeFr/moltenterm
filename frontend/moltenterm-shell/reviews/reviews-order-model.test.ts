@@ -80,7 +80,7 @@ function maskPricing(nodes: OrderNode[]): {
         }
     }
     const stepCost = (v: number, placed: number) =>
-        nodes[v].group === "conflictsbase" || (impactedBy[v] & placed) !== 0 ? 1 : 0;
+        nodes[v].group === "conflictsbase" || (impactedBy[v] & placed) !== 0 ? 1 : 0;
     const costOf = (numbers: number[]) => {
         let placed = 0;
         let cost = 0;
@@ -132,7 +132,7 @@ function nodesOf(n: number, edges: [number, number][], conflictsbase: number[] =
     return Array.from({ length: n }, (_, i) => ({
         number: i + 1,
         index: i,
-        group: conflictsbase.includes(i + 1) ? "conflictsbase" : "simulated",
+        group: conflictsbase.includes(i + 1) ? "conflictsbase" : "simulated",
         tier: 0,
         impacts: edges.filter(([a]) => a === i + 1).map(([, b]) => b),
     }));
@@ -178,7 +178,7 @@ describe("suggested merge order (FR-REV-024)", () => {
                     }
                 }
             }
-            const conflictsbase = rand() < 0.3 ? [n] : [];
+            const conflictsbase = rand() < 0.3 ? [n] : [];
             const nodes = nodesOf(
                 n,
                 edges.filter(([a, b]) => !conflictsbase.includes(a) && !conflictsbase.includes(b)),
@@ -346,7 +346,7 @@ describe("merge order wording", () => {
         expect(mergeOrderHeader(order, true).text).toBe("This order: 0 CI runs to redo — current order: 2");
         expect(mergeOrderHeader(order, false).text).toBe("List order: 2 CI runs to redo — suggested order: 0");
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(mergeOrderHeader(order, true).text).toBe("Cet ordre : 0 CI à relancer — ordre actuel : 2");
+        expect(mergeOrderHeader(order, true).text).toBe("Cet ordre\u00a0: 0 CI à relancer — ordre actuel\u00a0: 2");
     });
 
     it("uses the singular for one run", () => {

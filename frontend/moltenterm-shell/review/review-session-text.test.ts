@@ -64,10 +64,10 @@ describe("review session text in French (#652)", () => {
     it("words a failed session and its queue note", () => {
         const out = localizeSession(session);
         expect(out.message).toBe(
-            "L'agent n'a pas démarré (the terminal showed no prompt). Lancez-le dans le terminal de revue avec : claude --permission-mode plan"
+            "L'agent n'a pas démarré (the terminal showed no prompt). Lancez-le dans le terminal de revue avec\u00a0: claude --permission-mode plan"
         );
         expect(out.queuenote).toBe(
-            "Une question en attente n'a pas pu être envoyée : Claude Code ne tourne plus dans le terminal de revue : rien n'a été tapé."
+            "Une question en attente n'a pas pu être envoyée\u00a0: Claude Code ne tourne plus dans le terminal de revue\u00a0: rien n'a été tapé."
         );
         expect(localizeSession({ ...session, reason: undefined, queuenotereason: undefined }).message).toBe(
             session.message
@@ -84,7 +84,7 @@ describe("review session text in French (#652)", () => {
         );
         expect(
             localizeAsk({ sent: false, reason: "notforeground", program: "vim", message: "english" }, "Codex").message
-        ).toBe("vim est au premier plan du terminal de revue, pas Codex : rien n'a été tapé.");
+        ).toBe("vim est au premier plan du terminal de revue, pas Codex\u00a0: rien n'a été tapé.");
         expect(localizeAsk({ sent: true, message: "Sent to Codex." }, "Codex").message).toBe("Sent to Codex.");
         expect(localizeBrief({ status: "typed", message: "english" }, "Codex").message).toContain("appuyez sur Entrée");
         expect(localizeBrief({ status: "busy", reason: "waiting" }, "Codex").message).toBe(

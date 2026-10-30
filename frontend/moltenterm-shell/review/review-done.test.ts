@@ -98,7 +98,7 @@ describe("review done state (#686)", () => {
     it("names the tab's mark", () => {
         expect(reviewDoneTabTitle(en, { state: "merged" })).toBe("Merged: you can close this view");
         expect(reviewDoneTabTitle(en, { state: "closed" })).toBe("Closed without merge: you can close this view");
-        expect(reviewDoneTabTitle(fr, { state: "merged" })).toBe("Fusionnée : vous pouvez fermer cette vue");
+        expect(reviewDoneTabTitle(fr, { state: "merged" })).toBe("Fusionnée\u00a0: vous pouvez fermer cette vue");
         expect(reviewDoneTabTitle(en, null)).toBe("");
     });
 
