@@ -277,7 +277,7 @@ describe("panel motion's stylesheet (FR-SHELL-112, NFR-SHELL-027)", () => {
     });
 
     it("turns the light in incandescent, in steps over --mt-duration-turn, held still off the active view", () => {
-        expect(css).toMatch(/\.mt-working-light \{[^}]*--df-accent: var\(--mt-state-running, #ffb547\);/);
+        expect(css).toMatch(/\.mt-working-light \{[^}]*--df-accent: var\(--mt-state-running\);/);
         expect(css).toMatch(
             /\.mt-working-light::before \{\s*animation: df-glow-turn var\(--mt-duration-turn\) steps\(32\) infinite;/
         );

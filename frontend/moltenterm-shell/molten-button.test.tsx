@@ -98,7 +98,9 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
 
     describe.each([[".molten-btn-warning", "#000000"]])("%s", (selector, wantFg) => {
         const base = variantBase(selector);
-        const fg = cssValue(selector, "--molten-fg");
+        // The text colour is a token (FR-SHELL-119): read its value in tokens.css.
+        const fgToken = /^var\((--[a-z0-9-]+)\)$/.exec(cssValue(selector, "--molten-fg"))?.[1];
+        const fg = new RegExp(`${fgToken}:\\s*(#[0-9a-f]{6});`).exec(tokensCss)?.[1];
         const highlights = { ...Highlights, ...readHighlights(selector) };
 
         it("declares the readable text colour of its fill", () => {
