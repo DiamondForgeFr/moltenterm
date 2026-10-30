@@ -64,6 +64,12 @@ const Paths = {
             <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />
         </>
     ),
+    box: (
+        <>
+            <path d="M21 8 12 3 3 8v8l9 5 9-5z" />
+            <path d="m3.3 7.5 8.7 5 8.7-5M12 22V12.5" />
+        </>
+    ),
     archive: (
         <>
             <rect x="3" y="4" width="18" height="5" rx="1.5" />

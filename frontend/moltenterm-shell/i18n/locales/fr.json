@@ -9396,6 +9396,11 @@
                 "title": "Envoyé à l'IA",
                 "sub": "Les pages que les agents tiennent en ce moment : celles que vous avez partagées et celles qu'ils ont ouvertes."
             },
+            "materials": {
+                "label": "Matériaux",
+                "title": "Matériaux",
+                "sub": "Ce que les agents ont produit hors du dépôt, gardé sur cet ordinateur : pages, documents, images, liens."
+            },
             "putaway": {
                 "label": "Vues rangées",
                 "title": "Vues rangées",
@@ -9445,6 +9450,89 @@
             "opened": "ouverte par l'agent",
             "emptyTitle": "Rien de partagé en ce moment",
             "empty": "Une page que vous partagez avec un agent depuis un panneau Page web s'affiche ici tant que l'agent la tient."
+        },
+        "materials": {
+            "thisProject": "Ce projet · {name}",
+            "noProject": "Sans projet",
+            "emptyTitle": "Aucun matériau pour l'instant",
+            "empty": "Ce qu'un agent produit hors du dépôt et vous montre (une page publiée, un document, une image, un lien qu'il nomme) est gardé ici, par projet.",
+            "failedTitle": "Les matériaux ne sont pas disponibles",
+            "failed": "MoltenTerm n'a pas pu lire les matériaux de ce projet.",
+            "day": {
+                "pinned": "Épinglés",
+                "today": "Aujourd'hui",
+                "yesterday": "Hier"
+            },
+            "kind": {
+                "page": "Page",
+                "link": "Lien",
+                "pdf": "PDF",
+                "image": "Image",
+                "video": "Vidéo",
+                "text": "Texte",
+                "document": "Document"
+            },
+            "version": "v{n}",
+            "linkedFiles": {
+                "one": "{count} fichier lié",
+                "other": "{count} fichiers liés"
+            },
+            "origin": {
+                "named": "nommé dans une réponse",
+                "namedBy": "nommé dans la réponse de {agent}",
+                "declared": "déclaré",
+                "declaredBy": "déclaré par {agent}",
+                "brought": "apporté par vous"
+            },
+            "form": {
+                "linkCopy": "Lien + copie",
+                "copy": "Copie",
+                "link": "Lien",
+                "linkNotCopied": "Lien · pas copié",
+                "notCopied": "Pas copié"
+            },
+            "pinned": "Épinglé",
+            "openIn": "Ouvert dans « {view} »",
+            "openInView": "Ouvrir dans une vue",
+            "showIt": "L'afficher",
+            "actions": "Actions",
+            "where": "Où l'ouvrir ?",
+            "inView": "Dans « {view} »",
+            "renameLabel": "Titre",
+            "renameHint": "Entrée valide, Échap annule",
+            "renameHintWas": "Nom d'origine : {name} · Entrée valide, Échap annule",
+            "menu": {
+                "rename": "Renommer",
+                "pin": "Épingler",
+                "unpin": "Désépingler",
+                "openOnline": "Ouvrir la version en ligne",
+                "openCopy": "Ouvrir la copie gardée",
+                "showInFolder": "Afficher dans le dossier",
+                "copyLink": "Copier le lien",
+                "copyPath": "Copier le chemin de la copie",
+                "keepCopy": "Garder une copie ({size})",
+                "keepAnyway": "Garder quand même",
+                "delete": "Supprimer…"
+            },
+            "deleteTitle": "Supprimer « {title} » ?",
+            "deleteText": "Sa copie gardée va dans la corbeille des matériaux, récupérable 30 jours. Le fichier d'origine et la page en ligne restent.",
+            "deleteCopy": "Supprimer la copie",
+            "deleted": "« {title} » supprimé",
+            "deletedSub": "Sa copie reste 30 jours dans la corbeille des matériaux.",
+            "undo": "Annuler",
+            "undoFailed": "Impossible de le récupérer",
+            "deleteFailed": "Impossible de supprimer la copie",
+            "renameFailed": "Impossible de le renommer",
+            "pinFailed": "Impossible de l'épingler",
+            "kept": "Copie gardée",
+            "keepFailed": "Impossible de garder une copie",
+            "linkCopied": "Lien copié",
+            "pathCopied": "Chemin copié",
+            "copyFailed": "Impossible de copier",
+            "newCount": {
+                "one": "{count} nouveau matériau depuis votre dernier passage",
+                "other": "{count} nouveaux matériaux depuis votre dernier passage"
+            }
         },
         "putaway": {
             "reopen": "Rouvrir",

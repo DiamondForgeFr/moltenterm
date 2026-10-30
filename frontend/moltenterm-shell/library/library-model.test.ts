@@ -33,7 +33,14 @@ describe("library sections (FR-SHELL-088)", () => {
                 expect(typeof lookup(fr, key), key).toBe("string");
             }
         }
-        expect(LibrarySections.map((s) => s.id)).toEqual(["workspaces", "panels", "ai", "putaway", "settings"]);
+        expect(LibrarySections.map((s) => s.id)).toEqual([
+            "workspaces",
+            "panels",
+            "ai",
+            "materials",
+            "putaway",
+            "settings",
+        ]);
     });
 
     it("walks the navigation with the arrows, round the ends", () => {
