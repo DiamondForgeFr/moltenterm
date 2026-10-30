@@ -131,7 +131,7 @@ import {
 import { pruneSnapshots, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
-import { setCurrentSwipe, SidebarSwipeController } from "./sidebar-swipe-view";
+import { SidebarSwipeController } from "./sidebar-swipe-view";
 import { switchDirection, switchFromSidebar, SwitchIntent, useSwitchArrival } from "./sidebar-switch";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
@@ -2192,12 +2192,10 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
             }
         };
         document.addEventListener("visibilitychange", onVisibility);
-        setCurrentSwipe(controller);
         return () => {
             aside?.removeEventListener("wheel", controller.onAsideWheel);
             window.removeEventListener("wheel", controller.onWindowWheel);
             document.removeEventListener("visibilitychange", onVisibility);
-            setCurrentSwipe(null);
             controller.reset();
         };
     }, [controller, refs]);

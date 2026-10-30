@@ -50,7 +50,6 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
-import { attachSwipeWheel } from "../sidebar/sidebar-swipe-view";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { PinHeaderButton } from "../view360/view360-pin";
@@ -1233,14 +1232,6 @@ function TabWebview({
         }
         return attachCarpetWheel(webview, model.blockId);
     }, [model, tab.id]);
-    // A sideways wheel the page cannot use may swipe workspaces (FR-SHELL-082, #1248).
-    useEffect(() => {
-        const webview = ref.current;
-        if (webview == null) {
-            return;
-        }
-        return attachSwipeWheel(webview);
-    }, [tab.id]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.

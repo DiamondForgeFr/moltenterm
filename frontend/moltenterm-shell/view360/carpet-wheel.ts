@@ -7,10 +7,6 @@
 
 export const CarpetWheelStateChannel = "moltenterm-carpet-wheel-state";
 export const CarpetWheelChannel = "moltenterm-carpet-wheel";
-// A sideways wheel the guest page cannot use, handed to the host for the workspace swipe (FR-SHELL-082, #1248).
-export const SwipeWheelChannel = "moltenterm-swipe-wheel";
-
-export type SwipeWheelMessage = { dx: number; dy: number };
 
 const LinePx = 16;
 
