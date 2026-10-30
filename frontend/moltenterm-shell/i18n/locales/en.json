@@ -2520,6 +2520,9 @@
         "indicatorPolicy": "Energy setting: {policy}",
         "cupIdle": "Not keeping this computer awake",
         "cupHint": "Click: on/off · Right-click: options",
+        "cupCoffeeOn": "Coffee mode on",
+        "cupCoffeeOff": "Coffee mode off",
+        "cupTitle": "{state} · {reason}",
         "popover": {
             "title": "Keep this computer awake",
             "moreSettings": "More settings…"

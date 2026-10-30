@@ -2518,6 +2518,9 @@
         "byWork": "du travail est en cours",
         "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}",
         "cupIdle": "Cet ordinateur n'est pas gardé éveillé",
+        "cupCoffeeOn": "Café activé",
+        "cupCoffeeOff": "Café désactivé",
+        "cupTitle": "{state} · {reason}",
         "cupHint": "Clic : activer/désactiver · Clic droit : options",
         "popover": {
             "title": "Garder cet ordinateur éveillé",
