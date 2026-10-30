@@ -586,7 +586,7 @@
     display: none;
 }
 
-/* The molten reveal of an open block (#1407, DS-SHELL-134, settings-reveal.ts): the overlay holds these pieces only
+/* The molten reveal of an open block (#1407, DS-SHELL-138, settings-reveal.ts): the overlay holds these pieces only
    while the reveal runs; the animations move them by transform and opacity, so their size and place are set once.
    Molten is the heat scale of theme Coulée: the white-hot glint, the incandescent, the action orange, then cast iron
    as it cools. */
