@@ -513,6 +513,194 @@
     color: var(--color-success);
 }
 
+/* Materials (FR-MAT-002, mockups a and b of #1290). */
+.mt-lib-ni {
+    position: relative;
+}
+
+/* What arrived since the last visit: grey, it claims no attention. */
+.mt-lib-cnt {
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-1);
+    font-size: 10px;
+    font-weight: var(--mt-weight-semibold);
+    line-height: 16px;
+}
+
+.mt-lib-mat-scope {
+    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+}
+
+.mt-lib-mat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 7px 10px;
+    border-radius: var(--mt-radius-panel);
+    color: var(--mt-text-2);
+    cursor: pointer;
+}
+
+.mt-lib-mat:hover {
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+}
+
+.mt-lib-mat.is-sel {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-lib-mat-th {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 44px;
+    height: 32px;
+    border-radius: 3px;
+    background: var(--mt-surface-2);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-3);
+}
+
+.mt-lib-mat-tx {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mt-lib-mat-tx b {
+    overflow: hidden;
+    color: var(--mt-text-1);
+    font-size: 12.5px;
+    font-weight: var(--mt-weight-medium, 500);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-mat-tx > span {
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-tk {
+    color: var(--mt-text-2);
+    font-family: var(--fixed-font, monospace);
+    font-size: 10.5px;
+}
+
+.mt-lib-mat-pin {
+    color: var(--mt-text-3);
+    font-size: 11px;
+}
+
+/* The form is a state, never the action orange. */
+.mt-lib-mat-form {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+    color: var(--mt-text-3);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+.mt-lib-mat-form.is-live {
+    background: color-mix(in srgb, var(--mt-state-ready) 18%, transparent);
+    color: var(--mt-state-ready);
+}
+
+.mt-lib-mat-form.is-warn {
+    background: color-mix(in srgb, var(--mt-state-running) 16%, transparent);
+    color: var(--mt-state-running);
+}
+
+/* The selected row carries the one orange button and the menu; the others show the menu on hover. */
+.mt-lib-mat-go,
+.mt-lib-mat-more {
+    display: none;
+    flex-shrink: 0;
+}
+
+.mt-lib-mat.is-sel .mt-lib-mat-go {
+    display: inline-flex;
+}
+
+.mt-lib-mat.is-sel .mt-lib-mat-more,
+.mt-lib-mat:hover .mt-lib-mat-more {
+    display: grid;
+}
+
+.mt-lib-mat-more {
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-2);
+    cursor: pointer;
+}
+
+.mt-lib-mat-more:hover {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-mat-rename {
+    width: 100%;
+    height: 24px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--mt-surface-term);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-1);
+    font-size: 12.5px;
+    outline: none;
+}
+
+.mt-lib-mat-was {
+    margin-top: 3px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-mat-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 2px 0 6px 64px;
+    padding: 8px 10px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
 /* Put-away views. */
 .mt-lib-item {
     display: flex;
@@ -628,12 +816,7 @@
     margin-top: -2px;
     border-radius: var(--mt-radius-control);
     transform-origin: 0 50%;
-    background: linear-gradient(
-        to right,
-        var(--mt-action),
-        var(--mt-state-running) 70%,
-        var(--mt-action-glint)
-    );
+    background: linear-gradient(to right, var(--mt-action), var(--mt-state-running) 70%, var(--mt-action-glint));
     box-shadow: 0 0 8px color-mix(in srgb, var(--mt-action) 70%, transparent);
 }
 

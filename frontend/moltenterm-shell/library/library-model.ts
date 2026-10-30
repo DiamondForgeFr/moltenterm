@@ -11,15 +11,17 @@ import type { PutAwayView } from "../reopen/reopen-model";
 import type { SidebarGlyphName } from "../sidebar/sidebar-icons";
 import type { ViewState } from "../sidebar/view-pins-model";
 
-export type LibrarySection = "workspaces" | "panels" | "ai" | "putaway" | "settings";
+export type LibrarySection = "workspaces" | "panels" | "ai" | "materials" | "putaway" | "settings";
 
 export type LibrarySectionInfo = { id: LibrarySection; glyph: SidebarGlyphName; key: string; search?: boolean };
 
-// The navigation, top to bottom; key names library.sections.<key>.{label,title,sub}.
+// The navigation, top to bottom; key names library.sections.<key>.{label,title,sub}. Materials, the agents' output,
+// sits right after Sent to AI, their input (FR-MAT-002).
 export const LibrarySections: LibrarySectionInfo[] = [
     { id: "workspaces", glyph: "spaces", key: "workspaces" },
     { id: "panels", glyph: "panels", key: "panels" },
     { id: "ai", glyph: "ai", key: "ai", search: true },
+    { id: "materials", glyph: "box", key: "materials", search: true },
     { id: "putaway", glyph: "archive", key: "putaway", search: true },
     { id: "settings", glyph: "gear", key: "settings" },
 ];

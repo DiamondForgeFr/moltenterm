@@ -77,6 +77,8 @@ import {
     whenText,
     workspaceAgents,
 } from "./library-model";
+import "./library.css";
+import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
 import {
     finishSettingsReveal,
     relativeRect,
@@ -86,7 +88,6 @@ import {
     SettingsRevealKey,
     type RevealRect,
 } from "./settings-reveal";
-import "./library.css";
 
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 const SentPollMs = 5000;
@@ -968,12 +969,16 @@ export function Library({
     onApps: () => void;
 }) {
     const t = useT();
+    const tc = useTCount();
     const [query, setQuery] = useState("");
     const [suggest, setSuggest] = useState(false);
     const [settingsBlock, setSettingsBlock] = useState<SettingsSectionId>(null);
     const rootRef = useRef<HTMLDivElement>(null);
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
+    const workspaceId = useAtomValue(atoms.workspaceId);
+    const materials = useMaterialsDrawer(workspaceId);
+    const newMaterials = useMaterialsNewCount(materials.view, section === "materials");
     useEffect(() => {
         setQuery("");
         setSettingsBlock(null);
@@ -1000,6 +1005,10 @@ export function Library({
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== "Escape") {
+                return;
+            }
+            // A question or a field of a row (Materials' rename, where to open, delete) cancels itself first.
+            if ((e.target as HTMLElement)?.closest?.("[data-lib-escape]") != null) {
                 return;
             }
             // An Escape during the reveal of a block only ends the reveal (#1407).
@@ -1086,6 +1095,16 @@ export function Library({
                         >
                             <SidebarGlyph name={s.glyph} size={22} />
                             <span>{t(`library.sections.${s.key}.label`)}</span>
+                            {s.id === "materials" && newMaterials > 0 ? (
+                                <span
+                                    className="mt-lib-cnt"
+                                    title={tc("library.materials.newCount", newMaterials)}
+                                    aria-label={tc("library.materials.newCount", newMaterials)}
+                                    data-testid="library-materials-new"
+                                >
+                                    {newMaterials}
+                                </span>
+                            ) : null}
                         </button>
                     ))}
                 </div>
@@ -1136,6 +1155,9 @@ export function Library({
                     {section === "workspaces" ? <WorkspacesSection entries={entries} /> : null}
                     {section === "panels" ? <PanelsSection onApps={onApps} /> : null}
                     {section === "ai" ? <SentToAiSection entries={entries} query={query} /> : null}
+                    {section === "materials" ? (
+                        <MaterialsSection view={materials.view} failed={materials.failed} query={query} />
+                    ) : null}
                     {section === "putaway" ? <PutAwaySection entries={entries} query={query} /> : null}
                     {section === "settings" ? (
                         <SettingsSection block={settingsBlock} onOpen={openSettingsBlock} onBack={backToBlocks} />

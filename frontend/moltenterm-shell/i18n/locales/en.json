@@ -9408,6 +9408,11 @@
                 "title": "Sent to AI",
                 "sub": "The pages agents hold right now: the ones you shared and the ones they opened."
             },
+            "materials": {
+                "label": "Materials",
+                "title": "Materials",
+                "sub": "What agents produced outside the repository, kept on this computer: pages, documents, images, links."
+            },
             "putaway": {
                 "label": "Put-away views",
                 "title": "Put-away views",
@@ -9457,6 +9462,89 @@
             "opened": "opened by the agent",
             "emptyTitle": "Nothing shared right now",
             "empty": "A page you share with an agent from a Web page panel shows here while the agent holds it."
+        },
+        "materials": {
+            "thisProject": "This project · {name}",
+            "noProject": "No project",
+            "emptyTitle": "No materials yet",
+            "empty": "What an agent produces outside the repository and shows you (a published page, a document, an image, a link it names) is kept here, per project.",
+            "failedTitle": "Materials are not available",
+            "failed": "MoltenTerm could not read this project's materials.",
+            "day": {
+                "pinned": "Pinned",
+                "today": "Today",
+                "yesterday": "Yesterday"
+            },
+            "kind": {
+                "page": "Page",
+                "link": "Link",
+                "pdf": "PDF",
+                "image": "Image",
+                "video": "Video",
+                "text": "Text",
+                "document": "Document"
+            },
+            "version": "v{n}",
+            "linkedFiles": {
+                "one": "{count} linked file",
+                "other": "{count} linked files"
+            },
+            "origin": {
+                "named": "named in an answer",
+                "namedBy": "named in {agent}'s answer",
+                "declared": "declared",
+                "declaredBy": "declared by {agent}",
+                "brought": "brought by you"
+            },
+            "form": {
+                "linkCopy": "Link + copy",
+                "copy": "Copy",
+                "link": "Link",
+                "linkNotCopied": "Link · not copied",
+                "notCopied": "Not copied"
+            },
+            "pinned": "Pinned",
+            "openIn": "Open in “{view}”",
+            "openInView": "Open in a view",
+            "showIt": "Show it",
+            "actions": "Actions",
+            "where": "Where should it open?",
+            "inView": "In “{view}”",
+            "renameLabel": "Title",
+            "renameHint": "Enter confirms, Escape cancels",
+            "renameHintWas": "Original name: {name} · Enter confirms, Escape cancels",
+            "menu": {
+                "rename": "Rename",
+                "pin": "Pin",
+                "unpin": "Unpin",
+                "openOnline": "Open the online version",
+                "openCopy": "Open the kept copy",
+                "showInFolder": "Show in folder",
+                "copyLink": "Copy link",
+                "copyPath": "Copy the path of the copy",
+                "keepCopy": "Keep a copy ({size})",
+                "keepAnyway": "Keep anyway",
+                "delete": "Delete…"
+            },
+            "deleteTitle": "Delete “{title}”?",
+            "deleteText": "Its kept copy goes to the materials trash, recoverable for 30 days. The original file and the online page stay.",
+            "deleteCopy": "Delete the copy",
+            "deleted": "“{title}” deleted",
+            "deletedSub": "Its copy stays in the materials trash for 30 days.",
+            "undo": "Undo",
+            "undoFailed": "Could not bring it back",
+            "deleteFailed": "Could not delete the copy",
+            "renameFailed": "Could not rename it",
+            "pinFailed": "Could not pin it",
+            "kept": "Copy kept",
+            "keepFailed": "Could not keep a copy",
+            "linkCopied": "Link copied",
+            "pathCopied": "Path copied",
+            "copyFailed": "Could not copy",
+            "newCount": {
+                "one": "{count} new material since your last visit",
+                "other": "{count} new materials since your last visit"
+            }
         },
         "putaway": {
             "reopen": "Reopen",
