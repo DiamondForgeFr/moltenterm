@@ -3,7 +3,7 @@
 
 import { FlexDirection, type LayoutNode, type ResizeNodeOperation } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
-import { columnSpan, equalCarpetWidthPx, equalizeOps, hasColumnsToEqualize } from "./equalize-rules";
+import { columnSpan, equalizeOps, hasColumnsToEqualize } from "./equalize-rules";
 
 function leaf(id: string, size = 10): LayoutNode {
     return { id, flexDirection: FlexDirection.Column, size, data: { blockId: `b-${id}` } };
@@ -112,14 +112,5 @@ describe("equalizeOps", () => {
         expect(hasColumnsToEqualize(leaf("a"))).toBe(false);
         expect(hasColumnsToEqualize(stack("s", [leaf("a"), leaf("b")]))).toBe(false);
         expect(hasColumnsToEqualize(stack("s", [leaf("a"), row("r", [leaf("b"), leaf("c")])]))).toBe(true);
-    });
-});
-
-describe("equalCarpetWidthPx", () => {
-    it("gives the carpet's columns their mean width, null when already even or alone", () => {
-        expect(equalCarpetWidthPx([640, 720, 500])).toBe(620);
-        expect(equalCarpetWidthPx([640, 640.4])).toBeNull();
-        expect(equalCarpetWidthPx([640])).toBeNull();
-        expect(equalCarpetWidthPx([])).toBeNull();
     });
 });

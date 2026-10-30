@@ -70,6 +70,8 @@ import { narrowWindowAtom } from "../narrow-window";
 import {
     besideZonePx,
     effectivePlaces,
+    equalizePlaceCount,
+    equalParts,
     nextScrollStop,
     PlaceOption,
     placeOptions,
@@ -255,6 +257,9 @@ export class View360Model {
     savedFixedPx: number = null;
     // The first column's floor at the last pass (#733, #848), 0 without one.
     fixedNeedPx = 0;
+    // The first column's width and the columns pinned beside it (besideZonePx) at the last pass.
+    lastFixedPx: number = null;
+    besidePx = 0;
     // Widths being dragged, applied until the drag ends.
     dragFixedPx: number = null;
     dragColumn: { nodeId: string; kind: string; px: number } = null;
@@ -693,6 +698,8 @@ export class View360Model {
                 fireAndForget(() => setTabFixedPx(tabId, px));
             }
         }
+        this.lastFixedPx = fixedPx;
+        this.besidePx = besidePx;
         const carpetInput = () => ({
             width: bounds.width,
             height: bounds.height,
@@ -746,6 +753,47 @@ export class View360Model {
     }
 
     // ---- 360 × N (FR-SHELL-123) ------------------------------------------------------------------------------------
+
+    // Equalize in 360 view (FR-SHELL-073, #1479): the fixed zone and every visible place take the same share, the
+    // equal parts of a 360 × N (AC5). Under a 360 × N the widths dragged by hand give way to the view's own equal
+    // parts; in the plain 360 view the fixed zone and every carpet column are set to them. Returns each place's
+    // width, or null when the view already shows equal parts (the auto mode calls it after every pass).
+    equalizeParts(): number {
+        const layout = this.layout;
+        const width = this.layoutWidth;
+        const dragging = this.dragFixedPx != null || this.dragColumn != null || this.dragPin != null;
+        if (layout == null || !layout.columns.length || !(width > 0) || dragging) {
+            return null;
+        }
+        const shown = globalStore.get(this.shownPlacesAtom);
+        const n = equalizePlaceCount(layout, shown, width, this.fixedNeedPx, this.besidePx);
+        const parts = equalParts(width, n, this.fixedNeedPx, this.besidePx);
+        // Decided on what the view was asked for, not on the drawn widths, which the layout may round or clamp: the
+        // auto mode would otherwise ask again after every pass.
+        if (shown != null) {
+            if (this.grippedFixedPx == null && this.carpetPx.size === 0) {
+                return null;
+            }
+            this.grippedFixedPx = null;
+            this.carpetPx.clear();
+            return parts.placePx;
+        }
+        const fixedEqual = this.lastFixedPx != null && Math.abs(this.lastFixedPx - parts.fixedPx) <= 1;
+        const columnsEqual = layout.columns.every(
+            (c) => this.carpetPx.get(c.nodeId) === parts.placePx || Math.abs(c.width - parts.placePx) <= 1
+        );
+        if (fixedEqual && columnsEqual) {
+            return null;
+        }
+        this.grippedFixedPx = parts.fixedPx;
+        this.savedFixedPx = parts.fixedPx;
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => setTabFixedPx(tabId, parts.fixedPx));
+        }
+        layout.columns.forEach((c) => this.carpetPx.set(c.nodeId, parts.placePx));
+        return parts.placePx;
+    }
 
     private setShownPlaces(n: number) {
         if (globalStore.get(this.shownPlacesAtom) !== n) {
