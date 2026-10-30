@@ -5768,7 +5768,8 @@
             "groupUnder": {
                 "one": "{panels} will be pinned under {agent}, as there is no room beside it",
                 "other": "{panels} will be pinned under {agent}, as there is no room beside it"
-            }
+            },
+            "quotedName": "“{name}”"
         }
     },
     "termcopy": {

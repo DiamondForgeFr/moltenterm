@@ -2,9 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import en from "../i18n/locales/en.json";
+import fr from "../i18n/locales/fr.json";
 import { placeSentenceName } from "./places-names";
 
 const Browser = "molten-browser";
+
+describe("quoted page name", () => {
+    it("wraps the name in curly quotes in English and guillemets with no-break spaces in French", () => {
+        expect(en.view360.places.quotedName).toBe("“{name}”");
+        expect(fr.view360.places.quotedName).toBe("« {name} »");
+    });
+});
 
 describe("placeSentenceName", () => {
     it("names an agent by its first name alone", () => {
