@@ -95,7 +95,7 @@ export function LeftoverOwnerCard({
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
-                        <span className="shrink-0 text-accent">#{leftover.pr}</span>
+                        <span className="shrink-0 text-muted">#{leftover.pr}</span>
                         <span className="min-w-0 truncate" title={leftover.branch}>
                             {leftover.title || leftover.branch}
                         </span>

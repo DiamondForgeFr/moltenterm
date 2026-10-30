@@ -2,11 +2,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): short ticks centred at the bottom of the carpet, the
-   ones in view taller and brighter inside a lit window (#678), the one needing attention orange with a glow that pulses. The
+   ones in view taller and brighter inside a lit window (#678), the one needing attention in the waiting violet (FR-SHELL-116) with a glow that pulses. The
    pulse animates only the glow's opacity, so it stays on the compositor. */
 
 .mt-radar {
-    --mt-radar-attention: #f97316;
+    --mt-radar-attention: var(--mt-state-waiting);
     position: absolute;
     top: 0;
     left: 0;
@@ -46,7 +46,7 @@
     padding: 3px 2px;
     margin: 0 1px;
     border-radius: var(--df-radius-md);
-    background: color-mix(in srgb, var(--mt-accent) 12%, #1c1c1e);
+    background: color-mix(in srgb, var(--mt-accent) 12%, var(--mt-surface-1));
     border: 1px solid color-mix(in srgb, var(--mt-accent) 80%, transparent);
     cursor: grab;
     transition:
@@ -88,7 +88,7 @@
     height: 13px;
     border: 1px solid var(--mt-accent);
     border-radius: var(--df-radius-sm);
-    background: #1c1c1e;
+    background: var(--mt-surface-3);
     color: var(--mt-accent);
     opacity: 0;
     transform: translate(-50%, -50%);
@@ -192,8 +192,8 @@
     bottom: calc(100% + 6px);
     padding: 9px 11px;
     border-radius: var(--df-radius-lg);
-    background: #1c1c1e;
-    border: 1px solid #333336;
+    background: var(--mt-surface-3);
+    border: 1px solid var(--mt-line-2);
     box-shadow: 0 10px 24px rgb(0 0 0 / 0.6);
     font-family: var(--mt-ui-font);
     pointer-events: none;
@@ -201,14 +201,14 @@
 }
 
 .mt-radar-card[data-attention] {
-    border-color: #9a3412;
+    border-color: var(--mt-state-waiting);
 }
 
 .mt-radar-card b {
     display: block;
     margin-bottom: 4px;
     overflow: hidden;
-    color: #f5f5f4;
+    color: var(--mt-text-1);
     font-size: var(--mt-text-12);
     font-weight: var(--mt-weight-medium);
     text-overflow: ellipsis;
@@ -217,13 +217,13 @@
 
 .mt-radar-card i {
     display: block;
-    color: #a8a29e;
+    color: var(--mt-text-3);
     font-size: var(--mt-text-11);
     font-style: normal;
 }
 
 .mt-radar-card[data-attention] i {
-    color: #fdba74;
+    color: var(--mt-state-waiting);
 }
 
 .mt-radar-card[data-window] b {
@@ -245,8 +245,8 @@
     gap: 6px;
     margin-top: 7px;
     padding-top: 7px;
-    border-top: 1px solid #333336;
-    color: #a8a29e;
+    border-top: 1px solid var(--mt-line-2);
+    color: var(--mt-text-3);
     font-size: var(--mt-text-11);
 }
 

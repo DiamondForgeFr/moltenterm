@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { cn, makeIconClass } from "@/util/util";
 import { memo, useState } from "react";
@@ -48,7 +49,7 @@ export const AIFeedbackButtons = memo(({ messageText }: AIFeedbackButtonsProps) 
                     "p-1.5 rounded cursor-pointer transition-colors",
                     thumbsUpClicked
                         ? "text-accent"
-                        : "text-secondary hover:bg-zinc-700 hover:text-primary"
+                        : "text-secondary hover:bg-hover hover:text-primary"
                 )}
                 title="Good Response"
             >
@@ -60,7 +61,7 @@ export const AIFeedbackButtons = memo(({ messageText }: AIFeedbackButtonsProps) 
                     "p-1.5 rounded cursor-pointer transition-colors",
                     thumbsDownClicked
                         ? "text-accent"
-                        : "text-secondary hover:bg-zinc-700 hover:text-primary"
+                        : "text-secondary hover:bg-hover hover:text-primary"
                 )}
                 title="Bad Response"
             >
@@ -73,7 +74,7 @@ export const AIFeedbackButtons = memo(({ messageText }: AIFeedbackButtonsProps) 
                         "p-1.5 rounded cursor-pointer transition-colors",
                         copied
                             ? "text-success"
-                            : "text-secondary hover:bg-zinc-700 hover:text-primary"
+                            : "text-secondary hover:bg-hover hover:text-primary"
                     )}
                     title="Copy Message"
                 >

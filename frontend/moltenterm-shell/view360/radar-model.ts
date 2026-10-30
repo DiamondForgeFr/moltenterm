@@ -21,16 +21,16 @@ const CicdView = "molten-cicd";
 
 export type RadarKind = "agent" | "term" | "web" | "companion" | "review" | "project" | "files" | "other";
 
-// One colour per kind, bright enough on the carpet's dark ground; the agent's is the molten accent.
+// One colour per kind, bright enough on the carpet's dark ground (tokens.css, --mt-kind-*).
 export const RadarKindColors: Record<RadarKind, string> = {
-    agent: "#ea580c",
-    term: "#a8a29e",
-    web: "#38bdf8",
-    companion: "#a78bfa",
-    review: "#4ade80",
-    project: "#facc15",
-    files: "#2dd4bf",
-    other: "#78716c",
+    agent: "var(--mt-kind-agent)",
+    term: "var(--mt-kind-term)",
+    web: "var(--mt-kind-web)",
+    companion: "var(--mt-kind-companion)",
+    review: "var(--mt-kind-review)",
+    project: "var(--mt-kind-project)",
+    files: "var(--mt-kind-files)",
+    other: "var(--mt-kind-other)",
 };
 
 const ViewKinds: Record<string, RadarKind> = {

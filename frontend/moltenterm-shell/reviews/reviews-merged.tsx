@@ -286,7 +286,7 @@ function MergedRow({
                 )}
                 data-testid="reviews-merged-row"
             >
-                <span className="shrink-0 text-accent tabular-nums">#{num}</span>
+                <span className="shrink-0 text-muted tabular-nums">#{num}</span>
                 <span className="min-w-0 flex-1 truncate" title={title}>
                     {title}
                 </span>

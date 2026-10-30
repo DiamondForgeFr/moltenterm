@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { formatFileSizeError, isAcceptableFile, validateFileSize } from "@/app/aipanel/ai-utils";
 import { waveAIHasFocusWithin } from "@/app/aipanel/waveai-focus-utils";
@@ -133,7 +134,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
     };
 
     return (
-        <div className={cn("border-t", isFocused ? "border-accent/50" : "border-gray-600")}>
+        <div className={cn("border-t", isFocused ? "border-accent/50" : "border-line-strong")}>
             <input
                 ref={fileInputRef}
                 type="file"
@@ -153,7 +154,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                         onBlur={handleBlur}
                         placeholder={placeholder}
                         className={cn(
-                            "w-full  text-white px-2 py-2 pr-5 focus:outline-none resize-none overflow-auto bg-zinc-800/50"
+                            "w-full  text-white px-2 py-2 pr-5 focus:outline-none resize-none overflow-auto bg-surface-2/50"
                         )}
                         style={{ fontSize: "13px" }}
                         rows={2}
@@ -163,7 +164,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                             type="button"
                             onClick={handleUploadClick}
                             className={cn(
-                                "w-5 h-5 transition-colors flex items-center justify-center text-gray-400 hover:text-accent cursor-pointer"
+                                "w-5 h-5 transition-colors flex items-center justify-center text-muted hover:text-accent cursor-pointer"
                             )}
                         >
                             <i className="fa fa-paperclip text-sm"></i>
@@ -190,7 +191,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                                 className={cn(
                                     "w-5 h-5 transition-colors flex items-center justify-center",
                                     status !== "ready" || !input.trim()
-                                        ? "text-gray-400"
+                                        ? "text-muted"
                                         : "text-accent/80 hover:text-accent cursor-pointer"
                                 )}
                             >

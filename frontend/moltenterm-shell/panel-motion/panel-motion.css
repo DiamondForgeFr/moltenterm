@@ -70,7 +70,7 @@
         transparent 66%,
         color-mix(in srgb, var(--mt-action) 45%, transparent) 84%,
         var(--mt-action) 94%,
-        color-mix(in srgb, var(--mt-action) 70%, #fff6de) 99%,
+        color-mix(in srgb, var(--mt-action) 70%, var(--mt-action-glint)) 99%,
         transparent 100%
     );
     transform: translate(-50%, -50%) rotate(0deg);
@@ -107,7 +107,7 @@
    must not cost a frame at every display refresh (#455, #473), which a smooth turn would for hours. It holds still
    while the view is not the active one, and cools to cast iron once the agent is done. */
 .mt-working-light {
-    --df-accent: var(--mt-state-running, #ffb547);
+    --df-accent: var(--mt-state-running);
     --df-glow-width: 1.5px;
 }
 

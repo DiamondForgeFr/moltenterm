@@ -414,10 +414,10 @@
     /* The workspace accent marks place only (rail, active tab, focus border). Agent states use MoltenTerm's fixed
        heat scale of tokens.css (FR-SHELL-116), so a state reads the same in every workspace (#212). Wave's warning
        is the straw warning, never the violet of an agent waiting on you. */
-    /* MoltenTerm keeps the computer awake (the coffee, #276): a warm crema, apart from the action's orange and
-       running's incandescent, fixed like the states. */
-    --color-awake: rgb(240, 168, 122);
-    --color-awake-fg: #1f1208;
+    /* MoltenTerm keeps the computer awake (the coffee, #276): the secondary text and the mug, never a hue of its own
+       (#1339): the warm crema sat between the action's orange and running's incandescent, and the mug's shape tells
+       it apart. */
+    --color-awake: var(--mt-text-2);
     --warning-color: var(--mt-state-warning);
     --color-warning: var(--mt-state-warning);
     --error-color: var(--mt-state-error);
@@ -425,8 +425,9 @@
     --success-color: var(--mt-state-done);
     --color-success: var(--mt-state-done);
 
-    /* Sysinfo's main series takes the accent; memory keeps Wave's blue as the second series. */
-    --sysinfo-cpu-color: var(--mt-accent);
+    /* Sysinfo's main series takes the chart's steel blue (decision 5, #1339), never the action's orange; memory keeps
+       Wave's blue as the second series. */
+    --sysinfo-cpu-color: var(--mt-chart-1);
 
     /* Interface typeface for panel titles, Mission Control and the chrome; terminals keep Hack (--fixed-font), the
        code editor and code blocks their monospace faces. IBM Plex Sans (fonts.ts) and Inter (public/fonts/

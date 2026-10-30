@@ -446,7 +446,7 @@ function HistoryRow({ pr, notes, onShowNotes }: { pr: MergedHistoryPr; notes: nu
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate text-13 leading-5 font-medium">
-                        {pr.ticket ? <span className="mr-1.5 text-accent">#{pr.ticket}</span> : null}
+                        {pr.ticket ? <span className="mr-1.5 text-muted">#{pr.ticket}</span> : null}
                         {pr.title}
                     </div>
                     {pr.tickettitle || pr.tickettype || pr.milestone ? (

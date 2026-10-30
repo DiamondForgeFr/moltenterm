@@ -1449,7 +1449,7 @@ function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; 
             role="img"
             aria-label={view.title}
             title={view.title}
-            className={cn("fa fa-solid fa-robot shrink-0 text-11", view.takenOver ? "text-secondary" : "text-accent")}
+            className={cn("fa fa-solid fa-robot shrink-0 text-11", view.takenOver ? "text-secondary" : "text-[var(--mt-state-running)]")}
         />
     );
 }
