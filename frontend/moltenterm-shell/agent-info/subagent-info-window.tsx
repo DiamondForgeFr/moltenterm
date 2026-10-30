@@ -21,6 +21,7 @@ import {
 import { DialogFrame } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
 import { agentDisplayName, AgentGlyph, WorkingDominoes } from "../sidebar/sidebar-agents";
+import { TabActivity, whileShown } from "../tab-activity";
 import { startedAgo, subagentDuration, subagentKindKey, subagentRows, type SubagentRow } from "./agent-info-model";
 import { AgentInfoModel } from "./agent-info-store";
 import { Fact, PlainButton, SectionTitle } from "./agent-info-window";
@@ -63,8 +64,7 @@ function useNow(running: boolean): number {
         if (!running) {
             return;
         }
-        const timer = setInterval(() => setNow(Date.now()), TickMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(TickMs), () => setNow(Date.now()), "subagent-card-clock");
     }, [running]);
     return now;
 }
