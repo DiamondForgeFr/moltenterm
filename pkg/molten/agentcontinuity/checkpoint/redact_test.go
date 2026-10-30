@@ -89,6 +89,8 @@ func TestRedactKeepsNonSecrets(t *testing.T) {
 		"mkdir -p build && ls -u dir",
 		"Run go test ./pkg/... then task check:ts",
 		"https://github.com/DiamondForgeFr/moltenterm/pull/335",
+		"token: true # enabled\nhost: example",
+		"api_key: $API_KEY\nhost: example",
 	}
 	for _, in := range cases {
 		out, n := Redact(in)
@@ -142,6 +144,11 @@ func TestRedactYamlCredentialValues(t *testing.T) {
 		{"api_key : alpha bravo charlie delta", "api_key : [redacted]"},
 		{`api_key : "alpha bravo charlie delta"`, `api_key : "[redacted]"`},
 		{"- password: correct horse battery staple", "- password: [redacted]"},
+		{"password: true horse battery staple\nhost: example", "password: [redacted]\nhost: example"},
+		{"password: |\n  correct horse battery staple\n  other secret phrase\nhost: example", "password: [redacted]\nhost: example"},
+		{"password: >-\n  correct horse battery staple\n  other secret phrase\nhost: example", "password: [redacted]\nhost: example"},
+		{"- name: prod\n  password: correct horse\n    battery staple\n  host: local", "- name: prod\n  password: [redacted]\n  host: local"},
+		{"credentials: {password: correct horse battery staple, user: alice}", "credentials: {password: [redacted], user: alice}"},
 	}
 	for _, c := range cases {
 		out, n := Redact(c.in)
