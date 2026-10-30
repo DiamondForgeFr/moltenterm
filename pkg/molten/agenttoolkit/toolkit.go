@@ -15,6 +15,8 @@ package agenttoolkit
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -140,15 +142,45 @@ func projectDirs(env Env, cwd string) []string {
 }
 
 func readConfig(path string) []byte {
-	info, err := os.Stat(path)
-	if err != nil || info.IsDir() || info.Size() > maxConfigBytes {
+	f := openRegular(path, maxConfigBytes)
+	if f == nil {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	defer f.Close()
+	data, err := readConfigLimit(f, maxConfigBytes)
 	if err != nil {
 		return nil
 	}
 	return data
+}
+
+func readConfigLimit(r io.Reader, max int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > max {
+		return nil, errors.New("config exceeds size limit")
+	}
+	return data, nil
+}
+
+// Symlinked skills are supported; validate the target before and after a nonblocking open to avoid a FIFO swap.
+func openRegular(path string, maxSize int64) *os.File {
+	before, err := os.Stat(path)
+	if err != nil || !before.Mode().IsRegular() || (maxSize > 0 && before.Size() > maxSize) {
+		return nil
+	}
+	f, err := openNoBlock(path)
+	if err != nil {
+		return nil
+	}
+	after, err := f.Stat()
+	if err != nil || !after.Mode().IsRegular() || !os.SameFile(before, after) || (maxSize > 0 && after.Size() > maxSize) {
+		f.Close()
+		return nil
+	}
+	return f
 }
 
 type skillHead struct {
@@ -183,8 +215,8 @@ func readSkills(dir string, scope string, plugin string) []Skill {
 }
 
 func readSkillHead(path string) (skillHead, bool) {
-	f, err := os.Open(path)
-	if err != nil {
+	f := openRegular(path, 0)
+	if f == nil {
 		return skillHead{}, false
 	}
 	defer f.Close()
