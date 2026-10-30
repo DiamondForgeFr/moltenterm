@@ -19,7 +19,6 @@ import {
     keepAwakeActive,
     keepAwakeCount,
     keepAwakeIndicatorLabel,
-    policyHoldingLine,
     sleepPolicyLabel,
     SleepPolicySetting,
 } from "./keepawake-model";
@@ -101,10 +100,8 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
     const t = useT();
     const model = KeepAwakeModel.getInstance();
     const state = useAtomValue(model.stateAtom);
-    const platform = usePlatform();
     const active = keepAwakeActive(state);
     const now = useNow(active);
-    const holding = policyHoldingLine(state, platform, now);
     return (
         <MenuPopover
             anchor={anchor}
@@ -117,11 +114,10 @@ export function KeepAwakePopover({ anchor, onClose }: { anchor: Element; onClose
             <div className="flex flex-col gap-1 px-3 pt-3" data-testid="keepawake-now">
                 <div className="text-12 font-medium text-primary">{t("keepawake.popover.title")}</div>
                 {active ? (
-                    <div className="text-12 text-[var(--color-awake)]">{keepAwakeIndicatorLabel(state)}</div>
+                    <div className="text-12 text-[var(--color-awake)]">{keepAwakeIndicatorLabel(state, now)}</div>
                 ) : (
                     <div className="text-12 text-muted">{t("keepawake.cupIdle")}</div>
                 )}
-                {holding ? <div className="text-12 text-muted">{holding}</div> : null}
                 {state.coffees.map((coffee) => {
                     const name = workspaceShownName(coffee.workspacename, t) || t("keepawake.workspace");
                     return (
@@ -215,6 +211,7 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
                 onClick={toggle}
                 onContextMenu={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setAnchor(e.currentTarget);
                 }}
                 style={sidebar ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties) : undefined}

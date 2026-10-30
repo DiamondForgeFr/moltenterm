@@ -2525,6 +2525,8 @@
             "other": "at your request in {count} workspaces"
         },
         "byWork": "work is running",
+        "byWorkWhy": "work is running ({why})",
+        "byWorkEnding": "work done, ending in {time}",
         "indicatorLabel": "Keeping this computer awake: {reasons}",
         "indicatorPolicy": "Energy setting: {policy}",
         "cupIdle": "Not keeping this computer awake",
@@ -8738,6 +8740,8 @@
             "why": {
                 "working": "{agent}: working",
                 "background": "{agent}: background work",
+                "workingunnamed": "An agent: working",
+                "backgroundunnamed": "An agent: background work",
                 "anycommand": "A command",
                 "command": "Command: {command}",
                 "mission": "Project run",

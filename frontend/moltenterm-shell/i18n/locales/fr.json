@@ -2525,6 +2525,8 @@
             "other": "à votre demande dans {count} espaces de travail"
         },
         "byWork": "du travail est en cours",
+        "byWorkWhy": "du travail est en cours ({why})",
+        "byWorkEnding": "travail terminé, fin dans {time}",
         "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}",
         "cupIdle": "Cet ordinateur n'est pas gardé éveillé",
         "cupCoffeeOn": "Café activé",
@@ -8738,6 +8740,8 @@
             "why": {
                 "working": "{agent} : au travail",
                 "background": "{agent} : travail en arrière-plan",
+                "workingunnamed": "Un agent : au travail",
+                "backgroundunnamed": "Un agent : travail en arrière-plan",
                 "anycommand": "Une commande",
                 "command": "Commande : {command}",
                 "mission": "Exécution du projet",

@@ -72,7 +72,7 @@ type Coffee struct {
 	// Working: work runs in the workspace now; otherwise the coffee is in its grace and ends at EndsAt.
 	Working bool  `json:"working"`
 	EndsAt  int64 `json:"endsat,omitempty"`
-	// Reasons: what works in the workspace now, the most telling first ("Claude Code: background work"), while Working.
+	// Reasons: what works in the workspace now, the most telling first ("Adrien: background work"), while Working.
 	Reasons []string `json:"reasons,omitempty"`
 	// ReasonsText: Reasons' codes for the windows, by position (#656).
 	ReasonsText []*uimsg.Text `json:"reasonstext,omitempty"`

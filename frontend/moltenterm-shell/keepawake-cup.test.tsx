@@ -174,6 +174,15 @@ describe("keep-awake popover (FR-SHELL-103, #1408)", () => {
         expect(html).toContain(">Stop<");
     });
 
+    it("says once why the computer is kept awake, naming the agent by its first name only (#1550)", () => {
+        setState({ hold: true, policyholding: true, policyworking: true, policyreasons: ["Adrien: working"] });
+        const html = popover();
+        expect(html).toContain("Keeping this computer awake: work is running (Adrien: working)");
+        expect(html).not.toContain("Holding this computer awake");
+        expect(html.match(/Keeping this computer awake/g)).toHaveLength(1);
+        expect(html).not.toContain("Claude Code");
+    });
+
     it("links to Preferences only through a discreet More settings button", () => {
         const html = popover();
         expect(html).toContain('data-testid="keepawake-more-settings"');

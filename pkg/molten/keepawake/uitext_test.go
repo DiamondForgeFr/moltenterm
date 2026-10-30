@@ -45,8 +45,8 @@ func TestDenyReasonText(t *testing.T) {
 
 func TestReasonsText(t *testing.T) {
 	list := []reason{
-		agentReason(molten.AgentIdClaude, reasonAgentWorking),
-		agentReason(molten.AgentIdCodex, reasonAgentBackground),
+		agentReason("Adrien", reasonAgentWorking),
+		agentReason("Jérôme", reasonAgentBackground),
 		commandReason(""),
 		commandReason("npm test"),
 		{rank: reasonMission, text: missionReason},
@@ -67,6 +67,21 @@ func TestReasonsText(t *testing.T) {
 	}
 	if text := reasonsText([]string{"Command: npm test"})[0]; text.Code != "keepawake.why.command" || text.Vars["command"] != "npm test" {
 		t.Fatalf("command: %+v", text)
+	}
+}
+
+func TestReasonsTextNamesNoTool(t *testing.T) {
+	named := agentReason("Adrien", reasonAgentWorking).text
+	if text := reasonsText([]string{named})[0]; text.Code != "keepawake.why.working" || text.Vars["agent"] != "Adrien" {
+		t.Fatalf("named: %+v", text)
+	}
+	unnamed := agentReason(" ", reasonAgentWorking).text
+	if text := reasonsText([]string{unnamed})[0]; text.Code != "keepawake.why.workingunnamed" || len(text.Vars) != 0 {
+		t.Fatalf("unnamed: %+v", text)
+	}
+	background := agentReason("", reasonAgentBackground).text
+	if text := reasonsText([]string{background})[0]; text.Code != "keepawake.why.backgroundunnamed" {
+		t.Fatalf("unnamed background: %+v", text)
 	}
 }
 
