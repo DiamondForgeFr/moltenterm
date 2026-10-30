@@ -20,14 +20,8 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import {
-    BrowserAgentRouteId,
-    BrowserAgentStateCommand,
-    type AgentTab,
-    type PanelAgentState,
-} from "../browser/browser-agent";
-import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
-import { giveAccessBack, removeAccess } from "./share-access";
+import { BrowserActiveMetaKey } from "../browser/browser-model";
+import { useSentAccess } from "./use-sent-access";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
@@ -52,7 +46,6 @@ import { SidebarModel } from "../sidebar/sidebar-store";
 import { ViewGlyph, viewGlyphAtom } from "../sidebar/view-glyph";
 import { GlobalPinMetaKey, isProjectTab, PinMetaKey } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
-import { TabActivity, whileShown } from "../tab-activity";
 import { panelIcon, tabDisplayName } from "../tab-identity";
 import { TabAgentMark, useTabIdentity } from "../tab-identity-ui";
 import { showToast } from "../toast-store";
@@ -71,9 +64,7 @@ import {
     matchesQuery,
     panelAboutKey,
     putAwayAgentNames,
-    SentPanel,
     SentRow,
-    sentToAiRows,
     sharedAgentGroups,
     suggestClipboardText,
     whenText,
@@ -94,8 +85,6 @@ import {
 } from "./settings-reveal";
 
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
-const SentPollMs = 5000;
-const SentCallTimeoutMs = 3000;
 // Removing an agent's access offers Undo this long, as a deleted workspace does (FR-SHELL-095).
 const AccessUndoMs = 10000;
 
@@ -519,44 +508,6 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
 
 // ---------- Sent to AI ----------
 
-async function readSentPanels(entries: WorkspaceRailEntry[]): Promise<SentPanel[]> {
-    const rtn: SentPanel[] = [];
-    for (const entry of entries) {
-        const ws = await WOS.reloadWaveObject<Workspace>(WOS.makeORef("workspace", entry.id));
-        for (const tabId of ws?.tabids ?? []) {
-            const tab = await WOS.reloadWaveObject<Tab>(WOS.makeORef("tab", tabId));
-            for (const blockId of tab?.blockids ?? []) {
-                const block = await WOS.reloadWaveObject<Block>(WOS.makeORef("block", blockId));
-                if (block?.meta?.view !== MoltentermBrowserView) {
-                    continue;
-                }
-                let state: PanelAgentState = null;
-                try {
-                    state = await TabRpcClient.wshRpcCall(
-                        BrowserAgentStateCommand,
-                        { blockid: blockId },
-                        { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
-                    );
-                } catch {
-                    continue;
-                }
-                const agentTabs: AgentTab[] = state?.tabs ?? [];
-                if (agentTabs.length === 0) {
-                    continue;
-                }
-                rtn.push({
-                    panelBlockId: blockId,
-                    tabId,
-                    workspaceId: entry.id,
-                    agentTabs,
-                    browserTabs: readBrowserState(block.meta as Record<string, any>, "").tabs,
-                });
-            }
-        }
-    }
-    return rtn;
-}
-
 // The site tells apart two pages of the same title.
 function pageHost(url: string): string {
     try {
@@ -577,7 +528,7 @@ function accessToastText(removed: SentRow[], name: string, all: boolean) {
     };
 }
 
-function showAccessUndo(removed: SentRow[], name: string, all: boolean, onChange: () => void) {
+function showAccessUndo(removed: SentRow[], name: string, all: boolean, undo: () => Promise<number>) {
     if (removed.length === 0) {
         showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) });
         return;
@@ -594,8 +545,7 @@ function showAccessUndo(removed: SentRow[], name: string, all: boolean, onChange
                 id: "undo",
                 label: text.actionLabels.undo,
                 run: async () => {
-                    const failed = await giveAccessBack(removed);
-                    onChange();
+                    const failed = await undo();
                     if (failed > 0) {
                         showToast({ kind: "error", title: tNow("library.ai.undoFailed", { name }) });
                     }
@@ -610,52 +560,12 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
     const tc = useTCount();
     const locale = useLocale();
     const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
-    const [rows, setRows] = useState<SentRow[]>(null);
-    const [removing, setRemoving] = useState<Set<string>>(() => new Set());
-    const loadRef = useRef<() => void>(null);
-    const entriesKey = entries.map((e) => e.id).join(" ");
-    const entriesRef = useRef(entries);
-    entriesRef.current = entries;
-    useEffect(() => {
-        let cancelled = false;
-        const load = () =>
-            fireAndForget(async () => {
-                try {
-                    const next = sentToAiRows(await readSentPanels(entriesRef.current));
-                    if (!cancelled) {
-                        setRows(next);
-                    }
-                } catch (e) {
-                    console.log("library: sent to AI", e);
-                }
-            });
-        loadRef.current = load;
-        load();
-        const stop = TabActivity.getInstance().every(whileShown(SentPollMs), load, "library-sent-to-ai");
-        return () => {
-            cancelled = true;
-            loadRef.current = null;
-            stop();
-        };
-    }, [entriesKey]);
+    const { rows, removing, remove } = useSentAccess(entries, showAccessUndo, (name) =>
+        showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) })
+    );
     if (rows == null) {
         return null;
     }
-    const reload = () => loadRef.current?.();
-    const remove = (target: SentRow[], name: string, all: boolean) => {
-        const keys = target.map((r) => r.key);
-        setRemoving((cur) => new Set([...cur, ...keys]));
-        fireAndForget(async () => {
-            const removed = await removeAccess(target);
-            showAccessUndo(removed, name, all && removed.length === target.length, reload);
-            if (removed.length > 0 && removed.length < target.length) {
-                showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) });
-            }
-            setRows((cur) => (cur ?? []).filter((r) => !removed.some((x) => x.key === r.key)));
-            setRemoving((cur) => new Set([...cur].filter((k) => !keys.includes(k))));
-            reload();
-        });
-    };
     const shown = rows.filter((r) =>
         matchesQuery([r.title, r.url, r.agentName, workspaceNameOf(entries, r.workspaceId)], query)
     );
