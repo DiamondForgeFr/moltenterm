@@ -18,9 +18,12 @@ import { atom, useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react";
 import { browserTabMenu } from "../browser/browser-tab-menu";
 import { useLocale } from "../i18n/i18n";
+import { recordPaneClose } from "../reopen/reopen-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { suiteIcon } from "../suite/suite-icons";
+import { confirmTerminalClose } from "../worktree-close";
 import { addCarpetPanel } from "./carpet-add";
+import { closeCarpetOthers } from "./carpet-close-others";
 import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
 import { activePageTab, CarpetPageFacts, carpetPageModel, makeCarpetPagesAtom } from "./carpet-page-store";
 import { CarpetStrip, StripDrag, StripHandlers } from "./carpet-tabs";
@@ -57,6 +60,7 @@ const AutoMarkPx = 20;
 const CardWidthPx = 220;
 const EyeIcon = suiteIcon("visibleArea");
 const NoPages = atom({} as Record<string, CarpetPageFacts>);
+const ClosingCarpets = new WeakSet<LayoutModel>();
 
 type Scrub = {
     pointerId: number;
@@ -208,14 +212,33 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         }
     };
     const closeOthers = (tick: RadarTick) => {
-        for (const column of columns) {
-            if (column.columnId === tick.columnId) {
-                continue;
+        if (ClosingCarpets.has(layoutModel)) return;
+        ClosingCarpets.add(layoutModel);
+        const tabId = globalStore.get(atoms.staticTabId);
+        const protectedIds = columns.find((column) => column.columnId === tick.columnId)?.leaves.map((leaf) => leaf.blockId) ?? [];
+        const active = () =>
+            globalStore.get(atoms.staticTabId) === tabId &&
+            protectedIds.some((id) => layoutModel.getNodeByBlockId(id) != null);
+        const ids = columns
+            .filter((column) => column.columnId !== tick.columnId)
+            .flatMap((column) => column.leaves.map((leaf) => leaf.blockId));
+        fireAndForget(async () => {
+            try {
+                await closeCarpetOthers(ids, {
+                    active,
+                    exists: (id) => layoutModel.getNodeByBlockId(id) != null,
+                    confirm: confirmTerminalClose,
+                    close: async (id) => {
+                        view360.planClose(id);
+                        await recordPaneClose(id);
+                        const node = active() ? layoutModel.getNodeByBlockId(id) : null;
+                        if (node != null) await layoutModel.closeNode(node.id);
+                    },
+                });
+            } finally {
+                ClosingCarpets.delete(layoutModel);
             }
-            for (const leaf of column.leaves) {
-                uxCloseBlock(leaf.blockId);
-            }
-        }
+        });
     };
     const showMenu = (tick: RadarTick, e: React.MouseEvent) => {
         e.preventDefault();

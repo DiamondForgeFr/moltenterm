@@ -71,6 +71,7 @@ type CloseRequest = {
     standalone?: boolean;
     running?: RunningItem[];
     action?: BusyCloseAction;
+    cancelled?: () => void;
 };
 
 // A tab close waits on its grouped dialog: "cancel" keeps the tab, "asked" closes it (the dialog was the
@@ -145,27 +146,43 @@ async function closeAskingRunning(
     blockId: string,
     close: () => void,
     action: BusyCloseAction,
-    running: RunningItem[]
+    running: RunningItem[],
+    cancelled?: () => void
 ): Promise<void> {
     if (running == null || running.length === 0) {
-        closeApproved(blockId, close);
+        if (blockInLayout(blockId)) {
+            closeApproved(blockId, close);
+        } else {
+            cancelled?.();
+        }
         return;
     }
     if (dialogOpen()) {
+        cancelled?.();
         return;
     }
     if (!(await askBusyClose({ action, running, blockId }))) {
+        cancelled?.();
         return;
     }
     markAnswered(blockId);
-    closeApproved(blockId, close);
+    if (blockInLayout(blockId)) {
+        closeApproved(blockId, close);
+    } else {
+        cancelled?.();
+    }
 }
 
 // Every close of a single terminal comes here first (Cmd+W, the header's close and menu, the command panel's Close,
 // Ctrl+Shift+X, an ephemeral pane's backdrop). false: nothing to ask, the caller closes now. true: the close is held
 // (what runs is being read, a dialog shows, or another close dialog is open); close runs once it is answered and must
 // come back here, where the answer lets it through.
-export function interceptTerminalClose(blockId: string, close: () => void, action: BusyCloseAction = "pane"): boolean {
+export function interceptTerminalClose(
+    blockId: string,
+    close: () => void,
+    action: BusyCloseAction = "pane",
+    cancelled?: () => void
+): boolean {
     if (!blockId) {
         return false;
     }
@@ -179,6 +196,7 @@ export function interceptTerminalClose(blockId: string, close: () => void, actio
         return false;
     }
     if (dialogOpen() || PendingCloses.has(blockId)) {
+        cancelled?.();
         return true;
     }
     PendingCloses.add(blockId);
@@ -186,19 +204,40 @@ export function interceptTerminalClose(blockId: string, close: () => void, actio
         let running: RunningItem[] = [];
         try {
             running = check ? await readRunning([closingTerminalOf(block)]) : [];
+        } catch (e) {
+            cancelled?.();
+            throw e;
         } finally {
             PendingCloses.delete(blockId);
         }
         if (!link) {
-            await closeAskingRunning(blockId, close, action, running);
+            if (!blockInLayout(blockId)) {
+                cancelled?.();
+                return;
+            }
+            await closeAskingRunning(blockId, close, action, running, cancelled);
             return;
         }
-        if (dialogOpen()) {
+        if (dialogOpen() || !blockInLayout(blockId)) {
+            cancelled?.();
             return;
         }
-        globalStore.set(CloseRequestAtom, { blockId, path: link, close, running, action });
+        globalStore.set(CloseRequestAtom, { blockId, path: link, close, running, action, cancelled });
     });
     return true;
+}
+
+// The batch waits for each decision before opening the next dialog. A vanished target is skipped by the caller.
+export function confirmTerminalClose(blockId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const approved = () => {
+            ApprovedCloses.delete(blockId);
+            resolve(true);
+        };
+        if (!interceptTerminalClose(blockId, approved, "pane", () => resolve(false))) {
+            resolve(true);
+        }
+    });
 }
 
 type CloseTabFn = (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>;
@@ -362,12 +401,19 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
         }
         if (closeTerminal) {
             markAnswered(request.blockId);
-            closeApproved(request.blockId, request.close);
+            if (blockInLayout(request.blockId)) {
+                closeApproved(request.blockId, request.close);
+            } else {
+                request.cancelled?.();
+            }
+        } else {
+            request.cancelled?.();
         }
     };
     useEffect(() => {
         if (!standalone && block == null && step !== "working") {
             onDone();
+            request.cancelled?.();
         }
     }, [block == null]);
     useEffect(() => {
@@ -385,7 +431,9 @@ export function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest
                     if (!standalone && busy) {
                         onDone();
                         fireAndForget(() =>
-                            closeAskingRunning(request.blockId, request.close, request.action ?? "pane", running)
+                            closeAskingRunning(
+                                request.blockId, request.close, request.action ?? "pane", running, request.cancelled
+                            )
                         );
                         return;
                     }
