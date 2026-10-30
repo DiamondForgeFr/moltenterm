@@ -95,6 +95,45 @@ describe("settings channels: the routes (DS-SHELL-138, #1549)", () => {
         expect(routes[4]).toContainEqual({ x: 1227 - 16, y: 334 - 16 });
     });
 
+    it("ends in each card's icon tile and never runs under a tile (#1593)", () => {
+        // The suite's tile: 36 px square, overhanging the card's top-left corner by 16 px.
+        const tiles = masonry.cards.map((c) => ({ x: c.x - 16, y: c.y - 16, w: 36, h: 36 }));
+        const routes = channelRoutes({ ...masonry, tiles });
+        routes.forEach((route, i) => {
+            const t = tiles[i];
+            expect(route[route.length - 1]).toEqual({ x: t.x + t.w / 2, y: t.y });
+            for (let k = 0; k + 1 < route.length; k++) {
+                const a = route[k];
+                const b = route[k + 1];
+                expect(a.x === b.x || a.y === b.y).toBe(true);
+                for (let s = 0; s <= 40; s++) {
+                    const p = { x: a.x + ((b.x - a.x) * s) / 40, y: a.y + ((b.y - a.y) * s) / 40 };
+                    expect(inside(p, header)).toBe(false);
+                    masonry.cards.forEach((c, j) => {
+                        expect(inside(p, c)).toBe(false);
+                        // the groove (12 px) clears every tile but the one it ends in
+                        if (j !== i) {
+                            const half = ChannelPx.groove / 2;
+                            const tj = tiles[j];
+                            expect(
+                                inside(p, { x: tj.x - half, y: tj.y - half, w: tj.w + 2 * half, h: tj.h + 2 * half })
+                            ).toBe(false);
+                        }
+                    });
+                }
+            }
+        });
+        // the spine in the middle of the margin left of the tiles, the manifold 12 px above them
+        expect(routes[0][2].x).toBe(8);
+        expect(routes[0]).toContainEqual({ x: 8, y: 167 - 16 - ChannelPx.aboveTile });
+        // a lower card: the lane in the middle of the 16 px left between the card above and the tile
+        expect(routes[1]).toContainEqual({ x: 8, y: 396 - 16 - 8 });
+        // a lower card of the third column: the gutter in the middle of the space left of the tiles
+        expect(routes[4]).toContainEqual({ x: 1227 - 16 - 8, y: 334 - 16 - 8 });
+        // without tiles, the entries stay in the middle of the cards' top edges
+        expect(channelRoutes({ ...masonry, tiles: masonry.cards.map(() => null) })).toEqual(channelRoutes(masonry));
+    });
+
     it("has nothing to reach without cards", () => {
         expect(channelRoutes({ ...masonry, cards: [] })).toEqual([]);
         expect(channelNetwork([]).runs).toEqual([]);

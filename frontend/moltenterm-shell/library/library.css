@@ -1200,6 +1200,55 @@
     filter: drop-shadow(0 0 3px var(--mt-action));
 }
 
+/* A card's icon tile filling with molten (#1593): a copy of the tile above the slab, its glyph above the molten. The
+   molten body is pre-painted (heat scale: a white-hot crest, incandescent, ember towards the bottom, never the action
+   orange) under a still wave mask two periods wide; it only moves by transform. Its hot layer fades into cast iron. */
+.mt-reveal-tile {
+    overflow: hidden;
+    box-shadow: none;
+}
+
+.mt-reveal-tile > svg {
+    position: relative;
+    z-index: 1;
+    /* The glyph reads on the molten in both themes. */
+    filter: drop-shadow(0 0 1px color-mix(in srgb, black 70%, transparent));
+}
+
+.mt-reveal-melt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    --mt-melt-ember: color-mix(in oklab, var(--mt-state-running) 55%, var(--mt-state-blocked));
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--mt-state-draft) 45%, var(--mt-surface-2)),
+        color-mix(in oklab, var(--mt-state-draft) 70%, var(--mt-melt-ember))
+    );
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='46' viewBox='0 0 72 46' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q9 0 18 5T36 5T54 5T72 5V46H0Z'/%3E%3C/svg%3E")
+        0 0 / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='46' viewBox='0 0 72 46' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q9 0 18 5T36 5T54 5T72 5V46H0Z'/%3E%3C/svg%3E")
+        0 0 / 100% 100% no-repeat;
+}
+
+.mt-reveal-melt-hot {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        var(--mt-action-glint) 0,
+        var(--mt-state-running) 18%,
+        var(--mt-melt-ember) 70%,
+        color-mix(in oklab, var(--mt-melt-ember) 70%, black)
+    );
+}
+
+/* The ambient flow's end at a tile: a faint glow, still (#1593). */
+.mt-ch-entry-glow {
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--mt-state-running) 30%, transparent), transparent 70%);
+}
+
 /* The channels of the reveal (#1549, DS-SHELL-138, settings-channels.ts): pipework engraved in the page's background,
    behind the cards and never over text. The groove is cast iron: a dark cut with a lighter lower lip, painted once.
    The reveal's molten slides into each run (a pre-painted bar moved by transform) and its bulge leads it; it drains

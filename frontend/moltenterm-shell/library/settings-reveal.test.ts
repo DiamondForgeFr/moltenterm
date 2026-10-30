@@ -19,6 +19,8 @@ import {
     runSettingsReveal,
     settingsRevealRunning,
     shardPolygons,
+    tileMeltFrames,
+    TileWave,
 } from "./settings-reveal";
 
 // A DOM just large enough for the runner: elements that record their animations, a document and an input target.
@@ -46,6 +48,13 @@ type FakeEl = {
     replaceChildren: () => void;
     setAttribute: (k: string, v: string) => void;
     getBoundingClientRect: () => { left: number; top: number; width: number; height: number };
+    // A card's icon tile (#1593), what querySelector(":scope > .df-icon-tile") finds.
+    tile?: FakeEl;
+    classes: string[];
+    classList: { add: (c: string) => void };
+    querySelector: (sel: string) => FakeEl;
+    cloneNode: (deep: boolean) => FakeEl;
+    prepend: (c: FakeEl) => void;
 };
 
 function makeAnim(keyframes: Keyframe[], timing: KeyframeAnimationOptions): FakeAnim {
@@ -97,6 +106,24 @@ function makeEl(rect = { left: 0, top: 0, width: 0, height: 0 }, all: FakeAnim[]
         getBoundingClientRect() {
             return el.rect;
         },
+        classes: [],
+        classList: {
+            add(c) {
+                el.classes.push(c);
+            },
+        },
+        querySelector(sel) {
+            return sel === ":scope > .df-icon-tile" ? (el.tile ?? null) : null;
+        },
+        cloneNode() {
+            const copy = makeEl(el.rect, all);
+            copy.classes = [...el.classes];
+            copy.children = [makeEl(undefined, all)];
+            return copy;
+        },
+        prepend(c) {
+            el.children.unshift(c);
+        },
     };
     return el;
 }
@@ -125,7 +152,7 @@ function makeInput() {
     };
 }
 
-function makeScene(cardCount: number) {
+function makeScene(cardCount: number, withTiles = false) {
     const all: FakeAnim[] = [];
     const doc = {
         createElement: () => makeEl(undefined, all),
@@ -143,6 +170,15 @@ function makeScene(cardCount: number) {
         h: 240,
     }));
     const cards = rects.map((r) => makeEl({ left: 100 + r.x, top: 50 + r.y, width: r.w, height: r.h }, all));
+    // The tile overhangs the card's top-left corner by 16 px, 36 px square (the suite's .df-icon-tile).
+    const tileRects = rects.map((r) => ({ x: r.x - 16, y: r.y - 16, w: 36, h: 36 }));
+    if (withTiles) {
+        cards.forEach((card, i) => {
+            const t = tileRects[i];
+            card.tile = makeEl({ left: 100 + t.x, top: 50 + t.y, width: t.w, height: t.h }, all);
+            card.tile.classes = ["df-icon-tile"];
+        });
+    }
     const chrome = [makeEl(undefined, all)];
     const input = makeInput();
     const net = channelNetwork(
@@ -150,6 +186,7 @@ function makeScene(cardCount: number) {
             chip: { x: 300, y: 4, w: 100, h: 27 },
             page: { x: 0, y: 51, w: 900, h: 1100 },
             cards: rects.slice(0, MaxRevealCards),
+            tiles: withTiles ? tileRects.slice(0, MaxRevealCards) : undefined,
         })
     );
     const els = {
@@ -163,7 +200,7 @@ function makeScene(cardCount: number) {
         elements: () => els as unknown as ChannelElements,
         dispose: () => {},
     } as ChannelsHandle;
-    return { all, stage, overlay, cards, chrome, input, net, els, channels };
+    return { all, stage, overlay, cards, chrome, input, net, els, channels, tileRects };
 }
 
 function run(scene: ReturnType<typeof makeScene>, mode: "molten" | "fade") {
@@ -318,6 +355,49 @@ describe("settings reveal runner", () => {
         expect(scene.input.count()).toBe(0);
         expect(settingsRevealRunning()).toBe(false);
         expect(finishSettingsReveal()).toBe(false);
+    });
+
+    it("fills each card's icon tile from the bottom with a travelling wave, behind its glyph, then cools (#1593)", async () => {
+        const scene = makeScene(4, true);
+        const handle = run(scene, "molten");
+        const total = revealPlan(scene.net.lengths, scene.net.reach).total;
+        expect(total).toBeLessThanOrEqual(RevealMs.total + 0.001);
+        expectOnTheClock(scene, total);
+        // the melting chip, then per card its slab and, above it, the copy of its tile
+        const layer = scene.overlay.children[0].children;
+        expect(layer).toHaveLength(1 + 2 * 4);
+        const ghosts = layer.filter((el) => el.classes.includes("mt-reveal-tile"));
+        expect(ghosts).toHaveLength(4);
+        ghosts.forEach((ghost, i) => {
+            const t = scene.tileRects[i];
+            expect(ghost.classes).toContain("df-icon-tile");
+            expect(ghost.style.props).toMatchObject({ left: `${t.x}px`, top: `${t.y}px`, width: `${t.w}px` });
+            // the molten first, so the glyph (the copy's own child) is drawn above it
+            const melt = ghost.children[0];
+            expect(melt.className).toBe("mt-reveal-melt");
+            expect(ghost.children).toHaveLength(2);
+            const m = tileMeltFrames(t);
+            expect(melt.style.props.width).toBe(`${2 * t.w}px`);
+            const keys = melt.anims[0].keyframes;
+            expect(keys[0].transform).toBe(m.empty);
+            const full = keys.filter((k) => k.transform === m.full);
+            expect(full.length).toBeGreaterThan(0);
+            // empty below the tile, full with the surface above its top, drifting by exactly one wave period
+            expect(m.empty).toBe(`translate(0px, ${t.h}px)`);
+            expect(m.full).toBe(`translate(${-t.w}px, ${-TileWave.height}px)`);
+            expect(keys[keys.length - 1].opacity).toBe(0);
+            // the copy appears when the molten arrives, the hot layer cools away before the end
+            expect(ghost.anims[0].keyframes[0].opacity).toBe(0);
+            const hot = melt.children[0].anims[0].keyframes;
+            expect(hot[hot.length - 1].opacity).toBe(0);
+        });
+        // the channels end in the tiles: the middle of each tile's top edge
+        scene.tileRects.forEach((t, i) => {
+            expect(scene.net.entries[i]).toEqual({ x: t.x + t.w / 2, y: t.y });
+        });
+        scene.all.forEach((a) => a.resolve());
+        await handle.done;
+        expect(scene.overlay.children).toHaveLength(0);
     });
 
     it("ends at once on a click, the wheel or a key, and leaves Escape to the library", async () => {
