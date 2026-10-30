@@ -65,8 +65,10 @@ describe("the header's wiring (#1544)", () => {
         expect(menu).toContain('t("browser.tabMenu.copyLink")');
     });
 
-    it("moves the carpet button next to close in a panel without focus", () => {
-        expect(css).toMatch(/:not\(\.block-focused\)[\s\S]*?\.mt-carpet-button[\s\S]*?order: 1/);
+    // Since #1585 the carpet button fades in a panel without focus; only the "pinned" mark stays and moves to close.
+    it("moves the pinned mark next to close in a panel without focus", () => {
+        expect(css).toMatch(/:not\(\.block-focused\) \.molten-browser-panel-buttons \.mt-pinned-badge \{\s*order: 1/);
+        expect(css).not.toMatch(/\.mt-carpet-button[^{]*\{\s*order/);
         expect(css).toMatch(/\.molten-browser-close \{\s*order: 2/);
         expect(view).toContain('className="molten-browser-close"');
     });
