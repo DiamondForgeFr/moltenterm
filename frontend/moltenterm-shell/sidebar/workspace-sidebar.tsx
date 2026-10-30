@@ -61,6 +61,7 @@ import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
 import { useReviewsRailWatch } from "../reviews/reviews-client";
+import { libraryDot } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { openSettingsKey } from "../settings/settings-open";
 import { acceleratorById, formatShortcutById } from "../shortcuts/format";
@@ -1951,7 +1952,8 @@ function LibraryButton() {
     useWorkspacePrStatesWatch(readWorkspaceProject(workspace).dir);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const showApps = env.isDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
-    const label = t("sidebar.library.label");
+    const dot = libraryDot(sessions, hasConfigErrors);
+    const label = sessions.count > 0 ? `${t("sidebar.library.label")} · ${sessions.label}` : t("sidebar.library.label");
     return (
         <>
             <button
@@ -1966,11 +1968,11 @@ function LibraryButton() {
                 onClick={() => (open ? model.closeLibrary() : model.openLibrary())}
             >
                 <SidebarGlyph name="lib" />
-                {sessions.count > 0 || hasConfigErrors ? (
+                {dot != null ? (
                     <span
                         className={cn(
                             "absolute top-1 right-1 h-2 w-2 rounded-full ring-2 ring-[var(--color-background)]",
-                            hasConfigErrors ? "bg-error" : "bg-[var(--mt-state-running)]"
+                            dot === "waiting" ? "bg-[var(--mt-state-waiting)]" : "bg-error"
                         )}
                         aria-hidden
                     />
