@@ -41,9 +41,15 @@ const metaSrc = readFileSync(`${dir}../../../pkg/molten/settingsmeta/settingsmet
 const agent = (state: string): AgentStateInfo => ({ state, blockid: state + Math.random() }) as AgentStateInfo;
 
 function ruleBody(selector: string): string {
-    const start = css.indexOf(`\n${selector} {`);
+    const start = css.lastIndexOf(`\n${selector} {`);
     expect(start, selector).toBeGreaterThanOrEqual(0);
     return css.slice(start, css.indexOf("}", start));
+}
+
+function keyframes(name: string): string {
+    const start = css.indexOf(`\n@keyframes ${name} {`);
+    expect(start, name).toBeGreaterThanOrEqual(0);
+    return css.slice(start, css.indexOf("\n}\n", start));
 }
 
 function render(agents: AgentStateInfo[], shown = true, setting: boolean = undefined, reduced = false): string {
@@ -115,10 +121,68 @@ describe("the sidebar's heat (#1409)", () => {
             expect(frames).toContain(`transform: translateY(-${tile}px)`);
             expect(frames).not.toMatch(/opacity|top:|height:/);
         }
-        expect(css).toMatch(/:root\[data-mt-motion="still"\] \.mt-sb-heat-layer \{\s*animation-play-state: paused;/);
+        expect(css).toMatch(/:root\[data-mt-motion="still"\] \.mt-sb-heat-layer,/);
         expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-sb-heat \{\s*display: none;/);
         expect(css).toMatch(/\.prefers-reduced-motion \.mt-sb-heat \{\s*display: none;/);
         expect(ruleBody(".mt-sb-heat")).toContain("pointer-events: none");
+    });
+
+    it("rises from a molten bath whose waves and highlights flow one tile per cycle on the same frames (#1457)", () => {
+        const on = render([agent("working")]);
+        const bath = on.indexOf('data-testid="sidebar-heat-bath"');
+        expect(bath).toBeGreaterThan(on.indexOf("mt-sb-heat-embers"));
+        expect(on.slice(bath)).toMatch(
+            /mt-sb-heat-iron[\s\S]*mt-sb-heat-molten[\s\S]*is-back[\s\S]*is-front[\s\S]*glint/
+        );
+        expect(ruleBody(".mt-sb-heat-embers")).toContain("bottom: calc(var(--mt-heat-bath) - 5px)");
+        expect(ruleBody(".mt-sb-heat-bath")).toContain("height: var(--mt-heat-bath)");
+        const flows: [string, string, string][] = [
+            [".mt-sb-heat-wave.is-back", "mask-size", "translateX(140px)"],
+            [".mt-sb-heat-wave.is-front", "mask-size", "translateX(-90px)"],
+            [".mt-sb-heat-glint", "background-size", "translateX(560px)"],
+        ];
+        for (const [selector, sizeProp, move] of flows) {
+            const body = ruleBody(selector);
+            const tile = Number(new RegExp(`${sizeProp}: (\\d+)px 100%`).exec(body)?.[1]);
+            expect(move, selector).toContain(`(${body.includes(`left: -${tile}px`) ? "" : "-"}${tile}px)`);
+            const seconds = Number(/animation-duration: (\d+)s/.exec(body)?.[1]);
+            expect(Number.isInteger(seconds) && seconds > 0, selector).toBe(true);
+            expect(body).toContain(`animation-timing-function: steps(${seconds * SidebarHeatStepsPerSecond})`);
+            const name = /animation-name: ([\w-]+)/.exec(body)?.[1];
+            expect(name).toMatch(/^mt-sb-heat-flow-/);
+            const frames = ruleBody(`@keyframes ${name}`);
+            expect(frames).toContain(`transform: ${move}`);
+            expect(frames).not.toMatch(/opacity|top:|left:|width:|d:/);
+        }
+        expect(css).not.toMatch(/@keyframes [\w-]+ \{[^@]*\bd: path/);
+        const flow = {
+            animationName: "mt-sb-heat-flow-front",
+            startTime: 15_432.1 as CSSNumberish,
+            effect: { getComputedTiming: () => ({ duration: 6000 }) } as AnimationEffect,
+        };
+        snapRise(flow, false);
+        expect(flow.startTime).toBe(12_000);
+    });
+
+    it("enters bath first then embers, and leaves embers first then the bath cooling and sinking, with no delay", () => {
+        const enterBath = keyframes("mt-sb-heat-bath-in");
+        expect(enterBath).toMatch(/0% \{\s*transform: translateY\(100%\);\s*opacity: 0;/);
+        expect(enterBath).toMatch(/45%,\s*100% \{\s*transform: none;/);
+        expect(keyframes("mt-sb-heat-embers-in")).toMatch(/0%,\s*45% \{\s*opacity: 0;/);
+        expect(keyframes("mt-sb-heat-embers-out")).toMatch(/22%,\s*100% \{\s*opacity: 0;/);
+        expect(keyframes("mt-sb-heat-molten-out")).toMatch(/0%,\s*15% \{\s*opacity: 1;/);
+        expect(keyframes("mt-sb-heat-bath-out")).toMatch(/0%,\s*62% \{\s*transform: none;/);
+        expect(keyframes("mt-sb-heat-bath-out")).toContain("translateY(100%)");
+        for (const part of ["glow", "embers", "bath", "molten"]) {
+            expect(ruleBody(`.mt-sb-heat-${part}`)).toContain(`mt-sb-heat-${part}-in var(--mt-heat-enter)`);
+            expect(ruleBody(`.mt-sb-heat[data-cooling] .mt-sb-heat-${part}`)).toContain(
+                `mt-sb-heat-${part}-out var(--mt-heat-leave)`
+            );
+        }
+        expect(ruleBody(".mt-sb-heat[data-cooling]")).toContain("mt-sb-heat-out var(--mt-heat-leave)");
+        expect(css).not.toMatch(/animation-delay|animation:[^;]*\d+m?s[^;]*\d+m?s/);
+        expect(css).toMatch(/:root\[data-mt-motion="still"\] \.mt-sb-heat-wave,/);
+        expect(css).toMatch(/:root\[data-mt-motion="still"\] \.mt-sb-heat-glint \{\s*animation-play-state: paused;/);
     });
 
     it("draws nothing in too little free space, measured without a size container that would restart the rises", () => {

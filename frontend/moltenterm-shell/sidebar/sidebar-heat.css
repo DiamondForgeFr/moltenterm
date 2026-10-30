@@ -9,12 +9,22 @@
    Every cycle is a whole number of seconds played in 15 steps a second, and sidebar-heat.tsx puts its start back onto
    a whole cycle: the heat changes only on frames the dominoes of the working agents already draw (the light's 1/30 s
    grid contains them), and no layer has a delay of its own. Levels 1 to 3 follow the working agents: 1 layer, then 2,
-   then 3, a little stronger each time. */
+   then 3, a little stronger each time.
+   The molten bath (#1457): the embers and the glow rise from a thin bath along the bottom edge, on the branch line's
+   hairline, so the heat comes from somewhere. A cast-iron base under a molten surface in the running colour, never the
+   action orange and never brighter than it: two waves (one pre-painted SVG tile used as a mask each, moving opposite
+   ways) and, now and then, a highlight sliding across (one gradient tile). Each moves by exactly one tile per
+   whole-second cycle on the same frame grid as the embers. Enter: the bath rises and fills, then the embers start.
+   Leave: the embers stop, the molten surface cools to the iron, then the bath sinks. Each element waits inside its own
+   keyframes (they hold at their start), never with a delay. */
 
 .mt-sb-heat {
     --mt-heat-c: var(--mt-state-running);
     --mt-heat-halo: color-mix(in srgb, var(--mt-state-running) 35%, transparent);
     --mt-heat: 0.55;
+    --mt-heat-bath: 10px;
+    --mt-heat-enter: var(--mt-duration-cool);
+    --mt-heat-leave: calc(var(--mt-duration-cool) * 1.5);
     position: relative;
     flex: 1 1 0;
     min-height: 0;
@@ -23,7 +33,6 @@
     overflow: hidden;
     pointer-events: none;
     mask-image: linear-gradient(to top, black 0, black 48px, transparent 280px);
-    animation: mt-sb-heat-in var(--mt-duration-cool) var(--mt-ease) both;
 }
 
 .mt-sb-heat[data-level="2"] {
@@ -34,8 +43,10 @@
     --mt-heat: 0.95;
 }
 
+/* The cool-down's end (sidebar-heat.tsx unmounts on it). On the root, which data-small never hides, so a cool-down in
+   too little space still ends; it only fades the last instants, when the bath has nearly sunk. */
 .mt-sb-heat[data-cooling] {
-    animation: mt-sb-heat-out var(--mt-duration-cool) var(--mt-ease-cool) both;
+    animation: mt-sb-heat-out var(--mt-heat-leave) linear both;
 }
 
 .mt-sb-heat-glow {
@@ -44,12 +55,145 @@
     right: 0;
     bottom: 0;
     height: min(100%, 120px);
-    opacity: var(--mt-heat);
     background: radial-gradient(
         ellipse 75% 100% at 50% 100%,
-        color-mix(in srgb, var(--mt-heat-c) 16%, transparent),
+        color-mix(in srgb, var(--mt-heat-c) calc(var(--mt-heat) * 17%), transparent),
         transparent 72%
     );
+    animation: mt-sb-heat-glow-in var(--mt-heat-enter) var(--mt-ease) both;
+}
+
+.mt-sb-heat[data-cooling] .mt-sb-heat-glow {
+    animation: mt-sb-heat-glow-out var(--mt-heat-leave) var(--mt-ease-cool) both;
+}
+
+/* The embers' box ends at the bath's mean surface: they come out of it. */
+.mt-sb-heat-embers {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: calc(var(--mt-heat-bath) - 5px);
+    overflow: hidden;
+    animation: mt-sb-heat-embers-in var(--mt-heat-enter) var(--mt-ease) both;
+}
+
+.mt-sb-heat[data-cooling] .mt-sb-heat-embers {
+    animation: mt-sb-heat-embers-out var(--mt-heat-leave) var(--mt-ease) both;
+}
+
+.mt-sb-heat-bath {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--mt-heat-bath);
+    overflow: hidden;
+    /* Its ends thin out, so it lies in the page like a pool rather than a bar cut at the edges. */
+    mask-image: linear-gradient(to right, transparent, black 18px, black calc(100% - 18px), transparent);
+    animation: mt-sb-heat-bath-in var(--mt-heat-enter) var(--mt-ease) both;
+}
+
+.mt-sb-heat[data-cooling] .mt-sb-heat-bath {
+    animation: mt-sb-heat-bath-out var(--mt-heat-leave) var(--mt-ease-cool) both;
+}
+
+/* Cast iron: what the bath is once cooled, and its depth while it is molten. The discreet text colour at a low share
+   reads as warm iron on the dark sidebar and as a grey band on the light one. */
+.mt-sb-heat-iron {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 7px;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--mt-text-3) 12%, transparent),
+        color-mix(in srgb, var(--mt-text-3) 6%, transparent)
+    );
+}
+
+.mt-sb-heat-molten {
+    position: absolute;
+    inset: 0;
+    animation: mt-sb-heat-molten-in var(--mt-heat-enter) var(--mt-ease) both;
+}
+
+.mt-sb-heat[data-cooling] .mt-sb-heat-molten {
+    animation: mt-sb-heat-molten-out var(--mt-heat-leave) var(--mt-ease-cool) both;
+}
+
+.mt-sb-heat-wave,
+.mt-sb-heat-glint {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    will-change: transform;
+    animation-iteration-count: infinite;
+}
+
+.mt-sb-heat-wave {
+    opacity: calc(0.45 + 0.55 * var(--mt-heat));
+    mask-repeat: repeat-x;
+    mask-position: 0 0;
+}
+
+/* The far wave, slower and higher, drifts right; the near one, lower and brighter, drifts left. Each is wider than the
+   sidebar by one tile, so moving by a tile always leaves the bath covered. The mask carries the shape: a lit rim along
+   the surface (a stroke drawn past the tile's ends, so the tiles join) over a half-lit body. */
+.mt-sb-heat-wave.is-back {
+    left: -140px;
+    right: 0;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='10'%3E%3Cpath d='M0 3.5Q35 1 70 3.5T140 3.5V10H0Z' fill-opacity='.6'/%3E%3Cpath d='M-70 3.5Q-35 6 0 3.5T70 3.5T140 3.5T210 3.5' fill='none' stroke='black' stroke-opacity='.8' stroke-width='1'/%3E%3C/svg%3E");
+    mask-size: 140px 100%;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--mt-heat-c) 38%, transparent),
+        color-mix(in srgb, var(--mt-heat-c) 22%, transparent)
+    );
+    animation-name: mt-sb-heat-flow-back;
+    animation-duration: 10s;
+    animation-timing-function: steps(150);
+}
+
+.mt-sb-heat-wave.is-front {
+    left: 0;
+    right: -90px;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='10'%3E%3Cpath d='M0 4.5Q22.5 1.5 45 4.5T90 4.5V10H0Z' fill-opacity='.55'/%3E%3Cpath d='M-45 4.5Q-22.5 7.5 0 4.5T45 4.5T90 4.5T135 4.5' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E");
+    mask-size: 90px 100%;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--mt-heat-c) 56%, transparent) 3px,
+        color-mix(in srgb, var(--mt-heat-c) 30%, transparent) 6px,
+        color-mix(in srgb, color-mix(in oklab, var(--mt-heat-c) 50%, var(--mt-state-blocked)) 34%, transparent)
+    );
+    animation-name: mt-sb-heat-flow-front;
+    animation-duration: 6s;
+    animation-timing-function: steps(90);
+}
+
+/* The sliding highlights: two soft streaks on the surface in a tile far wider than the sidebar, so one passes now and
+   then. A white-hot one (the running colour drawn towards the main text) and a deeper ember one. */
+.mt-sb-heat-glint {
+    left: -560px;
+    right: 0;
+    opacity: var(--mt-heat);
+    background-repeat: repeat-x;
+    background-size: 560px 100%;
+    background-image:
+        radial-gradient(
+            ellipse 40px 1.8px at 18% 4.6px,
+            color-mix(in srgb, color-mix(in oklab, var(--mt-heat-c) 70%, var(--mt-text-1)) 28%, transparent),
+            transparent
+        ),
+        radial-gradient(
+            ellipse 26px 1.6px at 66% 5.4px,
+            color-mix(in srgb, color-mix(in oklab, var(--mt-heat-c) 65%, var(--mt-state-blocked)) 55%, transparent),
+            transparent
+        );
+    animation-name: mt-sb-heat-flow-glint;
+    animation-duration: 14s;
+    animation-timing-function: steps(210);
 }
 
 .mt-sb-heat-layer {
@@ -136,20 +280,119 @@
     }
 }
 
-@keyframes mt-sb-heat-in {
-    from {
+@keyframes mt-sb-heat-flow-back {
+    to {
+        transform: translateX(140px);
+    }
+}
+
+@keyframes mt-sb-heat-flow-front {
+    to {
+        transform: translateX(-90px);
+    }
+}
+
+@keyframes mt-sb-heat-flow-glint {
+    to {
+        transform: translateX(560px);
+    }
+}
+
+/* Enter: the bath rises and fills in the first half, the glow and the embers then start. */
+@keyframes mt-sb-heat-bath-in {
+    0% {
+        transform: translateY(100%);
         opacity: 0;
     }
-    to {
+    45%,
+    100% {
+        transform: none;
         opacity: 1;
     }
 }
 
-@keyframes mt-sb-heat-out {
-    from {
+@keyframes mt-sb-heat-molten-in {
+    0%,
+    15% {
+        opacity: 0;
+    }
+    55%,
+    100% {
         opacity: 1;
     }
-    to {
+}
+
+@keyframes mt-sb-heat-glow-in {
+    0%,
+    35% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-sb-heat-embers-in {
+    0%,
+    45% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Leave: the embers stop first, the molten surface and its glow then cool to the iron, then the bath sinks. */
+@keyframes mt-sb-heat-embers-out {
+    0% {
+        opacity: 1;
+    }
+    22%,
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes mt-sb-heat-glow-out {
+    0%,
+    10% {
+        opacity: 1;
+    }
+    60%,
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes mt-sb-heat-molten-out {
+    0%,
+    15% {
+        opacity: 1;
+    }
+    65%,
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes mt-sb-heat-bath-out {
+    0%,
+    62% {
+        transform: none;
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes mt-sb-heat-out {
+    0%,
+    90% {
+        opacity: 1;
+    }
+    100% {
         opacity: 0;
     }
 }
@@ -161,7 +404,9 @@
     display: none;
 }
 
-:root[data-mt-motion="still"] .mt-sb-heat-layer {
+:root[data-mt-motion="still"] .mt-sb-heat-layer,
+:root[data-mt-motion="still"] .mt-sb-heat-wave,
+:root[data-mt-motion="still"] .mt-sb-heat-glint {
     animation-play-state: paused;
 }
 
