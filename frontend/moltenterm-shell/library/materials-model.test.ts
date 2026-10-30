@@ -50,11 +50,12 @@ describe("materials list (FR-MAT-002)", () => {
     it("puts pinned materials on top, then days, newest first", () => {
         const groups = groupMaterials(
             [
-                mat({ id: "old", updated: Now - 5 * 24 * Hour }),
-                mat({ id: "y", updated: Now - 24 * Hour }),
-                mat({ id: "t1", updated: Now - 2 * Hour }),
-                mat({ id: "t2", updated: Now - Hour }),
-                mat({ id: "pin", updated: Now - 10 * 24 * Hour, pinned: true }),
+                mat({ id: "old", created: Now - 5 * 24 * Hour }),
+                mat({ id: "y", created: Now - 24 * Hour }),
+                // Renamed just now: `updated` moves, its place does not.
+                mat({ id: "t1", created: Now - 2 * Hour, updated: Now }),
+                mat({ id: "t2", created: Now - 3 * Hour, versions: [{ n: 2, at: Now - Hour, size: 1 }] }),
+                mat({ id: "pin", created: Now - 10 * 24 * Hour, pinned: true }),
             ],
             Now,
             "en-US"

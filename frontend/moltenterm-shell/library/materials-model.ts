@@ -79,8 +79,11 @@ export type MaterialsView = {
 
 export type MaterialsChanged = { project: string; ids?: string[] };
 
+// When it arrived: its latest version, else its creation. Not `updated`, which a rename or a pin moves too: renaming
+// a material must not bring it to the top of Today.
 export function materialAt(m: Material): number {
-    return m?.updated || m?.created || 0;
+    const latest = (m?.versions ?? []).reduce((at, v) => Math.max(at, v?.at ?? 0), 0);
+    return latest || m?.created || 0;
 }
 
 // The current version's number; the first is 1.
