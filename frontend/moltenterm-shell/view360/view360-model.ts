@@ -82,7 +82,7 @@ import {
     placeWidthPx,
     WheelStepPx,
 } from "./carpet-places";
-import { showPlacesToast } from "./carpet-places-toast";
+import { showPinPlacesToast, showPlacesToast } from "./carpet-places-toast";
 import {
     CarpetGroup,
     GroupAll,
@@ -295,6 +295,8 @@ export class View360Model {
     // the scroll position and the focus to give back.
     pendingStart: { columnId: string } = null;
     pendingRestore: { scrollLeft: number; focusNodeId: string } = null;
+    // The places on screen when a pin or an unpin was written (#1500): the next pass tells the developer if they changed.
+    pinPlacesBefore: number = null;
     // The wheel's whole-panel steps while a 360 × N is on (AC7): one per gesture.
     wheelGesture: GestureSteps = initialGestureSteps();
     // Where the carpet's glide ends, while it glides.
@@ -805,8 +807,13 @@ export class View360Model {
     }
 
     private setShownPlaces(n: number) {
+        const pinBefore = this.pinPlacesBefore;
+        this.pinPlacesBefore = null;
         if (globalStore.get(this.shownPlacesAtom) !== n) {
             globalStore.set(this.shownPlacesAtom, n);
+        }
+        if (pinBefore != null && n != null && n !== pinBefore) {
+            showPinPlacesToast(n, pinBefore);
         }
     }
 
@@ -1493,6 +1500,7 @@ export class View360Model {
                 return false;
             }
         }
+        this.pinPlacesBefore = globalStore.get(this.shownPlacesAtom);
         this.writePins(withPin(globalStore.get(this.pinsAtom), column, blockId, mode, this.liveBlockIds()));
         return true;
     }
@@ -1506,6 +1514,7 @@ export class View360Model {
         if (column == null) {
             return false;
         }
+        this.pinPlacesBefore = globalStore.get(this.shownPlacesAtom);
         this.writePins(withoutPin(globalStore.get(this.pinsAtom), column, this.liveBlockIds()));
         const columnId = column.id;
         // Back on the carpet at its place: the carpet glides to it once the layout has laid it there.

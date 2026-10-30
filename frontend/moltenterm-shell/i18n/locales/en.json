@@ -5781,6 +5781,14 @@
                 "one": "{count} panel stored on the carpet, still active.",
                 "other": "{count} panels stored on the carpet, still active."
             },
+            "pinTook": {
+                "one": "The pin takes the last place. It comes back when you unpin.",
+                "other": "The pin takes the last {count} places. They come back when you unpin."
+            },
+            "pinGaveBack": {
+                "one": "{count} place is back, as the pin is gone.",
+                "other": "{count} places are back, as the pin is gone."
+            },
             "undo": "Undo",
             "menuChoice": {
                 "one": "Store on the carpet: {count} visible panel on the right",
