@@ -28,6 +28,7 @@ import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
+import { AgentLinks } from "../agent-links/agent-links-store";
 import { agentCallName, agentStatesOfWorkspace } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
@@ -129,7 +130,10 @@ import {
 import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import {
+    browserLinkStates,
     isSharedTab,
+    listFailureOf,
+    ListFailure,
     moveQuestion,
     noAgentReason,
     ofTab,
@@ -980,10 +984,12 @@ export class BrowserViewModel implements ViewModel {
     // connected to MoltenTerm's browser, read when a menu opens.
     async loadShareAgents(): Promise<ShareAgent[]> {
         let sessions: AgentSession[] = [];
+        let listFailure: ListFailure;
         try {
             sessions = await this.agents.listSessions();
         } catch (e) {
             console.log("browser share: no agent sessions", e);
+            listFailure = listFailureOf(e);
         }
         const tabBlockIds = globalStore.get(this.tabBlockIdsAtom);
         sessions = ofTab(sessions, tabBlockIds);
@@ -1004,15 +1010,30 @@ export class BrowserViewModel implements ViewModel {
             })
         );
         let runs: AgentIntegrationRun[] = [];
-        if (states.length > 0 && states.some((s) => !sessions.some((x) => x.blockid === s.blockid))) {
+        const unlinked = states.filter((s) => !sessions.some((x) => x.blockid === s.blockid)).map((s) => s.blockid);
+        if (unlinked.length > 0) {
             try {
                 runs = await loadIntegrationRuns();
             } catch (e) {
                 console.log("browser share: no integration runs", e);
             }
+            // The registry's last event may predate the server's death: read its links now, which the card shows too.
+            await Promise.all(
+                unlinked.map((id) =>
+                    AgentLinks.getInstance()
+                        .refresh(id)
+                        .catch((e) => console.log("browser share: no agent links", e))
+                )
+            );
         }
         const settings = globalStore.get(atoms.settingsAtom) as Record<string, unknown>;
-        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta), { runs, settings });
+        const links = browserLinkStates(globalStore.get(AgentLinks.getInstance().dataAtom));
+        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta), {
+            runs,
+            settings,
+            links,
+            listFailure,
+        });
     }
 
     async shareItems(tab: BrowserTab): Promise<ContextMenuItem[]> {

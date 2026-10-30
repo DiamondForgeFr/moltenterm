@@ -96,6 +96,10 @@ func (m *Manager) sessionRefs() []sessionRef {
 	defer m.lock.Unlock()
 	rtn := make([]sessionRef, 0, len(m.sessions))
 	for _, s := range m.sessions {
+		// A parked session has no link: the terminal's connections do not show it connected either.
+		if s.parked {
+			continue
+		}
 		rtn = append(rtn, sessionRef{id: s.id, blockId: s.blockId, agentName: s.agentName, started: s.started.UnixNano()})
 	}
 	return rtn
@@ -233,7 +237,7 @@ func (m *Manager) sessionById(sessionId string) (sessionInfo, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
-	if s == nil {
+	if s == nil || s.parked {
 		return sessionInfo{}, false
 	}
 	return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, true

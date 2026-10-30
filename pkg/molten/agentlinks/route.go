@@ -120,6 +120,13 @@ func OnStop(fn func(source string)) {
 	}
 }
 
+// OnReport runs fn with each report of a running link (#1541).
+func OnReport(fn ReportFunc) {
+	if m := running(); m != nil {
+		m.OnReport(fn)
+	}
+}
+
 // SetLegacySessions gives the registry the browser sessions of servers that do not report.
 func SetLegacySessions(fn func(blockId string) []LegacySession) {
 	if m := running(); m != nil {

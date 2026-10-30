@@ -5,8 +5,11 @@ import { describe, expect, it } from "vitest";
 import type { AgentIntegrationRun } from "../agent-integration-runs";
 import type { AgentStateInfo } from "../agent-state-model";
 import { AgentTab, controlBarView } from "./browser-agent";
+import type { LinkState } from "../agent-links/agent-links-model";
 import {
     browserLink,
+    browserLinkStates,
+    listFailureOf,
     moveQuestion,
     noAgentReason,
     ofTab,
@@ -199,9 +202,61 @@ describe("share with agent: why an agent is greyed (#947)", () => {
             }
         );
         expect(reasons(list)).toEqual([
-            "Inès lost its connection to MoltenTerm's browser: restart its session",
-            "Valentin lost its connection to MoltenTerm's browser: in its session, run /mcp and reconnect molten-browser, or restart it",
+            "Inès lost its connection to MoltenTerm's browser: in its session, reconnect its molten-browser tool, or restart it",
+            "Valentin lost its connection to MoltenTerm's browser: in its session, reconnect its molten-browser tool, or restart it",
         ]);
+    });
+
+    // #1541: the menu reads the connections registry the terminal's card reads, and a list it could not read is not
+    // a lost connection.
+    it("never says lost when the link is coming back or the browser could not be asked", () => {
+        const people = [named("term-a", "claude", "Valentin"), named("term-b", "codex", "Inès")];
+        const runs = [run("term-a", "claude", "added"), run("term-b", "codex", "added")];
+        const back = shareAgents(people, [], paneTitle, { runs, links: { "term-a": "reconnecting" } });
+        expect(reasons(back)).toEqual([
+            "Inès lost its connection to MoltenTerm's browser: in its session, reconnect its molten-browser tool, or restart it",
+            "Valentin is reconnecting to MoltenTerm's browser: try again in a moment",
+        ]);
+        const unanswered = shareAgents(people, [], paneTitle, { runs, listFailure: "unanswered" });
+        expect(reasons(unanswered)).toEqual([
+            "MoltenTerm's browser did not answer: try again in a moment",
+            "MoltenTerm's browser did not answer: try again in a moment",
+        ]);
+        const updated = shareAgents(people.slice(0, 1), [], paneTitle, { runs, listFailure: "updated" });
+        expect(reasons(updated)).toEqual(["MoltenTerm was updated: restart it to finish the update"]);
+        const without = shareAgents(people.slice(0, 1), [], paneTitle, {
+            runs: [run("term-a", "claude", "none")],
+            listFailure: "unanswered",
+        });
+        expect(reasons(without)).toEqual([
+            "Valentin started without MoltenTerm's browser: restart its session to give it the browser",
+        ]);
+    });
+
+    it("tells an older MoltenTerm from one that did not answer", () => {
+        expect(listFailureOf(new Error('unknown browser agent command "moltenbrowseragentlist"'))).toBe("updated");
+        expect(listFailureOf(new Error("EC-TIME: timeout waiting for response"))).toBe("unanswered");
+        expect(listFailureOf(null)).toBe("unanswered");
+    });
+
+    it("reads each pane's molten-browser link from the connections registry, a connected one first", () => {
+        const link = (server: string, state: LinkState) => ({ key: `${server}:${state}`, server, state });
+        expect(
+            browserLinkStates({
+                "term-a": {
+                    blockid: "term-a",
+                    version: "1",
+                    agents: [{ links: [link("molten-browser", "broken"), link("molten-browser", "connected")] }],
+                },
+                "term-b": {
+                    blockid: "term-b",
+                    version: "1",
+                    agents: [{ links: [link("molten-review", "connected"), link("molten-browser", "reconnecting")] }],
+                },
+                "term-c": { blockid: "term-c", version: "1", agents: [{ links: [link("molten-review", "connected")] }] },
+            })
+        ).toEqual({ "term-a": "connected", "term-b": "reconnecting" });
+        expect(browserLinkStates(null)).toEqual({});
     });
 
     it("says a session started without the browser, with the launcher's reason when it left it out", () => {

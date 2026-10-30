@@ -8,6 +8,7 @@
 // the menu.
 
 import { runsByBlock, type AgentIntegrationRun } from "../agent-integration-runs";
+import { BrowserServer, type BlockLinks, type LinkState } from "../agent-links/agent-links-model";
 import { agentCallName, agentLabel, agentPromptState, type AgentStateInfo } from "../agent-state-model";
 import { integrationSetting } from "../companion/companion-integration-model";
 import { t } from "../i18n/i18n";
@@ -18,10 +19,51 @@ import type { BrowserTab } from "./browser-model";
 export type ShareSession = AgentSession;
 
 // Why an agent has no browser session (#947), each with its own words and fix: the integration is off now for every
-// agent or for this one, the run got the browser and lost its connection (MoltenTerm restarted, the MCP server
-// stopped), the run started without it (before the integration, or launched another way), the launcher left it out,
-// or MoltenTerm cannot tell.
-export type BrowserLink = "offall" | "offagent" | "lost" | "without" | "skipped" | "unknown";
+// agent or for this one, the run got the browser and lost its connection (the MCP server stopped), its link is coming
+// back by itself (MoltenTerm restarted, #1541), the run started without it (before the integration, or launched
+// another way), the launcher left it out, MoltenTerm's browser could not be asked (it did not answer, or a newer
+// window talks to an older MoltenTerm, #1541), or MoltenTerm cannot tell.
+export type BrowserLink =
+    | "offall"
+    | "offagent"
+    | "lost"
+    | "reconnecting"
+    | "without"
+    | "skipped"
+    | "unanswered"
+    | "updated"
+    | "unknown";
+
+// Why the agents connected to MoltenTerm's browser could not be listed: no agent is then said to have lost it.
+export type ListFailure = "unanswered" | "updated";
+
+// must match the unknown command error of pkg/molten/browseragent/route.go: a MoltenTerm older than this window.
+const UnknownCommandText = "unknown browser agent command";
+
+export function listFailureOf(err: unknown): ListFailure {
+    const text = err instanceof Error ? err.message : String(err ?? "");
+    return text.includes(UnknownCommandText) ? "updated" : "unanswered";
+}
+
+// The state of each pane's molten-browser link as the terminal's connections show it (FR-CONT-022): the share menu
+// reads the same registry as the card, so the two never disagree (#1541). A connected link wins over an older one.
+export function browserLinkStates(data: Record<string, BlockLinks>): Record<string, LinkState> {
+    const rank: Record<LinkState, number> = { connected: 4, reconnecting: 3, stopped: 2, broken: 1, legacy: 0 };
+    const rtn: Record<string, LinkState> = {};
+    for (const [blockId, links] of Object.entries(data ?? {})) {
+        for (const agent of links?.agents ?? []) {
+            for (const link of agent.links ?? []) {
+                if (link.server !== BrowserServer || link.state == null) {
+                    continue;
+                }
+                if (rtn[blockId] == null || rank[link.state] > rank[rtn[blockId]]) {
+                    rtn[blockId] = link.state;
+                }
+            }
+        }
+    }
+    return rtn;
+}
 
 // One agent of the workspace the tab can be shared with.
 export type ShareAgent = {
@@ -53,6 +95,8 @@ export type ShareActions = {
 export type ShareIntegration = {
     runs?: AgentIntegrationRun[];
     settings?: Record<string, unknown>;
+    links?: Record<string, LinkState>;
+    listFailure?: ListFailure;
 };
 
 export function noAgentReason(): string {
@@ -86,8 +130,14 @@ export function ofTab<T extends { blockid?: string }>(items: T[], tabBlockIds: s
 }
 
 // Why an agent without a session has none: the settings now come first (restarting would not help), then what its
-// run got at launch.
-export function browserLink(agentId: string, run: AgentIntegrationRun, settings: Record<string, unknown>): BrowserLink {
+// run got at launch, then whether the list could be read at all, then its link.
+export function browserLink(
+    agentId: string,
+    run: AgentIntegrationRun,
+    settings: Record<string, unknown>,
+    linkState?: LinkState,
+    listFailure?: ListFailure
+): BrowserLink {
     if (agentId) {
         const setting = integrationSetting(settings, agentId);
         if (setting === "alloff") {
@@ -98,14 +148,18 @@ export function browserLink(agentId: string, run: AgentIntegrationRun, settings:
         }
     }
     switch (run?.browser) {
-        case "added":
-            return "lost";
         case "skipped":
             return "skipped";
         case "none":
             return "without";
     }
-    return "unknown";
+    if (listFailure) {
+        return listFailure;
+    }
+    if (linkState === "reconnecting") {
+        return "reconnecting";
+    }
+    return run?.browser === "added" ? "lost" : "unknown";
 }
 
 // The agents of the workspace: one per pane running an agent, then the connected panes MoltenTerm detected no agent
@@ -142,7 +196,13 @@ export function shareAgents(
         };
         if (!agent.sessionId) {
             const run = runs.get(info.blockid);
-            agent.link = browserLink(info.agent, run, integration?.settings);
+            agent.link = browserLink(
+                info.agent,
+                run,
+                integration?.settings,
+                integration?.links?.[info.blockid],
+                integration?.listFailure
+            );
             if (agent.link === "skipped") {
                 agent.linkReason = serverText(run.browserreasontext, run.browserreason ?? "");
             }
@@ -185,9 +245,13 @@ export function unconnectedReason(agent: ShareAgent): string {
         case "offagent":
             return t("browser.share.offAgent", { agent: agent.agentKind || name, name });
         case "lost":
-            return agent.agentId === "claude"
-                ? t("browser.share.lostMcp", { name })
-                : t("browser.share.lost", { name });
+            return t("browser.share.lost", { name });
+        case "reconnecting":
+            return t("browser.share.reconnecting", { name });
+        case "unanswered":
+            return t("browser.share.unanswered");
+        case "updated":
+            return t("browser.share.updated");
         case "without":
             return t("browser.share.startedWithout", { name });
         case "skipped":

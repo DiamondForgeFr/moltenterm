@@ -174,6 +174,7 @@ func Start() {
 			manager.endSessions(func(s *session) bool { return s.source == source }, "stopped by the developer")
 		})
 		agentlinks.SetLegacySessions(manager.legacySessions)
+		agentlinks.OnReport(manager.linkReport)
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(wps.Event_RouteDown, func(event *wps.WaveEvent) { handleRouteDown(manager, event) })
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_RouteDown, AllScopes: true}, nil)
