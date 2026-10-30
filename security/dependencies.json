@@ -1,6 +1,14 @@
 {
     "schema": 1,
     "owner": "AGachet",
+    "electronLifecycle": {
+        "version": "45.2.0",
+        "reviewedAt": "2026-10-30",
+        "reviewBy": "2026-12-01",
+        "tentativeEndOfSupport": "2027-04-27",
+        "source": "https://releases.electronjs.org/schedule",
+        "releaseSource": "https://releases.electronjs.org/"
+    },
     "scanners": {
         "npm": "10.9.2",
         "govulncheck": "v1.9.0"

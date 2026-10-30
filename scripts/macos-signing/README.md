@@ -4,7 +4,7 @@ Developer ID signing and notarization of the macOS release (#507): the orchestra
 into `electron-builder.config.cjs` and `.github/workflows/release.yml` (#879). Fixture results are not proof of a
 Developer ID release: genuine Apple acceptance and the clean-Mac checks stay open in #880 until the credentials exist.
 
-The code targets the **locked electron-builder 26.17.0** and Electron 42 (#810). The manifest range `^26.15.3` is not
+The code targets the **locked electron-builder 26.17.0** and Electron 45 (#1590, macOS 13+). The manifest range `^26.15.3` is not
 the installed version: production loading rejects any other builder version, because the blockmap adapter uses a
 version-specific internal API. Do not copy configuration from the unversioned v27 documentation.
 
