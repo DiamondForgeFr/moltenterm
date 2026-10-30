@@ -76,6 +76,7 @@ export type ToastInput = {
 
 export type Toast = ToastInput & {
     id: string;
+    revision?: number;
     kind: MoltentermNotificationKind;
     actions: ToastAction[];
     stays: boolean;

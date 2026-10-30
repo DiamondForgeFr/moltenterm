@@ -22,6 +22,8 @@ type WaveObjectDataItemType<T extends WaveObj> = {
 type WaveObjectValue<T extends WaveObj> = {
     pendingPromise: Promise<T>;
     dataAtom: PrimitiveAtom<WaveObjectDataItemType<T>>;
+    revision: number;
+    deletions: number;
 };
 
 function splitORef(oref: string): [string, string] {
@@ -156,51 +158,63 @@ function reloadWaveObject<T extends WaveObj>(oref: string): Promise<T> {
         wov = getWaveObjectValue<T>(oref, true);
         return wov.pendingPromise;
     }
-    const prtn = GetObject<T>(oref);
-    prtn.then((val) => {
-        setLoadedValue(wov, val);
-    });
-    return prtn;
+    const revision = wov.revision;
+    const deletions = wov.deletions;
+    return GetObject<T>(oref).then((val) => setLoadedValue(wov, val, revision, deletions));
 }
 
 // MOLTENTERM-PATCH (#1397): a GetObject answer is a snapshot taken when the server read it; an update event that
 // arrived while it was in flight is newer and must not be overwritten by it (a freshly opened Preferences block lost
 // the meta clears its screen sent right after mounting, so the next ask for the same section and setting was no change).
-function setLoadedValue<T extends WaveObj>(wov: WaveObjectValue<T>, val: T) {
+function setLoadedValue<T extends WaveObj>(wov: WaveObjectValue<T>, val: T, revision: number, deletions: number): T {
     const cur = globalStore.get(wov.dataAtom).value;
-    if (cur != null && val != null && cur.version > val.version) {
+    if (
+        wov.deletions !== deletions ||
+        (wov.revision !== revision && (cur == null || val == null)) ||
+        (cur != null && val != null && cur.version > val.version)
+    ) {
         globalStore.set(wov.dataAtom, { value: cur, loading: false });
-        return;
+        return cur;
     }
+    wov.revision++;
     globalStore.set(wov.dataAtom, { value: val, loading: false });
+    return val;
 }
 
 function createWaveValueObject<T extends WaveObj>(oref: string, shouldFetch: boolean): WaveObjectValue<T> {
-    const wov = { pendingPromise: null, dataAtom: null };
+    const wov: WaveObjectValue<T> = { pendingPromise: null, dataAtom: null, revision: 0, deletions: 0 };
     wov.dataAtom = atom({ value: null, loading: true });
     if (!shouldFetch) {
         return wov;
     }
     const startTs = Date.now();
-    const localPromise = GetObject<T>(oref);
+    const revision = wov.revision;
+    const deletions = wov.deletions;
+    const localPromise = GetObject<T>(oref)
+        .then((val) => {
+            const [otype, oid] = splitORef(oref);
+            if (val != null) {
+                if (val["otype"] != otype) {
+                    throw new Error("GetObject returned wrong type");
+                }
+                if (val["oid"] != oid) {
+                    throw new Error("GetObject returned wrong id");
+                }
+            }
+            const result = setLoadedValue(wov, val, revision, deletions); // MOLTENTERM-PATCH (#1397, #1462)
+            console.log("WaveObj resolved", oref, Date.now() - startTs + "ms");
+            return result;
+        })
+        .finally(() => {
+            if (wov.pendingPromise === localPromise) {
+                wov.pendingPromise = null;
+                const current = globalStore.get(wov.dataAtom);
+                if (current.loading) globalStore.set(wov.dataAtom, { ...current, loading: false });
+            }
+        });
     wov.pendingPromise = localPromise;
-    localPromise.then((val) => {
-        if (wov.pendingPromise != localPromise) {
-            return;
-        }
-        const [otype, oid] = splitORef(oref);
-        if (val != null) {
-            if (val["otype"] != otype) {
-                throw new Error("GetObject returned wrong type");
-            }
-            if (val["oid"] != oid) {
-                throw new Error("GetObject returned wrong id");
-            }
-        }
-        wov.pendingPromise = null;
-        setLoadedValue(wov, val); // MOLTENTERM-PATCH (#1397)
-        console.log("WaveObj resolved", oref, Date.now() - startTs + "ms");
-    });
+    // Atom-only consumers do not await the initial load; callers that do still receive the rejection.
+    void localPromise.catch(() => {});
     return wov;
 }
 
@@ -276,6 +290,8 @@ function updateWaveObject(update: WaveObjUpdate) {
     const wov = getWaveObjectValue(oref);
     if (update.updatetype == "delete") {
         console.log("WaveObj deleted", oref);
+        wov.revision++;
+        wov.deletions++;
         globalStore.set(wov.dataAtom, { value: null, loading: false });
     } else {
         if (!isValidWaveObj(update.obj)) {
@@ -287,6 +303,7 @@ function updateWaveObject(update: WaveObjUpdate) {
             return;
         }
         console.log("WaveObj updated", oref);
+        wov.revision++;
         globalStore.set(wov.dataAtom, { value: update.obj, loading: false });
     }
     return;
@@ -322,6 +339,7 @@ function setObjectValue<T extends WaveObj>(value: T, setFn?: Setter, pushToServe
     if (setFn === undefined) {
         setFn = globalStore.set;
     }
+    wov.revision++;
     setFn(wov.dataAtom, { value: value, loading: false });
     if (pushToServer) {
         fireAndForget(() => ObjectService.UpdateObject(value, false));
