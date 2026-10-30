@@ -5637,8 +5637,6 @@
     },
     "view360": {
         "empty": "Panels you open are laid here",
-        "addStart": "Add a panel on the left",
-        "addEnd": "Add a panel on the right",
         "grip": {
             "noRoomFloor": "This column can't be resized here: the first column keeps the width you gave it, and the carpet needs the rest of the window.",
             "noRoomWindow": "This column can't be resized here: the window is too narrow to leave the carpet any room. Widen the window to resize it.",
@@ -5694,6 +5692,26 @@
             "morePanels": "+{count} panels",
             "window": "Visible area",
             "windowHint": "drag to move, click a panel to jump to it"
+        },
+        "strip": {
+            "add": "Add a panel at the end of the carpet",
+            "close": "Close panel",
+            "moveLeft": "Move left",
+            "moveRight": "Move right",
+            "tabName": "{kind}: {title}, {state}",
+            "visible": "visible",
+            "stored": "stored on the carpet",
+            "openedBy": "opened by {name}",
+            "kinds": {
+                "agent": "Agent",
+                "term": "Terminal",
+                "web": "Page",
+                "companion": "Companion",
+                "review": "Review",
+                "project": "Project",
+                "files": "Files",
+                "other": "Panel"
+            }
         },
         "pin": {
             "pinBeside": "Pin beside",
