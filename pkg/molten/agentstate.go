@@ -60,10 +60,13 @@ type AgentKind struct {
 	// Fragments of a process's executable path or arguments that name the agent when its process name does not
 	// (Claude Code's binary is ~/.local/share/claude/versions/<version>; Gemini CLI runs in node).
 	ProcessHints []string
+	// WorktreesDir: the folder, relative to the project, the agent creates its own worktree agents in; a background
+	// agent there was started by a session of this agent in the main checkout (#1463). "" when it has none.
+	WorktreesDir string
 }
 
 var AgentKinds = []AgentKind{
-	{Id: AgentIdClaude, Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}},
+	{Id: AgentIdClaude, Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}, WorktreesDir: filepath.Join(".claude", "worktrees")},
 	{Id: AgentIdCodex, Name: "Codex", Commands: []string{"codex"}, ProcessHints: []string{"@openai/codex", "/bin/codex"}},
 	{Id: AgentIdGemini, Name: "Gemini CLI", Commands: []string{"gemini"}, ProcessHints: []string{"@google/gemini-cli", "/bin/gemini"}},
 	{Id: AgentIdOpenCode, Name: "OpenCode", Commands: []string{"opencode"}, ProcessHints: []string{"opencode-ai", "/bin/opencode"}},
