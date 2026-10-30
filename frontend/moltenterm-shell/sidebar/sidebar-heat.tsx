@@ -5,7 +5,8 @@
 // the free space at the bottom of the sidebar's page, stronger with more of them, and cools out when the last one
 // stops. It is ambient, never the indicator: the agent rows, the tiles and the dots keep telling the state. It is a
 // flex spacer after the page's last section, so it is exactly the free space and never covers a row; with no free
-// space it has no height and draws nothing (sidebar-heat.css).
+// space it has no height and draws nothing (sidebar-heat.css). The embers rise from a molten bath along its bottom
+// edge (#1457): the bath rises before they start, and cools and sinks after they stop.
 
 import { atoms, getSettingsKeyAtom } from "@/app/store/global";
 import { useAtomValue } from "jotai";
@@ -20,7 +21,8 @@ export const SidebarHeatMinHeightPx = 40;
 // The frames the heat may change on: the dominoes' 1/15 s grid (#1399), which the working light's 1/30 s grid
 // contains (#1388). sidebar-heat.css plays every cycle, a whole number of seconds, in 15 steps a second.
 export const SidebarHeatStepsPerSecond = 15;
-const RiseAnimationPrefix = "mt-sb-heat-rise";
+// The loops whose start snapRise puts on the grid: the embers' rises and the bath's flows (#1457).
+const LoopAnimationPrefixes = ["mt-sb-heat-rise-", "mt-sb-heat-flow-"];
 const CoolAnimationName = "mt-sb-heat-out";
 
 type RiseAnimation = Pick<Animation, "startTime" | "effect"> & { animationName?: string };
@@ -37,7 +39,7 @@ export function sidebarHeatLevel(agents: AgentStateInfo[]): number {
 // then fall with the dominoes'. At a lap, a rise that was held still and resumed off the grid goes back onto the
 // nearest step only, under 1/30 s: a whole cycle would make the particles jump.
 export function snapRise(anim: RiseAnimation, atLap: boolean) {
-    if (!anim.animationName?.startsWith(RiseAnimationPrefix) || anim.startTime == null) {
+    if (!LoopAnimationPrefixes.some((p) => anim.animationName?.startsWith(p)) || anim.startTime == null) {
         return;
     }
     const duration = anim.effect?.getComputedTiming().duration;
@@ -121,9 +123,19 @@ export function SidebarHeat({ agents, shown }: { agents: AgentStateInfo[]; shown
             }}
         >
             <div className="mt-sb-heat-glow" />
-            <div className="mt-sb-heat-layer is-a" />
-            <div className="mt-sb-heat-layer is-b" />
-            <div className="mt-sb-heat-layer is-c" />
+            <div className="mt-sb-heat-embers">
+                <div className="mt-sb-heat-layer is-a" />
+                <div className="mt-sb-heat-layer is-b" />
+                <div className="mt-sb-heat-layer is-c" />
+            </div>
+            <div className="mt-sb-heat-bath" data-testid="sidebar-heat-bath">
+                <div className="mt-sb-heat-iron" />
+                <div className="mt-sb-heat-molten">
+                    <div className="mt-sb-heat-wave is-back" />
+                    <div className="mt-sb-heat-wave is-front" />
+                    <div className="mt-sb-heat-glint" />
+                </div>
+            </div>
         </div>
     );
 }
