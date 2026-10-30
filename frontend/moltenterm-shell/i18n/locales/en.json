@@ -882,6 +882,10 @@
                 "label": "Reduce motion",
                 "description": "Turn off animations, as the system's reduced motion setting does."
             },
+            "moltenterm:sidebarheat": {
+                "label": "Heat in the sidebar",
+                "description": "While agents work, a faint heat rises at the bottom of the sidebar."
+            },
             "moltenterm:sidebartint": {
                 "label": "Tint the sidebar",
                 "description": "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks."

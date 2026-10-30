@@ -222,6 +222,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1335): the opt-in sidebar tint of theme Coulée (FR-SHELL-115, frontend/moltenterm-shell/sidebar-tint.ts).
 	MoltentermSidebarTint bool `json:"moltenterm:sidebartint,omitempty" jsonschema_description:"Tint the sidebar with the workspace's colour. Off: the sidebar is the same warm grey in every workspace, and the workspace colour shows only on its place cues (the strip at the top of the sidebar, the bar beside its name, the active view's underline and its dot)"`
 
+	// MOLTENTERM-PATCH (#1409): the sidebar's heat while agents work (FR-SHELL-122, frontend/moltenterm-shell/sidebar/sidebar-heat.tsx).
+	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
+
 	// MOLTENTERM-PATCH (#1341): the opt-in light theme of theme Coulée (FR-SHELL-121, frontend/moltenterm-shell/app-theme.ts, emain/moltenterm-theme.ts).
 	MoltentermTheme string `json:"moltenterm:theme,omitempty" jsonschema:"enum=dark,enum=light,enum=system" jsonschema_description:"The interface's theme. dark (the default when unset), light, or system to follow the computer's light or dark setting. Terminals keep their own terminal theme, dark by default, in every interface theme"`
 

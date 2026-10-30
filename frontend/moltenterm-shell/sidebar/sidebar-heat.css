@@ -1,0 +1,177 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* The sidebar's heat (FR-SHELL-122, DS-SHELL-133, sidebar-heat.tsx): embers rising from the bottom edge in the running
+   (incandescent) state colour, never the action orange, over a static warm floor, faded out by a static mask as they
+   rise (steam was tried too, #1409: at an opacity this low it read as smudges).
+   Cost (#473, #1388, #1399): the embers are painted once into a tile that repeats vertically, and each layer moves up
+   by exactly one tile per cycle, transform only, so the compositor runs it without a main-thread paint per frame.
+   Every cycle is a whole number of seconds played in 15 steps a second, and sidebar-heat.tsx puts its start back onto
+   a whole cycle: the heat changes only on frames the dominoes of the working agents already draw (the light's 1/30 s
+   grid contains them), and no layer has a delay of its own. Levels 1 to 3 follow the working agents: 1 layer, then 2,
+   then 3, a little stronger each time. */
+
+.mt-sb-heat {
+    --mt-heat-c: var(--mt-state-running);
+    --mt-heat-halo: color-mix(in srgb, var(--mt-state-running) 35%, transparent);
+    --mt-heat: 0.55;
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    /* Takes back the page's gap-2 before the spacer: no extra scroll when the page has no free space. */
+    margin-top: -0.5rem;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image: linear-gradient(to top, black 0, black 48px, transparent 280px);
+    animation: mt-sb-heat-in var(--mt-duration-cool) var(--mt-ease) both;
+}
+
+.mt-sb-heat[data-level="2"] {
+    --mt-heat: 0.75;
+}
+
+.mt-sb-heat[data-level="3"] {
+    --mt-heat: 0.95;
+}
+
+.mt-sb-heat[data-cooling] {
+    animation: mt-sb-heat-out var(--mt-duration-cool) var(--mt-ease-cool) both;
+}
+
+.mt-sb-heat-glow {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: min(100%, 120px);
+    opacity: var(--mt-heat);
+    background: radial-gradient(
+        ellipse 75% 100% at 50% 100%,
+        color-mix(in srgb, var(--mt-heat-c) 16%, transparent),
+        transparent 72%
+    );
+}
+
+.mt-sb-heat-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: var(--mt-heat);
+    background-repeat: repeat-y;
+    will-change: transform;
+    animation-iteration-count: infinite;
+}
+
+.mt-sb-heat[data-level="1"] .mt-sb-heat-layer.is-b,
+.mt-sb-heat:not([data-level="3"]) .mt-sb-heat-layer.is-c {
+    display: none;
+}
+
+/* Three depths: sparks, larger soft embers, fine sparks. Each layer reaches one tile below the floor, so moving up by a
+   tile always leaves the free space covered. */
+.mt-sb-heat-layer.is-a {
+    top: 0;
+    bottom: -260px;
+    background-size: 100% 260px;
+    background-image:
+        radial-gradient(circle at 12% 18%, var(--mt-heat-c) 0 0.8px, var(--mt-heat-halo) 1.4px, transparent 2.8px),
+        radial-gradient(circle at 33% 64%, var(--mt-heat-c) 0 0.8px, var(--mt-heat-halo) 1.4px, transparent 2.8px),
+        radial-gradient(circle at 47% 9%, var(--mt-heat-c) 0 0.7px, var(--mt-heat-halo) 1.3px, transparent 2.6px),
+        radial-gradient(circle at 58% 83%, var(--mt-heat-c) 0 0.9px, var(--mt-heat-halo) 1.5px, transparent 3px),
+        radial-gradient(circle at 71% 38%, var(--mt-heat-c) 0 0.7px, var(--mt-heat-halo) 1.3px, transparent 2.6px),
+        radial-gradient(circle at 86% 71%, var(--mt-heat-c) 0 0.8px, var(--mt-heat-halo) 1.4px, transparent 2.8px),
+        radial-gradient(circle at 95% 22%, var(--mt-heat-c) 0 0.7px, var(--mt-heat-halo) 1.3px, transparent 2.6px);
+    animation-name: mt-sb-heat-rise-a;
+    animation-duration: 7s;
+    animation-timing-function: steps(105);
+}
+
+.mt-sb-heat-layer.is-b {
+    top: 0;
+    bottom: -330px;
+    background-size: 100% 330px;
+    background-image:
+        radial-gradient(circle at 21% 44%, var(--mt-heat-c) 0 1px, var(--mt-heat-halo) 2px, transparent 4.5px),
+        radial-gradient(circle at 39% 92%, var(--mt-heat-c) 0 1.1px, var(--mt-heat-halo) 2px, transparent 4.5px),
+        radial-gradient(circle at 64% 15%, var(--mt-heat-c) 0 1px, var(--mt-heat-halo) 2px, transparent 4px),
+        radial-gradient(circle at 80% 58%, var(--mt-heat-c) 0 1.1px, var(--mt-heat-halo) 2px, transparent 4.5px),
+        radial-gradient(circle at 6% 76%, var(--mt-heat-c) 0 1px, var(--mt-heat-halo) 2px, transparent 4px);
+    animation-name: mt-sb-heat-rise-b;
+    animation-duration: 11s;
+    animation-timing-function: steps(165);
+}
+
+.mt-sb-heat-layer.is-c {
+    top: 0;
+    bottom: -200px;
+    background-size: 100% 200px;
+    background-image:
+        radial-gradient(circle at 27% 12%, var(--mt-heat-c) 0 0.6px, transparent 1.6px),
+        radial-gradient(circle at 44% 51%, var(--mt-heat-c) 0 0.6px, transparent 1.6px),
+        radial-gradient(circle at 62% 77%, var(--mt-heat-c) 0 0.6px, transparent 1.6px),
+        radial-gradient(circle at 83% 33%, var(--mt-heat-c) 0 0.6px, transparent 1.6px),
+        radial-gradient(circle at 8% 59%, var(--mt-heat-c) 0 0.6px, transparent 1.6px),
+        radial-gradient(circle at 73% 94%, var(--mt-heat-c) 0 0.6px, transparent 1.6px);
+    animation-name: mt-sb-heat-rise-c;
+    animation-duration: 5s;
+    animation-timing-function: steps(75);
+}
+
+@keyframes mt-sb-heat-rise-a {
+    to {
+        transform: translateY(-260px);
+    }
+}
+
+@keyframes mt-sb-heat-rise-b {
+    to {
+        transform: translateY(-330px);
+    }
+}
+
+@keyframes mt-sb-heat-rise-c {
+    to {
+        transform: translateY(-200px);
+    }
+}
+
+@keyframes mt-sb-heat-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-sb-heat-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* Too little free space for a heat to read: nothing is drawn. Measured by sidebar-heat.tsx, not by a size container
+   query: Chromium restarts the CSS animations inside a size container at every style change of the root (the working
+   beat's, each second), and each restart costs a main-thread frame and a paint (#1409). */
+.mt-sb-heat[data-small] > * {
+    display: none;
+}
+
+:root[data-mt-motion="still"] .mt-sb-heat-layer {
+    animation-play-state: paused;
+}
+
+/* sidebar-heat.tsx does not render it under reduced motion; these keep it off between the switch and the render. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-heat {
+        display: none;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-heat {
+    display: none;
+}
