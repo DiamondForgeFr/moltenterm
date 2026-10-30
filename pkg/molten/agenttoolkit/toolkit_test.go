@@ -196,3 +196,63 @@ func TestReaderFor(t *testing.T) {
 		t.Fatal("readers")
 	}
 }
+
+func TestRegularToolkitFiles(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	write(t, config, "small config")
+	if got := string(readConfig(config)); got != "small config" {
+		t.Fatalf("config = %q", got)
+	}
+	if readConfig(dir) != nil || readConfig(filepath.Join(dir, "missing")) != nil {
+		t.Fatal("directory or missing config accepted")
+	}
+	large := filepath.Join(dir, "large")
+	f, err := os.Create(large)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(maxConfigBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if readConfig(large) != nil {
+		t.Fatal("oversize config accepted")
+	}
+	if _, err := readConfigLimit(strings.NewReader("123456789"), 8); err == nil {
+		t.Fatal("reader that grows beyond its limit accepted")
+	}
+	if got, err := readConfigLimit(strings.NewReader("12345678"), 8); err != nil || string(got) != "12345678" {
+		t.Fatalf("at limit: %q, %v", got, err)
+	}
+	skillPath := filepath.Join(dir, "actual-skill")
+	write(t, skillPath, "---\nname: linked\ndescription: works\n---\n")
+	link := filepath.Join(dir, "linked-skill")
+	if err := os.Symlink(skillPath, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if head, ok := readSkillHead(link); !ok || head.Name != "linked" {
+		t.Fatalf("symlink skill: %+v, %v", head, ok)
+	}
+	skillDir := filepath.Join(dir, "skill-source")
+	write(t, filepath.Join(skillDir, skillFileName), "---\nname: linked-directory\n---\n")
+	skillsDir := filepath.Join(dir, "skills")
+	if err := os.Mkdir(skillsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(skillDir, filepath.Join(skillsDir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if skills := readSkills(skillsDir, ScopeUser, ""); len(skills) != 1 || skills[0].Name != "linked-directory" {
+		t.Fatalf("symlink skill directory: %+v", skills)
+	}
+	configLink := filepath.Join(dir, "linked-config")
+	if err := os.Symlink(config, configLink); err != nil {
+		t.Fatal(err)
+	}
+	if string(readConfig(configLink)) != "small config" {
+		t.Fatal("symlink config rejected")
+	}
+}
