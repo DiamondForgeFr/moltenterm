@@ -29,7 +29,7 @@ vi.mock("../panel-size/panel-size-store", () => ({
     currentPanelSizes: () => ({}),
     currentFirstColumnFloorPx: () => floor.px,
     clearFirstColumnFloor: vi.fn(),
-    setFirstColumnFloor: vi.fn(),
+    setFirstColumnFloor: vi.fn((px: number) => (floor.px = px)),
     rememberPanelWidth: vi.fn(),
 }));
 vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 0));
@@ -168,6 +168,36 @@ describe("View360Model.equalizeParts (#1479)", () => {
             }
             expect(model.equalizeParts()).toBeNull();
         }
+    });
+
+    it("brings back a fixed zone dragged wider, whose drag set the first column's floor", () => {
+        for (const meta of [{ [View360PlacesMetaKey]: 2 }, { [View360MetaKey]: true }]) {
+            floor.px = null;
+            const { model, pass } = makeModel(rowOf(3), meta);
+            pass();
+            model.grippedFixedPx = 1100;
+            floor.px = 1100;
+            expect(firstColumnPx(pass())).toBe(1100);
+            expect(model.equalizeParts()).not.toBeNull();
+            const fixed = placesFixedPx(Wide.width, 2);
+            expect(floor.px).toBe(fixed);
+            const layout = pass();
+            expect(firstColumnPx(layout)).toBe(fixed);
+            for (const column of layout.columns) {
+                expect(Math.abs(column.width - fixed)).toBeLessThanOrEqual(1);
+            }
+            expect(model.equalizeParts()).toBeNull();
+        }
+    });
+
+    it("leaves a floor under the equal share as it is", () => {
+        const { model, pass } = makeModel(rowOf(2), { [View360MetaKey]: true });
+        floor.px = 600;
+        pass();
+        model.grippedFixedPx = 700;
+        pass();
+        expect(model.equalizeParts()).not.toBeNull();
+        expect(floor.px).toBe(600);
     });
 
     it("keeps a column pinned beside at its width", () => {
