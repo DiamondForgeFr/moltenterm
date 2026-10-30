@@ -44,7 +44,7 @@ const FieldLabelClass = "mb-1 flex text-12 text-secondary";
 const InputClass =
     "w-full min-w-0 rounded-4 border border-border bg-transparent px-2 py-1.5 text-13 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded-3 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)";
 
@@ -413,7 +413,7 @@ export function ProjectSheet({
                     </button>
                     <button
                         type="button"
-                        className="molten-btn cursor-pointer rounded-3 px-4 py-1.5 text-12"
+                        className="molten-btn cursor-pointer rounded-4 px-4 py-1.5 text-12"
                         onClick={onClose}
                     >
                         {t("workspace.edit.done")}
