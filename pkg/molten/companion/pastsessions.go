@@ -272,8 +272,9 @@ func claudeFolderFiles(dir string) []pastFile {
 }
 
 func codexPastFiles(roots []string, folders []string) []pastFile {
-	var rtn []pastFile
-	days := 0
+	type dayFolder struct{ date, path string }
+	// Select across all roots before opening a day, so an older root cannot exhaust the scan budget.
+	var days []dayFolder
 	for _, root := range roots {
 		years, _ := os.ReadDir(root)
 		for _, y := range years {
@@ -287,27 +288,41 @@ func codexPastFiles(roots []string, folders []string) []pastFile {
 				}
 				dayDirs, _ := os.ReadDir(filepath.Join(root, y.Name(), m.Name()))
 				for _, d := range dayDirs {
-					if !d.IsDir() || !allDigits(d.Name(), 2) || days >= maxPastCodexDays {
+					if !d.IsDir() || !allDigits(d.Name(), 2) {
 						continue
 					}
-					days++
-					dir := filepath.Join(root, y.Name(), m.Name(), d.Name())
-					files, _ := os.ReadDir(dir)
-					for _, f := range files {
-						name := f.Name()
-						if !f.Type().IsRegular() || !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
-							continue
-						}
-						path := filepath.Join(dir, name)
-						head, ok := readCodexHead(path)
-						if !ok || !FolderWithin(head.cwd, folders) {
-							continue
-						}
-						if mod, ok := regularFile(path); ok {
-							rtn = append(rtn, pastFile{path: path, mod: mod})
-						}
+					day := dayFolder{date: y.Name() + m.Name() + d.Name(), path: filepath.Join(root, y.Name(), m.Name(), d.Name())}
+					i := sort.Search(len(days), func(i int) bool {
+						return days[i].date < day.date || days[i].date == day.date && days[i].path >= day.path
+					})
+					if i >= maxPastCodexDays {
+						continue
+					}
+					days = append(days, dayFolder{})
+					copy(days[i+1:], days[i:])
+					days[i] = day
+					if len(days) > maxPastCodexDays {
+						days = days[:maxPastCodexDays]
 					}
 				}
+			}
+		}
+	}
+	var rtn []pastFile
+	for _, day := range days {
+		files, _ := os.ReadDir(day.path)
+		for _, f := range files {
+			name := f.Name()
+			if !f.Type().IsRegular() || !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
+				continue
+			}
+			path := filepath.Join(day.path, name)
+			head, ok := readCodexHead(path)
+			if !ok || !FolderWithin(head.cwd, folders) {
+				continue
+			}
+			if mod, ok := regularFile(path); ok {
+				rtn = append(rtn, pastFile{path: path, mod: mod})
 			}
 		}
 	}
