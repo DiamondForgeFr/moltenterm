@@ -235,18 +235,24 @@ func replaceAssignments(text string, count *int) string {
 		lineStart := strings.LastIndex(text[:idx[0]], "\n") + 1
 		prefix := strings.TrimSpace(text[lineStart:idx[0]])
 		mapping := strings.TrimSpace(sep) == ":" && (prefix == "" || prefix == "-")
-		if !secretValue(value, sep, quoted || mapping, strongName(name)) {
+		flow := strings.TrimSpace(sep) == ":" && strings.LastIndex(prefix, "{") > strings.LastIndex(prefix, "}")
+		end := idx[11]
+		plain := !strings.HasPrefix(value, `"`) && !strings.HasPrefix(value, "'")
+		if plain && (mapping || flow) {
+			indent := len(text[lineStart:idx[0]])
+			if prefix == "-" {
+				indent++
+			}
+			end = yamlScalarEnd(text, end, indent, flow)
+			value = strings.TrimSpace(text[idx[10]:end])
+			if i := strings.Index(value, " #"); i >= 0 {
+				value = strings.TrimSpace(value[:i])
+			}
+		}
+		if !secretValue(value, sep, quoted || mapping || flow, strongName(name)) {
 			continue
 		}
-		end := idx[11]
-		if mapping && !strings.HasPrefix(value, `"`) && !strings.HasPrefix(value, "'") {
-			// YAML plain scalars may contain spaces; redacting only their first word would leak the rest.
-			if lineEnd := strings.IndexByte(text[end:], '\n'); lineEnd >= 0 {
-				end += lineEnd
-			} else {
-				end = len(text)
-			}
-		} else if !mapping && proseColon(name, sep, value, quoted, text[idx[1]:]) {
+		if !mapping && !flow && proseColon(name, sep, value, quoted, text[idx[1]:]) {
 			continue
 		}
 		*count++
@@ -259,6 +265,32 @@ func replaceAssignments(text string, count *int) string {
 	}
 	b.WriteString(text[last:])
 	return b.String()
+}
+
+// Plain YAML scalars can continue on deeper-indented lines; a flow scalar ends at its next delimiter.
+func yamlScalarEnd(text string, start int, indent int, flow bool) int {
+	end := start
+	for end < len(text) && text[end] != '\n' && (!flow || !strings.ContainsRune(",}]", rune(text[end]))) {
+		end++
+	}
+	if flow {
+		return end
+	}
+	for end < len(text) {
+		next := end + 1
+		lineEnd := strings.IndexByte(text[next:], '\n')
+		if lineEnd < 0 {
+			lineEnd = len(text)
+		} else {
+			lineEnd += next
+		}
+		line := text[next:lineEnd]
+		if strings.TrimSpace(line) != "" && len(line)-len(strings.TrimLeft(line, " ")) <= indent {
+			break
+		}
+		end = lineEnd
+	}
+	return end
 }
 
 // proseColon tells inline French prose ("le secret : des copies gardées sur cet ordinateur"): a plain word, a space before the

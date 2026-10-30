@@ -507,7 +507,7 @@ func TestSecretsHoldTheCopy(t *testing.T) {
 
 func TestYamlPasswordHoldsMaterialCopy(t *testing.T) {
 	h := makeHarness(t)
-	path := h.write("notes.txt", "db:\n  password : correct horse battery staple\n  host: localhost\n")
+	path := h.write("notes.txt", "db:\n  password : true horse battery staple\n  host: localhost\n")
 	m, err := h.r.Add("block-1", "", path, "", "", false, molten.MaterialSourceDeclared)
 	if err != nil || m.Copy != molten.MaterialCopySecret || len(m.Versions) != 0 {
 		t.Fatalf("secret material was not held: %+v, %v", m, err)
