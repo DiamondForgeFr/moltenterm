@@ -154,7 +154,7 @@ declare global {
         sendLog: (log: string) => void; // fe-log
         onQuicklook: (filePath: string) => void; // quicklook
         openNativePath(filePath: string): void; // open-native-path
-        captureScreenshot(rect: Electron.Rectangle): Promise<string>; // capture-screenshot
+        captureScreenshot(rect: Electron.Rectangle, opts?: { width?: number }): Promise<string>; // capture-screenshot; MOLTENTERM-PATCH (#1545): optional thumbnail width (a JPEG)
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open

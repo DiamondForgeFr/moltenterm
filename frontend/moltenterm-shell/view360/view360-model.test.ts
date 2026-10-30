@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { windowWidthAtom } from "../narrow-window";
 import { showToast } from "../toast-store";
 import {
+    CarpetColumnGapPx,
     CarpetReservePx,
     carpetScrollStops,
     scrollToRevealColumn,
@@ -684,7 +685,8 @@ describe("View360Model mode (FR-SHELL-066)", () => {
             expect(grip.id).toBe(model.gripHandleId(root));
             expect(grip.stuckTitleKey).toBeUndefined();
             expect(model.onResizeMove(grip, 820)).toBe(true);
-            expect(model.dragFixedPx).toBe(816);
+            // The grip sits on the fixed zone's edge since #1545: the pointer is the width.
+            expect(model.dragFixedPx).toBe(820);
             expect(model.onResizeMove(grip, 1200)).toBe(true);
             expect(model.dragFixedPx).toBe(1280 - CarpetReservePx);
             // The grip sets the floor, so it narrows below the current one down to the fixed zone's minimum.
@@ -802,7 +804,7 @@ describe("View360Model threshold per screen and proportions (#1083)", () => {
         const layout = pass(model, sizedRow(30, 35, 35, 35), 3000);
         expect(model.active).toBe(true);
         expect(layout.fixed.width).toBe(900);
-        const slot = (layout.viewport.width - 12) / 2;
+        const slot = (layout.viewport.width - CarpetColumnGapPx) / 2;
         expect(layout.columns.map((c) => c.width)).toEqual([slot, slot, slot]);
     });
 
@@ -869,7 +871,7 @@ function wholeAt(layout: CarpetLayout, pos: number): boolean {
     const end = pos + layout.viewport.width;
     const items = layout.columns;
     return items
-        .filter((c) => c.x + c.width > pos + 0.5 && c.x < end - 0.5)
+        .filter((c) => c.x + c.width > pos + 1 && c.x < end - 1)
         .every((c) => c.x >= pos - 0.5 && c.x + c.width <= end + 0.5);
 }
 
@@ -935,7 +937,8 @@ describe("360 view carpet positions per screen width (#1131)", () => {
                     const whole = layout.columns.filter((c) => c.x >= stop - 0.5 && c.x + c.width <= end + 0.5);
                     expect(whole).toHaveLength(screen.visible);
                     // No edge of a stored panel shows beside the places.
-                    const cut = layout.columns.filter((c) => c.x < end - 0.5 && c.x + c.width > end + 0.5);
+                    // Columns touch (#1545): less than a pixel of the next one is its own half gap, not a cut panel.
+                    const cut = layout.columns.filter((c) => c.x < end - 1 && c.x + c.width > end + 1);
                     expect(cut).toEqual([]);
                 }
             });

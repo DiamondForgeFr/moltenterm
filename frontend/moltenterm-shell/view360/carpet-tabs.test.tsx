@@ -16,6 +16,7 @@ const handlers: StripHandlers = {
     menu: noop,
     add: noop,
     hover: noop,
+    unhover: noop,
     tabPointerDown: noop,
     tabPointerMove: noop,
     tabPointerUp: noop,
@@ -111,7 +112,7 @@ describe("the carpet's tab strip (FR-SHELL-125-AC8, AC12)", () => {
         expect(tags[1]).toContain("data-focus");
         expect(tags[2]).toContain('aria-label="Page: Page 2, stored on the carpet, waiting for your answer"');
         expect(count(html, "mt-strip-attention")).toBe(1);
-        expect(html).toContain('<span class="mt-strip-agent">L</span>');
+        expect(html).toContain('<span class="mt-strip-agent" data-testid="mt-carpet-tab-shared">L</span>');
         expect(tags[4]).toContain("opened by Léon");
         expect(html).toContain("fa-terminal");
         expect(count(html, 'class="mt-strip-title"')).toBe(5);

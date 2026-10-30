@@ -43,7 +43,6 @@ import {
     carpetColumnKind,
     carpetColumnRect,
     CarpetLayout,
-    CarpetMarginPx,
     carpetNodeTransform,
     carpetScrollStops,
     CarpetScrollVar,
@@ -1210,7 +1209,7 @@ export class View360Model {
         const half = handleSizePx / 2;
         const grip: Rect = {
             top: 0,
-            left: layout.fixed.width + CarpetMarginPx / 2 - half,
+            left: layout.fixed.width - half,
             width: handleSizePx,
             height: layout.fixed.height,
         };
@@ -1233,7 +1232,7 @@ export class View360Model {
             .forEach((column, i) => {
                 const dims: Rect = {
                     top: 0,
-                    left: column.rect.left + column.rect.width + CarpetMarginPx / 2 - half,
+                    left: column.rect.left + column.rect.width - half,
                     width: handleSizePx,
                     height: layout.fixed.height,
                 };
@@ -1595,7 +1594,7 @@ export class View360Model {
             }
             // The column takes what the others leave of half of the window, never less than its minimum.
             const { min, max } = this.fixedColumnBounds(container.width, column, sideBySide);
-            const px = Math.round(Math.min(Math.max(x - column.rect.left - CarpetMarginPx / 2, min), max));
+            const px = Math.round(Math.min(Math.max(x - column.rect.left, min), max));
             if (column.mode === "first") {
                 this.dragFixedPx = px;
             } else {
@@ -1604,7 +1603,7 @@ export class View360Model {
                 this.dragPin = { nodeId: column.nodeId, blockId, px };
             }
         } else if (isGrip) {
-            this.dragFixedPx = clampFixedDragPx(x - CarpetMarginPx / 2, container.width, this.fixedNeedPx);
+            this.dragFixedPx = clampFixedDragPx(x, container.width, this.fixedNeedPx);
         } else if (isFixedHandle) {
             return true;
         } else {

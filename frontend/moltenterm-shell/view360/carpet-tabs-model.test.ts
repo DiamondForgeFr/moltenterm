@@ -15,9 +15,14 @@ import {
     dropIndex,
     FrameExtraPx,
     MaxTabNumber,
+    NoShare,
     pageOpener,
+    pageShareOf,
     reorderColumns,
     rovingColumnId,
+    shareAgents,
+    shareLine,
+    shareMark,
     stepIndex,
     stripLayout,
     StripPlusPx,
@@ -96,6 +101,41 @@ describe("the tab model (FR-SHELL-125-AC1, AC3, AC10)", () => {
         expect(pageOpener("t2", agents)).toBe("");
         expect(pageOpener("t3", agents)).toBe("");
         expect(pageOpener(null, agents)).toBe("");
+    });
+
+    it("says who a panel's pages are shared with, from its agent state, first names only (AC15, #1545)", () => {
+        const agents = {
+            t1: { agentname: "Léon", origin: "opened" },
+            t2: { agentname: "Adrien", origin: "shared" },
+            t3: { agentname: "Gaspard", origin: "shared" },
+            t4: { agentname: "Adrien", origin: "shared" },
+            gone: { agentname: "Valentin", origin: "shared" },
+        };
+        const share = pageShareOf(["t1", "t2", "t3", "t4"], agents);
+        expect(share).toEqual({ openedBy: ["Léon"], sharedWith: ["Adrien", "Gaspard"] });
+        expect(shareAgents(share)).toEqual(["Léon", "Adrien", "Gaspard"]);
+        expect(shareMark(share)).toBe("several");
+        expect(shareMark(pageShareOf(["t2"], agents))).toEqual({ initial: "A" });
+        // Access removed: the agent state no longer holds the page, the mark goes.
+        expect(shareMark(pageShareOf(["t2"], {}))).toBeNull();
+        // An agent that opened a page is not listed again as shared with.
+        expect(
+            pageShareOf(["a", "b"], { a: { agentname: "Léon", origin: "opened" }, b: { agentname: "Léon" } })
+        ).toEqual({
+            openedBy: ["Léon"],
+            sharedWith: [],
+        });
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(shareLine(share)).toBe("Ouvert par Léon · partagé avec Adrien, Gaspard");
+        expect(shareLine(pageShareOf(["t2"], agents))).toBe("Partagé avec Adrien");
+        expect(shareLine(pageShareOf(["t1"], agents))).toBe("Ouvert par Léon");
+        expect(shareLine(NoShare)).toBe("");
+        I18nModel.getInstance().setLanguageSetting("en");
+        expect(shareLine(share)).toBe("Opened by Léon · shared with Adrien, Gaspard");
+        const [, visible] = buildRadarTicks([col("c1", "a"), col("c2", "p")], facts, ["c2"]);
+        expect(carpetTabName(visible, "", share)).toBe(
+            "Page: Thème Coulée, visible, opened by Léon, shared with Adrien, Gaspard"
+        );
     });
 
     it("puts one tab in the tab order: the focused panel's, else the first visible one", () => {

@@ -547,7 +547,8 @@ describe("action and place (#1319)", () => {
         expect(rule(sidebarCss, ".mt-sb.is-hidden")).toContain("background: var(--mt-surface-0);");
         expect(rule(agentsCss, ".mt-sb-av")).toContain("background: var(--mt-surface-3);");
         expect(rule(libraryCss, ".mt-lib")).toContain("background: var(--mt-surface-0);");
-        expect(view360Css).toContain("--mt-carpet-bg: var(--mt-surface-term);");
+        // The carpet has no surface of its own since #1545: its places sit on the window's cast iron.
+        expect(rule(view360Css, ".mt-carpet-surface")).not.toContain("background");
         for (const css of [agentsCss, lookCss, view360Css]) {
             expect(css).not.toContain("--mt-place");
         }
