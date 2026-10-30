@@ -436,20 +436,53 @@ function decodeSegment(segment: string): string {
     }
 }
 
-// A raw address made readable without loading it: its host and the last segment of its path.
-export function readableLink(link: string): string {
+const UuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A path segment that is an identifier, not a word: a UUID, a number, a long hex string, or a token of 16 characters
+// or more without separators that mixes digits or cases ("Nsoo26jhabxfARV9iFx3in"). A long plain word stays readable.
+export function looksLikeId(segment: string): boolean {
+    const s = (segment ?? "").trim();
+    if (!s) {
+        return false;
+    }
+    if (UuidRegex.test(s) || /^\d+$/.test(s) || /^[0-9a-f]{16,}$/i.test(s)) {
+        return true;
+    }
+    if (s.length < 16 || !/^[A-Za-z0-9]+$/.test(s)) {
+        return false;
+    }
+    return /\d/.test(s) || /[a-z][A-Z]|[A-Z]{2}[a-z]/.test(s);
+}
+
+function readableSegment(segment: string): boolean {
+    return !!segment && segment.length <= 60 && /[A-Za-z]/.test(segment) && !looksLikeId(segment);
+}
+
+// A raw address made readable without loading it: its host and the last readable segment of its path (an identifier
+// is skipped for the segment before it). Label is empty when no segment reads as words.
+export function readableLinkParts(link: string): { host: string; label: string } {
     if (!link) {
-        return "";
+        return { host: "", label: "" };
     }
     let url: URL;
     try {
         url = new URL(link);
     } catch {
-        return link;
+        return { host: "", label: link };
     }
     const host = url.host.replace(/^www\./, "");
-    const last = url.pathname.split("/").filter(Boolean).pop();
-    return last ? `${host} · ${decodeSegment(last)}` : host;
+    const segments = url.pathname.split("/").filter(Boolean).map(decodeSegment);
+    const last = segments.pop();
+    if (readableSegment(last)) {
+        return { host, label: last };
+    }
+    const before = last != null ? segments.pop() : null;
+    return { host, label: readableSegment(before) ? before : "" };
+}
+
+export function readableLink(link: string): string {
+    const { host, label } = readableLinkParts(link);
+    return host && label ? `${host} · ${label}` : host || label;
 }
 
 function looksLikeAddress(text: string): boolean {
@@ -466,6 +499,20 @@ export function materialDisplayTitle(m: Material): string {
         return title;
     }
     return readableLink(title || m.link) || m.id;
+}
+
+// Whether the shown title is only the host (the address has no readable segment): the interface then puts the kind
+// before it ("Link · claude.ai").
+export function materialTitleIsHost(m: Material): boolean {
+    if (m == null) {
+        return false;
+    }
+    const title = (m.title ?? "").trim();
+    if (title && !looksLikeAddress(title)) {
+        return false;
+    }
+    const parts = readableLinkParts(title || m.link);
+    return !!parts.host && !parts.label;
 }
 
 // Where a material lives, as its card says it: open in a view of this workspace now, else the place the registry

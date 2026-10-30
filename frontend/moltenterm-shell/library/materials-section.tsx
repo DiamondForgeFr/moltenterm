@@ -47,6 +47,7 @@ import {
     MaterialCopyCommand,
     MaterialDeleteCopyCommand,
     materialDisplayTitle,
+    materialTitleIsHost,
     materialFolderPath,
     materialForm,
     MaterialForm,
@@ -733,6 +734,15 @@ function formLabel(t: TFunction, form: MaterialForm, m: Material, locale: string
     return form.warn && m.size ? `${word} · ${materialSizeText(m.size, locale)}` : word;
 }
 
+// The title as rows and cards show it: an address without a readable segment reads "Link · claude.ai".
+function shownTitle(t: TFunction, m: Material): string {
+    const title = materialDisplayTitle(m) || linkHost(m.link) || m.id;
+    if (!materialTitleIsHost(m)) {
+        return title;
+    }
+    return `${t(`library.materials.kind.${m.kind}`)} · ${title}`;
+}
+
 function primaryLabel(t: TFunction, open: ShownPanel, plan: MaterialOpen): string {
     if (open) {
         return t("library.materials.showIt");
@@ -788,7 +798,7 @@ function MaterialCard({
     const locale = useLocale();
     const chip = materialStateChip(m);
     const plan = materialOpenPlan(m);
-    const title = materialDisplayTitle(m);
+    const title = shownTitle(t, m);
     return (
         <div
             role="option"
@@ -952,7 +962,7 @@ function MaterialRow({
                 <RenameField m={m} onDone={onRenameDone} />
             ) : (
                 <span className="mt-lib-mat-tx">
-                    <b className="mt-lib-mat-title">{materialDisplayTitle(m) || linkHost(m.link) || m.id}</b>
+                    <b className="mt-lib-mat-title">{shownTitle(t, m)}</b>
                     <MaterialFacts m={m} timeOnly={timeOnly} />
                 </span>
             )}

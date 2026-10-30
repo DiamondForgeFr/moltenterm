@@ -8,7 +8,9 @@ import {
     CardRect,
     filterMaterials,
     gridNeighbor,
+    looksLikeId,
     Material,
+    materialTitleIsHost,
     materialDisplayTitle,
     materialPlaceText,
     materialStateChip,
@@ -31,9 +33,29 @@ describe("material cards (#1546)", () => {
         expect(readableLink("https://example.com")).toBe("example.com");
         expect(readableLink("not a url")).toBe("not a url");
         const raw = mat({ kind: "link", title: "https://github.com/acme/app/pull/42", link: "https://github.com/acme/app/pull/42" });
-        expect(materialDisplayTitle(raw)).toBe("github.com · 42");
+        expect(materialDisplayTitle(raw)).toBe("github.com · pull");
         expect(materialDisplayTitle(mat({ kind: "link", title: "", link: "https://acme.dev/report" }))).toBe("acme.dev · report");
         expect(materialDisplayTitle(mat({ title: "Thème Coulée", link: "https://claude.ai/x" }))).toBe("Thème Coulée");
+    });
+
+    it("skips a segment that is an identifier", () => {
+        expect(looksLikeId("9f1e2d3c-aaaa-4bbb-8ccc-1234567890ab")).toBe(true);
+        expect(looksLikeId("Nsoo26jhabxfARV9iFx3in")).toBe(true);
+        expect(looksLikeId("4f9a0c3e1b2d7e8f")).toBe(true);
+        expect(looksLikeId("12345")).toBe(true);
+        expect(looksLikeId("getting-started-guide")).toBe(false);
+        expect(looksLikeId("internationalization")).toBe(false);
+        expect(readableLink("https://claude.ai/public/artifacts/9f1e2d3c-aaaa-4bbb-8ccc-1234567890ab")).toBe(
+            "claude.ai · artifacts"
+        );
+        expect(readableLink("https://claude.ai/artifact/Nsoo26jhabxfARV9iFx3in")).toBe("claude.ai · artifact");
+        expect(readableLink("https://acme.dev/docs/getting-started-guide")).toBe("acme.dev · getting-started-guide");
+        expect(readableLink("https://example.com/issues/12345")).toBe("example.com · issues");
+        const bare = mat({ kind: "link", title: "", link: "https://claude.ai/Nsoo26jhabxfARV9iFx3in" });
+        expect(materialDisplayTitle(bare)).toBe("claude.ai");
+        expect(materialTitleIsHost(bare)).toBe(true);
+        expect(materialTitleIsHost(mat({ kind: "link", title: "", link: "https://acme.dev/report" }))).toBe(false);
+        expect(materialTitleIsHost(mat({ title: "Thème Coulée" }))).toBe(false);
     });
 
     it("finds a raw-address material by its readable title", () => {
