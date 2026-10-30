@@ -12,7 +12,7 @@ import { IconButton } from "@/element/iconbutton";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useRestoreFocus } from "../busy-close";
 import { t, tCount, useLocale, useT, useTCount } from "../i18n/i18n";
@@ -33,7 +33,12 @@ const NoPlaces = atom(null as number);
 const NoActive = atom(false);
 
 // Which panel's chooser is open, and the button it hangs from: one at a time per window.
-export type PlacesChooserState = { blockId: string; anchor: { left: number; right: number; bottom: number } };
+export type PlacesChooserState = {
+    blockId: string;
+    // The button that opened it: a panel can be drawn twice (its header and a copy), the chooser opens once.
+    owner: string;
+    anchor: { left: number; right: number; bottom: number };
+};
 export const placesChooserAtom = atom(null) as PrimitiveAtom<PlacesChooserState>;
 
 function currentView360(): View360Model {
@@ -328,6 +333,7 @@ export const CarpetHeaderButton = memo(({ blockId }: { blockId: string }) => {
     const roles = useAtomValue(view360?.rolesAtom ?? NoRoles);
     useAtomValue(view360?.placesAtom ?? NoPlaces);
     const chooser = useAtomValue(placesChooserAtom);
+    const owner = useId();
     const placement = headerPlacement(active, placements, roles, blockId);
     if (view360 == null || placement == null || placement === "first") {
         return null;
@@ -352,7 +358,7 @@ export const CarpetHeaderButton = memo(({ blockId }: { blockId: string }) => {
             </>
         );
     }
-    const open = chooser?.blockId === blockId;
+    const open = chooser?.blockId === blockId && chooser.owner === owner;
     const decl: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: <CarpetIcon />,
@@ -370,7 +376,7 @@ export const CarpetHeaderButton = memo(({ blockId }: { blockId: string }) => {
                 rect == null
                     ? { left: window.innerWidth / 2, right: window.innerWidth / 2 + ChooserWidthPx / 2, bottom: 80 }
                     : { left: rect.left, right: rect.right, bottom: rect.bottom };
-            globalStore.set(placesChooserAtom, { blockId, anchor });
+            globalStore.set(placesChooserAtom, { blockId, owner, anchor });
         },
     };
     return (
