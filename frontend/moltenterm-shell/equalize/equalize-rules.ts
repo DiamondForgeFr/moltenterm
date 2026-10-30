@@ -11,7 +11,6 @@ import { FlexDirection, type LayoutNode, type ResizeNodeOperation } from "@/layo
 const RowTotal = 100;
 // Two sizes closer than this are equal: a pass that would only round them changes nothing.
 const SizeEpsilon = 0.01;
-const PxEpsilon = 1;
 
 function isRow(node: LayoutNode): boolean {
     return node?.flexDirection === FlexDirection.Row;
@@ -110,19 +109,4 @@ export function rowEqualizeOps(root: LayoutNode, nodeId: string): ResizeNodeOper
         }
     });
     return ops;
-}
-
-// The width every carpet column takes in 360 view: the mean of their widths now, so the carpet keeps its length.
-// Null when the carpet has fewer than two columns or they are already even.
-export function equalCarpetWidthPx(widthsPx: number[]): number {
-    const widths = (widthsPx ?? []).filter((px) => Number.isFinite(px) && px > 0);
-    if (widths.length < 2) {
-        return null;
-    }
-    const min = Math.min(...widths);
-    const max = Math.max(...widths);
-    if (max - min <= PxEpsilon) {
-        return null;
-    }
-    return Math.round(widths.reduce((acc, px) => acc + px, 0) / widths.length);
 }

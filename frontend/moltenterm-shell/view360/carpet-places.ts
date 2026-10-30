@@ -116,6 +116,37 @@ export function effectivePlaces(n: number, widthPx: number, floorPx = 0, besideP
     return 1;
 }
 
+// The places Equalize evens out in 360 view (FR-SHELL-073, #1479): under a 360 × N the places shown; otherwise as many
+// carpet columns as the band holds at their mean width, at most the carpet's columns and MaxPlaces, and as many as
+// fit. The mean, not the columns in view at this scroll: a carpet left between two panels counts the same. 0 without
+// a carpet column.
+export function equalizePlaceCount(
+    layout: CarpetLayout,
+    shownPlaces: number,
+    widthPx: number,
+    floorPx = 0,
+    besidePx = 0
+): number {
+    const count = layout?.columns?.length ?? 0;
+    if (count === 0) {
+        return 0;
+    }
+    if (shownPlaces != null) {
+        return shownPlaces;
+    }
+    const meanPx = layout.columns.reduce((acc, c) => acc + c.width, 0) / count;
+    const inBand = Math.round((layout.viewport.width + CarpetColumnGapPx) / (meanPx + CarpetColumnGapPx));
+    return effectivePlaces(Math.min(count, Math.max(1, inBand)), widthPx, floorPx, besidePx);
+}
+
+export type EqualParts = { fixedPx: number; placePx: number };
+
+// The equal parts of n places (FR-SHELL-123 AC5): the first column's width and each place's, in whole pixels.
+export function equalParts(widthPx: number, n: number, floorPx = 0, besidePx = 0): EqualParts {
+    const fixedPx = placesFixedPx(widthPx, n, floorPx, besidePx);
+    return { fixedPx, placePx: Math.floor(placesSlotPx(widthPx, fixedPx + Math.max(0, besidePx), n)) };
+}
+
 // The first visible place's carpet column (AC6): the panel the button belongs to, unless fewer than n columns follow
 // it, then its left neighbours fill the places.
 export function placesStartIndex(panelIndex: number, carpetCount: number, n: number): number {
