@@ -6,12 +6,16 @@ import type { HandoffHistoryEntry } from "../agent-links/agent-links-model";
 import {
     linkedAgents,
     mcpServerRows,
-    parentTurnStart,
+    nextSubagentExpiry,
     sharedPages,
     startedAgo,
+    subagentCardGroups,
+    subagentDayLabel,
+    subagentDays,
     subagentDuration,
     subagentGroups,
     subagentKindKey,
+    SubagentLingerMs,
     subagentRows,
     type SubagentRow,
 } from "./agent-info-model";
@@ -71,6 +75,8 @@ describe("subagentRows", () => {
 });
 
 describe("subagentGroups", () => {
+    const Now = Date.UTC(2026, 9, 30, 12, 0, 0);
+    const Minute = 60_000;
     const row = (id: string, state: SubagentRow["state"], started: number, ended = 0): SubagentRow => ({
         id,
         name: `Ticket #${id}`,
@@ -80,64 +86,142 @@ describe("subagentGroups", () => {
         started,
         ended,
     });
-    // The audit's case (#1316 F8): 3 running, 9 finished before the parent's latest prompt.
+    // The audit's case (#1316 F8): 3 running, 9 finished, here 2 minutes to 10 minutes ago.
     const twelve = [
-        ...Array.from({ length: 9 }, (_, i) => row(`d${i}`, "done", 10 + i, 20 + i)),
-        row("r1", "working", 50),
-        row("r2", "working", 51),
-        row("r3", "idle", 52),
+        ...Array.from({ length: 9 }, (_, i) => row(`d${i}`, "done", Now - 20 * Minute, Now - (2 + i) * Minute)),
+        row("r1", "working", Now - 3 * Minute),
+        row("r2", "working", Now - 2 * Minute),
+        row("r3", "idle", Now - Minute),
     ];
 
-    it("shows the running ones and folds the ones finished before the parent's turn", () => {
-        const g = subagentGroups(twelve, 40, false, {});
+    it("lists the running ones and the ones that ended less than 5 minutes ago", () => {
+        const g = subagentGroups(twelve, Now, false, {});
         expect(g.running.map((r) => r.id)).toEqual(["r1", "r2", "r3"]);
-        expect(g.recent).toEqual([]);
-        expect(g.folded).toHaveLength(9);
-        expect(g.folded[0].id).toBe("d8");
+        expect(g.lingering.map((r) => r.id)).toEqual(["d0", "d1", "d2"]);
         expect(g.working).toBe(2);
     });
 
-    it("keeps the ones finished during the parent's turn as rows until its next one", () => {
-        const g = subagentGroups([...twelve, row("late", "done", 55, 60)], 40, false, {});
-        expect(g.recent.map((r) => r.id)).toEqual(["late"]);
-        expect(subagentGroups([...twelve, row("late", "done", 55, 60)], 70, false, {}).recent).toEqual([]);
-        expect(subagentGroups(twelve, 0, false, {}).folded).toHaveLength(9);
+    it("drops a finished one 5 minutes after it ended, to the millisecond", () => {
+        const one = [row("a", "done", Now - 9 * Minute, Now - SubagentLingerMs + 1)];
+        expect(subagentGroups(one, Now, false, {}).lingering).toHaveLength(1);
+        expect(subagentGroups(one, Now + 1, false, {}).lingering).toHaveLength(0);
+        expect(subagentGroups(one, Now + 60 * Minute, false, {}).lingering).toHaveLength(0);
     });
 
-    it("clears the finished ones once the parent stops, or by hand", () => {
-        expect(subagentGroups(twelve, 40, true, {}).folded).toEqual([]);
-        expect(subagentGroups(twelve, 40, true, {}).running).toHaveLength(3);
-        const g = subagentGroups(twelve, 40, false, { d0: true, d1: true, r1: true });
-        expect(g.folded).toHaveLength(7);
+    it("drops a stopped one the same way, and one with no recorded end at once", () => {
+        expect(subagentGroups([row("s", "done", Now - Minute, Now - Minute)], Now, false, {}).lingering).toHaveLength(
+            1
+        );
+        expect(subagentGroups([row("n", "done", Now - Minute, 0)], Now, false, {}).lingering).toHaveLength(0);
+    });
+
+    it("keeps a failed one until it is seen, however long ago it ended", () => {
+        const failed = [row("f", "error", Now - 90 * Minute, Now - 80 * Minute)];
+        expect(subagentGroups(failed, Now, false, {}).lingering.map((r) => r.id)).toEqual(["f"]);
+        expect(subagentGroups(failed, Now + 24 * 60 * Minute, false, {}).lingering).toHaveLength(1);
+        expect(subagentGroups(failed, Now, true, {}).lingering).toHaveLength(1);
+        expect(subagentGroups(failed, Now, false, { f: true }).lingering).toHaveLength(0);
+    });
+
+    it("drops a failure as soon as it is seen, even one that just ended", () => {
+        const failed = [row("f", "error", Now - 3 * Minute, Now - Minute)];
+        expect(subagentGroups(failed, Now, false, { f: true }).lingering).toHaveLength(0);
+    });
+
+    it("lists no finished one once the parent stops, and still the running ones", () => {
+        const g = subagentGroups(twelve, Now, true, {});
+        expect(g.lingering).toEqual([]);
         expect(g.running).toHaveLength(3);
     });
+});
 
-    it("reads the parent's turn from its last prompt, even one that used no tool yet", () => {
-        const topics = [{ text: "a", at: 5 }];
-        expect(
-            parentTurnStart({
-                blockid: "a",
-                version: 1,
-                status: "ok" as any,
-                topics,
-                session: { lastprompt: 12 } as any,
-            })
-        ).toBe(12);
+describe("nextSubagentExpiry", () => {
+    const Now = Date.UTC(2026, 9, 30, 12, 0, 0);
+    const row = (id: string, state: SubagentRow["state"], ended: number): SubagentRow => ({
+        id,
+        name: id,
+        kind: "",
+        model: "",
+        state,
+        ended,
     });
 
-    it("reads the parent's turn from its latest topic", () => {
-        expect(
-            parentTurnStart({
-                blockid: "a",
-                version: 1,
-                status: "ok" as any,
-                topics: [
-                    { text: "a", at: 5 },
-                    { text: "b", at: 9 },
-                ],
-            })
-        ).toBe(9);
-        expect(parentTurnStart(null)).toBe(0);
+    it("tells when the earliest finished one leaves, and ignores the running and the failed", () => {
+        const rows = [
+            row("a", "done", Now - 60_000),
+            row("b", "done", Now - 200_000),
+            row("c", "error", Now - 10_000),
+            row("d", "working", 0),
+            row("old", "done", Now - SubagentLingerMs - 1),
+        ];
+        expect(nextSubagentExpiry(rows, Now)).toBe(SubagentLingerMs - 200_000);
+        expect(nextSubagentExpiry([rows[2], rows[3], rows[4]], Now)).toBeNull();
+        expect(nextSubagentExpiry([], Now)).toBeNull();
+    });
+});
+
+describe("subagentCardGroups", () => {
+    const row = (id: string, state: SubagentRow["state"], ended = 0): SubagentRow => ({
+        id,
+        name: id,
+        kind: "",
+        model: "",
+        state,
+        started: 1,
+        ended,
+    });
+
+    it("puts the running first, then the failures not yet seen, and folds the rest", () => {
+        const rows = [
+            row("d1", "done", 10),
+            row("d2", "done", 30),
+            row("f1", "error", 20),
+            row("f2", "error", 25),
+            row("r", "working"),
+        ];
+        const g = subagentCardGroups(rows, { f2: true });
+        expect(g.running.map((r) => r.id)).toEqual(["r"]);
+        expect(g.unseen.map((r) => r.id)).toEqual(["f1"]);
+        expect(g.finished.map((r) => r.id)).toEqual(["d2", "f2", "d1"]);
+        expect(g.working).toBe(1);
+    });
+});
+
+describe("subagentDays", () => {
+    const row = (id: string, ended: number): SubagentRow => ({
+        id,
+        name: id,
+        kind: "",
+        model: "",
+        state: "done",
+        ended,
+    });
+    const Now = new Date(2026, 9, 30, 15, 0, 0).getTime();
+
+    it("groups the finished ones by the local day they ended, latest day first, unknown last", () => {
+        const days = subagentDays(
+            [
+                row("none", 0),
+                row("yesterday", new Date(2026, 9, 29, 23, 0, 0).getTime()),
+                row("t1", new Date(2026, 9, 30, 9, 0, 0).getTime()),
+                row("t2", new Date(2026, 9, 30, 1, 0, 0).getTime()),
+                row("old", new Date(2026, 9, 20, 9, 0, 0).getTime()),
+            ],
+            Now
+        );
+        expect(days.map((d) => [d.daysAgo, d.rows.map((r) => r.id)])).toEqual([
+            [0, ["t1", "t2"]],
+            [1, ["yesterday"]],
+            [10, ["old"]],
+            [-1, ["none"]],
+        ]);
+    });
+
+    it("names today and yesterday in the interface language, and the other days by their date", () => {
+        expect(subagentDayLabel({ daysAgo: 0, day: 0, rows: [] }, "en")).toBe("Today");
+        expect(subagentDayLabel({ daysAgo: 1, day: 0, rows: [] }, "fr")).toBe("Hier");
+        expect(subagentDayLabel({ daysAgo: 10, day: new Date(2026, 9, 20).getTime(), rows: [] }, "en")).toContain("20");
+        expect(subagentDayLabel({ daysAgo: -1, day: 0, rows: [] }, "en")).toBe("");
     });
 });
 

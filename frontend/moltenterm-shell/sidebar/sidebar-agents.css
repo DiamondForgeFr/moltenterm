@@ -304,35 +304,9 @@
     margin-left: 2px;
 }
 
-.mt-sb-more,
-.mt-sb-fold {
+.mt-sb-more {
     color: var(--mt-sb-fg-3);
     font-size: var(--mt-text-11);
-}
-
-.mt-sb-fold > svg {
-    transition: transform var(--mt-duration-base) var(--mt-ease);
-}
-
-.mt-sb-fold.is-shut > svg {
-    transform: rotate(-90deg);
-}
-
-.mt-sb-sub-clear {
-    align-self: flex-end;
-    margin: 0 2px 2px 0;
-    padding: 2px 6px;
-    border: 0;
-    border-radius: var(--mt-radius-control);
-    background: transparent;
-    color: var(--mt-sb-fg-3);
-    font-size: var(--mt-text-11);
-    cursor: pointer;
-}
-
-.mt-sb-sub-clear:hover {
-    background: rgb(255 255 255 / 0.08);
-    color: var(--color-primary);
 }
 
 /* The counts and the loader always show whole; in a narrow sidebar the section's name gives way first. */
@@ -349,7 +323,6 @@
     overflow: visible;
 }
 
-.mt-sb-tl > svg,
-.mt-sb-fold > svg {
+.mt-sb-tl > svg {
     flex: none;
 }

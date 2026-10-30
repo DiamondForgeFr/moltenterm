@@ -6,17 +6,20 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { atom, useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { agentCallName, type AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { t } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { workspaceShownName } from "../workspace-default-name";
-import { linkedAgents, type LinkedAgent } from "./agent-info-model";
+import { linkedAgents, nextSubagentExpiry, type LinkedAgent, type SubagentRow } from "./agent-info-model";
 import { AgentInfoModel } from "./agent-info-store";
 
 // must match HandedByMetaKey in pkg/molten/durablesession.go
 const HandedByMetaKey = "molten:handedby";
+
+// A little after the expiry, so the clock has certainly passed it when the list is read again.
+const SubagentExpiryGraceMs = 50;
 
 // The terminal that first handed each agent terminal work, from the blocks' meta.
 const handedByAtom = atom((get) => {
@@ -80,4 +83,24 @@ export function goToAgent(info: { workspaceid?: string; tabid?: string; blockid:
 
 export function agentInfoOf(blockId: string): AgentStateInfo {
     return globalStore.get(AgentStates.getInstance().blockAtom(blockId));
+}
+
+// The time to judge a sub-agent list by, which moves on by itself when a finished sub-agent is due to leave (#1542): the
+// caller renders again then, and the sub-agent is gone. The timer is set once per expiry, never polled.
+export function useSubagentNow(rows: SubagentRow[]): number {
+    const [, setTick] = useState(0);
+    const now = Date.now();
+    const wait = nextSubagentExpiry(rows, now);
+    const expiresAt = wait == null ? null : now + wait;
+    useEffect(() => {
+        if (expiresAt == null) {
+            return;
+        }
+        const timer = setTimeout(
+            () => setTick((n) => n + 1),
+            Math.max(expiresAt - Date.now(), 0) + SubagentExpiryGraceMs
+        );
+        return () => clearTimeout(timer);
+    }, [expiresAt]);
+    return now;
 }
