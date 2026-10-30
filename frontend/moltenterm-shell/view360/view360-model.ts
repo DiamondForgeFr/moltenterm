@@ -35,6 +35,7 @@ import {
     setFirstColumnFloor,
 } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
+import { gestureStepEvent, GestureSteps, initialGestureSteps } from "../wheel-gesture";
 import {
     canPinBeside,
     CarpetColumnGapPx,
@@ -77,8 +78,6 @@ import {
     placesFixedPx,
     placesStartIndex,
     placeWidthPx,
-    WheelIdleMs,
-    WheelRepeatMs,
     WheelStepPx,
 } from "./carpet-places";
 import { showPlacesToast } from "./carpet-places-toast";
@@ -287,11 +286,8 @@ export class View360Model {
     // the scroll position and the focus to give back.
     pendingStart: { columnId: string } = null;
     pendingRestore: { scrollLeft: number; focusNodeId: string } = null;
-    // The wheel's whole-panel steps while a 360 × N is on (AC7).
-    wheelAcc = 0;
-    wheelLocked = false;
-    wheelStepAt = 0;
-    wheelIdleTimer: ReturnType<typeof setTimeout> = null;
+    // The wheel's whole-panel steps while a 360 × N is on (AC7): one per gesture.
+    wheelGesture: GestureSteps = initialGestureSteps();
     // Where the carpet's glide ends, while it glides.
     glideTarget: number = null;
 
@@ -1042,30 +1038,16 @@ export class View360Model {
 
     // ---- wheel steps (AC7) ----------------------------------------------------------------------------------------
 
-    // Under a 360 × N a wheel or trackpad gesture moves the carpet one whole panel at a time: a step once the gesture
-    // passes WheelStepPx, another while it goes on past WheelRepeatMs, never a half panel.
-    private wheelStep(dx: number): void {
-        if (this.wheelIdleTimer != null) {
-            clearTimeout(this.wheelIdleTimer);
-        }
-        this.wheelIdleTimer = setTimeout(() => {
-            this.wheelIdleTimer = null;
-            this.wheelAcc = 0;
-            this.wheelLocked = false;
-        }, WheelIdleMs);
-        if (this.wheelLocked && performance.now() - this.wheelStepAt < WheelRepeatMs) {
+    // Under a 360 × N a wheel or trackpad gesture moves the carpet one whole panel: a step once the gesture passes
+    // WheelStepPx, then nothing until a new gesture, however long its momentum (#1466). A step taken during a glide
+    // goes one panel past the glide's end.
+    private wheelStep(dx: number, at: number): void {
+        const { state, step } = gestureStepEvent(this.wheelGesture, { dx, at }, WheelStepPx);
+        this.wheelGesture = state;
+        if (step === 0) {
             return;
         }
-        this.wheelLocked = false;
-        this.wheelAcc += dx;
-        if (Math.abs(this.wheelAcc) < WheelStepPx) {
-            return;
-        }
-        const dir = Math.sign(this.wheelAcc);
-        this.wheelAcc = 0;
-        this.wheelLocked = true;
-        this.wheelStepAt = performance.now();
-        this.glideTo(nextScrollStop(carpetScrollStops(this.layout), this.glideTarget ?? this.scrollLeft, dir));
+        this.glideTo(nextScrollStop(carpetScrollStops(this.layout), this.glideTarget ?? this.scrollLeft, step));
     }
 
     private setPlacements(placements: Record<string, PanelPlacement>) {
@@ -1567,10 +1549,11 @@ export class View360Model {
         this.setScroll(scrollLeft);
     }
 
-    // A wheel or trackpad scroll: free on the carpet, by whole panels under a 360 × N (FR-SHELL-123-AC7).
-    scrollBy(dx: number): void {
+    // A wheel or trackpad scroll: free on the carpet, by whole panels under a 360 × N (FR-SHELL-123-AC7). `at` is the
+    // event's time on this page's clock: the gesture's pauses are read from it, not from when a busy thread got to it.
+    scrollBy(dx: number, at = performance.now()): void {
         if (this.layout != null && globalStore.get(this.shownPlacesAtom) != null) {
-            this.wheelStep(dx);
+            this.wheelStep(dx, at);
             return;
         }
         this.scrollTo(this.scrollLeft + dx);

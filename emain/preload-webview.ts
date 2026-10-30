@@ -76,7 +76,12 @@ function moltentermOnCarpetWheel(event: WheelEvent) {
         return;
     }
     event.preventDefault();
-    const message: CarpetWheelMessage = { delta, deltaMode: event.deltaMode };
+    // MOLTENTERM-PATCH (#1466): the event's own time, so the carpet reads the gesture's pauses whatever the IPC delay.
+    const message: CarpetWheelMessage = {
+        delta,
+        deltaMode: event.deltaMode,
+        at: performance.timeOrigin + event.timeStamp,
+    };
     ipcRenderer.sendToHost(CarpetWheelChannel, message);
 }
 ipcRenderer.on(CarpetWheelStateChannel, (_event, state: CarpetWheelState) => {

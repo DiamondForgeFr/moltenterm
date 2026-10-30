@@ -22,11 +22,9 @@ import {
 // 1, 2 or 3 places: beyond 3 a place falls under a comfortable width even on the widest screens.
 export const PlaceChoices = [1, 2, 3] as const;
 export const MaxPlaces = 3;
-// Below this a scroll step is noise (a trackpad resting), above it the carpet moves one whole panel.
+// Below this a scroll step is noise (a trackpad resting), above it the carpet moves one whole panel. One gesture steps
+// once (../wheel-gesture.ts, #1466).
 export const WheelStepPx = 24;
-// The steps of one wheel gesture: a pause this long ends it, and a long gesture steps again after the second delay.
-export const WheelIdleMs = 160;
-export const WheelRepeatMs = 450;
 const EdgeEpsilonPx = 0.5;
 
 export type PlaceRefusal = "nothing" | "narrow";

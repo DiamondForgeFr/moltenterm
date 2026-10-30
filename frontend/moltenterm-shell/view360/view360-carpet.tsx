@@ -122,7 +122,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
             }
             e.preventDefault();
             e.stopPropagation();
-            view360.scrollBy(wheelDeltaPx(delta, e.deltaMode, current.viewport.width));
+            view360.scrollBy(wheelDeltaPx(delta, e.deltaMode, current.viewport.width), e.timeStamp);
         };
         // Panels laid past the carpet's right edge overflow the layout: a focus moving into one of them would let the
         // browser scroll the layout itself, shifting the fixed zone off the window. Only the carpet scrolls.
