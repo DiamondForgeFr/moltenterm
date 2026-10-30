@@ -35,16 +35,13 @@ export function suggestClipboardText(): string {
     return PublicDownloadUrl;
 }
 
-export type LibraryEscapeStep = "suggest" | "settingsBlock" | "close";
+export type LibraryEscapeStep = "suggest" | "close";
 
-// What Escape closes, the innermost first: the Suggest popover, then a settings block open in the page (back to the
-// blocks, #1406), then the library itself.
-export function libraryEscapeStep(suggestOpen: boolean, settingsBlockOpen: boolean): LibraryEscapeStep {
+// What Escape closes, the innermost first: the Suggest popover, then the library itself. A settings block open in the
+// page does not take a step of its own: the blocks stay on screen (#1548).
+export function libraryEscapeStep(suggestOpen: boolean): LibraryEscapeStep {
     if (suggestOpen) {
         return "suggest";
-    }
-    if (settingsBlockOpen) {
-        return "settingsBlock";
     }
     return "close";
 }

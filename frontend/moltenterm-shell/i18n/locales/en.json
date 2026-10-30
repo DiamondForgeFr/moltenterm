@@ -9428,8 +9428,6 @@
         "search": "Search",
         "nothingFound": "Nothing found",
         "settings": {
-            "back": "All settings",
-            "backTitle": "Back to the settings blocks (Esc)",
             "openInView": "Open in a view",
             "openInViewTitle": "Open {name} in the Settings view of this workspace"
         },

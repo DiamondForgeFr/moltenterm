@@ -9428,8 +9428,6 @@
         "search": "Chercher",
         "nothingFound": "Rien trouvé",
         "settings": {
-            "back": "Tous les réglages",
-            "backTitle": "Revenir aux blocs de réglages (Échap)",
             "openInView": "Ouvrir dans une vue",
             "openInViewTitle": "Ouvrir {name} dans la vue Réglages de cet espace de travail"
         },

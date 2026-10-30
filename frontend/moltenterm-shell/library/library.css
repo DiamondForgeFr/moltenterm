@@ -861,9 +861,37 @@
 }
 
 /* A settings block open in the page (#1406). The stage's data-state ("tiles" or "open") is the hook of the reveal
-   animation (#1407): the blocks stay mounted, in Preferences' order, while one is open. */
+   animation (#1407): the blocks stay mounted, in Preferences' order, while one is open. They then become a compact
+   row, sticky at the top of the scrolling page (#1548): icon and name, the open one marked, never hidden (on a narrow
+   window it scrolls sideways). The reveal starts from the chip clicked in it. */
 .mt-lib-setstage[data-state="open"] > .mt-lib-setgrid {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    padding: 4px 0 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    background: color-mix(in srgb, var(--mt-sink) 18%, var(--mt-surface-0));
+}
+
+.mt-lib-setstage[data-state="open"] .mt-lib-set {
+    flex: none;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: var(--mt-text-12);
+    white-space: nowrap;
+}
+
+.mt-lib-setstage[data-state="open"] .mt-lib-set small {
     display: none;
+}
+
+.mt-lib-set[aria-current="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+    font-weight: var(--mt-weight-semibold);
 }
 
 /* The molten reveal of an open block (#1407, DS-SHELL-138, settings-reveal.ts): the overlay holds these pieces only
@@ -967,21 +995,3 @@
     filter: drop-shadow(0 0 3px var(--mt-action));
 }
 
-.mt-lib-setback {
-    display: inline-flex;
-    align-self: flex-start;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px 4px 4px;
-    border: 0;
-    border-radius: var(--mt-radius-panel);
-    background: transparent;
-    color: var(--color-secondary);
-    font-size: var(--mt-text-12);
-    cursor: pointer;
-}
-
-.mt-lib-setback:hover {
-    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
-    color: var(--color-primary);
-}

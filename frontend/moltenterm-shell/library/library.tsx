@@ -945,7 +945,7 @@ function libraryRowId(key: string): string {
 
 // A settings block open in the library's page, with the rows of Preferences (FR-SHELL-088, #1406). What needs a
 // Preferences view (a JSON file in the editor, Secrets) opens one, as "Open in a view" does.
-function LibrarySettingsBlock({ block, onBack }: { block: SettingsSectionId; onBack: () => void }) {
+function LibrarySettingsBlock({ block }: { block: SettingsSectionId }) {
     const t = useT();
     const data = useSettingsPageData();
     const files = useMemo(
@@ -964,19 +964,9 @@ function LibrarySettingsBlock({ block, onBack }: { block: SettingsSectionId; onB
                 }
                 e.preventDefault();
                 e.stopPropagation();
-                onBack();
+                close();
             }}
         >
-            <button
-                type="button"
-                className="mt-lib-setback"
-                data-testid="library-settings-back"
-                title={t("library.settings.backTitle")}
-                onClick={onBack}
-            >
-                <SidebarGlyph name="back" size={14} />
-                {t("library.settings.back")}
-            </button>
             <PageFill width={sectionPageWidth(data, block)} className="pt-0 pb-6">
                 <SettingsSectionPage
                     section={block}
@@ -1003,15 +993,14 @@ function LibrarySettingsBlock({ block, onBack }: { block: SettingsSectionId; onB
 }
 
 // The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
-// order while one is open; the open block is revealed by settings-reveal.ts (#1407).
+// order while one is open, as a compact sticky row (#1548) from which another block opens directly; the open block is
+// revealed by settings-reveal.ts (#1407), from the chip or tile just clicked.
 function SettingsSection({
     block,
     onOpen,
-    onBack,
 }: {
     block: SettingsSectionId;
     onOpen: (block: SettingsSectionId) => void;
-    onBack: () => void;
 }) {
     const t = useT();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
@@ -1020,7 +1009,7 @@ function SettingsSection({
     const stageRef = useRef<HTMLDivElement>(null);
     const layerRef = useRef<HTMLDivElement>(null);
     const sourceRef = useRef<RevealRect>(null);
-    // The molten reveal of the block just opened (#1407), before its first frame; going back, switching section or
+    // The molten reveal of the block just opened (#1407), before its first frame; switching block or section or
     // closing the library ends it.
     useLayoutEffect(() => {
         const stage = stageRef.current;
@@ -1028,13 +1017,14 @@ function SettingsSection({
         if (block == null || page == null || layerRef.current == null) {
             return;
         }
+        // The new block starts at its top, under the sticky row; the geometry of the reveal is read after this.
+        stage.closest(".mt-lib-body")?.scrollTo({ top: 0 });
+        stage.querySelector('.mt-lib-set[aria-current="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
         const handle = runSettingsReveal({
             stage,
             overlay: layerRef.current,
             cards: revealTargets(page),
-            chrome: [page.querySelector(".mt-lib-setback"), page.children[1]?.firstElementChild].filter(
-                (el) => el != null
-            ),
+            chrome: [page.firstElementChild?.firstElementChild].filter((el) => el != null),
             source: sourceRef.current,
             mode: revealMode(reducedMotion, revealSetting !== false),
         });
@@ -1068,11 +1058,7 @@ function SettingsSection({
                     <span>{t("rail.tools.settingsErrors")}</span>
                 </button>
             ) : null}
-            <div
-                className="mt-lib-setgrid"
-                data-testid="library-settings"
-                aria-hidden={block != null ? true : undefined}
-            >
+            <div className="mt-lib-setgrid" data-testid="library-settings">
                 {SettingsSections.map((s) => {
                     const section = localizeSection(s, t);
                     return (
@@ -1082,7 +1068,7 @@ function SettingsSection({
                             className="mt-lib-set"
                             data-testid="library-settings-section"
                             data-section={s.id}
-                            tabIndex={block != null ? -1 : undefined}
+                            aria-current={s.id === block ? "true" : undefined}
                             onClick={(e) => openFromTile(s.id, e.currentTarget)}
                         >
                             <i className={makeIconClass(s.icon, true)} aria-hidden />
@@ -1094,7 +1080,7 @@ function SettingsSection({
                     );
                 })}
             </div>
-            {block != null ? <LibrarySettingsBlock block={block} onBack={onBack} /> : null}
+            {block != null ? <LibrarySettingsBlock block={block} /> : null}
             <div ref={layerRef} className="mt-reveal-layer" data-testid="library-settings-reveal" aria-hidden />
         </div>
     );
@@ -1173,20 +1159,6 @@ export function Library({
         setQuery("");
         setSettingsBlock(null);
     }, [section]);
-    // Back to the blocks, the focus on the one just closed.
-    const backToBlocks = () => {
-        const shown = settingsBlock;
-        setSettingsBlock(null);
-        requestAnimationFrame(() =>
-            rootRef.current?.querySelector<HTMLElement>(`.mt-lib-set[data-section="${shown}"]`)?.focus()
-        );
-    };
-    const openSettingsBlock = (block: SettingsSectionId) => {
-        setSettingsBlock(block);
-        requestAnimationFrame(() =>
-            rootRef.current?.querySelector<HTMLElement>('[data-testid="library-settings-back"]')?.focus()
-        );
-    };
     useEffect(() => {
         const previous = document.activeElement as HTMLElement;
         rootRef.current?.querySelector<HTMLElement>(".mt-lib-ni.is-on")?.focus();
@@ -1207,10 +1179,10 @@ export function Library({
                 e.stopPropagation();
                 return;
             }
-            const step = libraryEscapeStep(suggest, settingsBlock != null);
+            const step = libraryEscapeStep(suggest);
             // A field of the open block takes Escape first (a text field puts its saved value back); the block's own
-            // handler goes back to the blocks when the field leaves it.
-            if (step === "settingsBlock" && isFieldInSettingsBlock(e.target)) {
+            // handler closes the library when the field leaves it.
+            if (step === "close" && isFieldInSettingsBlock(e.target)) {
                 return;
             }
             e.preventDefault();
@@ -1219,15 +1191,11 @@ export function Library({
                 setSuggest(false);
                 return;
             }
-            if (step === "settingsBlock") {
-                backToBlocks();
-                return;
-            }
             close();
         };
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
-    }, [suggest, settingsBlock]);
+    }, [suggest]);
     // Each view of the window draws its own library: one left for another view (a workspace dot, a reopened view)
     // must not wait open for the developer's return.
     useEffect(() => {
@@ -1350,7 +1318,7 @@ export function Library({
                     ) : null}
                     {section === "putaway" ? <PutAwaySection entries={entries} query={query} /> : null}
                     {section === "settings" ? (
-                        <SettingsSection block={settingsBlock} onOpen={openSettingsBlock} onBack={backToBlocks} />
+                        <SettingsSection block={settingsBlock} onOpen={setSettingsBlock} />
                     ) : null}
                 </div>
             </section>
