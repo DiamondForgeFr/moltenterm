@@ -116,7 +116,7 @@ func Redact(text string) (string, int) {
 			}
 			quoted := m[1] != "" && m[1] == m[3]
 			value := m[5]
-			if !secretValue(value, strings.TrimSpace(m[4]), quoted, strongName(m[2])) {
+			if !secretValue(value, m[4], quoted, strongName(m[2])) || proseColon(m[2], m[4], value, quoted) {
 				return match
 			}
 			count++
@@ -199,8 +199,13 @@ func nameHasWord(lower string, word string) bool {
 // number or a <placeholder> is kept unless the name is a password's or a secret's (strong). With a colon (YAML, or
 // prose such as "the key: rotate it"), an unquoted single plain word is kept, unless the name is quoted (JSON) or
 // strong.
-func secretValue(value string, sep string, quotedName bool, strong bool) bool {
+func secretValue(value string, rawSep string, quotedName bool, strong bool) bool {
+	sep := strings.TrimSpace(rawSep)
 	inner := strings.Trim(value, `"'`)
+	// A CSS pseudo-element (li.key::before) reads as name, colon, ":before": no secret starts with a colon.
+	if sep == ":" && strings.HasPrefix(value, ":") {
+		return false
+	}
 	switch strings.ToLower(inner) {
 	case "", "true", "false", "null", "none", "nil", "undefined", "[redacted]", "redacted", "***", "...", "…":
 		return false
@@ -216,6 +221,16 @@ func secretValue(value string, sep string, quotedName bool, strong bool) bool {
 		return false
 	}
 	return true
+}
+
+// proseColon tells French prose ("le secret : des copies"): a plain word, a space before the colon as French
+// typography puts it, and a plain word. A configuration file does not space its colons; a strong name keeps its value
+// redacted in every other form ("password: swordfish").
+func proseColon(name string, rawSep string, value string, quotedName bool) bool {
+	if quotedName || strings.TrimSpace(rawSep) != ":" || !strings.HasPrefix(rawSep, " ") && !strings.HasPrefix(rawSep, "\t") {
+		return false
+	}
+	return plainWordRegex.MatchString(name) && plainWordRegex.MatchString(value)
 }
 
 func quoteLike(value string, replacement string) string {

@@ -22,6 +22,8 @@ const (
 	MaterialRestoreCommand    = "moltenmaterialrestore"
 	MaterialCopyCommand       = "moltenmaterialcopy"
 	MaterialWorkFilesCommand  = "moltenmaterialworkfiles"
+	// MaterialsRecoverCommand: "Search past sessions" (FR-MAT-008), from a window only.
+	MaterialsRecoverCommand = "moltenmaterialsrecover"
 
 	// The drawer of the workspaces without a project ("No project").
 	MaterialsNoProject = "noproject"
@@ -164,6 +166,19 @@ type MaterialsView struct {
 // MaterialDeleted is a delete's answer: the trash entry Undo restores.
 type MaterialDeleted struct {
 	TrashId string `json:"trashid"`
+}
+
+// MaterialsRecovered is a past-session search's answer (FR-MAT-008): the transcripts read, the materials found in
+// them (New of them were not in the registry), how many have a copy (Kept), how many sources were already erased
+// (Gone: kept as links) and how many could not be copied for another reason (NotCopied: too large, a possible
+// secret, space full).
+type MaterialsRecovered struct {
+	Sessions  int `json:"sessions"`
+	Found     int `json:"found"`
+	New       int `json:"new"`
+	Kept      int `json:"kept"`
+	Gone      int `json:"gone"`
+	NotCopied int `json:"notcopied"`
 }
 
 // MaterialsChanged is the event's data.

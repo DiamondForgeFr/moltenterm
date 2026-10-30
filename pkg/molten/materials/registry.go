@@ -261,7 +261,7 @@ func (r *Registry) signal(feed checkpoint.MaterialFeed, bc *blockCtx, sig compan
 	switch sig.Kind {
 	case companion.SignalPublished:
 		c := r.who(feed.BlockId, feed.Agent, bc)
-		c.Source, c.Link, c.ToolTitle, c.ArtifactId, c.Linked, c.Sources = molten.MaterialSourcePublished, sig.Url, sig.Title, sig.ArtifactId, sig.Files, sig.Sources
+		c.Source, c.Link, c.ToolTitle, c.ArtifactId, c.Linked, c.Sources, c.Version = molten.MaterialSourcePublished, sig.Url, sig.Title, sig.ArtifactId, sig.Files, sig.Sources, sig.Version
 		if !remote {
 			c.Path = sig.Path
 		}

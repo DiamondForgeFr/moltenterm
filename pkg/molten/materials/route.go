@@ -107,6 +107,11 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 		return r.store.Restore(req.Project, req.TrashId)
 	case molten.MaterialCopyCommand:
 		return r.Copy(req.Project, req.Id, req.Requested, req.AllowSecret)
+	case molten.MaterialsRecoverCommand:
+		if !caller.IsUi() || req.WorkspaceId == "" {
+			return nil, fmt.Errorf("a window searches the past sessions of a workspace")
+		}
+		return r.Recover(req.WorkspaceId)
 	case molten.MaterialWorkFilesCommand:
 		key, err := l.drawerOf(req, caller)
 		if err != nil {

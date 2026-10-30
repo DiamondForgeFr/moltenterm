@@ -9502,6 +9502,28 @@
             "empty": "What an agent produces outside the repository and shows you (a published page, a document, an image, a link it names) is kept here, per project.",
             "failedTitle": "Materials are not available",
             "failed": "MoltenTerm could not read this project's materials.",
+            "sectionMenu": "Materials actions",
+            "recover": {
+                "button": "Search past sessions",
+                "hint": "What agents published earlier may still be in their sessions kept on this computer.",
+                "running": "Searching past sessions…",
+                "found": {
+                    "one": "{count} material found",
+                    "other": "{count} materials found"
+                },
+                "gone": {
+                    "one": "{count} source already erased",
+                    "other": "{count} sources already erased"
+                },
+                "notCopied": {
+                    "one": "{count} not copied",
+                    "other": "{count} not copied"
+                },
+                "none": "No material found in the past sessions.",
+                "noSessions": "No past session of this project is left on this computer.",
+                "failed": "The search of past sessions failed.",
+                "dismiss": "Hide"
+            },
             "day": {
                 "pinned": "Pinned",
                 "today": "Today",

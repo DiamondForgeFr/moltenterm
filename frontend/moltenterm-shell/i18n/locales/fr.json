@@ -9502,6 +9502,28 @@
             "empty": "Ce qu'un agent produit hors du dépôt et vous montre (une page publiée, un document, une image, un lien qu'il nomme) est gardé ici, par projet.",
             "failedTitle": "Les matériaux ne sont pas disponibles",
             "failed": "MoltenTerm n'a pas pu lire les matériaux de ce projet.",
+            "sectionMenu": "Actions des matériaux",
+            "recover": {
+                "button": "Chercher dans les sessions passées",
+                "hint": "Ce que les agents ont publié avant peut encore se trouver dans leurs sessions gardées sur cet ordinateur.",
+                "running": "Recherche dans les sessions passées…",
+                "found": {
+                    "one": "{count} matériau retrouvé",
+                    "other": "{count} matériaux retrouvés"
+                },
+                "gone": {
+                    "one": "{count} source déjà effacée",
+                    "other": "{count} sources déjà effacées"
+                },
+                "notCopied": {
+                    "one": "{count} non copié",
+                    "other": "{count} non copiés"
+                },
+                "none": "Aucun matériau retrouvé dans les sessions passées.",
+                "noSessions": "Aucune session passée de ce projet ne reste sur cet ordinateur.",
+                "failed": "La recherche dans les sessions passées a échoué.",
+                "dismiss": "Masquer"
+            },
             "day": {
                 "pinned": "Épinglés",
                 "today": "Aujourd'hui",

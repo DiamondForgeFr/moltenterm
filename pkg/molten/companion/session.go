@@ -173,6 +173,8 @@ type Session struct {
 	materialSignals []MaterialSignal
 	answeredTurn    int
 	publishInputs   map[string]map[string]string
+	// materialSink takes each signal instead of the bounded list (a past session read whole, FR-MAT-008).
+	materialSink func(MaterialSignal)
 }
 
 func MakeSession() *Session {
