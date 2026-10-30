@@ -104,6 +104,9 @@ const HeaderTextElems = React.memo(({ viewModel, blockId, preview, error, hidePi
 });
 HeaderTextElems.displayName = "HeaderTextElems";
 
+// MOLTENTERM-PATCH (#1439): the header width under which Magnify joins the "⋯"; header.css folds at the same width
+const FoldMagnifyPx = 300;
+
 type HeaderEndIconsProps = {
     viewModel: ViewModel;
     nodeModel: NodeModel;
@@ -125,8 +128,17 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
 
     const endIconsElem: React.ReactElement[] = [];
 
+    // MOLTENTERM-PATCH (#1439): a narrow header folds the view's own buttons (and the opt-in split buttons) into one
+    // "⋯" before anything else (header.css); the menu lists them under the same titles
+    const foldedDecls: IconButtonDecl[] = [...(endIconButtons ?? [])];
     if (endIconButtons && endIconButtons.length > 0) {
-        endIconsElem.push(...endIconButtons.map((button, idx) => <IconButton key={idx} decl={button} />));
+        endIconsElem.push(
+            <span key="mt-view-buttons" className="molten-fold-1 contents">
+                {endIconButtons.map((button, idx) => (
+                    <IconButton key={idx} decl={button} />
+                ))}
+            </span>
+        );
     }
     // MOLTENTERM-PATCH (#370): still opt-in and terminal-only; they open the content picker like every split
     if (showSplitButtons && viewModel?.viewType === "term") {
@@ -148,8 +160,52 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
                 util.fireAndForget(() => splitPanel(blockId, "down"));
             },
         };
-        endIconsElem.push(<IconButton key="split-horizontal" decl={splitHorizontalDecl} />);
-        endIconsElem.push(<IconButton key="split-vertical" decl={splitVerticalDecl} />);
+        foldedDecls.push(splitHorizontalDecl, splitVerticalDecl);
+        endIconsElem.push(
+            <span key="mt-split-buttons" className="molten-fold-1 contents">
+                <IconButton key="split-horizontal" decl={splitHorizontalDecl} />
+                <IconButton key="split-vertical" decl={splitVerticalDecl} />
+            </span>
+        );
+    }
+    // MOLTENTERM-PATCH (#1439): the "⋯" shows only once the header folds something (header.css); a magnified panel
+    // keeps its un-magnify button, which is its only way out
+    const canFoldMagnify = !magnified && !ephemeral && !magnifyDisabled;
+    const moreDecl: IconButtonDecl = {
+        elemtype: "iconbutton",
+        icon: "ellipsis",
+        title: t("wave.block.moreActions"),
+        click: (e) => {
+            e.stopPropagation();
+            const width = (e.currentTarget as Element)
+                .closest(".block-frame-default-header")
+                ?.getBoundingClientRect().width;
+            const items: ContextMenuItem[] = [];
+            for (const decl of foldedDecls) {
+                if (typeof decl.icon !== "string" || util.isBlank(decl.title)) {
+                    continue;
+                }
+                items.push({
+                    label: decl.title,
+                    icon: decl.icon,
+                    enabled: !decl.disabled,
+                    click: () => decl.click?.(e),
+                });
+            }
+            if (canFoldMagnify && width < FoldMagnifyPx) {
+                items.push({ label: t("wave.block.magnify"), icon: "expand", click: () => nodeModel.toggleMagnify() });
+            }
+            blockEnv.showContextMenu(items, e);
+        },
+    };
+    if (foldedDecls.length > 0 || canFoldMagnify) {
+        endIconsElem.push(
+            <IconButton
+                key="mt-more"
+                decl={moreDecl}
+                className={foldedDecls.length > 0 ? "molten-fold-more" : "molten-fold-more-2"}
+            />
+        );
     }
     // MOLTENTERM-PATCH (#1050): the connections of the terminal's agents, shown only when it holds one (FR-CONT-022)
     endIconsElem.push(<AgentLinksHeaderButton key="mt-agent-links" blockId={blockId} termHeader={!!termHeader} />);
@@ -189,15 +245,16 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         endIconsElem.push(<IconButton key="add-to-layout" decl={addToLayoutDecl} />);
     } else {
         endIconsElem.push(
-            <OptMagnifyButton
-                key="unmagnify"
-                magnified={magnified}
-                toggleMagnify={() => {
-                    nodeModel.toggleMagnify();
-                    setTimeout(() => refocusNode(blockId), 50);
-                }}
-                disabled={magnifyDisabled}
-            />
+            <span key="unmagnify" className={cn("contents", canFoldMagnify && "molten-fold-2")}>
+                <OptMagnifyButton
+                    magnified={magnified}
+                    toggleMagnify={() => {
+                        nodeModel.toggleMagnify();
+                        setTimeout(() => refocusNode(blockId), 50);
+                    }}
+                    disabled={magnifyDisabled}
+                />
+            </span>
         );
     }
 

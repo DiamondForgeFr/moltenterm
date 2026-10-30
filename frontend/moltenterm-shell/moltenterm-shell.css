@@ -70,13 +70,14 @@
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
-/* The end buttons sit in wrappers (some display: contents, which opacity skips): every button but close fades. */
+/* The end buttons sit in wrappers (some display: contents, which opacity skips): every button but close fades, and
+   "Store on the carpet" (#1439): it places the panel rather than commanding it, so it stays shown with close. */
 .block.block-frame-default:not(.block-focused) .block-frame-default-header .molten-header-context,
 .block.block-frame-default:not(.block-focused) .block-frame-default-header .block-frame-textelems-wrapper,
 .block.block-frame-default:not(.block-focused)
     .block-frame-default-header
     .block-frame-end-icons
-    :is(button, .wave-iconbutton, .iconbutton):not(.block-frame-default-close),
+    :is(button, .wave-iconbutton, .iconbutton):not(.block-frame-default-close, .mt-carpet-button, .mt-pin-button),
 .block.block-frame-default:not(.block-focused) .mt-focus-only {
     opacity: 0;
     pointer-events: none;

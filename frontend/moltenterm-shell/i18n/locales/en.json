@@ -150,6 +150,7 @@
             "commandsAndOptions": "Commands and options ({shortcut})",
             "suggestionsAndOptions": "Suggestions, commands and options ({shortcut})",
             "addToLayout": "Add to Layout",
+            "moreActions": "More actions",
             "magnify": "Magnify",
             "unmagnify": "Minimize",
             "noView": "(No View)",
@@ -2149,7 +2150,8 @@
             "stopTitle": "Stop loading this page",
             "reload": "Reload",
             "reloadTitle": "Reload ({shortcut})\nShift-click or {hardShortcut}: reload ignoring the cache",
-            "loadingPage": "Loading the page"
+            "loadingPage": "Loading the page",
+            "more": "More actions"
         },
         "handoff": {
             "keeps": "{browser} keeps your sessions, passwords and extensions for this page.",

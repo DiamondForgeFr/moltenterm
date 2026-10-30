@@ -87,7 +87,6 @@ import {
 } from "./browser-engine";
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
-import { BrowserStartPage } from "./browser-start-page";
 import {
     BrowserLifecycleModel,
     PageScroll,
@@ -98,6 +97,7 @@ import {
 import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
+    addressOfPage,
     besideBlockDef,
     BesideOpts,
     BrowserAskMetaKey,
@@ -111,7 +111,6 @@ import {
     consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
     isAgentTabId,
-    addressOfPage,
     isBlankPage,
     isStartPage,
     makeTabId,
@@ -140,6 +139,7 @@ import {
     shareStateText,
     unshareableReason,
 } from "./browser-share";
+import { BrowserStartPage } from "./browser-start-page";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
@@ -152,6 +152,9 @@ import { TestContextChip } from "./test-context";
 export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
+// Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
+// value mirrors the last container query of browser.css.
+const FoldNavPx = 340;
 // Without a home page set (web:defaulturl), a new browser opens MoltenTerm's start page, never a site (FR-SHELL-110).
 const FallbackUrl = StartPageUrl;
 
@@ -542,10 +545,18 @@ export class BrowserViewModel implements ViewModel {
     }
 
     showEngineMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        const menu = this.engineMenuItems(tab);
+        if (menu.length === 0) {
+            return;
+        }
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    engineMenuItems(tab: BrowserTab): ContextMenuItem[] {
         const list = globalStore.get(this.engines.listAtom);
         const chosen = list?.chosen;
         if (tab == null || chosen == null) {
-            return;
+            return [];
         }
         const name = tab.engine ? engineName(tab.engine, list) : chosen.name;
         const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
@@ -592,7 +603,44 @@ export class BrowserViewModel implements ViewModel {
             });
         }
         menu.push(...this.agentSiteMenu(tab));
-        ContextMenuModel.getInstance().showContextMenu(menu, e);
+        return menu;
+    }
+
+    // The header's "⋯" (#1439): what a narrow panel folds out of its row, in the order the row folds it (browser.css).
+    // The widths are those of the folds, read when the menu opens.
+    showOverflowMenu(e: React.MouseEvent, tab: BrowserTab, rowWidth: number): void {
+        e.preventDefault();
+        fireAndForget(async () => {
+            const menu: ContextMenuItem[] = [];
+            if (rowWidth < FoldNavPx) {
+                const webview = this.activeWebview();
+                menu.push(
+                    {
+                        label: t("browser.nav.forward"),
+                        icon: "arrow-right",
+                        enabled: tab != null && !tab.engine,
+                        click: () => webview?.canGoForward() && webview.goForward(),
+                    },
+                    {
+                        label: t("browser.nav.reload"),
+                        icon: "rotate-right",
+                        enabled: tab != null && !tab.engine,
+                        click: () => this.reloadActive(false),
+                    }
+                );
+                const magnified = globalStore.get(this.nodeModel.isMagnified);
+                if (!magnified && (globalStore.get(this.layoutNode.numLeafs) ?? 1) > 1) {
+                    menu.push({ label: t("wave.block.magnify"), icon: "expand", click: () => this.toggleMagnify() });
+                }
+                menu.push({ type: "separator" });
+            }
+            menu.push(...(await this.shareItems(tab)));
+            const engine = this.engineMenuItems(tab);
+            if (engine.length > 0) {
+                menu.push({ type: "separator" }, ...engine);
+            }
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
+        });
     }
 
     // The agents' decision for the page's site (FR-BRW-009 AC3), with Forget: the next agent action there asks again.
@@ -1411,7 +1459,10 @@ function TabWebview({
             preload={webviewPreloadUrl()}
             // @ts-expect-error React types allowpopups as a boolean, Chromium's webview tag expects a string.
             allowpopups="true"
-            className={cn("molten-browser-page absolute inset-0 h-full w-full", !active && "invisible pointer-events-none")}
+            className={cn(
+                "molten-browser-page absolute inset-0 h-full w-full",
+                !active && "invisible pointer-events-none"
+            )}
         />
     );
 }
@@ -1443,7 +1494,10 @@ function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; 
             role="img"
             aria-label={view.title}
             title={view.title}
-            className={cn("fa fa-solid fa-robot shrink-0 text-11", view.takenOver ? "text-secondary" : "text-[var(--mt-state-running)]")}
+            className={cn(
+                "fa fa-solid fa-robot shrink-0 text-11",
+                view.takenOver ? "text-secondary" : "text-[var(--mt-state-running)]"
+            )}
         />
     );
 }
@@ -1533,21 +1587,25 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
     };
     // A panel that is not focused keeps only close (FR-SHELL-086): the other buttons fade (moltenterm-shell.css).
+    // "Store on the carpet" is placement, not a command: it stays shown with close (#1439). Close, the carpet button and
+    // the command panel trigger never fold; Magnify is the row's last fold (molten-fold-3, in the "⋯").
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
+            <CarpetHeaderButton blockId={model.blockId} />
             <span className="mt-focus-only flex items-center gap-0.5">
-                <CarpetHeaderButton blockId={model.blockId} />
                 <span data-role="command-panel-trigger" className="flex">
                     <IconButton decl={commands} />
                 </span>
                 {ephemeral ? (
                     <IconButton decl={addToLayout} />
                 ) : (
-                    <OptMagnifyButton
-                        magnified={magnified}
-                        toggleMagnify={() => model.toggleMagnify()}
-                        disabled={numLeafs <= 1}
-                    />
+                    <span className={cn("flex", !magnified && "molten-fold-3")}>
+                        <OptMagnifyButton
+                            magnified={magnified}
+                            toggleMagnify={() => model.toggleMagnify()}
+                            disabled={numLeafs <= 1}
+                        />
+                    </span>
                 )}
             </span>
             <HeaderCloseButton magnified={magnified} onClose={() => uxCloseBlock(model.blockId)} />
@@ -1573,7 +1631,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     return (
         <button
             type="button"
-            className="flex h-6 min-w-28 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
+            className="flex h-6 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
             title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
             aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
             data-testid="browser-address"
@@ -1634,8 +1692,12 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             <i className={`fa fa-solid fa-${icon} text-12`} />
         </button>
     );
+    const rowRef = useRef<HTMLDivElement>(null);
     return (
-        <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1 overflow-hidden">
+        <div
+            ref={rowRef}
+            className="molten-browser-row relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1 overflow-hidden"
+        >
             {navButton(
                 "arrow-left",
                 t("browser.nav.back"),
@@ -1644,7 +1706,9 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             {navButton(
                 "arrow-right",
                 t("browser.nav.forward"),
-                () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward()
+                () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward(),
+                t("browser.nav.forward"),
+                "molten-fold-3"
             )}
             {loading
                 ? navButton(
@@ -1652,23 +1716,23 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       t("browser.nav.stop"),
                       () => model.reloadActive(false),
                       t("browser.nav.stopTitle"),
-                      "mt-focus-only"
+                      "mt-focus-only molten-fold-3"
                   )
                 : navButton(
                       "rotate-right",
                       t("browser.nav.reload"),
                       (e) => model.reloadActive(e.shiftKey),
                       t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" }),
-                      "mt-focus-only"
+                      "mt-focus-only molten-fold-3"
                   )}
-            <span className="mt-focus-only flex shrink-0 items-center">
+            <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
                 <TestContextChip url={active?.url ?? ""} />
             </span>
             {topField ? (
                 <PageAddress model={model} tab={active} />
             ) : (
                 // FR-SHELL-086: at rest the address reads centred after a link icon; editing it shows the input as is
-                <div className="relative flex h-6 min-w-24 flex-1">
+                <div className="relative flex h-6 min-w-0 flex-1">
                     <input
                         ref={model.urlInputRef}
                         value={draft}
@@ -1715,10 +1779,20 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 onDoubleClick={() => model.toggleMagnify()}
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
-            <span className="mt-focus-only flex shrink-0 items-center gap-1">
+            <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
             </span>
+            <button
+                type="button"
+                aria-label={t("browser.nav.more")}
+                title={t("browser.nav.more")}
+                data-testid="browser-more"
+                onClick={(e) => model.showOverflowMenu(e, active, rowRef.current?.getBoundingClientRect().width ?? 0)}
+                className="molten-fold-more mt-focus-only h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-ellipsis text-12" />
+            </button>
             <BrowserPanelButtons model={model} />
             {loading ? (
                 <div
@@ -1781,7 +1855,7 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
             )}
         >
             <i className="fa fa-solid fa-share-nodes text-12" />
-            {named ? <span className="truncate">{label}</span> : null}
+            {named ? <span className="molten-fold-1 truncate">{label}</span> : null}
         </button>
     );
 }
@@ -1822,7 +1896,7 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                         always && !tab.engine && "text-accent"
                     )}
                 />
-                <span className="min-w-0 truncate whitespace-nowrap">{label}</span>
+                <span className="molten-fold-1 min-w-0 truncate whitespace-nowrap">{label}</span>
             </button>
             <button
                 type="button"

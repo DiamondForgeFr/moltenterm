@@ -275,3 +275,41 @@ button.molten-header-link:focus-visible {
     background: var(--mt-accent);
     pointer-events: none;
 }
+
+/* A narrow panel keeps its close button, "Store on the carpet" and the command panel trigger (#1439). The title and the
+   pill shrink first; then the header folds, in a stable order, from the right: the view's own buttons and the split
+   buttons move into the "⋯" (fold 1), then Magnify does (fold 2, a magnified panel keeps its un-magnify button). The
+   widths mirror FoldMagnifyPx in blockframe-header.tsx. */
+.block-frame-default-header {
+    container-type: inline-size;
+    container-name: molten-header;
+}
+
+.block-frame-default-header .molten-fold-more,
+.block-frame-default-header .molten-fold-more-2 {
+    display: none;
+}
+
+@container molten-header (max-width: 339px) {
+    .block-frame-default-header .molten-fold-1 {
+        display: none;
+    }
+
+    .block-frame-default-header .molten-fold-more {
+        display: flex;
+    }
+
+    .block-frame-default-header .block-frame-default-header-iconview {
+        flex-shrink: 1 !important;
+    }
+}
+
+@container molten-header (max-width: 299px) {
+    .block-frame-default-header .molten-fold-2 {
+        display: none;
+    }
+
+    .block-frame-default-header .molten-fold-more-2 {
+        display: flex;
+    }
+}
