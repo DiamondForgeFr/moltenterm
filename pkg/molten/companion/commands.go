@@ -39,10 +39,22 @@ var shellBuiltins = map[string]bool{
 // "2>&1", ">&2", "&>": redirections, whose & does not end a command.
 var redirection = regexp.MustCompile(`\d*[<>]&\d*|&>`)
 
+// A program's name: what a person would recognise as one (gh, go, moltenterm-check-ledger.mjs). Anything else is a
+// fragment of a script, a jq program or a comment (#1543: "#\", ".number", "[\" showed in the agent window).
+var programName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+-]*$`)
+
+// "<<EOF", "<<-'EOF'", `<< "END"`: a heredoc, whose body is data, not commands.
+var heredocStart = regexp.MustCompile(`<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+
+// quotedPlaceholder stands for a quoted string: its content is an argument, never a command, and the separators it
+// holds (a newline, a '|' of a jq program) split nothing.
+const quotedPlaceholder = "\x00"
+
 // commandNames reads the programs a shell line runs, in order, each once.
 func commandNames(line string) []string {
 	var rtn []string
 	seen := map[string]bool{}
+	line = blankQuotes(dropHeredocs(line))
 	line = redirection.ReplaceAllString(line, " ")
 	segments := strings.FieldsFunc(line, func(r rune) bool {
 		return r == '\n' || r == ';' || r == '|' || r == '&' || r == '(' || r == ')' || r == '`'
@@ -67,16 +79,77 @@ func segmentProgram(segment string) string {
 		if isEnvAssignment(word) || commandPrefixes[word] {
 			continue
 		}
-		if shellBuiltins[word] || strings.HasPrefix(word, "$") || strings.ContainsAny(word, "<>=*{}") {
+		if shellBuiltins[word] || strings.HasPrefix(word, "$") || strings.ContainsAny(word, "<>=*{}"+quotedPlaceholder) {
 			return ""
 		}
 		name := filepath.Base(word)
-		if name == "." || name == "/" || len(name) > maxCommandNameLen {
+		if len(name) > maxCommandNameLen || !programName.MatchString(name) {
 			return ""
 		}
 		return name
 	}
 	return ""
+}
+
+// dropHeredocs removes the bodies of a line's heredocs, up to their closing word.
+func dropHeredocs(line string) string {
+	if !strings.Contains(line, "<<") {
+		return line
+	}
+	var kept []string
+	end := ""
+	for _, l := range strings.Split(line, "\n") {
+		if end != "" {
+			if strings.TrimSpace(l) == end {
+				end = ""
+			}
+			continue
+		}
+		kept = append(kept, l)
+		if m := heredocStart.FindStringSubmatch(l); m != nil {
+			end = m[1]
+		}
+	}
+	return strings.Join(kept, "\n")
+}
+
+// blankQuotes replaces each quoted string by quotedPlaceholder and drops comments (a '#' that starts a word, outside
+// quotes, to the end of its line). An unclosed quote runs to the end of the line.
+func blankQuotes(line string) string {
+	if !strings.ContainsAny(line, `'"#`) {
+		return line
+	}
+	var b strings.Builder
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if quote == 0 {
+			if c == '#' && (i == 0 || strings.IndexByte(" \t\n;|&(", line[i-1]) >= 0) {
+				for i < len(line) && line[i] != '\n' {
+					i++
+				}
+				if i < len(line) {
+					b.WriteByte('\n')
+				}
+				continue
+			}
+			if c == '\'' || c == '"' {
+				quote = c
+				b.WriteString(quotedPlaceholder)
+				continue
+			}
+			b.WriteByte(c)
+			continue
+		}
+		if c == '\\' && quote == '"' {
+			i++
+			continue
+		}
+		if c == quote {
+			quote = 0
+		}
+	}
+	return b.String()
 }
 
 func isEnvAssignment(word string) bool {
@@ -96,14 +169,31 @@ func isEnvAssignment(word string) bool {
 // NoteShellCommand keeps the programs a shell call of the main agent runs.
 func (s *Session) NoteShellCommand(line string) {
 	for _, name := range commandNames(line) {
-		if len(s.commands) >= maxCommands {
-			return
-		}
 		if containsString(s.commands, name) {
+			s.commandCounts[name]++
 			continue
 		}
+		if len(s.commands) >= maxCommands {
+			continue
+		}
+		if s.commandCounts == nil {
+			s.commandCounts = map[string]int{}
+		}
 		s.commands = append(s.commands, name)
+		s.commandCounts[name] = 1
 	}
+}
+
+// CommandCounts tells how many shell calls ran each program of Commands.
+func (s *Session) CommandCounts() map[string]int {
+	if len(s.commandCounts) == 0 {
+		return nil
+	}
+	rtn := make(map[string]int, len(s.commandCounts))
+	for k, v := range s.commandCounts {
+		rtn[k] = v
+	}
+	return rtn
 }
 
 // Commands lists the programs the main agent ran, in the order it first ran them.

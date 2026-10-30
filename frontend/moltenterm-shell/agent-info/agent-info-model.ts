@@ -220,7 +220,7 @@ export function subagentDuration(started: number, ended: number, now: number, lo
 export type McpServerRow = { server: string; state: LinkState; live: boolean };
 
 // The MoltenTerm MCP servers the agent's terminal is linked to, as the header's plug shows them (FR-CONT-022). The
-// agent's other MCP servers are its own configuration, which MoltenTerm does not read.
+// agent's other MCP servers are its own configuration, which the agent's adapter reads (agent-toolkit-model.ts, #1543).
 export function mcpServerRows(links: BlockLinks): McpServerRow[] {
     const rtn: McpServerRow[] = [];
     const seen = new Set<string>();

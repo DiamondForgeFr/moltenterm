@@ -8,6 +8,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -152,4 +153,8 @@ func copyCapabilities(caps map[string]Capability) map[string]Capability {
 		rtn[k] = v
 	}
 	return rtn
+}
+
+func (claudeAdapter) Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	return agenttoolkit.ReadClaude(env, cwd)
 }

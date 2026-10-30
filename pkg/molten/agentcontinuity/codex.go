@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -245,4 +246,8 @@ func (codexAdapter) Usage() usage.UsageAdapter {
 
 func (codexAdapter) GuideProfile() string {
 	return molten.GuideProfileOfAgent(molten.AgentIdCodex)
+}
+
+func (codexAdapter) Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	return agenttoolkit.ReadCodex(env, cwd)
 }

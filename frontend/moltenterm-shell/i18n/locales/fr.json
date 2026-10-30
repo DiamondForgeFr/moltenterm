@@ -9090,7 +9090,43 @@
             "worktree": "Worktree",
             "started": "Démarré"
         },
-        "mcp": "Serveurs MCP connectés",
+        "toolkit": {
+            "title": "Ce que {name} peut utiliser",
+            "readOnly": "Lu dans ses fichiers de configuration, sans rien modifier.",
+            "servers": "Serveurs MCP",
+            "skills": "Skills",
+            "plugins": "Plugins",
+            "loading": "Lecture de sa configuration…",
+            "failed": "Sa configuration n'a pas pu être lue.",
+            "empty": "Aucun serveur MCP, skill ou plugin n'est configuré pour lui.",
+            "unsupported": "{tool} n'indique pas à MoltenTerm les serveurs MCP, skills ou plugins qu'il peut utiliser.",
+            "online": "Les serveurs ajoutés depuis votre compte en ligne ne sont pas listés : l'agent les récupère à son démarrage.",
+            "showAll": "Tout afficher ({count})",
+            "showLess": "Réduire",
+            "scope": {
+                "molten": "MoltenTerm",
+                "user": "personnel",
+                "project": "projet",
+                "local": "ce dossier seulement",
+                "plugin": "plugin {plugin}",
+                "system": "intégré"
+            },
+            "state": {
+                "configured": "Configuré",
+                "needsapproval": "À approuver dans l'agent",
+                "off": "Désactivé"
+            },
+            "stateShort": {
+                "needsapproval": "à approuver",
+                "off": "désactivé"
+            },
+            "pluginOn": "activé",
+            "pluginOff": "désactivé"
+        },
+        "commandCount": {
+            "one": "Lancé dans {count} appel au shell",
+            "other": "Lancé dans {count} appels au shell"
+        },
         "mcpState": {
             "connected": "Connecté",
             "reconnecting": "Reconnexion en cours",
