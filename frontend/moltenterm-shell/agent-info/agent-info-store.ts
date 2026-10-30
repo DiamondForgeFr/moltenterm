@@ -22,6 +22,7 @@ import {
     toggleSection,
     toggleTree,
 } from "../sidebar/sidebar-agents-model";
+import { subagentFailureKey, type SubagentRow } from "./agent-info-model";
 
 const HistoryTimeoutMs = 5000;
 const HistoryRetryMs = 2000;
@@ -36,10 +37,10 @@ function readStoredTrees(): AgentTreeStates {
     }
 }
 
-const SeenStorageKey = "molten:sidebar:seensubs";
+const SeenStorageKey = "molten:sidebar:seenfailures:v2";
 const SeenMaxIds = 300;
 
-function readStoredSeen(): Record<string, Record<string, boolean>> {
+function readStoredSeen(): Record<string, Record<string, string>> {
     try {
         const parsed = JSON.parse(localStorage.getItem(SeenStorageKey) ?? "{}");
         return parsed != null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
@@ -49,11 +50,13 @@ function readStoredSeen(): Record<string, Record<string, boolean>> {
 }
 
 // Keeps the latest ids only, so the stored list does not grow for ever.
-function trimSeen(all: Record<string, Record<string, boolean>>): Record<string, Record<string, boolean>> {
-    const flat = Object.entries(all).flatMap(([blockId, ids]) => Object.keys(ids).map((id) => [blockId, id]));
-    const rtn: Record<string, Record<string, boolean>> = {};
-    for (const [blockId, id] of flat.slice(-SeenMaxIds)) {
-        rtn[blockId] = { ...(rtn[blockId] ?? {}), [id]: true };
+function trimSeen(all: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
+    const flat = Object.entries(all).flatMap(([blockId, ids]) =>
+        Object.entries(ids).map(([id, key]) => [blockId, id, key])
+    );
+    const rtn: Record<string, Record<string, string>> = {};
+    for (const [blockId, id, key] of flat.slice(-SeenMaxIds)) {
+        rtn[blockId] = { ...(rtn[blockId] ?? {}), [id]: key };
     }
     return rtn;
 }
@@ -67,8 +70,8 @@ export class AgentInfoModel {
     treesAtom = atom(readStoredTrees()) as PrimitiveAtom<AgentTreeStates>;
     // The sub-agent whose own card is open (FR-SHELL-104): its parent's terminal and its id; null when none is.
     openSubAtom = atom(null) as PrimitiveAtom<{ blockId: string; id: string }>;
-    // The sub-agents whose card was opened (a failure stays listed until then), per agent terminal.
-    seenSubsAtom = atom(readStoredSeen()) as PrimitiveAtom<Record<string, Record<string, boolean>>>;
+    // The failure occurrence shown in each sub-agent card, per agent terminal.
+    seenSubsAtom = atom(readStoredSeen()) as PrimitiveAtom<Record<string, Record<string, string>>>;
     started = false;
 
     private constructor() {}
@@ -144,7 +147,6 @@ export class AgentInfoModel {
             return;
         }
         globalStore.set(this.openAtom, null);
-        this.markSubSeen(blockId, id);
         globalStore.set(this.openSubAtom, { blockId, id });
     }
 
@@ -152,12 +154,14 @@ export class AgentInfoModel {
         globalStore.set(this.openSubAtom, null);
     }
 
-    markSubSeen(blockId: string, id: string): void {
+    markSubSeen(blockId: string, row: SubagentRow): void {
         const all = globalStore.get(this.seenSubsAtom);
-        if (!blockId || !id || all[blockId]?.[id]) {
+        if (!blockId || !row?.id || row.state !== "error") {
             return;
         }
-        const next = { ...all, [blockId]: { ...(all[blockId] ?? {}), [id]: true } };
+        const key = subagentFailureKey(row);
+        if (all[blockId]?.[row.id] === key) return;
+        const next = { ...all, [blockId]: { ...(all[blockId] ?? {}), [row.id]: key } };
         globalStore.set(this.seenSubsAtom, next);
         try {
             localStorage.setItem(SeenStorageKey, JSON.stringify(trimSeen(next)));
