@@ -239,15 +239,16 @@ func (a *CodexAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 			if settings, ok := codexLastTurnSettings(tail, agentId); ok {
 				facts.model, facts.effort = settings.Model, settings.Effort
 			}
-			facts.cwd, facts.ended = codexLastTurn(tail)
+			cwd, ended, folders := codexLastTurn(tail)
+			if cwd == "" {
+				if head, ok := a.head(path); ok {
+					cwd = head.cwd
+				}
+			}
+			facts.cwd, facts.ended = codexWorkFolder(cwd, folders), ended
 			return facts, true
 		})
 		id.Model, id.Finished, id.Worktree = facts.model, facts.ended, facts.cwd
-		if id.Worktree == "" {
-			if head, ok := a.head(path); ok {
-				id.Worktree = head.cwd
-			}
-		}
 		rtn = append(rtn, id)
 	}
 	return rtn

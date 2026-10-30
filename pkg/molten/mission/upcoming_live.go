@@ -56,11 +56,12 @@ func liveSubagents(places []AgentPlace) []PaneSubagent {
 	return PaneSubagentsOf(places, companion.PaneSubagents)
 }
 
-// PaneSubagentsOf gives each running Claude Code or Codex panel the sub-agents read finds for it.
+// PaneSubagentsOf gives each running agent panel the sub-agents read finds for it: read asks the panel's agent
+// adapter, which lists none for an agent without sub-agents (#1463: no agent is singled out here).
 func PaneSubagentsOf(places []AgentPlace, read func(blockId string) []companion.SubagentIdentity) []PaneSubagent {
 	var rtn []PaneSubagent
 	for _, p := range places {
-		if p.Review || (p.Agent != molten.AgentIdClaude && p.Agent != molten.AgentIdCodex) {
+		if p.Review || p.Agent == "" {
 			continue
 		}
 		for _, id := range read(p.BlockId) {

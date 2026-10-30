@@ -55,10 +55,6 @@ const (
 	ticketStatusDone  = "done"
 )
 
-// The folder Claude Code puts its worktree agents in: a background agent there was started by a Claude Code session of
-// the main checkout.
-var claudeWorktreesDir = filepath.Join(".claude", "worktrees")
-
 var ticketStatusNameRe = regexp.MustCompile(`^[\p{L}\p{N} _-]{1,40}$`)
 
 type UpcomingRequest struct {
@@ -809,20 +805,21 @@ func (u *Upcoming) backgroundAgents(ctx context.Context, trees []treeEntry, pane
 }
 
 // BackgroundAgents reports the linked worktrees without an agent terminal whose activity is recent. The parent is the
-// one Claude Code terminal working in the main checkout when the worktree is a Claude Code worktree agent's.
+// one terminal of an agent working in the main checkout when the worktree is in that agent's own worktrees folder
+// (molten.AgentKind.WorktreesDir: Claude Code's .claude/worktrees).
 func BackgroundAgents(trees []treeEntry, panels []BranchAgent, places []AgentPlace, activity map[string]int64, now time.Time) []BranchAgent {
 	if len(trees) < 2 {
 		return nil
 	}
 	main := trees[0]
-	var parents []AgentPlace
+	parents := map[string][]AgentPlace{}
 	for _, p := range places {
 		path := placePath(p)
-		if p.Review || p.Agent != molten.AgentIdClaude || path == "" {
+		if p.Review || p.Agent == "" || path == "" {
 			continue
 		}
 		if tree, ok := treeOf(trees, path); ok && tree.path == main.path {
-			parents = append(parents, p)
+			parents[p.Agent] = append(parents[p.Agent], p)
 		}
 	}
 	busy := map[string]bool{}
@@ -837,15 +834,25 @@ func BackgroundAgents(trees []treeEntry, panels []BranchAgent, places []AgentPla
 			continue
 		}
 		agent := BranchAgent{Branch: tree.branch, Worktree: tree.path, Kind: UpcomingAgentBackground, ActiveAt: at}
-		if pathInside(tree.path, filepath.Join(main.path, claudeWorktreesDir)) {
-			agent.Agent = molten.AgentIdClaude
-			if len(parents) == 1 {
-				agent.ParentBlockId, agent.ParentFirstName = parents[0].BlockId, parents[0].FirstName
+		if kind := worktreesKind(main.path, tree.path); kind != "" {
+			agent.Agent = kind
+			if ps := parents[kind]; len(ps) == 1 {
+				agent.ParentBlockId, agent.ParentFirstName = ps[0].BlockId, ps[0].FirstName
 			}
 		}
 		rtn = append(rtn, agent)
 	}
 	return rtn
+}
+
+// worktreesKind is the agent whose own worktrees folder holds the worktree, "" when none does.
+func worktreesKind(mainPath string, treePath string) string {
+	for _, kind := range molten.AgentKinds {
+		if kind.WorktreesDir != "" && pathInside(treePath, filepath.Join(mainPath, kind.WorktreesDir)) {
+			return kind.Id
+		}
+	}
+	return ""
 }
 
 type ghUpcomingIssue struct {

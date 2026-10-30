@@ -217,6 +217,77 @@ func TestCodexSubagentFollowUpAndInterrupt(t *testing.T) {
 	}
 }
 
+func codexExecCall(at time.Time, callId string, cmd string, workdir string) string {
+	args := fmt.Sprintf(`{"cmd":%q,"workdir":%q,"yield_time_ms":10000}`, cmd, workdir)
+	return fmt.Sprintf(`{"timestamp":%q,"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":%q,"call_id":%q}}`,
+		codexStamp(at), args, callId)
+}
+
+// #1463: Codex starts a sub-agent in its parent's folder, so its turns' cwd stays the main checkout while it runs its
+// commands in its ticket's worktree. Its folder, branch and ticket are the worktree's; commands in a subfolder of the
+// main checkout or outside any repository do not move it; a sub-agent whose commands all run in the main checkout
+// stays there.
+func TestCodexSubagentWorksWhereItsCommandsRun(t *testing.T) {
+	root, repo, outside := t.TempDir(), t.TempDir(), t.TempDir()
+	makeRepo(t, repo, "develop")
+	tree := filepath.Join(t.TempDir(), "mt-1462")
+	makeWorktree(t, repo, tree, "fix/1462-codex-sessions")
+	now := time.Now().Add(-5 * time.Minute)
+	parent := codexRolloutPath(root, now, codexSubParent)
+	writeCodexLines(t, parent,
+		codexMeta(codexSubParent, repo, now, ""),
+		codexTurnEvent(now, "task_started"),
+		codexSpawnCall(now.Add(time.Second), "call_rel", "ticket_1462", "worker", ""),
+		codexSpawnOutput(now.Add(time.Second), "call_rel", "/root/ticket_1462"),
+		codexActivity(now.Add(time.Second), "call_rel", "started", codexSubReliable, "/root/ticket_1462", `,"model":"gpt-5.5","reasoning_effort":"high"`),
+		codexSpawnCall(now.Add(2*time.Second), "call_ux", "read_docs", "explorer", ""),
+		codexSpawnOutput(now.Add(2*time.Second), "call_ux", "/root/read_docs"),
+		codexActivity(now.Add(2*time.Second), "call_ux", "started", codexSubUx, "/root/read_docs", ""),
+	)
+	writeCodexLines(t, codexRolloutPath(root, now.Add(time.Second), codexSubReliable),
+		codexSubMeta(codexSubReliable, codexSubParent, 1, "/root/ticket_1462", "Nash", "worker", repo, now.Add(time.Second)),
+		codexTurnEvent(now.Add(time.Second), "task_started"),
+		codexSubTurnContext(repo, "gpt-5.5", "high"),
+		codexExecCall(now.Add(2*time.Second), "c1", "go test ./pkg/...", tree),
+		codexExecCall(now.Add(3*time.Second), "c2", "ls", "frontend"),
+		codexExecCall(now.Add(4*time.Second), "c3", "ls", outside),
+	)
+	writeCodexLines(t, codexRolloutPath(root, now.Add(2*time.Second), codexSubUx),
+		codexSubMeta(codexSubUx, codexSubParent, 1, "/root/read_docs", "Bohr", "explorer", repo, now.Add(2*time.Second)),
+		codexTurnEvent(now.Add(2*time.Second), "task_started"),
+		codexSubTurnContext(repo, "gpt-5.5", "low"),
+		codexExecCall(now.Add(3*time.Second), "d1", "cat README.md", repo),
+	)
+	a := MakeCodexAdapter([]string{root})
+
+	ids := map[string]SubagentIdentity{}
+	for _, id := range a.ListSubagents(parent) {
+		ids[id.Description] = id
+	}
+	if got := ids["ticket 1462"]; got.Worktree != tree || got.Model != "gpt-5.5" || got.Finished {
+		t.Errorf("Integration's listing: the sub-agent works in its commands' worktree: %+v", got)
+	}
+	if got := ids["read docs"]; got.Worktree != repo {
+		t.Errorf("a sub-agent whose commands run in the main checkout stays there: %+v", got)
+	}
+
+	s := MakeSession()
+	parsePath(t, a, s, parent)
+	for _, sa := range s.runningSubagents() {
+		if facts, ok := a.ReadSubagent(parent, sa.agentId); ok {
+			s.SetSubagentFacts(sa.callId, facts)
+		}
+	}
+	s.ResolveTickets(nil)
+	subs := subagentsByName(s.Subagents())
+	if got := subs["ticket 1462"]; got.Branch != "fix/1462-codex-sessions" || got.Ticket != 1462 {
+		t.Errorf("the companion's row: the worktree's branch and ticket, not the main checkout's: %+v", got)
+	}
+	if got := subs["read docs"]; got.Branch != "develop" || got.Ticket != 0 {
+		t.Errorf("the main checkout's sub-agent: %+v", got)
+	}
+}
+
 // The companion of a Codex pane shows its sub-agents, their tickets read on a refresh.
 func TestCodexSubagentsInCompanion(t *testing.T) {
 	f := makeCodexSubFixture(t)

@@ -32,6 +32,9 @@ const (
 	// How much of a rollout's first line is read for its header, and how many headers are kept.
 	codexHeadBytes    = 256 * 1024
 	codexMaxHeadCache = 4000
+	// The distinct folders of a sub-agent's latest shell commands kept to find its worktree (#1463).
+	codexMaxCommandFolders = 8
+	codexMaxCommandRecords = 64
 )
 
 var (
@@ -40,6 +43,10 @@ var (
 	codexTaskStartedMarker  = []byte(`"task_started"`)
 	codexTurnStartedMarker  = []byte(`"turn_started"`)
 	codexTurnCompleteMarker = []byte(`"turn_complete"`)
+	// A shell call's arguments are a JSON string inside the record: its keys are escaped there.
+	codexWorkdirMarker     = []byte(`workdir`)
+	codexWorkingDirMarker  = []byte(`"working_directory"`)
+	codexExecCommandMarker = []byte(`"exec_command_`)
 )
 
 // codexHead is what a rollout's own session_meta says.
@@ -228,23 +235,105 @@ func (a *CodexAdapter) ReadSubagent(sessionPath string, agentId string) (Subagen
 	if settings, ok := codexLastTurnSettings(tail, agentId); ok {
 		facts.Model, facts.Effort = settings.Model, settings.Effort
 	}
-	cwd, ended := codexLastTurn(tail)
+	cwd, ended, folders := codexLastTurn(tail)
 	if cwd == "" {
 		cwd = head.cwd
 	}
-	facts.Worktree = cwd
-	facts.Branch = FolderBranch(cwd)
+	facts.Worktree = codexWorkFolder(cwd, folders)
+	facts.Branch = FolderBranch(facts.Worktree)
 	facts.Ended = ended
 	return facts, true
 }
 
-// codexLastTurn reads, from a rollout's last lines, its latest turn's folder and whether that turn ended.
-func codexLastTurn(tail []byte) (cwd string, ended bool) {
+// codexWorkFolder is the folder a Codex agent works in (#1463). Codex starts a sub-agent in its parent's folder and
+// gives it no folder of its own: one sent to a ticket's worktree runs each command there (a shell call's workdir)
+// while its turns keep the parent's cwd, the main checkout's. The newest command folder in another checkout than its
+// turn's folder is therefore its worktree; without one, its turn's folder. A command run in a subfolder of the turn's
+// checkout, or outside any repository, names no other worktree.
+func codexWorkFolder(cwd string, folders []string) string {
+	turnGit := ""
+	if filepath.IsAbs(cwd) {
+		turnGit = findGitDir(filepath.Clean(cwd))
+	}
+	for _, f := range folders {
+		if !filepath.IsAbs(f) {
+			if !filepath.IsAbs(cwd) {
+				continue
+			}
+			f = filepath.Join(cwd, f)
+		}
+		f = filepath.Clean(f)
+		if git := findGitDir(f); git != "" && git != turnGit {
+			return f
+		}
+	}
+	return cwd
+}
+
+// codexCommandFolder reads the folder a shell command record runs in: a shell call's workdir, a local shell call's
+// working_directory, an exec_command event's cwd; "" for any other record.
+func codexCommandFolder(line []byte) string {
+	var rec struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Type      string          `json:"type"`
+			Name      string          `json:"name"`
+			Arguments json.RawMessage `json:"arguments"`
+			Cwd       json.RawMessage `json:"cwd"`
+			Action    json.RawMessage `json:"action"`
+		} `json:"payload"`
+	}
+	if json.Unmarshal(line, &rec) != nil {
+		return ""
+	}
+	p := rec.Payload
+	switch {
+	case rec.Type == "response_item" && p.Type == "function_call" && codexShellTools[p.Name]:
+		var args string
+		var parsed struct {
+			Workdir string `json:"workdir"`
+		}
+		if json.Unmarshal(p.Arguments, &args) != nil || json.Unmarshal([]byte(args), &parsed) != nil {
+			return ""
+		}
+		return parsed.Workdir
+	case rec.Type == "response_item" && p.Type == "local_shell_call":
+		var action struct {
+			WorkingDirectory string `json:"working_directory"`
+		}
+		if json.Unmarshal(p.Action, &action) != nil {
+			return ""
+		}
+		return action.WorkingDirectory
+	case rec.Type == "event_msg" && (p.Type == "exec_command_begin" || p.Type == "exec_command_end"):
+		var cwd string
+		if json.Unmarshal(p.Cwd, &cwd) != nil {
+			return ""
+		}
+		return cwd
+	}
+	return ""
+}
+
+// codexLastTurn reads, from a rollout's last lines, its latest turn's folder, whether that turn ended, and the folders
+// its latest shell commands ran in (newest first, each once; at most codexMaxCommandFolders, from its last
+// codexMaxCommandRecords commands).
+func codexLastTurn(tail []byte) (cwd string, ended bool, folders []string) {
 	turnSeen := false
-	for end := len(tail); end > 0 && (cwd == "" || !turnSeen); {
+	seen := map[string]bool{}
+	commands := 0
+	moreFolders := func() bool { return len(folders) < codexMaxCommandFolders && commands < codexMaxCommandRecords }
+	for end := len(tail); end > 0 && (cwd == "" || !turnSeen || moreFolders()); {
 		start := bytes.LastIndexByte(tail[:end], '\n') + 1
 		line := tail[start:end]
 		end = start - 1
+		if moreFolders() && codexCommandRecord(line) {
+			commands++
+			if folder := strings.TrimSpace(codexCommandFolder(line)); folder != "" && !seen[folder] {
+				seen[folder] = true
+				folders = append(folders, folder)
+			}
+		}
 		if cwd == "" && bytes.Contains(line, codexTurnContextMarker) {
 			var rec struct {
 				Type    string `json:"type"`
@@ -281,7 +370,12 @@ func codexLastTurn(tail []byte) (cwd string, ended bool) {
 			turnSeen = true
 		}
 	}
-	return cwd, ended
+	return cwd, ended, folders
+}
+
+// codexCommandRecord tells, without decoding it, whether a line may be a shell command naming its folder.
+func codexCommandRecord(line []byte) bool {
+	return bytes.Contains(line, codexWorkdirMarker) || bytes.Contains(line, codexWorkingDirMarker) || bytes.Contains(line, codexExecCommandMarker)
 }
 
 // FindSubagents reads the headers of the rollouts written since the given time in the dated folders from then on
