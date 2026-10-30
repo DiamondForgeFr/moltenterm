@@ -191,7 +191,11 @@ func (r *Registry) capture(c Capture) (molten.Material, bool, error) {
 	if found {
 		existingId = existing.Id
 	}
-	return r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != "", version: c.Version, at: c.At}, r.limits)
+	out, changed, err := r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != "", version: c.Version, at: c.At}, r.limits)
+	if ver != nil {
+		r.store.releaseVersion(ver.tmp)
+	}
+	return out, changed, err
 }
 
 // resolveSource checks a material's file: it returns its real path and kind when it may be copied, the original path
@@ -370,19 +374,13 @@ func (s *Store) buildVersion(key string, files []plannedFile, kind string, limit
 	if len(files) == 0 {
 		return nil, fmt.Errorf("nothing to copy")
 	}
-	base := filepath.Join(s.drawerDir(key), tmpDir)
-	if err := ensureDir(s.drawerDir(key)); err != nil {
-		return nil, err
-	}
-	if err := ensureDir(base); err != nil {
-		return nil, err
-	}
-	tmp := filepath.Join(base, randomSuffix()+randomSuffix())
-	if err := os.Mkdir(tmp, dirMode); err != nil {
+	tmp, err := s.reserveVersion(key)
+	if err != nil {
 		return nil, err
 	}
 	fail := func(err error) (*pendingVersion, error) {
 		os.RemoveAll(tmp)
+		s.releaseVersion(tmp)
 		return nil, err
 	}
 	sort.SliceStable(files[1:], func(i, j int) bool { return files[1+i].rel < files[1+j].rel })
@@ -413,6 +411,30 @@ func (s *Store) buildVersion(key string, files []plannedFile, kind string, limit
 		v.thumb = makeThumb(filepath.Join(tmp, files[0].rel), limits.ThumbPx, limits.ThumbBytes)
 	}
 	return v, nil
+}
+
+func (s *Store) reserveVersion(key string) (string, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	base := filepath.Join(s.drawerDir(key), tmpDir)
+	if err := ensureDir(s.drawerDir(key)); err != nil {
+		return "", err
+	}
+	if err := ensureDir(base); err != nil {
+		return "", err
+	}
+	tmp := filepath.Join(base, randomSuffix()+randomSuffix())
+	if err := os.Mkdir(tmp, dirMode); err != nil {
+		return "", err
+	}
+	s.activeVersions[tmp] = true
+	return tmp, nil
+}
+
+func (s *Store) releaseVersion(tmp string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	delete(s.activeVersions, tmp)
 }
 
 // copyFile copies a file (or the given bytes) into a new 0600 file, adding it to the hash; a file that grew past what

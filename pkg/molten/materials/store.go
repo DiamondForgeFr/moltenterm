@@ -66,8 +66,9 @@ type Store struct {
 	root string
 	lock sync.Mutex
 	// Guarded by lock.
-	drawers map[string]*drawer
-	scanned bool
+	drawers        map[string]*drawer
+	scanned        bool
+	activeVersions map[string]bool
 
 	now      func() time.Time
 	onChange func(molten.MaterialsChanged)
@@ -76,7 +77,7 @@ type Store struct {
 }
 
 func MakeStore(root string) *Store {
-	return &Store{root: root, drawers: map[string]*drawer{}, now: time.Now}
+	return &Store{root: root, drawers: map[string]*drawer{}, activeVersions: map[string]bool{}, now: time.Now}
 }
 
 func (s *Store) Root() string {
@@ -603,7 +604,15 @@ func (s *Store) Sweep(keep time.Duration) {
 	now := s.now()
 	for key, d := range s.drawers {
 		dir := s.drawerDir(key)
-		os.RemoveAll(filepath.Join(dir, tmpDir))
+		tmp := filepath.Join(dir, tmpDir)
+		entries, _ := os.ReadDir(tmp)
+		for _, entry := range entries {
+			path := filepath.Join(tmp, entry.Name())
+			if !s.activeVersions[path] {
+				os.RemoveAll(path)
+			}
+		}
+		os.Remove(tmp)
 		removePartials(dir)
 		known := map[string]map[string]bool{}
 		for _, m := range d.index.Materials {
