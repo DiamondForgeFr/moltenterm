@@ -132,7 +132,7 @@ func (r *Registry) recover(key string, folder string, adapters []companion.Adapt
 				continue
 			}
 			c := pastCapture(key, folder, p)
-			c.Source, c.Link = molten.MaterialSourceNamed, link
+			c.Source, c.Link, c.At = molten.MaterialSourceNamed, link, p.sig.At
 			_, existed := r.store.match(key, "", link, "")
 			m, _, err := r.capture(c)
 			if err == nil {
@@ -196,7 +196,7 @@ func (r *Registry) recoverLink(key string, folder string, link string, pubs []pa
 		sig := s.latest.sig
 		c := pastCapture(key, folder, s.latest)
 		c.Source, c.Link, c.ToolTitle, c.Linked, c.Sources, c.Version = molten.MaterialSourcePublished, link, sig.Title, sig.Files, sig.Sources, s.version
-		c.ArtifactId, c.Path = artifactId, path
+		c.ArtifactId, c.Path, c.At = artifactId, path, sig.At
 		m, _, err := r.capture(c)
 		if err == nil && m.Id != "" {
 			id = m.Id

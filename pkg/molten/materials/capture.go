@@ -82,7 +82,9 @@ type Capture struct {
 	// Recopy: the end-of-turn copy; it replaces the latest version's files when they changed, and adds nothing new.
 	Recopy bool
 	// Version: the page's version number at its address, as the publishing tool gives it (0: not given).
-	Version     int
+	Version int
+	// At: when the material was published, for a sighting read after the fact (a past session); 0 is now.
+	At          int64
 	Agent       string
 	Tool        string
 	SessionId   string
@@ -189,7 +191,7 @@ func (r *Registry) capture(c Capture) (molten.Material, bool, error) {
 	if found {
 		existingId = existing.Id
 	}
-	return r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != "", version: c.Version}, r.limits)
+	return r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != "", version: c.Version, at: c.At}, r.limits)
 }
 
 // resolveSource checks a material's file: it returns its real path and kind when it may be copied, the original path
@@ -453,6 +455,7 @@ type commitOpts struct {
 	recopy    bool
 	toolTitle bool
 	version   int
+	at        int64
 }
 
 // fits tells whether a copy of size bytes keeps the drawer and the whole registry under their caps.
@@ -505,6 +508,10 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 		return molten.Material{}, false, err
 	}
 	now := s.now().UnixMilli()
+	seenAt := now
+	if opts.at > 0 && opts.at < now {
+		seenAt = opts.at
+	}
 	i := -1
 	if existingId != "" {
 		i = findLocked(d, existingId)
@@ -524,7 +531,7 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 			return molten.Material{}, false, nil
 		}
 		rec.Id = newId(s.now())
-		rec.Created, rec.Updated = now, now
+		rec.Created, rec.Updated = seenAt, now
 		d.index.Materials = append(d.index.Materials, rec)
 		i = len(d.index.Materials) - 1
 	}
@@ -574,7 +581,7 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 			return molten.Material{}, false, err
 		}
 		s.kill("commit:renamed")
-		v := molten.MaterialVersion{N: n, At: now, Title: rec.Title, Size: ver.size, Files: ver.files, Dir: name, Main: ver.main, Hash: ver.hash}
+		v := molten.MaterialVersion{N: n, At: seenAt, Title: rec.Title, Size: ver.size, Files: ver.files, Dir: name, Main: ver.main, Hash: ver.hash}
 		if replace {
 			removeAfter = append(removeAfter, filepath.Join(item, m.Versions[len(m.Versions)-1].Dir))
 			m.Versions[len(m.Versions)-1] = v

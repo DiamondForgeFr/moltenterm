@@ -77,6 +77,7 @@ func ReadPastSession(adapter Adapter, path string, hosts []string) (PastSession,
 			signals = append(signals, sig)
 		}
 	}
+	branches := map[string]bool{}
 	br := bufio.NewReaderSize(f, 256*1024)
 	var line []byte
 	skipping := false
@@ -101,6 +102,11 @@ func ReadPastSession(adapter Adapter, path string, hosts []string) (PastSession,
 			continue
 		}
 		n++
+		if len(branches) < 2 {
+			if b := recordBranch(line); b != "" && b != "HEAD" {
+				branches[b] = true
+			}
+		}
 		if n <= pastHeadLines || carriesAny(line, markers) {
 			parseRecordLine(adapter, s, line)
 		}
@@ -109,10 +115,34 @@ func ReadPastSession(adapter Adapter, path string, hosts []string) (PastSession,
 	s.materialSink = nil
 	b := s.MaterialSignals(0)
 	b.Signals, b.Seq = signals, 0
+	if len(branches) > 1 {
+		// Claude Code records the branch of whichever worktree its process last touched: a session that saw several
+		// (the main checkout's, while its agents worked in worktrees) tells no ticket by its branch.
+		b.Ticket = 0
+		if s.firstPrompt != nil {
+			b.Ticket = textTicket(s.firstPrompt.Text)
+		}
+	}
 	if b.SessionId == "" && adapter.Id() == molten.AgentIdClaude {
 		b.SessionId = strings.TrimSuffix(filepath.Base(path), ".jsonl")
 	}
 	return PastSession{Path: path, Agent: adapter.Id(), Batch: b}, nil
+}
+
+var gitBranchMarker = []byte(`"gitBranch":"`)
+
+// recordBranch reads a Claude Code record's gitBranch without decoding the record.
+func recordBranch(line []byte) string {
+	i := bytes.Index(line, gitBranchMarker)
+	if i < 0 {
+		return ""
+	}
+	rest := line[i+len(gitBranchMarker):]
+	j := bytes.IndexByte(rest, '"')
+	if j <= 0 || j > 250 {
+		return ""
+	}
+	return string(rest[:j])
 }
 
 func carriesAny(line []byte, markers [][]byte) bool {
