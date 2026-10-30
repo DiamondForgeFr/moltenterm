@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import {
+    agentCallName,
     agentLabel,
     AgentStateDotClasses,
     AgentStateInfo,
@@ -228,7 +229,7 @@ function AgentSubagents({ info, onGoTo }: { info: AgentStateInfo; onGoTo: () => 
     return (
         <ul
             className="ml-[5px] flex min-w-0 flex-col border-l border-border pl-3"
-            aria-label={t("project.agents.subagents", { name: agentLabel(info) })}
+            aria-label={t("project.agents.subagents", { name: agentCallName(info) })}
             data-testid="project-subagents"
         >
             {subs.rows.map((row) => (

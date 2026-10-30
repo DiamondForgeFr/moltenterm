@@ -815,7 +815,7 @@
             },
             "agent:integrate": {
                 "label": "Connexion de l'agent",
-                "description": "claude et codex reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
+                "description": "Les agents pris en charge reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
             },
             "agent:integrateoff": {
                 "label": "Agents avec la connexion",
@@ -1388,7 +1388,7 @@
             "points": {
                 "agent": {
                     "title": "Apportez votre agent.",
-                    "text": "MoltenTerm n'embarque aucune IA. Claude Code, Codex, Gemini CLI ou tout agent en ligne de commande s'y exécute, avec votre propre compte."
+                    "text": "MoltenTerm n'embarque aucune IA. Tout agent de code qui s'exécute dans un terminal y fonctionne, avec votre propre compte."
                 },
                 "morph": {
                     "title": "Remodelé par votre agent.",
@@ -1428,7 +1428,7 @@
             "lookAgain": "Chercher à nouveau",
             "searching": "Recherche…",
             "stillNone": "Nouvelle recherche faite : toujours aucun agent de code sur cet ordinateur.",
-            "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm connecte cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
+            "integration": "Quand un agent pris en charge démarre dans un terminal MoltenTerm, MoltenTerm connecte cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
             "settingsLink": "Réglages des agents",
             "listFailed": "Impossible de lister les agents : {error}",
             "looking": "Recherche des agents de code sur cet ordinateur…",
@@ -1510,7 +1510,7 @@
             },
             "alsoBy": {
                 "claude": "ou dans le .claude/settings.json d'un projet, fusionné avec les hooks que vous avez déjà",
-                "codex": "ou dans le .codex/hooks.json d'un projet, fusionné avec les hooks que vous avez déjà ; Codex les exécute une fois que vous les avez approuvés dans /hooks"
+                "codex": "ou dans le .codex/hooks.json d'un projet, fusionné avec les hooks que vous avez déjà ; l'agent les exécute une fois que vous les avez approuvés dans /hooks"
             },
             "restart": "Relancez {name} après la modification. Dès que ses hooks se manifestent, cette proposition disparaît.",
             "guide": "Lire le guide des états des agents"
@@ -1535,9 +1535,9 @@
             "thisAgent": "Cet agent",
             "loading": "Lecture de la session…",
             "noAgent": "Aucun agent ne tourne dans ce terminal",
-            "noAgentDetail": "Lancez Claude Code ici, ou rattachez le compagnon à un autre terminal.",
+            "noAgentDetail": "Lancez un agent de code ici, ou rattachez le compagnon à un autre terminal.",
             "unsupportedAgent": "Pas de compagnon pour {name}",
-            "unsupportedAgentDetail": "Le compagnon lit les sessions de Claude Code et de Codex.",
+            "unsupportedAgentDetail": "Le compagnon lit les sessions des agents pris en charge par MoltenTerm.",
             "remote": "Pas de compagnon pour un terminal distant",
             "remoteDetail": "La session de l'agent se trouve sur la machine distante.",
             "searching": "En attente de la session de {name}",
@@ -1699,20 +1699,20 @@
         "gauges": {
             "reason": {
                 "notsetup": "Ligne d'état non configurée",
-                "waiting": "En attente de la ligne d'état de Claude Code : elle donne les limites après sa prochaine réponse",
+                "waiting": "En attente de la ligne d'état de l'agent : elle donne les limites après sa prochaine réponse",
                 "noplan": "Pas d'abonnement Pro ou Max",
                 "format": "La source a changé : cette version de MoltenTerm ne sait pas la lire",
                 "expired": "Les limites ont été remises à zéro : les nouvelles valeurs arrivent avec la prochaine réponse",
                 "failed": "La source n'a pas pu être lue",
-                "signedout": "Claude Code n'est pas connecté : connectez-vous depuis Claude Code, MoltenTerm ne le demande jamais",
-                "tokenexpired": "La connexion de Claude Code a expiré : Claude Code la renouvelle à sa prochaine exécution",
-                "denied": "Anthropic a refusé le jeton de connexion de Claude Code",
-                "ratelimited": "Anthropic a demandé d'attendre : MoltenTerm redemandera plus tard",
-                "offline": "Le service d'utilisation d'Anthropic est injoignable",
+                "signedout": "L'agent n'est pas connecté : connectez-vous depuis l'agent, MoltenTerm ne le demande jamais",
+                "tokenexpired": "La connexion de l'agent a expiré : l'agent la renouvelle à sa prochaine exécution",
+                "denied": "Le fournisseur a refusé le jeton de connexion de l'agent",
+                "ratelimited": "Le fournisseur a demandé d'attendre : MoltenTerm redemandera plus tard",
+                "offline": "Le service d'utilisation du fournisseur est injoignable",
                 "codex": {
-                    "waiting": "En attente de Codex : les limites arrivent avec sa prochaine réponse",
-                    "noplan": "Codex n'indique aucune limite d'abonnement pour cette connexion",
-                    "expired": "Les limites ont été remises à zéro : les nouvelles valeurs arrivent avec la prochaine réponse de Codex"
+                    "waiting": "En attente de l'agent : les limites arrivent avec sa prochaine réponse",
+                    "noplan": "L'agent n'indique aucune limite d'abonnement pour cette connexion",
+                    "expired": "Les limites ont été remises à zéro : les nouvelles valeurs arrivent avec la prochaine réponse de l'agent"
                 }
             },
             "percentUsed": "{percent} % utilisés",
@@ -1724,9 +1724,10 @@
             "creditsAvailable": "Crédits disponibles",
             "extraUsage": "Utilisation supplémentaire : {used} sur {limit}",
             "experimentalLabel": "Expérimental · source non documentée",
-            "experimentalExplanation": "Lit aussi la limite hebdomadaire de chaque modèle et les crédits d'utilisation supplémentaire depuis un service Anthropic non documenté.",
-            "tokenWhereDefault": "l'endroit où Claude Code le garde",
-            "experimentalStatement": "MoltenTerm lira votre jeton de connexion Claude Code depuis {where} pour demander à Anthropic l'utilisation de votre abonnement. Le jeton reste en mémoire, il n'est jamais enregistré ni envoyé ailleurs. Non documenté : cela peut cesser de fonctionner.",
+            "experimentalExplanation": "Lit aussi la limite hebdomadaire de chaque modèle et les crédits d'utilisation supplémentaire depuis un service non documenté du fournisseur.",
+            "tokenWhereDefault": "l'endroit où l'agent le garde",
+            "sourceDefault": "le service d'utilisation du fournisseur",
+            "experimentalStatement": "MoltenTerm lira le jeton de connexion de l'agent depuis {where} pour obtenir l'utilisation de votre abonnement (source : {source}). Le jeton reste en mémoire, il n'est jamais enregistré ni envoyé ailleurs. Non documenté : cela peut cesser de fonctionner.",
             "updated": "Mise à jour {ago}",
             "title": "Utilisation de l'abonnement",
             "show": "Afficher l'utilisation de l'abonnement",
@@ -1734,7 +1735,7 @@
             "hide": "Masquer l'utilisation de l'abonnement",
             "hideShort": "Masquer",
             "showShort": "Afficher",
-            "experimentalSourceTitle": "Lu depuis un service qu'Anthropic ne documente pas : il peut changer ou cesser de fonctionner",
+            "experimentalSourceTitle": "Lu depuis un service que le fournisseur ne documente pas : il peut changer ou cesser de fonctionner",
             "modelLimits": "Limites des modèles et crédits",
             "turnOff": "Désactiver",
             "modelLimitsUnavailable": "Limites des modèles indisponibles",
@@ -1749,12 +1750,12 @@
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
-            "setupIntro": "Claude Code donne les limites de votre abonnement à sa ligne d'état. Enveloppez votre ligne d'état dans le relais de MoltenTerm et les jauges s'affichent ici.",
+            "setupIntro": "L'agent donne les limites de votre abonnement à sa ligne d'état. Enveloppez votre ligne d'état dans le relais de MoltenTerm et les jauges s'affichent ici.",
             "setupReplace": "Remplacez l'entrée statusLine de",
             "setupAdd": "Ajoutez ceci à",
             "setupWith": " par :",
             "setupColon": " :",
-            "setupNote": "Votre ligne d'état reste exactement la même, dans MoltenTerm et dans tout autre terminal. MoltenTerm ne modifie jamais ce fichier. Les jauges s'affichent après la prochaine réponse de Claude Code.",
+            "setupNote": "Votre ligne d'état reste exactement la même, dans MoltenTerm et dans tout autre terminal. MoltenTerm ne modifie jamais ce fichier. Les jauges s'affichent après la prochaine réponse de l'agent.",
             "setupFailed": "MoltenTerm n'a pas pu vérifier la configuration ; il réessaie.",
             "copied": "Copié",
             "copy": "Copier"
@@ -1883,7 +1884,7 @@
         "items": {
             "morph": {
                 "title": "Façonnez MoltenTerm avec votre agent",
-                "text": "Dans Claude Code, Codex ou un autre agent, demandez un panneau, une commande ou une disposition : l'agent écrit un mod et MoltenTerm demande avant de l'exécuter. ($morph dans Codex, /skill:morph dans Kimi Code.)"
+                "text": "Dans votre agent, demandez un panneau, une commande ou une disposition : l'agent écrit un mod et MoltenTerm demande avant de l'exécuter. La compétence morph s'appelle /morph, $morph ou /skill:morph, selon l'agent."
             },
             "undo": {
                 "title": "Revenir sur un changement",
@@ -2303,9 +2304,9 @@
             "planUsage": "Utilisation du forfait",
             "usageSource": "Source de l'utilisation",
             "statusLine": "Ligne de statut",
-            "statusLineDetail": "les chiffres de Claude Code",
+            "statusLineDetail": "les chiffres de l'agent",
             "endpoint": "Plus l'endpoint d'utilisation",
-            "endpointDetail": "expérimental, jeton de Claude Code",
+            "endpointDetail": "expérimental, jeton de l'agent",
             "linkedSession": "Session liée…",
             "title": "Compagnon"
         },
@@ -7006,8 +7007,8 @@
             "waitingMark": "En attente",
             "allDone": "Toutes les sessions sont traitées.",
             "command": "Commande",
-            "permissionMode": "Mode d'autorisation de Claude Code",
-            "bypassWarning": "Claude Code exécute des commandes et modifie des fichiers sans demander dans ces sessions.",
+            "permissionMode": "Mode d'autorisation",
+            "bypassWarning": "L'agent exécute des commandes et modifie des fichiers sans demander dans ces sessions.",
             "selected": "Sessions sélectionnées",
             "leftOut": "Laissée de côté",
             "included": "Incluse"
@@ -7137,7 +7138,7 @@
         "session": {
             "briefTyped": "La demande est dans l'invite de votre agent, après ce que vous y tapiez : appuyez sur Entrée dans son terminal pour l'envoyer.",
             "reason": {
-                "notinstalled": "Aucun agent de code pris en charge (Claude Code ou Codex) n'est installé : la revue n'a donc pas d'IA. Le diff, les commentaires, la publication et la fusion fonctionnent sans elle.",
+                "notinstalled": "Aucun agent de code pris en charge n'est installé : la revue n'a donc pas d'IA. Le diff, les commentaires, la publication et la fusion fonctionnent sans elle.",
                 "agentmissing": "{agent} n'est pas installé : la revue n'a donc pas d'IA. Le diff, les commentaires, la publication et la fusion fonctionnent sans elle.",
                 "alreadystarting": "La session de revue de cette PR est déjà en train de démarrer.",
                 "nomolten": "La commande molten de MoltenTerm n'est pas installée : les outils de revue ne peuvent pas être donnés à l'agent.",
@@ -8397,7 +8398,7 @@
                 "invalid": "Le pipeline contient des erreurs : {errors}. Corrigez-le d’abord (molten project validate).",
                 "changed": "{path} a changé depuis la proposition : relancez-la.",
                 "notValid": "Le pipeline proposé n’est pas valide : {errors}",
-                "noAgent": "Aucun agent de code pris en charge (Claude Code ou Codex) n’est installé sur cet ordinateur.",
+                "noAgent": "Aucun agent de code pris en charge n’est installé sur cet ordinateur.",
                 "agentFailed": "{agent} n’a pas pu affiner la proposition : {detail}",
                 "agentNoChanges": "{agent} a répondu sans liste de changements.",
                 "boardGone": "Cette proposition a été retirée.",
@@ -8606,7 +8607,7 @@
                 "sessionlink": "Lien de session",
                 "coffeeapprovals": "Approbations du café",
                 "coffeeapprovalsyours": "Approbations du café (votre propre hook, dans {where})",
-                "codexcoffeeapprovals": "Approbations du café (une fois le hook de MoltenTerm approuvé dans /hooks de Codex)",
+                "codexcoffeeapprovals": "Approbations du café (une fois le hook de MoltenTerm approuvé dans /hooks de l'agent)",
                 "statusline": "Relais de la ligne d'état",
                 "statuslinenone": "Relais de la ligne d'état (vous n'avez pas de ligne d'état : rien n'est affiché)",
                 "statuslinearound": "Relais de la ligne d'état autour de la vôtre",
@@ -8614,9 +8615,9 @@
                 "codexnotify": "État terminé à la fin de chaque tour (notify)",
                 "codexnotifyaround": "État terminé à la fin de chaque tour (notify, autour de votre propre notify)",
                 "codexsessionlink": "Lien de session (à la fin du premier tour)",
-                "codexstatehooksof": "Hooks d'état de l'agent ({events}), une fois les hooks de MoltenTerm approuvés dans /hooks de Codex",
-                "codexsessionstart": "Lien de session dès le démarrage (une fois les hooks de MoltenTerm approuvés dans /hooks de Codex)",
-                "codexnotifications": "État en attente par les notifications de Codex (approbations et questions)"
+                "codexstatehooksof": "Hooks d'état de l'agent ({events}), une fois les hooks de MoltenTerm approuvés dans /hooks de l'agent",
+                "codexsessionstart": "Lien de session dès le démarrage (une fois les hooks de MoltenTerm approuvés dans /hooks de l'agent)",
+                "codexnotifications": "État en attente par les notifications de l'agent (approbations et questions)"
             },
             "reason": {
                 "managedhooksonly": "les réglages gérés de votre organisation n'autorisent que leurs propres hooks",
@@ -8643,13 +8644,13 @@
                 "ownnotifyflag": "vous avez passé votre propre -c notify : il tourne comme vous l'avez réglé",
                 "managednotify": "{where} de votre organisation définit notify",
                 "projectnotify": "{where} peut définir notify pour ce projet : il tourne comme vous l'avez réglé",
-                "rootmarkers": "{where} définit project_root_markers : les fichiers de projet que Codex lit n'ont pas pu être déterminés",
+                "rootmarkers": "{where} définit project_root_markers : les fichiers de projet que l'agent lit n'ont pas pu être déterminés",
                 "notifynotlist": "le notify de {where} n'est pas une liste de chaînes",
-                "codexhooksoff": "les hooks de Codex sont désactivés dans {where}",
+                "codexhooksoff": "les hooks de l'agent sont désactivés dans {where}",
                 "codexhooksflag": "vous avez passé {flag} : seuls vos propres hooks tournent",
                 "ownpermissionhooks": "vous avez vos propres hooks PermissionRequest, dans {where}",
                 "owneventhooks": "vous avez vos propres hooks {event}, dans {where}",
-                "owntuinotifications": "{where} règle les notifications de Codex : elles fonctionnent comme vous les avez réglées"
+                "owntuinotifications": "{where} règle les notifications de l'agent : elles fonctionnent comme vous les avez réglées"
             },
             "stepaside": {
                 "outsidepane": "hors d'un terminal MoltenTerm",
@@ -8659,7 +8660,7 @@
                 "settingsoff": "la connexion de l'agent est désactivée dans les réglages de MoltenTerm ({setting})",
                 "settingsagentoff": "la connexion de l'agent est désactivée pour cet agent dans les réglages de MoltenTerm ({setting})",
                 "settingsunknown": "les réglages de MoltenTerm n'ont pas pu être lus à temps",
-                "disableallhooks": "disableAllHooks est activé dans {where} : Claude Code n'exécute aucun hook ni ligne d'état",
+                "disableallhooks": "disableAllHooks est activé dans {where} : l'agent n'exécute aucun hook ni ligne d'état",
                 "notwritten": "la connexion de l'agent n'a pas pu être écrite : {detail}"
             }
         },
@@ -8678,7 +8679,7 @@
                 "remote": "il tourne sur un hôte distant",
                 "unsupported": "MoltenTerm ne peut pas répondre aux demandes de {agent}",
                 "nolauncher": "il a été lancé hors du lanceur de MoltenTerm",
-                "codexuntrusted": "approuvé une fois le hook de MoltenTerm approuvé : tapez /hooks dans Codex et approuvez molten agent permission",
+                "codexuntrusted": "approuvé une fois le hook de MoltenTerm approuvé : tapez /hooks dans l'agent et approuvez molten agent permission",
                 "tooold": "il a été lancé avant l'existence des approbations du café : relancez-le depuis MoltenTerm",
                 "review": "une session de revue est en lecture seule : ses demandes vous sont toujours posées"
             },
@@ -8888,7 +8889,7 @@
         "failed": "{count} appels ont échoué faute de lien.",
         "hint": {
             "claude": "Dans le prompt de {name}, tapez /mcp, choisissez molten-browser, puis Reconnect.",
-            "codex": "Codex ne peut pas redémarrer un serveur MCP dans une session en cours : démarrez une nouvelle session Codex dans ce terminal.",
+            "codex": "Cet agent ne peut pas redémarrer un serveur MCP dans une session en cours : démarrez une nouvelle session dans ce terminal.",
             "generic": "Redémarrez ce serveur MCP depuis l'agent (sa commande ou ses réglages MCP), ou démarrez une nouvelle session de l'agent."
         },
         "add": {

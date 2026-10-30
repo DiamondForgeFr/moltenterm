@@ -176,12 +176,12 @@ func (c Choice) MissingText() string {
 	if names := c.InstalledNames(); len(names) > 0 {
 		return text + ": choose " + strings.Join(names, " or ") + " in the panel's options (Agent), or install " + c.ChosenName
 	}
-	return text + ", and no other supported agent (Claude Code or Codex) is"
+	return text + ", and no other supported agent is"
 }
 
 // NoneText says that no supported agent is installed.
 func NoneText() string {
-	return "No supported coding agent (Claude Code or Codex) is installed on this computer"
+	return "No supported coding agent is installed on this computer"
 }
 
 // PrintArgv is the agent's non-interactive form, prompt on its standard input and answer on its standard output.
