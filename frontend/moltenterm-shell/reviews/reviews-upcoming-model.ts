@@ -74,6 +74,10 @@ export type BranchAgent = {
     model?: string;
     description?: string;
     state?: SubagentState;
+    // #1603: a background agent named by its work's signature; agentname is its CLI as signed, blockid the signer's
+    // session while a panel still runs it.
+    signed?: boolean;
+    agentname?: string;
 };
 
 // must match companion.SubagentRunning, SubagentQuiet and SubagentDone in pkg/molten/companion/topics.go
@@ -138,6 +142,8 @@ export type AgentBarFacts = {
     // Stop (the banner stops the whole queue).
     batch?: boolean;
     work?: Phrase;
+    // A background agent named by its signature (#1603); agentName is then its CLI as signed.
+    signed?: boolean;
 };
 
 // The upcoming rows: a branch whose PR the Reviews list now shows leaves at once, without waiting for wavesrv; so does
@@ -237,14 +243,19 @@ export function branchAgents(upcoming: UpcomingAnswer, states: AgentStatesData, 
             continue;
         }
         if (a.kind === "background") {
+            const signedName = a.signed ? (a.firstname ?? "").trim() : "";
             found.push({
                 kind: "background",
                 agent: a.agent,
-                name: "",
+                name: signedName,
                 state: "background",
                 since: a.activeat ?? 0,
                 parentBlockId: a.parentblockid,
                 parentName: states?.states?.[a.parentblockid]?.firstname || a.parentfirstname,
+                signed: a.signed,
+                agentName: a.signed ? a.agentname : undefined,
+                // The signer's session, while the windows still know its terminal.
+                blockId: a.signed && a.blockid && states?.states?.[a.blockid] != null ? a.blockid : undefined,
             });
             continue;
         }
@@ -308,7 +319,11 @@ function subagentFacts(a: BranchAgent, states: AgentStatesData): AgentBarFacts {
 }
 
 // What the bar says after a sub-agent's name: "Claude Code · Opus 5.5 · #1033 agent name in tabs".
+// A signed background agent's (#1603): its CLI, as data, never in a sentence.
 export function subagentDetails(facts: AgentBarFacts): string {
+    if (facts?.kind === "background" && facts.signed) {
+        return facts.agentName || AgentNames[facts.agent] || facts.agent || "";
+    }
     if (facts?.kind !== "subagent") {
         return "";
     }

@@ -205,9 +205,12 @@ export function AgentBar({
         return task != null ? <GoneAgentBar task={task} actions={actions} stacked={stacked} /> : null;
     }
     const background = facts.kind === "background";
+    const signedBackground = background && facts.signed && !!facts.name;
     const subagent = facts.kind === "subagent";
     const name = background
-        ? t("reviewsAgents.background")
+        ? signedBackground
+            ? facts.name
+            : t("reviewsAgents.background")
         : subagent
           ? facts.parentName
               ? t("reviewsAgents.subagent.of", { name: facts.parentName })
@@ -232,7 +235,9 @@ export function AgentBar({
               ? finishedLine
               : subagent
                 ? t(`reviewsAgents.subagent.state.${facts.subState ?? "running"}`)
-                : barStateText(t, facts.state);
+                : signedBackground
+                  ? t("reviewsAgents.state.signed")
+                  : barStateText(t, facts.state);
     const timeText = finishedLine ? "" : barTime;
     const signed = signersSuffix(t, signers, facts.name);
     const rail = stuck ? "waiting" : facts.state;
@@ -268,7 +273,10 @@ export function AgentBar({
                 aria-hidden
             />
             <span
-                className={cn("shrink-0 truncate", background ? "text-secondary italic" : "font-medium text-primary")}
+                className={cn(
+                    "shrink-0 truncate",
+                    background && !signedBackground ? "text-secondary italic" : "font-medium text-primary"
+                )}
                 data-testid="reviews-agent-name"
             >
                 {name}
@@ -343,7 +351,7 @@ export function AgentBar({
                     </button>
                 ) : null}
                 {actions}
-                {!background && facts.blockId ? (
+                {(!background || signedBackground) && facts.blockId ? (
                     <button
                         type="button"
                         onClick={(e) => goTo(e, facts.blockId)}

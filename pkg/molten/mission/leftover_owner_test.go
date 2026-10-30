@@ -3,7 +3,10 @@
 
 package mission
 
-import "testing"
+import (
+	"sort"
+	"testing"
+)
 
 // fakeProcs: parents gives each pid its parent.
 type fakeProcs struct {
@@ -29,6 +32,17 @@ func (f fakeProcs) Under(pid int32, root int32) bool {
 func (f fakeProcs) Name(pid int32) string { return f.names[pid] }
 
 func (f fakeProcs) Cwd(pid int32) string { return f.cwds[pid] }
+
+func (f fakeProcs) Descendants(root int32) []int32 {
+	var rtn []int32
+	for pid := range f.parents {
+		if pid != root && f.Under(pid, root) {
+			rtn = append(rtn, pid)
+		}
+	}
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i] < rtn[j] })
+	return rtn
+}
 
 func TestResolveLockOwner(t *testing.T) {
 	const tree = "/p/.claude/worktrees/agent-a44"

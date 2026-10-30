@@ -181,6 +181,28 @@ describe("branchAgent (#712 AC2, AC4)", () => {
         });
     });
 
+    it("names a signed background agent, with Go to only while the windows know its session (#1603)", () => {
+        const signed = answer({
+            agents: [
+                {
+                    branch: "feature/4-d",
+                    worktree: "/tmp/d",
+                    kind: "background",
+                    agent: "codex",
+                    agentname: "Codex",
+                    firstname: "Jérôme",
+                    signed: true,
+                    blockid: "b7",
+                    activeat: Now - 60_000,
+                },
+            ],
+        });
+        const facts = branchAgent(signed, states({ b7: { agent: "codex", firstname: "Jérôme" } }), "feature/4-d");
+        expect(facts).toMatchObject({ kind: "background", name: "Jérôme", signed: true, blockId: "b7" });
+        expect(subagentDetails(facts)).toBe("Codex");
+        expect(branchAgent(signed, states({}), "feature/4-d").blockId).toBeUndefined();
+    });
+
     it("shows nothing for a closed panel or a branch without agent", () => {
         expect(branchAgent(upcoming, states({}), "feature/3-c")).toBeNull();
         expect(branchAgent(upcoming, states({}), "feature/9-z")).toBeNull();

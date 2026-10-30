@@ -49,6 +49,8 @@ type ProcFacts interface {
 	Under(pid int32, root int32) bool
 	Name(pid int32) string
 	Cwd(pid int32) string
+	// Descendants: the live processes under root (root excluded), nearest first, bounded like proctree's walk.
+	Descendants(root int32) []int32
 }
 
 type liveProcs struct {
@@ -79,6 +81,28 @@ func (p liveProcs) Cwd(pid int32) string {
 	return proctree.Cwd(pid)
 }
 
+func (p liveProcs) Descendants(root int32) []int32 {
+	var rtn []int32
+	for _, proc := range p.table.Descendants(root) {
+		rtn = append(rtn, proc.Pid)
+	}
+	return rtn
+}
+
+// procsReader reads the process table at most once per answer, at its first use (#1603: the live agents of the
+// worktrees and the live locks' owners share the read).
+func (u *Upcoming) procsReader() func() ProcFacts {
+	read := false
+	var procs ProcFacts
+	return func() ProcFacts {
+		if !read && u.env.Procs != nil {
+			procs = u.env.Procs()
+		}
+		read = true
+		return procs
+	}
+}
+
 func within(path string, dir string) bool {
 	if path == "" || dir == "" {
 		return false
@@ -88,15 +112,9 @@ func within(path string, dir string) bool {
 }
 
 // lockOwners names the owners of an answer's live locks, reading the process table once, at the first one.
-func (u *Upcoming) lockOwners(places []AgentPlace, agents []BranchAgent) func(holder LockHolder, worktree string) LeftoverOwner {
-	read := false
-	var procs ProcFacts
+func lockOwners(places []AgentPlace, agents []BranchAgent, procs func() ProcFacts) func(holder LockHolder, worktree string) LeftoverOwner {
 	return func(holder LockHolder, worktree string) LeftoverOwner {
-		if !read && u.env.Procs != nil {
-			procs = u.env.Procs()
-		}
-		read = true
-		return ResolveLockOwner(holder, worktree, places, agents, procs)
+		return ResolveLockOwner(holder, worktree, places, agents, procs())
 	}
 }
 
