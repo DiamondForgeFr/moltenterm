@@ -128,7 +128,7 @@ export function initMoltentermHangWatch() {
         if (typeof text !== "string") {
             throw new Error("hang diagnostics: text expected");
         }
-        clipboard.writeText(text.slice(0, 200000));
+        return clipboard.writeText(text.slice(0, 200000));
     });
     powerMonitor.on("suspend", () => model.pause());
     powerMonitor.on("resume", () => model.resume());
