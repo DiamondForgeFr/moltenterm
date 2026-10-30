@@ -20,6 +20,8 @@ import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from ".
 import { openInBrowserPanel } from "../browser/browser-routing";
 import { t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { pathBaseName, readWorkspaceProject } from "../workspace-project";
+import { readProjectFacts } from "../workspace-project-store";
 import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { DominoLoader } from "../suite/suite";
@@ -59,6 +61,7 @@ import {
     MaterialsRecovered,
     MaterialsRecoverTimeoutMs,
     MaterialsRoute,
+    materialsProjectName,
     materialsSeenStorageKey,
     MaterialsView,
     MaterialUndoMs,
@@ -851,11 +854,38 @@ function DeleteAsk({ m, onCancel, onConfirm }: { m: Material; onCancel: () => vo
     );
 }
 
+// The workspace's project name as the sidebar gives it (the project's declared name, else its folder's name), "" until
+// known or without a linked project.
+function useWorkspaceProjectName(): string {
+    const ws = useAtomValue(atoms.workspace);
+    const dir = ws ? readWorkspaceProject(ws).dir : "";
+    const [name, setName] = useState("");
+    useEffect(() => {
+        if (!dir) {
+            setName("");
+            return;
+        }
+        let cancelled = false;
+        setName(pathBaseName(dir));
+        fireAndForget(async () => {
+            const facts = await readProjectFacts(dir);
+            if (!cancelled && facts?.name) {
+                setName(facts.name);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir]);
+    return name;
+}
+
 export function MaterialsSection({ view, failed, query }: { view: MaterialsView; failed: boolean; query: string }) {
     const t = useT();
     const locale = useLocale();
     const workspaceId = useAtomValue(atoms.workspaceId);
     const panels = useOpenPanels(workspaceId);
+    const workspaceProjectName = useWorkspaceProjectName();
     const [selected, setSelected] = useState<string>(null);
     const [renaming, setRenaming] = useState<string>(null);
     const [asking, setAsking] = useState<{ id: string; plan: MaterialOpen }>(null);
@@ -879,7 +909,8 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
         return null;
     }
     const noProject = view.project?.key === MaterialsNoProject;
-    const projectName = noProject ? t("library.materials.noProject") : view.project?.name || view.project?.key;
+    const named = materialsProjectName(workspaceProjectName, view.project);
+    const projectName = noProject ? t("library.materials.noProject") : named;
     const focusRow = (id: string) =>
         requestAnimationFrame(() =>
             listRef.current?.querySelector<HTMLElement>(`[data-material-id="${CSS.escape(id)}"]`)?.focus()
@@ -942,7 +973,9 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
         <div className="flex flex-col gap-2" data-testid="library-materials" data-project={view.project?.key}>
             <div className="flex items-center gap-1.5">
                 <div className="mt-lib-mat-scope" data-testid="library-materials-scope">
-                    {noProject ? projectName : t("library.materials.thisProject", { name: projectName })}
+                    {noProject || !projectName
+                        ? projectName || t("library.materials.thisProjectUnnamed")
+                        : t("library.materials.thisProject", { name: projectName })}
                 </div>
                 {!noProject ? (
                     <button

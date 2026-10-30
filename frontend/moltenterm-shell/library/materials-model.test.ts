@@ -15,6 +15,7 @@ import {
     materialLinkedFiles,
     materialOpenPlan,
     materialOriginKey,
+    materialsProjectName,
     materialSizeText,
     materialVersion,
     newMaterialsCount,
@@ -215,5 +216,14 @@ describe("search past sessions (FR-MAT-008)", () => {
         expect(lookup(fr, "library.materials.recover.button")).toBe("Chercher dans les sessions passées");
         expect((lookup(fr, "library.materials.recover.found") as any).other).toBe("{count} matériaux retrouvés");
         expect((lookup(fr, "library.materials.recover.gone") as any).other).toBe("{count} sources déjà effacées");
+    });
+});
+
+describe("materialsProjectName (#1508)", () => {
+    it("names the project the way the sidebar does, never by its key", () => {
+        expect(materialsProjectName("invoice-cli", { key: "beeb5ffcb009a90c" })).toBe("invoice-cli");
+        expect(materialsProjectName("", { key: "beeb5ffcb009a90c", name: "app" })).toBe("app");
+        expect(materialsProjectName("", { key: "beeb5ffcb009a90c", folder: "/p/my-app/" })).toBe("my-app");
+        expect(materialsProjectName("", { key: "beeb5ffcb009a90c" })).toBe("");
     });
 });
