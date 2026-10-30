@@ -15,8 +15,9 @@ import {
 import { FixedColumnGapPx, PinnedColumnMinPx } from "./carpet-model";
 import { GroupPinOrigin, handPins, parsePins, withPin, type TabPins } from "./pin-model";
 
-// Block ids starting with "p" are pages, the others are not.
-const viewOf = (blockId: string) => (blockId.startsWith("p") ? "web" : "integration");
+// Block ids starting with "p" are pages (Moltenterm's browser panel, "pw" Wave's web view), the others are not.
+const viewOf = (blockId: string) =>
+    blockId.startsWith("pw") ? "web" : blockId.startsWith("p") ? "molten-browser" : "molten-reviews";
 
 function leaf(blockId: string): LayoutNode {
     return { id: `n-${blockId}`, flexDirection: FlexDirection.Column, size: 10, data: { blockId } };
@@ -41,7 +42,8 @@ describe("360 on the pages (FR-SHELL-124)", () => {
 
     it("counts a column as a page only when all its panels are pages", () => {
         expect(isPageColumn(leaf("p1"), viewOf)).toBe(true);
-        expect(isPageColumn(stack("p1", "p2"), viewOf)).toBe(true);
+        expect(isPageColumn(leaf("pw1"), viewOf)).toBe(true);
+        expect(isPageColumn(stack("p1", "pw2"), viewOf)).toBe(true);
         expect(isPageColumn(stack("p1", "int"), viewOf)).toBe(false);
         expect(isPageColumn(leaf("int"), viewOf)).toBe(false);
     });
@@ -80,6 +82,27 @@ describe("360 on the pages (FR-SHELL-124)", () => {
             { blockId: "int", mode: "stacked" },
         ]);
         expect(groupPinPlan(columns, {}, viewOf, 600).map((p) => p.mode)).toEqual(["stacked", "stacked"]);
+    });
+
+    it("pins under the agent when beside would leave the pages no readable place", () => {
+        const columns = [leaf("p1"), leaf("int"), leaf("files"), leaf("p2")];
+        const seen: number[][] = [];
+        const room = {
+            handBesidePx: [400],
+            widthOf: () => 500,
+            fits: (widths: number[]) => {
+                seen.push(widths);
+                return widths.length < 3;
+            },
+        };
+        expect(groupPinPlan(columns, {}, viewOf, 5000, room)).toEqual([
+            { blockId: "int", mode: "beside" },
+            { blockId: "files", mode: "stacked" },
+        ]);
+        expect(seen).toEqual([
+            [400, 500],
+            [400, 500, 500],
+        ]);
     });
 
     it("marks the grouping's pins and keeps the developer's untouched (AC4)", () => {

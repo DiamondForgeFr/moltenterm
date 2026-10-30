@@ -73,6 +73,7 @@ import {
     PlaceOption,
     placeOptions,
     placeScrollPx,
+    placesFit,
     placesFixedPx,
     placesStartIndex,
     placeWidthPx,
@@ -870,7 +871,8 @@ export class View360Model {
             this.treeCarpetColumns(),
             globalStore.get(this.pinsAtom),
             this.viewOf,
-            this.lastEvalWidth
+            this.lastEvalWidth,
+            this.groupRoom()
         );
         const live = this.liveBlockIds();
         if (live == null) {
@@ -883,7 +885,26 @@ export class View360Model {
     // Where the grouping would pin the other panels (beside or under the agent), for the chooser to say it before the
     // click (AC3).
     groupPlan(): GroupPin[] {
-        return groupPinPlan(this.treeCarpetColumns(), globalStore.get(this.pinsAtom), this.viewOf, this.lastEvalWidth);
+        return groupPinPlan(
+            this.treeCarpetColumns(),
+            globalStore.get(this.pinsAtom),
+            this.viewOf,
+            this.lastEvalWidth,
+            this.groupRoom()
+        );
+    }
+
+    // A grouping pin goes beside only while the pages keep one readable place next to the fixed zone: the half-window
+    // rule alone would let the first column's 520 px and a beside column leave the pages too narrow for any number.
+    private groupRoom() {
+        const hand = partPinnedColumns(this.treeCarpetColumns(), handPins(globalStore.get(this.pinsAtom))).pinned;
+        const width = this.lastEvalWidth;
+        const floorPx = currentFirstColumnFloorPx() ?? 0;
+        return {
+            handBesidePx: hand.filter((p) => p.pin.mode === "beside").map((p) => p.pin.px ?? this.pinnedRestPx(p.node)),
+            widthOf: (column: LayoutNode) => this.pinnedRestPx(column),
+            fits: (besideWidthsPx: number[]) => placesFit(width, 1, floorPx, besideZonePx(besideWidthsPx)),
+        };
     }
 
     // How many columns lie on the carpet under each choice (the segment's counts).
