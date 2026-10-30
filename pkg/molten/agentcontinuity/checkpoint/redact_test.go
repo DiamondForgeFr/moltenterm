@@ -135,6 +135,25 @@ func TestRedactSpacedColon(t *testing.T) {
 	}
 }
 
+func TestRedactYamlCredentialValues(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"db:\n  password : correct horse battery staple\n  host: localhost", "db:\n  password : [redacted]\n  host: localhost"},
+		{"password: correct horse battery staple", "password: [redacted]"},
+		{"api_key : alpha bravo charlie delta", "api_key : [redacted]"},
+		{`api_key : "alpha bravo charlie delta"`, `api_key : "[redacted]"`},
+		{"- password: correct horse battery staple", "- password: [redacted]"},
+	}
+	for _, c := range cases {
+		out, n := Redact(c.in)
+		if n != 1 || out != c.want {
+			t.Errorf("got %q (%d), want %q", out, n, c.want)
+		}
+		if again, count := Redact(out); again != out || count != 0 {
+			t.Errorf("not idempotent: %q (%d)", again, count)
+		}
+	}
+}
+
 func TestRedactIsIdempotent(t *testing.T) {
 	in := "OPENAI_API_KEY=sk-test-abcdefghijklmnop1234 Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123"
 	once, n1 := Redact(in)
