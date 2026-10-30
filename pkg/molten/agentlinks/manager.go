@@ -79,7 +79,13 @@ type Manager struct {
 	onStop []func(source string)
 	// legacy: the browser sessions of a terminal, for servers that do not report.
 	legacy func(blockId string) []LegacySession
+	// onReport: what other packages do with each report of a link that is not stopped (the browser makes sure the
+	// link has its session, #1541).
+	onReport []ReportFunc
 }
+
+// ReportFunc gets each report of a running link: its terminal, its route and what the server said.
+type ReportFunc func(ctx context.Context, blockId string, source string, report agentlinkwire.WatchRequest)
 
 func MakeManager(env Env) *Manager {
 	return &Manager{env: env, now: time.Now, logf: log.Printf, links: map[string]*link{}}
@@ -163,7 +169,15 @@ func (m *Manager) Watch(ctx context.Context, caller localroute.Caller, req agent
 	}
 	key := LinkKey(req.Server, req.Pid)
 	stopped := contains(m.env.Stops(blockId), key)
-	l, changed := m.upsert(blockId, key, caller.Source, cleanReport(req), stopped)
+	report := cleanReport(req)
+	l, changed := m.upsert(blockId, key, caller.Source, report, stopped)
+	// Before the answer: a server reports first on a new connection, so its next request already finds what the
+	// report set up.
+	if !stopped {
+		for _, fn := range m.reportHooks() {
+			fn(ctx, blockId, caller.Source, report)
+		}
+	}
 	if changed {
 		m.publish(blockId)
 	}
@@ -306,6 +320,33 @@ func (m *Manager) OnStop(fn func(source string)) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.onStop = append(m.onStop, fn)
+}
+
+// OnReport runs fn with each report of a link that is not stopped, before the report is answered. The links that
+// reported before fn was added are given to it at once: servers reconnect as soon as wavesrv listens.
+func (m *Manager) OnReport(fn ReportFunc) {
+	for _, l := range m.addReportHook(fn) {
+		fn(context.Background(), l.blockId, l.source, l.report)
+	}
+}
+
+func (m *Manager) addReportHook(fn ReportFunc) []link {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.onReport = append(m.onReport, fn)
+	var running []link
+	for _, l := range m.links {
+		if l.connected && !l.stopped {
+			running = append(running, link{blockId: l.blockId, source: l.source, report: l.report})
+		}
+	}
+	return running
+}
+
+func (m *Manager) reportHooks() []ReportFunc {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return append([]ReportFunc{}, m.onReport...)
 }
 
 // SetLegacySessions gives the registry the browser sessions of servers that do not report.

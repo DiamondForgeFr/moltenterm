@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlinkwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -34,6 +35,10 @@ const (
 	defaultAgentName = "An agent"
 	maxAgentNameLen  = 40
 	logPrefix        = "molten browser agent:"
+
+	// How long a session whose link went down waits for its server to come back on a new link (#1541): a server
+	// replacing its program in place (#1049) or reconnecting at the developer's request is back within milliseconds.
+	defaultParkGrace = 10 * time.Second
 )
 
 type agentTab struct {
@@ -70,6 +75,11 @@ type session struct {
 	// notices are what the user did with the session's tabs (a share, a give back), told to the agent in its next tool
 	// result (#971): an agent never asked would not know a tab is its to use.
 	notices []tabNotice
+	// pid: the server's process as its link reports it, the same across a re-execution; 0 when it does not report.
+	pid int
+	// parked: its link went down and its server may come back on a new one (#1541); parkGen tells the parks apart.
+	parked  bool
+	parkGen int
 }
 
 type tabNotice struct {
@@ -104,6 +114,7 @@ type Manager struct {
 
 	permissionTimeout time.Duration
 	permissionPoll    time.Duration
+	parkGrace         time.Duration
 
 	lock       sync.Mutex
 	sessions   map[string]*session
@@ -126,6 +137,7 @@ func MakeManager(env Env) *Manager {
 
 		permissionTimeout: defaultPermissionTimeout,
 		permissionPoll:    defaultPermissionPoll,
+		parkGrace:         defaultParkGrace,
 	}
 }
 
@@ -165,25 +177,126 @@ func (m *Manager) Hello(ctx context.Context, source string, req mcpbrowser.Hello
 	if err != nil || blockId == "" {
 		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrNotInMoltenTerm)
 	}
+	if err := m.checkPane(ctx, blockId); err != nil {
+		return mcpbrowser.HelloResult{}, err
+	}
+	s := m.openSession(source, blockId, req.ClientName, "started")
+	return mcpbrowser.HelloResult{SessionId: s.id, AgentName: s.agentName}, nil
+}
+
+// checkPane: a session is for a local terminal only.
+func (m *Manager) checkPane(ctx context.Context, blockId string) error {
 	loc, err := m.env.LocateBlock(ctx, blockId)
 	if err != nil || loc.View != TermView {
-		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrNotInMoltenTerm)
+		return errors.New(mcpbrowser.ErrNotInMoltenTerm)
 	}
 	if !loc.Local {
-		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrRemotePane)
+		return errors.New(mcpbrowser.ErrRemotePane)
+	}
+	return nil
+}
+
+// LinkReported makes sure a running molten-browser link has its session (#1541). The link registry says the server is
+// connected as soon as its link is back (wavesrv restarted, the developer's Reconnect, a re-execution), while the
+// server opens a session only at the agent's next browser call: without this, the terminal's connections showed it
+// connected and Share with agent said it had lost the browser. The server's next hello, on the same link, takes this
+// session over. The same server process (pid) back on a new link takes its earlier session back, with its tabs.
+func (m *Manager) LinkReported(ctx context.Context, blockId string, source string, server string, pid int, clientName string) {
+	if server != agentlinkwire.ServerBrowser || source == "" || blockId == "" {
+		return
+	}
+	if moved, ok := m.adoptSession(source, blockId, pid); ok {
+		if moved != nil {
+			m.logf("%s session=%s agent=%q back on a new link\n", logPrefix, shortId(moved.id), moved.agentName)
+		}
+		return
+	}
+	if m.checkPane(ctx, blockId) != nil {
+		return
+	}
+	s := m.openSession(source, blockId, clientName, "opened for its link")
+	m.setSessionPid(s.id, pid)
+}
+
+// linkReport is LinkReported as the link registry calls it.
+func (m *Manager) linkReport(ctx context.Context, blockId string, source string, report agentlinkwire.WatchRequest) {
+	m.LinkReported(ctx, blockId, source, report.Server, report.Pid, report.ClientName)
+}
+
+// adoptSession finds the link's session: the one on its route (ok, nothing moved), or the one the same server process
+// had on its previous link (moved to this route). The previous route's down event may come after the new report.
+func (m *Manager) adoptSession(source string, blockId string, pid int) (*sessionInfo, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if s := m.sessionOnLocked(source, blockId); s != nil {
+		if s.pid <= 0 {
+			s.pid = pid
+		}
+		return nil, true
+	}
+	if pid <= 0 {
+		return nil, false
+	}
+	var prev *session
+	for _, s := range m.sessions {
+		if s.blockId == blockId && s.pid == pid && (prev == nil || s.started.After(prev.started)) {
+			prev = s
+		}
+	}
+	if prev == nil {
+		return nil, false
+	}
+	prev.source = source
+	prev.parked = false
+	return &sessionInfo{id: prev.id, blockId: prev.blockId, agentName: prev.agentName}, true
+}
+
+func (m *Manager) setSessionPid(sessionId string, pid int) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if s := m.sessions[sessionId]; s != nil && s.pid <= 0 {
+		s.pid = pid
+	}
+}
+
+func (m *Manager) sessionOnLocked(source string, blockId string) *session {
+	for _, s := range m.sessions {
+		if s.source == source && s.blockId == blockId {
+			return s
+		}
+	}
+	return nil
+}
+
+// openSession returns the session of the link (one per route: a route is one connection of one server), opening it
+// when there is none. Sessions of the pane's other routes stay until their route goes.
+func (m *Manager) openSession(source string, blockId string, clientName string, how string) sessionInfo {
+	name := agentDisplayName(m.env.AgentName(blockId), clientName)
+	info, opened := m.openSessionLocked(source, blockId, name)
+	if opened {
+		m.logf("%s session=%s agent=%q %s\n", logPrefix, shortId(info.id), info.agentName, how)
+	}
+	return info
+}
+
+func (m *Manager) openSessionLocked(source string, blockId string, name string) (sessionInfo, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if s := m.sessionOnLocked(source, blockId); s != nil {
+		s.agentName = name
+		return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, false
 	}
 	s := &session{
 		id:          uuid.NewString(),
 		source:      source,
 		blockId:     blockId,
-		agentName:   agentDisplayName(m.env.AgentName(blockId), req.ClientName),
+		agentName:   name,
 		started:     m.now(),
 		tabs:        make(map[int64]*agentTab),
 		allowedOnce: make(map[string]bool),
 	}
-	m.addSession(s)
-	m.logf("%s session=%s agent=%q started\n", logPrefix, shortId(s.id), s.agentName)
-	return mcpbrowser.HelloResult{SessionId: s.id, AgentName: s.agentName}, nil
+	m.sessions[s.id] = s
+	return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, true
 }
 
 func shortId(id string) string {
@@ -191,12 +304,6 @@ func shortId(id string) string {
 		return id[:8]
 	}
 	return id
-}
-
-func (m *Manager) addSession(s *session) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.sessions[s.id] = s
 }
 
 func (m *Manager) sessionFor(sessionId string, source string) (sessionInfo, bool) {
@@ -219,7 +326,36 @@ func (m *Manager) EndSessionsForRoute(route string) {
 	if route == "" {
 		return
 	}
-	m.endSessions(func(s *session) bool { return s.source == route }, "disconnected")
+	// A reporting server's session keeps its tabs a moment, for the server's next link to take it back: the
+	// developer's Reconnect and a re-execution (#1049) end a link, not the agent's work, nor a page just shared.
+	for _, park := range m.parkSessions(route) {
+		m.logf("%s session=%s agent=%q parked\n", logPrefix, shortId(park.id), park.agentName)
+		time.AfterFunc(m.parkGrace, func() {
+			m.endSessions(func(s *session) bool { return s.id == park.id && s.parked && s.parkGen == park.gen }, "disconnected")
+		})
+	}
+	m.endSessions(func(s *session) bool { return s.source == route && !s.parked }, "disconnected")
+}
+
+type parkedSession struct {
+	id        string
+	agentName string
+	gen       int
+}
+
+func (m *Manager) parkSessions(route string) []parkedSession {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	var rtn []parkedSession
+	for _, s := range m.sessions {
+		if s.source != route || s.pid <= 0 || s.parked {
+			continue
+		}
+		s.parked = true
+		s.parkGen++
+		rtn = append(rtn, parkedSession{id: s.id, agentName: s.agentName, gen: s.parkGen})
+	}
+	return rtn
 }
 
 // endSessions removes matching sessions: their tabs stay open as user tabs, their bars go (FR-BRW-008 AC9).
@@ -661,7 +797,7 @@ func (m *Manager) legacySessions(blockId string) []agentlinks.LegacySession {
 	defer m.lock.Unlock()
 	var rtn []agentlinks.LegacySession
 	for _, s := range m.sessions {
-		if s.blockId == blockId {
+		if s.blockId == blockId && !s.parked {
 			rtn = append(rtn, agentlinks.LegacySession{Source: s.source, ClientName: s.agentName, Started: s.started})
 		}
 	}

@@ -133,6 +133,41 @@ func TestResumedServerAnswersWithoutInitialize(t *testing.T) {
 	}
 }
 
+// #1541: a server re-executed in place opens its link and session again at once, not at the agent's next call, so
+// MoltenTerm can share a page with the agent meanwhile.
+func TestResumedServerStartsItsBackendBeforeAnyCall(t *testing.T) {
+	backend := &fakeBackend{}
+	resume := ResumeState{Initialized: true, ClientName: "any-mcp-client", ClientVersion: "1.0", ToolsHash: BrowserSpec().toolsHash()}
+	startReexecServer(t, backend, &fakeReexec{}, &resume)
+	deadline := time.Now().Add(time.Minute)
+	for {
+		backend.lock.Lock()
+		started := append([]ClientInfo{}, backend.started...)
+		backend.lock.Unlock()
+		if len(started) == 1 && started[0] == (ClientInfo{Name: "any-mcp-client", Version: "1.0"}) {
+			return
+		}
+		if len(started) > 1 || time.Now().After(deadline) {
+			t.Fatalf("started = %v", started)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestUninitializedResumeWaitsForTheInitialize(t *testing.T) {
+	backend := &fakeBackend{}
+	c := startReexecServer(t, backend, &fakeReexec{}, &ResumeState{})
+	c.send(testPingLine)
+	if resp := c.recv(); resp["id"] != float64(3) {
+		t.Fatalf("ping = %v", resp)
+	}
+	backend.lock.Lock()
+	defer backend.lock.Unlock()
+	if len(backend.started) != 0 {
+		t.Fatalf("started before the initialize: %v", backend.started)
+	}
+}
+
 func TestResumedServerAnnouncesAChangedToolList(t *testing.T) {
 	resume := ResumeState{Initialized: true, ClientName: "any-mcp-client", ToolsHash: "other"}
 	c := startReexecServer(t, &fakeBackend{}, &fakeReexec{}, &resume)

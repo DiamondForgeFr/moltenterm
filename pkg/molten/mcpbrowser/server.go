@@ -188,7 +188,7 @@ func (s *Server) SetReexec(r Reexec) {
 }
 
 // Resume starts the server in the session its previous program had: no initialize is awaited, the backend starts
-// at the first call with the carried client, and a changed tool list is announced when Serve starts.
+// with the carried client when Serve starts, and a changed tool list is announced then.
 func (s *Server) Resume(state ResumeState) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -217,6 +217,12 @@ func (s *Server) resumeState() ResumeState {
 	defer s.lock.Unlock()
 	return ResumeState{Initialized: s.initialized, ProtocolVersion: s.protocolVersion, ClientName: s.client.Name,
 		ClientVersion: s.client.Version, ToolsHash: s.spec.toolsHash(), Resumes: s.resumes}
+}
+
+func (s *Server) resumedClient() (ClientInfo, bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.client, s.resumes > 0 && s.initialized
 }
 
 func (s *Server) toolsChangedOnResume() bool {
@@ -268,6 +274,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	}()
 	if s.toolsChangedOnResume() {
 		s.writeNotification("notifications/tools/list_changed")
+	}
+	// A resumed session gets its backend back at once, as after an initialize: waiting for the agent's next call left
+	// MoltenTerm without the server's link and session meanwhile, so the page could not be shared with it (#1541).
+	if client, ok := s.resumedClient(); ok {
+		s.start(ctx, client)
 	}
 	reader := bufio.NewReaderSize(s.in, 64*1024)
 	for {
