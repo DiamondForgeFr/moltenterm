@@ -10,15 +10,13 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { app, powerSaveBlocker } from "electron";
-import { fireAndForget } from "../frontend/util/util";
+import { KeepAwakeRefresh } from "../frontend/moltenterm-shell/keepawake-refresh";
 import { ElectronWshClient } from "./emain-wsh";
 
 const KeepAwakeRoute = "molten:keepawake";
 const KeepAwakeEvent = "molten:keepawake";
 const KeepAwakeStateCommand = "keepawakestate";
 const StateTimeoutMs = 5000;
-const StateRetryMs = 2000;
-const StateMaxTries = 10;
 // While the blocker is held, the state is read again this often: a missed event never keeps the system awake for
 // long.
 const HeldResyncMs = 30000;
@@ -40,7 +38,7 @@ function setHold(hold: boolean) {
             console.log("molten keep-awake: holding the system sleep blocker", blockerId);
         }
         if (resyncTimer == null) {
-            resyncTimer = setInterval(() => readState(0), HeldResyncMs);
+            resyncTimer = setInterval(() => refresh.request(), HeldResyncMs);
         }
         return;
     }
@@ -67,32 +65,28 @@ function applyState(state: KeepAwakeHold) {
     setHold(state.hold === true);
 }
 
-// tries: how many more times a failed read is retried (the route comes up with Mission Control, a moment after
-// wavesrv answers).
-function readState(tries: number) {
-    fireAndForget(async () => {
-        try {
-            const state = await ElectronWshClient.wshRpcCall(
-                KeepAwakeStateCommand,
-                {},
-                { route: KeepAwakeRoute, timeout: StateTimeoutMs }
-            );
-            applyState(state as KeepAwakeHold);
-        } catch (e) {
-            if (tries > 0) {
-                setTimeout(() => readState(tries - 1), StateRetryMs);
-                return;
+const refresh = new KeepAwakeRefresh<KeepAwakeHold>(
+    () =>
+        ElectronWshClient.wshRpcCall(
+            KeepAwakeStateCommand,
+            {},
+            {
+                route: KeepAwakeRoute,
+                timeout: StateTimeoutMs,
             }
-            console.log("molten keep-awake: state read failed", e);
-        }
-    });
-}
+        ) as Promise<KeepAwakeHold>,
+    applyState
+);
 
 export function initMoltentermKeepAwake() {
-    app.on("will-quit", () => setHold(false));
-    waveEventSubscribeSingle({
+    const unsubscribe = waveEventSubscribeSingle({
         eventType: KeepAwakeEvent as WaveEventName,
-        handler: () => readState(1),
+        handler: () => refresh.request(),
     });
-    readState(StateMaxTries);
+    app.on("will-quit", () => {
+        unsubscribe();
+        refresh.stop();
+        setHold(false);
+    });
+    refresh.request();
 }
