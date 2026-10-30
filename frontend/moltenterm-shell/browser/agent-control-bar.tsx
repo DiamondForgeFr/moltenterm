@@ -32,7 +32,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
                 aria-hidden="true"
                 className={cn(
                     "fa fa-solid shrink-0 text-11",
-                    view.takenOver ? "fa-hand text-secondary" : "fa-robot text-accent"
+                    view.takenOver ? "fa-hand text-secondary" : "fa-robot text-[var(--mt-state-running)]"
                 )}
             />
             <div aria-live="polite" className="flex min-w-[150px] flex-1 items-baseline gap-2 truncate">

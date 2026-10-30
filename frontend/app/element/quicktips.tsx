@@ -1,5 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#1339): Tailwind greys replaced by the Coulée surface, line and text tokens.
 
 import { MagnifyIcon } from "@/app/element/magnify";
 import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
@@ -9,7 +10,7 @@ import { cn } from "@/util/util";
 
 const KeyCap = ({ children }: { children: React.ReactNode }) => {
     return (
-        <div className="inline-block px-2 py-1 mx-[1px] font-mono text-[0.85em] text-foreground bg-highlightbg rounded-[3px] border border-gray-700 whitespace-nowrap">
+        <div className="inline-block px-2 py-1 mx-[1px] font-mono text-[0.85em] text-foreground bg-highlightbg rounded-[3px] border border-line whitespace-nowrap">
             {children}
         </div>
     );

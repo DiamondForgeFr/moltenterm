@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The design tokens' lint (FR-SHELL-044 AC1, DS-SHELL-077, TC-SHELL-093): MoltenTerm-owned CSS, TSX and TS write font
-// sizes, weights, radii, icon sizes and transition durations only through the tokens of tokens.css. Each finding
+// sizes, weights, radii, icon sizes and transition durations only through the tokens of tokens.css, and no hex colour
+// outside the token definitions on :root (FR-SHELL-119). Each finding
 // names the file, the line and the literal. token-lint.test.ts runs it over frontend/moltenterm-shell and
 // frontend/moltenterm-onboarding.
 
@@ -14,6 +15,8 @@ const Weights = new Set(["400", "500", "600"]);
 const Durations = new Set(["120", "180", "240"]);
 // The two radii (FR-SHELL-118): rounded-4 is --mt-radius-control, rounded-6 --mt-radius-panel.
 const Radii = new Set(["4", "6"]);
+// A hex colour (FR-SHELL-119): #rgb, #rgba, #rrggbb or #rrggbbaa, not part of a longer word.
+const HexRe = /(?<![\w&#])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const TwSizeNames = "xxs|xs|sm|base|lg|xl|[2-9]xl|title|default";
 const TwRadiusSides = "t|b|l|r|tl|tr|bl|br|s|e|ss|se|es|ee";
 const TwRadiusNames = "xs|sm|md|lg|xl|[2-4]xl";
@@ -82,9 +85,46 @@ export function stripCssComments(src: string): string {
 const TransitionUtility = /(?<![\w\-[])(?:[\w\-[\]/&>=*:.]+:)?transition(?:-(?!none\b)[\w[\],-]+)?(?![\w\-[])/;
 const TokenDuration = /(?<![\w\-[])(?:[\w\-[\]/&>=*:.]+:)?duration-(?:120|180|240)(?![\w\-[])/;
 
+// Files whose hex values are data, not the interface's look (FR-SHELL-119): the colours a developer can give a
+// workspace, the colour arithmetic that picks black or white text over one, and the ANSI palette of the CI log pane,
+// which renders a program's own colours. Each one is listed with its reason; nothing else may hold a hex.
+export const ColourDataFiles: Record<string, string> = {
+    "moltenterm-shell/workspace-colour.ts": "the workspace colour palette a developer picks from",
+    "moltenterm-shell/accent.ts": "the default workspace colour and the black or white text computed over a workspace colour",
+    "moltenterm-shell/window-texture.ts": "the black or white ink a texture tile is drawn with",
+    "moltenterm-shell/mission/ci-model.ts": "the ANSI palette of a CI log's own colour codes",
+    "moltenterm-onboarding/onboarding-project-model.ts": "the workspace colours offered at onboarding",
+};
+
+// In a string, a hex is a colour when it has a letter or six or eight digits, or sits in a Tailwind arbitrary value
+// (text-[#333]): "#1107" or "[#490]" is a ticket number.
+function isHexColour(hex: string, before: string): boolean {
+    return /[a-fA-F]/.test(hex) || hex.length === 7 || hex.length === 9 || /-\[$/.test(before);
+}
+
+function tsHexFindings(file: string, src: string): TokenFinding[] {
+    if (ColourDataFiles[file.split("\\").join("/")] != null) {
+        return [];
+    }
+    const findings: TokenFinding[] = [];
+    const literals = /"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g;
+    for (let m = literals.exec(src); m != null; m = literals.exec(src)) {
+        const text = m[1] ?? m[2] ?? m[3];
+        const start = m.index + 1;
+        HexRe.lastIndex = 0;
+        for (let h = HexRe.exec(text); h != null; h = HexRe.exec(text)) {
+            if (!isHexColour(h[0], text.slice(Math.max(0, h.index - 2), h.index))) {
+                continue;
+            }
+            findings.push({ file, line: lineOf(src, start + h.index), literal: h[0], rule: "hard-coded colour (use a token)" });
+        }
+    }
+    return findings;
+}
+
 export function lintTs(file: string, source: string): TokenFinding[] {
     const src = stripTsComments(source);
-    const findings: TokenFinding[] = [];
+    const findings: TokenFinding[] = tsHexFindings(file, src);
     for (const { rule, re, bad } of TsRules) {
         re.lastIndex = 0;
         for (let m = re.exec(src); m != null; m = re.exec(src)) {
@@ -188,9 +228,53 @@ function badDurations(value: string): string[] {
     return bad;
 }
 
+// The token definitions: custom properties declared on the root, where tokens.css, moltenterm-shell.css and the
+// suite kit define them. A custom property on any other selector is a colour hard-coded under a local name.
+const TokenRootSelector = /^(?::root\b|:where\(:root\))/;
+
+// A mask reads only the alpha of its gradient, so #fff or #000 there is coverage, not a colour.
+const MaskProps = /^(?:-webkit-)?mask(?:-image)?$/;
+
+// The selector of the rule each declaration sits in, by the declaration's index.
+function ruleSelectors(src: string): { start: number; end: number; selector: string }[] {
+    const rules: { start: number; end: number; selector: string }[] = [];
+    const re = /([^{};]*)\{([^{}]*)\}/g;
+    for (let m = re.exec(src); m != null; m = re.exec(src)) {
+        const open = m.index + m[1].length;
+        rules.push({ start: open, end: m.index + m[0].length, selector: m[1].trim() });
+    }
+    return rules;
+}
+
+function hexFindings(file: string, src: string): TokenFinding[] {
+    const findings: TokenFinding[] = [];
+    const rules = ruleSelectors(src);
+    for (const d of cssDeclarations(src)) {
+        if (d.prop.startsWith("--")) {
+            const rule = rules.find((r) => d.index > r.start && d.index < r.end);
+            if (rule != null && TokenRootSelector.test(rule.selector)) {
+                continue;
+            }
+        }
+        if (MaskProps.test(d.prop)) {
+            continue;
+        }
+        HexRe.lastIndex = 0;
+        for (let m = HexRe.exec(d.value); m != null; m = HexRe.exec(d.value)) {
+            findings.push({
+                file,
+                line: lineOf(src, d.index),
+                literal: `${d.prop}: ${m[0]}`,
+                rule: "hard-coded colour (use a token)",
+            });
+        }
+    }
+    return findings;
+}
+
 export function lintCss(file: string, source: string): TokenFinding[] {
     const src = stripCssComments(source);
-    const findings: TokenFinding[] = [];
+    const findings: TokenFinding[] = hexFindings(file, src);
     const add = (d: Decl, literal: string, rule: string) =>
         findings.push({ file, line: lineOf(src, d.index), literal: `${d.prop}: ${literal}`, rule });
     for (const d of cssDeclarations(src)) {

@@ -114,18 +114,18 @@
 
 /* Matched to the system's buttons on a screen capture, not taken from a palette. */
 .mt-sb-light.is-close {
-    --mt-light-fill: #ff5d61;
-    --mt-light-rim: #e02a1c;
+    --mt-light-fill: var(--mt-window-close);
+    --mt-light-rim: var(--mt-window-close-rim);
 }
 
 .mt-sb-light.is-minimize {
-    --mt-light-fill: #fec824;
-    --mt-light-rim: #f2ad00;
+    --mt-light-fill: var(--mt-window-minimize);
+    --mt-light-rim: var(--mt-window-minimize-rim);
 }
 
 .mt-sb-light.is-zoom {
-    --mt-light-fill: #2bc852;
-    --mt-light-rim: #22a51b;
+    --mt-light-fill: var(--mt-window-zoom);
+    --mt-light-rim: var(--mt-window-zoom-rim);
 }
 
 .mt-sb-lights.is-inactive .mt-sb-light {
@@ -539,7 +539,7 @@
 /* The top field's results (FR-SHELL-083, #1187), as the prototype's .omni-pop: a raised warm surface under the field.
    It lives in a portal, outside .mt-sb, so it carries its own colours. */
 .mt-sb-omni-pop {
-    background: #26221f;
+    background: var(--mt-surface-3);
     box-shadow:
         0 18px 44px rgba(0, 0, 0, 0.6),
         inset 0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -612,7 +612,7 @@
     padding: 2px 7px;
     border-radius: var(--mt-radius-control);
     background: var(--color-accent);
-    color: #111;
+    color: var(--mt-action-fg);
     font-size: var(--mt-text-11);
     font-weight: 600;
     white-space: nowrap;
@@ -629,9 +629,9 @@
 
 /* The view menu's Rename and Change icon pages, drawn as the menus are. */
 .mt-sb-pop {
-    border: 1px solid var(--border-color, #555);
-    background: var(--mt-surface-3, #242424);
-    color: var(--main-text-color, #eee);
+    border: 1px solid var(--border-color);
+    background: var(--mt-surface-3);
+    color: var(--main-text-color);
     box-shadow: var(--mt-shadow-command);
 }
 
@@ -641,7 +641,7 @@
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--color-muted, #8c918c);
+    color: var(--color-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -728,7 +728,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #111;
+    color: var(--mt-action-fg);
     pointer-events: none;
     opacity: 0;
     transform: translateY(-50%) scale(0.4);

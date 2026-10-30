@@ -317,7 +317,7 @@ function UpcomingRow({
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
-                        <span className="shrink-0 text-accent">#{branch.ticket}</span>
+                        <span className="shrink-0 font-normal text-muted">#{branch.ticket}</span>
                         <span className="min-w-0 truncate" title={branch.branch}>
                             {branch.title || branch.branch}
                         </span>
@@ -533,7 +533,7 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
             title={url ? t("reviewsAgents.upcoming.openTicket") : undefined}
             data-testid="reviews-upcoming-session-line"
         >
-            <b className="shrink-0 font-semibold text-accent">#{branch.ticket}</b>
+            <b className="shrink-0 font-semibold text-muted">#{branch.ticket}</b>
             <span className="min-w-0 truncate text-secondary">{branch.title || branch.branch}</span>
             {working && agent.kind !== "background" ? (
                 <DominoLoader className="shrink-0 text-[var(--mt-state-working)]" label={stateText} />

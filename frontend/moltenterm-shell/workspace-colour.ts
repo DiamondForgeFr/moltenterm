@@ -45,6 +45,10 @@ export const PresetGradients: { value: string; name: string }[] = [
     { value: "#ff5fb8,#8b7bff", name: "berry" },
 ];
 
+// The custom colour's swatch before one is picked: a hue wheel of presets. The picker opens on the default colour.
+export const CustomColourWheel = "conic-gradient(#ff453a, #ffe900, #58c142, #00ffdb, #429dff, #bf55ec, #ff453a)";
+export const CustomColourStart = "#ff7c0d";
+
 const ColourNames = new Map(PresetColours.map((c) => [c.value, c.name]));
 const GradientNames = new Map(PresetGradients.map((g) => [g.value, g.name]));
 

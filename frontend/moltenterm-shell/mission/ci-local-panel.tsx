@@ -112,7 +112,7 @@ function LogPane({ text, paneRef }: { text: string; paneRef: React.RefObject<HTM
                 const el = e.currentTarget;
                 atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
             }}
-            className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+            className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-primary"
         >
             {text === ""
                 ? t("mc.ciLocal.noOutputYet")

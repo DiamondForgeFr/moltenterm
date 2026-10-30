@@ -11,7 +11,7 @@
     background: transparent;
     overflow: visible;
     z-index: 2147483647;
-    color: var(--main-text-color, #eee);
+    color: var(--main-text-color);
     -webkit-app-region: no-drag;
 }
 .molten-menu-layer::backdrop {
@@ -22,11 +22,11 @@
     width: max-content;
     overflow-y: auto;
     box-sizing: border-box;
-    border: 1px solid var(--border-color, #555);
+    border: 1px solid var(--border-color);
     border-radius: var(--mt-radius-control);
     padding: 4px;
-    background: var(--mt-surface-3, #242424);
-    color: var(--main-text-color, #eee);
+    background: var(--mt-surface-3);
+    color: var(--main-text-color);
     font-family: var(--mt-ui-font, "IBM Plex Sans", sans-serif);
     font-size: var(--mt-text-12);
     line-height: 1.35;
@@ -54,7 +54,7 @@
 .molten-menu-item:hover:not(:disabled),
 .molten-menu-item:focus,
 .molten-menu-item[aria-expanded="true"] {
-    background: var(--hover-bg-color, #414141);
+    background: var(--hover-bg-color);
 }
 .molten-menu-item:disabled {
     opacity: 0.42;
@@ -91,7 +91,7 @@
 }
 .molten-menu-separator {
     margin: 4px 5px;
-    border-top: 1px solid var(--border-color, #555);
+    border-top: 1px solid var(--border-color);
 }
 /* A section heading (FR-SHELL-054, DS-SHELL-095) parts the sections in place of a separator: space above, no line.
    It aligns with the labels, past the icon column (8 px padding, 16 px icon, 8 px gap). */
@@ -102,7 +102,7 @@
     line-height: 16px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--color-muted, #8c918c);
+    color: var(--color-muted);
     user-select: none;
 }
 .molten-menu-header:not(:first-child) {

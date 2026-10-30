@@ -25,6 +25,8 @@ import {
     colourChoiceCss,
     colourChoiceForeground,
     colourStops,
+    CustomColourStart,
+    CustomColourWheel,
     logoColourChoices,
     parseCustomColour,
     PresetColourChoices,
@@ -975,14 +977,13 @@ function CustomColour({ custom, base, onSelect }: { custom: string; base: string
                         custom && SwatchCheckedClass
                     )}
                     style={{
-                        background:
-                            shown || "conic-gradient(#ff453a, #ffe900, #58c142, #00ffdb, #429dff, #bf55ec, #ff453a)",
+                        background: shown || CustomColourWheel,
                     }}
                 >
                     <input
                         type="color"
                         aria-label={t("workspace.edit.pickColour")}
-                        value={shown || base || "#ff7c0d"}
+                        value={shown || base || CustomColourStart}
                         onChange={(e) => onPick(e.target.value)}
                         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />

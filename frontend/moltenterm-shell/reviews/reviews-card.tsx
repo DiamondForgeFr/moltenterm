@@ -417,7 +417,7 @@ export function ReviewRow({
                         <MergeOrderRank rank={rank} />
                         {/* One number per card (#1108): the ticket, else the PR's; beside a ticket the PR's number is a
                             muted fact (#1351). */}
-                        <span className="shrink-0 text-accent" data-testid="reviews-card-number">
+                        <span className="shrink-0 font-normal text-muted" data-testid="reviews-card-number">
                             {head.ticket || `#${pr.number}`}
                         </span>
                         <span

@@ -6,8 +6,9 @@
    Imported by frontend/tailwindsetup.css right after Tailwind (MOLTENTERM-PATCH #398), so the @theme block below
    turns each token into a Tailwind utility; plain CSS reads the --mt-* variables. MoltenTerm-owned CSS and TSX
    (frontend/moltenterm-shell, frontend/moltenterm-onboarding) use only these: build/token-lint.test.ts fails on an
-   off-scale font size, weight, radius, icon size or transition duration. Wave's own surfaces keep their values (and
-   the snap of build/cap-radius.ts onto the two radii) until a MoltenTerm patch moves them onto the tokens.
+   off-scale font size, weight, radius, icon size or transition duration, and on a hex colour outside a token
+   definition on :root (FR-SHELL-119): a new colour becomes a token here first. Wave's own surfaces keep their values
+   (and the snap of build/cap-radius.ts onto the two radii) until a MoltenTerm patch moves them onto the tokens.
 
    Type        text-11 · text-12 (UI default) · text-13 (panel body) · text-15 · text-20 (section titles) · text-32
                (onboarding and hero numbers); weights font-normal 400 · font-medium 500 · font-semibold 600 only.
@@ -109,8 +110,35 @@
     --mt-state-warning: #e8d46a;
     --mt-state-info: #7faee6;
 
-    /* Project charts take a fixed steel blue (decision 5), never the workspace or the action colour. */
+    /* Text on the warning fill (the warning button). */
+    --mt-state-warning-fg: #000000;
+
+    /* Project charts take a fixed steel blue (decision 5), never the workspace or the action colour: the line map's
+       develop and branches, the CPU chart. */
     --mt-chart-1: #82a9ee;
+
+    /* The white-hot tip of the molten light that runs round a panel as it arrives (panel-motion.css). */
+    --mt-action-glint: #fff6de;
+
+    /* The 360 radar's panel kinds, one colour each so a kind reads from afar (radar-model.ts). A category, not a state
+       and not an action. */
+    --mt-kind-agent: #ea580c;
+    --mt-kind-term: #a8a29e;
+    --mt-kind-web: #38bdf8;
+    --mt-kind-companion: #a78bfa;
+    --mt-kind-review: #4ade80;
+    --mt-kind-project: #facc15;
+    --mt-kind-files: #2dd4bf;
+    --mt-kind-other: #78716c;
+
+    /* The window buttons' stand-ins in the floating sidebar (sidebar.css), matched to the system's buttons on a screen
+       capture, not taken from a palette. */
+    --mt-window-close: #ff5d61;
+    --mt-window-close-rim: #e02a1c;
+    --mt-window-minimize: #fec824;
+    --mt-window-minimize-rim: #f2ad00;
+    --mt-window-zoom: #2bc852;
+    --mt-window-zoom-rim: #22a51b;
 
     /* The names the code used before the heat scale, kept as aliases for the code not yet migrated. Danger text is
        the blocked text; the info tone is the state's. */

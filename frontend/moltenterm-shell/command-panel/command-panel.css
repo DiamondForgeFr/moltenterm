@@ -17,7 +17,7 @@
     background: transparent;
     overflow: visible;
     z-index: 2147483646;
-    color: var(--main-text-color, #eee);
+    color: var(--main-text-color);
     font-family: var(--mt-ui-font, "IBM Plex Sans", sans-serif);
     -webkit-app-region: no-drag;
 }
@@ -89,7 +89,7 @@
 
 .molten-cmdpanel-mini:hover:not(:disabled) {
     background: var(--mt-surface-1);
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-mini:disabled {
@@ -115,7 +115,7 @@
     width: 12px;
     height: 12px;
     border-radius: 9999px;
-    background: var(--mt-text-main, #f7f7f7);
+    background: var(--mt-text-main);
     transition: transform var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -172,7 +172,7 @@
 .molten-cmdpanel-back:hover,
 .molten-cmdpanel-footer-btn:hover {
     background: var(--mt-surface-1);
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-footer-btn.is-destructive:hover {
@@ -193,7 +193,7 @@
 
 .molten-cmdpanel-chip.is-accent {
     background: color-mix(in srgb, var(--mt-accent) 14%, transparent);
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 /* The scope of a changed option: a tint of the accent, so a changed value reads apart from the defaults. */
@@ -218,7 +218,7 @@
 }
 
 .molten-cmdpanel-feedback.is-warning .molten-cmdpanel-feedback-text {
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-feedback.is-danger .molten-cmdpanel-feedback-text {
@@ -236,7 +236,7 @@
 
 .molten-cmdpanel-feedback-primary {
     background: color-mix(in srgb, var(--mt-accent) 80%, transparent);
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-feedback-primary:hover {
@@ -250,7 +250,7 @@
 
 .molten-cmdpanel-feedback-secondary:hover {
     background: var(--mt-surface-3);
-    color: var(--mt-text-main, #f7f7f7);
+    color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-chip-verb {

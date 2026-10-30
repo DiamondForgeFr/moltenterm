@@ -40,7 +40,7 @@
 
 .molten-btn-warning {
     --molten-base: var(--mt-state-warning);
-    --molten-fg: #000000;
+    --molten-fg: var(--mt-state-warning-fg);
 }
 
 .molten-btn:hover {

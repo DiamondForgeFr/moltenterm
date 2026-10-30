@@ -210,7 +210,7 @@ export function RunLogBlock({ log }: { log: RunLogView }) {
             <pre
                 tabIndex={0}
                 aria-label={t("mc.run.log")}
-                className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+                className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-primary"
             >
                 {log.text === "" ? t("mc.run.noOutput") : log.text}
             </pre>
