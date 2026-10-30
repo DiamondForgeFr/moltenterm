@@ -385,6 +385,10 @@
     opacity: 1;
 }
 
+.mt-strip-tab.dragging .mt-strip-close {
+    opacity: 0;
+}
+
 .mt-strip-close:hover {
     background: color-mix(in srgb, var(--mt-text-1) 12%, var(--mt-strip-bg));
     color: var(--mt-text-1);

@@ -319,11 +319,13 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
             el.getBoundingClientRect()
         );
         const frame = row.querySelector<HTMLElement>(".mt-radar-window")?.getBoundingClientRect() ?? null;
+        // The drop mark is drawn inside the tab list, after the automatic-360 mark.
+        const list = row.querySelector<HTMLElement>(".mt-strip-tabs") ?? row;
         tabDragRef.current = {
             pointerId: e.pointerId,
             columnId: tick.columnId,
             startX: e.clientX,
-            rowLeft: row.getBoundingClientRect().left,
+            rowLeft: list.getBoundingClientRect().left,
             rects,
             frame,
             moved: false,
@@ -399,7 +401,11 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
             style={rowStyle}
             data-mode={strip.mode}
             data-testid="mt-carpet-radar"
-            onPointerLeave={() => setHover(null)}
+            onPointerLeave={() => {
+                // The frame may have moved under a still pointer (a tab added): leaving the strip ends both cards.
+                setHover(null);
+                setWindowX(null);
+            }}
         >
             <CarpetStrip
                 ticks={ticks}
