@@ -5627,7 +5627,8 @@
     "reopen": {
         "nothing": "Rien à rouvrir",
         "tab": "Vue « {name} » rouverte",
-        "pane": "{name} rouvert",
+        "pane": "« {name} » rouvert",
+        "panelFallback": "Panneau",
         "freshShell": "Un nouveau shell a démarré : celui qui a été fermé ne peut pas revenir.",
         "freshShellIn": "Un nouveau shell a démarré dans {path} : celui qui a été fermé ne peut pas revenir.",
         "failed": "Le dernier panneau fermé n'a pas pu être rouvert"

@@ -11,9 +11,11 @@ describe("the reopen toast (#512)", () => {
     });
 
     it("names what came back", () => {
-        expect(reopenToast({ reopened: true, kind: "pane", name: "the browser" })).toEqual({
+        expect(
+            reopenToast({ reopened: true, kind: "pane", name: "the browser" }, "", { view: "molten-reviews" })
+        ).toEqual({
             kind: "success",
-            title: "Reopened the browser",
+            title: "Reopened “Integration”",
         });
         expect(reopenToast({ reopened: true, kind: "tab", name: "api" }).title).toBe("Reopened the view “api”");
     });
@@ -27,12 +29,25 @@ describe("the reopen toast (#512)", () => {
     it("says a terminal got a new shell, in its folder", () => {
         const t = reopenToast(
             { reopened: true, kind: "pane", name: "the terminal", freshshell: true, cwd: "/Users/me/w" },
-            "/Users/me"
+            "/Users/me",
+            { view: "term", "cmd:cwd": "/Users/me/w" }
         );
-        expect(t.title).toBe("Reopened the terminal");
+        expect(t.title).toBe("Reopened “w”");
         expect(t.message).toBe("A new shell started in ~/w: the closed one cannot be brought back.");
         expect(reopenToast({ reopened: true, kind: "pane", name: "the terminal", freshshell: true }).message).toBe(
             "A new shell started: the closed one cannot be brought back."
         );
+    });
+
+    it("names an agent panel by its first name, a titled panel by its title, and falls back to Panel", () => {
+        const pane = { reopened: true, kind: "pane" as const, name: "the terminal" };
+        expect(
+            reopenToast(pane, "", { view: "term", "molten:reopenagent": { agent: "x", name: "Olivia", command: "x" } })
+                .title
+        ).toBe("Reopened “Olivia”");
+        expect(reopenToast(pane, "", { view: "molten-reviews", "frame:title": "Thème Coulée" }).title).toBe(
+            "Reopened “Thème Coulée”"
+        );
+        expect(reopenToast(pane, "", { view: "nonexistent" }).title).toBe("Reopened “Panel”");
     });
 });
