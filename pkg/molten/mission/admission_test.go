@@ -761,3 +761,27 @@ func TestAdmissionBackfillsSecondaryRecordBeforeRetarget(t *testing.T) {
 		t.Fatalf("backfilled history lost after restart: %+v", records)
 	}
 }
+
+// A build's handoff (alias path) and a List refresh (real path) must exclude each other even after the alias is
+// retargeted; otherwise the refresh can overwrite the fresh record as lost (#1477).
+func TestRecordLockIsSharedAcrossRetargetedAlias(t *testing.T) {
+	r, dir := makeReleaseFixture(t, admissionPipeline)
+	_, other := makeReleaseFixture(t, admissionPipeline)
+	alias := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(r.projectDir(dir), "run-1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	before := r.recordLock(alias, "run-1")
+	if err := os.Remove(alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, alias); err != nil {
+		t.Fatal(err)
+	}
+	if after := r.recordLock(dir, "run-1"); after != before || r.recordLock(alias, "run-1") != before {
+		t.Fatal("the same run got different locks depending on the path used to reach it")
+	}
+}
