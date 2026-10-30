@@ -179,6 +179,8 @@ export type CompanionView = {
     activity?: CompanionActivity;
     // The programs the main agent ran in a shell, in the order it first ran them (FR-SHELL-084).
     commands?: string[];
+    // How many shell calls ran each of commands (#1543).
+    commandcounts?: Record<string, number>;
     // The terminal's earlier sessions, newest first, the one shown left out (#600).
     earlier?: CompanionEarlierSession[];
 };

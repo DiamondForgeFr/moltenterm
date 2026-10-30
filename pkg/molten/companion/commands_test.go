@@ -22,6 +22,13 @@ func TestCommandNames(t *testing.T) {
 		"node scripts/x.mjs > out.txt 2>&1 && cat out.txt": "node,cat",
 		"  ": "",
 		"time env GOFLAGS=-mod=mod go vet ./pkg/... ; git diff": "go,git",
+		// #1543: script, jq and comment fragments are no programs.
+		"gh pr view 1 --json number --jq '\n  .number,\n  [.title] | join(\"#\")\n'": "gh",
+		"# list them\ngit log # then\nrg foo":                                        "git,rg",
+		"cat <<'EOF' > /tmp/x\n#\\\n.number\n[\\\nEOF\ngo test":                      "cat,go",
+		"git commit -m \"fix #12; go\" && npm test":                                  "git,npm",
+		"python3 -c \"print('a|b')\"":                                                "python3",
+		"\"./run.sh\" now":                                                           "",
 	}
 	for line, want := range cases {
 		if got := strings.Join(commandNames(line), ","); got != want {
@@ -36,6 +43,9 @@ func TestNoteShellCommandKeepsFirstUseOrderAndCap(t *testing.T) {
 	s.NoteShellCommand("go test ./... && git diff")
 	if got := strings.Join(s.Commands(), ","); got != "git,gh,go" {
 		t.Fatalf("commands: %s", got)
+	}
+	if counts := s.CommandCounts(); counts["git"] != 2 || counts["gh"] != 1 || counts["go"] != 1 {
+		t.Fatalf("counts: %v", counts)
 	}
 	for i := 0; i < maxCommands*2; i++ {
 		s.NoteShellCommand("tool" + strings.Repeat("x", i%30) + string(rune('a'+i%26)))

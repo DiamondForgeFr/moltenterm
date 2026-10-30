@@ -14,6 +14,7 @@ package agentcontinuity
 import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenttoolkit"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
@@ -123,4 +124,16 @@ type AgentAdapter interface {
 	Usage() usage.UsageAdapter
 	// GuideProfile is the id of the agent's molten guides profile (molten agent install), "" for none.
 	GuideProfile() string
+	// Toolkit lists the MCP servers, skills and plugins a session started in cwd can use, read-only from the agent's
+	// configuration files (#1543); Supported false when the agent does not tell.
+	Toolkit(env ModelEnv, cwd string) agenttoolkit.Toolkit
+}
+
+// ReadToolkit is the toolkit of an agent id; an agent without an adapter does not tell.
+func ReadToolkit(agent string, env ModelEnv, cwd string) agenttoolkit.Toolkit {
+	a := Find(agent)
+	if a == nil {
+		return agenttoolkit.Toolkit{}
+	}
+	return a.Toolkit(env, cwd)
 }

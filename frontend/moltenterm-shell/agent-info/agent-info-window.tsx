@@ -6,6 +6,8 @@
 // model and effort, where it works and since when, its sub-agents, the agents it is linked to, its MoltenTerm MCP
 // servers, the commands it ran, the pages shared with it and its view. Sections are a list (AgentInfoSections), so
 // later stories add theirs (cost, context used) without touching the others; a section with nothing to show is left out.
+// #1543 widens it to two columns: what the agent does on the left, what it can use (MCP servers, skills, plugins, read
+// from its adapter) on the right, each long list shown in part so the window does not scroll forever.
 
 import { atoms } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
@@ -41,7 +43,6 @@ import { readWorktreeLink } from "../worktree-model";
 import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "./agent-info-hooks";
 import {
     agentTool,
-    mcpServerRows,
     sharedPages,
     startedAgo,
     subagentKindKey,
@@ -49,6 +50,16 @@ import {
     type SharedPage,
 } from "./agent-info-model";
 import { AgentInfoModel } from "./agent-info-store";
+import {
+    commandRows,
+    fetchAgentToolkit,
+    serverRows,
+    ToolkitPreviewRows,
+    type AgentToolkit,
+    type ServerRow,
+    type ToolkitPlugin,
+    type ToolkitSkill,
+} from "./agent-toolkit-model";
 
 export const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -68,11 +79,15 @@ export type AgentInfoContext = {
     companion: CompanionView;
     links: BlockLinks;
     pane: PaneState;
+    meta: Record<string, any>;
     close: () => void;
 };
 
+// column: where a section sits on a wide window (#1543); "top" spans both columns. A narrow window stacks them, top,
+// then main, then side.
 export type AgentInfoSection = {
     key: string;
+    column: "top" | "main" | "side";
     Component: React.ComponentType<{ ctx: AgentInfoContext }>;
 };
 
@@ -228,40 +243,223 @@ const McpDot: Record<string, string> = {
     legacy: "bg-success",
 };
 
-function McpSection({ ctx }: { ctx: AgentInfoContext }) {
+const ConfigDot: Record<string, string> = {
+    configured: "bg-secondary",
+    needsapproval: "bg-warning",
+    off: "bg-white/20",
+};
+
+type ToolkitLoad = { status: "loading" | "ready" | "failed"; toolkit?: AgentToolkit };
+
+// Read once when the window opens (and when the agent or its folder changes): no poller (Epic #446).
+function useAgentToolkit(agent: string, cwd: string): ToolkitLoad {
+    const [load, setLoad] = useState<ToolkitLoad>({ status: "loading" });
+    useEffect(() => {
+        if (!agent) {
+            setLoad({ status: "ready", toolkit: { supported: false } });
+            return;
+        }
+        let cancelled = false;
+        setLoad({ status: "loading" });
+        fetchAgentToolkit(agent, cwd)
+            .then((toolkit) => !cancelled && setLoad({ status: "ready", toolkit: toolkit ?? { supported: false } }))
+            .catch((e) => {
+                console.log("agent info: toolkit", e);
+                if (!cancelled) {
+                    setLoad({ status: "failed" });
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [agent, cwd]);
+    return load;
+}
+
+function originLabel(t: ReturnType<typeof useT>, origin: string, plugin?: string): string {
+    return t(`agentInfo.toolkit.scope.${origin}`, { plugin: plugin ?? "" });
+}
+
+// A list that shows its first rows, and the rest on demand: the window never grows into an endless scroll.
+function Preview<T>({ rows, render, testId }: { rows: T[]; render: (row: T) => React.ReactNode; testId: string }) {
     const t = useT();
-    const rows = mcpServerRows(ctx.links);
-    if (rows.length === 0) {
-        return null;
+    const [open, setOpen] = useState(false);
+    const shown = open ? rows : rows.slice(0, ToolkitPreviewRows);
+    return (
+        <div data-testid={testId}>
+            {shown.map(render)}
+            {rows.length > ToolkitPreviewRows ? (
+                <button
+                    type="button"
+                    className="cursor-pointer px-2 py-1 text-11 text-muted hover:text-primary"
+                    aria-expanded={open}
+                    onClick={() => setOpen(!open)}
+                >
+                    {open ? t("agentInfo.toolkit.showLess") : t("agentInfo.toolkit.showAll", { count: rows.length })}
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
+function SubTitle({ label, count }: { label: string; count: number }) {
+    return (
+        <h6 className="mt-2.5 mb-0.5 flex items-baseline gap-1.5 px-2 text-11 font-semibold text-secondary">
+            {label}
+            <span className="font-normal text-muted">{count}</span>
+        </h6>
+    );
+}
+
+function ServerLine({ row }: { row: ServerRow }) {
+    const t = useT();
+    const live = row.origin === "molten";
+    const stateText = live
+        ? t(`agentInfo.mcpState.${row.state}`)
+        : t(`agentInfo.toolkit.state.${row.state}`);
+    const short = row.state === "needsapproval" || row.state === "off" ? t(`agentInfo.toolkit.stateShort.${row.state}`) : "";
+    return (
+        <div className={Line} title={stateText} data-testid="agent-info-server">
+            <span
+                className={cn(
+                    "h-[6px] w-[6px] shrink-0 rounded-full",
+                    (live ? McpDot : ConfigDot)[row.state] ?? "bg-secondary"
+                )}
+            />
+            <span className={cn("min-w-0 truncate font-mono text-11", row.state === "off" ? "text-muted" : "text-primary")}>
+                {row.name}
+            </span>
+            <span className="min-w-0 truncate text-11 text-muted">
+                {[originLabel(t, row.origin, row.plugin), row.transport].filter(Boolean).join(" · ")}
+            </span>
+            {short ? (
+                <span
+                    className={cn(
+                        "ml-auto shrink-0 text-11",
+                        row.state === "needsapproval" ? "text-[var(--mt-state-waiting)]" : "text-muted"
+                    )}
+                >
+                    {short}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
+function SkillLine({ skill }: { skill: ToolkitSkill }) {
+    const t = useT();
+    return (
+        <div
+            className={cn(Line, "items-start")}
+            title={skill.description || skill.name}
+            data-testid="agent-info-skill"
+        >
+            <span className="min-w-0 shrink-0 font-mono text-11 text-primary">{skill.name}</span>
+            <span className="min-w-0 flex-1 truncate text-11 text-muted">{skill.description}</span>
+            <span className="shrink-0 text-11 text-muted">{originLabel(t, skill.scope, skill.plugin)}</span>
+        </div>
+    );
+}
+
+function PluginChip({ plugin }: { plugin: ToolkitPlugin }) {
+    const t = useT();
+    return (
+        <span
+            className={cn(Chip, !plugin.enabled && "opacity-60")}
+            title={[plugin.source, t(plugin.enabled ? "agentInfo.toolkit.pluginOn" : "agentInfo.toolkit.pluginOff")]
+                .filter(Boolean)
+                .join(" · ")}
+            data-testid="agent-info-plugin"
+        >
+            <span className={cn("h-[5px] w-[5px] rounded-full", plugin.enabled ? "bg-success" : "bg-white/20")} />
+            {plugin.name}
+        </span>
+    );
+}
+
+// What the agent can use (#1543): MoltenTerm's own MCP servers with their live state, then what the agent's
+// configuration declares for this folder, read-only. Choosing what stays usable is #550: until then no "Manage…"
+// entry, since a button that does nothing would be a dead end.
+function ToolkitSection({ ctx }: { ctx: AgentInfoContext }) {
+    const t = useT();
+    // The folder the agent started in: the one its configuration is resolved for.
+    const cwd = ctx.meta?.["cmd:cwd"] || ctx.pane?.dir || "";
+    const load = useAgentToolkit(ctx.info?.agent ?? "", cwd);
+    const toolkit = load.toolkit;
+    const servers = serverRows(ctx.links, toolkit);
+    const skills = toolkit?.skills ?? [];
+    const plugins = toolkit?.plugins ?? [];
+    const name = agentDisplayName(ctx.info);
+    let note: string = null;
+    if (load.status === "loading") {
+        note = t("agentInfo.toolkit.loading");
+    } else if (load.status === "failed") {
+        note = t("agentInfo.toolkit.failed");
+    } else if (!toolkit?.supported) {
+        note = t("agentInfo.toolkit.unsupported", { tool: agentTool(ctx.info) || name });
+    } else if (servers.length + skills.length + plugins.length === 0) {
+        note = t("agentInfo.toolkit.empty");
     }
     return (
-        <section data-testid="agent-info-mcp">
-            <h5 className={SectionTitle}>{t("agentInfo.mcp")}</h5>
-            <div className="flex flex-wrap gap-1">
-                {rows.map((r) => (
-                    <span key={r.server} className={Chip} title={t(`agentInfo.mcpState.${r.state ?? "connected"}`)}>
-                        <span className={cn("h-[5px] w-[5px] rounded-full", McpDot[r.state] ?? "bg-secondary")} />
-                        {r.server}
-                    </span>
-                ))}
-            </div>
+        <section data-testid="agent-info-toolkit">
+            <h5 className={SectionTitle}>{t("agentInfo.toolkit.title", { name })}</h5>
+            {note ? <div className="px-2 py-1 text-12 text-muted">{note}</div> : null}
+            {servers.length > 0 ? (
+                <>
+                    <SubTitle label={t("agentInfo.toolkit.servers")} count={servers.length} />
+                    <Preview
+                        rows={servers}
+                        testId="agent-info-servers"
+                        render={(r) => <ServerLine key={`${r.origin}:${r.plugin ?? ""}:${r.name}`} row={r} />}
+                    />
+                </>
+            ) : null}
+            {skills.length > 0 ? (
+                <>
+                    <SubTitle label={t("agentInfo.toolkit.skills")} count={skills.length} />
+                    <Preview
+                        rows={skills}
+                        testId="agent-info-skills"
+                        render={(s) => <SkillLine key={`${s.scope}:${s.plugin ?? ""}:${s.name}`} skill={s} />}
+                    />
+                </>
+            ) : null}
+            {plugins.length > 0 ? (
+                <>
+                    <SubTitle label={t("agentInfo.toolkit.plugins")} count={plugins.length} />
+                    <div className="flex flex-wrap gap-1 px-2 pt-0.5">
+                        {plugins.map((p) => (
+                            <PluginChip key={`${p.source ?? ""}:${p.name}`} plugin={p} />
+                        ))}
+                    </div>
+                </>
+            ) : null}
+            {toolkit?.supported ? (
+                <div className="mt-3 px-2 text-11 text-muted">
+                    {[t("agentInfo.toolkit.readOnly"), toolkit.online ? t("agentInfo.toolkit.online") : ""]
+                        .filter(Boolean)
+                        .join(" ")}
+                </div>
+            ) : null}
         </section>
     );
 }
 
 function CommandsSection({ ctx }: { ctx: AgentInfoContext }) {
     const t = useT();
-    const commands = ctx.companion?.commands ?? [];
-    if (commands.length === 0) {
+    const tc = useTCount();
+    const rows = commandRows(ctx.companion);
+    if (rows.length === 0) {
         return null;
     }
     return (
         <section data-testid="agent-info-commands">
             <h5 className={SectionTitle}>{t("agentInfo.commands")}</h5>
             <div className="flex flex-wrap gap-1">
-                {commands.map((c) => (
-                    <span key={c} className={Chip}>
-                        {c}
+                {rows.map((c) => (
+                    <span key={c.name} className={Chip} title={tc("agentInfo.commandCount", c.count)}>
+                        {c.name}
+                        {c.count > 1 ? <span className="text-muted">{c.count}</span> : null}
                     </span>
                 ))}
             </div>
@@ -401,14 +599,24 @@ function ViewSection({ ctx }: { ctx: AgentInfoContext }) {
 
 // The window's sections, in order. A later story appends its own here.
 export const AgentInfoSections: AgentInfoSection[] = [
-    { key: "facts", Component: FactsSection },
-    { key: "subagents", Component: SubagentsSection },
-    { key: "linked", Component: LinkedSection },
-    { key: "mcp", Component: McpSection },
-    { key: "commands", Component: CommandsSection },
-    { key: "pages", Component: PagesSection },
-    { key: "view", Component: ViewSection },
+    { key: "facts", column: "top", Component: FactsSection },
+    { key: "subagents", column: "main", Component: SubagentsSection },
+    { key: "linked", column: "main", Component: LinkedSection },
+    { key: "pages", column: "main", Component: PagesSection },
+    { key: "view", column: "main", Component: ViewSection },
+    { key: "commands", column: "main", Component: CommandsSection },
+    { key: "toolkit", column: "side", Component: ToolkitSection },
 ];
+
+function SectionsOf({ column, ctx }: { column: AgentInfoSection["column"]; ctx: AgentInfoContext }) {
+    return (
+        <>
+            {AgentInfoSections.filter((s) => s.column === column).map(({ key, Component }) => (
+                <Component key={key} ctx={ctx} />
+            ))}
+        </>
+    );
+}
 
 function AgentHead({ info }: { info: AgentStateInfo }) {
     const look = agentRowLook(info);
@@ -458,8 +666,8 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
         }
     }, [connectionsOpen]);
     const ctx: AgentInfoContext = useMemo(
-        () => ({ blockId, info, companion, links, pane, close: onClose }),
-        [blockId, info, companion, links, pane, onClose]
+        () => ({ blockId, info, companion, links, pane, meta, close: onClose }),
+        [blockId, info, companion, links, pane, meta, onClose]
     );
     if (info == null) {
         return null;
@@ -469,7 +677,7 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
         <DialogFrame
             role="agent-info"
             title={t("agentInfo.title", { name })}
-            widthClass="w-[640px]"
+            widthClass="w-[1080px]"
             onBackdrop={onClose}
             onEscape={onClose}
             buttons={
@@ -506,9 +714,18 @@ export function AgentInfoWindow({ blockId, onClose }: { blockId: string; onClose
                 <AgentHead info={info} />
                 {live == null ? <div className="mt-2 text-12 text-muted">{t("agentInfo.ended")}</div> : null}
                 <div className="mt-3.5">
-                    {AgentInfoSections.map(({ key, Component }) => (
-                        <Component key={key} ctx={ctx} />
-                    ))}
+                    <SectionsOf column="top" ctx={ctx} />
+                </div>
+                <div className="grid grid-cols-1 gap-x-6 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="min-w-0" data-testid="agent-info-main">
+                        <SectionsOf column="main" ctx={ctx} />
+                    </div>
+                    <div
+                        className="min-w-0 min-[900px]:border-l min-[900px]:border-border min-[900px]:pl-6"
+                        data-testid="agent-info-side"
+                    >
+                        <SectionsOf column="side" ctx={ctx} />
+                    </div>
                 </div>
                 {connectionsOpen ? (
                     <section

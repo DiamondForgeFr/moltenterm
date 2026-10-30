@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
@@ -646,6 +647,7 @@ func UseStarter(start func()) {
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
 	agentchoice.Start()
+	agentcontinuity.StartToolkitRoute()
 	dataDir := wavebase.GetWaveDataDir()
 	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
 	var groups *Groups

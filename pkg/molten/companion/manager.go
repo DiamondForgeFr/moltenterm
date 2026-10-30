@@ -153,6 +153,8 @@ type CompanionView struct {
 	Activity  *ActivityInfo  `json:"activity,omitempty"`
 	// Commands: the programs the main agent ran in a shell, in the order it first ran them (FR-SHELL-084).
 	Commands []string `json:"commands,omitempty"`
+	// CommandCounts: how many shell calls ran each of Commands (#1543).
+	CommandCounts map[string]int `json:"commandcounts,omitempty"`
 	// Earlier: the pane's earlier sessions, newest first, the one shown left out (#600).
 	Earlier []EarlierSession `json:"earlier,omitempty"`
 }
@@ -1907,6 +1909,7 @@ func (w *watcher) view(elide bool) CompanionView {
 	v.Subagents = w.session.Subagents()
 	v.Activity = w.session.Activity()
 	v.Commands = w.session.Commands()
+	v.CommandCounts = w.session.CommandCounts()
 	return v
 }
 

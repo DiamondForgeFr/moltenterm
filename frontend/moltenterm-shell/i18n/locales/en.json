@@ -9081,7 +9081,43 @@
             "worktree": "Worktree",
             "started": "Started"
         },
-        "mcp": "Connected MCP servers",
+        "toolkit": {
+            "title": "What {name} can use",
+            "readOnly": "Read from its configuration files, nothing is changed.",
+            "servers": "MCP servers",
+            "skills": "Skills",
+            "plugins": "Plugins",
+            "loading": "Reading its configuration…",
+            "failed": "Its configuration could not be read.",
+            "empty": "No MCP server, skill or plugin is configured for it.",
+            "unsupported": "{tool} doesn't tell MoltenTerm which MCP servers, skills or plugins it can use.",
+            "online": "Servers added from your online account aren't listed: the agent fetches them when it starts.",
+            "showAll": "Show all ({count})",
+            "showLess": "Show less",
+            "scope": {
+                "molten": "MoltenTerm",
+                "user": "personal",
+                "project": "project",
+                "local": "this folder only",
+                "plugin": "plugin {plugin}",
+                "system": "built in"
+            },
+            "state": {
+                "configured": "Configured",
+                "needsapproval": "Needs your approval in the agent",
+                "off": "Turned off"
+            },
+            "stateShort": {
+                "needsapproval": "to approve",
+                "off": "off"
+            },
+            "pluginOn": "on",
+            "pluginOff": "off"
+        },
+        "commandCount": {
+            "one": "Run in {count} shell call",
+            "other": "Run in {count} shell calls"
+        },
         "mcpState": {
             "connected": "Connected",
             "reconnecting": "Reconnecting",
