@@ -21,7 +21,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BrowserActiveMetaKey } from "../browser/browser-model";
-import { useSentAccess } from "./use-sent-access";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
@@ -64,11 +63,14 @@ import {
     matchesQuery,
     panelAboutKey,
     putAwayAgentNames,
+    readLastSettingsTab,
     SentRow,
+    SettingsOverviewTab,
     sharedAgentGroups,
     suggestClipboardText,
     whenText,
     workspaceAgents,
+    writeLastSettingsTab,
 } from "./library-model";
 import "./library.css";
 import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
@@ -83,6 +85,7 @@ import {
     SettingsRevealKey,
     type RevealRect,
 } from "./settings-reveal";
+import { useSentAccess } from "./use-sent-access";
 
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 // Removing an agent's access offers Undo this long, as a deleted workspace does (FR-SHELL-095).
@@ -796,6 +799,8 @@ function isFieldInSettingsBlock(target: EventTarget): boolean {
     return el?.closest?.(".mt-lib-setpage") != null && el.matches?.("input, textarea, select, [contenteditable]");
 }
 
+const SettingsSectionIds = SettingsSections.map((s) => s.id);
+
 const LibraryRowIdPrefix = "molten-setting-library-";
 
 function libraryRowId(key: string): string {
@@ -853,7 +858,8 @@ function LibrarySettingsBlock({ block }: { block: SettingsSectionId }) {
 
 // The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
 // order while one is open, as a compact sticky row (#1548) from which another block opens directly; the open block is
-// revealed by settings-reveal.ts (#1407), from the chip or tile just clicked.
+// revealed by settings-reveal.ts (#1407), from the chip or tile just clicked. One navigation (#1592): the row is always
+// there, its first tab Overview (null) holding the blocks as compact cards.
 function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: (block: SettingsSectionId) => void }) {
     const t = useT();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
@@ -881,19 +887,32 @@ function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: 
             onRelayout: () => finishSettingsReveal(),
         });
     };
+    const firstLayoutRef = useRef(true);
     // The molten reveal of the block just opened (#1407), before its first frame; switching block or section or
     // closing the library ends it and removes its channels.
     useLayoutEffect(() => {
+        // Settings reopening on the last tab used (#1592) is not an ask to open it: the block shows without a reveal.
+        const restored = firstLayoutRef.current;
+        firstLayoutRef.current = false;
         const stage = stageRef.current;
+        if (!restored) {
+            // The new tab starts at its top, under the sticky row; the geometry of the reveal is read after this.
+            stage?.closest(".mt-lib-body")?.scrollTo({ top: 0 });
+        }
         const page = stage?.querySelector(".mt-lib-setpage");
         if (block == null || page == null || layerRef.current == null) {
             return;
         }
-        // The new block starts at its top, under the sticky row; the geometry of the reveal is read after this.
-        stage.closest(".mt-lib-body")?.scrollTo({ top: 0 });
         const chip = stage.querySelector('.mt-lib-set[aria-current="true"]');
         chip?.scrollIntoView({ block: "nearest", inline: "nearest" });
         channelsRef.current = mode === "molten" ? openChannels() : null;
+        if (restored) {
+            sourceRef.current = null;
+            return () => {
+                channelsRef.current?.dispose();
+                channelsRef.current = null;
+            };
+        }
         // The chip melts at its place in the row, where the block opened from the tiles too (#1548).
         const clicked = sourceRef.current != null && chip != null;
         const handle = runSettingsReveal({
@@ -936,10 +955,37 @@ function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: 
             ref={stageRef}
             className="mt-lib-setstage flex flex-col gap-3"
             data-testid="library-settings-stage"
-            data-state={block != null ? "open" : "tiles"}
+            data-state={block != null ? "open" : "overview"}
             data-open={block ?? undefined}
         >
             <div ref={channelLayerRef} className="mt-ch-layer" data-testid="library-settings-channels" aria-hidden />
+            <div className="mt-lib-settabs" data-testid="library-settings">
+                <button
+                    type="button"
+                    className="mt-lib-set"
+                    data-testid="library-settings-overview"
+                    data-section={SettingsOverviewTab}
+                    aria-current={block == null ? "true" : undefined}
+                    onClick={() => onOpen(null)}
+                >
+                    <i className={makeIconClass("table-cells-large", true)} aria-hidden />
+                    <span>{t("library.settings.overview")}</span>
+                </button>
+                {SettingsSections.map((s) => (
+                    <button
+                        key={s.id}
+                        type="button"
+                        className="mt-lib-set"
+                        data-testid="library-settings-section"
+                        data-section={s.id}
+                        aria-current={s.id === block ? "true" : undefined}
+                        onClick={(e) => openFromTile(s.id, e.currentTarget)}
+                    >
+                        <i className={makeIconClass(s.icon, true)} aria-hidden />
+                        <span>{localizeSection(s, t).title}</span>
+                    </button>
+                ))}
+            </div>
             {hasConfigErrors && block == null ? (
                 <button
                     type="button"
@@ -951,29 +997,32 @@ function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: 
                     <span>{t("rail.tools.settingsErrors")}</span>
                 </button>
             ) : null}
-            <div className="mt-lib-setgrid" data-testid="library-settings">
-                {SettingsSections.map((s) => {
-                    const section = localizeSection(s, t);
-                    return (
-                        <button
-                            key={s.id}
-                            type="button"
-                            className="mt-lib-set"
-                            data-testid="library-settings-section"
-                            data-section={s.id}
-                            aria-current={s.id === block ? "true" : undefined}
-                            onClick={(e) => openFromTile(s.id, e.currentTarget)}
-                        >
-                            <i className={makeIconClass(s.icon, true)} aria-hidden />
-                            <span>
-                                {section.title}
-                                <small>{section.description}</small>
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
-            {block != null ? <LibrarySettingsBlock block={block} /> : null}
+            {block == null ? (
+                <div className="mt-lib-setgrid" data-testid="library-settings-cards">
+                    {SettingsSections.map((s) => {
+                        const section = localizeSection(s, t);
+                        return (
+                            <button
+                                key={s.id}
+                                type="button"
+                                className="mt-lib-setcard"
+                                data-testid="library-settings-card"
+                                data-section={s.id}
+                                title={section.description}
+                                onClick={(e) => openFromTile(s.id, e.currentTarget)}
+                            >
+                                <i className={makeIconClass(s.icon, true)} aria-hidden />
+                                <span>
+                                    {section.title}
+                                    <small>{section.description}</small>
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : (
+                <LibrarySettingsBlock block={block} />
+            )}
             <div ref={layerRef} className="mt-reveal-layer" data-testid="library-settings-reveal" aria-hidden />
         </div>
     );
@@ -1041,7 +1090,13 @@ export function Library({
     const tc = useTCount();
     const [query, setQuery] = useState("");
     const [suggest, setSuggest] = useState(false);
-    const [settingsBlock, setSettingsBlock] = useState<SettingsSectionId>(null);
+    const [settingsBlock, setSettingsBlockState] = useState<SettingsSectionId>(() =>
+        readLastSettingsTab(window.localStorage, SettingsSectionIds)
+    );
+    const setSettingsBlock = (block: SettingsSectionId) => {
+        writeLastSettingsTab(window.localStorage, block);
+        setSettingsBlockState(block);
+    };
     const rootRef = useRef<HTMLDivElement>(null);
     const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
@@ -1050,7 +1105,6 @@ export function Library({
     const newMaterials = useMaterialsNewCount(materials.view, section === "materials");
     useEffect(() => {
         setQuery("");
-        setSettingsBlock(null);
     }, [section]);
     useEffect(() => {
         const previous = document.activeElement as HTMLElement;

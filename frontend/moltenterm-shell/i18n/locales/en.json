@@ -9490,6 +9490,7 @@
         "nothingFound": "Nothing found",
         "settings": {
             "openInView": "Open in a view",
+            "overview": "Overview",
             "openInViewTitle": "Open {name} in the Settings view of this workspace"
         },
         "sections": {

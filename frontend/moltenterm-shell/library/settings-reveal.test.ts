@@ -383,16 +383,37 @@ describe("settings blocks stay on screen (#1548)", () => {
         expect(css).not.toContain(".mt-lib-setback");
     });
 
-    it("turns the blocks into a sticky row that scrolls sideways while one is open", () => {
-        const row = css.match(/\.mt-lib-setstage\[data-state="open"\] > \.mt-lib-setgrid \{[^}]*\}/)?.[0] ?? "";
+    it("always shows the row of tabs, sticky, scrolling sideways (#1592)", () => {
+        const row = css.match(/\.mt-lib-settabs \{[^}]*\}/)?.[0] ?? "";
         expect(row).toContain("position: sticky");
         expect(row).toContain("top: 0");
         expect(row).toContain("overflow-x: auto");
         expect(row).not.toContain("display: none");
+        expect(css).not.toContain('.mt-lib-setstage[data-state="open"] > ');
     });
 
     it("starts the reveal from the clicked chip of the row, whichever state it is clicked in", () => {
-        expect(library).toContain("onClick={(e) => openFromTile(s.id, e.currentTarget)}");
+        expect(library.split("onClick={(e) => openFromTile(s.id, e.currentTarget)}")).toHaveLength(3);
+    });
+});
+
+describe("Settings has one navigation (#1592)", () => {
+    const library = readFileSync("frontend/moltenterm-shell/library/library.tsx", "utf8");
+
+    it("puts Overview first in the row, marked while the cards show, and brings them back in one click", () => {
+        const row = library.slice(library.indexOf('className="mt-lib-settabs"'));
+        expect(row.indexOf('data-testid="library-settings-overview"')).toBeLessThan(
+            row.indexOf('data-testid="library-settings-section"')
+        );
+        expect(row).toContain('aria-current={block == null ? "true" : undefined}');
+        expect(row).toContain("onClick={() => onOpen(null)}");
+    });
+
+    it("reopens on the last tab without a reveal", () => {
+        expect(library).toContain("readLastSettingsTab(window.localStorage, SettingsSectionIds)");
+        expect(library).toContain("writeLastSettingsTab(window.localStorage, block)");
+        const effect = library.slice(library.indexOf("const restored = firstLayoutRef.current"));
+        expect(effect.indexOf("if (restored) {")).toBeLessThan(effect.indexOf("runSettingsReveal("));
     });
 });
 
