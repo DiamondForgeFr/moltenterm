@@ -9507,7 +9507,7 @@
             },
             "show": "Show",
             "remove": "Remove access",
-            "removeAll": "Remove all its access",
+            "removeAll": "Remove all access",
             "removed": "{name} no longer has “{title}”",
             "removedAll": "{name} no longer has any page",
             "removedSub": {
