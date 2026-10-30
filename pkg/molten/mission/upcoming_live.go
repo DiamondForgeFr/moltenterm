@@ -75,7 +75,8 @@ func PaneSubagentsOf(places []AgentPlace, read func(blockId string) []companion.
 	return rtn
 }
 
-// liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths.
+// liveAgentPlaces lists the running agents of local terminals with their folders, symlinks resolved like git's paths:
+// the terminal's, the worktree it is linked to, and where its agent's adapter reads the session works (#1476).
 func liveAgentPlaces(ctx context.Context) []AgentPlace {
 	var rtn []AgentPlace
 	for _, run := range attention.AgentRuns() {
@@ -92,8 +93,14 @@ func liveAgentPlaces(ctx context.Context) []AgentPlace {
 		}
 		conn := block.Meta.GetString(waveobj.MetaKey_Connection, "")
 		cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-		if (conn == "" || conn == "local") && filepath.IsAbs(cwd) {
+		local := conn == "" || conn == "local"
+		if local && filepath.IsAbs(cwd) {
 			place.Cwd = realPath(cwd)
+		}
+		if local {
+			if work := companion.PaneWorkFolder(run.BlockId); filepath.IsAbs(work) {
+				place.Work = realPath(work)
+			}
 		}
 		_, place.Review = block.Meta[mcpreview.SessionMetaKey]
 		rtn = append(rtn, place)

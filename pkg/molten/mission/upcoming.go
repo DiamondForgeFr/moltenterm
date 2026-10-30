@@ -151,6 +151,9 @@ type AgentPlace struct {
 	// Cwd: the terminal's local folder; Link: the worktree MoltenTerm linked it to (molten:worktree).
 	Cwd  string
 	Link string
+	// Work: where the agent's adapter reads its session works now (#1476: a Codex command's workdir in a ticket's
+	// worktree), "" when unknown; it places the agent when it is in another worktree than Link or Cwd.
+	Work string
 	// Pid: the agent's process when the process tree found it (0 otherwise); a worktree lock's pid names its owner
 	// (#1143).
 	Pid int32
@@ -233,7 +236,7 @@ func (u *Upcoming) projectLock(dir string) *sync.Mutex {
 func placesKey(places []AgentPlace) string {
 	parts := make([]string, 0, len(places))
 	for _, p := range places {
-		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Review))
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%t", p.BlockId, p.Agent, p.FirstName, p.Started, p.Link, p.Cwd, p.Work, p.Review))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "\n")
@@ -728,17 +731,33 @@ func placePath(p AgentPlace) string {
 	return ""
 }
 
-// MatchBranchAgents places each running agent terminal in its worktree and so on that worktree's branch. Review
-// session terminals and detached worktrees name no branch an agent works on. The paths are compared as given: the
-// live layer resolves symlinks before.
+// placeTree is the worktree an agent terminal works in: the one its session works in (Work) when that is another
+// worktree than its terminal's (#1476: a session whose commands run in a ticket's worktree is on that ticket), else its
+// terminal's (Link, else Cwd). A Work outside every worktree of the project places nothing.
+func placeTree(trees []treeEntry, p AgentPlace) (treeEntry, bool) {
+	tree, ok := treeEntry{}, false
+	if path := placePath(p); path != "" {
+		tree, ok = treeOf(trees, path)
+	}
+	if !filepath.IsAbs(p.Work) {
+		return tree, ok
+	}
+	if work, found := treeOf(trees, filepath.Clean(p.Work)); found && (!ok || work.path != tree.path) {
+		return work, true
+	}
+	return tree, ok
+}
+
+// MatchBranchAgents places each running agent terminal in its worktree (placeTree) and so on that worktree's branch.
+// Review session terminals and detached worktrees name no branch an agent works on. The paths are compared as given:
+// the live layer resolves symlinks before.
 func MatchBranchAgents(trees []treeEntry, places []AgentPlace) []BranchAgent {
 	rtn := []BranchAgent{}
 	for _, p := range places {
-		path := placePath(p)
-		if p.Review || path == "" {
+		if p.Review {
 			continue
 		}
-		tree, ok := treeOf(trees, path)
+		tree, ok := placeTree(trees, p)
 		if !ok || tree.branch == "" {
 			continue
 		}
@@ -814,11 +833,10 @@ func BackgroundAgents(trees []treeEntry, panels []BranchAgent, places []AgentPla
 	main := trees[0]
 	parents := map[string][]AgentPlace{}
 	for _, p := range places {
-		path := placePath(p)
-		if p.Review || p.Agent == "" || path == "" {
+		if p.Review || p.Agent == "" {
 			continue
 		}
-		if tree, ok := treeOf(trees, path); ok && tree.path == main.path {
+		if tree, ok := placeTree(trees, p); ok && tree.path == main.path {
 			parents[p.Agent] = append(parents[p.Agent], p)
 		}
 	}

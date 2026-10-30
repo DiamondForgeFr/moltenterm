@@ -343,6 +343,10 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 // agent's UserPromptSubmit hook, if any, reports working right after. An interrupt key while it works may end its
 // turn without any hook (#915): the output activity then judges it (interruptedLocked).
 func (a *agentStates) input(blockId string, data []byte) {
+	if a.procs != nil && bytes.ContainsAny(data, "\r\n") {
+		// Before the states' lock: the watcher's is taken first (lock order: watcher, then agent states).
+		a.procs.entered(blockId)
+	}
 	now := a.now()
 	a.lock.Lock()
 	defer a.lock.Unlock()

@@ -64,7 +64,10 @@ type shellWatch struct {
 	next time.Time
 	// marked: the shell integration said a command started; it runs until the integration says it ended.
 	marked bool
-	found  bool
+	// integrated: the shell integration marked a command or a prompt here, so its marks start the looks (#1476). A
+	// shell without it (/bin/sh, a shell whose rc file drops it) is looked at when Enter is sent and on its output.
+	integrated bool
+	found      bool
 	// agent: the agent process last found, kept while it lives under the shell (it may hand the terminal to a
 	// child of its own, an editor, for a while).
 	agent molten.AgentProcess
@@ -148,6 +151,7 @@ func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 	case ShellMarkCommand:
 		sw := w.getLocked(blockId)
 		now := w.now()
+		sw.integrated = true
 		sw.relocate = true
 		sw.gen++
 		sw.running, sw.since, sw.marked = true, now, true
@@ -158,6 +162,7 @@ func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 		if sw == nil || sw.shell.Command {
 			return
 		}
+		sw.integrated = true
 		sw.gen++
 		sw.running, sw.next, sw.found, sw.marked = false, time.Time{}, false, false
 		sw.agent = molten.AgentProcess{}
@@ -174,12 +179,33 @@ func (w *procWatcher) seen(blockId string) {
 	}
 	sw := w.shells[blockId]
 	now := w.now()
-	// A block's command that ended and prints again was restarted: look at its new process (not on every output).
-	restarted := sw != nil && sw.shell.Command && sw.next.IsZero() && now.Sub(sw.probed) >= procProbeEvery
-	if sw != nil && !restarted {
+	// A block's command that ended and prints again was restarted, and a shell without the shell integration may run
+	// an agent nothing announced: look at its process again (not on every output).
+	idle := sw != nil && sw.next.IsZero() && now.Sub(sw.probed) >= procProbeEvery
+	if sw != nil && !(idle && (sw.shell.Command || !sw.integrated)) {
 		return
 	}
-	sw = w.getLocked(blockId)
+	w.probeLocked(blockId, now)
+}
+
+// entered is called when Enter is sent to a terminal: a shell without the shell integration may start a command, an
+// agent maybe, that no mark announces (#1476). A shell with it, or one already followed, is left to its marks.
+func (w *procWatcher) entered(blockId string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.off {
+		return
+	}
+	sw := w.shells[blockId]
+	if sw == nil || sw.integrated || sw.shell.Command || !sw.next.IsZero() {
+		return
+	}
+	w.probeLocked(blockId, w.now())
+}
+
+// probeLocked plans one look at a terminal's process, which follows it while a command or an agent runs.
+func (w *procWatcher) probeLocked(blockId string, now time.Time) {
+	sw := w.getLocked(blockId)
 	sw.probed = now
 	sw.relocate = true
 	sw.gen++

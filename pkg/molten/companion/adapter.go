@@ -80,6 +80,15 @@ type SubagentReader interface {
 	ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool)
 }
 
+// WorkFolderReader is an adapter whose agent may work in another folder than its terminal's (#1476): a session sent
+// to a ticket's worktree runs its commands there (Codex: a shell call's workdir) or moves there (Claude Code: its
+// records' cwd), so Integration places it on that worktree's branch, not its terminal's.
+type WorkFolderReader interface {
+	// WorkFolder reads, from the end of a session's transcript, the folder its agent works in now; false when it
+	// names none.
+	WorkFolder(sessionPath string) (string, bool)
+}
+
 // SubagentFinder is an adapter whose sub-agents' transcripts name their parent, so the sub-agents a sub-agent starts
 // (which its parent's transcript never records) are found by their own (#986).
 type SubagentFinder interface {

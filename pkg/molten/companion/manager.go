@@ -1297,10 +1297,15 @@ func (w *watcher) readSessionName() {
 	}
 }
 
-// readFolderBranch reads the main agent's branch from its session's folder (its records' cwd, else the pane's), not
-// from the branch its records name (#967).
+// readFolderBranch reads the main agent's branch from its session's folder (where its adapter reads it works, #1476;
+// else its records' cwd, else the pane's), not from the branch its records name (#967).
 func (w *watcher) readFolderBranch(paneDir string) {
 	dir := w.session.Cwd
+	if reader, ok := w.adapter.(WorkFolderReader); ok && w.path != "" {
+		if folder, ok := reader.WorkFolder(w.path); ok {
+			dir = folder
+		}
+	}
 	if dir == "" {
 		dir = paneDir
 	}

@@ -131,7 +131,7 @@ func ResolveLockOwner(holder LockHolder, worktree string, places []AgentPlace, a
 		}
 	}
 	for _, p := range places {
-		if !p.Review && (p.Link == worktree || within(p.Cwd, worktree)) {
+		if !p.Review && (p.Link == worktree || within(p.Cwd, worktree) || within(p.Work, worktree)) {
 			return ofPlace(p, OwnerViaTerminal)
 		}
 	}
