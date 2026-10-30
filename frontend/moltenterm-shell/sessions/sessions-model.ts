@@ -561,6 +561,17 @@ export function railBadge(data: DurableSessionsData): RailBadge {
     return { count: agents.length, tone, label };
 }
 
+// The library button's dot is for what needs the developer. A running or idle agent is not a reason to look.
+export function libraryDot(badge: RailBadge, hasConfigErrors: boolean): "error" | "waiting" | null {
+    if (hasConfigErrors) {
+        return "error";
+    }
+    if (badge.count === 0) {
+        return null;
+    }
+    return badge.tone === "waiting" || badge.tone === "error" ? badge.tone : null;
+}
+
 export function sessionsSummary(data: DurableSessionsData): string {
     const n = data?.sessions?.length ?? 0;
     if (n === 0) {
