@@ -5638,8 +5638,6 @@
     },
     "view360": {
         "empty": "Les panneaux que vous ouvrez se placent ici",
-        "addStart": "Ajouter un panneau à gauche",
-        "addEnd": "Ajouter un panneau à droite",
         "grip": {
             "noRoomFloor": "Cette colonne ne peut pas être redimensionnée ici : la première colonne garde la largeur que vous lui avez donnée, et le tapis a besoin du reste de la fenêtre.",
             "noRoomWindow": "Cette colonne ne peut pas être redimensionnée ici : la fenêtre est trop étroite pour laisser de la place au tapis. Élargissez la fenêtre pour la redimensionner.",
@@ -5695,6 +5693,26 @@
             "morePanels": "+{count} panneaux",
             "window": "Zone visible",
             "windowHint": "faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
+        },
+        "strip": {
+            "add": "Ajouter un panneau au bout du tapis",
+            "close": "Fermer le panneau",
+            "moveLeft": "Déplacer à gauche",
+            "moveRight": "Déplacer à droite",
+            "tabName": "{kind}\u00a0: {title}, {state}",
+            "visible": "visible",
+            "stored": "rangé sur le tapis",
+            "openedBy": "ouvert par {name}",
+            "kinds": {
+                "agent": "Agent",
+                "term": "Terminal",
+                "web": "Page",
+                "companion": "Compagnon",
+                "review": "Revue",
+                "project": "Projet",
+                "files": "Fichiers",
+                "other": "Panneau"
+            }
         },
         "pin": {
             "pinBeside": "Épingler à côté",

@@ -43,7 +43,6 @@ import {
     CarpetLayout,
     CarpetMarginPx,
     carpetNodeTransform,
-    carpetPanelRoomPx,
     carpetScrollStops,
     CarpetScrollVar,
     carpetSplitPlace,
@@ -710,7 +709,7 @@ export class View360Model {
         // The carpet slots keep the developer's proportions (#1083), sized once the carpet's own width is known; under
         // a 360 × N every carpet column takes the width of one place, so the carpet always shows N whole panels.
         const indexes = carpet.map((c) => split.carpet.indexOf(c) + 1);
-        const room = carpetPanelRoomPx(layout.viewport.width);
+        const room = layout.viewport.width;
         const slots =
             shownPlaces != null
                 ? carpet.map(() => placeWidthPx(layout.viewport.width, shownPlaces))
@@ -1515,7 +1514,7 @@ export class View360Model {
             const columnNode = findNode(rootNode, column.nodeId);
             const kind = carpetColumnKind(cachedBlockView(columnLeadLeaf(columnNode)?.data?.blockId));
             const left = layout.viewport.left + column.x - this.scrollLeft;
-            const px = clampColumnPx(x - left - CarpetColumnGapPx / 2, carpetPanelRoomPx(layout.viewport.width));
+            const px = clampColumnPx(x - left - CarpetColumnGapPx / 2, layout.viewport.width);
             this.dragColumn = { nodeId: column.nodeId, kind, px };
         }
         const resizing: LayoutTreeResizeNodeAction = { type: LayoutTreeActionType.ResizeNode, resizeOperations: [] };

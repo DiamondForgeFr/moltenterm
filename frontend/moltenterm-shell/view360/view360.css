@@ -35,51 +35,6 @@
         inset 0 0 0 1px rgb(31 26 21 / 0.08);
 }
 
-/* "Add a panel" at each end of the carpet (#702): a slim dashed column with a "+", calm until hovered, then the molten
-   accent. Clipped to the surface like the panels; the surface ignores the pointer, the invitations take it back. */
-.mt-carpet-invites {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    border-radius: inherit;
-}
-
-.mt-carpet-invite {
-    position: absolute;
-    top: 0;
-    left: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px dashed color-mix(in srgb, var(--mt-neutral-line) 22%, transparent);
-    border-radius: var(--df-radius-md);
-    background: transparent;
-    color: var(--mt-text-muted);
-    font-size: var(--mt-icon-14);
-    pointer-events: auto;
-    transition:
-        color var(--mt-duration-fast) var(--mt-ease),
-        border-color var(--mt-duration-fast) var(--mt-ease),
-        background-color var(--mt-duration-fast) var(--mt-ease);
-}
-
-.mt-carpet-invite:hover,
-.mt-carpet-invite:focus-visible {
-    border-style: solid;
-    border-color: color-mix(in srgb, var(--mt-accent) 70%, transparent);
-    background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
-    color: var(--mt-accent);
-}
-
-.mt-carpet-invite:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, var(--mt-tone-ink, white));
-    outline-offset: -3px;
-}
-
-.tile-layout[data-mt-carpet-scrolling] .mt-carpet-invite {
-    transition: none;
-}
-
 .mt-carpet-empty {
     position: absolute;
     top: 50%;

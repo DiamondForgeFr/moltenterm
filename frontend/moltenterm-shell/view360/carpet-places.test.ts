@@ -61,17 +61,17 @@ describe("equal parts (AC5)", () => {
             const fixed = placesFixedPx(width, n);
             expect(Math.abs(fixed - placesSlotPx(width, fixed, n))).toBeLessThanOrEqual(1);
         }
-        expect(placesFixedPx(2280, 3)).toBeCloseTo(540, 0);
+        expect(placesFixedPx(2280, 3)).toBeCloseTo(554, 0);
     });
 
     it("keeps the fixed zone's 520 px, the places sharing what it leaves", () => {
         const fixed = placesFixedPx(1450, 2);
         expect(fixed).toBe(FixedMinPx);
-        expect(placesShareSlotPx(1450, 2)).toBeCloseTo((1450 - FixedMinPx - 108) / 2, 0);
+        expect(placesShareSlotPx(1450, 2)).toBeCloseTo((1450 - FixedMinPx - 52) / 2, 0);
     });
 
     it("keeps the terminal floor, beyond half of the window when it needs more", () => {
-        expect(placesFixedPx(2280, 1, 800)).toBe(1092);
+        expect(placesFixedPx(2280, 1, 800)).toBe(1120);
         expect(placesFixedPx(2280, 3, 800)).toBe(800);
         expect(placesFixedPx(1600, 1, 900)).toBe(900);
         expect(placesFixedPx(1600, 3, 900)).toBe(900);

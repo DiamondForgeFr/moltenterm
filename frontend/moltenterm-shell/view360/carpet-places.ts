@@ -7,11 +7,9 @@
 
 import {
     CarpetColumnGapPx,
-    CarpetEndReservePx,
     CarpetMarginPx,
     CarpetPadXPx,
     CarpetLayout,
-    carpetPanelRoomPx,
     clampFixedPx,
     clampScroll,
     FixedColumnGapPx,
@@ -45,17 +43,17 @@ export function readPlaces(raw: unknown): number {
     return typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= MaxPlaces ? raw : null;
 }
 
-// What the carpet's chrome takes beside the fixed zone: its margins, its padding and the end invitation's reserve.
+// What the carpet's chrome takes beside the fixed zone: its margins and its padding.
 function carpetChromePx(): number {
     return 2 * CarpetMarginPx + 2 * CarpetPadXPx;
 }
 
-// The width each of n places gets on a carpet whose band is viewportPx wide.
+// The width each of n places gets on a carpet whose band is viewportPx wide: the whole band (FR-SHELL-125-AC7).
 export function placeWidthPx(viewportPx: number, n: number): number {
     if (!(viewportPx > 0) || !(n >= 1)) {
         return 0;
     }
-    return Math.max(0, (carpetPanelRoomPx(viewportPx) - (n - 1) * CarpetColumnGapPx) / n);
+    return Math.max(0, (viewportPx - (n - 1) * CarpetColumnGapPx) / n);
 }
 
 // The width each of n places gets once the fixed zone (first column and the columns pinned beside it) takes zonePx.
@@ -79,7 +77,7 @@ export function placesFixedPx(widthPx: number, n: number, floorPx = 0, besidePx 
         return 0;
     }
     const count = Math.max(1, n);
-    const room = widthPx - carpetChromePx() - CarpetEndReservePx - (count - 1) * CarpetColumnGapPx;
+    const room = widthPx - carpetChromePx() - (count - 1) * CarpetColumnGapPx;
     const share = (room - Math.max(0, besidePx)) / (count + 1);
     return clampFixedPx(share, widthPx, floorPx);
 }
@@ -130,8 +128,8 @@ export function placesStartIndex(panelIndex: number, carpetCount: number, n: num
     return Math.min(Math.max(0, panelIndex), last);
 }
 
-// The scroll that shows a carpet column in the first place: the carpet's start for its first column (the start
-// invitation with it), that column's start edge otherwise, within the carpet's last position.
+// The scroll that shows a carpet column in the first place: the carpet's start for its first column, that column's
+// start edge otherwise, within the carpet's last position.
 export function placeScrollPx(layout: CarpetLayout, index: number): number {
     if (layout == null || index <= 0 || index >= layout.columns.length) {
         return 0;

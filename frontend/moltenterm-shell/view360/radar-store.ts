@@ -9,10 +9,11 @@ import { findNode } from "@/layout/lib/layoutNode";
 import type { LayoutNode } from "@/layout/lib/types";
 import { atom, Atom } from "jotai";
 import { agentLabel } from "../agent-state-model";
-import { I18nModel } from "../i18n/i18n";
 import { AgentStates } from "../agent-state-store";
+import { browserTabTitle, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
+import { I18nModel } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
-import { PanelMeta, panelTitle } from "../tab-identity";
+import { PanelMeta, panelIcon, panelTitle } from "../tab-identity";
 import { getHomeDir } from "../tab-identity-ui";
 import type { CarpetLayout } from "./carpet-model";
 import { attentionByBlock, RadarAttention, RadarBlockFacts, RadarColumnInput } from "./radar-model";
@@ -43,6 +44,16 @@ export function radarColumns(rootNode: LayoutNode, layout: CarpetLayout): RadarC
     });
 }
 
+// A page of MoltenTerm's browser is named by its page's title, then its host (FR-SHELL-125: the tab reads like a
+// browser's); "" for any other panel.
+function pageTitle(meta: Record<string, any>): string {
+    if (meta?.view !== MoltentermBrowserView) {
+        return "";
+    }
+    const state = readBrowserState(meta, "");
+    return browserTabTitle(state.tabs.find((tab) => tab.id === state.activeId));
+}
+
 const attentionAtom: Atom<Record<string, RadarAttention>> = atom((get) =>
     attentionByBlock(
         get(AgentStates.getInstance().dataAtom).states,
@@ -59,7 +70,12 @@ function sameFacts(a: Record<string, RadarBlockFacts>, b: Record<string, RadarBl
         const x = a[k];
         const y = b[k];
         return (
-            y != null && x.view === y.view && x.agent === y.agent && x.title === y.title && x.attention === y.attention
+            y != null &&
+            x.view === y.view &&
+            x.agent === y.agent &&
+            x.title === y.title &&
+            x.attention === y.attention &&
+            x.icon === y.icon
         );
     });
 }
@@ -79,12 +95,13 @@ export function makeRadarFactsAtom(blockIds: string[]): Atom<Record<string, Rada
             const agent = agents[blockId];
             const title =
                 (meta["frame:title"] ?? "").trim() ||
-                (agent != null ? agentLabel(agent) : panelTitle(meta, getHomeDir()));
+                (agent != null ? agentLabel(agent) : pageTitle(meta) || panelTitle(meta, getHomeDir()));
             next[blockId] = {
                 view: meta.view ?? null,
                 agent: agent != null,
                 title,
                 attention: attention[blockId] ?? null,
+                icon: panelIcon(meta, agent != null),
             };
         }
         if (sameFacts(last, next)) {
