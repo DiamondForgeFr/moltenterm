@@ -1138,7 +1138,7 @@
             },
             "moltenterm:view360": {
                 "label": "Vue 360",
-                "description": "Quand une vue fixe sa première colonne et pose les autres sur un tapis latéral. Son bouton 360 l'active aussi.",
+                "description": "Quand une vue fixe sa première colonne et pose les autres sur un tapis latéral. Le menu de la vue l'active aussi.",
                 "options": {
                     "auto": "Automatique",
                     "always": "Toujours"
@@ -2511,8 +2511,8 @@
             "other": "{count} terminaux ont demandé à rester éveillés"
         },
         "byYou": {
-            "one": "gardé éveillé par vous dans {name}",
-            "other": "gardé éveillé par vous dans {count} espaces de travail"
+            "one": "à votre demande dans {name}",
+            "other": "à votre demande dans {count} espaces de travail"
         },
         "byWork": "du travail est en cours",
         "indicatorLabel": "Cet ordinateur est gardé éveillé : {reasons}",
@@ -2523,7 +2523,7 @@
             "moreSettings": "Plus de réglages…"
         },
         "indicatorPolicy": "Réglage d’énergie : {policy}",
-        "coffeeFor": "Garder éveillé pendant que {name} travaille",
+        "coffeeFor": "Garder éveillé pendant que « {name} » travaille",
         "coffeeHint": "Cet ordinateur reste éveillé tant que du travail tourne dans cet espace de travail, quel que soit le réglage ci-dessus.",
         "approvalLog": "{path} dans le dossier de données de MoltenTerm",
         "sessionWhere": "{agent} dans {where}",

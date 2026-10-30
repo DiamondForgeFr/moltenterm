@@ -202,9 +202,9 @@ describe("keep-awake model", () => {
                     policyholding: true,
                 })
             )
-        ).toEqual(["2 terminals asked to stay awake", "kept awake by you in Alpha", "work is running"]);
+        ).toEqual(["2 terminals asked to stay awake", "at your request in Alpha", "work is running"]);
         expect(keepAwakeReasons(state({ coffees: [coffee, { ...coffee, workspaceid: "b" }] }))).toEqual([
-            "kept awake by you in 2 workspaces",
+            "at your request in 2 workspaces",
         ]);
         const s = state({ attempts: [attempt({})] });
         expect(keepAwakeIndicatorLabel(s)).toBe("Keeping this computer awake: a terminal asked to stay awake");

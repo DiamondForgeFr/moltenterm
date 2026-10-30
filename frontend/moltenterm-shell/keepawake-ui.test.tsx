@@ -48,7 +48,7 @@ describe("Energy card details (FR-SHELL-103)", () => {
         const html = renderToStaticMarkup(<KeepAwakeDetails />);
         expect(html).toContain("A terminal that asks to stay awake is always heard.");
         expect(html).toContain('role="switch"');
-        expect(html).toContain("Keep awake while Alpha works");
+        expect(html).toContain("Keep awake while “Alpha” works");
     });
 
     it("keeps the terminals that asked, each with its own override", () => {

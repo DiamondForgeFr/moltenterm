@@ -184,7 +184,7 @@ describe("plan usage section", () => {
         expect(html).toContain('role="meter"');
         expect(html).toContain('aria-valuenow="24"');
         expect(html).toContain("width:23.5%");
-        expect(html).toMatch(/bg-warning[^"]*" style="width:82%/);
+        expect(html).toMatch(/bg-\[var\(--mt-state-running\)\][^"]*" style="width:82%/);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
     });
@@ -303,7 +303,7 @@ describe("Codex plan usage", () => {
         expect(html).toContain(">12.5 % used<");
         expect(html).toContain("Resets in 3 h");
         expect(html).toContain(">This week<");
-        expect(html).toMatch(/bg-error[^"]*" style="width:96%/);
+        expect(html).toMatch(/bg-\[var\(--mt-state-error\)\][^"]*" style="width:96%/);
         expect(html).toContain("Credits: 17.5 left");
     });
 

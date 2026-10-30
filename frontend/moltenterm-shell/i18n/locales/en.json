@@ -992,7 +992,7 @@
             },
             "moltenterm:view360": {
                 "label": "360 view",
-                "description": "When a view fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.",
+                "description": "When a view fixes its first column and lays the others on a sideways carpet. The view's menu turns it on too.",
                 "options": {
                     "auto": "Automatic",
                     "always": "Always"
@@ -2511,8 +2511,8 @@
             "other": "{count} terminals asked to stay awake"
         },
         "byYou": {
-            "one": "kept awake by you in {name}",
-            "other": "kept awake by you in {count} workspaces"
+            "one": "at your request in {name}",
+            "other": "at your request in {count} workspaces"
         },
         "byWork": "work is running",
         "indicatorLabel": "Keeping this computer awake: {reasons}",
@@ -2523,7 +2523,7 @@
             "title": "Keep this computer awake",
             "moreSettings": "More settings…"
         },
-        "coffeeFor": "Keep awake while {name} works",
+        "coffeeFor": "Keep awake while “{name}” works",
         "coffeeHint": "This computer stays awake while work runs in this workspace, whatever the setting above.",
         "approvalLog": "{path} in MoltenTerm's data folder",
         "sessionWhere": "{agent} in {where}",
