@@ -21,7 +21,7 @@ import { ReadableCarpetColumnPx } from "./carpet-model";
 import { CarpetGroup, GroupAll, GroupPages, type GroupPin } from "./carpet-group";
 import { PlaceOption } from "./carpet-places";
 import { PinText } from "./pin-text";
-import { makeRadarFactsAtom } from "./radar-store";
+import { makePlaceNamesAtom } from "./places-names";
 import { CarpetIcon } from "./view360-icon";
 import type { PanelPlacement, View360Model } from "./view360-model";
 import { isPinned } from "./view360-pin";
@@ -175,14 +175,14 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     const groupRef = useRef(group);
     groupRef.current = group;
     const options = group === GroupPages ? choices.pages : choices.all;
-    const factsAtom = useMemo(
+    const namesAtom = useMemo(
         () =>
-            makeRadarFactsAtom(
+            makePlaceNamesAtom(
                 [blockId, firstBlockId, ...choices.plan.map((p) => p.blockId)].filter((id) => id != null)
             ),
         [blockId, firstBlockId, choices]
     );
-    const facts = useAtomValue(factsAtom);
+    const names = useAtomValue(namesAtom);
     const [pinnedCount] = useState(() => view360.pinnedColumnCount());
     const placement = active ? placements[blockId] : "carpet";
     useRestoreFocus();
@@ -246,12 +246,12 @@ function PlacesChooser({ view360, state }: ChooserProps) {
         };
     }, []);
 
-    const agent = facts[firstBlockId]?.title || t("view360.places.fallbackAgent");
-    const panel = facts[blockId]?.title || t("view360.places.fallbackPanel");
+    const agent = names[firstBlockId] || t("view360.places.fallbackAgent");
+    const panel = names[blockId] || t("view360.places.fallbackPanel");
     const why = optionsWhy(options);
     const planLines = groupPlanLines(
         choices.plan,
-        (id) => facts[id]?.title || t("view360.places.fallbackPanel"),
+        (id) => names[id] || t("view360.places.fallbackPanel"),
         agent
     );
     const offeredKeys = options.filter((o) => o.offered).map((o) => String(o.n));
@@ -338,8 +338,10 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                         >
                             <PlacesDiagram option={option} active={option.offered && hover === option.n} />
                             <span className="mt-places-n">
-                                {option.n}
-                                <small>{t("view360.places.mark", { count: option.n })}</small>
+                                <span className="mt-places-n-mark">
+                                    {option.n}
+                                    <small>{t("view360.places.mark", { count: option.n })}</small>
+                                </span>
                                 {current && <em>{t("view360.places.current")}</em>}
                             </span>
                             <span className="mt-places-caption">{caption}</span>

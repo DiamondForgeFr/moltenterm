@@ -467,10 +467,18 @@
 
 .mt-places-n {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 6px;
+    gap: 2px 6px;
     font-size: var(--mt-text-15);
     font-weight: 600;
+}
+
+.mt-places-n-mark {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 .mt-places-n small {
@@ -482,6 +490,7 @@
 
 .mt-places-n em {
     margin-left: auto;
+    white-space: nowrap;
     color: var(--mt-text-3);
     font-size: var(--mt-text-11);
     font-style: normal;
