@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"sort"
 	"strings"
@@ -57,8 +58,9 @@ type agentTab struct {
 	confirmed bool
 	// engaged: the agent acts on the tab, so it shows the control bar and emain watches it. A tab the user shared
 	// engages on the agent's first call on it (FR-BRW-011).
-	engaged bool
-	calls   map[int64]context.CancelFunc
+	engaged    bool
+	controlled bool
+	calls      map[int64]context.CancelFunc
 	// refs maps read_page and find's element refs to the page's DOM nodes, for the document they were read from.
 	refs *refTable
 }
@@ -116,13 +118,14 @@ type Manager struct {
 	permissionPoll    time.Duration
 	parkGrace         time.Duration
 
-	lock       sync.Mutex
-	sessions   map[string]*session
-	owners     map[TabKey]string
-	nextTabId  int64
-	nextCallId int64
-	requests   map[string]*permissionRequest
-	recent     map[string]recentDecision
+	lock         sync.Mutex
+	controlLocks [64]sync.Mutex
+	sessions     map[string]*session
+	owners       map[TabKey]string
+	nextTabId    int64
+	nextCallId   int64
+	requests     map[string]*permissionRequest
+	recent       map[string]recentDecision
 }
 
 func MakeManager(env Env) *Manager {
@@ -362,7 +365,7 @@ func (m *Manager) parkSessions(route string) []parkedSession {
 func (m *Manager) endSessions(match func(s *session) bool, reason string) {
 	keys, ended := m.removeSessions(match)
 	for _, key := range keys {
-		m.env.SetControl(key, false)
+		m.syncControl(key)
 	}
 	for _, panelId := range panelsOf(keys) {
 		m.publishPanel(panelId)
@@ -408,6 +411,29 @@ func panelsOf(keys []TabKey) []string {
 	return rtn
 }
 
+// Native gate changes for a page must be ordered, but the manager lock cannot be held across the external call.
+// Re-read the latest owner after taking the stripe so a delayed operation cannot overwrite a newer decision.
+func (m *Manager) syncControl(key TabKey) {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(key.PanelId + "\x00" + key.BrowserTabId))
+	mu := &m.controlLocks[hash.Sum32()%uint32(len(m.controlLocks))]
+	mu.Lock()
+	defer mu.Unlock()
+	m.env.SetControl(key, m.controlActive(key))
+}
+
+func (m *Manager) controlActive(key TabKey) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	s := m.sessions[m.owners[key]]
+	if s != nil {
+		if t := s.tabFor(key); t != nil {
+			return t.state == TabStateActive && t.controlled
+		}
+	}
+	return false
+}
+
 func cancelCallsLocked(t *agentTab) {
 	for id, cancel := range t.calls {
 		cancel()
@@ -441,12 +467,12 @@ func (m *Manager) Control(source string, req ControlRequest) error {
 	}
 	if released || req.Action == ControlTakeOver {
 		// After Take over the page is the user's: emain stops holding back their clicks and keys (#971).
-		m.env.SetControl(key, false)
+		m.syncControl(key)
 	}
 	m.publishPanel(key.PanelId)
 	if req.Action == ControlGiveBack {
 		// emain paused the tab on the user's input; control comes back with the bar.
-		m.env.SetControl(key, true)
+		m.syncControl(key)
 	}
 	m.logf("%s session=%s agent=%q control=%s\n", logPrefix, shortId(info.id), info.agentName, req.Action)
 	return nil
@@ -481,6 +507,7 @@ func (m *Manager) applyControl(key TabKey, action string, expectedSessionId stri
 		}
 		cancelCallsLocked(t)
 		t.state = TabStateTakenOver
+		t.controlled = false
 		// emain clears the emulated viewport when control ends.
 		t.viewport = nil
 		return true, info, false, false
@@ -489,6 +516,7 @@ func (m *Manager) applyControl(key TabKey, action string, expectedSessionId stri
 			return false, info, false, false
 		}
 		t.state = TabStateActive
+		t.controlled = true
 		s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
 		return true, info, false, false
 	}
@@ -585,16 +613,17 @@ func (m *Manager) addTab(sessionId string, key TabKey, origin string, action str
 	m.nextTabId++
 	now := m.now()
 	s.tabs[m.nextTabId] = &agentTab{
-		id:        m.nextTabId,
-		key:       key,
-		origin:    origin,
-		state:     TabStateActive,
-		action:    action,
-		actionTs:  now.UnixMilli(),
-		createdAt: now,
-		confirmed: origin == OriginShared,
-		engaged:   origin == OriginOpened,
-		calls:     make(map[int64]context.CancelFunc),
+		id:         m.nextTabId,
+		key:        key,
+		origin:     origin,
+		state:      TabStateActive,
+		action:     action,
+		actionTs:   now.UnixMilli(),
+		createdAt:  now,
+		confirmed:  origin == OriginShared,
+		engaged:    origin == OriginOpened,
+		controlled: origin == OriginOpened,
+		calls:      make(map[int64]context.CancelFunc),
 	}
 	m.owners[key] = sessionId
 	return m.nextTabId
@@ -664,7 +693,7 @@ func (m *Manager) dropTab(sessionId string, tabId int64) {
 		m.env.CloseTab(context.Background(), key)
 	}
 	if released {
-		m.env.SetControl(key, false)
+		m.syncControl(key)
 	}
 	m.publishPanel(key.PanelId)
 }

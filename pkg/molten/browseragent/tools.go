@@ -397,7 +397,7 @@ func (m *Manager) tabsCreate(ctx context.Context, s sessionInfo, loc BlockLocati
 		m.env.CloseTab(context.Background(), key)
 		return mcpbrowser.ErrorResult(mcpbrowser.ErrSessionEnded), callLog{}
 	}
-	m.env.SetControl(key, true)
+	m.syncControl(key)
 	m.publishPanel(panelId)
 	m.waitForTab(ctx, s.id, tabId, key)
 	return mcpbrowser.TextResult(jsonText(map[string]any{"tabId": tabId}) + "\n" +
