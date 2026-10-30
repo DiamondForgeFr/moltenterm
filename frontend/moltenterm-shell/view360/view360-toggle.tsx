@@ -15,7 +15,7 @@ import { useAtomValue } from "jotai";
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRestoreFocus } from "../busy-close";
 import { DialogFrame } from "../dialog-frame";
-import { t, useLocale, useT } from "../i18n/i18n";
+import { t, tCount, useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { openSettingsSection } from "../settings/settings-open";
 import { ScreenModel } from "./screen-store";
@@ -94,6 +94,22 @@ export function view360MenuItems(view360: View360Model): ContextMenuItem[] {
     const single = globalStore.get(view360.columnCountAtom) < 2;
     const threshold = globalStore.get(view360.thresholdAtom);
     const menu: ContextMenuItem[] = [];
+    // The chooser's numbers (FR-SHELL-123-AC12), only those offered (FR-SHELL-049), from the focused carpet panel or
+    // the first one; the view's current N is checked.
+    const blockId = single ? null : view360.placesBlockId();
+    const offered = blockId == null ? [] : view360.placeOptions().filter((o) => o.offered);
+    const shown = globalStore.get(view360.shownPlacesAtom);
+    for (const option of offered) {
+        menu.push({
+            label: tCount("view360.places.menuChoice", option.n),
+            type: "checkbox",
+            checked: shown === option.n,
+            click: () => view360.applyPlaces(blockId, option.n),
+        });
+    }
+    if (offered.length > 0) {
+        menu.push({ type: "separator" });
+    }
     if (!single) {
         menu.push(
             {

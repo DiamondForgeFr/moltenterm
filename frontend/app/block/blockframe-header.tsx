@@ -36,7 +36,7 @@ import { HeaderCloseButton } from "../../moltenterm-shell/header/header-close-bu
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
-import { PinHeaderButton } from "../../moltenterm-shell/view360/view360-pin"; // MOLTENTERM-PATCH (#616)
+import { CarpetHeaderButton } from "../../moltenterm-shell/view360/view360-places"; // MOLTENTERM-PATCH (#616, #1412)
 import { splitDownLabel, splitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370, #623)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
@@ -151,10 +151,11 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         endIconsElem.push(<IconButton key="split-horizontal" decl={splitHorizontalDecl} />);
         endIconsElem.push(<IconButton key="split-vertical" decl={splitVerticalDecl} />);
     }
-    // MOLTENTERM-PATCH (#616): in 360 view a carpet panel can be pinned to the fixed zone, a pinned one unpinned
-    endIconsElem.push(<PinHeaderButton key="mt-pin" blockId={blockId} />);
     // MOLTENTERM-PATCH (#1050): the connections of the terminal's agents, shown only when it holds one (FR-CONT-022)
     endIconsElem.push(<AgentLinksHeaderButton key="mt-agent-links" blockId={blockId} termHeader={!!termHeader} />);
+    // MOLTENTERM-PATCH (#616, #1412): "Store on the carpet" right before the gear, on every panel outside the fixed
+    // zone, in and out of 360 view; a pinned panel shows its filled pin, which unpins it (FR-SHELL-123)
+    endIconsElem.push(<CarpetHeaderButton key="mt-pin" blockId={blockId} />);
     // MOLTENTERM-PATCH (#401): the gear becomes the command panel's trigger (FR-SHELL-047, DS-SHELL-085)
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",

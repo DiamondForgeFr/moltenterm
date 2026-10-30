@@ -44,6 +44,7 @@ import {
     CarpetMarginPx,
     carpetNodeTransform,
     carpetPanelRoomPx,
+    carpetScrollStops,
     CarpetScrollVar,
     carpetSplitPlace,
     clampColumnPx,
@@ -65,7 +66,30 @@ import {
     visibleCarpetColumnIds,
 } from "./carpet-model";
 import { narrowWindowAtom } from "../narrow-window";
-import { countBeside, partPinnedColumns, TabPins, withoutPin, withPin, withPinWidth } from "./pin-model";
+import {
+    besideZonePx,
+    effectivePlaces,
+    nextScrollStop,
+    PlaceOption,
+    placeOptions,
+    placeScrollPx,
+    placesFixedPx,
+    placesStartIndex,
+    placeWidthPx,
+    WheelIdleMs,
+    WheelRepeatMs,
+    WheelStepPx,
+} from "./carpet-places";
+import { showPlacesToast } from "./carpet-places-toast";
+import {
+    countBeside,
+    partPinnedColumns,
+    PinnedColumn,
+    TabPins,
+    withoutPin,
+    withPin,
+    withPinWidth,
+} from "./pin-model";
 import { PinText } from "./pin-text";
 import { ScreenModel } from "./screen-store";
 import type { ScreenInfo } from "./screen-threshold";
@@ -103,7 +127,9 @@ import {
     storedFixedPx,
     storedFractions,
     storedPins,
+    storedPlaces,
     tabManualView360,
+    writePlacesState,
 } from "./view360-meta";
 
 const SmoothScrollMs = 260;
@@ -120,6 +146,17 @@ export type CarpetRootChild = { rect: Rect; carpet: boolean; pinned?: boolean };
 
 // Where a panel is drawn in 360 view: in the first column, on the carpet, or pinned to the fixed zone (FR-SHELL-067).
 export type PanelPlacement = "first" | "carpet" | PinMode;
+
+// What a 360 × N changes, kept for its Undo (FR-SHELL-123-AC8).
+export type PlacesSnapshot = {
+    places: number;
+    pins: TabPins;
+    grippedFixedPx: number;
+    savedFixedPx: number;
+    carpetPx: Map<string, number>;
+    scrollLeft: number;
+    focusNodeId: string;
+};
 
 function sameIds(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((id, i) => id === b[i]);
@@ -175,6 +212,18 @@ export class View360Model {
         Record<string, PanelPlacement>
     >;
     pendingPinsAtom: PrimitiveAtom<TabPins> = atom(null) as PrimitiveAtom<TabPins>;
+    // Block id -> where it would be drawn in 360 view, measured on every pass, in the normal layout too: the header's
+    // "Store on the carpet" button shows on every panel outside the fixed zone (FR-SHELL-123).
+    rolesAtom: PrimitiveAtom<Record<string, PanelPlacement>> = atom({}) as PrimitiveAtom<
+        Record<string, PanelPlacement>
+    >;
+    // The view's 360 × N (FR-SHELL-123): from the tab's meta, or this window's last write ahead of its round trip
+    // ({ n: null } a write that forgets it).
+    pendingPlacesAtom: PrimitiveAtom<{ n: number }> = atom(null) as PrimitiveAtom<{ n: number }>;
+    placesAtom: Atom<number>;
+    // The places drawn at the last pass: the view's N, or fewer while the window is too narrow for N (AC7); null when
+    // the view has no N or is not drawn in 360 view.
+    shownPlacesAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
 
     layout: CarpetLayout = null;
     // The tab's width at the last layout pass.
@@ -215,6 +264,17 @@ export class View360Model {
     grippedFixedPx: number = null;
     // Each carpet column's slot width at the last pass, from the remembered proportions.
     slotPx: Map<string, number> = new Map();
+    // After a 360 × N, the carpet column to show in the first place once the next pass laid it (AC6); after its Undo,
+    // the scroll position and the focus to give back.
+    pendingStart: { columnId: string } = null;
+    pendingRestore: { scrollLeft: number; focusNodeId: string } = null;
+    // The wheel's whole-panel steps while a 360 × N is on (AC7).
+    wheelAcc = 0;
+    wheelLocked = false;
+    wheelStepAt = 0;
+    wheelIdleTimer: ReturnType<typeof setTimeout> = null;
+    // Where the carpet's glide ends, while it glides.
+    glideTarget: number = null;
 
     constructor(layoutModel: LayoutModel, tabAtom: Atom<Tab>) {
         this.layoutModel = layoutModel;
@@ -223,6 +283,12 @@ export class View360Model {
         this.manualAtom = atom((get) => tabManualView360(get(tabAtom)));
         this.thresholdAtom = ScreenModel.getInstance().thresholdAtom;
         this.screenAtom = ScreenModel.getInstance().screenAtom;
+        const metaPlacesAtom = selectAtom(tabAtom, (tab) => storedPlaces(tab));
+        this.placesAtom = atom((get) => {
+            const pending = get(this.pendingPlacesAtom);
+            return pending != null ? pending.n : get(metaPlacesAtom);
+        });
+        globalStore.sub(metaPlacesAtom, () => globalStore.set(this.pendingPlacesAtom, null));
         this.decisionAtom = atom((get) =>
             decideView360({
                 setting: normalizeView360Setting(get(this.settingAtom)),
@@ -232,8 +298,15 @@ export class View360Model {
                 cannotFit: get(this.cannotFitAtom),
                 columnCount: get(this.columnCountAtom),
                 narrowWindow: get(narrowWindowAtom),
+                places: get(this.placesAtom),
             })
         );
+        // Another N redraws the carpet, also while the view was already in 360 view.
+        globalStore.sub(this.placesAtom, () => {
+            if (!this.inLayoutPass) {
+                this.layoutModel.updateTree();
+            }
+        });
         // Another screen, or another threshold chosen for it: the decision is taken again.
         globalStore.sub(this.thresholdAtom, () => this.layoutModel.updateTree());
         // The window crossing the narrow threshold too (FR-SHELL-109).
@@ -327,6 +400,8 @@ export class View360Model {
             normalizeView360Setting(globalStore.get(this.settingAtom)) === "always" ||
             this.autoWantsNow(false, count, this.lastEvalWidth, this.lastEvalGap, this.lastColumnMins);
         globalStore.set(this.autoOnAtom, false);
+        // Leaving forgets the view's 360 × N (FR-SHELL-123-AC10).
+        this.writePlaces(null);
         this.setManual(holds ? false : null);
         this.layoutModel.updateTree();
     }
@@ -419,6 +494,7 @@ export class View360Model {
         this.lastColumnMins = columnMins;
         this.lastEvalWidth = width;
         this.lastEvalGap = gap;
+        this.measureRoles(rootNode);
 
         // The screen's column threshold (#1083) switches at once: a column opened or closed, another screen.
         const threshold = globalStore.get(this.thresholdAtom);
@@ -549,6 +625,14 @@ export class View360Model {
             }
             this.setLayout(null);
             this.setPlacements({});
+            this.setShownPlaces(null);
+            if (this.pendingRestore != null) {
+                const focusNodeId = this.pendingRestore.focusNodeId;
+                this.pendingRestore = null;
+                if (focusNodeId != null) {
+                    setTimeout(() => this.layoutModel.focusNode(focusNodeId), 0);
+                }
+            }
             return null;
         }
         this.drawnActive = true;
@@ -557,11 +641,19 @@ export class View360Model {
         // The grip being dragged sets the floor (#848): below the current one, the drag wins until it ends.
         const fixedNeedPx = this.dragFixedPx != null ? Math.min(floorPx, this.dragFixedPx) : floorPx;
         const fractions = this.rememberedFractions();
+        const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
+        const pinWidthPx = (p: PinnedColumn) =>
+            this.dragPin?.nodeId === p.node.id ? this.dragPin.px : (p.pin.px ?? this.columnWidthPx(p.node));
+        // The view's 360 × N (FR-SHELL-123): equal parts for the fixed zone and the places, as many places as fit.
+        const places = globalStore.get(this.placesAtom);
+        const besidePx = besideZonePx(pinned.filter((p) => p.pin.mode === "beside").map(pinWidthPx));
+        const shownPlaces = places == null ? null : effectivePlaces(places, bounds.width, fixedNeedPx, besidePx);
         // The developer's proportions (#1083): the fixed zone keeps the first column's share of the width, unless the
         // grip moved it during this view.
         let fixedPx =
             this.dragFixedPx ??
             this.grippedFixedPx ??
+            (shownPlaces != null ? placesFixedPx(bounds.width, shownPlaces, fixedNeedPx, besidePx) : null) ??
             rememberedFixedPx(fractions, bounds.width, this.gapPx()) ??
             this.storedFixedPx();
         if (fixedPx == null) {
@@ -577,7 +669,6 @@ export class View360Model {
                 fireAndForget(() => setTabFixedPx(tabId, px));
             }
         }
-        const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
         const carpetInput = () => ({
             width: bounds.width,
             height: bounds.height,
@@ -585,23 +676,21 @@ export class View360Model {
             fixedPx,
             fixedNeedPx,
             columns: carpet.map((c) => ({ nodeId: c.id, widthPx: this.columnWidthPx(c) })),
-            pins: pinned.map((p) => ({
-                nodeId: p.node.id,
-                mode: p.pin.mode,
-                widthPx:
-                    this.dragPin?.nodeId === p.node.id ? this.dragPin.px : (p.pin.px ?? this.columnWidthPx(p.node)),
-            })),
+            pins: pinned.map((p) => ({ nodeId: p.node.id, mode: p.pin.mode, widthPx: pinWidthPx(p) })),
         });
+        // The first place before this pass, kept when the places change width (a window resized, AC7).
+        const anchorIndex = shownPlaces != null ? this.placesAnchorIndex() : -1;
+        const previousSlots = this.slotPx;
         this.slotPx = new Map();
         let layout = computeCarpetLayout(carpetInput());
-        // The carpet slots keep the developer's proportions (#1083), sized once the carpet's own width is known.
+        // The carpet slots keep the developer's proportions (#1083), sized once the carpet's own width is known; under
+        // a 360 × N every carpet column takes the width of one place, so the carpet always shows N whole panels.
         const indexes = carpet.map((c) => split.carpet.indexOf(c) + 1);
-        const slots = carpetSlotWidthsPx(
-            fractions,
-            indexes,
-            carpetPanelRoomPx(layout.viewport.width),
-            CarpetColumnGapPx
-        );
+        const room = carpetPanelRoomPx(layout.viewport.width);
+        const slots =
+            shownPlaces != null
+                ? carpet.map(() => placeWidthPx(layout.viewport.width, shownPlaces))
+                : carpetSlotWidthsPx(fractions, indexes, room, CarpetColumnGapPx);
         if (slots != null) {
             carpet.forEach((c, i) => this.slotPx.set(c.id, slots[i]));
             layout = computeCarpetLayout(carpetInput());
@@ -622,9 +711,206 @@ export class View360Model {
         leafBlockIds(split.fixed).forEach((id) => (placements[id] = "first"));
         carpet.forEach((c) => leafBlockIds(c).forEach((id) => (placements[id] = "carpet")));
         pinned.forEach((p) => leafBlockIds(p.node).forEach((id) => (placements[id] = p.pin.mode)));
+        const resized =
+            shownPlaces != null &&
+            carpet.some((c) => previousSlots.get(c.id) != null && previousSlots.get(c.id) !== this.slotPx.get(c.id));
         this.setLayout(layout);
         this.setPlacements(placements);
+        this.setShownPlaces(shownPlaces);
+        this.settlePlacesScroll(layout, shownPlaces, resized ? anchorIndex : -1);
         return layout;
+    }
+
+    // ---- 360 × N (FR-SHELL-123) ------------------------------------------------------------------------------------
+
+    private setShownPlaces(n: number) {
+        if (globalStore.get(this.shownPlacesAtom) !== n) {
+            globalStore.set(this.shownPlacesAtom, n);
+        }
+    }
+
+    // Where the carpet rests after a pass: the start place an apply asked for, the scroll an Undo gives back, or, once
+    // the places changed width, the same first place as before.
+    private settlePlacesScroll(layout: CarpetLayout, shownPlaces: number, anchorIndex: number) {
+        if (this.pendingRestore != null) {
+            const { scrollLeft, focusNodeId } = this.pendingRestore;
+            this.pendingRestore = null;
+            this.scrollTo(scrollLeft);
+            if (focusNodeId != null) {
+                setTimeout(() => this.layoutModel.focusNode(focusNodeId), 0);
+            }
+            return;
+        }
+        if (shownPlaces == null) {
+            return;
+        }
+        if (this.pendingStart != null) {
+            const index = layout.columns.findIndex((c) => c.nodeId === this.pendingStart.columnId);
+            this.pendingStart = null;
+            this.scrollTo(placeScrollPx(layout, placesStartIndex(index, layout.columns.length, shownPlaces)));
+            return;
+        }
+        if (anchorIndex >= 0 && this.smoothFrame == null) {
+            this.scrollTo(placeScrollPx(layout, anchorIndex));
+        }
+    }
+
+    // The carpet column at the left of the view: the first one whose start is in view.
+    private placesAnchorIndex(): number {
+        const layout = this.layout;
+        if (layout == null || !layout.columns.length) {
+            return -1;
+        }
+        const index = layout.columns.findIndex((c) => c.x + c.width / 2 > this.scrollLeft);
+        return index < 0 ? layout.columns.length - 1 : index;
+    }
+
+    // Block id -> where each panel would be drawn in 360 view, measured on every pass (the normal layout too).
+    private measureRoles(rootNode: LayoutNode) {
+        const split = splitCarpetColumns(rootNode);
+        const roles: Record<string, PanelPlacement> = {};
+        if (split != null) {
+            const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
+            leafBlockIds(split.fixed).forEach((id) => (roles[id] = "first"));
+            carpet.forEach((c) => leafBlockIds(c).forEach((id) => (roles[id] = "carpet")));
+            pinned.forEach((p) => leafBlockIds(p.node).forEach((id) => (roles[id] = p.pin.mode)));
+        }
+        if (!samePlacements(globalStore.get(this.rolesAtom), roles)) {
+            globalStore.set(this.rolesAtom, roles);
+        }
+    }
+
+    places(): number {
+        return globalStore.get(this.placesAtom);
+    }
+
+    private writePlaces(n: number) {
+        if (this.places() === n) {
+            return;
+        }
+        globalStore.set(this.pendingPlacesAtom, { n });
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => writePlacesState(tabId, { places: n }));
+        }
+    }
+
+    // The tree's carpet columns as 360 view would lay them: the top-level columns other than the first and the pinned.
+    private carpetColumnsNow(): { carpet: LayoutNode[]; besidePx: number } {
+        const split = splitCarpetColumns(this.layoutModel.treeState?.rootNode);
+        if (split == null) {
+            return { carpet: [], besidePx: 0 };
+        }
+        const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
+        const beside = pinned.filter((p) => p.pin.mode === "beside").map((p) => p.pin.px ?? this.columnWidthPx(p.node));
+        return { carpet, besidePx: besideZonePx(beside) };
+    }
+
+    // What the chooser offers right now (AC3): computed each time it opens, from the view's width and its columns.
+    placeOptions(): PlaceOption[] {
+        const { carpet, besidePx } = this.carpetColumnsNow();
+        return placeOptions(carpet.length, this.lastEvalWidth, currentFirstColumnFloorPx() ?? 0, besidePx);
+    }
+
+    // How many columns are pinned to the fixed zone (the chooser says they stay).
+    pinnedColumnCount(): number {
+        const split = splitCarpetColumns(this.layoutModel.treeState?.rootNode);
+        return split == null ? 0 : partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom)).pinned.length;
+    }
+
+    // A 360 × N from a panel (AC5, AC6, AC8): the view keeps its N, the fixed zone and the places take equal parts
+    // (hand resizes are replaced), the panel takes the first place and gets the focus. A message says what happened
+    // and offers Undo for 10 s. Returns false when the number is not offered.
+    applyPlaces(blockId: string, n: number): boolean {
+        const option = this.placeOptions().find((o) => o.n === n);
+        const column = this.rootColumnOfBlock(blockId);
+        if (option == null || !option.offered || column == null) {
+            return false;
+        }
+        const before = this.placesSnapshot();
+        this.grippedFixedPx = null;
+        this.carpetPx.clear();
+        this.pendingStart = { columnId: column.id };
+        const changed = this.places() !== n;
+        this.writePlaces(n);
+        if (!changed) {
+            this.layoutModel.updateTree();
+        }
+        const node = this.layoutModel.getNodeByBlockId?.(blockId);
+        if (node != null) {
+            this.layoutModel.focusNode(node.id);
+        }
+        showPlacesToast(n, option.stored, () => this.restorePlaces(before));
+        return true;
+    }
+
+    // The panel a 360 × N chosen from the view's menu starts from: the focused one when it lies on the carpet, the
+    // first carpet panel otherwise.
+    placesBlockId(): string {
+        const focused = globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
+        if (focused != null && globalStore.get(this.rolesAtom)[focused] === "carpet") {
+            return focused;
+        }
+        return leafBlockIds(this.carpetColumnsNow().carpet[0])[0] ?? null;
+    }
+
+    // Everything a 360 × N changes, for its Undo.
+    placesSnapshot(): PlacesSnapshot {
+        return {
+            places: this.places(),
+            pins: globalStore.get(this.pinsAtom),
+            grippedFixedPx: this.grippedFixedPx,
+            savedFixedPx: this.savedFixedPx,
+            carpetPx: new Map(this.carpetPx),
+            scrollLeft: this.scrollLeft,
+            focusNodeId: globalStore.get(this.layoutModel.focusedNode)?.id ?? null,
+        };
+    }
+
+    // Undo (AC8): the exact state before the apply: 360 view on or off and N, pins, fixed zone width, scroll and focus.
+    restorePlaces(snapshot: PlacesSnapshot): void {
+        this.pendingStart = null;
+        this.grippedFixedPx = snapshot.grippedFixedPx;
+        this.savedFixedPx = snapshot.savedFixedPx;
+        this.carpetPx = new Map(snapshot.carpetPx);
+        this.pendingRestore = { scrollLeft: snapshot.scrollLeft, focusNodeId: snapshot.focusNodeId };
+        const pinsChanged = JSON.stringify(snapshot.pins) !== JSON.stringify(globalStore.get(this.pinsAtom));
+        if (pinsChanged) {
+            this.writePins(snapshot.pins);
+        }
+        const changed = this.places() !== snapshot.places;
+        this.writePlaces(snapshot.places);
+        if (!changed && !pinsChanged) {
+            this.layoutModel.updateTree();
+        }
+    }
+
+    // ---- wheel steps (AC7) ----------------------------------------------------------------------------------------
+
+    // Under a 360 × N a wheel or trackpad gesture moves the carpet one whole panel at a time: a step once the gesture
+    // passes WheelStepPx, another while it goes on past WheelRepeatMs, never a half panel.
+    private wheelStep(dx: number): void {
+        if (this.wheelIdleTimer != null) {
+            clearTimeout(this.wheelIdleTimer);
+        }
+        this.wheelIdleTimer = setTimeout(() => {
+            this.wheelIdleTimer = null;
+            this.wheelAcc = 0;
+            this.wheelLocked = false;
+        }, WheelIdleMs);
+        if (this.wheelLocked && performance.now() - this.wheelStepAt < WheelRepeatMs) {
+            return;
+        }
+        this.wheelLocked = false;
+        this.wheelAcc += dx;
+        if (Math.abs(this.wheelAcc) < WheelStepPx) {
+            return;
+        }
+        const dir = Math.sign(this.wheelAcc);
+        this.wheelAcc = 0;
+        this.wheelLocked = true;
+        this.wheelStepAt = performance.now();
+        this.glideTo(nextScrollStop(carpetScrollStops(this.layout), this.glideTarget ?? this.scrollLeft, dir));
     }
 
     private setPlacements(placements: Record<string, PanelPlacement>) {
@@ -835,11 +1121,32 @@ export class View360Model {
     }
 
     // Called once the layout has placed newly added blocks: the carpet scrolls to the last one laid on it.
+    // Under a 360 × N only a panel that took the focus is shown (a page opened from a page): one opened without it (an
+    // agent's page) waits on the carpet and what the developer looks at stays (FR-SHELL-123-AC11).
     onBlocksAdded(blockIds: string[]): void {
         if (!blockIds?.length) {
             return;
         }
-        this.revealBlock(blockIds[blockIds.length - 1]);
+        const last = blockIds[blockIds.length - 1];
+        if (globalStore.get(this.shownPlacesAtom) != null) {
+            const focusedBlockId = globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
+            if (focusedBlockId !== last) {
+                return;
+            }
+        }
+        this.revealBlock(last);
+    }
+
+    // Where a panel an agent opens goes under a 360 × N (AC11): after the carpet's last panel, so the places in view
+    // stay. Null otherwise: it goes beside the panel it comes from.
+    carpetEndBlockId(): string {
+        if (this.layout == null || globalStore.get(this.shownPlacesAtom) == null || !this.layout.columns.length) {
+            return null;
+        }
+        const rootNode = this.layoutModel.treeState?.rootNode;
+        const last = this.layout.columns[this.layout.columns.length - 1];
+        const ids = leafBlockIds(rootNode == null ? null : findNode(rootNode, last.nodeId));
+        return ids[ids.length - 1] ?? null;
     }
 
     // Glides the carpet so the panel's column is fully in view (#747): anything drawn on a panel for the keyboard
@@ -1105,7 +1412,12 @@ export class View360Model {
         this.setScroll(scrollLeft);
     }
 
+    // A wheel or trackpad scroll: free on the carpet, by whole panels under a 360 × N (FR-SHELL-123-AC7).
     scrollBy(dx: number): void {
+        if (this.layout != null && globalStore.get(this.shownPlacesAtom) != null) {
+            this.wheelStep(dx);
+            return;
+        }
         this.scrollTo(this.scrollLeft + dx);
     }
 
@@ -1122,14 +1434,25 @@ export class View360Model {
             this.scrollTo(target);
             return;
         }
+        this.glideTo(target);
+    }
+
+    private glideTo(target: number) {
         this.cancelSmoothScroll();
         const from = this.scrollLeft;
+        if (target === from) {
+            return;
+        }
+        this.glideTarget = target;
         const start = performance.now();
         const step = (now: number) => {
             const t = Math.min(1, (now - start) / SmoothScrollMs);
             const eased = 1 - Math.pow(1 - t, 3);
             this.setScroll(from + (target - from) * eased);
             this.smoothFrame = t < 1 ? requestAnimationFrame(step) : null;
+            if (this.smoothFrame == null) {
+                this.glideTarget = null;
+            }
         };
         this.smoothFrame = requestAnimationFrame(step);
     }
@@ -1139,6 +1462,7 @@ export class View360Model {
             cancelAnimationFrame(this.smoothFrame);
             this.smoothFrame = null;
         }
+        this.glideTarget = null;
     }
 
     private setScroll(scrollLeft: number) {
