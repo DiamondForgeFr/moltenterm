@@ -27,6 +27,15 @@
 // Positions are in finger pixels along the bottom bar: positive goes toward the next workspace (two fingers moving
 // left, deltaX > 0), negative toward the previous one.
 
+import {
+    FreshTouchGapMs,
+    looksLikeMomentum,
+    MomentumMaxRatio,
+    MomentumRun,
+    StrokeGapMs,
+    type WheelSample,
+} from "../wheel-gesture";
+
 // A release past this share of the width settles on the neighbour.
 export const CommitFraction = 0.35;
 // A release this fast toward the neighbour (px/ms) settles on it from a shorter distance...
@@ -38,17 +47,17 @@ export const ReverseVelocity = 0.15;
 // No wheel event for this long: the fingers lifted without momentum, if the release commits (a page past
 // CommitFraction or flicked, a full ring).
 export const ReleaseGapMs = 90;
-// No wheel event for this long: the fingers lifted, whatever the release does. Shorter pauses hold the gesture: slow
-// fingers leave 100 to 150 ms between events, and a release there would spring the page back mid-stroke (#1312). It
-// also ends the rest of a gesture whose pull opened.
-export const StrokeGapMs = 250;
-// A wheel event after a pause this long is a fresh touch: momentum events come every frame.
-export const FreshTouchGapMs = 60;
-// The momentum's signature: this many deltas in a row, none larger than the one before nor much smaller, and the
-// last at most MomentumMaxRatio of the first.
-export const MomentumRun = 4;
-export const MomentumMinRatio = 0.6;
-export const MomentumMaxRatio = 0.9;
+// The phases' common readings live in wheel-gesture.ts, shared with the 360 carpet (#1466). StrokeGapMs: no wheel
+// event for this long, the fingers lifted, whatever the release does; shorter pauses hold the gesture, as a release
+// there would spring the page back mid-stroke (#1312); it also ends the rest of a gesture whose pull opened.
+export {
+    FreshTouchGapMs,
+    looksLikeMomentum,
+    MomentumMaxRatio,
+    MomentumMinRatio,
+    MomentumRun,
+    StrokeGapMs,
+} from "../wheel-gesture";
 // Fingers this slow (px per event) leave a momentum of a few pixels at most: a full ring they slow down on opens at
 // once instead of waiting to tell their deltas from the momentum's (#1312).
 export const MomentumCarryPx = 8;
@@ -81,7 +90,7 @@ export type SideKind = "page" | "pull" | "none";
 export type SwipeSides = { prev: SideKind; next: SideKind };
 export type SwipeCtx = { width: number; sides: SwipeSides };
 
-export type SwipeSample = { dx: number; at: number };
+export type SwipeSample = WheelSample;
 
 export type SwipeSettle = {
     from: number;
@@ -331,30 +340,6 @@ export function swipeVelocity(samples: readonly SwipeSample[]): number {
     // The first sample's delta happened before the window opened.
     const travel = recent.slice(1).reduce((sum, s) => sum + s.dx, 0);
     return travel / span;
-}
-
-// The momentum's signature at the end of the samples: deltas of one sign, each smaller than the one before by a
-// smooth ratio.
-export function looksLikeMomentum(samples: readonly SwipeSample[]): boolean {
-    if (samples.length < MomentumRun) {
-        return false;
-    }
-    const run = samples.slice(-MomentumRun);
-    const sign = Math.sign(run[0].dx);
-    if (sign === 0 || Math.abs(run[0].dx) < 4) {
-        return false;
-    }
-    for (let i = 1; i < run.length; i++) {
-        if (Math.sign(run[i].dx) !== sign) {
-            return false;
-        }
-        // Rounded deltas may repeat a value; they never grow.
-        const ratio = Math.abs(run[i].dx) / Math.abs(run[i - 1].dx);
-        if (ratio < MomentumMinRatio || ratio > 1) {
-            return false;
-        }
-    }
-    return Math.abs(run[run.length - 1].dx) / Math.abs(run[0].dx) <= MomentumMaxRatio;
 }
 
 // How long a pause ends what is being absorbed: the momentum is continuous, the rest of a spent gesture is fingers.
