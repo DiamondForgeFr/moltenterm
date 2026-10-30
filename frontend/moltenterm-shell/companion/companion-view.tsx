@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The agent companion's view (FR-SHELL-018): next to a terminal running Claude Code or Codex, its session as wavesrv
-// reads it from the agent's own transcript. Display only: nothing is sent to the agent.
+// The agent companion's view (FR-SHELL-018): next to a terminal running a coding agent, its session as wavesrv reads
+// it from the agent's own transcript. Display only: nothing is sent to the agent.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { CopyButton } from "@/app/element/copybutton";
 import { Markdown } from "@/app/element/markdown";
+import { ClientModel } from "@/app/store/client-model";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
@@ -14,17 +15,28 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { EmptyState, EmptyStateAction } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
+import { MoltenWave } from "../molten-button";
 import { always, TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { readWorkspaceProject } from "../workspace-project";
-import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
+import {
+    attachCompanion,
+    cleanCustomCommand,
+    CompanionAgent,
+    companionStartPlan,
+    customKey,
+    readCompanionAgentMemory,
+    startCompanionAgent,
+    StartOption,
+    tabAttachCandidates,
+} from "./companion-attach";
 import { FilesSection } from "./companion-files";
 import { PlanUsageSection } from "./companion-gauges";
 import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
@@ -222,9 +234,15 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
     const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
+    const client = useAtomValue(ClientModel.getInstance().clientAtom);
+    const [customOpen, setCustomOpen] = useState(false);
     const projectDir = readWorkspaceProject(workspace).dir ?? "";
     useEffect(() => CodingAgentModel.getInstance().refresh(projectDir), [projectDir]);
-    const agent = companionAgent(fullConfig?.presets, agentChoices[projectDir]?.choice?.agent);
+    const plan = companionStartPlan(
+        agentChoices[projectDir]?.choice,
+        fullConfig?.presets,
+        readCompanionAgentMemory(client)
+    );
     const actions = useEmptyActions();
     const folder = (terminal?.meta?.["cmd:cwd"] as string) ?? "";
     const session = view?.session;
@@ -239,16 +257,42 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         setHistory(false);
         setIntegrationOpen(false);
     }, [target, view?.agent]);
-    const startAction: EmptyStateAction = {
-        label: t("companion.startHere", { name: agent.name }),
-        busyLabel: t("companion.starting"),
-        busy: actions.busy,
-        onClick: () =>
-            actions.run(t("companion.didNotStart", { name: agent.name }), () =>
-                startCompanionAgent(model.blockId, target)
-            ),
-        testId: "companion-start-agent",
+    const startAgent = (agent: CompanionAgent, key: string, explicit: boolean) => {
+        setCustomOpen(false);
+        actions.run(t("companion.didNotStart", { name: agent.name }), () =>
+            startCompanionAgent(model.blockId, target, agent, key, explicit)
+        );
     };
+    const startAction: EmptyStateAction =
+        plan.kind === "direct"
+            ? {
+                  label: t("companion.startHere", { name: plan.agent.name }),
+                  busyLabel: t("companion.starting"),
+                  busy: actions.busy,
+                  onClick: () => startAgent(plan.agent, plan.key, plan.explicit),
+                  testId: "companion-start-agent",
+              }
+            : {
+                  label: t("companion.startAgent"),
+                  busyLabel: t("companion.starting"),
+                  busy: actions.busy,
+                  menu: true,
+                  onClick: (e) =>
+                      showStartMenu(
+                          e,
+                          plan.options,
+                          (option) => startAgent(option.agent, option.key, false),
+                          () => setCustomOpen(true)
+                      ),
+                  testId: "companion-start-agent",
+              };
+    const customForm = customOpen ? (
+        <CustomCommandForm
+            busy={actions.busy}
+            onStart={(command) => startAgent({ name: command, command }, customKey(command), false)}
+            onCancel={() => setCustomOpen(false)}
+        />
+    ) : null;
     const attachAction: EmptyStateAction = {
         label: t("companion.attach"),
         menu: true,
@@ -264,13 +308,15 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             <EmptyState
                 icon="link-slash"
                 title={t("companion.noTerminal")}
-                hint={t("companion.noTerminalHint", { name: agent.name })}
+                hint={t("companion.noTerminalHint")}
                 primary={attachAction}
                 secondary={startAction}
                 alert={actions.alert}
                 details={actions.raw}
                 testId="companion-noterminal"
-            />
+            >
+                {customForm}
+            </EmptyState>
         );
     }
     if (error && view == null) {
@@ -315,7 +361,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 alert={actions.alert}
                 details={actions.raw}
                 testId="companion-noagent"
-            />
+            >
+                {customForm}
+            </EmptyState>
         );
     }
     if (message != null) {
@@ -462,6 +510,105 @@ function showAttachMenu(e: React.MouseEvent<HTMLButtonElement>, current: string,
         preventDefault: () => e.preventDefault(),
     } as unknown as React.MouseEvent;
     ContextMenuModel.getInstance().showContextMenu(items, event);
+}
+
+// The agents found on this computer (the last one used first), the commands typed before, then "Other command…" (#1460).
+function showStartMenu(
+    e: React.MouseEvent<HTMLButtonElement>,
+    options: StartOption[],
+    onPick: (option: StartOption) => void,
+    onOther: () => void
+) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const items: ContextMenuItem[] = [];
+    if (!options.some((o) => !o.custom)) {
+        items.push({ label: translate("companion.noAgentFound"), enabled: false });
+    }
+    for (const option of options) {
+        items.push({ label: option.agent.name, click: () => onPick(option) });
+    }
+    items.push({ type: "separator" });
+    items.push({ label: translate("companion.otherCommand"), click: onOther });
+    const event = {
+        clientX: rect.left,
+        clientY: rect.bottom + 4,
+        target: e.currentTarget,
+        stopPropagation: () => e.stopPropagation(),
+        preventDefault: () => e.preventDefault(),
+    } as unknown as React.MouseEvent;
+    ContextMenuModel.getInstance().showContextMenu(items, event);
+}
+
+const CommandInputClass =
+    "w-full min-w-0 rounded-4 border border-border bg-transparent px-2 py-1.5 font-mono text-12 leading-5 text-primary outline-none placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--mt-focus-ring)";
+
+// Any agent CLI can be named by its command; it is typed into the terminal as the developer wrote it.
+function CustomCommandForm({
+    busy,
+    onStart,
+    onCancel,
+}: {
+    busy: boolean;
+    onStart: (command: string) => void;
+    onCancel: () => void;
+}) {
+    const t = useT();
+    const inputId = useId();
+    const [text, setText] = useState("");
+    const command = cleanCustomCommand(text);
+    const submit = () => {
+        if (command !== "" && !busy) {
+            onStart(command);
+        }
+    };
+    return (
+        <form
+            className="mt-2 flex w-full flex-col gap-1.5 text-left"
+            data-testid="companion-custom-command"
+            onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+            }}
+        >
+            <label htmlFor={inputId} className="text-12 text-secondary">
+                {t("companion.otherCommandLabel")}
+            </label>
+            <input
+                id={inputId}
+                type="text"
+                autoFocus
+                spellCheck={false}
+                value={text}
+                placeholder={t("companion.otherCommandPlaceholder")}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                        e.stopPropagation();
+                        onCancel();
+                    }
+                }}
+                className={CommandInputClass}
+            />
+            <div className="flex items-center justify-end gap-2">
+                <button
+                    type="button"
+                    className="cursor-pointer rounded-4 border border-border px-3 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                    onClick={onCancel}
+                >
+                    {t("companion.otherCommandCancel")}
+                </button>
+                <button
+                    type="submit"
+                    className="molten-btn inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 px-3 text-12 font-medium disabled:opacity-60"
+                    disabled={command === "" || busy}
+                    data-testid="companion-custom-start"
+                >
+                    {t("companion.otherCommandStart")}
+                    <MoltenWave />
+                </button>
+            </div>
+        </form>
+    );
 }
 
 // The folder's sessions since the agent started, this terminal's current one first (DS-SHELL-060): the former picker,

@@ -9,6 +9,7 @@
 import { atoms, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { AgentStates } from "../../agent-state-store";
+import { CodingAgentModel } from "../../coding-agent/coding-agent";
 import { IntegrateKey, IntegrateOffKey } from "../../companion/companion-integration-model";
 import {
     CompanionRoute,
@@ -31,7 +32,7 @@ import {
     ProjectBranchesChoices,
     ProjectBranchesDefault,
     ProjectBranchesMetaKey,
-    SessionsAgentChoices,
+    sessionsAgentChoices,
     SessionsAgentMetaKey,
     SessionsFolderChoices,
     SessionsFolderMetaKey,
@@ -372,7 +373,7 @@ export function sessionsSections(ctx: PanelContext): PanelSection[] {
                     t("cmdpanel.filters.agent"),
                     "robot",
                     SessionsAgentMetaKey,
-                    SessionsAgentChoices
+                    sessionsAgentChoices(CodingAgentModel.getInstance().choiceOf("")?.known)
                 ),
                 filter(
                     "sessions:folder",
