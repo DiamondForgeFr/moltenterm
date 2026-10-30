@@ -1492,6 +1492,7 @@ declare global {
         "moltenterm:confirmbusyclose"?: boolean;
         "moltenterm:sidebartint"?: boolean;
         "moltenterm:sidebarheat"?: boolean;
+        "moltenterm:settingsreveal"?: boolean;
         "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;

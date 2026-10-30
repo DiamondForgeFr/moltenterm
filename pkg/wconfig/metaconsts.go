@@ -137,6 +137,7 @@ const (
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 	ConfigKey_MoltentermSidebarTint          = "moltenterm:sidebartint"
 	ConfigKey_MoltentermSidebarHeat          = "moltenterm:sidebarheat"
+	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
 	ConfigKey_MoltentermTheme                = "moltenterm:theme"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
 	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
