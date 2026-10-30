@@ -2096,6 +2096,7 @@
             "skipped": "{name} a démarré sans le navigateur de MoltenTerm : {reason}",
             "notConnected": "{name} n'est pas connecté au navigateur de MoltenTerm : relancez sa session pour le connecter",
             "tabGone": "Cet onglet n'est plus dans le panneau",
+            "startPage": "La page de départ ne se partage pas : ouvrez une adresse d'abord",
             "openElsewhere": "Cette page est ouverte dans {browser} : ouvrez-la dans MoltenTerm pour la partager",
             "anotherBrowser": "un autre navigateur",
             "working": "{name} travaille",

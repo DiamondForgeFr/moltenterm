@@ -1893,11 +1893,9 @@ function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const running = ofTab(agentStatesOfWorkspace(agentData, workspace?.oid), tabBlockIds).filter(
         (s) => s.agent || s.agentname
     );
-    const reason = tab.engine
-        ? unshareableReason(tab, engineName(tab.engine, list))
-        : running.length === 0 && ofTab(sessions, tabBlockIds).length === 0
-          ? noAgentReason()
-          : "";
+    const reason =
+        unshareableReason(tab, tab.engine ? engineName(tab.engine, list) : "") ||
+        (running.length === 0 && ofTab(sessions, tabBlockIds).length === 0 ? noAgentReason() : "");
     // FR-SHELL-086: with one agent in the tab and the page not shared yet, the button names it ("Share with Valentin").
     const named = !reason && agentTabs[tab.id] == null && running.length === 1 ? agentCallName(running[0], "") : "";
     const label = named ? t("browser.share.shareWith", { name: named }) : shareLabel();

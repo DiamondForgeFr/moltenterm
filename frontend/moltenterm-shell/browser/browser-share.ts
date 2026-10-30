@@ -14,7 +14,7 @@ import { integrationSetting } from "../companion/companion-integration-model";
 import { t } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import { agentName, AgentSession, AgentTab, OriginShared } from "./browser-agent";
-import type { BrowserTab } from "./browser-model";
+import { isStartPage, type BrowserTab } from "./browser-model";
 
 export type ShareSession = AgentSession;
 
@@ -270,6 +270,10 @@ export function unshareableReason(tab: BrowserTab, engineLabel: string): string 
     }
     if (tab.engine) {
         return t("browser.share.openElsewhere", { browser: engineLabel || t("browser.share.anotherBrowser") });
+    }
+    // The start page has no web content of its own: an agent would get nothing to read (#1554).
+    if (isStartPage(tab.url)) {
+        return t("browser.share.startPage");
     }
     return "";
 }
