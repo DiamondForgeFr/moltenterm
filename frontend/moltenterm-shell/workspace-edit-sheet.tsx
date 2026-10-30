@@ -508,7 +508,7 @@ export function UseProjectLogoField({ ws, logo }: { ws: Workspace; logo: string 
                 </button>
                 <span
                     aria-hidden
-                    className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-3 border border-border"
+                    className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-4 border border-border"
                 >
                     <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
                 </span>
@@ -813,7 +813,7 @@ function ProjectRow({ ws, project, current }: { ws: Workspace; project: Workspac
                         <span className="shrink-0 font-mono text-11 text-muted">{project.branch}</span>
                     ) : null}
                     {current ? (
-                        <span className="shrink-0 rounded-3 border border-border px-1 text-11 text-muted">
+                        <span className="shrink-0 rounded-4 border border-border px-1 text-11 text-muted">
                             {t("workspace.edit.currentProject")}
                         </span>
                     ) : null}
