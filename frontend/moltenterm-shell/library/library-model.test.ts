@@ -140,7 +140,17 @@ describe("Sent to AI", () => {
 
 describe("Shared with agents (#1538)", () => {
     const row = (key: string, agentName: string, agentBlockId: string, extra: any = {}) =>
-        ({ key, title: key, url: "", agentName, agentBlockId, shared: true, takenOver: false, since: 0, ...extra }) as any;
+        ({
+            key,
+            title: key,
+            url: "",
+            agentName,
+            agentBlockId,
+            shared: true,
+            takenOver: false,
+            since: 0,
+            ...extra,
+        }) as any;
 
     it("groups the pages by agent terminal, in the rows' order, with the tool as a chip", () => {
         const groups = sharedAgentGroups(
@@ -160,7 +170,9 @@ describe("Shared with agents (#1538)", () => {
                 panelBlockId: "p",
                 tabId: "t",
                 workspaceId: "w",
-                agentTabs: [{ browsertabid: "x", agentname: "Olivia", agentblockid: "t1", origin: "agent", state: "takenover" }],
+                agentTabs: [
+                    { browsertabid: "x", agentname: "Olivia", agentblockid: "t1", origin: "agent", state: "takenover" },
+                ],
                 browserTabs: [{ id: "x", url: "https://x.example", title: "X" }],
             } as any,
         ]);

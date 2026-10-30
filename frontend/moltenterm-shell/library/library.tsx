@@ -560,6 +560,15 @@ async function readSentPanels(entries: WorkspaceRailEntry[]): Promise<SentPanel[
     return rtn;
 }
 
+// The site tells apart two pages of the same title.
+function pageHost(url: string): string {
+    try {
+        return new URL(url).host;
+    } catch {
+        return "";
+    }
+}
+
 // Remove access is the panel's Stop sharing (the browser agent's stop control): the page stays open, as the
 // developer's. It answers the pages it took back.
 async function removeAccess(rows: SentRow[]): Promise<SentRow[]> {
@@ -770,6 +779,7 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
                         {group.rows.map((row) => {
                             const when = whenText(row.since, Date.now(), locale);
                             const parts = [
+                                pageHost(row.url),
                                 workspaceNameOf(entries, row.workspaceId),
                                 when ? t("library.ai.since", { when }) : "",
                             ].filter(Boolean);
