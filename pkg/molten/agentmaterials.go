@@ -26,6 +26,8 @@ const (
 	MaterialsRecoverCommand = "moltenmaterialsrecover"
 	// MaterialOpenedCommand: a window saw the material open in a view (#1546), the card's "where it lives".
 	MaterialOpenedCommand = "moltenmaterialopened"
+	// MaterialPanelCaptureCommand: the still capture of a panel showing a page or a link, kept as the card's visual (#1560).
+	MaterialPanelCaptureCommand = "moltenmaterialpanelcapture"
 
 	// The drawer of the workspaces without a project ("No project").
 	MaterialsNoProject = "noproject"
@@ -73,6 +75,10 @@ type MaterialsRequest struct {
 	AllowSecret bool   `json:"allowsecret,omitempty"`
 	// Place: where a window saw the material open (MaterialOpenedCommand).
 	Place *MaterialPlace `json:"place,omitempty"`
+	// Image, Urls, File: a panel's capture (a data URL) and what the panel shows (MaterialPanelCaptureCommand).
+	Image string   `json:"image,omitempty"`
+	Urls  []string `json:"urls,omitempty"`
+	File  string   `json:"file,omitempty"`
 }
 
 // MaterialPlace is the view a material was last open in (#1546). The names are kept as they were then, so a closed
@@ -126,6 +132,9 @@ type Material struct {
 	Versions []MaterialVersion `json:"versions,omitempty"`
 	Pinned   bool              `json:"pinned,omitempty"`
 	Thumb    bool              `json:"thumb,omitempty"`
+	// ThumbPanel: the preview is a panel capture (#1560); ThumbAt: when it was kept.
+	ThumbPanel bool  `json:"thumbpanel,omitempty"`
+	ThumbAt    int64 `json:"thumbat,omitempty"`
 	// ThumbPath: the preview image's absolute path (filled when listed).
 	ThumbPath string `json:"thumbpath,omitempty"`
 	// LastOpened: the view a window last saw it open in, nil when never seen open.

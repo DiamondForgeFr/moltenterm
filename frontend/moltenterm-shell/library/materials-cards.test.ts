@@ -10,11 +10,10 @@ import {
     gridNeighbor,
     looksLikeId,
     Material,
-    materialTitleIsHost,
     materialDisplayTitle,
     materialPlaceText,
     materialStateChip,
-    materialThumbnail,
+    materialTitleIsHost,
     materialVisual,
     readableLink,
 } from "./materials-model";
@@ -24,7 +23,16 @@ function lookup(dict: any, key: string): unknown {
 }
 
 function mat(over: Partial<Material>): Material {
-    return { id: "m1", project: "p", title: "Thème Coulée", kind: "page", source: "published", created: 1, updated: 1, ...over };
+    return {
+        id: "m1",
+        project: "p",
+        title: "Thème Coulée",
+        kind: "page",
+        source: "published",
+        created: 1,
+        updated: 1,
+        ...over,
+    };
 }
 
 describe("material cards (#1546)", () => {
@@ -32,9 +40,15 @@ describe("material cards (#1546)", () => {
         expect(readableLink("https://www.example.com/docs/getting%20started/")).toBe("example.com · getting started");
         expect(readableLink("https://example.com")).toBe("example.com");
         expect(readableLink("not a url")).toBe("not a url");
-        const raw = mat({ kind: "link", title: "https://github.com/acme/app/pull/42", link: "https://github.com/acme/app/pull/42" });
+        const raw = mat({
+            kind: "link",
+            title: "https://github.com/acme/app/pull/42",
+            link: "https://github.com/acme/app/pull/42",
+        });
         expect(materialDisplayTitle(raw)).toBe("github.com · pull");
-        expect(materialDisplayTitle(mat({ kind: "link", title: "", link: "https://acme.dev/report" }))).toBe("acme.dev · report");
+        expect(materialDisplayTitle(mat({ kind: "link", title: "", link: "https://acme.dev/report" }))).toBe(
+            "acme.dev · report"
+        );
         expect(materialDisplayTitle(mat({ title: "Thème Coulée", link: "https://claude.ai/x" }))).toBe("Thème Coulée");
     });
 
@@ -59,7 +73,11 @@ describe("material cards (#1546)", () => {
     });
 
     it("finds a raw-address material by its readable title", () => {
-        const raw = mat({ kind: "link", title: "https://acme.dev/quarterly-report", link: "https://acme.dev/quarterly-report" });
+        const raw = mat({
+            kind: "link",
+            title: "https://acme.dev/quarterly-report",
+            link: "https://acme.dev/quarterly-report",
+        });
         expect(filterMaterials([raw], "quarterly report")).toHaveLength(1);
     });
 
@@ -71,7 +89,9 @@ describe("material cards (#1546)", () => {
             live: true,
         });
         expect(materialPlaceText(m, null, "ws-1").key).toBe("library.materials.place.never");
-        const here = mat({ lastopened: { workspaceid: "ws-1", workspace: "MoltenTerm", tabid: "t1", view: "Cadrage" } });
+        const here = mat({
+            lastopened: { workspaceid: "ws-1", workspace: "MoltenTerm", tabid: "t1", view: "Cadrage" },
+        });
         expect(materialPlaceText(here, null, "ws-1")).toEqual({
             key: "library.materials.place.closed",
             vars: { view: "Cadrage" },
@@ -88,23 +108,37 @@ describe("material cards (#1546)", () => {
 
     it("shows one state chip, none for a plain link", () => {
         expect(materialStateChip(mat({ kind: "link", link: "https://a.b/c" }))).toBeNull();
-        expect(materialStateChip(mat({ kind: "page", link: "https://a.b/c" }))).toEqual({ key: "linkNotCopied", warn: true });
+        expect(materialStateChip(mat({ kind: "page", link: "https://a.b/c" }))).toEqual({
+            key: "linkNotCopied",
+            warn: true,
+        });
         expect(
-            materialStateChip(
-                mat({ link: "https://a.b/c", copy: "kept", versions: [{ n: 1, at: 1, size: 3 }] })
-            )
+            materialStateChip(mat({ link: "https://a.b/c", copy: "kept", versions: [{ n: 1, at: 1, size: 3 }] }))
         ).toEqual({ key: "linkCopy", warn: false });
     });
 
     it("fills the visual from local files only", () => {
-        expect(materialThumbnail("m1")).toBeNull();
         expect(materialVisual(mat({ kind: "image", thumbpath: "/d/items/m1/thumb.png" }))).toEqual({
             path: "/d/items/m1/thumb.png",
         });
         expect(
-            materialVisual(mat({ kind: "image", copy: "kept", copypath: "/d/v1/a.png", versions: [{ n: 1, at: 1, size: 3 }] }))
+            materialVisual(
+                mat({ kind: "image", copy: "kept", copypath: "/d/v1/a.png", versions: [{ n: 1, at: 1, size: 3 }] })
+            )
         ).toEqual({ path: "/d/v1/a.png" });
         expect(materialVisual(mat({ kind: "page", link: "https://claude.ai/x" }))).toEqual({});
+        expect(
+            materialVisual(
+                mat({
+                    kind: "page",
+                    link: "https://claude.ai/x",
+                    thumb: true,
+                    thumbpanel: true,
+                    thumbpath: "/d/items/m2/thumb.png",
+                    thumbat: 7,
+                })
+            )
+        ).toEqual({ path: "/d/items/m2/thumb.png", version: 7 });
     });
 
     it("moves through the grid with the arrow keys", () => {

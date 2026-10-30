@@ -18,6 +18,7 @@ export const MaterialRestoreCommand = "moltenmaterialrestore";
 export const MaterialCopyCommand = "moltenmaterialcopy";
 export const MaterialsRecoverCommand = "moltenmaterialsrecover";
 export const MaterialOpenedCommand = "moltenmaterialopened";
+export const MaterialPanelCaptureCommand = "moltenmaterialpanelcapture";
 export const MaterialsNoProject = "noproject";
 
 export const MaterialKindPage = "page";
@@ -65,6 +66,8 @@ export type Material = {
     pinned?: boolean;
     thumb?: boolean;
     thumbpath?: string;
+    thumbpanel?: boolean;
+    thumbat?: number;
     lastopened?: MaterialPlace;
     agent?: string;
     tool?: string;
@@ -556,14 +559,8 @@ export function materialStateChip(m: Material): MaterialForm {
     return form;
 }
 
-// The capture of a page or a link shown in a panel. Captures arrive with #1545 (static panel captures); until then
-// there is none and the card shows its kind icon.
-export function materialThumbnail(_id: string): string {
-    return null;
-}
-
 // What fills a card's visual: a local image (its preview, else the image itself), a capture, or the kind icon.
-export type MaterialVisual = { path?: string; src?: string };
+export type MaterialVisual = { path?: string; version?: number };
 
 export function materialVisual(m: Material): MaterialVisual {
     if (m == null) {
@@ -577,8 +574,11 @@ export function materialVisual(m: Material): MaterialVisual {
             return { path: m.copypath };
         }
     }
-    const capture = materialThumbnail(m.id);
-    return capture ? { src: capture } : {};
+    // A page's or a link's visual is the capture of the panel that showed it, kept by the registry (#1560).
+    if (m.thumb && m.thumbpanel && m.thumbpath) {
+        return { path: m.thumbpath, version: m.thumbat };
+    }
+    return {};
 }
 
 export type CardRect = { left: number; top: number; width: number; height: number };

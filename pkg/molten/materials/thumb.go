@@ -37,6 +37,10 @@ func makeThumb(path string, maxPx int, maxBytes int) []byte {
 	if err != nil {
 		return nil
 	}
+	return encodeThumb(src, maxPx, maxBytes)
+}
+
+func encodeThumb(src image.Image, maxPx int, maxBytes int) []byte {
 	side := maxPx
 	for side >= 64 {
 		out := scaleTo(src, side)

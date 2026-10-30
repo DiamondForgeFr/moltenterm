@@ -22,23 +22,23 @@ import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from ".
 import { openInBrowserPanel } from "../browser/browser-routing";
 import { TFunction, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { MoltentermNotifications } from "../notifications-store";
+import { SidebarModel } from "../sidebar/sidebar-store";
+import { isProjectTab } from "../sidebar/view-pins-model";
+import { ViewPins } from "../sidebar/view-pins-store";
+import { DominoLoader } from "../suite/suite";
+import { useTabIdentity } from "../tab-identity-ui";
+import { showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { logoUrl, pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readProjectFacts } from "../workspace-project-store";
-import { MoltentermNotifications } from "../notifications-store";
-import { SidebarModel } from "../sidebar/sidebar-store";
-import { DominoLoader } from "../suite/suite";
-import { isProjectTab } from "../sidebar/view-pins-model";
-import { ViewPins } from "../sidebar/view-pins-store";
-import { useTabIdentity } from "../tab-identity-ui";
-import { showToast } from "../toast-store";
 import { libraryAddAsk, whenText } from "./library-model";
 import {
     CardRect,
     filterMaterials,
     findOpenPanel,
-    gridNeighbor,
     GridMove,
+    gridNeighbor,
     groupMaterials,
     linkHost,
     Material,
@@ -47,7 +47,6 @@ import {
     MaterialCopyCommand,
     MaterialDeleteCopyCommand,
     materialDisplayTitle,
-    materialTitleIsHost,
     materialFolderPath,
     materialForm,
     MaterialForm,
@@ -62,25 +61,26 @@ import {
     MaterialPinCommand,
     MaterialPlace,
     materialPlaceText,
-    MaterialsCardsMinWidth,
-    materialStateChip,
-    materialVisual,
     MaterialRenameCommand,
     MaterialRestoreCommand,
+    MaterialsCardsMinWidth,
     MaterialsChanged,
     MaterialsEvent,
     materialSizeText,
     MaterialsListCommand,
     MaterialsNoProject,
+    materialsProjectName,
     MaterialsRecoverCommand,
     MaterialsRecovered,
     MaterialsRecoverTimeoutMs,
     MaterialsRoute,
-    materialsProjectName,
     materialsSeenStorageKey,
+    materialStateChip,
     MaterialsView,
+    materialTitleIsHost,
     MaterialUndoMs,
     materialVersion,
+    materialVisual,
     newMaterialsCount,
     OpenPanel,
     recoveredParts,
@@ -755,7 +755,9 @@ function primaryLabel(t: TFunction, open: ShownPanel, plan: MaterialOpen): strin
 function MaterialVisualBox({ m }: { m: Material }) {
     const visual = materialVisual(m);
     const [failed, setFailed] = useState(false);
-    const src = visual.src ?? (visual.path ? logoUrl(getWebServerEndpoint(), visual.path) : "");
+    const src = visual.path
+        ? logoUrl(getWebServerEndpoint(), visual.path) + (visual.version ? `&v=${visual.version}` : "")
+        : "";
     useEffect(() => {
         setFailed(false);
     }, [src]);

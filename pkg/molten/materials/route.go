@@ -102,6 +102,12 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 			return nil, fmt.Errorf("give the place the material is open in")
 		}
 		return r.store.Opened(req.Project, req.Id, *req.Place)
+	case molten.MaterialPanelCaptureCommand:
+		key, err := l.drawerOf(req, caller)
+		if err != nil {
+			return nil, err
+		}
+		return r.store.PanelCapture(key, req.Urls, req.File, req.Image)
 	case molten.MaterialDeleteCopyCommand:
 		trashId, err := r.store.DeleteCopy(req.Project, req.Id)
 		if err != nil {

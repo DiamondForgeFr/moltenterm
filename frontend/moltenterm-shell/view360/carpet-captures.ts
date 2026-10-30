@@ -12,8 +12,8 @@ import { atom, PrimitiveAtom } from "jotai";
 
 export const CaptureSettleMs = 700;
 export const CaptureMinGapMs = 4000;
-// The thumbnail's width in device pixels: the preview card (240 px) on a 2x screen.
-export const CaptureThumbPx = 480;
+// The thumbnail's width in device pixels: the preview card (240 px) on a 2x screen, and the 640 px a material keeps (FR-MAT-002).
+export const CaptureThumbPx = 640;
 // A capture over this size is not kept (a data URL held per carpet panel).
 export const CaptureMaxChars = 600_000;
 
