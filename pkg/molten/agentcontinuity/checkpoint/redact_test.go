@@ -149,6 +149,9 @@ func TestRedactYamlCredentialValues(t *testing.T) {
 		{"password: >-\n  correct horse battery staple\n  other secret phrase\nhost: example", "password: [redacted]\nhost: example"},
 		{"- name: prod\n  password: correct horse\n    battery staple\n  host: local", "- name: prod\n  password: [redacted]\n  host: local"},
 		{"credentials: {password: correct horse battery staple, user: alice}", "credentials: {password: [redacted], user: alice}"},
+		{"password: 'correct horse''battery staple'", "password: '[redacted]'"},
+		{"credentials: {password: 'correct horse''battery staple', user: alice}", "credentials: {password: '[redacted]', user: alice}"},
+		{"password: 'correct horse''battery\n  staple'\nhost: example", "password: '[redacted]'\nhost: example"},
 	}
 	for _, c := range cases {
 		out, n := Redact(c.in)

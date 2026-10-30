@@ -44,7 +44,7 @@ var (
 	flagRegex     = regexp.MustCompile(`(?i)(?:^|\s)(--?[a-z0-9-]*(?:password|passwd|passphrase|secret|token|api-?key|access-key|credential)[a-z0-9-]*)(\s+)([^\s-][^\s]*)`)
 	userFlagRegex = regexp.MustCompile(`(?:^|\s)(-u|--user)(\s+)([^\s:]+):([^\s]+)`)
 	// name, separator, value: NAME=value, export NAME="value", name: value, "name": "value", name = 'value'.
-	assignRegex   = regexp.MustCompile(`(["']?)([A-Za-z_][A-Za-z0-9_.-]{0,80})(["']?)([ \t]*(?::=|:|=)[ \t]*)("(?:[^"\\]|\\.)*"|'[^']*'|[^\s,;}\]\[{"'` + "`" + `][^\s,;}\]"'` + "`" + `]*)`)
+	assignRegex   = regexp.MustCompile(`(["']?)([A-Za-z_][A-Za-z0-9_.-]{0,80})(["']?)([ \t]*(?::=|:|=)[ \t]*)("(?:[^"\\]|\\.)*"|'(?:''|[^'])*'|[^\s,;}\]\[{"'` + "`" + `][^\s,;}\]"'` + "`" + `]*)`)
 	tokenPatterns = []tokenPattern{
 		{[]string{"sk-"}, regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}`)},
 		{[]string{"k_live_", "k_test_"}, regexp.MustCompile(`\b[rsp]k_(?:live|test)_[A-Za-z0-9]{16,}`)},
