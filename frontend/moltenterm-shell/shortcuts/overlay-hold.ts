@@ -2,10 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Holding ⌘ alone shows the shortcut overlay (FR-SHELL-090, DS-SHELL-129): a bare ⌘ (Alt off macOS, where Wave's Cmd is
-// Alt) arms an 800 ms timer; any other key, a click, the window losing focus or the release disarms it. Nothing is
+// Alt) arms a timer; any other key, a click, the window losing focus or the release disarms it. Nothing is
 // ever prevented, so ⌘ chords and terminal input behave exactly as without the overlay.
+//
+// The overlay must never show while the developer switches app (#1390). The system's app switcher keeps the window
+// focused and hides the Tab key from it, so a ⌘+Tab looks like a plain hold: the delay is long enough to outlast a
+// switch, and a hold that began before the window had focus (coming back from the switcher) is not ours.
 
-export const HoldDelayMs = 800;
+export const HoldDelayMs = 1500;
+
+// A bare ⌘ keydown this soon after the window gained focus is a hold that began elsewhere.
+export const FocusGraceMs = 250;
 
 type TimerApi = {
     set: (fn: () => void, ms: number) => unknown;
@@ -43,10 +50,15 @@ export class HoldDetector {
     holdKey: string;
     delayMs: number;
     timers: TimerApi;
+    now: () => number;
+    isFocused: () => boolean;
     onShow: () => void;
     onHide: () => void;
     timer: unknown = null;
     shown = false;
+    focusedAt: number = null;
+    // The hold key is down but its press was not seen by this window: nothing shows until it is released.
+    inherited = false;
 
     constructor(opts: {
         holdKey: string;
@@ -54,12 +66,16 @@ export class HoldDetector {
         onHide: () => void;
         delayMs?: number;
         timers?: TimerApi;
+        now?: () => number;
+        isFocused?: () => boolean;
     }) {
         this.holdKey = opts.holdKey;
         this.onShow = opts.onShow;
         this.onHide = opts.onHide;
         this.delayMs = opts.delayMs ?? HoldDelayMs;
         this.timers = opts.timers ?? DefaultTimers;
+        this.now = opts.now ?? (() => Date.now());
+        this.isFocused = opts.isFocused ?? (() => typeof document === "undefined" || document.hasFocus());
     }
 
     get armed(): boolean {
@@ -86,6 +102,7 @@ export class HoldDetector {
     key(e: WaveKeyboardEvent) {
         if (e.type === "keyup") {
             if (e.key === this.holdKey) {
+                this.inherited = false;
                 this.end();
             }
             return;
@@ -95,11 +112,18 @@ export class HoldDetector {
         }
         if (isBareHoldKey(e, this.holdKey)) {
             // A held modifier repeats on some systems: the first press counts.
-            if (e.repeat || this.armed || this.shown) {
+            if (e.repeat || this.armed || this.shown || this.inherited) {
+                return;
+            }
+            if (this.focusedAt != null && this.now() - this.focusedAt < FocusGraceMs) {
+                this.inherited = true;
                 return;
             }
             this.timer = this.timers.set(() => {
                 this.timer = null;
+                if (!this.isFocused()) {
+                    return;
+                }
                 this.shown = true;
                 this.onShow();
             }, this.delayMs);
@@ -114,6 +138,12 @@ export class HoldDetector {
     }
 
     blur() {
+        this.focusedAt = null;
+        this.inherited = false;
         this.end();
+    }
+
+    focus() {
+        this.focusedAt = this.now();
     }
 }
