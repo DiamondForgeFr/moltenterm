@@ -39,6 +39,8 @@ const (
 	ReasonNoGeneration       = "nogeneration"
 	ReasonOlderGeneration    = "oldergeneration"
 	ReasonAgentBeforeRefresh = "agentbeforerefresh"
+	// The shell started before the current login: it lost the system's services (#1194, loginsession.go).
+	ReasonPreviousLogin = "previouslogin"
 
 	// What Update terminal finds, or did.
 	StatusReady       = "ready"
@@ -145,6 +147,10 @@ func Assess(job *waveobj.Job, isCommand bool, run molten.AgentRunInfo, hasRun bo
 	if agentRuns {
 		rtn.Agent = run.Agent
 		rtn.AgentName = molten.AgentDisplayName(run.Agent)
+	}
+	if StartedBeforeLogin(job, LoginStartMs()) {
+		rtn.Reason = ReasonPreviousLogin
+		return rtn, true
 	}
 	if gen >= current {
 		// The shell caught up through its refresh hook: an agent it started before that still runs with the old
