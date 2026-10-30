@@ -22,6 +22,7 @@ import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from ".
 import { openInBrowserPanel } from "../browser/browser-routing";
 import { TFunction, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { workspaceShownName } from "../workspace-default-name";
 import { logoUrl, pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readProjectFacts } from "../workspace-project-store";
 import { MoltentermNotifications } from "../notifications-store";
@@ -663,7 +664,7 @@ function OpenInPill({ m, tabId }: { m: Material; tabId: string }) {
 function PlaceText({ m, live }: { m: Material; live: { workspace: string; view: string } }) {
     const t = useT();
     const workspaceId = useAtomValue(atoms.workspaceId);
-    const place = materialPlaceText(m, live, workspaceId);
+    const place = materialPlaceText(m, live, workspaceId, (name) => (name ? workspaceShownName(name, t) : ""));
     return (
         <span
             className={cn("mt-lib-card-place", place.live && "is-live")}
