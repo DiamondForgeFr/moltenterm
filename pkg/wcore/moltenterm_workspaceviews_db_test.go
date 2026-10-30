@@ -128,6 +128,45 @@ func TestCreateWorkspaceWithViewsEmptyTemplate(t *testing.T) {
 	}
 }
 
+// #1421: the new-workspace page links the chosen folder right after the workspace is made, then the window shows it
+// and asks for its Project tab: the workspace keeps the template's two views, the first one active.
+func TestLinkedTemplateWorkspaceKeepsOnlyItsViews(t *testing.T) {
+	initWorkspaceViewStores(t)
+	ctx := context.Background()
+	ws, err := createWorkspaceWithViews(ctx, "SaaSFoundry", "", "", true, defaultTemplate)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	oref := waveobj.MakeORef(waveobj.OType_Workspace, ws.OID)
+	link := waveobj.MetaMapType{molten.ProjectMetaKey: "/tmp/p", "molten:folder": "/tmp/p"}
+	if err := wstore.UpdateObjectMeta(ctx, oref, link, false); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ensureProjectTab(ctx, mission.ProjectTabRequest{WorkspaceId: ws.OID})
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if result.TabId != "" || result.Created {
+		t.Fatalf("no Project tab unasked: %+v", result)
+	}
+	ws, err = GetWorkspace(ctx, ws.OID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ws.TabIds) != 2 || ws.ActiveTabId != ws.TabIds[0] {
+		t.Fatalf("the two template views, the first active: %v active %q", ws.TabIds, ws.ActiveTabId)
+	}
+	for _, tabId := range ws.TabIds {
+		tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tab.Meta.GetBool(mission.ProjectTabMetaKey, false) || tab.Name == mission.ProjectTabName {
+			t.Fatalf("a Project tab was made: %+v", tab)
+		}
+	}
+}
+
 func TestTemplateWorkspaceGetsNoProjectTabUnasked(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()

@@ -798,6 +798,8 @@ func ReadFullConfig() FullConfigType {
 	fullConfig.Settings.TelemetryEnabled = false
 	// MOLTENTERM-PATCH (#25): Moltenterm ships no built-in AI, so the tab bars never show the AI panel button.
 	fullConfig.Settings.AppHideAiButton = true
+	// MOLTENTERM-PATCH (#1421): a new-workspace template an earlier version wrote names its views as today's.
+	fullConfig.Settings.AppNewWorkspaceViews = migrateNewWorkspaceViews(fullConfig.Settings.AppNewWorkspaceViews)
 	fullConfig.Version = wavebase.WaveVersion
 	fullConfig.BuildTime = wavebase.BuildTime
 	return fullConfig
