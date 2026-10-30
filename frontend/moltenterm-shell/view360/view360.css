@@ -290,3 +290,221 @@
 .wave-iconbutton.mt-pin-button.is-pinned {
     color: var(--mt-accent);
 }
+
+/* "Store on the carpet" and its chooser (FR-SHELL-123, DS-SHELL-136). Orange stays for the hovered action only. */
+.wave-iconbutton.mt-carpet-button {
+    cursor: pointer;
+}
+
+.wave-iconbutton.mt-carpet-button.is-open {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-places-pop {
+    position: fixed;
+    z-index: 1000;
+    padding: 12px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.85);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-12);
+    line-height: 1.35;
+}
+
+.mt-places-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+    font-size: var(--mt-text-13);
+    font-weight: 600;
+}
+
+.mt-places-head .mt-v360-icon {
+    color: var(--mt-text-2);
+}
+
+.mt-places-intro {
+    margin: 0 0 12px;
+    color: var(--mt-text-3);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.mt-places-label {
+    margin: 0 0 6px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-weight: 500;
+}
+
+.mt-places-section {
+    margin-top: 12px;
+}
+
+.mt-places-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.mt-places-count {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-1);
+    color: var(--mt-text-1);
+    text-align: left;
+    transition:
+        border-color 120ms var(--mt-ease, ease),
+        background-color 120ms var(--mt-ease, ease);
+}
+
+.mt-places-count.is-hover {
+    border-color: var(--mt-action);
+    background: var(--mt-action-wash);
+}
+
+.mt-places-count.is-off {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.mt-places-count:focus-visible,
+.mt-places-row:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+.mt-places-dia {
+    display: flex;
+    gap: 2px;
+    height: 28px;
+}
+
+.mt-places-dia > i {
+    display: block;
+    flex: 1;
+    border-radius: 2px;
+}
+
+.mt-places-dia-fixed {
+    background: color-mix(in srgb, var(--mt-text-1) 18%, var(--mt-surface-1));
+}
+
+.mt-places-dia-place {
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 35%, transparent);
+}
+
+.mt-places-dia-place.is-me {
+    background: color-mix(in srgb, var(--mt-text-1) 18%, var(--mt-surface-1));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-text-1) 70%, transparent);
+}
+
+.mt-places-dia > i.mt-places-dia-stored {
+    flex: 0 0 4px;
+    background: repeating-linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--mt-text-1) 22%, transparent) 0 2px,
+        transparent 2px 4px
+    );
+}
+
+.mt-places-n {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.mt-places-n small {
+    color: var(--mt-text-3);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.mt-places-n em {
+    margin-left: auto;
+    color: var(--mt-text-3);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 500;
+}
+
+.mt-places-caption {
+    color: var(--mt-text-3);
+    font-size: 10.5px;
+    line-height: 1.3;
+}
+
+.mt-places-why {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.4;
+}
+
+.mt-places-why > i {
+    margin-top: 2px;
+}
+
+.mt-places-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-2);
+    text-align: left;
+}
+
+.mt-places-row:hover {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+}
+
+.mt-places-row > .mt-places-kbd {
+    margin-left: auto;
+}
+
+.mt-places-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--mt-line-1);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-places-keys {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.mt-places-kbd {
+    padding: 1px 4px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 4px;
+    color: var(--mt-text-3);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+}

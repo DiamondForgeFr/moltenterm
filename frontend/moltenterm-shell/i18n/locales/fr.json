@@ -5704,6 +5704,59 @@
             "pinnedBadge": "épinglé",
             "refusedTitle": "Pas de place pour épingler à côté",
             "refusedMessage": "La zone fixe occupe au plus la moitié de la fenêtre. Désépinglez un panneau, élargissez la fenêtre ou épinglez-le dans la première colonne."
+        },
+        "places": {
+            "button": "Ranger sur le tapis",
+            "buttonHint": "Ranger sur le tapis : garder ce panneau en vue à côté de la zone fixe et ranger les autres panneaux, toujours actifs (vue 360)",
+            "title": "Ranger sur le tapis",
+            "intro": "{agent} reste à gauche. {panel} prend la première place, les autres panneaux sont rangés sur le tapis, toujours actifs.",
+            "label": "Panneaux visibles à droite",
+            "mark": "360 × {count}",
+            "share1": "Moitié-moitié",
+            "share2": "Tiers et deux tiers",
+            "share3": "Quart et trois quarts",
+            "stored": {
+                "one": "{count} rangé",
+                "other": "{count} rangés"
+            },
+            "shareStored": "{share} · {stored}",
+            "nothing": "Rien à ranger",
+            "narrow": "Trop étroit sur cet écran",
+            "whyNarrow": {
+                "one": "{count} panneau visible ne tient pas sur cet écran : il ferait moins de {min} px. Fermez la barre latérale ou passez sur un écran plus large.",
+                "other": "{count} panneaux visibles ne tiennent pas sur cet écran : chacun ferait moins de {min} px. Fermez la barre latérale ou passez sur un écran plus large."
+            },
+            "whyNothing": {
+                "one": "{count} panneau visible montrerait tous les panneaux : rien ne serait rangé.",
+                "other": "{count} panneaux visibles montreraient tous les panneaux : rien ne serait rangé."
+            },
+            "pinned": {
+                "one": "{count} panneau épinglé reste dans la zone fixe",
+                "other": "{count} panneaux épinglés restent dans la zone fixe"
+            },
+            "current": "actuel",
+            "already": "Déjà en vue 360",
+            "pinBeside": "Épingler à côté de l'agent",
+            "pinStacked": "Épingler dans la première colonne",
+            "unpin": "Désépingler, retour sur le tapis",
+            "leave": "Quitter la vue 360",
+            "undoFor": "Annulable pendant 10 s",
+            "escape": "Échap",
+            "toastTitle": {
+                "one": "{count} panneau visible à droite",
+                "other": "{count} panneaux visibles à droite"
+            },
+            "toastStored": {
+                "one": "{count} panneau rangé sur le tapis, toujours actif.",
+                "other": "{count} panneaux rangés sur le tapis, toujours actifs."
+            },
+            "undo": "Annuler",
+            "menuChoice": {
+                "one": "Ranger sur le tapis : {count} panneau visible à droite",
+                "other": "Ranger sur le tapis : {count} panneaux visibles à droite"
+            },
+            "fallbackAgent": "La première colonne",
+            "fallbackPanel": "Ce panneau"
         }
     },
     "termcopy": {

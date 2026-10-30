@@ -157,6 +157,8 @@ export type View360Inputs = {
     columnCount: number;
     // The window is narrow (FR-SHELL-109): two columns go automatic when they cannot fit.
     narrowWindow?: boolean;
+    // The view's 360 × N (FR-SHELL-123), null without one: it holds the view on whatever the threshold says.
+    places?: number;
 };
 
 // What holds an automatic view on: the screen's column threshold, or the readable minimums.
@@ -174,7 +176,7 @@ export function decideView360(inputs: View360Inputs): View360Decision {
     let source: View360Source = "auto";
     let reason: View360Reason;
     const autoColumns = inputs.columnCount >= autoMinColumns(!!inputs.narrowWindow);
-    if (inputs.manual === true) {
+    if (inputs.manual === true || inputs.places > 0) {
         wanted = true;
         source = "manual";
     } else if (inputs.manual === false) {

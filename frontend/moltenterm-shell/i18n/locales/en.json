@@ -5704,6 +5704,59 @@
             "pinnedBadge": "pinned",
             "refusedTitle": "No room to pin beside",
             "refusedMessage": "The fixed zone takes at most half of the window. Unpin a panel, widen the window, or pin it in the first column."
+        },
+        "places": {
+            "button": "Store on the carpet",
+            "buttonHint": "Store on the carpet: keep this panel in view beside the fixed zone and store the other panels, still active (360 view)",
+            "title": "Store on the carpet",
+            "intro": "{agent} stays on the left. {panel} takes the first place, the other panels are stored on the carpet, still active.",
+            "label": "Visible panels on the right",
+            "mark": "360 × {count}",
+            "share1": "Half and half",
+            "share2": "A third and two thirds",
+            "share3": "A quarter and three quarters",
+            "stored": {
+                "one": "{count} stored",
+                "other": "{count} stored"
+            },
+            "shareStored": "{share} · {stored}",
+            "nothing": "Nothing to store",
+            "narrow": "Too narrow on this screen",
+            "whyNarrow": {
+                "one": "{count} visible panel doesn't fit on this screen: it would be under {min} px. Close the sidebar or use a wider screen.",
+                "other": "{count} visible panels don't fit on this screen: each would be under {min} px. Close the sidebar or use a wider screen."
+            },
+            "whyNothing": {
+                "one": "{count} visible panel would show every panel: nothing would be stored.",
+                "other": "{count} visible panels would show every panel: nothing would be stored."
+            },
+            "pinned": {
+                "one": "{count} panel stays pinned in the fixed zone",
+                "other": "{count} panels stay pinned in the fixed zone"
+            },
+            "current": "current",
+            "already": "Already in 360 view",
+            "pinBeside": "Pin beside the agent",
+            "pinStacked": "Pin in the first column",
+            "unpin": "Unpin, back to the carpet",
+            "leave": "Leave the 360 view",
+            "undoFor": "Undo available for 10 s",
+            "escape": "Esc",
+            "toastTitle": {
+                "one": "{count} panel visible on the right",
+                "other": "{count} panels visible on the right"
+            },
+            "toastStored": {
+                "one": "{count} panel stored on the carpet, still active.",
+                "other": "{count} panels stored on the carpet, still active."
+            },
+            "undo": "Undo",
+            "menuChoice": {
+                "one": "Store on the carpet: {count} visible panel on the right",
+                "other": "Store on the carpet: {count} visible panels on the right"
+            },
+            "fallbackAgent": "The first column",
+            "fallbackPanel": "This panel"
         }
     },
     "termcopy": {

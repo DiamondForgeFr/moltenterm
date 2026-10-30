@@ -16,6 +16,7 @@
 import { registerCommandProvider } from "../panel-registry";
 import { AgentProvider } from "./agent";
 import { BrowserProvider } from "./browser";
+import { CarpetPlacesProvider } from "./carpet-places";
 import { DeveloperProvider } from "./developer";
 import { MoltenProviders } from "./molten";
 import { PreviewProvider } from "./preview";
@@ -36,4 +37,5 @@ export function registerBuiltinCommandProviders() {
     registerCommandProvider(WaveMenuProvider);
     registerCommandProvider(DeveloperProvider);
     MoltenProviders.forEach((p) => registerCommandProvider(p));
+    registerCommandProvider(CarpetPlacesProvider);
 }

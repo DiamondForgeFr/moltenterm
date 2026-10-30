@@ -127,6 +127,14 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(autoWants(on, 3, need + LeaveMarginPx + 10)).toBe(false);
     });
 
+    it("holds a view with an N in 360 view whatever the threshold says (FR-SHELL-123-AC9)", () => {
+        const base = { setting: "auto" as const, autoOn: false, columnsOver: false, columnCount: 3 };
+        expect(decideView360({ ...base, manual: null, places: 2 })).toMatchObject({ active: true, source: "manual" });
+        expect(decideView360({ ...base, manual: false, places: 1 }).active).toBe(true);
+        expect(decideView360({ ...base, manual: null, places: null }).active).toBe(false);
+        expect(decideView360({ ...base, columnCount: 1, manual: null, places: 2 }).active).toBe(false);
+    });
+
     it("never wants 360 view for a single column", () => {
         expect(autoWants(false, 1, 100)).toBe(false);
         expect(autoWants(true, 1, 100)).toBe(false);

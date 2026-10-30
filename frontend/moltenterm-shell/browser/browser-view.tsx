@@ -21,7 +21,7 @@ import * as WOS from "@/app/store/wos";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { NodeModel } from "@/layout/index";
+import { getLayoutModelForStaticTab, type NodeModel } from "@/layout/index";
 import { checkKeyPressed } from "@/util/keyutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
@@ -52,7 +52,7 @@ import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
 import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
-import { PinHeaderButton } from "../view360/view360-pin";
+import { CarpetHeaderButton } from "../view360/view360-places";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
@@ -786,8 +786,11 @@ export class BrowserViewModel implements ViewModel {
         // already. An agent's tab keeps its id and leaves the focus where the user is (the agent's terminal).
         const pages = fresh.filter((r) => !r.engine);
         const focusLast = pages.some((r) => !r.keepFocus && !r.agent);
+        // Under a 360 × N an agent's pages go to the end of the carpet, so the panels in view stay (FR-SHELL-123-AC11).
+        const agentOnly = pages.length > 0 && pages.every((r) => r.agent);
+        const carpetEnd = agentOnly ? getLayoutModelForStaticTab()?.moltenView360?.carpetEndBlockId() : null;
         fireAndForget(async () => {
-            let after = this.blockId;
+            let after = carpetEnd ?? this.blockId;
             for (const [i, request] of pages.entries()) {
                 const focused = focusLast && i === pages.length - 1;
                 const def = request.agent
@@ -1533,7 +1536,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
             <span className="mt-focus-only flex items-center gap-0.5">
-                <PinHeaderButton blockId={model.blockId} />
+                <CarpetHeaderButton blockId={model.blockId} />
                 <span data-role="command-panel-trigger" className="flex">
                     <IconButton decl={commands} />
                 </span>
