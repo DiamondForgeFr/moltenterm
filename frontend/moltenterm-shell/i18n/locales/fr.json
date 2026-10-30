@@ -4717,9 +4717,9 @@
             "currentProject": "actuel",
             "logo": "Logo",
             "noLogo": "Aucune image trouvée dans le projet.",
-            "projectLogoInUse": "Le logo du projet est utilisé : désactivez « Utiliser le logo du projet » plus bas pour afficher votre propre image.",
+            "projectLogoInUse": "Le logo du projet est utilisé : désactivez « Utiliser le logo du projet » plus bas pour afficher votre propre image.",
             "useProjectLogo": "Utiliser le logo du projet",
-            "useProjectLogoHint": "Le logo se choisit dans la fiche du projet : Projets › Régler le projet."
+            "useProjectLogoHint": "Le logo se choisit dans la fiche du projet : Projets › Régler le projet."
         },
         "look": {
             "title": "Apparence",
@@ -8896,7 +8896,7 @@
         "noFolder": "Pas encore de dossier",
         "details": "Type et branche",
         "logoInUse": "L'icône de l'espace de travail affiche ce logo.",
-        "logoNotInUse": "L'espace de travail affiche sa propre icône : activez « Utiliser le logo du projet » dans son Identité pour afficher celui-ci.",
+        "logoNotInUse": "L'espace de travail affiche sa propre icône : activez « Utiliser le logo du projet » dans son Identité pour afficher celui-ci.",
         "pipeline": "Pipeline et CI",
         "pipelineUnknown": "Lecture du projet…",
         "openPanel": "Ouvrir la vue Projet",
