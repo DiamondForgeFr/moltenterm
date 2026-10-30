@@ -7,6 +7,7 @@ const app = vi.hoisted(() => ({
     answer: null as (() => void) | null,
     answers: [] as (() => void)[],
     snapshot: null as any,
+    fail: false,
 }));
 
 vi.mock("@/util/endpoints", () => ({ getWebServerEndpoint: () => "http://127.0.0.1:1" }));
@@ -14,7 +15,13 @@ vi.mock("@/util/fetchutil", () => ({
     fetch: () =>
         new Promise((resolve) => {
             const snapshot = app.snapshot;
-            app.answer = () => resolve({ ok: true, json: () => Promise.resolve({ data: snapshot }) });
+            const fail = app.fail;
+            app.answer = () =>
+                resolve(
+                    fail
+                        ? { ok: false, status: 500, statusText: "error" }
+                        : { ok: true, json: () => Promise.resolve({ data: snapshot }) }
+                );
             app.answers.push(app.answer);
         }),
 }));
@@ -129,5 +136,21 @@ describe("loads overtaken by deletion and newer values (#1462)", () => {
         expect((await second).version).toBe(2);
         app.answers[0]();
         expect((await first).version).toBe(2);
+    });
+
+    it("propagates a load failure and allows a subsequent reload", async () => {
+        app.answer = null;
+        app.fail = true;
+        const first = WOS.loadAndPinWaveObject<Block>("block:failure");
+        await vi.waitFor(() => expect(app.answer).not.toBeNull());
+        app.answer();
+        await expect(first).rejects.toThrow("500");
+        app.fail = false;
+        app.answer = null;
+        app.snapshot = { ...block(1, {}), oid: "failure" };
+        const retry = WOS.reloadWaveObject<Block>("block:failure");
+        await vi.waitFor(() => expect(app.answer).not.toBeNull());
+        app.answer();
+        expect((await retry).version).toBe(1);
     });
 });
