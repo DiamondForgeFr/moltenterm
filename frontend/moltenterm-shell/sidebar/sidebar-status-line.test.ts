@@ -14,6 +14,11 @@ describe("the sidebar's status line chip (DS-SHELL-127, #1293)", () => {
         expect(statusBarMarker(wt)).toBe(wt);
     });
 
+    it("draws the separator above the bottom bar in the docked sidebar only, with the line token (#1401)", () => {
+        const source = readFileSync(new URL("./workspace-sidebar.tsx", import.meta.url), "utf8");
+        expect(source).toMatch(/!hidden && "border-t border-line pt-1\.5"[\s\S]{0,80}sidebar-bottom-bar/);
+    });
+
     it("passes every status chip, in the sidebar and in the status bar, through statusBarMarker", () => {
         for (const file of ["./workspace-sidebar.tsx", "../status-bar.tsx"]) {
             const source = readFileSync(new URL(file, import.meta.url), "utf8");

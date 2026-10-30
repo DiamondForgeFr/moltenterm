@@ -2491,7 +2491,10 @@ export function WorkspaceSidebar() {
                     <PullBadge side={1} pullRef={pullRightRef} />
                 </div>
                 <BranchLine />
-                <div className="flex shrink-0 items-center gap-1.5" data-testid="sidebar-bottom-bar">
+                <div
+                    className={cn("flex shrink-0 items-center gap-1.5", !hidden && "border-t border-line pt-1.5")}
+                    data-testid="sidebar-bottom-bar"
+                >
                     <LibraryButton />
                     <WorkspaceDots workspaces={workspaces} />
                     <PlusButton workspaces={workspaces} />
