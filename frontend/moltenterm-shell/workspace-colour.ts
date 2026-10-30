@@ -121,18 +121,37 @@ export const ShortPaletteColours: string[] = ShortPaletteNames.map(
 // Red reads as danger or deletion (audit #1316 F14): a workspace is never given it unasked. Its hue band, around 0°,
 // takes in red and coral; pink and rose sit far enough from it.
 export function isRedColour(choice: string): boolean {
+    const hue = warmHue(choice);
+    return hue != null && hue > -15 && hue < 15;
+}
+
+// Orange is the action colour (--mt-action, #FF7C0D, hue about 27°): a workspace is never given it, nor a close
+// neighbour, unasked (#1385). This is the one definition of the band; apricot (31°) is inside it, amber (42°) is not.
+export const ActionOrangeHueBand = { from: 15, to: 35 };
+
+export function isActionOrangeColour(choice: string): boolean {
+    const hue = warmHue(choice);
+    return hue != null && hue >= ActionOrangeHueBand.from && hue <= ActionOrangeHueBand.to;
+}
+
+// The colours the app never picks for a workspace by itself.
+export function isReservedDefaultColour(choice: string): boolean {
+    return isRedColour(choice) || isActionOrangeColour(choice);
+}
+
+// The hue in degrees of a single, saturated colour whose red channel dominates (red through yellow), else null.
+function warmHue(choice: string): number | null {
     const stops = colourStops(choice);
     if (stops.length !== 1) {
-        return false;
+        return null;
     }
     const { r, g, b } = parseColor(stops[0]);
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     if (max - min < 0.25 * max || max !== r) {
-        return false;
+        return null;
     }
-    const hue = (60 * (g - b)) / (max - min);
-    return hue > -15 && hue < 15;
+    return (60 * (g - b)) / (max - min);
 }
 
 // A custom colour typed in: "#rrggbb", "rrggbb" or "#rgb", or "" while it is not one yet.

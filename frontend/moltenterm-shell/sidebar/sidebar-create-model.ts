@@ -4,21 +4,21 @@
 // The new-workspace page of the sidebar (FR-SHELL-082, FR-SHELL-102): what the form holds, the colours it offers and
 // the pending dot it draws in the bottom row.
 
-import { isRedColour, logoColourChoices, ShortPaletteColours } from "../workspace-colour";
+import { isReservedDefaultColour, logoColourChoices, ShortPaletteColours } from "../workspace-colour";
 
 // colourPicked: the developer chose the colour; a logo found afterwards no longer replaces it.
 export type CreateDraft = { name: string; type: string; folder: string; colour: string; colourPicked?: boolean };
 
 export const CreateColours: string[] = ShortPaletteColours;
 
-const DefaultColours = CreateColours.filter((c) => !isRedColour(c));
+const DefaultColours = CreateColours.filter((c) => !isReservedDefaultColour(c));
 
 export function makeCreateDraft(colour: string): CreateDraft {
     return { name: "", type: "", folder: "", colour: colour || DefaultColours[0] };
 }
 
 // The colour a new workspace starts with (Coulée decision 8, #1318): the first of the row that no workspace uses yet
-// and is not red, else the next non-red one round.
+// and is neither red nor the action orange (#1385), else the next such one round.
 export function freshColour(used: readonly string[], count: number): string {
     const taken = new Set((used ?? []).map((c) => (c ?? "").toLowerCase()));
     const free = DefaultColours.find((c) => !taken.has(c));

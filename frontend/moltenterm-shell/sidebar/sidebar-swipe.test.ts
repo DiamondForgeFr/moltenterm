@@ -683,8 +683,8 @@ describe("⌥1…⌥9", () => {
 describe("new-workspace page", () => {
     it("starts in a colour no workspace uses, and shows the letter typed", () => {
         expect(freshColour([CreateColours[1], CreateColours[2]], 2)).toBe(CreateColours[3]);
-        expect(freshColour(CreateColours, 3)).toBe(CreateColours[4]);
-        expect(makeCreateDraft("").colour).toBe(CreateColours[1]);
+        expect(freshColour(CreateColours, 3)).toBe(CreateColours[5]);
+        expect(makeCreateDraft("").colour).toBe(CreateColours[2]);
         expect(pendingLetter("")).toBe("+");
         expect(pendingLetter("  notulia")).toBe("N");
         expect(pendingLetter("été")).toBe("É");
