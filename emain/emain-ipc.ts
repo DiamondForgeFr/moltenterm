@@ -23,7 +23,7 @@ import {
     setWasActive,
 } from "./emain-activity";
 import { createBuilderWindow, getAllBuilderWindows, getBuilderWindowByWebContentsId } from "./emain-builder";
-import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
+import { unamePlatform } from "./emain-platform";
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
@@ -33,6 +33,7 @@ import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browserag
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 import { initMoltentermAccessibility } from "./moltenterm-accessibility"; // MOLTENTERM-PATCH (#808)
@@ -40,8 +41,6 @@ import { initMoltentermWindowButtons } from "./moltenterm-window-buttons"; // MO
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id"; // MOLTENTERM-PATCH (#928)
 import { initMoltentermWindowLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 import { sendKeyNotice } from "./moltenterm-key-notice"; // MOLTENTERM-PATCH (#1242)
-
-const electronApp = electron.app;
 
 let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
@@ -415,17 +414,7 @@ export function initIpcHandlers() {
         }
     });
 
-    onAppIpc("open-native-path", (event, filePath: string) => {
-        console.log("open-native-path", filePath);
-        filePath = filePath.replace("~", electronApp.getPath("home"));
-        fireAndForget(() =>
-            callWithOriginalXdgCurrentDesktopAsync(() =>
-                electron.shell.openPath(filePath).then((excuse) => {
-                    if (excuse) console.error(`Failed to open ${filePath} in native application: ${excuse}`);
-                })
-            )
-        );
-    });
+    initNativePathIpc(); // MOLTENTERM-PATCH (#1575): native open and reveal are separate guarded actions
 
     onAppIpc("set-window-init-status", (event, status: "ready" | "wave-ready") => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
