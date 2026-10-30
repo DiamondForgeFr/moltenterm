@@ -308,7 +308,7 @@ describe("merge queue (#1062)", () => {
             expect(wordPhrase(queueWhy(queue, 1204, rel.byCard[1204]))).toBe("à rebaser après #1203");
             expect(wordPhrase(queueWait(queue, 1205))).toBe("Attendre sa CI");
             expect(wordPhrase(rel.cards[1201].fact)).toBe(
-                "mêmes lignes que #1202 et le brouillon #1208 : src/theme.ts"
+                "mêmes lignes que #1202 et le brouillon #1208 : src/theme.ts"
             );
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");

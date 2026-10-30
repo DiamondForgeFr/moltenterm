@@ -54,7 +54,7 @@ describe("typing and update outcomes in French (#656)", () => {
         );
         expect(feedback).not.toBe("close");
         expect((feedback as { message: string }).message).toBe(
-            "Claude Code travaille : attendez la fin de son tour, ou interrompez-le."
+            "Claude Code travaille : attendez la fin de son tour, ou interrompez-le."
         );
     });
 
@@ -85,6 +85,6 @@ describe("typing and update outcomes in French (#656)", () => {
                 message: "MoltenTerm is already typing in this terminal: try again in a moment.",
                 messagetext: { code: "termupdate.input.busy" },
             })
-        ).toEqual({ id: "s1", kind: "skipped", message: "MoltenTerm tape déjà dans ce terminal : réessayez dans un instant." });
+        ).toEqual({ id: "s1", kind: "skipped", message: "MoltenTerm tape déjà dans ce terminal : réessayez dans un instant." });
     });
 });

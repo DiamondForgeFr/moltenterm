@@ -37,12 +37,12 @@ function rebaseOutcome(
     error?: string,
     what?: Parameters<typeof outcomeOf>[2]
 ) {
-    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
-    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
 }
 
 function markReadyError(result: Parameters<typeof markReadyPhrase>[0], error?: string): string {
-    return wordPhrase(markReadyPhrase(result, error == null ? null : errorPhrase(error)));
+    return wordPhrase(markReadyPhrase(result, error == null ? null : errorPhrase(error)));
 }
 
 function pr(number: number, extra: Partial<ReviewPr> = {}): ReviewPr {
@@ -377,7 +377,7 @@ describe("reviews model", () => {
         const waiting = (total: number, mergeable: number) =>
             answer({
                 ready: Array.from({ length: total }, (_, i) =>
-                    i < mergeable ? pr(i + 1) : pr(i + 1, i % 2 ? { merge: "conflicts" } : { ci: failing })
+                    i < mergeable ? pr(i + 1) : pr(i + 1, i % 2 ? { merge: "conflicts" } : { ci: failing })
                 ),
             });
         expect(reviewCounts(waiting(9, 4))).toEqual({ toreview: 5, mergeable: 4, drafts: 1 });
@@ -446,9 +446,9 @@ describe("reviews model", () => {
                 pending: 0,
                 checks: [{ name: "Backend", state: "failure" as const }],
             };
-            expect(ciLabel(ci).label).toBe("CI : Backend en échec");
+            expect(ciLabel(ci).label).toBe("CI : Backend en échec");
             expect(mergeLabelOf(pr(1, { merge: "blocked", ci })).title).toBe(
-                "GitHub bloque la fusion : Backend en échec."
+                "GitHub bloque la fusion : Backend en échec."
             );
         });
     });

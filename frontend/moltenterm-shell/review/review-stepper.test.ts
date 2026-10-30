@@ -182,7 +182,7 @@ describe("Validate's stepper", () => {
         ];
         for (const [t, line] of [
             [en, "2 checks are still running: nothing needs you yet."],
-            [fr, "2 vérifications tournent encore : rien ne vous attend pour l'instant."],
+            [fr, "2 vérifications tournent encore : rien ne vous attend pour l'instant."],
         ] as const) {
             const c = step(
                 buildValidateSteps(t, {
@@ -454,7 +454,7 @@ describe("Validate's stepper", () => {
             ["Local working branch", "done", "Local develop updated: +53 commits."],
         ]);
         expect(rows(fr, { ...base, state: "done", code: "updated", count: 1 })).toEqual([
-            ["Branche de travail locale", "done", "develop local mis à jour : +1 commit."],
+            ["Branche de travail locale", "done", "develop local mis à jour : +1 commit."],
         ]);
         expect(rows(en, { ...base, state: "skipped", code: "uptodate" })[0][1]).toBe("skipped");
         expect(rows(en, { ...base, state: "skipped", code: "localcommits", count: 3, ahead: 2 })).toEqual([

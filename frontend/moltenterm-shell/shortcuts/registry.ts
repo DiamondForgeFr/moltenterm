@@ -318,7 +318,7 @@ export const Shortcuts: Shortcut[] = [
         label: "Switch to workspace by number",
         category: "Workspaces",
         scope: "app",
-        keys: "Ctrl:Cmd:{1-9}",
+        keys: "Ctrl:Alt:{1-9}",
         notMac: true,
     },
     // #1186: ⌥1…⌥9 from the sidebar's bottom bar (FR-SHELL-082); off macOS Alt+digit is the tab's. #1345: one shortcut

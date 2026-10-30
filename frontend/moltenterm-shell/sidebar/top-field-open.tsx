@@ -9,6 +9,7 @@ import { atoms, createBlock, getApi, getBlockComponentModel, globalStore, refocu
 import { WorkspaceService } from "@/app/store/services";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +34,7 @@ import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources } from "../workspace-rail";
 import { isSavedWorkspace, makeWorkspaceRailEntries } from "../workspace-rail-model";
 import { SidebarGlyph } from "./sidebar-icons";
+import { workspaceJumpKeys } from "./sidebar-keys";
 import { SidebarModel } from "./sidebar-store";
 import { FocusFactsValue, homeDir, TypedText } from "./top-field";
 import {
@@ -93,7 +95,7 @@ async function loadSources(t: TFn, activeId: string): Promise<LoadedSources> {
             note: project ? pathBaseName(project) : undefined,
             where:
                 index < 9
-                    ? `${t("topField.where.workspace")} · ${formatKeys(`Ctrl:Cmd:${index + 1}`)}`
+                    ? `${t("topField.where.workspace")} · ${formatKeys(workspaceJumpKeys(index + 1, isMacOS()))}`
                     : t("topField.where.workspace"),
             workspaceName: name,
             letter: {

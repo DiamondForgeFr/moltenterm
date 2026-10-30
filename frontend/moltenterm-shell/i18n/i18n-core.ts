@@ -180,13 +180,29 @@ export function resolveKey(dict: Dictionary, key: string): string | undefined {
     return typeof cursor === "string" && cursor !== "" ? cursor : undefined;
 }
 
+// "label: value" in the language's typography: French sets a no-break space before the colon (U+00A0, the same as the
+// dictionary's), so the colon never starts a line.
+export function labelled(locale: string, label: string, value: string): string {
+    const space = /^fr(-|$)/i.test(locale ?? "") ? " " : "";
+    return `${label}${space}: ${value}`;
+}
+
 // Fills `{name}` placeholders. An unknown placeholder is left intact. Values are plain text: callers render the result
 // as text, never as HTML.
-export function interpolate(template: string, vars?: I18nVars): string {
+export function interpolate(template: string, vars?: I18nVars, locale?: string): string {
     if (!vars) return template;
-    return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
+    const french = locale != null && /^fr(-|$)/i.test(locale);
+    // French elides before a vowel ("d'Espace", "l'agent"): a template says "de {name}" once, and the value decides.
+    // Only a vowel triggers it, never an h (mute or aspirated, unknowable here).
+    return template.replace(/(?:(?<![\p{L}-])(de|le|la|que)\s)?\{(\w+)\}/giu, (whole, word: string, name: string) => {
         const value = vars[name];
-        return value == null ? whole : String(value);
+        if (value == null) return whole;
+        const text = String(value);
+        if (!french || word == null || !/^[aeiouàâäéèêëîïôöùûü]/i.test(text)) {
+            return whole.replace(`{${name}}`, () => text);
+        }
+        const head = word.toLowerCase() === "que" ? "qu" : word.slice(0, 1);
+        return `${head}'${text}`;
     });
 }
 
@@ -331,7 +347,7 @@ function lookup(code: string, key: string): string | undefined {
 export function translate(locale: string, key: string, vars?: I18nVars): string {
     const text = lookup(locale, key) ?? lookup(FallbackLanguage, key);
     if (text == null) return key;
-    return interpolate(text, vars);
+    return interpolate(text, vars, locale);
 }
 
 function pluralRules(locale: string): Intl.PluralRules {

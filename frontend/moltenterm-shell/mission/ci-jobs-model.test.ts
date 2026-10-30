@@ -149,13 +149,13 @@ describe("in French", () => {
 
     it("reads triggers, crons and conditions in French", () => {
         expect(Fixtures.nightly.map(triggerWords)).toEqual([
-            "Planifié : tous les jours à 02:30 UTC; chaque lundi à 06:00 UTC",
+            "Planifié : tous les jours à 02:30 UTC; chaque lundi à 06:00 UTC",
             "À la main (Run workflow sur GitHub), en demandant suite et dry",
         ]);
         expect(Fixtures.paths.map(triggerWords)).toEqual([
             "Au push sur develop, des tags v*, seulement quand docs/** ou mkdocs.yml changent",
             "Sur les pull requests sauf vers gh-pages, quand elles sont ouvertes, mises à jour par de nouveaux commits ou marquées prêtes pour la revue, sauf si seuls **/*.png changent",
-            "Après le workflow CI (état : completed)",
+            "Après le workflow CI (état : completed)",
         ]);
         expect(cronWords("*/15 * * * *")).toBe("toutes les 15 minutes");
         expect(cronWords("0 4 1 * *")).toBe("le 1 de chaque mois à 04:00 UTC");

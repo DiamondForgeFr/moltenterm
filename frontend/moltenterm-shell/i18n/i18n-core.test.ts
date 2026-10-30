@@ -7,6 +7,7 @@ import {
     availableLanguages,
     formatNumber,
     interpolate,
+    labelled,
     placeholders,
     preferredLocale,
     registerLanguage,
@@ -15,6 +16,37 @@ import {
     translate,
     translateCount,
 } from "./i18n-core";
+
+describe("French typography (#1379)", () => {
+    it("elides de, le, la and que before a value starting with a vowel", () => {
+        expect(interpolate("Options de {name}", { name: "Espace de départ" }, "fr")).toBe("Options d'Espace de départ");
+        expect(interpolate("Options de {name}", { name: "Client" }, "fr")).toBe("Options de Client");
+        expect(interpolate("Options de {name}", { name: "Hugo" }, "fr")).toBe("Options de Hugo");
+        expect(interpolate("Utiliser le logo de {name} ?", { name: "Atlas" }, "fr-FR")).toBe("Utiliser le logo d'Atlas ?");
+        expect(interpolate("Copier le {thing}", { thing: "écran" }, "fr")).toBe("Copier l'écran");
+        expect(interpolate("Voir la {thing}", { thing: "unité" }, "fr")).toBe("Voir l'unité");
+        expect(interpolate("Il faut que {who} parte", { who: "Anne" }, "fr")).toBe("Il faut qu'Anne parte");
+        expect(interpolate("De {name}", { name: "Ana" }, "fr")).toBe("D'Ana");
+    });
+
+    it("leaves other languages and words alone", () => {
+        expect(interpolate("Options of {name}", { name: "Espace" }, "en")).toBe("Options of Espace");
+        expect(interpolate("Options de {name}", { name: "Espace" }, "de")).toBe("Options de Espace");
+        expect(interpolate("Options de {name}", { name: "Espace" })).toBe("Options de Espace");
+        expect(interpolate("Fonde {name}", { name: "Ana" }, "fr")).toBe("Fonde Ana");
+        expect(interpolate("{name} de {other}", { name: "Ana", other: "Eve" }, "fr")).toBe("Ana d'Eve");
+    });
+
+    it("translates with the language's elision", () => {
+        expect(translate("fr", "sidebar.header.menu", { name: "Espace de départ" })).toBe("Options d'Espace de départ");
+    });
+
+    it("sets a no-break space before the label colon in French only", () => {
+        expect(labelled("fr", "Thème", "Default Dark")).toBe("Thème : Default Dark");
+        expect(labelled("fr-CA", "Thème", "Default Dark")).toBe("Thème : Default Dark");
+        expect(labelled("en", "Theme", "Default Dark")).toBe("Theme: Default Dark");
+    });
+});
 
 describe("resolveKey and interpolate (DS-I18N-001)", () => {
     const dict = { a: { b: "B {name}", empty: "", nested: { c: "C" } }, top: "T" };

@@ -17,8 +17,8 @@ function rebaseOutcome(
     error?: string,
     what?: Parameters<typeof outcomeOf>[2]
 ) {
-    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
-    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
+    const outcome = outcomeOf(result, error == null ? null : errorPhrase(error), what);
+    return outcome == null ? outcome : { ...outcome, text: wordPhrase(outcome.text) };
 }
 
 const Wired = 'uimsg:{"code":"review.nothingtopublish"}\nthere is nothing to publish: stage comments first';
@@ -30,7 +30,7 @@ describe("review sentences in French", () => {
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
 
     it("words a coded error of the service", () => {
-        expect(validateErrorText(Wired)).toBe("Il n'y a rien à publier : marquez d'abord des commentaires prêts.");
+        expect(validateErrorText(Wired)).toBe("Il n'y a rien à publier : marquez d'abord des commentaires prêts.");
         expect(validateErrorText("gh: HTTP 502")).toBe("gh: HTTP 502");
     });
 
@@ -42,8 +42,8 @@ describe("review sentences in French", () => {
             message: "a worktree on feature/1-x could not be created: fatal: busy",
             messagetext: { code: "review.worktreecreate", vars: { branch: "feature/1-x", detail: "fatal: busy" } },
         };
-        expect(restartOutcome(result)).toContain("Un worktree sur feature/1-x n'a pas pu être créé : fatal: busy");
-        expect(rebaseOutcome(result).text).toContain("Un worktree sur feature/1-x n'a pas pu être créé : fatal: busy");
+        expect(restartOutcome(result)).toContain("Un worktree sur feature/1-x n'a pas pu être créé : fatal: busy");
+        expect(rebaseOutcome(result).text).toContain("Un worktree sur feature/1-x n'a pas pu être créé : fatal: busy");
         expect(restartOutcome(null, "Restart failed")).toContain("Restart failed");
     });
 

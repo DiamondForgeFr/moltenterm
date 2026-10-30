@@ -75,7 +75,7 @@ const Forecast1211: Forecast = {
         row(1305, [impact(1301, ["src/theme.ts"])]),
     ],
 };
-const Salome: BusyOf = (n) => (n === 1303 ? "Salomé" : null);
+const Salome: BusyOf = (n) => (n === 1303 ? "Salomé" : null);
 
 function queueOf(prs: ReviewPr[]) {
     return mergeQueue(Forecast1211, prs, prs, [], Salome);
@@ -137,14 +137,14 @@ describe("recommended order: only what can merge now (#1211)", () => {
 
     it("an agent without a name, and the French words", () => {
         const queue = mergeQueue(Forecast1211, [Green1, Green2, Busy, Ci], [Green1, Green2, Busy, Ci], [], (n) =>
-            n === 1303 ? "" : null
+            n === 1303 ? "" : null
         );
         expect(wordPhrase(queueWait(queue, 1303))).toBe("Wait for the agent still working on it");
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
             expect(wordPhrase(queueWait(queue, 1303))).toBe("Attendre l'agent qui y travaille encore");
             const after = queueOf([Green1, Green2, After]);
-            expect(wordPhrase(queueWait(after, 1305))).toBe("Attendre #1301 : mêmes fichiers, un rebase évité");
+            expect(wordPhrase(queueWait(after, 1305))).toBe("Attendre #1301 : mêmes fichiers, un rebase évité");
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }

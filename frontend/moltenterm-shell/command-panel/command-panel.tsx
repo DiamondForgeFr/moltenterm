@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { EqualizeShortcutId } from "../equalize/equalize-actions";
-import { t, useT } from "../i18n/i18n";
+import { labelled, t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { addPanelBeside, besideIcon, besideLabel, besideSides } from "../split/add-beside";
@@ -103,7 +103,7 @@ function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, 
         return row.title;
     }
     if (row.kind === "option") {
-        return row.breadcrumb ? `${row.breadcrumb}: ${row.option.label}` : row.option.label;
+        return row.breadcrumb ? labelled(row.breadcrumb, row.option.label) : row.option.label;
     }
     const item = row.item;
     const parts = [item.label];

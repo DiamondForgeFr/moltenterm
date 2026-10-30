@@ -44,9 +44,9 @@ describe("Mission Control's server sentences in French", () => {
             },
             "develop"
         );
-        expect(lines[0]).toMatch(/^origin\/x : gardée \(.+\)$/);
+        expect(lines[0]).toMatch(/^origin\/x : gardée \(.+\)$/);
         expect(lines[0]).not.toContain("open-pr");
-        expect(lines[1]).toBe("y : boom");
+        expect(lines[1]).toBe("y : boom");
     });
 
     it("words a dependency's problem and a refused description", () => {
@@ -56,7 +56,7 @@ describe("Mission Control's server sentences in French", () => {
                 { sent: false, message: "English", messagetext: { code: "mission.jobs.cannotType" } },
                 "Claude"
             ).text
-        ).toBe("MoltenTerm ne peut pas encore taper dans les terminaux : rien n'a été envoyé.");
+        ).toBe("MoltenTerm ne peut pas encore taper dans les terminaux : rien n'a été envoyé.");
     });
 
     it("keeps the English of a result without a code", () => {
