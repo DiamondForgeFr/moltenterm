@@ -13,7 +13,14 @@ import { AgentStateInfo } from "../agent-state-model";
 import { ArrivalDeps, ArrivalShownGraceMs, PanelArrival } from "./panel-arrival-model";
 import { markPour, notifyViewPour, onViewPour, pourWaitMs, resetPourMomentForTest } from "./pour-moment";
 import { parseCssTime, playPour, PourAnimationId, pourKeyframes, PourShiftPx } from "./view-pour";
-import { isAgentWorking, TileAgentMark, withWorkingTitle, WorkingLight } from "./working-light";
+import {
+    isAgentWorking,
+    snapTurnToGrid,
+    TileAgentMark,
+    withWorkingTitle,
+    WorkingLight,
+    WorkingLightSteps,
+} from "./working-light";
 
 const dir = fileURLToPath(new URL(".", import.meta.url));
 const css = readFileSync(`${dir}panel-motion.css`, "utf8");
@@ -255,6 +262,33 @@ describe("a working agent's turning light (FR-SHELL-112)", () => {
         expect(functionSource(sidebarSrc, "Tile")).toContain("<TileAgentMark info={identity.agent} />");
         expect(functionSource(sidebarSrc, "TopRowAgentMark")).toContain("<TileAgentMark info={identity.agent} />");
     });
+
+    // #1388: lights started apart change on the same frames once snapped onto the shared grid of steps.
+    it("snaps a turn's start onto the shared grid of steps, so lights change on the same frames", () => {
+        const step = 8000 / WorkingLightSteps;
+        const turn = (startTime: number, animationName = "df-glow-turn") => ({
+            animationName,
+            startTime,
+            ready: Promise.resolve(null),
+            effect: { getComputedTiming: () => ({ duration: 8000 }) } as unknown as AnimationEffect,
+        });
+        const a = turn(1000.4);
+        const b = turn(1517.9);
+        snapTurnToGrid(a);
+        snapTurnToGrid(b);
+        for (const t of [a, b]) {
+            expect(Math.abs(t.startTime / step - Math.round(t.startTime / step))).toBeLessThan(1e-6);
+        }
+        expect(Math.abs(a.startTime - 1000.4)).toBeLessThanOrEqual(step / 2);
+        expect(Math.abs(b.startTime - 1517.9)).toBeLessThanOrEqual(step / 2);
+
+        const other = turn(1000.4, "mt-light-cool");
+        snapTurnToGrid(other);
+        expect(other.startTime).toBe(1000.4);
+        const held = turn(null);
+        snapTurnToGrid(held);
+        expect(held.startTime).toBeNull();
+    });
 });
 
 describe("panel motion's stylesheet (FR-SHELL-112, NFR-SHELL-027)", () => {
@@ -276,11 +310,14 @@ describe("panel motion's stylesheet (FR-SHELL-112, NFR-SHELL-027)", () => {
         );
     });
 
-    it("turns the light in incandescent, in steps over --mt-duration-turn, held still off the active view", () => {
+    it("turns the light in incandescent, 30 frames a second over --mt-duration-turn, held still off the active view", () => {
         expect(css).toMatch(/\.mt-working-light \{[^}]*--df-accent: var\(--mt-state-running\);/);
         expect(css).toMatch(
-            /\.mt-working-light::before \{\s*animation: df-glow-turn var\(--mt-duration-turn\) steps\(32\) infinite;/
+            new RegExp(
+                `\\.mt-working-light::before \\{\\s*animation: df-glow-turn var\\(--mt-duration-turn\\) steps\\(${WorkingLightSteps}\\) infinite;`
+            )
         );
+        expect(WorkingLightSteps / 8).toBe(30);
         expect(css).toMatch(
             /:root\[data-mt-motion="still"\] \.mt-working-light::before \{\s*animation-play-state: paused;/
         );
@@ -291,7 +328,7 @@ describe("panel motion's stylesheet (FR-SHELL-112, NFR-SHELL-027)", () => {
 
     it("runs no other loop than the working light", () => {
         const loops = [...css.matchAll(/animation:[^;]*infinite/g)].map((m) => m[0]);
-        expect(loops).toEqual(["animation: df-glow-turn var(--mt-duration-turn) steps(32) infinite"]);
+        expect(loops).toEqual(["animation: df-glow-turn var(--mt-duration-turn) steps(240) infinite"]);
     });
 
     it("stills each moment under the system's preference and MoltenTerm's own setting", () => {

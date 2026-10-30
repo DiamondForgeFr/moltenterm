@@ -103,16 +103,19 @@
 }
 
 /* A working agent's turning light (the suite's .df-glow ring) in incandescent: hotter and yellower than the action
-   orange, never read as a button (theme decision 2). It turns in 32 steps a lap, 4 frames a second: a working agent
-   must not cost a frame at every display refresh (#455, #473), which a smooth turn would for hours. It holds still
-   while the view is not the active one, and cools to cast iron once the agent is done. */
+   orange, never read as a button (theme decision 2). The turn is a transform of a pre-painted layer, which the
+   compositor runs without any main-thread paint. It turns in 240 steps a lap, 30 frames a second (#1388): the eye
+   reads it as smooth, where the 32 steps of #1349 (4 frames a second) read as lag, and a working agent still does not
+   cost a frame at every display refresh (60 to 120 a second, #455, #473), which a free-running turn would for hours.
+   working-light.tsx snaps every light onto the same 1/30 s grid, so several lights change on the same frames. It
+   holds still while the view is not the active one, and cools to cast iron once the agent is done. */
 .mt-working-light {
     --df-accent: var(--mt-state-running);
     --df-glow-width: 1.5px;
 }
 
 .mt-working-light::before {
-    animation: df-glow-turn var(--mt-duration-turn) steps(32) infinite;
+    animation: df-glow-turn var(--mt-duration-turn) steps(240) infinite;
 }
 
 .mt-working-light[data-cooling] {

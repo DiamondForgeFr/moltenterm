@@ -15,7 +15,45 @@ import { prefersReducedMotion } from "../molten-motion";
 import { agentMarkTitle, TabAgentMark } from "../tab-identity-ui";
 import "./panel-motion.css";
 
+// The steps of a lap of the light's turn: panel-motion.css turns it in steps(240), 30 frames a second (#1388).
+export const WorkingLightSteps = 240;
+const TurnAnimationName = "df-glow-turn";
+
 const NoAgentAtom = atom(null as AgentStateInfo);
+
+type TurnAnimation = Pick<Animation, "startTime" | "effect" | "ready"> & { animationName?: string };
+
+// Each light's steps fall on its own start time, so lights started apart would change on different frames and N
+// lights would cost N times the frames (#473). Snapping the start onto the grid of steps counted from the document
+// timeline's origin makes every light change on the same frames; the shift is under half a step (0.75°), unseen.
+export function snapTurnToGrid(anim: TurnAnimation) {
+    if (anim.animationName !== TurnAnimationName || anim.startTime == null) {
+        return;
+    }
+    const duration = anim.effect?.getComputedTiming().duration;
+    if (typeof duration !== "number" || !(duration > 0)) {
+        return;
+    }
+    const step = duration / WorkingLightSteps;
+    const start = Number(anim.startTime);
+    const snapped = Math.round(start / step) * step;
+    if (Math.abs(snapped - start) < 0.01) {
+        return;
+    }
+    anim.startTime = snapped;
+}
+
+function turnAnimations(el: Element): TurnAnimation[] {
+    return (el.getAnimations?.({ subtree: true }) ?? []) as TurnAnimation[];
+}
+
+// Snapped when a turn starts (on mount, and when reduced motion is turned off again, which starts a new turn) once
+// its start time is known, and again at each lap, which catches a turn that started while the view held it still.
+function snapLight(el: Element) {
+    for (const anim of turnAnimations(el)) {
+        anim.ready.then(() => snapTurnToGrid(anim)).catch(() => {});
+    }
+}
 
 export function isAgentWorking(info: AgentStateInfo): boolean {
     return info?.state === "working";
@@ -53,6 +91,8 @@ export function WorkingLight({ on }: { on: boolean }) {
             data-cooling={on ? undefined : ""}
             data-testid="working-light"
             aria-hidden
+            onAnimationStart={(e) => snapLight(e.currentTarget)}
+            onAnimationIteration={(e) => snapLight(e.currentTarget)}
             onAnimationEnd={(e) => {
                 if (e.target === e.currentTarget && !on) {
                     setCooling(false);
