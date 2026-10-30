@@ -386,6 +386,13 @@
     --df-tile-fg: var(--mt-text-main);
 }
 
+/* The blocks sit on the library's page, Preferences and the workspace sheet, each its own background: a ring in one
+   colour around the icon tile showed as a lighter frame above the block's outline (#1591). The opaque tile covers the
+   outline's corner itself. */
+.df-icon-tile {
+    --df-tile-ring: 0 0 0 0 transparent;
+}
+
 .df-option-selected {
     color: var(--df-text-muted);
 }
