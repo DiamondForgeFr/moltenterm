@@ -185,7 +185,7 @@ function PanelChips({ views, i }: { views: TemplateView[]; i: number }) {
                             {label}
                             <button
                                 type="button"
-                                className="molten-btn-ghost inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-3 text-10 disabled:opacity-40"
+                                className="molten-btn-ghost inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-4 text-10 disabled:opacity-40"
                                 aria-label={t("workspaceViews.settings.removePanelNamed", { panel: label })}
                                 title={t("workspaceViews.settings.removePanelNamed", { panel: label })}
                                 disabled={view.panels.length <= 1}

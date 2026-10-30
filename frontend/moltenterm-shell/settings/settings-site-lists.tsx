@@ -69,7 +69,7 @@ function Segmented({
                     aria-checked={value === c.value}
                     onClick={() => onChoose(c.value)}
                     className={cn(
-                        "cursor-pointer rounded-3 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
+                        "cursor-pointer rounded-4 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
                         value === c.value ? "bg-surface-2 text-primary" : "text-muted hover:text-primary"
                     )}
                 >
