@@ -152,6 +152,7 @@ const CodeBlock = ({ children, onClickExecute, codeBlockMaxWidthAtom }: CodeBloc
     return (
         <div
             className={cn("rounded-lg overflow-hidden bg-black my-4", codeBlockMaxWidth && "max-w-full")}
+            data-mt-dark-surface // MOLTENTERM-PATCH (#1341): its code is highlighted for a dark ground, kept in light
             style={
                 codeBlockMaxWidth
                     ? { maxWidth: codeBlockMaxWidth, minWidth: Math.min(400, codeBlockMaxWidth) }

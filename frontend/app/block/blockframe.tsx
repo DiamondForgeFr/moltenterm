@@ -21,6 +21,7 @@ import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#112)
+import { isDarkSurface } from "../../moltenterm-shell/dark-surface"; // MOLTENTERM-PATCH (#1341)
 import { PanelArrivalEdge } from "../../moltenterm-shell/panel-motion/panel-arrival"; // MOLTENTERM-PATCH (#1349)
 import { openBlockBodyMenu } from "../../moltenterm-shell/split/split-body-menu"; // MOLTENTERM-PATCH (#370)
 import { SplitPlaceOverlay } from "../../moltenterm-shell/split/split-place-overlay"; // MOLTENTERM-PATCH (#370, #701)
@@ -181,6 +182,7 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
             })}
             data-blockid={nodeModel.blockId}
             data-mt-agent-state={agentState?.state} // MOLTENTERM-PATCH (#112): heat states (moltenterm-shell.css)
+            data-mt-dark-surface={isDarkSurface(customBg?.bg) || undefined} // MOLTENTERM-PATCH (#1341): stays dark in light
             onClick={blockModel?.onClick}
             onPointerEnter={blockModel?.onPointerEnter}
             onFocusCapture={blockModel?.onFocusCapture}
@@ -208,9 +210,10 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
                 onContextMenu={
                     preview || viewModel == null
                         ? undefined
-                        : (e) => openBlockBodyMenu(e, () =>
-                              handleHeaderContextMenu(e, nodeModel.blockId, viewModel, nodeModel, waveEnv)
-                          )
+                        : (e) =>
+                              openBlockBodyMenu(e, () =>
+                                  handleHeaderContextMenu(e, nodeModel.blockId, viewModel, nodeModel, waveEnv)
+                              )
                 }
             >
                 {noHeader || <ErrorBoundary fallback={headerElemNoView}>{headerElem}</ErrorBoundary>}

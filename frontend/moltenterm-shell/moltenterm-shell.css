@@ -19,6 +19,13 @@
     border-radius: var(--mt-panel-radius);
 }
 
+/* A dark panel in the light theme (#1341, decision 7): a see-through terminal (term:transparency) lets the terminal
+   surface show through, never the light window, so its text keeps the contrast its theme was made for. */
+.mt-light .block.block-frame-default[data-mt-dark-surface] {
+    border-radius: var(--mt-panel-radius);
+    background-color: var(--mt-surface-term);
+}
+
 /* The panel is a clean card whose content reaches its edge (DS-SHELL-124, #1216): no 1 px ring of padding around it,
    and its outlines are inner light drawn over the content along the radius, never a border, so a panel's outer size
    and the gaps between panels are the same focused or not, whatever the panel's type. */
@@ -87,8 +94,17 @@
    name, the active tile's underline and the focused panel's frame.
    --mt-accent, --mt-accent-fg and --mt-focus-ring stay as aliases of the action, so Wave's theme, Tailwind's accent
    and the code not migrated yet turn molten without a change. Unlayered, these win over Tailwind's @layer theme and
-   come after Wave's theme.scss. */
+   come after Wave's theme.scss.
+   A dark panel in the light theme (data-mt-dark-surface, dark-surface.ts) declares this block again: the aliases
+   resolve where they are declared, so the panel gets the dark action text and accent back. The place stays apart,
+   so it never resets the workspace colour accent.ts sets on the root. */
 :root {
+    --mt-place: rgb(255, 124, 13);
+    --mt-place-fg: #000000;
+}
+
+:root,
+.mt-light [data-mt-dark-surface] {
     --mt-action: #ff7c0d;
     --mt-action-hover: #ff9a45;
     --mt-action-press: #e86a00;
@@ -96,8 +112,6 @@
     --mt-action-text: #ff9442;
     --mt-action-wash: rgba(255, 124, 13, 0.12);
     --mt-focus: #ffa45c;
-    --mt-place: rgb(255, 124, 13);
-    --mt-place-fg: #000000;
     --mt-accent: var(--mt-action);
     --mt-accent-fg: var(--mt-action-fg);
     --mt-focus-ring: var(--mt-focus);
@@ -382,8 +396,10 @@
    muted names of the earlier warm neutrals stay as aliases of the fixed tokens of tokens.css, for the code not yet
    migrated, and Wave's and Tailwind's names point at the same tokens. Nothing here mixes the workspace colour: the
    chrome is the same warm grey in every workspace, and the place shows only through its cues (#1319). Terminals keep
-   their theme's background (the terminal theme owns it). */
-:root {
+   their theme's background (the terminal theme owns it). A dark panel in the light theme declares these again, like
+   the action's block above. */
+:root,
+.mt-light [data-mt-dark-surface] {
     --mt-neutral-bg: var(--mt-surface-0);
     --mt-neutral-panel: var(--mt-surface-1);
     --mt-neutral-key: var(--mt-surface-2);

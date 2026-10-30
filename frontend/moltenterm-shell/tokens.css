@@ -281,10 +281,65 @@
     --color-black: var(--mt-sink);
 }
 
+/* A dark panel in the light theme (decision 7): a terminal in a dark terminal theme keeps its dark background, so its
+   frame (data-mt-dark-surface, dark-surface.ts) takes the dark theme's values back, and its header, marks and menus
+   read on it. Each value is the dark one of the first :root block (moltenterm-shell.test.ts keeps them equal); the
+   action's and the neutrals' aliases come back through moltenterm-shell.css. */
+:root.mt-light [data-mt-dark-surface] {
+    color-scheme: dark;
+
+    --mt-surface-0: #141210;
+    --mt-surface-1: #1a1815;
+    --mt-surface-2: #23201c;
+    --mt-surface-3: #2b2723;
+
+    --mt-text-1: #f2ede6;
+    --mt-text-2: #c3bbb1;
+    --mt-text-3: #a0968b;
+
+    --mt-line-1: rgba(242, 237, 230, 0.08);
+    --mt-line-2: rgba(242, 237, 230, 0.14);
+    --mt-line-control: #857b70;
+
+    --mt-state-blocked: #ee4f6b;
+    --mt-state-blocked-text: #ff8a9a;
+    --mt-state-running: #ffb547;
+    --mt-state-ready: #4cc38a;
+    --mt-state-draft: #8e8780;
+    --mt-state-waiting: #b59cf5;
+    --mt-state-warning: #e8d46a;
+    --mt-state-info: #7faee6;
+    --mt-state-warning-fg: #000000;
+    --mt-state-fg: #000000;
+    --mt-state-blocked-fg: #f7f7f7;
+    --mt-state-running-fg: #000000;
+    --mt-text-inverse: #000000;
+    --mt-chart-1: #82a9ee;
+
+    --mt-veil: #ffffff;
+    --mt-sink: #000000;
+    --mt-tone-ink: initial;
+    --mt-iron: initial;
+    --mt-place-tone-share: initial;
+
+    --mt-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
+    --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(0 0 0 / 0.3);
+    --mt-shadow-e2: var(--mt-shadow-highlight), 0 6px 20px -4px rgb(0 0 0 / 0.5);
+    --mt-shadow-e3: var(--mt-shadow-highlight), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+    --mt-shadow-command: var(--mt-shadow-highlight), 0 16px 40px rgb(0 0 0 / 0.5);
+    --mt-scrim: rgb(0 0 0 / 0.55);
+
+    --color-white: #f7f7f7;
+    --color-black: #000000;
+    --df-accent-ink: initial;
+}
+
 /* MoltenTerm's slots of the DiamondForge suite kit (suite/suite.css, #658, suite/suite-language.md). The
    kit keeps Notulia's dimensions; MoltenTerm brings its accent (the action, molten orange in every workspace,
-   #1319), its warm neutrals, its type scale and its motion tokens, so reduced motion stops the kit too. */
-:root {
+   #1319), its warm neutrals, its type scale and its motion tokens, so reduced motion stops the kit too. A dark panel
+   in the light theme declares them again, like moltenterm-shell.css's aliases. */
+:root,
+.mt-light [data-mt-dark-surface] {
     --df-accent: var(--mt-action);
     --df-accent-fg: var(--mt-action-fg);
     --df-danger: var(--mt-state-error);
