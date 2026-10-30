@@ -55,8 +55,6 @@ func TestRedactSecrets(t *testing.T) {
 		{"password flag", "psql --password Hunter22 -h db", "Hunter22", "-h db"},
 		{"api key flag", "tool --api-key abc123xyz run", "abc123xyz", "run"},
 		{"curl user", "curl -u admin:pw-123 https://x", "pw-123", "-u admin:"},
-		{"spaced colon, not a word", "password : Hunter22", "Hunter22", "password :"},
-		{"spaced colon, identifier", "DB_PASSWORD : swordfish", "swordfish", "DB_PASSWORD :"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -91,13 +89,47 @@ func TestRedactKeepsNonSecrets(t *testing.T) {
 		"mkdir -p build && ls -u dir",
 		"Run go test ./pkg/... then task check:ts",
 		"https://github.com/DiamondForgeFr/moltenterm/pull/335",
-		".life li.key::before { border-color: var(--pg-action); }",
-		"a.token::after{content:\"\"}",
-		"Le secret : des copies gardées sur cet ordinateur.",
 	}
 	for _, in := range cases {
 		out, n := Redact(in)
 		if n != 0 || out != in {
+			t.Errorf("changed %q into %q (%d)", in, out, n)
+		}
+	}
+}
+
+// A spaced colon (French typography) is prose only when two more words follow on the line; a value alone, or a value
+// that is not a plain word, stays redacted whatever the name's strength (#1432).
+func TestRedactSpacedColon(t *testing.T) {
+	secrets := []struct {
+		in     string
+		secret string
+	}{
+		{"password : swordfish", "swordfish"},
+		{"secret : hunter2x", "hunter2x"},
+		{"token : abcdef123", "abcdef123"},
+		{"api_key : sk-proj-ABCDEFGHIJKLMNOPQRSTUV", "sk-proj-ABCDEFGHIJKLMNOPQRSTUV"},
+		{"db:\n  password : swordfish\n  host: localhost", "swordfish"},
+		{"password : swordfish\nLe reste : du texte normal ici", "swordfish"},
+		{"secret : hunter, then words", "hunter"},
+		{"password : Hunter22", "Hunter22"},
+		{"DB_PASSWORD : swordfish", "swordfish"},
+		{"DB_PASSWORD : swordfish est le mot", "swordfish"},
+	}
+	for _, c := range secrets {
+		out, n := Redact(c.in)
+		if strings.Contains(out, c.secret) || n == 0 {
+			t.Errorf("secret kept in %q: %q (%d)", c.in, out, n)
+		}
+	}
+	prose := []string{
+		"Le secret : des copies gardées sur cet ordinateur.",
+		"Rien de secret : des nombres, des identifiants de modèle, des numéros de ticket.",
+		".life li.key::before { border-color: var(--pg-action); }",
+		"a.token::after{content:\"\"}",
+	}
+	for _, in := range prose {
+		if out, n := Redact(in); n != 0 || out != in {
 			t.Errorf("changed %q into %q (%d)", in, out, n)
 		}
 	}
