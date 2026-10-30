@@ -5781,6 +5781,14 @@
                 "one": "{count} panneau rangé sur le tapis, toujours actif.",
                 "other": "{count} panneaux rangés sur le tapis, toujours actifs."
             },
+            "pinTook": {
+                "one": "L'épingle prend la dernière place. Elle revient quand vous désépinglez.",
+                "other": "L'épingle prend les {count} dernières places. Elles reviennent quand vous désépinglez."
+            },
+            "pinGaveBack": {
+                "one": "{count} place est revenue, l'épingle est retirée.",
+                "other": "{count} places sont revenues, l'épingle est retirée."
+            },
             "undo": "Annuler",
             "menuChoice": {
                 "one": "Ranger sur le tapis : {count} panneau visible à droite",

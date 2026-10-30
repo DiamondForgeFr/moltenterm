@@ -9,9 +9,9 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
-import { carpetScrollStops } from "./carpet-model";
-import { placesFixedPx } from "./carpet-places";
-import { PlacesUndoMs } from "./carpet-places-toast";
+import { canPinBeside, carpetScrollStops, defaultCarpetWidthPx } from "./carpet-model";
+import { besideZonePx, placesFit, placesFixedPx } from "./carpet-places";
+import { PlacesToastId, PlacesUndoMs } from "./carpet-places-toast";
 import { View360MetaKey, View360PinsMetaKey, View360PlacesMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
 
@@ -157,6 +157,61 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         expect(model.places()).toBe(2);
         pass();
         expect(globalStore.get(model.shownPlacesAtom)).toBe(2);
+    });
+
+    it("says the places that fit after a pin, and that they come back with the pin gone (#1500)", () => {
+        const pinned = besideZonePx([defaultCarpetWidthPx("web")]);
+        let width = 1300;
+        while (
+            !(placesFit(width, 2) && !placesFit(width, 2, 0, pinned) && placesFit(width, 1, 0, pinned) && canPinBeside(width, 0))
+        ) {
+            width += 10;
+        }
+        const bounds = { ...Wide, width };
+        const { model, pass } = makeModel(rowOf(5));
+        pass(bounds);
+        model.applyPlaces("b-c1", 2);
+        pass(bounds);
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(2);
+        vi.mocked(showToast).mockClear();
+
+        expect(model.pin("b-c3", "beside")).toBe(true);
+        pass(bounds);
+        pass(bounds);
+        expect(model.places()).toBe(2);
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(1);
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(showToast).mock.calls[0][0]).toMatchObject({
+            id: PlacesToastId,
+            title: "1 panel visible on the right",
+            message: "The pin takes the last place. It comes back when you unpin.",
+        });
+        expect(model.placeOptions().map((o) => o.offered)).toEqual([true, false, false]);
+
+        vi.mocked(showToast).mockClear();
+        expect(model.unpin("b-c3")).toBe(true);
+        pass(bounds);
+        pass(bounds);
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(2);
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(showToast).mock.calls[0][0]).toMatchObject({
+            id: PlacesToastId,
+            title: "2 panels visible on the right",
+            message: "1 place is back, as the pin is gone.",
+        });
+    });
+
+    it("says nothing when a pin leaves the places as they were", () => {
+        const { model, pass } = makeModel(rowOf(5));
+        pass();
+        model.applyPlaces("b-c1", 2);
+        pass();
+        vi.mocked(showToast).mockClear();
+        expect(model.pin("b-c3", "beside")).toBe(true);
+        pass();
+        pass();
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(2);
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it("comes back with its N after a restart, whatever the threshold", () => {
