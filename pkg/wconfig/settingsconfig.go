@@ -222,6 +222,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1335): the opt-in sidebar tint of theme Coulée (FR-SHELL-115, frontend/moltenterm-shell/sidebar-tint.ts).
 	MoltentermSidebarTint bool `json:"moltenterm:sidebartint,omitempty" jsonschema_description:"Tint the sidebar with the workspace's colour. Off: the sidebar is the same warm grey in every workspace, and the workspace colour shows only on its place cues (the strip at the top of the sidebar, the bar beside its name, the active view's underline and its dot)"`
 
+	// MOLTENTERM-PATCH (#1341): the opt-in light theme of theme Coulée (FR-SHELL-121, frontend/moltenterm-shell/app-theme.ts, emain/moltenterm-theme.ts).
+	MoltentermTheme string `json:"moltenterm:theme,omitempty" jsonschema:"enum=dark,enum=light,enum=system" jsonschema_description:"The interface's theme. dark (the default when unset), light, or system to follow the computer's light or dark setting. Terminals keep their own terminal theme, dark by default, in every interface theme"`
+
 	// MOLTENTERM-PATCH (#615, #733): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
 	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
 

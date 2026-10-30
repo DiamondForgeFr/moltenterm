@@ -60,7 +60,7 @@
 }
 
 .mt-carpet-invite:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, white);
+    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, var(--mt-tone-ink, white));
     outline-offset: -3px;
 }
 
@@ -182,7 +182,7 @@
 
 .mt-v360-toggle.is-on {
     border-color: color-mix(in srgb, var(--mt-accent) 70%, transparent);
-    background: color-mix(in srgb, var(--mt-accent) 16%, rgb(20, 20, 20));
+    background: color-mix(in srgb, var(--mt-accent) 16%, var(--mt-iron, rgb(20, 20, 20)));
     color: color-mix(in srgb, var(--mt-accent) 45%, var(--mt-text-main));
 }
 

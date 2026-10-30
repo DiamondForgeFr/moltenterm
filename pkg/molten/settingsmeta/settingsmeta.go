@@ -141,6 +141,8 @@ var settings = []Setting{
 	{Key: "editor:inlinediff", Section: SectionGeneral, Group: "Files and editor", Label: "Inline diffs", Description: "Show diffs in one column instead of side by side.", Control: ControlToggle},
 
 	// Appearance
+	// #1341: the interface's theme (FR-SHELL-121), first in Appearance; dark stays the default.
+	{Key: "moltenterm:theme", Section: SectionAppearance, Group: "Theme", Label: "Theme", Description: "The interface's colours. Terminals stay dark unless you pick a light terminal theme.", Control: ControlSelect, Options: []Option{{Value: "dark", Label: "Dark"}, {Value: "light", Label: "Light"}, {Value: "system", Label: "Same as the system"}}, Default: "dark"},
 	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "always", Label: "Always"}}},
 	{Key: "window:reducedmotion", Section: SectionAppearance, Group: "Window", Label: "Reduce motion", Description: "Turn off animations, as the system's reduced motion setting does.", Control: ControlToggle},
 	{Key: "window:tilegapsize", Section: SectionAppearance, Group: "Window", Label: "Gap between panels", Description: "The space between the panels of a tab.", Control: ControlNumber, Range: rng(0, 20, 1), Unit: "px"},

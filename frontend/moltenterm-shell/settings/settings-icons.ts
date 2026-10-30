@@ -13,8 +13,11 @@ import {
     ExternalLink,
     Eye,
     Laptop,
+    Moon,
     Rocket,
     Square,
+    Sun,
+    SunMoon,
     TextCursor,
     Underline,
     Wand2,
@@ -55,6 +58,7 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     text: "text",
     magnifiedPanel: "magnify",
     look: "appearance",
+    theme: "appearance",
     behaviour: "behaviour",
     shell: "shell",
     connections: "connections",
@@ -85,6 +89,7 @@ const OptionIcons: Record<string, Record<string, SuiteIcon>> = {
     "cicd:runs": { local: Laptop, remote: Cloud, cd: Rocket },
     "term:cursor": { block: Square, bar: TextCursor, underline: Underline },
     "moltenterm:view360": { auto: Wand2, always: Eye },
+    "moltenterm:theme": { dark: Moon, light: Sun, system: SunMoon },
 };
 
 export function settingsOptionIcon(key: string, value: string): SuiteIcon {

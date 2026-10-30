@@ -143,6 +143,27 @@
     color: var(--mt-accent-fg);
 }
 
+/* In the light theme (#1341, FR-SHELL-121) Tailwind's accent is the action text (tokens.css): a solid bg-accent,
+   which carries the action's dark text, stays molten. Matched on the exact class (~=), so a hover: or before: variant
+   keeps its own condition; the washes (/5 to /35) stay in the action text's hue. */
+.mt-light :is([class~="bg-accent"], [class~="hover:bg-accent"]:hover) {
+    background-color: var(--mt-action);
+}
+
+.mt-light :is([class~="bg-accent/80"], [class~="hover:bg-accent/80"]:hover) {
+    background-color: color-mix(in oklab, var(--mt-action) 80%, transparent);
+}
+
+.mt-light [class~="before:bg-accent"]::before {
+    background-color: var(--mt-action);
+}
+
+/* Wave's light-on-dark form colours, turned for the light theme: the thumb of a toggle and a secondary fill. */
+:root.mt-light {
+    --toggle-thumb-color: var(--mt-surface-2);
+    --form-element-secondary-color: color-mix(in srgb, var(--mt-veil) 20%, transparent);
+}
+
 /* The rail scrolls when its workspaces and tools do not fit; a scrollbar would eat its narrow width. */
 .molten-workspace-rail {
     scrollbar-width: none;

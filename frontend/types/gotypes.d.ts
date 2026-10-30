@@ -1491,6 +1491,7 @@ declare global {
         "moltenterm:releasecandidates"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
         "moltenterm:sidebartint"?: boolean;
+        "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;
         "moltenterm:terminalscreenreader"?: string;
         "moltenterm:codingagent"?: string;

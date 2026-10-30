@@ -44,8 +44,12 @@ because its identity is the most finished: `src/index.css` (`.glow-ring`, the ra
 - **Its motion tokens.** The kit's durations map onto `--mt-duration-*`, so MoltenTerm's reduced-motion setting stops
   the kit as well.
 
-MoltenTerm has no light theme today. The kit ships Notulia's light set under `.df-light` / `[data-df-theme="light"]`,
-so a future light theme only has to map the same slots.
+MoltenTerm's light theme (#1341, FR-SHELL-121) is opt-in: Preferences › Appearance › Theme, dark by default.
+`app-theme.ts` puts `.mt-light` and the kit's `.df-light` on the root. The `--df-*` slots keep their mapping onto the
+`--mt-*` tokens, which hold the light values under `:root.mt-light` (`tokens.css`), so they win over Notulia's light
+defaults. The one slot that differs is `--df-accent-ink`, the accent drawn as a line or text (a radio, "Selected", a
+chosen toggle). In light it takes the action text `#A84A00`, because the molten orange stays a fill and is never text.
+Unset, the kit falls back to `--df-accent`, as Notulia does. The terminal stays dark in the light theme.
 
 ## Using the kit in MoltenTerm
 

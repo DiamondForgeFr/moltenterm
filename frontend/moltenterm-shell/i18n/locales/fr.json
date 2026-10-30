@@ -561,7 +561,7 @@
             },
             "appearance": {
                 "title": "Apparence",
-                "description": "La fenêtre, son texte et le panneau agrandi."
+                "description": "Le thème, la fenêtre, son texte et le panneau agrandi."
             },
             "terminal": {
                 "title": "Terminal",
@@ -641,9 +641,19 @@
             "360View": "Vue 360",
             "codingAgent": "Agent de code",
             "newViews": "Nouvelles vues",
-            "sidebar": "Barre latérale"
+            "sidebar": "Barre latérale",
+            "theme": "Thème"
         },
         "items": {
+            "moltenterm:theme": {
+                "label": "Thème",
+                "description": "Les couleurs de l'interface. Les terminaux restent sombres, sauf si vous choisissez un thème de terminal clair.",
+                "options": {
+                    "dark": "Sombre",
+                    "light": "Clair",
+                    "system": "Comme le système"
+                }
+            },
             "molten:folder": {
                 "label": "Dossier de travail",
                 "description": "Où démarrent les nouveaux terminaux et vues de fichiers de cet espace de travail."

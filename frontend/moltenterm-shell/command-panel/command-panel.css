@@ -235,12 +235,12 @@
 }
 
 .molten-cmdpanel-feedback-primary {
-    background: color-mix(in srgb, var(--mt-accent) 80%, transparent);
+    background: color-mix(in srgb, var(--mt-action) 80%, transparent);
     color: var(--mt-text-main);
 }
 
 .molten-cmdpanel-feedback-primary:hover {
-    background: var(--mt-accent);
+    background: var(--mt-action);
 }
 
 .molten-cmdpanel-feedback-secondary {

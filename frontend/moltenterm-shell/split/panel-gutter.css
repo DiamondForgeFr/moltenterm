@@ -68,7 +68,7 @@
 
 .tile-layout .resize-handle:hover .mt-gutter-pill,
 .tile-layout .resize-handle.mt-gutter-active .mt-gutter-pill {
-    background: rgb(255 255 255 / 0.55);
+    background: color-mix(in srgb, var(--mt-veil) 55%, transparent);
 }
 
 .tile-layout .resize-handle.flex-row:hover .mt-gutter-pill,
@@ -89,7 +89,7 @@
 }
 
 .tile-layout .resize-handle.mt-handle-stuck:hover .mt-gutter-pill {
-    background: rgb(255 255 255 / 0.12);
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
 }
 
 .tile-layout .resize-handle.flex-column.mt-handle-stuck .mt-gutter-pill {

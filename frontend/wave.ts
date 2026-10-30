@@ -38,6 +38,7 @@ import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#1
 import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
+import { startAppTheme } from "./moltenterm-shell/app-theme"; // MOLTENTERM-PATCH (#1341)
 import { startHangReport } from "./moltenterm-shell/hang-report"; // MOLTENTERM-PATCH (#849)
 import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
@@ -222,6 +223,7 @@ async function initWave(initOpts: WaveInitOpts) {
         firstRenderResolveFn = resolve;
     });
     startMoltentermAccent(atoms.workspace); // MOLTENTERM-PATCH (#47): before the first render, so no green flash
+    startAppTheme(atoms.settingsAtom); // MOLTENTERM-PATCH (#1341): the interface theme, before the first render
     await startMoltentermI18n(); // MOLTENTERM-PATCH (#623, #1213): the interface language, loaded before the first render
     const reactElem = createElement(App, { onFirstRender: firstRenderResolveFn }, null);
     const elem = document.getElementById("main");

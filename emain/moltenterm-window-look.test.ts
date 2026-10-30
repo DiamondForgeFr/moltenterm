@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("./emain-window", () => ({ getWaveWindowByWebContentsId: () => null }));
 vi.mock("./emain-tabview", () => ({ getWaveTabViewByWebContentsId: () => null }));
 vi.mock("./moltenterm-privileged-ipc", () => ({ onAppIpc: () => {}, handleAppIpc: () => {} }));
+// The dark theme's opaque colour (moltenterm-theme.test.ts covers the light one).
+vi.mock("./moltenterm-theme", () => ({ opaqueBackground: () => "#222222" }));
 
 import { applyWindowLook, parseLookRequest, windowLookSupport } from "./moltenterm-window-look";
 

@@ -68,8 +68,8 @@
 }
 
 .mt-sco-key.is-accent {
-    border-color: var(--mt-accent);
-    background: var(--mt-accent);
+    border-color: var(--mt-action);
+    background: var(--mt-action);
     color: var(--mt-accent-fg);
 }
 

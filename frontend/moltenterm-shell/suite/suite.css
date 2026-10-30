@@ -6,7 +6,10 @@
    It is extracted as is into the shared UI kit later (suite-language.md, "Extraction plan").
 
    An app maps the --df-* slots on its own :root: the accent (--df-accent, --df-accent-fg), the neutrals and, if it
-   wants, the type sizes and durations. The defaults below are Notulia's dark values, declared under :where() so any
+   wants, the type sizes and durations. --df-accent-ink, unset by default, is the accent where it is drawn as a line
+   or text on the page (a radio, "Selected", a chosen toggle) rather than as a fill: an app whose accent is too light
+   to read as text on its page sets it (MoltenTerm's light theme, #1341). It is read with the accent as fallback and
+   never given a default here, so a subtree that sets --df-accent alone still recolours it. The defaults below are Notulia's dark values, declared under :where() so any
    app rule wins whatever the import order. The dimensions are Notulia's (SettingsFieldset, OptionRow, .glow-ring). */
 
 /* Tailwind's layer order, declared again so the kit's components sit above any base reset and below utilities,
@@ -188,6 +191,7 @@
     .df-block[data-tone="danger"] {
         --df-accent: var(--df-danger);
         --df-accent-fg: var(--df-danger-fg);
+        --df-accent-ink: var(--df-danger);
     }
 
     .df-block-body {
@@ -395,12 +399,12 @@
         width: var(--df-radio-dot);
         height: var(--df-radio-dot);
         border-radius: 9999px;
-        background: var(--df-accent);
+        background: var(--df-accent-ink, var(--df-accent));
         transform: scale(0);
     }
 
     .df-option-row[data-selected] .df-radio {
-        border-color: var(--df-accent);
+        border-color: var(--df-accent-ink, var(--df-accent));
     }
 
     .df-option-row[data-selected] .df-radio::after {
@@ -440,7 +444,7 @@
         flex-shrink: 0;
         font-size: var(--df-text-meta);
         font-weight: var(--df-weight-medium);
-        color: var(--df-accent);
+        color: var(--df-accent-ink, var(--df-accent));
     }
 
     /* ── Toggle group ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -477,9 +481,9 @@
     }
 
     .df-toggle[aria-checked="true"] {
-        border-color: var(--df-accent);
+        border-color: var(--df-accent-ink, var(--df-accent));
         background: color-mix(in srgb, var(--df-accent) 7%, transparent);
-        color: color-mix(in srgb, var(--df-accent) 70%, var(--df-text));
+        color: color-mix(in srgb, var(--df-accent-ink, var(--df-accent)) 70%, var(--df-text));
     }
 
     .df-toggle:focus-visible {

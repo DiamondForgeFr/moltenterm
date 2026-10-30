@@ -23,6 +23,7 @@ import { ElectronWshClient } from "./emain-wsh";
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
+import { opaqueBackground } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -105,7 +106,7 @@ function computeBgColor(fullConfig: FullConfigType): string {
     } else if (isBlur) {
         return "#00000000";
     } else {
-        return "#222222";
+        return opaqueBackground(); // MOLTENTERM-PATCH (#1341): the theme's window colour, no dark flash in light
     }
 }
 

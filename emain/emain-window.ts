@@ -23,6 +23,7 @@ import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-uti
 import { ElectronWshClient } from "./emain-wsh";
 import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
 import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc"; // MOLTENTERM-PATCH (#806)
+import { opaqueBackground, titleBarSymbolColor } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
 import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-PATCH (#1281)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
@@ -183,7 +184,7 @@ export class WaveBrowserWindow extends BaseWindow {
         } else if (opts.unamePlatform === "linux") {
             winOpts.titleBarStyle = settings["window:nativetitlebar"] ? "default" : "hidden";
             winOpts.titleBarOverlay = {
-                symbolColor: "white",
+                symbolColor: titleBarSymbolColor("white"), // MOLTENTERM-PATCH (#1341): readable in the light theme
                 color: "#00000000",
             };
             winOpts.icon = path.join(getElectronAppBasePath(), "public/logos/moltenterm-logo.png"); // MOLTENTERM-PATCH (#4)
@@ -191,13 +192,14 @@ export class WaveBrowserWindow extends BaseWindow {
             if (isTransparent) {
                 winOpts.transparent = true;
             } else {
-                winOpts.backgroundColor = "#222222";
+                winOpts.backgroundColor = opaqueBackground(); // MOLTENTERM-PATCH (#1341)
             }
         } else if (opts.unamePlatform === "win32") {
             winOpts.titleBarStyle = "hidden";
+            // MOLTENTERM-PATCH (#1341): the overlay and the background follow the interface theme
             winOpts.titleBarOverlay = {
-                color: "#222222",
-                symbolColor: "#c3c8c2",
+                color: opaqueBackground(),
+                symbolColor: titleBarSymbolColor("#c3c8c2"),
                 height: 32,
             };
             if (isTransparent) {
@@ -205,7 +207,7 @@ export class WaveBrowserWindow extends BaseWindow {
             } else if (isBlur) {
                 winOpts.backgroundMaterial = "acrylic";
             } else {
-                winOpts.backgroundColor = "#222222";
+                winOpts.backgroundColor = opaqueBackground();
             }
         }
 
@@ -387,7 +389,10 @@ export class WaveBrowserWindow extends BaseWindow {
             // MOLTENTERM-PATCH (#1250): a renderer asking for the workspace emain shows believes another one is on
             // screen; the window shows its active tab again instead of doing nothing
             if (!windowShowsItsActiveView(this, askingWebContentsId) || !(await this.showsTabOfItsWorkspace())) {
-                console.log("switchWorkspace already on this workspace, but not on screen: resyncing", this.waveWindowId);
+                console.log(
+                    "switchWorkspace already on this workspace, but not on screen: resyncing",
+                    this.waveWindowId
+                );
                 await this.queueShowActiveTab("switch to the workspace emain shows");
                 return true;
             }

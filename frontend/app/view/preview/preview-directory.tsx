@@ -442,8 +442,12 @@ function TableBody({
 
     return (
         <div className="dir-table-body" ref={bodyRef}>
+            {/* MOLTENTERM-PATCH (#1341): the warning's own text colour, readable in the light theme too */}
             {(searchActive || search !== "") && (
-                <div className="flex rounded-[3px] py-1 px-2 bg-warning text-black" ref={warningBoxRef}>
+                <div
+                    className="flex rounded-[3px] py-1 px-2 bg-warning text-[var(--mt-state-warning-fg)]"
+                    ref={warningBoxRef}
+                >
                     <span>{search === "" ? tr("wave.files.searchHint") : tr("wave.files.searching", { search })}</span>
                     {/* MOLTENTERM-PATCH (#742) */}
                     <div

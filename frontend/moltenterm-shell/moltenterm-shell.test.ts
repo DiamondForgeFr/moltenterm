@@ -148,7 +148,7 @@ describe("cast-iron neutrals (FR-SHELL-115)", () => {
 // The only cues a workspace colour still draws on the cast iron (FR-SHELL-004, #1319): its glyph and its dot.
 describe("place cues on cast iron (FR-SHELL-115)", () => {
     const glyphPct = Number(
-        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-place\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
+        /--mt-glyph-tone: color-mix\(\s*in srgb,\s*var\(--mt-glyph-color, var\(--mt-place\)\) var\(--mt-place-tone-share, (\d+)%\),\s*var\(--mt-text-main\)\s*\)/.exec(
             tokensCss
         )?.[1]
     );
@@ -560,5 +560,117 @@ describe("action and place (#1319)", () => {
             const css = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
             expect(css, file).not.toContain("--mt-place");
         }
+    });
+});
+
+// Theme "Coulée" step 8 (FR-SHELL-121, NFR-SHELL-003 in both themes): the light theme is a second set of the same
+// tokens, on :root.mt-light. Every pair the dark theme checks above is checked again with the light values (AC-2).
+describe("light theme (FR-SHELL-121)", () => {
+    const lightRoot = /\n:root\.mt-light \{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+
+    // A light value, else the dark one: what the light theme draws.
+    function light(name: string): Rgb {
+        const own = new RegExp(`${name}: (#[0-9a-f]{6});`).exec(lightRoot)?.[1];
+        return own != null ? parseColor(own) : (token(name) ?? shellToken(name));
+    }
+
+    const LightMarks = ["--mt-state-blocked", "--mt-state-running", "--mt-state-ready", "--mt-state-draft"];
+    const LightTextStates = ["--mt-state-blocked-text", "--mt-state-waiting", "--mt-state-warning", "--mt-state-info"];
+
+    it("has the proposal's light values", () => {
+        const values: Record<string, string> = {
+            "--mt-surface-0": "#efeae3",
+            "--mt-surface-1": "#f8f5f0",
+            "--mt-surface-2": "#ffffff",
+            "--mt-surface-3": "#ffffff",
+            "--mt-text-1": "#1f1a15",
+            "--mt-text-2": "#4d453d",
+            "--mt-text-3": "#6b6158",
+            "--mt-line-control": "#8c8278",
+            "--mt-action-text": "#a84a00",
+            "--mt-focus": "#c25600",
+            "--mt-state-blocked": "#b42e4a",
+            "--mt-state-running": "#b86e00",
+            "--mt-state-ready": "#1e7f52",
+            "--mt-state-draft": "#77706a",
+            "--mt-state-waiting": "#6e52c8",
+            "--mt-state-warning": "#765a00",
+            "--mt-state-info": "#2f66b0",
+        };
+        for (const [name, value] of Object.entries(values)) {
+            expect(lightRoot, name).toContain(`${name}: ${value};`);
+        }
+        expect(lightRoot).toContain("--mt-line-1: rgba(31, 26, 21, 0.09);");
+        expect(lightRoot).toContain("--mt-line-2: rgba(31, 26, 21, 0.16);");
+    });
+
+    it("keeps the terminal dark and the action molten (decision 7)", () => {
+        expect(lightRoot).not.toContain("--mt-surface-term");
+        expect(lightRoot).not.toMatch(/--mt-action:/);
+        expect(lightRoot).not.toMatch(/--mt-action-fg:/);
+    });
+
+    it("never draws the molten orange as text: the accent takes the action text, the suite's ink too", () => {
+        expect(lightRoot).toContain("--mt-accent: var(--mt-action-text);");
+        expect(tokensCss).toMatch(/:root\.mt-light \{[^}]*--df-accent-ink: var\(--mt-action-text\);/);
+        expect(contrastRatio(Action, light("--mt-surface-2"))).toBeLessThan(3);
+    });
+
+    it("keeps the dark theme as it was: the light-only tokens are not defined in dark", () => {
+        for (const name of ["--mt-tone-ink", "--mt-iron", "--mt-place-tone-share"]) {
+            expect(tokensRoot, name).not.toContain(`${name}:`);
+        }
+        expect(tokensRoot).toContain("--mt-veil: #ffffff;");
+        expect(tokensRoot).toContain("--mt-sink: #000000;");
+        expect(tokensRoot).toContain("--mt-state-fg: #000000;");
+    });
+
+    it.each(Texts.flatMap((text) => Surfaces.map((s) => [text, s])))("%s reads at 4.5:1 on %s (AC-2)", (text, s) => {
+        expect(contrastRatio(light(text), light(s))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it.each(Surfaces)("action text and the text states read at 4.5:1, controls, marks and focus at 3:1 on %s", (s) => {
+        const bg = light(s);
+        for (const name of ["--mt-action-text", ...LightTextStates]) {
+            expect(contrastRatio(light(name), bg), name).toBeGreaterThanOrEqual(4.5);
+        }
+        for (const name of ["--mt-line-control", "--mt-focus", "--mt-chart-1", ...LightMarks]) {
+            expect(contrastRatio(light(name), bg), name).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it("reads the text on each solid fill at 4.5:1", () => {
+        const pairs: [string, string][] = [
+            ["--mt-action-fg", "--mt-action"],
+            ["--mt-state-fg", "--mt-state-ready"],
+            ["--mt-state-fg", "--mt-state-waiting"],
+            ["--mt-state-fg", "--mt-state-draft"],
+            ["--mt-state-fg", "--mt-text-3"],
+            ["--mt-state-blocked-fg", "--mt-state-blocked"],
+            ["--mt-state-running-fg", "--mt-state-running"],
+            ["--mt-state-warning-fg", "--mt-state-warning"],
+            ["--mt-text-inverse", "--mt-text-1"],
+        ];
+        for (const [fg, fill] of pairs) {
+            expect(contrastRatio(light(fg), light(fill)), `${fg} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it("keeps text readable on an inset (the sink) and on a hover (the veil)", () => {
+        const panel = light("--mt-surface-1");
+        const inset = (pct: number) => mixColor(light("--mt-sink"), panel, pct);
+        expect(contrastRatio(light("--mt-text-1"), inset(50))).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(light("--mt-text-2"), inset(35))).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(light("--mt-text-3"), inset(20))).toBeGreaterThanOrEqual(4.5);
+        const hover = mixColor(light("--mt-veil"), panel, 20);
+        expect(contrastRatio(light("--mt-text-1"), hover)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    describe.each(WorkspaceColours)("workspace colour %s", (place) => {
+        const share = Number(/--mt-place-tone-share: (\d+)%;/.exec(lightRoot)?.[1]);
+        it.each(Surfaces)("its glyph tone reads at 4.5:1 on %s", (s) => {
+            const tone = mixColor(parseColor(place), light("--mt-text-1"), share);
+            expect(contrastRatio(tone, light(s))).toBeGreaterThanOrEqual(4.5);
+        });
     });
 });

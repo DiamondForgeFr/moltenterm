@@ -69,6 +69,7 @@ import { initMoltentermScreen } from "./moltenterm-screen"; // MOLTENTERM-PATCH 
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
+import { initMoltentermTheme, initMoltentermThemeDefault } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
 import { configureAutoUpdater, updater } from "./updater";
 
 const electronApp = electron.app;
@@ -78,7 +79,7 @@ let confirmQuit = true;
 const waveDataDir = getWaveDataDir();
 const waveConfigDir = getWaveConfigDir();
 
-electron.nativeTheme.themeSource = "dark";
+initMoltentermThemeDefault(); // MOLTENTERM-PATCH (#1341): dark until the settings are read, then moltenterm:theme
 
 console.log = log;
 console.log(
@@ -444,6 +445,7 @@ async function appMain() {
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
     initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
+    initMoltentermTheme(fullConfig); // MOLTENTERM-PATCH (#1341): nativeTheme.themeSource follows moltenterm:theme, live
     initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
