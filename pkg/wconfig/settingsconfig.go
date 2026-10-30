@@ -225,6 +225,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1409): the sidebar's heat while agents work (FR-SHELL-122, frontend/moltenterm-shell/sidebar/sidebar-heat.tsx).
 	MoltentermSidebarHeat *bool `json:"moltenterm:sidebarheat,omitempty" jsonschema_description:"While agents of the workspace work, a faint heat rises in the free space at the bottom of the sidebar, stronger with more working agents. On when unset; false removes it. Reduced motion removes it too"`
 
+	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
+	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
+
 	// MOLTENTERM-PATCH (#1341): the opt-in light theme of theme Coulée (FR-SHELL-121, frontend/moltenterm-shell/app-theme.ts, emain/moltenterm-theme.ts).
 	MoltentermTheme string `json:"moltenterm:theme,omitempty" jsonschema:"enum=dark,enum=light,enum=system" jsonschema_description:"The interface's theme. dark (the default when unset), light, or system to follow the computer's light or dark setting. Terminals keep their own terminal theme, dark by default, in every interface theme"`
 

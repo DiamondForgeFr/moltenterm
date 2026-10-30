@@ -886,6 +886,10 @@
                 "label": "Heat in the sidebar",
                 "description": "While agents work, a faint heat rises at the bottom of the sidebar."
             },
+            "moltenterm:settingsreveal": {
+                "label": "Molten reveal of settings",
+                "description": "A settings block opened in the library pours, cools and breaks open. Off, or with reduced motion, it fades in."
+            },
             "moltenterm:sidebartint": {
                 "label": "Tint the sidebar",
                 "description": "The sidebar takes the workspace's colour. Off, the colour shows only on the place marks."

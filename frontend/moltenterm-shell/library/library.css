@@ -586,6 +586,112 @@
     display: none;
 }
 
+/* The molten reveal of an open block (#1407, DS-SHELL-134, settings-reveal.ts): the overlay holds these pieces only
+   while the reveal runs; the animations move them by transform and opacity, so their size and place are set once.
+   Molten is the heat scale of theme Coulée: the white-hot glint, the incandescent, the action orange, then cast iron
+   as it cools. */
+.mt-lib-setstage {
+    position: relative;
+}
+
+.mt-reveal-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.mt-reveal-layer:empty {
+    display: none;
+}
+
+.mt-reveal-layer > * {
+    position: absolute;
+}
+
+.mt-reveal-source {
+    border-radius: var(--mt-radius-panel);
+    transform-origin: 50% 100%;
+    background: radial-gradient(
+        ellipse at 50% 80%,
+        var(--mt-action-glint),
+        var(--mt-state-running) 30%,
+        var(--mt-action) 70%,
+        color-mix(in srgb, var(--mt-action) 60%, transparent)
+    );
+    box-shadow: 0 0 18px 2px color-mix(in srgb, var(--mt-action) 55%, transparent);
+}
+
+.mt-reveal-stream {
+    height: 4px;
+    margin-top: -2px;
+    border-radius: var(--mt-radius-control);
+    transform-origin: 0 50%;
+    background: linear-gradient(
+        to right,
+        var(--mt-action),
+        var(--mt-state-running) 70%,
+        var(--mt-action-glint)
+    );
+    box-shadow: 0 0 8px color-mix(in srgb, var(--mt-action) 70%, transparent);
+}
+
+.mt-reveal-head {
+    left: 0;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--mt-action-glint), var(--mt-state-running) 45%, var(--mt-action));
+    box-shadow: 0 0 12px 3px color-mix(in srgb, var(--mt-state-running) 60%, transparent);
+}
+
+.mt-reveal-slab {
+    border-radius: var(--mt-radius-panel);
+}
+
+.mt-reveal-slab > * {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+
+.mt-reveal-hot {
+    background: radial-gradient(
+        circle at var(--mt-reveal-hot-x) var(--mt-reveal-hot-y),
+        var(--mt-action-glint),
+        var(--mt-state-running) 18%,
+        var(--mt-action) 48%,
+        color-mix(in srgb, var(--mt-action) 40%, var(--mt-sink))
+    );
+    box-shadow: 0 0 22px 2px color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
+/* Cast iron with the last of the heat in it. */
+.mt-reveal-shard {
+    background:
+        radial-gradient(
+            circle at var(--mt-reveal-hot-x) var(--mt-reveal-hot-y),
+            color-mix(in srgb, var(--mt-action) 28%, transparent),
+            transparent 60%
+        ),
+        color-mix(in srgb, var(--mt-state-draft) 28%, var(--mt-surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-state-draft) 60%, transparent);
+}
+
+.mt-reveal-crack {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    fill: none;
+    stroke: var(--mt-state-running);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 3px var(--mt-action));
+}
+
 .mt-lib-setback {
     display: inline-flex;
     align-self: flex-start;

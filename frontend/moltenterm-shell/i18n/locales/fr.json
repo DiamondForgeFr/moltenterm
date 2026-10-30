@@ -1040,6 +1040,10 @@
                 "label": "Chaleur dans la barre latérale",
                 "description": "Quand des agents travaillent, une légère chaleur monte au bas de la barre latérale."
             },
+            "moltenterm:settingsreveal": {
+                "label": "Révélation en fusion des réglages",
+                "description": "Un bloc de réglages ouvert dans la bibliothèque coule, refroidit et se brise pour apparaître. Coupé, ou avec les animations réduites, il apparaît en fondu."
+            },
             "moltenterm:sidebartint": {
                 "label": "Teinter la barre latérale",
                 "description": "La barre latérale prend la couleur de l'espace de travail. Désactivé, la couleur ne marque que les repères de lieu."

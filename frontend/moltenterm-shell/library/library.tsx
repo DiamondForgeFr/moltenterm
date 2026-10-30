@@ -7,7 +7,7 @@
 // menu offered keeps a home here (Sessions and Pilotage in Panels, the widgets and apps, the reopen of a closed view,
 // tips and settings).
 
-import { atoms, createBlock, getApi, globalStore } from "@/app/store/global";
+import { atoms, createBlock, getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import * as WOS from "@/app/store/wos";
 import { useWaveObjectValue } from "@/app/store/wos";
@@ -17,7 +17,7 @@ import { makeConfigFiles } from "@/app/view/waveconfig/waveconfig-model";
 import { isWindows } from "@/util/platformutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import {
@@ -77,6 +77,15 @@ import {
     whenText,
     workspaceAgents,
 } from "./library-model";
+import {
+    finishSettingsReveal,
+    relativeRect,
+    revealMode,
+    revealTargets,
+    runSettingsReveal,
+    SettingsRevealKey,
+    type RevealRect,
+} from "./settings-reveal";
 import "./library.css";
 
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
@@ -803,7 +812,7 @@ function LibrarySettingsBlock({ block, onBack }: { block: SettingsSectionId; onB
 }
 
 // The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
-// order while one is open, so the reveal of #1407 can animate between the two from data-state.
+// order while one is open; the open block is revealed by settings-reveal.ts (#1407).
 function SettingsSection({
     block,
     onOpen,
@@ -815,8 +824,43 @@ function SettingsSection({
 }) {
     const t = useT();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
+    const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
+    const revealSetting = useAtomValue(getSettingsKeyAtom(SettingsRevealKey));
+    const stageRef = useRef<HTMLDivElement>(null);
+    const layerRef = useRef<HTMLDivElement>(null);
+    const sourceRef = useRef<RevealRect>(null);
+    // The molten reveal of the block just opened (#1407), before its first frame; going back, switching section or
+    // closing the library ends it.
+    useLayoutEffect(() => {
+        const stage = stageRef.current;
+        const page = stage?.querySelector(".mt-lib-setpage");
+        if (block == null || page == null || layerRef.current == null) {
+            return;
+        }
+        const handle = runSettingsReveal({
+            stage,
+            overlay: layerRef.current,
+            cards: revealTargets(page),
+            chrome: [page.querySelector(".mt-lib-setback"), page.children[1]?.firstElementChild].filter(
+                (el) => el != null
+            ),
+            source: sourceRef.current,
+            mode: revealMode(reducedMotion, revealSetting !== false),
+        });
+        sourceRef.current = null;
+        return () => {
+            handle.finish();
+        };
+    }, [block]);
+    const openFromTile = (id: SettingsSectionId, tile: HTMLElement) => {
+        const stage = stageRef.current;
+        sourceRef.current =
+            stage != null ? relativeRect(tile.getBoundingClientRect(), stage.getBoundingClientRect()) : null;
+        onOpen(id);
+    };
     return (
         <div
+            ref={stageRef}
             className="mt-lib-setstage flex flex-col gap-3"
             data-testid="library-settings-stage"
             data-state={block != null ? "open" : "tiles"}
@@ -848,7 +892,7 @@ function SettingsSection({
                             data-testid="library-settings-section"
                             data-section={s.id}
                             tabIndex={block != null ? -1 : undefined}
-                            onClick={() => onOpen(s.id)}
+                            onClick={(e) => openFromTile(s.id, e.currentTarget)}
                         >
                             <i className={makeIconClass(s.icon, true)} aria-hidden />
                             <span>
@@ -860,6 +904,7 @@ function SettingsSection({
                 })}
             </div>
             {block != null ? <LibrarySettingsBlock block={block} onBack={onBack} /> : null}
+            <div ref={layerRef} className="mt-reveal-layer" data-testid="library-settings-reveal" aria-hidden />
         </div>
     );
 }
@@ -955,6 +1000,12 @@ export function Library({
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== "Escape") {
+                return;
+            }
+            // An Escape during the reveal of a block only ends the reveal (#1407).
+            if (finishSettingsReveal()) {
+                e.preventDefault();
+                e.stopPropagation();
                 return;
             }
             const step = libraryEscapeStep(suggest, settingsBlock != null);
