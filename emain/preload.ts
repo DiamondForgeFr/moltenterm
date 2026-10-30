@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld("api", {
     sendLog: (log) => ipcRenderer.send("fe-log", log),
     onQuicklook: (filePath: string) => ipcRenderer.send("quicklook", filePath),
     openNativePath: (filePath: string) => ipcRenderer.send("open-native-path", filePath),
+    revealNativePath: (filePath: string) => ipcRenderer.send("reveal-native-path", filePath), // MOLTENTERM-PATCH (#1575)
     captureScreenshot: (rect: Rectangle, opts?: { width?: number }) => ipcRenderer.invoke("capture-screenshot", rect, opts), // MOLTENTERM-PATCH (#1545): optional thumbnail width
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
