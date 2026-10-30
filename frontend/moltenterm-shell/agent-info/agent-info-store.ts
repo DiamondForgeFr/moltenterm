@@ -73,6 +73,9 @@ export class AgentInfoModel {
     // The failure occurrence shown in each sub-agent card, per agent terminal.
     seenSubsAtom = atom(readStoredSeen()) as PrimitiveAtom<Record<string, Record<string, string>>>;
     started = false;
+    historyInFlight = false;
+    historyPending = false;
+    historyRetryTimer: ReturnType<typeof setTimeout> = null;
 
     private constructor() {}
 
@@ -102,17 +105,30 @@ export class AgentInfoModel {
         try {
             waveEventSubscribeSingle({
                 eventType: HandoffHistoryEvent as WaveEventName,
-                handler: () => this.load(0),
+                handler: () => this.load(),
             });
         } catch (e) {
             // The preview server has no event bus.
             console.log("agent info: no event bus", e);
             return;
         }
-        this.load(0);
+        this.load();
     }
 
-    load(tries: number): void {
+    load(): void {
+        if (this.historyRetryTimer != null) {
+            clearTimeout(this.historyRetryTimer);
+            this.historyRetryTimer = null;
+        }
+        if (this.historyInFlight) {
+            this.historyPending = true;
+            return;
+        }
+        this.readHistory(0);
+    }
+
+    readHistory(tries: number): void {
+        this.historyInFlight = true;
         fireAndForget(async () => {
             try {
                 const rtn: { entries: HandoffHistoryEntry[] } = await TabRpcClient.wshRpcCall(
@@ -120,11 +136,21 @@ export class AgentInfoModel {
                     {},
                     { route: HandoffRouteId, timeout: HistoryTimeoutMs }
                 );
-                globalStore.set(this.historyAtom, rtn?.entries ?? []);
+                // An event during this read requires a fresh snapshot before publishing it.
+                if (!this.historyPending) globalStore.set(this.historyAtom, rtn?.entries ?? []);
             } catch {
                 // wavesrv still starting: its route comes up with Mission Control.
-                if (tries + 1 < HistoryMaxTries) {
-                    setTimeout(() => this.load(tries + 1), HistoryRetryMs);
+                if (!this.historyPending && tries + 1 < HistoryMaxTries) {
+                    this.historyRetryTimer = setTimeout(() => {
+                        this.historyRetryTimer = null;
+                        this.readHistory(tries + 1);
+                    }, HistoryRetryMs);
+                }
+            } finally {
+                this.historyInFlight = false;
+                if (this.historyPending) {
+                    this.historyPending = false;
+                    this.load();
                 }
             }
         });
