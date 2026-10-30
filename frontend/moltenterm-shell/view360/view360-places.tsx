@@ -11,10 +11,11 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { IconButton } from "@/element/iconbutton";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn } from "@/util/util";
+import { autoUpdate, flip, offset, shift, useDismiss, useInteractions, type VirtualElement } from "@floating-ui/react";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { useRestoreFocus } from "../busy-close";
+import { useFloatingInPlace } from "../floating-in-place";
 import { t, tCount, useLocale, useT, useTCount } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { ReadableCarpetColumnPx } from "./carpet-model";
@@ -39,8 +40,16 @@ export type PlacesChooserState = {
     // The button that opened it: a panel can be drawn twice (its header and a copy), the chooser opens once.
     owner: string;
     anchor: { left: number; right: number; bottom: number };
+    // The button itself: the chooser hangs from it and its own press is not an outside press.
+    button?: Element;
 };
 export const placesChooserAtom = atom(null) as PrimitiveAtom<PlacesChooserState>;
+
+// A virtual reference when the click gave no button (a keyboard activation without a target).
+function virtualReference(state: PlacesChooserState): VirtualElement {
+    const { left, right, bottom } = state.anchor;
+    return { getBoundingClientRect: () => new DOMRect(left, bottom, right - left, 0) };
+}
 
 function currentView360(): View360Model {
     return getLayoutModelForStaticTab()?.moltenView360 ?? null;
@@ -159,9 +168,8 @@ type ChooserProps = { view360: View360Model; state: PlacesChooserState };
 function PlacesChooser({ view360, state }: ChooserProps) {
     const t = useT();
     const tc = useTCount();
-    const boxRef = useRef<HTMLDivElement>(null);
     const firstRef = useRef<HTMLButtonElement>(null);
-    const [pos, setPos] = useState<{ left: number; top: number }>(null);
+    const returnFocusRef = useRef(true);
     const [hover, setHover] = useState<number>(null);
     const active = useAtomValue(view360.activeAtom);
     const placements = useAtomValue(view360.placementsAtom);
@@ -185,7 +193,63 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     const names = useAtomValue(namesAtom);
     const [pinnedCount] = useState(() => view360.pinnedColumnCount());
     const placement = active ? placements[blockId] : "carpet";
-    useRestoreFocus();
+    const { refs, floatingStyles, context, isPositioned } = useFloatingInPlace({
+        open: true,
+        onOpenChange: (open, _event, reason) => {
+            if (open) {
+                return;
+            }
+            returnFocusRef.current = reason === "escape-key";
+            closePlacesChooser();
+        },
+        placement: "bottom-end",
+        strategy: "fixed",
+        elements: { reference: state.button },
+        whileElementsMounted: autoUpdate,
+        middleware: [offset(4), flip({ padding: EdgeGapPx }), shift({ padding: EdgeGapPx })],
+    });
+    const boxRef = refs.floating;
+    useEffect(() => {
+        if (state.button == null) {
+            refs.setPositionReference(virtualReference(state));
+        }
+    }, [state]);
+    // The dismissal every popover of the app has (outside press, Escape). The button that opened it is left out: its
+    // own click toggles. Escape is caught before the panel under it sees it.
+    const dismiss = useDismiss(context, {
+        outsidePress: (event) => !state.button?.contains(event.target as Node),
+        capture: { escapeKey: true, outsidePress: true },
+    });
+    const { getFloatingProps } = useInteractions([dismiss]);
+    // The page of a browser panel is a webview: a press in it never reaches the document, but it takes the focus, and
+    // a focus that goes into a webview has no relatedTarget: where the focus rests once the event is over tells.
+    const holdsFocus = (node: Node) => boxRef.current?.contains(node) || state.button?.contains(node);
+    const closeOnFocusLeft = () => {
+        returnFocusRef.current = false;
+        closePlacesChooser();
+    };
+    const onBlur = (e: React.FocusEvent) => {
+        const next = e.relatedTarget as Node;
+        if (next != null) {
+            if (!holdsFocus(next)) {
+                closeOnFocusLeft();
+            }
+            return;
+        }
+        requestAnimationFrame(() => {
+            if (boxRef.current != null && !holdsFocus(document.activeElement)) {
+                closeOnFocusLeft();
+            }
+        });
+    };
+    useEffect(() => {
+        const previous = document.activeElement as HTMLElement;
+        return () => {
+            if (returnFocusRef.current && previous?.isConnected) {
+                previous.focus();
+            }
+        };
+    }, []);
 
     const apply = (n: number) => {
         const current = groupRef.current;
@@ -201,34 +265,17 @@ function PlacesChooser({ view360, state }: ChooserProps) {
         fn();
     };
 
-    useLayoutEffect(() => {
-        const box = boxRef.current?.getBoundingClientRect();
-        if (box == null) {
+    // The box stays hidden until floating-ui placed it, and a hidden element cannot take the focus.
+    useEffect(() => {
+        if (!isPositioned) {
             return;
         }
-        const left = Math.max(EdgeGapPx, Math.min(state.anchor.right - box.width, window.innerWidth - box.width - EdgeGapPx));
-        const below = state.anchor.bottom + 4;
-        const top = Math.max(EdgeGapPx, Math.min(below, window.innerHeight - box.height - EdgeGapPx));
-        setPos({ left, top });
-    }, [state]);
-    useEffect(() => {
         const target = boxRef.current?.querySelector<HTMLButtonElement>("[data-offered='true']") ?? firstRef.current;
         target?.focus();
-    }, []);
+    }, [isPositioned]);
     useEffect(() => {
-        const onDown = (e: MouseEvent) => {
-            if (!boxRef.current?.contains(e.target as Node)) {
-                closePlacesChooser();
-            }
-        };
         const onKey = (e: KeyboardEvent) => {
             if (e.metaKey || e.ctrlKey || e.altKey) {
-                return;
-            }
-            if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                closePlacesChooser();
                 return;
             }
             const n = Number(e.key);
@@ -238,10 +285,8 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                 apply(n);
             }
         };
-        document.addEventListener("mousedown", onDown, true);
         document.addEventListener("keydown", onKey, true);
         return () => {
-            document.removeEventListener("mousedown", onDown, true);
             document.removeEventListener("keydown", onKey, true);
         };
     }, []);
@@ -258,21 +303,17 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     );
     const offeredKeys = options.filter((o) => o.offered).map((o) => String(o.n));
     const pinShortcut = formatShortcutById("pin-panel");
-    const style: CSSProperties = {
-        width: ChooserWidthPx,
-        left: pos?.left ?? state.anchor.right - ChooserWidthPx,
-        top: pos?.top ?? state.anchor.bottom + 4,
-        visibility: pos == null ? "hidden" : "visible",
-    };
+    const style: CSSProperties = { ...floatingStyles, width: ChooserWidthPx };
     return createPortal(
         <div
-            ref={boxRef}
+            ref={refs.setFloating}
             role="dialog"
+            tabIndex={-1}
             aria-label={t("view360.places.title")}
             className="mt-places-pop"
             style={style}
             data-testid="mt-places-chooser"
-            onMouseDown={(e) => e.stopPropagation()}
+            {...getFloatingProps({ onMouseDown: (e: React.MouseEvent) => e.stopPropagation(), onBlur })}
         >
             <div className="mt-places-head">
                 <CarpetIcon />
@@ -476,17 +517,22 @@ export const CarpetHeaderButton = memo(({ blockId }: { blockId: string }) => {
                 return;
             }
             const button = (e?.currentTarget ?? e?.target) as Element;
-            const rect = button?.closest?.("button")?.getBoundingClientRect();
+            const element = button?.closest?.("button");
+            const rect = element?.getBoundingClientRect();
             const anchor =
                 rect == null
                     ? { left: window.innerWidth / 2, right: window.innerWidth / 2 + ChooserWidthPx / 2, bottom: 80 }
                     : { left: rect.left, right: rect.right, bottom: rect.bottom };
-            globalStore.set(placesChooserAtom, { blockId, owner, anchor });
+            globalStore.set(placesChooserAtom, { blockId, owner, anchor, button: element ?? undefined });
         },
     };
+    // Pressing the button must not focus the panel: in a panel without focus the header then reflows and the button
+    // moves from under the pointer before the click lands (#1544). The chooser takes the focus when it opens.
     return (
         <>
-            <IconButton decl={decl} className={cn("mt-carpet-button", open && "is-open")} />
+            <span className="contents" onMouseDown={(e) => e.preventDefault()}>
+                <IconButton decl={decl} className={cn("mt-carpet-button", open && "is-open")} />
+            </span>
             {open && <PlacesChooser view360={view360} state={chooser} />}
         </>
     );

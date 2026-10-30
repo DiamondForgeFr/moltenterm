@@ -126,6 +126,7 @@ import {
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
+import { LinkCopy } from "./browser-link-copy";
 import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import {
@@ -198,6 +199,7 @@ export class BrowserViewModel implements ViewModel {
     handledOpenIds = new Set<string>();
     // Why a page meant for the installed browser opened here instead (FR-BRW-002).
     noticeAtom = atom(null) as PrimitiveAtom<string>;
+    linkCopy = new LinkCopy();
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
@@ -636,6 +638,9 @@ export class BrowserViewModel implements ViewModel {
                 }
                 menu.push({ type: "separator" });
             }
+            if (tab != null && addressOfPage(tab.url)) {
+                menu.push({ label: t("browser.tabMenu.copyLink"), icon: "link", click: () => this.copyTabLink(tab.id) });
+            }
             menu.push(...(await this.shareItems(tab)));
             const engine = this.engineMenuItems(tab);
             if (engine.length > 0) {
@@ -914,9 +919,14 @@ export class BrowserViewModel implements ViewModel {
 
     copyTabLink(id: string): void {
         const url = this.findTab(id)?.url;
-        if (url) {
-            fireAndForget(() => navigator.clipboard.writeText(url));
+        if (!addressOfPage(url)) {
+            return;
         }
+        fireAndForget(async () => {
+            if (!(await this.linkCopy.copy(url))) {
+                this.showNotice(t("browser.notice.linkNotCopied"));
+            }
+        });
     }
 
     reloadTab(id: string): void {
@@ -1239,6 +1249,7 @@ export class BrowserViewModel implements ViewModel {
         }
         this.lifecycle.dispose();
         this.agents.dispose();
+        this.linkCopy.dispose();
     }
 }
 
@@ -1610,7 +1621,11 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
                     </span>
                 )}
             </span>
-            <HeaderCloseButton magnified={magnified} onClose={() => uxCloseBlock(model.blockId)} />
+            <HeaderCloseButton
+                magnified={magnified}
+                onClose={() => uxCloseBlock(model.blockId)}
+                className="molten-browser-close"
+            />
         </div>
     );
 }
@@ -1623,6 +1638,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const loads = useAtomValue(model.loads.loadsAtom);
     const errors = useAtomValue(model.errors.errorsAtom);
     const list = useAtomValue(model.engines.listAtom);
+    const copied = useAtomValue(model.linkCopy.copiedAtom);
     if (tab == null) {
         return null;
     }
@@ -1630,32 +1646,59 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
         ? t("browser.start.address")
         : browserTabTitle({ id: tab.id, url: tab.url }) || tab.url;
     const keys = formatShortcutById("top-field");
+    const copyable = addressOfPage(tab.url) !== "";
     return (
-        <button
-            type="button"
-            className="flex h-6 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
-            title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
-            aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
-            data-testid="browser-address"
-            onClick={() => {
-                model.nodeModel.focusNode();
-                openTopField();
-            }}
-            onContextMenu={(e) => {
-                e.stopPropagation();
-                model.showTabMenu(e, tab);
-            }}
-        >
-            {tab.engine ? (
-                <i
-                    aria-label={t("browser.tabs.openedIn", { browser: engineName(tab.engine, list) })}
-                    className={cn(browserIconClass(tab.engine), "molten-browser-tab-icon text-accent")}
-                />
-            ) : (
-                <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
-            )}
-            <span className="min-w-0 truncate font-mono text-11">{host}</span>
-        </button>
+        <div className="group relative flex h-6 min-w-0 shrink">
+            <button
+                type="button"
+                className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
+                title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
+                aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
+                data-testid="browser-address"
+                onClick={() => {
+                    model.nodeModel.focusNode();
+                    openTopField();
+                }}
+                onContextMenu={(e) => {
+                    e.stopPropagation();
+                    model.showTabMenu(e, tab);
+                }}
+            >
+                {tab.engine ? (
+                    <i
+                        aria-label={t("browser.tabs.openedIn", { browser: engineName(tab.engine, list) })}
+                        className={cn(browserIconClass(tab.engine), "molten-browser-tab-icon text-accent")}
+                    />
+                ) : (
+                    <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
+                )}
+                <span className="min-w-0 truncate font-mono text-11">{host}</span>
+            </button>
+            {copyable ? (
+                <>
+                    <button
+                        type="button"
+                        aria-label={copied ? t("browser.address.copied") : t("browser.address.copy")}
+                        title={copied ? t("browser.address.copied") : t("browser.address.copy")}
+                        data-testid="browser-address-copy"
+                        data-copied={copied ? "true" : "false"}
+                        onClick={() => model.copyTabLink(tab.id)}
+                        className={cn(
+                            "absolute right-0.5 top-0.5 flex h-5 cursor-pointer items-center gap-1 rounded-4 bg-surface-3 px-1.5 text-11 text-secondary hover:text-primary focus-visible:opacity-100",
+                            copied
+                                ? "opacity-100"
+                                : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+                        )}
+                    >
+                        <i className={cn("fa fa-solid text-11", copied ? "fa-check" : "fa-copy")} />
+                        {copied ? <span>{t("browser.address.copied")}</span> : null}
+                    </button>
+                    <span role="status" className="sr-only">
+                        {copied ? t("browser.address.copied") : ""}
+                    </span>
+                </>
+            ) : null}
+        </div>
     );
 }
 

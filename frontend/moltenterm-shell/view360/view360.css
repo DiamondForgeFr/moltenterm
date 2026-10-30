@@ -269,6 +269,7 @@
     font-family: var(--mt-ui-font);
     font-size: var(--mt-text-12);
     line-height: 1.35;
+    outline: none;
 }
 
 .mt-places-head {

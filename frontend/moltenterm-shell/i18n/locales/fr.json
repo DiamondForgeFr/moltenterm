@@ -2114,6 +2114,7 @@
         "notice": {
             "siteChoiceNotSaved": "Le choix pour ce site n'a pas pu être enregistré : {error}",
             "decisionNotForgotten": "La décision des agents n'a pas pu être oubliée : {error}",
+            "linkNotCopied": "Le lien n'a pas pu être copié.",
             "shareFailed": "L'onglet n'a pas pu être partagé : {error}",
             "tellFailed": "La ligne n'a pas pu être saisie : {error}",
             "fallback": "{reason} Ouvert dans MoltenTerm à la place.",
@@ -2192,7 +2193,9 @@
         },
         "address": {
             "title": "Son adresse complète s'affiche dans le champ du haut quand le panneau est actif ({keys})",
-            "label": "Adresse de la page : {address}"
+            "label": "Adresse de la page : {address}",
+            "copy": "Copier le lien",
+            "copied": "Lien copié"
         }
     },
     "cmdpanel": {

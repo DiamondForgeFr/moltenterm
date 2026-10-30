@@ -196,3 +196,16 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
         display: none;
     }
 }
+
+/* In a panel without focus the command panel trigger and Magnify fade but keep their room (the title never moves), so
+   "Store on the carpet" would float away from close. It takes its place after them instead, right next to the ×; with
+   the focus the row keeps the order of #1439 (#1544). */
+.block.block-frame-default:not(.block-focused)
+    .molten-browser-panel-buttons
+    :is(.mt-carpet-button, .mt-pin-button, .mt-pinned-badge) {
+    order: 1;
+}
+
+.block.block-frame-default:not(.block-focused) .molten-browser-panel-buttons .molten-browser-close {
+    order: 2;
+}
