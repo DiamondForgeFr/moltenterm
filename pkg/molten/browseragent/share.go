@@ -218,12 +218,12 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 		return ShareResult{}, shareError(errShareTooManyTabs)
 	}
 	if outcome.moved {
-		m.env.SetControl(key, false)
+		m.syncControl(key)
 		m.logf("%s session=%s agent=%q control=moved\n", logPrefix, shortId(outcome.holder.id), outcome.holder.agentName)
 	}
 	if outcome.resumed {
 		// emain paused the tab on the user's input; sharing it again hands it back, as Give back does.
-		m.env.SetControl(key, true)
+		m.syncControl(key)
 		m.logf("%s session=%s agent=%q control=giveback (shared again)\n", logPrefix, shortId(s.id), s.agentName)
 	}
 	m.publishPanel(key.PanelId)
@@ -277,6 +277,7 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool, site string)
 				return shareOutcome{result: shareKept}
 			}
 			t.state = TabStateActive
+			t.controlled = true
 			s.addNotice(t.id, noteGivenBack, givenBackNotice(t.id))
 			return shareOutcome{result: shareKept, tabId: t.id, resumed: true}
 		}
@@ -286,15 +287,7 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool, site string)
 			if !move {
 				return shareOutcome{result: shareHeld, holder: out.holder}
 			}
-			if t := holder.tabFor(key); t != nil {
-				cancelCallsLocked(t)
-				m.endRequestsLocked(holder.id, t.id)
-				t.state = TabStateStopped
-				t.viewport = nil
-			}
-			out.moved = true
 		}
-		delete(m.owners, key)
 	}
 	open := 0
 	for _, t := range s.tabs {
@@ -304,6 +297,18 @@ func (m *Manager) shareTab(sessionId string, key TabKey, move bool, site string)
 	}
 	if open >= maxTabsPerSession {
 		return shareOutcome{result: shareFull}
+	}
+	if holderId, held := m.owners[key]; held {
+		if holder := m.sessions[holderId]; holder != nil {
+			if t := holder.tabFor(key); t != nil {
+				cancelCallsLocked(t)
+				m.endRequestsLocked(holder.id, t.id)
+				t.state = TabStateStopped
+				t.viewport = nil
+			}
+			out.moved = true
+		}
+		delete(m.owners, key)
 	}
 	m.nextTabId++
 	now := m.now()
@@ -330,7 +335,7 @@ func (m *Manager) engageTab(sessionId string, tabId int64) {
 	if !ok {
 		return
 	}
-	m.env.SetControl(key, true)
+	m.syncControl(key)
 	m.publishPanel(key.PanelId)
 }
 
@@ -338,10 +343,11 @@ func (m *Manager) markEngaged(sessionId string, tabId int64) (TabKey, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	t := m.sessions[sessionId].tabOrNil(tabId)
-	if t == nil || t.engaged || m.owners[t.key] != sessionId {
+	if t == nil || t.engaged || t.state != TabStateActive || m.owners[t.key] != sessionId {
 		return TabKey{}, false
 	}
 	t.engaged = true
+	t.controlled = true
 	t.action = actionEngaged
 	t.actionTs = m.now().UnixMilli()
 	return t.key, true
