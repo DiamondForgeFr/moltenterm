@@ -75,7 +75,9 @@ describe("cast-iron neutrals (FR-SHELL-115)", () => {
             expect(decl, name).toBeDefined();
             expect(decl, name).not.toContain("--mt-place");
         }
-        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root,\n\.mt-light \[data-mt-dark-surface\] \{([^}]*)\}/.exec(
+            shellCss
+        )[1];
         expect(neutrals).not.toContain("--mt-place");
     });
 
@@ -87,7 +89,9 @@ describe("cast-iron neutrals (FR-SHELL-115)", () => {
     });
 
     it("keeps the earlier names as aliases of the fixed tokens", () => {
-        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root,\n\.mt-light \[data-mt-dark-surface\] \{([^}]*)\}/.exec(
+            shellCss
+        )[1];
         const aliases: Record<string, string> = {
             "--mt-neutral-bg": "--mt-surface-0",
             "--mt-neutral-panel": "--mt-surface-1",
@@ -318,7 +322,7 @@ describe("text on the accent (NFR-SHELL-003, #244)", () => {
     const accentText = ActionFg;
 
     it("draws the accent's text in the action's fixed text colour", () => {
-        expect(shellCss).toMatch(/:root \{[^}]*--mt-accent-fg: var\(--mt-action-fg\);/);
+        expect(shellCss).toMatch(/:root(?:,\n[^{]*)? \{[^}]*--mt-accent-fg: var\(--mt-action-fg\);/);
         expect([Black, White]).not.toContainEqual(ActionFg);
     });
 
@@ -440,8 +444,8 @@ describe("focus ring (#751, #1319)", () => {
         expect(shellCss).toMatch(
             /:where\(:focus-visible\) \{\s*outline: 2px solid var\(--mt-focus-ring\);\s*outline-offset: 2px;/
         );
-        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus-ring: var\(--mt-focus\);/);
-        expect(shellCss).toMatch(/:root \{[^}]*--mt-focus: #ffa45c;/);
+        expect(shellCss).toMatch(/:root(?:,\n[^{]*)? \{[^}]*--mt-focus-ring: var\(--mt-focus\);/);
+        expect(shellCss).toMatch(/:root(?:,\n[^{]*)? \{[^}]*--mt-focus: #ffa45c;/);
     });
 
     it("leaves no MoltenTerm focus ring in the raw accent or in white", () => {
@@ -472,13 +476,15 @@ describe("action and place (#1319)", () => {
             "--mt-focus": "#ffa45c",
         };
         for (const [name, value] of Object.entries(values)) {
-            expect(shellCss, name).toMatch(new RegExp(`:root \\{[^}]*${name}: ${value};`));
+            expect(shellCss, name).toMatch(new RegExp(`:root(?:,\\n[^{]*)? \\{[^}]*${name}: ${value};`));
         }
-        expect(shellCss).toMatch(/:root \{[^}]*--mt-action-wash: rgba\(255, 124, 13, 0\.12\);/);
+        expect(shellCss).toMatch(/:root(?:,\n[^{]*)? \{[^}]*--mt-action-wash: rgba\(255, 124, 13, 0\.12\);/);
     });
 
     it("points every accent alias at the action, never at the place", () => {
-        const root = /\/\* Action and place[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        const root = /\/\* Action and place[\s\S]*?:root,\n\.mt-light \[data-mt-dark-surface\] \{([^}]*)\}/.exec(
+            shellCss
+        )[1];
         expect(root).toContain("--mt-accent: var(--mt-action);");
         for (const alias of [
             "--accent-color",
@@ -623,6 +629,31 @@ describe("light theme (FR-SHELL-121)", () => {
         expect(tokensRoot).toContain("--mt-veil: #ffffff;");
         expect(tokensRoot).toContain("--mt-sink: #000000;");
         expect(tokensRoot).toContain("--mt-state-fg: #000000;");
+    });
+
+    it("gives a dark panel (a terminal) every dark value back, and every token the light theme changes (AC-3)", () => {
+        const island = /\n:root\.mt-light \[data-mt-dark-surface\] \{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+        const decls = (block: string) =>
+            new Map([...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+        const dark = decls(tokensRoot);
+        const back = decls(island);
+        for (const [name, value] of decls(lightRoot)) {
+            if (["--mt-action-text", "--mt-action-wash", "--mt-focus", "--mt-accent"].includes(name)) {
+                // Declared again with the action's block of moltenterm-shell.css.
+                continue;
+            }
+            expect(back.has(name), name).toBe(true);
+            if (dark.has(name)) {
+                expect(back.get(name), name).toBe(dark.get(name));
+            } else if (!name.startsWith("--color-")) {
+                expect(back.get(name), `${name} (${value} in light) has no dark value`).toBe("initial");
+            }
+        }
+        expect(shellCss).toMatch(/:root,\n\.mt-light \[data-mt-dark-surface\] \{[^}]*--mt-action-text: #ff9442;/);
+        expect(shellCss).toMatch(/:root,\n\.mt-light \[data-mt-dark-surface\] \{[^}]*--mt-accent: var\(--mt-action\);/);
+        expect(shellCss).toMatch(
+            /:root,\n\.mt-light \[data-mt-dark-surface\] \{[^}]*--main-text-color: var\(--mt-text-1\);/
+        );
     });
 
     it.each(Texts.flatMap((text) => Surfaces.map((s) => [text, s])))("%s reads at 4.5:1 on %s (AC-2)", (text, s) => {
