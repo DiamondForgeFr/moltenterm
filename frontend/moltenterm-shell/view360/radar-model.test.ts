@@ -142,18 +142,24 @@ describe("attentionByBlock", () => {
 describe("stepCarpetColumn", () => {
     const ids = ["c1", "c2", "c3"];
 
-    it("moves one column at a time and stays at the ends", () => {
+    it("moves one column at a time and wraps from the last to the first (FR-SHELL-126-AC1)", () => {
         expect(stepCarpetColumn(ids, "c2", 1)).toBe("c3");
         expect(stepCarpetColumn(ids, "c2", -1)).toBe("c1");
-        expect(stepCarpetColumn(ids, "c3", 1)).toBeNull();
-        expect(stepCarpetColumn(ids, "c1", -1)).toBeNull();
+        expect(stepCarpetColumn(ids, "c3", 1)).toBe("c1");
+        expect(stepCarpetColumn(ids, "c1", -1)).toBe("c3");
     });
 
-    it("goes from the fixed zone to the first column in view", () => {
+    it("stays on a lone column", () => {
+        expect(stepCarpetColumn(["c1"], "c1", 1)).toBe("c1");
+        expect(stepCarpetColumn(["c1"], "c1", -1)).toBe("c1");
+    });
+
+    it("leaves the fixed zone out of the cycle: next goes to the first column in view, previous to the last", () => {
         expect(stepCarpetColumn(ids, null, 1, ["c2", "c3"])).toBe("c2");
         expect(stepCarpetColumn(ids, null, 1)).toBe("c1");
-        expect(stepCarpetColumn(ids, null, -1, ["c2"])).toBeNull();
+        expect(stepCarpetColumn(ids, null, -1, ["c2"])).toBe("c3");
         expect(stepCarpetColumn([], null, 1)).toBeNull();
+        expect(stepCarpetColumn(ids, "c1", -1)).not.toBeNull();
     });
 });
 

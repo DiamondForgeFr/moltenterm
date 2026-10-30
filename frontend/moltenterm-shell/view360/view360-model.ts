@@ -36,6 +36,7 @@ import {
 } from "../panel-size/panel-size-store";
 import { showToast } from "../toast-store";
 import { gestureStepEvent, GestureSteps, initialGestureSteps } from "../wheel-gesture";
+import { closeAnchorColumn } from "./carpet-close";
 import {
     canPinBeside,
     CarpetColumnGapPx,
@@ -170,6 +171,10 @@ export type PlacesSnapshot = {
     scrollLeft: number;
     focusNodeId: string;
 };
+
+// A close plan (planClose) waits this long for the pass that follows the close: a close that never happens (the
+// confirmation was declined) must not move the carpet at some later pass.
+const ClosePlanMs = 5000;
 
 function sameIds(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((id, i) => id === b[i]);
@@ -1216,6 +1221,23 @@ export class View360Model {
                 if (insert.magnified) {
                     return action;
                 }
+                // A pane reopened at its index among the top-level columns (Cmd+Shift+T, FR-SHELL-126-AC4) goes back
+                // right after that column; past the last column it is the end of the carpet, as before.
+                const at =
+                    action.type === LayoutTreeActionType.InsertNodeAtIndex
+                        ? (insert as LayoutTreeInsertNodeAtIndexAction).indexArr
+                        : null;
+                const columns = rootNode.flexDirection === FlexDirection.Row ? rootNode.children : null;
+                if (at?.length === 1 && columns != null && at[0] >= 0 && at[0] < columns.length - 1) {
+                    const place = carpetSplitPlace(rootNode, columns[at[0]].id, "after");
+                    return {
+                        type: LayoutTreeActionType.SplitHorizontal,
+                        targetNodeId: place.targetNodeId,
+                        newNode: insert.node,
+                        position: place.position,
+                        focused: !!insert.focused,
+                    } as LayoutTreeSplitHorizontalAction;
+                }
                 newNode = insert.node;
                 focused = !!insert.focused;
                 break;
@@ -1296,6 +1318,37 @@ export class View360Model {
         if (columnId != null) {
             this.scrollToColumn(columnId);
         }
+    }
+
+    // Called just before a panel closes (FR-SHELL-126-AC3): under a 360 × N the places in view stay N, the stored panel
+    // next to the closed one taking its place. The next pass puts that column first in view (pendingStart); a close
+    // that does not happen leaves nothing behind, the plan expiring.
+    planClose(blockId: string): void {
+        const layout = this.layout;
+        const rootNode = this.layoutModel.treeState?.rootNode;
+        if (layout == null || rootNode == null || globalStore.get(this.shownPlacesAtom) == null) {
+            return;
+        }
+        const node = this.layoutModel.getNodeByBlockId?.(blockId);
+        const columnId = node == null ? null : this.carpetColumnOf(node.id);
+        if (columnId == null || leafBlockIds(findNode(rootNode, columnId)).length !== 1) {
+            return;
+        }
+        const anchor = closeAnchorColumn(
+            layout.columns.map((c) => c.nodeId),
+            globalStore.get(this.visibleColumnIdsAtom),
+            columnId
+        );
+        if (anchor == null) {
+            return;
+        }
+        const plan = { columnId: anchor };
+        this.pendingStart = plan;
+        setTimeout(() => {
+            if (this.pendingStart === plan) {
+                this.pendingStart = null;
+            }
+        }, ClosePlanMs);
     }
 
     // ---- membership ------------------------------------------------------------------------------------------------

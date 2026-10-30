@@ -42,6 +42,8 @@ export type CarpetStripProps = {
     focusedColumnId: string;
     rovingColumnId: string;
     pages: Record<string, CarpetPageFacts>;
+    // The Ctrl+Shift numbers by column, empty unless both keys are held (FR-SHELL-126-AC2).
+    numbers?: Record<string, number>;
     drag: StripDrag;
     scrubbing: boolean;
     handlers: StripHandlers;
@@ -54,13 +56,7 @@ function TabGlyph({ tick, favicon }: { tick: RadarTick; favicon: string }) {
     const [broken, setBroken] = useState<string>(null);
     if (favicon && broken !== favicon) {
         return (
-            <img
-                className="mt-strip-glyph"
-                src={favicon}
-                alt=""
-                draggable={false}
-                onError={() => setBroken(favicon)}
-            />
+            <img className="mt-strip-glyph" src={favicon} alt="" draggable={false} onError={() => setBroken(favicon)} />
         );
     }
     return <i className={cn("mt-strip-glyph fa fa-solid", `fa-${tick.icon}`)} aria-hidden="true" />;
@@ -92,11 +88,12 @@ type TabProps = {
     focused: boolean;
     roving: boolean;
     page: CarpetPageFacts;
+    num?: number;
     drag: StripDrag;
     handlers: StripHandlers;
 };
 
-const CarpetTab = memo(({ tick, layout, focused, roving, page, drag, handlers }: TabProps) => {
+const CarpetTab = memo(({ tick, layout, focused, roving, page, num, drag, handlers }: TabProps) => {
     const agentName = page?.agentName ?? "";
     const initial = agentInitial(agentName);
     const dragged = drag?.columnId === tick.columnId;
@@ -146,7 +143,13 @@ const CarpetTab = memo(({ tick, layout, focused, roving, page, drag, handlers }:
             onPointerEnter={(e) => handlers.hover(tick, e.currentTarget)}
             onFocus={(e) => handlers.hover(tick, e.currentTarget)}
         >
-            <TabGlyph tick={tick} favicon={page?.favicon} />
+            {num != null ? (
+                <span className="mt-strip-num" aria-hidden="true" data-testid="mt-carpet-tab-num">
+                    {num}
+                </span>
+            ) : (
+                <TabGlyph tick={tick} favicon={page?.favicon} />
+            )}
             {layout.mode === "titles" && <span className="mt-strip-title">{tick.title}</span>}
             {(tick.attention != null || initial) && (
                 <span className="mt-strip-marks" aria-hidden="true">
@@ -223,7 +226,8 @@ function StripPlus({ onAdd }: { onAdd: () => void }) {
 }
 
 export function CarpetStrip(props: CarpetStripProps) {
-    const { ticks, layout, pitch, focusedColumnId, rovingColumnId, pages, drag, scrubbing, handlers, lead } = props;
+    const { ticks, layout, pitch, focusedColumnId, rovingColumnId, pages, numbers, drag, scrubbing, handlers, lead } =
+        props;
     const tabsMode = layout.mode !== "ticks";
     const first = ticks.findIndex((t) => t.visible);
     const last = first === -1 ? -1 : ticks.length - 1 - [...ticks].reverse().findIndex((t) => t.visible);
@@ -236,6 +240,7 @@ export function CarpetStrip(props: CarpetStripProps) {
                 focused={tick.columnId === focusedColumnId}
                 roving={tick.columnId === rovingColumnId}
                 page={pages?.[tick.focusBlockId]}
+                num={numbers?.[tick.columnId]}
                 drag={drag?.columnId === tick.columnId ? drag : null}
                 handlers={handlers}
             />

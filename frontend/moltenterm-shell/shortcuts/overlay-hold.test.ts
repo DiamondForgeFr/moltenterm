@@ -62,6 +62,24 @@ describe("hold ⌘ (FR-SHELL-090)", () => {
         expect(HoldDelayMs).toBeGreaterThanOrEqual(1000);
     });
 
+    it("never shows for a ⌃ or ⌃⇧ hold, the keys that number the carpet's tabs (FR-SHELL-126)", () => {
+        const { d, shown } = detector();
+        d.key(ev("keydown", "Control", { control: true }));
+        vi.advanceTimersByTime(HoldDelayMs * 3);
+        d.key(ev("keydown", "Shift", { control: true, shift: true }));
+        vi.advanceTimersByTime(HoldDelayMs * 3);
+        d.key(ev("keydown", "Tab", { control: true, shift: true }));
+        vi.advanceTimersByTime(HoldDelayMs * 3);
+        d.key(ev("keyup", "Shift", { control: true }));
+        d.key(ev("keyup", "Control"));
+        expect(d.armed).toBe(false);
+        expect(shown).toEqual([]);
+        const other = new HoldDetector({ holdKey: "Alt", onShow: () => shown.push("show"), onHide: () => {} });
+        other.key(ev("keydown", "Control", { control: true }));
+        vi.advanceTimersByTime(HoldDelayMs * 3);
+        expect(shown).toEqual([]);
+    });
+
     it("shows nothing when another key comes within the delay: the chord is the user's", () => {
         const { d, shown } = detector();
         d.key(ev("keydown", "Meta"));

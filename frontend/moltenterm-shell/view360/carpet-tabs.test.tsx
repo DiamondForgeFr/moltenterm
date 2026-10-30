@@ -7,7 +7,7 @@ import { MoltentermBrowserView } from "../browser/browser-model";
 import { I18nModel } from "../i18n/i18n";
 import { CarpetStrip, StripHandlers } from "./carpet-tabs";
 import { rovingColumnId, stripLayout, stripWidthPx } from "./carpet-tabs-model";
-import { buildRadarTicks, radarPitchPx, RadarBlockFacts, RadarColumnInput, RadarTick } from "./radar-model";
+import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, radarPitchPx, RadarTick } from "./radar-model";
 
 const noop = () => {};
 const handlers: StripHandlers = {
@@ -59,7 +59,7 @@ function frame(html: string): string {
     return start === -1 ? "" : html.slice(start, html.indexOf("mt-radar-eye", start));
 }
 
-function strip(n: number, availPx: number) {
+function strip(n: number, availPx: number, numbers: Record<string, number> = {}) {
     const ticks = carpet(n);
     const layout = stripLayout(ticks.length, availPx);
     const html = renderToStaticMarkup(
@@ -73,6 +73,7 @@ function strip(n: number, availPx: number) {
                 b0: { favicon: "data:image/png;base64,AA==", agentName: "" },
                 b4: { favicon: null, agentName: "Léon" },
             }}
+            numbers={numbers}
             drag={null}
             scrubbing={false}
             handlers={handlers}
@@ -142,6 +143,24 @@ describe("the carpet's tab strip (FR-SHELL-125-AC8, AC12)", () => {
         const { html } = strip(0, width);
         expect(html).not.toContain("mt-carpet-tabs");
         expect(html).toContain('data-testid="mt-carpet-add"');
+    });
+
+    it("shows a number in place of the glyph while Ctrl+Shift is held, in titles and icons mode (FR-SHELL-126-AC2)", () => {
+        const numbers = { c0: 2, c1: 3, c2: 4, c3: 5 };
+        const titles = strip(6, width, numbers).html;
+        expect(count(titles, 'data-testid="mt-carpet-tab-num"')).toBe(4);
+        expect(titles).toContain(
+            '<span class="mt-strip-num" aria-hidden="true" data-testid="mt-carpet-tab-num">2</span>'
+        );
+        expect(count(titles, 'class="mt-strip-glyph')).toBe(2);
+        const icons = strip(12, 640, { c0: 2, c11: 9 });
+        expect(icons.layout.mode).toBe("icons");
+        expect(count(icons.html, 'data-testid="mt-carpet-tab-num"')).toBe(2);
+        expect(count(icons.html, 'class="mt-strip-glyph')).toBe(10);
+    });
+
+    it("shows no number once the keys are released", () => {
+        expect(strip(6, width).html).not.toContain("mt-strip-num");
     });
 
     it("speaks French", () => {

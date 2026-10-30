@@ -8,8 +8,10 @@ import { atoms, getApi, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
+import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { showToast } from "../toast-store";
+import { showReopenedPanel } from "../view360/carpet-reopen";
 import {
     PutAwayView,
     ReopenDropCommand,
@@ -84,6 +86,23 @@ export function reopenKeys(): string[] {
 
 let reopening = false;
 
+// A pane that came back on the 360 carpet is shown and focused (FR-SHELL-126-AC4): wavesrv queues its layout action,
+// so the layout may lay it a moment after the answer.
+const ShowReopenedTries = 50;
+const ShowReopenedStepMs = 100;
+
+async function showReopenedPane(res: ReopenResult): Promise<void> {
+    if (!res?.reopened || res.kind !== "pane" || res.tabid !== globalStore.get(atoms.staticTabId)) {
+        return;
+    }
+    for (let i = 0; i < ShowReopenedTries; i++) {
+        if (showReopenedPanel(getLayoutModelForStaticTab(), res.blockid) !== "pending") {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, ShowReopenedStepMs));
+    }
+}
+
 // Brings the workspace's last close back without a toast of its own: an Undo of several closes says it once.
 export function reopenLastQuietly(): Promise<ReopenResult> {
     return TabRpcClient.wshRpcCall(
@@ -135,6 +154,7 @@ export async function reopenLastClosed(): Promise<void> {
             { route: ReopenRoute, timeout: ReopenTimeoutMs }
         );
         showToast(reopenToast(res, getApi().getHomeDir()));
+        fireAndForget(() => showReopenedPane(res));
     } catch (e) {
         showToast({
             kind: "error",

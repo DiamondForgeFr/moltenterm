@@ -196,6 +196,7 @@ function uxCloseBlock(blockId: string) {
     const layoutModel = getLayoutModelForStaticTab();
     const node = layoutModel.getNodeByBlockId(blockId);
     if (node) {
+        layoutModel.moltenView360?.planClose(blockId); // MOLTENTERM-PATCH (#1415): the neighbour tab takes the freed place
         // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
         fireAndForget(async () => {
             await recordPaneClose(blockId);
@@ -256,6 +257,7 @@ function genericClose() {
     const blockData = blockAtom ? globalStore.get(blockAtom) : null;
     const isAIFileDiff = blockData?.meta?.view === "aifilediff";
 
+    layoutModel.moltenView360?.planClose(blockId); // MOLTENTERM-PATCH (#1415): the neighbour tab takes the freed place
     // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
     fireAndForget(async () => {
         await recordPaneClose(blockId);

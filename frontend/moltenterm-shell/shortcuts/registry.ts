@@ -199,22 +199,25 @@ export const Shortcuts: Shortcut[] = [
         keys: "Ctrl:Shift:{1-9}",
         bindings: digits((n) => [`Ctrl:Shift:c{Digit${n}}`, `Ctrl:Shift:c{Numpad${n}}`]),
     },
-    // 360 view (FR-SHELL-068): the carpet's previous / next panel; outside 360 view the key reaches the panel.
+    // 360 view (FR-SHELL-068, FR-SHELL-126): the carpet's previous / next panel, with the keys of a browser's tabs;
+    // outside 360 view the keys reach the panel.
     {
         id: "carpet-previous",
         label: "Previous panel on the carpet (360 view)",
         category: "Panels",
         scope: "global",
-        keys: "Ctrl:Shift:PageUp",
-        keywords: ["360", "carpet", "scroll", "radar"],
+        keys: "Ctrl:Shift:Tab",
+        alt: ["Ctrl:Shift:PageUp"],
+        keywords: ["360", "carpet", "scroll", "radar", "tab", "tabs"],
     },
     {
         id: "carpet-next",
         label: "Next panel on the carpet (360 view)",
         category: "Panels",
         scope: "global",
-        keys: "Ctrl:Shift:PageDown",
-        keywords: ["360", "carpet", "scroll", "radar"],
+        keys: "Ctrl:Tab",
+        alt: ["Ctrl:Shift:PageDown"],
+        keywords: ["360", "carpet", "scroll", "radar", "tab", "tabs"],
     },
     { id: "refocus", label: "Focus the panel again", category: "Panels", scope: "global", keys: "Cmd:i" },
     {

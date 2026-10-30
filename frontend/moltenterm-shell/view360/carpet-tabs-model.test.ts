@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";
 import { moveNode } from "@/layout/lib/layoutTree";
+import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { I18nModel } from "../i18n/i18n";
@@ -14,17 +14,19 @@ import {
     carpetTabName,
     dropIndex,
     FrameExtraPx,
+    MaxTabNumber,
     pageOpener,
     reorderColumns,
     rovingColumnId,
     stepIndex,
-    StripPlusPx,
     stripLayout,
+    StripPlusPx,
     stripWidthPx,
     TabGapPx,
     TabIconPx,
     TabMaxPx,
     TabMinTitlePx,
+    tabNumbers,
 } from "./carpet-tabs-model";
 import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, RadarKindColors } from "./radar-model";
 
@@ -135,9 +137,7 @@ describe("the fallback steps (AC8)", () => {
                 }
             }
         }
-        expect(stripWidthPx(3, { mode: "titles", tabPx: 100 })).toBe(
-            300 + 2 * TabGapPx + FrameExtraPx + StripPlusPx
-        );
+        expect(stripWidthPx(3, { mode: "titles", tabPx: 100 })).toBe(300 + 2 * TabGapPx + FrameExtraPx + StripPlusPx);
     });
 });
 
@@ -198,7 +198,10 @@ describe("the tab menu (AC6)", () => {
     function input(over: Partial<CarpetTabMenuInput> = {}): CarpetTabMenuInput {
         return {
             pageItems: [],
-            pinItems: [{ label: "Pin beside", click: () => {} }, { label: "Pin in the first column", click: () => {} }],
+            pinItems: [
+                { label: "Pin beside", click: () => {} },
+                { label: "Pin in the first column", click: () => {} },
+            ],
             canMoveLeft: true,
             canMoveRight: true,
             hasOthers: true,
@@ -258,5 +261,38 @@ describe("the tab menu (AC6)", () => {
         menu[2].click();
         expect(actions.close).toHaveBeenCalled();
         expect(actions.moveRight).toHaveBeenCalled();
+    });
+});
+
+describe("the Ctrl+Shift numbers of the tabs (FR-SHELL-126-AC2)", () => {
+    // The layout's leaf order: the agent's panel first, then the carpet in its order.
+    const order = ["n-a", "n-p", "n-r", "n-x"];
+    const ticks = buildRadarTicks([col("c1", "p"), col("c2", "r"), col("c3", "x")], facts, ["c1"]);
+
+    it("gives each tab the number Ctrl+Shift+1…9 gives its panel, the agent's panel being 1", () => {
+        expect(tabNumbers(ticks, order, true)).toEqual({ c1: 2, c2: 3, c3: 4 });
+    });
+
+    it("shows nothing unless both keys are held", () => {
+        expect(tabNumbers(ticks, order, false)).toEqual({});
+    });
+
+    it("numbers only the first nine panels", () => {
+        const ids = Array.from({ length: 12 }, (_, i) => `n-b${i}`);
+        const many = buildRadarTicks(
+            ids.map((_, i) => col(`c${i}`, `b${i}`)),
+            {},
+            []
+        );
+        const numbers = tabNumbers(many, ids, true);
+        expect(Object.keys(numbers)).toHaveLength(MaxTabNumber);
+        expect(numbers.c0).toBe(1);
+        expect(numbers.c8).toBe(9);
+        expect(numbers.c9).toBeUndefined();
+    });
+
+    it("skips a tab whose panel is not in the layout yet", () => {
+        expect(tabNumbers(ticks, ["n-a"], true)).toEqual({});
+        expect(tabNumbers(null, null, true)).toEqual({});
     });
 });
