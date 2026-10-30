@@ -2096,6 +2096,7 @@
             "skipped": "{name} started without MoltenTerm's browser: {reason}",
             "notConnected": "{name} is not connected to MoltenTerm's browser: restart its session to connect it",
             "tabGone": "This tab is no longer in the panel",
+            "startPage": "The start page cannot be shared: open an address first",
             "openElsewhere": "This page is open in {browser}: open it in MoltenTerm to share it",
             "anotherBrowser": "another browser",
             "working": "{name} is working",

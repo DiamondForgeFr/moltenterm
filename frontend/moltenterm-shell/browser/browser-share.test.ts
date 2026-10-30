@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentIntegrationRun } from "../agent-integration-runs";
 import type { AgentStateInfo } from "../agent-state-model";
 import { AgentTab, controlBarView } from "./browser-agent";
+import { StartPageUrl } from "./browser-model";
 import type { LinkState } from "../agent-links/agent-links-model";
 import {
     browserLink,
@@ -96,6 +97,17 @@ describe("share with agent (FR-BRW-011)", () => {
             enabled: false,
             sublabel: "This page is open in Chrome: open it in MoltenTerm to share it",
         });
+    });
+
+    it("does not offer the start page, and says why (#1554)", () => {
+        const { actions } = recorder();
+        const start = shareMenuItems({ ...tab, url: StartPageUrl }, null, agents(), "", actions);
+        expect(start).toHaveLength(2);
+        expect(start[1]).toMatchObject({
+            enabled: false,
+            sublabel: "The start page cannot be shared: open an address first",
+        });
+        expect(start[1].submenu).toBeUndefined();
     });
 
     it("offers Share and tell only while the agent waits for the user's message (AC6)", () => {
