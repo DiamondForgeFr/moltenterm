@@ -9445,9 +9445,9 @@
                 "sub": "What each panel does, and adding it to the current view."
             },
             "ai": {
-                "label": "Sent to AI",
-                "title": "Sent to AI",
-                "sub": "The pages agents hold right now: the ones you shared and the ones they opened."
+                "label": "Shared with agents",
+                "title": "Shared with agents",
+                "sub": "Which pages each agent can read and drive right now, so you stay in control. Remove access at any time."
             },
             "materials": {
                 "label": "Materials",
@@ -9497,12 +9497,30 @@
             }
         },
         "ai": {
-            "now": "Now",
             "since": "since {when}",
-            "shared": "shared",
-            "opened": "opened by the agent",
-            "emptyTitle": "Nothing shared right now",
-            "empty": "A page you share with an agent from a Web page panel shows here while the agent holds it."
+            "shared": "shared by you",
+            "opened": "opened by {name}",
+            "takenOver": "you have it",
+            "canUse": {
+                "one": "{name} can read and drive this page.",
+                "other": "{name} can read and drive these {count} pages."
+            },
+            "show": "Show",
+            "remove": "Remove access",
+            "removeAll": "Remove all its access",
+            "removed": "{name} no longer has “{title}”",
+            "removedAll": "{name} no longer has any page",
+            "removedSub": {
+                "one": "The page stays open, as yours.",
+                "other": "The {count} pages stay open, as yours."
+            },
+            "undo": "Undo",
+            "removeFailed": "Could not remove {name}'s access",
+            "undoFailed": "{name} is no longer connected: the page stays yours",
+            "emptyTitle": "No page shared right now",
+            "empty": "The pages your agents can read or drive right now show here, so you stay in control.",
+            "howTo": "To share a page, use “{share}” in its panel's header.",
+            "toMaterials": "What agents produced is in Materials"
         },
         "materials": {
             "thisProject": "This project · {name}",

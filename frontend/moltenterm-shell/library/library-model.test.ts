@@ -15,7 +15,9 @@ import {
     PublicDownloadUrl,
     putAwayAgentNames,
     sentToAiRows,
+    sharedAgentGroups,
     suggestClipboardText,
+    undoSessionId,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -133,6 +135,55 @@ describe("Sent to AI", () => {
         expect(rows[1].title).toBe("https://b.example");
         expect(rows[0]).toMatchObject({ agentName: "Valentin", workspaceId: "w2", shared: true, panelBlockId: "p2" });
         expect(rows[2].shared).toBe(false);
+    });
+});
+
+describe("Shared with agents (#1538)", () => {
+    const row = (key: string, agentName: string, agentBlockId: string, extra: any = {}) =>
+        ({ key, title: key, url: "", agentName, agentBlockId, shared: true, takenOver: false, since: 0, ...extra }) as any;
+
+    it("groups the pages by agent terminal, in the rows' order, with the tool as a chip", () => {
+        const groups = sharedAgentGroups(
+            [row("a", "Olivia", "t1"), row("b", "Valentin", "t2"), row("c", "Olivia", "t1"), row("d", "Olivia", "t3")],
+            (id) => (id === "t1" ? "Claude Code" : "")
+        );
+        expect(groups.map((g) => [g.agentName, g.rows.map((r) => r.key), g.kind])).toEqual([
+            ["Olivia", ["a", "c"], "Claude Code"],
+            ["Valentin", ["b"], ""],
+            ["Olivia", ["d"], ""],
+        ]);
+    });
+
+    it("marks a page the developer took over", () => {
+        const rows = sentToAiRows([
+            {
+                panelBlockId: "p",
+                tabId: "t",
+                workspaceId: "w",
+                agentTabs: [{ browsertabid: "x", agentname: "Olivia", agentblockid: "t1", origin: "agent", state: "takenover" }],
+                browserTabs: [{ id: "x", url: "https://x.example", title: "X" }],
+            } as any,
+        ]);
+        expect(rows[0]).toMatchObject({ takenOver: true, agentBlockId: "t1", shared: false });
+    });
+
+    it("undoes with the session of the agent's own terminal only", () => {
+        const sessions = [
+            { sessionid: "s1", blockid: "t1" },
+            { sessionid: "s2", blockid: "t2" },
+        ];
+        expect(undoSessionId(sessions, "t2")).toBe("s2");
+        expect(undoSessionId(sessions, "t9")).toBe("");
+        expect(undoSessionId(sessions, "")).toBe("");
+    });
+
+    it("has its words in both languages", () => {
+        for (const key of ["library.ai.removed", "library.ai.removedAll", "library.ai.undoFailed"]) {
+            expect(lookup(en, key)).toContain("{name}");
+            expect(lookup(fr, key)).toContain("{name}");
+        }
+        expect(lookup(fr, "library.sections.ai.label")).toBe("Partagé avec les agents");
+        expect(lookup(en, "library.sections.ai.label")).toBe("Shared with agents");
     });
 });
 

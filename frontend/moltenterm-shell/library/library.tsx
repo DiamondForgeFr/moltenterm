@@ -21,13 +21,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import {
+    BrowserAgentControlCommand,
+    BrowserAgentListCommand,
     BrowserAgentRouteId,
+    BrowserAgentShareCommand,
     BrowserAgentStateCommand,
+    type AgentSession,
     type AgentTab,
     type PanelAgentState,
+    type ShareResult,
 } from "../browser/browser-agent";
 import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
-import { useLocale, useT, useTCount } from "../i18n/i18n";
+import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { focusMoltentermView, makeViewInActiveTabAtom } from "../open-view";
 import { pickerPanelEntries } from "../palette/palette-sources";
@@ -73,7 +78,9 @@ import {
     SentPanel,
     SentRow,
     sentToAiRows,
+    sharedAgentGroups,
     suggestClipboardText,
+    undoSessionId,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -92,6 +99,8 @@ import {
 const PinnedTabMetaKeys = [ProjectTabMetaKey, PinMetaKey];
 const SentPollMs = 5000;
 const SentCallTimeoutMs = 3000;
+// Removing an agent's access offers Undo this long, as a deleted workspace does (FR-SHELL-095).
+const AccessUndoMs = 10000;
 
 function close() {
     SidebarModel.getInstance().closeLibrary();
@@ -551,10 +560,104 @@ async function readSentPanels(entries: WorkspaceRailEntry[]): Promise<SentPanel[
     return rtn;
 }
 
+// Remove access is the panel's Stop sharing (the browser agent's stop control): the page stays open, as the
+// developer's. It answers the pages it took back.
+async function removeAccess(rows: SentRow[]): Promise<SentRow[]> {
+    const removed: SentRow[] = [];
+    for (const row of rows) {
+        try {
+            await TabRpcClient.wshRpcCall(
+                BrowserAgentControlCommand,
+                { blockid: row.panelBlockId, browsertabid: row.browserTabId, action: "stop" },
+                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
+            );
+            removed.push(row);
+        } catch (e) {
+            console.log("library: remove access", e);
+        }
+    }
+    return removed;
+}
+
+// Undo shares the pages again with the agent's session (the panel's Share with), while that session lasts. It answers
+// how many it could not give back.
+async function giveAccessBack(rows: SentRow[]): Promise<number> {
+    let failed = 0;
+    for (const row of rows) {
+        try {
+            const res: { sessions: AgentSession[] } = await TabRpcClient.wshRpcCall(
+                BrowserAgentListCommand,
+                { blockid: row.panelBlockId },
+                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
+            );
+            const sessionId = undoSessionId(res?.sessions, row.agentBlockId);
+            if (!sessionId) {
+                failed++;
+                continue;
+            }
+            const shared: ShareResult = await TabRpcClient.wshRpcCall(
+                BrowserAgentShareCommand,
+                { blockid: row.panelBlockId, browsertabid: row.browserTabId, sessionid: sessionId, move: false },
+                { route: BrowserAgentRouteId, timeout: SentCallTimeoutMs }
+            );
+            if (shared?.result !== "shared") {
+                failed++;
+            }
+        } catch (e) {
+            console.log("library: give access back", e);
+            failed++;
+        }
+    }
+    return failed;
+}
+
+function accessToastText(removed: SentRow[], name: string, all: boolean) {
+    const title = all
+        ? tNow("library.ai.removedAll", { name })
+        : tNow("library.ai.removed", { title: removed[0]?.title ?? "", name });
+    return {
+        title,
+        message: tCountNow("library.ai.removedSub", removed.length, { name }),
+        actionLabels: { undo: tNow("library.ai.undo") },
+    };
+}
+
+function showAccessUndo(removed: SentRow[], name: string, all: boolean, onChange: () => void) {
+    if (removed.length === 0) {
+        showToast({ kind: "error", title: tNow("library.ai.removeFailed", { name }) });
+        return;
+    }
+    const text = accessToastText(removed, name, all);
+    showToast({
+        kind: "info",
+        title: text.title,
+        message: text.message,
+        text: () => accessToastText(removed, name, all),
+        dismissMs: AccessUndoMs,
+        actions: [
+            {
+                id: "undo",
+                label: text.actionLabels.undo,
+                run: async () => {
+                    const failed = await giveAccessBack(removed);
+                    onChange();
+                    if (failed > 0) {
+                        showToast({ kind: "error", title: tNow("library.ai.undoFailed", { name }) });
+                    }
+                },
+            },
+        ],
+    });
+}
+
 function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; query: string }) {
     const t = useT();
+    const tc = useTCount();
     const locale = useLocale();
+    const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
     const [rows, setRows] = useState<SentRow[]>(null);
+    const [removing, setRemoving] = useState<Set<string>>(() => new Set());
+    const loadRef = useRef<() => void>(null);
     const entriesKey = entries.map((e) => e.id).join(" ");
     const entriesRef = useRef(entries);
     entriesRef.current = entries;
@@ -571,27 +674,63 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
                     console.log("library: sent to AI", e);
                 }
             });
+        loadRef.current = load;
         load();
         const stop = TabActivity.getInstance().every(whileShown(SentPollMs), load, "library-sent-to-ai");
         return () => {
             cancelled = true;
+            loadRef.current = null;
             stop();
         };
     }, [entriesKey]);
     if (rows == null) {
         return null;
     }
+    const reload = () => loadRef.current?.();
+    const remove = (target: SentRow[], name: string, all: boolean) => {
+        const keys = target.map((r) => r.key);
+        setRemoving((cur) => new Set([...cur, ...keys]));
+        fireAndForget(async () => {
+            const removed = await removeAccess(target);
+            showAccessUndo(removed, name, all, reload);
+            setRows((cur) => (cur ?? []).filter((r) => !removed.some((x) => x.key === r.key)));
+            setRemoving((cur) => new Set([...cur].filter((k) => !keys.includes(k))));
+            reload();
+        });
+    };
     const shown = rows.filter((r) =>
         matchesQuery([r.title, r.url, r.agentName, workspaceNameOf(entries, r.workspaceId)], query)
     );
     if (shown.length === 0) {
+        if (rows.length > 0) {
+            return (
+                <div className="mt-lib-empty" data-testid="library-ai-empty">
+                    <b>{t("library.nothingFound")}</b>
+                </div>
+            );
+        }
         return (
-            <div className="mt-lib-empty" data-testid="library-ai-empty">
-                <b>{t(rows.length === 0 ? "library.ai.emptyTitle" : "library.nothingFound")}</b>
-                {rows.length === 0 ? <span>{t("library.ai.empty")}</span> : null}
+            <div className="mt-lib-empty mt-lib-ai-empty" data-testid="library-ai-empty">
+                <b>{t("library.ai.emptyTitle")}</b>
+                <span>{t("library.ai.empty")}</span>
+                <span>{t("library.ai.howTo", { share: t("browser.share.share") })}</span>
+                <button
+                    type="button"
+                    className="mt-lib-link"
+                    data-testid="library-ai-materials"
+                    onClick={() => SidebarModel.getInstance().openLibrary("materials")}
+                >
+                    <SidebarGlyph name="box" size={12} />
+                    {t("library.ai.toMaterials")}
+                </button>
             </div>
         );
     }
+    const kindOf = (blockId: string) => {
+        const info = agentData?.states?.[blockId];
+        return info?.agentname || info?.agent || "";
+    };
+    const groups = sharedAgentGroups(shown, kindOf);
     const open = (row: SentRow) => {
         close();
         fireAndForget(async () => {
@@ -603,33 +742,74 @@ function SentToAiSection({ entries, query }: { entries: WorkspaceRailEntry[]; qu
         });
     };
     return (
-        <div className="flex flex-col gap-0.5" data-testid="library-ai">
-            <div className="mt-lib-day">{t("library.ai.now")}</div>
-            {shown.map((row) => {
-                const when = whenText(row.since, Date.now(), locale);
-                const parts = [
-                    row.agentName,
-                    workspaceNameOf(entries, row.workspaceId),
-                    when ? t("library.ai.since", { when }) : "",
-                ].filter(Boolean);
+        <div className="flex flex-col gap-3" data-testid="library-ai">
+            {groups.map((group) => {
+                const name = group.agentName || t("browser.agent.anAgent");
+                const busy = group.rows.every((r) => removing.has(r.key));
                 return (
-                    <button
-                        key={row.key}
-                        type="button"
-                        className="mt-lib-airow"
-                        title={row.url}
-                        data-testid="library-ai-row"
-                        onClick={() => open(row)}
-                    >
-                        <SidebarGlyph name="globe" />
-                        <span className="t">
-                            <b>{row.title}</b>
-                            <span>{parts.join(" · ")}</span>
-                        </span>
-                        <span className={cn("mt-lib-state", row.shared && "is-live")}>
-                            {t(row.shared ? "library.ai.shared" : "library.ai.opened")}
-                        </span>
-                    </button>
+                    <section key={group.key} className="mt-lib-aigroup" data-testid="library-ai-group">
+                        <header className="mt-lib-aihead">
+                            <span className="t">
+                                <span className="flex items-center gap-2">
+                                    <b>{name}</b>
+                                    {group.kind ? <span className="mt-lib-state">{group.kind}</span> : null}
+                                </span>
+                                <span>{tc("library.ai.canUse", group.rows.length, { name })}</span>
+                            </span>
+                            <button
+                                type="button"
+                                className="mt-lib-aiact"
+                                data-testid="library-ai-remove-all"
+                                disabled={busy}
+                                onClick={() => remove(group.rows, name, true)}
+                            >
+                                <i className={makeIconClass("link-slash", true)} aria-hidden />
+                                {t("library.ai.removeAll")}
+                            </button>
+                        </header>
+                        {group.rows.map((row) => {
+                            const when = whenText(row.since, Date.now(), locale);
+                            const parts = [
+                                workspaceNameOf(entries, row.workspaceId),
+                                when ? t("library.ai.since", { when }) : "",
+                            ].filter(Boolean);
+                            const origin = row.takenOver
+                                ? t("library.ai.takenOver")
+                                : t(row.shared ? "library.ai.shared" : "library.ai.opened", { name });
+                            return (
+                                <div
+                                    key={row.key}
+                                    className="mt-lib-airow"
+                                    title={row.url}
+                                    data-testid="library-ai-row"
+                                >
+                                    <SidebarGlyph name="globe" />
+                                    <span className="t">
+                                        <b>{row.title}</b>
+                                        <span>{parts.join(" · ")}</span>
+                                    </span>
+                                    <span className="mt-lib-state">{origin}</span>
+                                    <button
+                                        type="button"
+                                        className="mt-lib-aiact"
+                                        data-testid="library-ai-show"
+                                        onClick={() => open(row)}
+                                    >
+                                        {t("library.ai.show")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="mt-lib-aiact"
+                                        data-testid="library-ai-remove"
+                                        disabled={removing.has(row.key)}
+                                        onClick={() => remove([row], name, false)}
+                                    >
+                                        {t("library.ai.remove")}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </section>
                 );
             })}
         </div>

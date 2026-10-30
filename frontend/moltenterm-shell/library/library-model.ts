@@ -107,14 +107,62 @@ export type SentRow = {
     title: string;
     url: string;
     agentName: string;
+    // The agent's terminal: its group, and the session Undo shares the page with again.
+    agentBlockId: string;
     workspaceId: string;
     tabId: string;
     panelBlockId: string;
     browserTabId: string;
     // shared: the developer shared it; else the agent opened it.
     shared: boolean;
+    // The developer took the page over: the agent waits for it back.
+    takenOver: boolean;
     since: number;
 };
+
+// One agent's pages in Shared with agents (#1538). There is no read-only share: an agent that holds a page has every
+// browser tool on it, so a group says read and drive for all its pages, and each row only who gave it.
+export type SharedAgentGroup = {
+    key: string;
+    agentName: string;
+    agentBlockId: string;
+    // The tool's name ("Claude Code"), shown as a data chip only; "" when MoltenTerm does not know it.
+    kind: string;
+    rows: SentRow[];
+};
+
+// The rows by agent, in the rows' order: the agent of the first row first. An agent is its terminal; without one,
+// its name.
+export function sharedAgentGroups(rows: SentRow[], kindOf?: (agentBlockId: string) => string): SharedAgentGroup[] {
+    const groups: SharedAgentGroup[] = [];
+    const byKey = new Map<string, SharedAgentGroup>();
+    for (const row of rows ?? []) {
+        const key = row.agentBlockId ? `b:${row.agentBlockId}` : `n:${row.agentName}`;
+        let group = byKey.get(key);
+        if (group == null) {
+            group = {
+                key,
+                agentName: row.agentName,
+                agentBlockId: row.agentBlockId,
+                kind: (row.agentBlockId && kindOf?.(row.agentBlockId)) || "",
+                rows: [],
+            };
+            byKey.set(key, group);
+            groups.push(group);
+        }
+        group.rows.push(row);
+    }
+    return groups;
+}
+
+// Undo shares a page again with the session of the agent's terminal, the newest when it has several.
+export function undoSessionId(sessions: { sessionid: string; blockid: string }[], agentBlockId: string): string {
+    if (!agentBlockId) {
+        return "";
+    }
+    const ofBlock = (sessions ?? []).filter((s) => s?.sessionid && s.blockid === agentBlockId);
+    return ofBlock.length > 0 ? ofBlock[ofBlock.length - 1].sessionid : "";
+}
 
 // The pages agents hold now, from every browser panel: the ones the developer shared first, then the ones the agents
 // opened, the most recent first in each. A tab the panel no longer has is left out.
@@ -134,11 +182,13 @@ export function sentToAiRows(panels: SentPanel[]): SentRow[] {
                 title: (tab.title ?? "").trim() || tab.url,
                 url: tab.url,
                 agentName: (held.agentname ?? "").trim(),
+                agentBlockId: held.agentblockid ?? "",
                 workspaceId: panel.workspaceId,
                 tabId: panel.tabId,
                 panelBlockId: panel.panelBlockId,
                 browserTabId: tab.id,
                 shared: held.origin === "shared",
+                takenOver: held.state === "takenover",
                 since: held.since ?? 0,
             });
         }
