@@ -65,6 +65,8 @@ var (
 	shortNumberRegex = regexp.MustCompile(`^\d{1,6}$`)
 	variableRefRegex = regexp.MustCompile(`^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\{\{.*\}\}$|^<[^<>]*>$`)
 	plainWordRegex   = regexp.MustCompile(`^[a-z]{1,12}$`)
+	// Two more words of prose after a value, on its line (a comma or a semicolon may follow the first).
+	proseTailRegex = regexp.MustCompile(`^[ \t]+\p{L}+[,;]?[ \t]+\p{L}+`)
 )
 
 func containsAny(text string, hints ...string) bool {
@@ -109,19 +111,7 @@ func Redact(text string) (string, int) {
 		if strings.Contains(text, "-") {
 			text = replaceGroup(flagRegex, text, 3, &count)
 		}
-		text = assignRegex.ReplaceAllStringFunc(text, func(match string) string {
-			m := assignRegex.FindStringSubmatch(match)
-			if m == nil || !sensitiveName(m[2]) {
-				return match
-			}
-			quoted := m[1] != "" && m[1] == m[3]
-			value := m[5]
-			if !secretValue(value, m[4], quoted, strongName(m[2])) || proseColon(m[2], m[4], value, quoted) {
-				return match
-			}
-			count++
-			return m[1] + m[2] + m[3] + m[4] + quoteLike(value, Redacted)
-		})
+		text = replaceAssignments(text, &count)
 	}
 	for _, p := range tokenPatterns {
 		if !containsAny(text, p.hints...) {
@@ -223,14 +213,48 @@ func secretValue(value string, rawSep string, quotedName bool, strong bool) bool
 	return true
 }
 
-// proseColon tells French prose ("le secret : des copies"): a plain word, a space before the colon as French
-// typography puts it, and a plain word. A configuration file does not space its colons; a strong name keeps its value
-// redacted in every other form ("password: swordfish").
-func proseColon(name string, rawSep string, value string, quotedName bool) bool {
+// replaceAssignments redacts the values given to sensitive names; what follows a match on its line tells prose apart.
+func replaceAssignments(text string, count *int) string {
+	var b strings.Builder
+	last := 0
+	for _, idx := range assignRegex.FindAllStringSubmatchIndex(text, -1) {
+		group := func(i int) string {
+			if idx[2*i] < 0 {
+				return ""
+			}
+			return text[idx[2*i]:idx[2*i+1]]
+		}
+		name, sep, value := group(2), group(4), group(5)
+		if !sensitiveName(name) {
+			continue
+		}
+		quoted := group(1) != "" && group(1) == group(3)
+		if !secretValue(value, sep, quoted, strongName(name)) || proseColon(name, sep, value, quoted, text[idx[1]:]) {
+			continue
+		}
+		*count++
+		b.WriteString(text[last:idx[10]])
+		b.WriteString(quoteLike(value, Redacted))
+		last = idx[11]
+	}
+	if last == 0 {
+		return text
+	}
+	b.WriteString(text[last:])
+	return b.String()
+}
+
+// proseColon tells French prose ("le secret : des copies gardées sur cet ordinateur"): a plain word, a space before the
+// colon as French typography puts it, a plain word, and at least two more words on the same line. A value alone at
+// the end of its line, or followed by anything else, is an assignment ("password : swordfish"), strong name or not.
+func proseColon(name string, rawSep string, value string, quotedName bool, rest string) bool {
 	if quotedName || strings.TrimSpace(rawSep) != ":" || !strings.HasPrefix(rawSep, " ") && !strings.HasPrefix(rawSep, "\t") {
 		return false
 	}
-	return plainWordRegex.MatchString(name) && plainWordRegex.MatchString(value)
+	if !plainWordRegex.MatchString(name) || !plainWordRegex.MatchString(value) {
+		return false
+	}
+	return proseTailRegex.MatchString(rest)
 }
 
 func quoteLike(value string, replacement string) string {

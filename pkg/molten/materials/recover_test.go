@@ -211,7 +211,7 @@ func TestLiveSignalsKeepPublications(t *testing.T) {
 // A design page's CSS (li.key::before) and French prose ("secret : des") are not secrets: the page is copied.
 func TestDesignPageIsNotASecret(t *testing.T) {
 	h := makeHarness(t)
-	h.write("360/proposal.html", `<style>.life li.key::before { border-color: red; }</style><p>Le secret : des copies.</p>`)
+	h.write("360/proposal.html", `<style>.life li.key::before { border-color: red; }</style><p>Rien de secret : des nombres, des identifiants de modèle, des numéros de ticket.</p>`)
 	tr := h.claudeTranscript("claude-publish.jsonl")
 	h.poll(tr, molten.AgentIdClaude)
 	page := byLink(h.list(), "https://claude.ai/artifact/Nsoo26TestPage")
