@@ -5,10 +5,13 @@ package wconfig
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
 
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wconfig/defaultconfig"
 )
 
@@ -54,5 +57,36 @@ func TestConvertConfigListOfObjects(t *testing.T) {
 	}
 	if _, ok := convertConfigMap([]any{"agent"}, ctype); ok {
 		t.Fatalf("a list of strings is not a list of views")
+	}
+}
+
+// #1421: a template Preferences saved under #1305 still names its second view by the Integration key; it reads as
+// Control room (fr: Pilotage), and a name the developer typed stays as typed.
+func TestLegacyNewWorkspaceViewsReadAsToday(t *testing.T) {
+	configDir := t.TempDir()
+	settings := []byte(`{"app:newworkspaceviews": [
+		{"namekey": "workspaceViews.names.scoping", "panels": ["agent", "browser", "files"]},
+		{"namekey": "workspaceViews.names.integration", "panels": ["project", "integration"]},
+		{"name": "Integration", "panels": ["integration"]}
+	]}`)
+	if err := os.WriteFile(filepath.Join(configDir, "settings.json"), settings, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	previous := wavebase.ConfigHome_VarCache
+	wavebase.ConfigHome_VarCache = configDir
+	t.Cleanup(func() { wavebase.ConfigHome_VarCache = previous })
+
+	views := ReadFullConfig().Settings.AppNewWorkspaceViews
+	if len(views) != 3 {
+		t.Fatalf("views %+v", views)
+	}
+	if views[0].NameKey != "workspaceViews.names.scoping" {
+		t.Fatalf("scoping %+v", views[0])
+	}
+	if views[1].NameKey != "workspaceViews.names.pilotage" || !slices.Equal(views[1].Panels, []string{"project", "integration"}) {
+		t.Fatalf("the legacy Integration view reads as Control room: %+v", views[1])
+	}
+	if views[2].Name != "Integration" || views[2].NameKey != "" {
+		t.Fatalf("a typed name stays: %+v", views[2])
 	}
 }
