@@ -86,8 +86,10 @@ import {
 } from "./library-model";
 import "./library.css";
 import { MaterialsSection, useMaterialsDrawer, useMaterialsNewCount } from "./materials-section";
+import { mountChannels, type ChannelsHandle } from "./settings-channels";
 import {
     finishSettingsReveal,
+    MaxRevealCards,
     relativeRect,
     revealMode,
     revealTargets,
@@ -995,22 +997,35 @@ function LibrarySettingsBlock({ block }: { block: SettingsSectionId }) {
 // The settings blocks, and the one the developer opened, in one stage (#1406). The blocks stay mounted in Preferences'
 // order while one is open, as a compact sticky row (#1548) from which another block opens directly; the open block is
 // revealed by settings-reveal.ts (#1407), from the chip or tile just clicked.
-function SettingsSection({
-    block,
-    onOpen,
-}: {
-    block: SettingsSectionId;
-    onOpen: (block: SettingsSectionId) => void;
-}) {
+function SettingsSection({ block, onOpen }: { block: SettingsSectionId; onOpen: (block: SettingsSectionId) => void }) {
     const t = useT();
     const hasConfigErrors = useAtomValue(atoms.hasConfigErrors);
     const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
     const revealSetting = useAtomValue(getSettingsKeyAtom(SettingsRevealKey));
     const stageRef = useRef<HTMLDivElement>(null);
     const layerRef = useRef<HTMLDivElement>(null);
+    const channelLayerRef = useRef<HTMLDivElement>(null);
+    const channelsRef = useRef<ChannelsHandle>(null);
     const sourceRef = useRef<RevealRect>(null);
+    const mode = revealMode(reducedMotion, revealSetting !== false);
+    // The channels of the open block (#1549): from its chip in the row to its cards, kept while it is open.
+    const openChannels = (): ChannelsHandle => {
+        const stage = stageRef.current;
+        const page = stage?.querySelector<HTMLElement>(".mt-lib-setpage");
+        if (page == null || channelLayerRef.current == null) {
+            return null;
+        }
+        return mountChannels({
+            stage,
+            layer: channelLayerRef.current,
+            page,
+            chip: () => stage.querySelector<HTMLElement>('.mt-lib-set[aria-current="true"]'),
+            cards: () => revealTargets(page).slice(0, MaxRevealCards),
+            onRelayout: () => finishSettingsReveal(),
+        });
+    };
     // The molten reveal of the block just opened (#1407), before its first frame; switching block or section or
-    // closing the library ends it.
+    // closing the library ends it and removes its channels.
     useLayoutEffect(() => {
         const stage = stageRef.current;
         const page = stage?.querySelector(".mt-lib-setpage");
@@ -1019,20 +1034,40 @@ function SettingsSection({
         }
         // The new block starts at its top, under the sticky row; the geometry of the reveal is read after this.
         stage.closest(".mt-lib-body")?.scrollTo({ top: 0 });
-        stage.querySelector('.mt-lib-set[aria-current="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        const chip = stage.querySelector('.mt-lib-set[aria-current="true"]');
+        chip?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        channelsRef.current = mode === "molten" ? openChannels() : null;
+        // The chip melts at its place in the row, where the block opened from the tiles too (#1548).
+        const clicked = sourceRef.current != null && chip != null;
         const handle = runSettingsReveal({
             stage,
             overlay: layerRef.current,
             cards: revealTargets(page),
             chrome: [page.firstElementChild?.firstElementChild].filter((el) => el != null),
-            source: sourceRef.current,
-            mode: revealMode(reducedMotion, revealSetting !== false),
+            source: clicked ? relativeRect(chip.getBoundingClientRect(), stage.getBoundingClientRect()) : null,
+            mode,
+            channels: channelsRef.current,
         });
         sourceRef.current = null;
         return () => {
             handle.finish();
+            channelsRef.current?.dispose();
+            channelsRef.current = null;
         };
     }, [block]);
+    // Reduced motion or the reveal setting, switched while a block is open, removes or brings back its channels.
+    useEffect(() => {
+        if (block == null) {
+            return;
+        }
+        if (mode !== "molten") {
+            finishSettingsReveal();
+            channelsRef.current?.dispose();
+            channelsRef.current = null;
+            return;
+        }
+        channelsRef.current ??= openChannels();
+    }, [mode]);
     const openFromTile = (id: SettingsSectionId, tile: HTMLElement) => {
         const stage = stageRef.current;
         sourceRef.current =
@@ -1047,6 +1082,7 @@ function SettingsSection({
             data-state={block != null ? "open" : "tiles"}
             data-open={block ?? undefined}
         >
+            <div ref={channelLayerRef} className="mt-ch-layer" data-testid="library-settings-channels" aria-hidden />
             {hasConfigErrors && block == null ? (
                 <button
                     type="button"
