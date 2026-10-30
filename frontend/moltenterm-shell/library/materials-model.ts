@@ -17,6 +17,7 @@ export const MaterialDeleteCopyCommand = "moltenmaterialdeletecopy";
 export const MaterialRestoreCommand = "moltenmaterialrestore";
 export const MaterialCopyCommand = "moltenmaterialcopy";
 export const MaterialsRecoverCommand = "moltenmaterialsrecover";
+export const MaterialOpenedCommand = "moltenmaterialopened";
 export const MaterialsNoProject = "noproject";
 
 export const MaterialKindPage = "page";
@@ -40,6 +41,9 @@ export const MaterialUndoMs = 10000;
 
 export type MaterialVersion = { n: number; at: number; title?: string; size: number; files?: number };
 
+// The view a material was last open in, as the registry remembers it (#1546).
+export type MaterialPlace = { workspaceid: string; workspace?: string; tabid: string; view?: string; at?: number };
+
 export type Material = {
     id: string;
     project: string;
@@ -59,6 +63,9 @@ export type Material = {
     files?: number;
     versions?: MaterialVersion[];
     pinned?: boolean;
+    thumb?: boolean;
+    thumbpath?: string;
+    lastopened?: MaterialPlace;
     agent?: string;
     tool?: string;
     sessionid?: string;
@@ -171,7 +178,16 @@ export function groupMaterials(materials: Material[], now: number, locale: strin
 
 // Every word in the title, the original name, the agent, the session's subject, the ticket (#1318) or the host (AC6).
 export function materialSearchTexts(m: Material): string[] {
-    return [m.title, m.autotitle, m.originalname, m.agent, m.subject, m.ticket ? `#${m.ticket}` : "", linkHost(m.link)];
+    return [
+        m.title,
+        materialDisplayTitle(m),
+        m.autotitle,
+        m.originalname,
+        m.agent,
+        m.subject,
+        m.ticket ? `#${m.ticket}` : "",
+        linkHost(m.link),
+    ];
 }
 
 export function filterMaterials(materials: Material[], query: string): Material[] {
@@ -404,4 +420,143 @@ export function recoveredParts(r: MaterialsRecovered): RecoveredPart[] {
         parts.push({ key: "library.materials.recover.notCopied", count: r.notcopied });
     }
     return parts;
+}
+
+// ---------- Cards (#1546, DS-MAT-010) ----------
+
+// From this width the section lays its days out as cards; below it keeps the rows.
+export const MaterialsCardsMinWidth = 720;
+
+function decodeSegment(segment: string): string {
+    try {
+        return decodeURIComponent(segment);
+    } catch {
+        return segment;
+    }
+}
+
+// A raw address made readable without loading it: its host and the last segment of its path.
+export function readableLink(link: string): string {
+    if (!link) {
+        return "";
+    }
+    let url: URL;
+    try {
+        url = new URL(link);
+    } catch {
+        return link;
+    }
+    const host = url.host.replace(/^www\./, "");
+    const last = url.pathname.split("/").filter(Boolean).pop();
+    return last ? `${host} · ${decodeSegment(last)}` : host;
+}
+
+function looksLikeAddress(text: string): boolean {
+    return /^https?:\/\//i.test((text ?? "").trim());
+}
+
+// The title a material shows: the registry's, unless it is only the raw address.
+export function materialDisplayTitle(m: Material): string {
+    if (m == null) {
+        return "";
+    }
+    const title = (m.title ?? "").trim();
+    if (title && !looksLikeAddress(title)) {
+        return title;
+    }
+    return readableLink(title || m.link) || m.id;
+}
+
+// Where a material lives, as its card says it: open in a view of this workspace now, else the place the registry
+// remembers, else never opened. Names come resolved; an empty one is left out.
+export type MaterialPlaceText = { key: string; vars?: Record<string, string>; live?: boolean };
+
+export function placeName(...names: string[]): string {
+    return names.filter((n) => !!n).join(" · ");
+}
+
+export function materialPlaceText(
+    m: Material,
+    live: { workspace: string; view: string },
+    currentWorkspaceId: string
+): MaterialPlaceText {
+    if (live != null) {
+        return { key: "library.materials.place.open", vars: { place: placeName(live.workspace, live.view) }, live: true };
+    }
+    const last = m?.lastopened;
+    if (last == null || !(last.view || last.workspace)) {
+        return { key: "library.materials.place.never" };
+    }
+    if (last.workspaceid === currentWorkspaceId && last.view) {
+        return { key: "library.materials.place.closed", vars: { view: last.view } };
+    }
+    return { key: "library.materials.place.lastOpen", vars: { place: placeName(last.workspace, last.view) } };
+}
+
+// The one state chip of a card: none for a plain link, whose kind chip already says it.
+export function materialStateChip(m: Material): MaterialForm {
+    const form = materialForm(m);
+    if (form.key === "link" && m.kind === MaterialKindLink) {
+        return null;
+    }
+    return form;
+}
+
+// The capture of a page or a link shown in a panel. Captures arrive with #1545 (static panel captures); until then
+// there is none and the card shows its kind icon.
+export function materialThumbnail(_id: string): string {
+    return null;
+}
+
+// What fills a card's visual: a local image (its preview, else the image itself), a capture, or the kind icon.
+export type MaterialVisual = { path?: string; src?: string };
+
+export function materialVisual(m: Material): MaterialVisual {
+    if (m == null) {
+        return {};
+    }
+    if (m.kind === MaterialKindImage) {
+        if (m.thumbpath) {
+            return { path: m.thumbpath };
+        }
+        if (materialCopied(m) && m.copypath) {
+            return { path: m.copypath };
+        }
+    }
+    const capture = materialThumbnail(m.id);
+    return capture ? { src: capture } : {};
+}
+
+export type CardRect = { left: number; top: number; width: number; height: number };
+export type GridMove = "up" | "down" | "left" | "right";
+
+// The card the arrow keys go to: left and right in reading order, up and down to the nearest card of the row above or
+// below. The day headings break the columns, so it is read from where the cards stand.
+export function gridNeighbor(rects: CardRect[], index: number, move: GridMove): number {
+    const n = rects?.length ?? 0;
+    if (n === 0 || index < 0 || index >= n) {
+        return index;
+    }
+    if (move === "left" || move === "right") {
+        return Math.min(n - 1, Math.max(0, index + (move === "right" ? 1 : -1)));
+    }
+    const cur = rects[index];
+    const cx = cur.left + cur.width / 2;
+    const cy = cur.top + cur.height / 2;
+    let best = index;
+    let bestDy = Infinity;
+    let bestDx = Infinity;
+    rects.forEach((r, i) => {
+        const dy = move === "down" ? r.top + r.height / 2 - cy : cy - (r.top + r.height / 2);
+        if (i === index || dy <= cur.height / 2) {
+            return;
+        }
+        const dx = Math.abs(r.left + r.width / 2 - cx);
+        if (dy < bestDy - 1 || (Math.abs(dy - bestDy) <= 1 && dx < bestDx)) {
+            best = i;
+            bestDy = dy;
+            bestDx = dx;
+        }
+    });
+    return best;
 }

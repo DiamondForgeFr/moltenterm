@@ -38,6 +38,9 @@ const (
 	thumbFile    = "thumb.png"
 	trashRecord  = "material.json"
 	indexVersion = 1
+
+	// A material seen again in the same view refreshes its record's time no more often than this.
+	openedRefresh = time.Hour
 )
 
 var (
@@ -320,6 +323,13 @@ func (s *Store) view(m molten.Material) molten.Material {
 		v := m.Versions[n-1]
 		m.CopyPath = filepath.Join(s.drawerDir(m.Project), itemsDir, m.Id, v.Dir, v.Main)
 	}
+	if m.Thumb {
+		m.ThumbPath = filepath.Join(s.drawerDir(m.Project), itemsDir, m.Id, thumbFile)
+	}
+	if m.LastOpened != nil {
+		place := *m.LastOpened
+		m.LastOpened = &place
+	}
 	if m.Original != "" {
 		_, err := os.Stat(m.Original)
 		m.OriginalGone = err != nil
@@ -413,6 +423,11 @@ func (s *Store) Usage(key string, limits Limits) molten.MaterialsUsage {
 }
 
 func (s *Store) update(key string, id string, fn func(m *molten.Material) bool) (molten.Material, error) {
+	return s.updateWith(key, id, true, fn)
+}
+
+// updateWith changes a material; touch moves its updated time (a record of where it was seen does not).
+func (s *Store) updateWith(key string, id string, touch bool, fn func(m *molten.Material) bool) (molten.Material, error) {
 	s.lock.Lock()
 	d, i, err := s.locateLocked(key, id)
 	if err != nil {
@@ -425,7 +440,9 @@ func (s *Store) update(key string, id string, fn func(m *molten.Material) bool) 
 		s.lock.Unlock()
 		return s.view(out), nil
 	}
-	m.Updated = s.now().UnixMilli()
+	if touch {
+		m.Updated = s.now().UnixMilli()
+	}
 	out := *m
 	err = s.saveLocked(d, "")
 	dkey := d.key
@@ -466,6 +483,26 @@ func (s *Store) Pin(key string, id string, pinned bool) (molten.Material, error)
 			return false
 		}
 		m.Pinned = pinned
+		return true
+	})
+}
+
+// Opened remembers the view a window saw the material open in (#1546). The same view seen again within
+// openedRefresh writes nothing: the section reports what it sees each time it shows, and the event that a write
+// publishes makes it show again.
+func (s *Store) Opened(key string, id string, place molten.MaterialPlace) (molten.Material, error) {
+	if place.WorkspaceId == "" || place.TabId == "" {
+		return molten.Material{}, errors.New("give the workspace and the view")
+	}
+	place.Workspace, place.View = cleanTitle(place.Workspace), cleanTitle(place.View)
+	place.At = s.now().UnixMilli()
+	return s.updateWith(key, id, false, func(m *molten.Material) bool {
+		last := m.LastOpened
+		if last != nil && last.WorkspaceId == place.WorkspaceId && last.TabId == place.TabId &&
+			last.Workspace == place.Workspace && last.View == place.View && place.At-last.At < openedRefresh.Milliseconds() {
+			return false
+		}
+		m.LastOpened = &place
 		return true
 	})
 }

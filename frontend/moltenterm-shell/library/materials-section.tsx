@@ -4,7 +4,8 @@
 // The library's Materials section, simple version (FR-MAT-002, DS-MAT-005): the current project's materials by day,
 // pinned ones on top. A row is renamed in place, pinned, opened in a view of the workspace (or shown when already
 // open), shown in its folder, its link copied, its copy deleted with Undo. The preview pane of mockup a is FR-MAT-004
-// (#1428): until then the selected row carries its one orange button and its menu.
+// (#1428): until then the selected row carries its one orange button and its menu. A wide section shows cards instead
+// of rows (#1546, DS-MAT-010): a visual, the kind, where the material lives, its origin and its state.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, createBlock, getApi } from "@/app/store/global";
@@ -13,14 +14,15 @@ import { useWaveObjectValue } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { getWebServerEndpoint } from "@/util/endpoints";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BrowserActiveMetaKey, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
 import { openInBrowserPanel } from "../browser/browser-routing";
-import { t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
+import { TFunction, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { pathBaseName, readWorkspaceProject } from "../workspace-project";
+import { logoUrl, pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readProjectFacts } from "../workspace-project-store";
 import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
@@ -31,8 +33,11 @@ import { useTabIdentity } from "../tab-identity-ui";
 import { showToast } from "../toast-store";
 import { libraryAddAsk, whenText } from "./library-model";
 import {
+    CardRect,
     filterMaterials,
     findOpenPanel,
+    gridNeighbor,
+    GridMove,
     groupMaterials,
     linkHost,
     Material,
@@ -40,16 +45,24 @@ import {
     materialCopied,
     MaterialCopyCommand,
     MaterialDeleteCopyCommand,
+    materialDisplayTitle,
     materialFolderPath,
     materialForm,
+    MaterialForm,
     materialKeepOffer,
     MaterialKindDocument,
     MaterialKindPage,
     materialLinkedFiles,
     MaterialOpen,
+    MaterialOpenedCommand,
     materialOpenPlan,
     materialOriginKey,
     MaterialPinCommand,
+    MaterialPlace,
+    materialPlaceText,
+    MaterialsCardsMinWidth,
+    materialStateChip,
+    materialVisual,
     MaterialRenameCommand,
     MaterialRestoreCommand,
     MaterialsChanged,
@@ -274,6 +287,40 @@ function blockDefOf(plan: MaterialOpen): BlockDef {
         return { meta: { view: PreviewView, file: plan.path } as MetaType };
     }
     return null;
+}
+
+// Places already told to the registry in this window: the section reports what it sees each time it shows.
+const toldPlaces = new Set<string>();
+
+function samePlace(a: MaterialPlace, b: MaterialPlace): boolean {
+    return (
+        a != null &&
+        b != null &&
+        a.workspaceid === b.workspaceid &&
+        a.tabid === b.tabid &&
+        (a.workspace ?? "") === (b.workspace ?? "") &&
+        (a.view ?? "") === (b.view ?? "")
+    );
+}
+
+// The registry remembers the last view a material was open in, so a card can say where it lived once it is closed.
+function recordPlace(m: Material, place: MaterialPlace) {
+    if (m == null || !place?.workspaceid || !place.tabid || !place.view || samePlace(m.lastopened, place)) {
+        return;
+    }
+    const key = [m.project, m.id, place.workspaceid, place.tabid, place.workspace, place.view].join("\u0000");
+    if (toldPlaces.has(key)) {
+        return;
+    }
+    toldPlaces.add(key);
+    fireAndForget(async () => {
+        try {
+            await callMaterials(MaterialOpenedCommand, { project: m.project, id: m.id, place });
+        } catch (e) {
+            toldPlaces.delete(key);
+            console.log("library: material place", e);
+        }
+    });
 }
 
 // In the view the developer is in: after its panels, so to the right of the agent (DS-REV-012); nothing moves.
@@ -584,12 +631,28 @@ function RenameField({ m, onDone }: { m: Material; onDone: () => void }) {
     );
 }
 
-// "Open in 'Cadrage'" (AC8): the view's name as the sidebar shows it.
-function OpenInPill({ tabId }: { tabId: string }) {
-    const t = useT();
+// The view a material is open in, named as the sidebar names it, told to the registry as its last place.
+function useLivePlace(m: Material, tabId: string): { workspace: string; view: string } {
+    const workspace = useAtomValue(atoms.workspace);
     const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
-    const name = identity.name || t("library.panels.thisView");
+    const view = identity.name ?? "";
+    const wsId = workspace?.oid ?? "";
+    const wsName = workspace?.name ?? "";
+    useEffect(() => {
+        if (!tab || !view || !wsId) {
+            return;
+        }
+        recordPlace(m, { workspaceid: wsId, workspace: wsName, tabid: tabId, view });
+    }, [m, tab, tabId, view, wsId, wsName]);
+    return { workspace: wsName, view };
+}
+
+// "Open in 'Cadrage'" (AC8): the view's name as the sidebar shows it.
+function OpenInPill({ m, tabId }: { m: Material; tabId: string }) {
+    const t = useT();
+    const place = useLivePlace(m, tabId);
+    const name = place.view || t("library.panels.thisView");
     return (
         <span className="mt-lib-mat-form is-live" data-testid="library-material-open-in">
             {t("library.materials.openIn", { view: name })}
@@ -597,7 +660,37 @@ function OpenInPill({ tabId }: { tabId: string }) {
     );
 }
 
-function MaterialFacts({ m, timeOnly }: { m: Material; timeOnly: boolean }) {
+function PlaceText({ m, live }: { m: Material; live: { workspace: string; view: string } }) {
+    const t = useT();
+    const workspaceId = useAtomValue(atoms.workspaceId);
+    const place = materialPlaceText(m, live, workspaceId);
+    return (
+        <span
+            className={cn("mt-lib-card-place", place.live && "is-live")}
+            data-testid="library-material-place"
+            data-place={place.key.split(".").pop()}
+        >
+            {place.live ? <span className="mt-lib-card-dot" aria-hidden /> : null}
+            <span className="min-w-0 truncate">{t(place.key, place.vars)}</span>
+        </span>
+    );
+}
+
+function LivePlaceText({ m, tabId }: { m: Material; tabId: string }) {
+    const t = useT();
+    const live = useLivePlace(m, tabId);
+    return <PlaceText m={m} live={{ workspace: live.workspace, view: live.view || t("library.panels.thisView") }} />;
+}
+
+// Where the material lives, right under its title (#1546).
+function MaterialPlaceLine({ m, open }: { m: Material; open: ShownPanel }) {
+    if (open != null) {
+        return <LivePlaceText m={m} tabId={open.tabId} />;
+    }
+    return <PlaceText m={m} live={null} />;
+}
+
+function MaterialFacts({ m, timeOnly, withKind = true }: { m: Material; timeOnly: boolean; withKind?: boolean }) {
     const t = useT();
     const tc = useTCount();
     const locale = useLocale();
@@ -610,7 +703,7 @@ function MaterialFacts({ m, timeOnly }: { m: Material; timeOnly: boolean }) {
         : whenText(at, Date.now(), locale);
     const who = originKey ? t(`library.materials.origin.${originKey}`, { agent: m.agent ?? "" }) : (m.agent ?? "");
     const parts: React.ReactNode[] = [
-        t(`library.materials.kind.${m.kind}`),
+        withKind ? t(`library.materials.kind.${m.kind}`) : null,
         version > 1 ? t("library.materials.version", { n: version }) : null,
         m.kind === "video" || m.kind === "document" ? materialSizeText(m.size, locale) : null,
         who || null,
@@ -631,6 +724,171 @@ function MaterialFacts({ m, timeOnly }: { m: Material; timeOnly: boolean }) {
                 </span>
             ))}
         </span>
+    );
+}
+
+function formLabel(t: TFunction, form: MaterialForm, m: Material, locale: string): string {
+    const word = t(`library.materials.form.${form.key}`);
+    return form.warn && m.size ? `${word} · ${materialSizeText(m.size, locale)}` : word;
+}
+
+function primaryLabel(t: TFunction, open: ShownPanel, plan: MaterialOpen): string {
+    if (open) {
+        return t("library.materials.showIt");
+    }
+    return plan?.how === "folder" ? t("library.materials.menu.showInFolder") : t("library.materials.openInView");
+}
+
+// ---------- Cards (#1546, DS-MAT-010) ----------
+
+function MaterialVisualBox({ m }: { m: Material }) {
+    const visual = materialVisual(m);
+    const [failed, setFailed] = useState(false);
+    const src = visual.src ?? (visual.path ? logoUrl(getWebServerEndpoint(), visual.path) : "");
+    useEffect(() => {
+        setFailed(false);
+    }, [src]);
+    if (src && !failed) {
+        return <img className="mt-lib-card-img" src={src} alt="" draggable={false} onError={() => setFailed(true)} />;
+    }
+    const host = linkHost(m.link).replace(/^www\./, "");
+    return (
+        <span className="mt-lib-card-icon" aria-hidden>
+            <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} />
+            {host ? <span className="mt-lib-card-host">{host}</span> : null}
+        </span>
+    );
+}
+
+function MaterialCard({
+    m,
+    timeOnly,
+    selected,
+    renaming,
+    open,
+    handlers,
+    onSelect,
+    onRenameDone,
+    asked,
+    children,
+}: {
+    m: Material;
+    timeOnly: boolean;
+    selected: boolean;
+    renaming: boolean;
+    open: ShownPanel;
+    handlers: RowHandlers;
+    onSelect: () => void;
+    onRenameDone: () => void;
+    asked: boolean;
+    children?: React.ReactNode;
+}) {
+    const t = useT();
+    const locale = useLocale();
+    const chip = materialStateChip(m);
+    const plan = materialOpenPlan(m);
+    const title = materialDisplayTitle(m);
+    return (
+        <div
+            role="option"
+            tabIndex={selected ? 0 : -1}
+            aria-selected={selected}
+            aria-label={title}
+            className={cn("mt-lib-card", selected && "is-sel")}
+            title={m.link || m.copypath || m.original || m.title}
+            data-testid="library-material"
+            data-material-id={m.id}
+            data-kind={m.kind}
+            onClick={onSelect}
+            onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest?.(".mt-lib-card-title")) {
+                    handlers.onRename(m);
+                    return;
+                }
+                if ((e.target as HTMLElement).closest?.("button, [data-lib-escape]")) {
+                    return;
+                }
+                if (plan != null || open != null) {
+                    handlers.onOpen(m, plan);
+                }
+            }}
+            onContextMenu={(e) => {
+                onSelect();
+                showMaterialMenu(e, m, handlers, locale);
+            }}
+        >
+            <div className="mt-lib-card-vis">
+                <MaterialVisualBox m={m} />
+                <span className={cn("mt-lib-card-kind", `is-${m.kind}`)} data-testid="library-material-kind">
+                    <i className={makeIconClass(KindIcons[m.kind] ?? "file", true)} aria-hidden />
+                    {t(`library.materials.kind.${m.kind}`)}
+                </span>
+                {chip ? (
+                    <span
+                        className={cn("mt-lib-mat-form mt-lib-card-state", chip.warn && "is-warn")}
+                        data-testid="library-material-form"
+                    >
+                        {chip.key === "linkCopy" ? <i className={makeIconClass("cloud", true)} aria-hidden /> : null}
+                        {formLabel(t, chip, m, locale)}
+                    </span>
+                ) : null}
+                {!renaming ? (
+                    <div className="mt-lib-card-acts">
+                        {!asked && (open != null || plan != null) ? (
+                            <button
+                                type="button"
+                                className="mt-lib-mat-go molten-btn cursor-pointer rounded-4 px-2.5 py-1 text-12"
+                                tabIndex={selected ? 0 : -1}
+                                data-testid="library-material-open"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlers.onOpen(m, plan);
+                                }}
+                            >
+                                {primaryLabel(t, open, plan)}
+                                <MoltenWave />
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="mt-lib-mat-more"
+                            title={t("library.materials.actions")}
+                            aria-label={t("library.materials.actions")}
+                            tabIndex={selected ? 0 : -1}
+                            data-testid="library-material-more"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelect();
+                                showMaterialMenu(e, m, handlers, locale);
+                            }}
+                        >
+                            <i className={makeIconClass("ellipsis", true)} aria-hidden />
+                        </button>
+                    </div>
+                ) : null}
+            </div>
+            <div className="mt-lib-card-body">
+                {renaming ? (
+                    <RenameField m={m} onDone={onRenameDone} />
+                ) : (
+                    <div className="mt-lib-card-head">
+                        <b className="mt-lib-card-title mt-lib-mat-title">{title}</b>
+                        {m.pinned ? (
+                            <i
+                                className={cn(makeIconClass("thumbtack", true), "mt-lib-mat-pin")}
+                                title={t("library.materials.pinned")}
+                                aria-label={t("library.materials.pinned")}
+                            />
+                        ) : null}
+                    </div>
+                )}
+                <MaterialPlaceLine m={m} open={open} />
+                <span className="mt-lib-card-origin">
+                    <MaterialFacts m={m} timeOnly={timeOnly} withKind={false} />
+                </span>
+                {children}
+            </div>
+        </div>
     );
 }
 
@@ -660,15 +918,8 @@ function MaterialRow({
     const locale = useLocale();
     const form = materialForm(m);
     const plan = materialOpenPlan(m);
-    const formText =
-        form.warn && m.size
-            ? `${t(`library.materials.form.${form.key}`)} · ${materialSizeText(m.size, locale)}`
-            : t(`library.materials.form.${form.key}`);
-    const primary = open
-        ? t("library.materials.showIt")
-        : plan?.how === "folder"
-          ? t("library.materials.menu.showInFolder")
-          : t("library.materials.openInView");
+    const formText = formLabel(t, form, m, locale);
+    const primary = primaryLabel(t, open, plan);
     return (
         <div
             role="option"
@@ -700,7 +951,7 @@ function MaterialRow({
                 <RenameField m={m} onDone={onRenameDone} />
             ) : (
                 <span className="mt-lib-mat-tx">
-                    <b className="mt-lib-mat-title">{m.title || linkHost(m.link) || m.id}</b>
+                    <b className="mt-lib-mat-title">{materialDisplayTitle(m) || linkHost(m.link) || m.id}</b>
                     <MaterialFacts m={m} timeOnly={timeOnly} />
                 </span>
             )}
@@ -712,7 +963,7 @@ function MaterialRow({
                 />
             ) : null}
             {open ? (
-                <OpenInPill tabId={open.tabId} />
+                <OpenInPill m={m} tabId={open.tabId} />
             ) : (
                 <span className={cn("mt-lib-mat-form", form.warn && "is-warn")} data-testid="library-material-form">
                     {form.key === "linkCopy" ? <i className={makeIconClass("cloud", true)} aria-hidden /> : null}
@@ -757,9 +1008,10 @@ function MaterialRow({
 
 // Open in a view asks where, like Panels (AC7): the view the developer is in, or a new one; a pinned view says first
 // that the panel will change it (FR-SHELL-094).
-function WhereAsk({ plan, onCancel }: { plan: MaterialOpen; onCancel: () => void }) {
+function WhereAsk({ m, plan, onCancel }: { m: Material; plan: MaterialOpen; onCancel: () => void }) {
     const t = useT();
     const tabId = useAtomValue(atoms.staticTabId);
+    const workspace = useAtomValue(atoms.workspace);
     const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const viewState = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
@@ -792,7 +1044,15 @@ function WhereAsk({ plan, onCancel }: { plan: MaterialOpen; onCancel: () => void
                     type="button"
                     className="mt-lib-btn"
                     data-testid="library-material-ask-here"
-                    onClick={() => fireAndForget(() => openHere(plan))}
+                    onClick={() => {
+                        recordPlace(m, {
+                            workspaceid: workspace?.oid,
+                            workspace: workspace?.name,
+                            tabid: tabId,
+                            view: identity.name,
+                        });
+                        fireAndForget(() => openHere(plan));
+                    }}
                 >
                     {t("library.materials.inView", { view: viewName })}
                 </button>
@@ -880,6 +1140,30 @@ function useWorkspaceProjectName(): string {
     return name;
 }
 
+// Whether the section is wide enough for cards, read from its own width (the library's width varies with the window
+// and the sidebar, not only the screen).
+function useWideEnough(el: HTMLElement, min: number): boolean {
+    const [wide, setWide] = useState(false);
+    useLayoutEffect(() => {
+        if (el == null) {
+            return;
+        }
+        const measure = () => setWide(el.getBoundingClientRect().width >= min);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [el, min]);
+    return wide;
+}
+
+const ArrowMoves: Record<string, GridMove> = {
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+};
+
 export function MaterialsSection({ view, failed, query }: { view: MaterialsView; failed: boolean; query: string }) {
     const t = useT();
     const locale = useLocale();
@@ -892,6 +1176,8 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const [deleting, setDeleting] = useState<string>(null);
     const [recover, runRecover, dismissRecover] = useRecover(workspaceId);
     const listRef = useRef<HTMLDivElement>(null);
+    const [rootEl, setRootEl] = useState<HTMLDivElement>(null);
+    const cards = useWideEnough(rootEl, MaterialsCardsMinWidth);
     const shown = useMemo(() => filterMaterials(view?.materials, query), [view, query]);
     const groups = useMemo(() => groupMaterials(shown, Date.now(), locale), [shown, locale]);
     const order = groups.flatMap((g) => g.items);
@@ -945,13 +1231,28 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
         if (renaming != null || (e.target as HTMLElement).closest?.("[data-lib-escape]")) {
             return;
         }
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const move = ArrowMoves[e.key];
+        if (move != null && (cards || move === "up" || move === "down")) {
             e.preventDefault();
             if (order.length === 0) {
                 return;
             }
-            const i = order.findIndex((m) => m.id === current?.id);
-            const next = order[Math.min(order.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))];
+            const i = Math.max(
+                0,
+                order.findIndex((m) => m.id === current?.id)
+            );
+            let j: number;
+            if (cards) {
+                const rects: CardRect[] = order.map((m) => {
+                    const el = listRef.current?.querySelector<HTMLElement>(`[data-material-id="${CSS.escape(m.id)}"]`);
+                    const r = el?.getBoundingClientRect();
+                    return { left: r?.left ?? 0, top: r?.top ?? 0, width: r?.width ?? 0, height: r?.height ?? 0 };
+                });
+                j = gridNeighbor(rects, i, move);
+            } else {
+                j = Math.min(order.length - 1, Math.max(0, i + (move === "down" ? 1 : -1)));
+            }
+            const next = order[j];
             setSelected(next.id);
             focusRow(next.id);
             return;
@@ -970,7 +1271,13 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
         }
     };
     return (
-        <div className="flex flex-col gap-2" data-testid="library-materials" data-project={view.project?.key}>
+        <div
+            ref={setRootEl}
+            className="flex flex-col gap-2"
+            data-testid="library-materials"
+            data-project={view.project?.key}
+            data-layout={cards ? "cards" : "rows"}
+        >
             <div className="flex items-center gap-1.5">
                 <div className="mt-lib-mat-scope" data-testid="library-materials-scope">
                     {noProject || !projectName
@@ -1034,46 +1341,64 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                             <div className="mt-lib-day">
                                 {g.labelKey ? t(`library.materials.day.${g.labelKey}`) : g.label}
                             </div>
-                            {g.items.map((m) => (
-                                <div key={m.id} className="flex flex-col">
-                                    <MaterialRow
-                                        m={m}
-                                        timeOnly={g.timeOnly}
-                                        selected={m.id === current?.id}
-                                        renaming={renaming === m.id}
-                                        asked={asking?.id === m.id || deleting === m.id}
-                                        open={findOpenPanel(panels, m) as ShownPanel}
-                                        handlers={handlers}
-                                        onSelect={() => setSelected(m.id)}
-                                        onRenameDone={() => {
+                            <div className={cards ? "mt-lib-cards" : "contents"}>
+                                {g.items.map((m) => {
+                                    const asks = (
+                                        <>
+                                            {asking?.id === m.id ? (
+                                                <WhereAsk
+                                                    m={m}
+                                                    plan={asking.plan}
+                                                    onCancel={() => {
+                                                        setAsking(null);
+                                                        focusRow(m.id);
+                                                    }}
+                                                />
+                                            ) : null}
+                                            {deleting === m.id ? (
+                                                <DeleteAsk
+                                                    m={m}
+                                                    onCancel={() => {
+                                                        setDeleting(null);
+                                                        focusRow(m.id);
+                                                    }}
+                                                    onConfirm={() => {
+                                                        setDeleting(null);
+                                                        fireAndForget(() => deleteCopy(m));
+                                                    }}
+                                                />
+                                            ) : null}
+                                        </>
+                                    );
+                                    const props = {
+                                        m,
+                                        timeOnly: g.timeOnly,
+                                        selected: m.id === current?.id,
+                                        renaming: renaming === m.id,
+                                        asked: asking?.id === m.id || deleting === m.id,
+                                        open: findOpenPanel(panels, m) as ShownPanel,
+                                        handlers,
+                                        onSelect: () => setSelected(m.id),
+                                        onRenameDone: () => {
                                             setRenaming(null);
                                             focusRow(m.id);
-                                        }}
-                                    />
-                                    {asking?.id === m.id ? (
-                                        <WhereAsk
-                                            plan={asking.plan}
-                                            onCancel={() => {
-                                                setAsking(null);
-                                                focusRow(m.id);
-                                            }}
-                                        />
-                                    ) : null}
-                                    {deleting === m.id ? (
-                                        <DeleteAsk
-                                            m={m}
-                                            onCancel={() => {
-                                                setDeleting(null);
-                                                focusRow(m.id);
-                                            }}
-                                            onConfirm={() => {
-                                                setDeleting(null);
-                                                fireAndForget(() => deleteCopy(m));
-                                            }}
-                                        />
-                                    ) : null}
-                                </div>
-                            ))}
+                                        },
+                                    };
+                                    if (cards) {
+                                        return (
+                                            <MaterialCard key={m.id} {...props}>
+                                                {asks}
+                                            </MaterialCard>
+                                        );
+                                    }
+                                    return (
+                                        <div key={m.id} className="flex flex-col">
+                                            <MaterialRow {...props} />
+                                            {asks}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     ))}
                 </div>
