@@ -14,6 +14,7 @@
 // look is in library.css (.mt-reveal-*, .mt-ch-*).
 
 import {
+    cardTile,
     ChannelElements,
     ChannelNetwork,
     ChannelPx,
@@ -49,8 +50,33 @@ const Phase = {
     crackPeak: 165,
     crackEnd: 210,
     breakStart: 160,
+    // The icon tile (#1593): the molten rises in it to full, its hot layer cools to cast iron, then it fades as the
+    // card shows, leaving the tile's own look.
+    tileFull: 200,
+    tileCoolStart: 150,
+    tileCoolEnd: 230,
+    tileFadeStart: 200,
     end: RevealMs.afterArrival,
 } as const;
+
+// The wave on the molten's surface in a tile: its height, and its period as a share of the tile's width. The molten
+// body is two periods wide and drifts by one while it rises, so the surface travels without a seam.
+export const TileWave = {
+    height: 5,
+    periodOfWidth: 1,
+} as const;
+
+// The molten body of a tile's filling: from just under the tile (empty) to its surface above the tile's top (full),
+// drifting by one wave period.
+export function tileMeltFrames(tile: RevealRect): { empty: string; full: string; width: number; height: number } {
+    const period = tile.w * TileWave.periodOfWidth;
+    return {
+        empty: `translate(0px, ${tile.h}px)`,
+        full: `translate(${-period}px, ${-TileWave.height}px)`,
+        width: 2 * period,
+        height: tile.h + 2 * TileWave.height,
+    };
+}
 
 // Cards beyond this are shown at once: the reveal stays short and light on a long page.
 export const MaxRevealCards = 12;
@@ -528,6 +554,49 @@ export function runSettingsReveal(opts: RevealOptions): RevealHandle {
                     [A + Phase.crackEnd, { opacity: 0 }],
                 ]),
             ]);
+            const tile = els != null ? cardTile(card) : null;
+            if (tile != null) {
+                // A copy of the tile above the slab (the card, its tile included, is hidden until it breaks open):
+                // its own look and glyph, the molten rising behind the glyph. Removed with the overlay, leaving the
+                // real tile, which looks the same.
+                const tr = relativeRect(tile.getBoundingClientRect(), stageRect);
+                const ghost = tile.cloneNode(true) as HTMLElement;
+                ghost.classList.add("mt-reveal-tile");
+                for (const [k, v] of Object.entries(box(tr))) {
+                    ghost.style.setProperty(k, v);
+                }
+                const m = tileMeltFrames(tr);
+                const melt = piece(doc, "mt-reveal-melt", { width: `${m.width}px`, height: `${m.height}px` });
+                const meltHot = piece(doc, "mt-reveal-melt-hot");
+                melt.appendChild(meltHot);
+                ghost.prepend(melt);
+                frag.appendChild(ghost);
+                queue.push(
+                    [
+                        ghost,
+                        onClock(T, [
+                            [Math.max(0, A - 1), { opacity: 0 }],
+                            [A, { opacity: 1 }],
+                        ]),
+                    ],
+                    [
+                        melt,
+                        onClock(T, [
+                            [A, { transform: m.empty, opacity: 1, easing: "cubic-bezier(0.3, 0, 0.4, 1)" }],
+                            [A + Phase.tileFull, { transform: m.full, opacity: 1 }],
+                            [A + Phase.tileFadeStart, { transform: m.full, opacity: 1 }],
+                            [A + Phase.end, { transform: m.full, opacity: 0 }],
+                        ]),
+                    ],
+                    [
+                        meltHot,
+                        onClock(T, [
+                            [A + Phase.tileCoolStart, { opacity: 1 }],
+                            [A + Phase.tileCoolEnd, { opacity: 0 }],
+                        ]),
+                    ]
+                );
+            }
             queue.push([
                 card,
                 onClock(T, [

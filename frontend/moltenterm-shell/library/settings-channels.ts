@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The channels of the molten reveal (FR-SHELL-088, DS-SHELL-138, #1549): tidy pipework, as if dug by dwarves, from
-// the open block's chip in the row to the top edge of each card of the block. Straight runs, right angles and rounded
+// the open block's chip in the row to each card of the block, into its icon tile (#1593). Straight runs, right angles and rounded
 // elbows: a lane under the row, a spine down the page's left margin, a manifold above the first cards, a gutter down
 // each column and a short drop into each card. The routes share their common parts, so the network is a tree, split
 // at every junction and drawn once.
@@ -22,6 +22,10 @@ export const ChannelPx = {
     elbow: 8,
     // Above the cards: the manifold, and the lane of a lower card in the gap above it.
     aboveCard: 16,
+    // The manifold above the highest icon tile (#1593): the tiles rise into the band under the page's header.
+    aboveTile: 12,
+    // The still glow where a channel enters a tile: its radius.
+    entryGlow: 12,
     // The source's drop starts under the row, hidden by it.
     sourceDrop: 20,
     // Runs shorter than this carry no ambient flow (an elbow's stub, a T's stub).
@@ -50,6 +54,8 @@ export type ChannelLayout = {
     page: ChannelRect;
     // The cards to reach, in the page's order.
     cards: ChannelRect[];
+    // Per card, its icon tile (overhanging its top-left corner), or null: a channel ends in the tile (#1593).
+    tiles?: ChannelRect[];
 };
 
 // A straight piece of the network between two junctions (or an elbow's end), in the direction of the flow. d0 and d1
@@ -118,47 +124,55 @@ export function simplifyRoute(points: ChannelPoint[]): ChannelPoint[] {
     return out;
 }
 
-// The gap between two columns of cards (the masonry's), 32 px when there is a single column.
-function columnGap(cards: ChannelRect[]): number {
+// The free space left of a card's left edge (or its tile's) up to the nearest card of the column on its left: the
+// masonry's gap, less the tile's overhang. 32 px when there is a single column.
+function gapLeft(card: ChannelRect, x: number, cards: ChannelRect[]): number {
     let gap = Infinity;
-    for (const a of cards) {
-        for (const b of cards) {
-            const g = b.x - (a.x + a.w);
-            if (g > 0 && g < gap) {
-                gap = g;
-            }
+    for (const c of cards) {
+        const g = x - (c.x + c.w);
+        if (c !== card && c.x + c.w <= card.x && g > 0 && g < gap) {
+            gap = g;
         }
     }
-    return Number.isFinite(gap) ? gap : 32;
+    return Number.isFinite(gap) ? gap : 2 * ChannelPx.aboveCard;
 }
 
 // The routes, one per card: from under the chip, along the lane under the row to the left margin, down the spine to
 // the manifold above the first cards, along it to the card's column, down the column's gutter to the gap above the
-// card, along that gap to the card's middle, and down into its top edge. A card of the first row branches off the
-// manifold directly. Nothing crosses the page's header: the spine runs in the margin, left of it.
+// card, along that gap to its entry, and down into it. A card of the first row branches off the manifold directly.
+// Nothing crosses the page's header: the spine runs in the margin, left of it.
+//
+// The entry is the middle of the card's icon tile's top edge when it has one (#1593), the middle of the card's top edge
+// otherwise. A tile overhangs its card's top-left corner, so the obstacle is the card with its tile: the spine, the
+// gutters and the lanes run in the middle of the free space left beside and above the tiles, never under one.
 export function channelRoutes(layout: ChannelLayout): ChannelPoint[][] {
     const { chip, page, cards } = layout;
     if (cards.length === 0) {
         return [];
     }
-    const left = Math.min(...cards.map((c) => c.x));
-    const top = Math.min(...cards.map((c) => c.y));
-    const half = Math.min(ChannelPx.aboveCard, (left - page.x) / 2);
-    const spineX = left - half;
-    const gutter = Math.min(ChannelPx.aboveCard, columnGap(cards) / 2);
+    const tiles = cards.map((_, i) => layout.tiles?.[i] ?? null);
+    const outer = cards.map((c, i) => ({
+        x: Math.min(c.x, tiles[i]?.x ?? c.x),
+        y: Math.min(c.y, tiles[i]?.y ?? c.y),
+    }));
+    const left = Math.min(...outer.map((o) => o.x));
+    const top = Math.min(...outer.map((o) => o.y));
+    const spineX = left - Math.min(ChannelPx.aboveCard, (left - page.x) / 2);
     const laneY = page.y;
-    const manifoldY = top - ChannelPx.aboveCard;
+    const manifoldY = top - (tiles.some((t) => t != null) ? ChannelPx.aboveTile : ChannelPx.aboveCard);
     const sourceX = chip.x + chip.w / 2;
-    return cards.map((card) => {
-        const x = card.x + card.w / 2;
-        const firstRow = card.y <= top + 2;
-        const columnX = card.x <= left + 2 ? spineX : card.x - gutter;
+    return cards.map((card, i) => {
+        const tile = tiles[i];
+        const o = outer[i];
+        const entry = tile != null ? { x: tile.x + tile.w / 2, y: tile.y } : { x: card.x + card.w / 2, y: card.y };
+        const firstRow = o.y <= top + 2;
+        const columnX = o.x <= left + 2 ? spineX : o.x - Math.min(ChannelPx.aboveCard, gapLeft(card, o.x, cards) / 2);
         // The nearest card above in the same column bounds the gap the lane runs in.
         const above = cards
             .filter((c) => c !== card && c.y + c.h <= card.y && c.x < card.x + card.w && card.x < c.x + c.w)
             .reduce((m, c) => Math.max(m, c.y + c.h), -Infinity);
-        const gapAbove = Number.isFinite(above) ? card.y - above : 2 * ChannelPx.aboveCard;
-        const laneAbove = firstRow ? manifoldY : card.y - Math.min(ChannelPx.aboveCard, gapAbove / 2);
+        const gapAbove = Number.isFinite(above) ? o.y - above : 2 * ChannelPx.aboveCard;
+        const laneAbove = firstRow ? manifoldY : o.y - Math.min(ChannelPx.aboveCard, gapAbove / 2);
         return simplifyRoute([
             { x: sourceX, y: laneY - ChannelPx.sourceDrop },
             { x: sourceX, y: laneY },
@@ -166,8 +180,8 @@ export function channelRoutes(layout: ChannelLayout): ChannelPoint[][] {
             { x: spineX, y: manifoldY },
             { x: columnX, y: manifoldY },
             { x: columnX, y: laneAbove },
-            { x, y: laneAbove },
-            { x, y: card.y },
+            { x: entry.x, y: laneAbove },
+            entry,
         ]);
     });
 }
@@ -381,8 +395,15 @@ export function motionLive(doc: Document): boolean {
 }
 
 // Draws the network into the (emptied) layer: the static groove, a container for the reveal's molten, and the ambient
-// flow (the bed, still, and a moving tile per long enough run), started on the grid or paused with the view.
-export function drawChannels(layer: HTMLElement, net: ChannelNetwork, size: { w: number; h: number }): ChannelElements {
+// flow (the bed, still, and a moving tile per long enough run), started on the grid or paused with the view. Each
+// point of `glows` (a channel's end at an icon tile, #1593) gets a faint, still glow in the ambient container: the
+// tile covers most of it, the rest shows at the tile's top edge; the tile itself is never kept full.
+export function drawChannels(
+    layer: HTMLElement,
+    net: ChannelNetwork,
+    size: { w: number; h: number },
+    glows: ChannelPoint[] = []
+): ChannelElements {
     const doc = layer.ownerDocument;
     layer.replaceChildren();
     const path = networkPath(net);
@@ -419,6 +440,10 @@ export function drawChannels(layer: HTMLElement, net: ChannelNetwork, size: { w:
             ambientAnims.push(anim);
         }
     }
+    for (const p of glows) {
+        const r = ChannelPx.entryGlow;
+        ambient.appendChild(div(doc, "mt-ch-entry-glow", { x: p.x - r, y: p.y - r, w: 2 * r, h: 2 * r }));
+    }
     layer.append(groove, molten, ambient);
     for (const a of ambientAnims) {
         a.startTime = snappedStart(now);
@@ -452,11 +477,24 @@ export function readLayout(opts: Pick<ChannelsOptions, "stage" | "page" | "chip"
     const origin = opts.stage.getBoundingClientRect();
     const chip = opts.chip();
     const page = relRect(opts.page.getBoundingClientRect(), origin);
+    const cards = opts.cards();
     return {
         chip: chip != null ? relRect(chip.getBoundingClientRect(), origin) : { x: page.x + 40, y: 0, w: 0, h: 0 },
         page,
-        cards: opts.cards().map((c) => relRect(c.getBoundingClientRect(), origin)),
+        cards: cards.map((c) => relRect(c.getBoundingClientRect(), origin)),
+        tiles: cards.map((c) => {
+            const tile = cardTile(c);
+            return tile != null ? relRect(tile.getBoundingClientRect(), origin) : null;
+        }),
     };
+}
+
+// A settings card's own icon tile (a nested block's tile is not the card's).
+export function cardTile(card: Element): HTMLElement {
+    if (typeof card?.querySelector !== "function") {
+        return null;
+    }
+    return card.querySelector<HTMLElement>(":scope > .df-icon-tile");
 }
 
 // The channels while a block is open: laid out now, again when the stage changes size, the ambient flow paused while
@@ -472,13 +510,15 @@ export function mountChannels(opts: ChannelsOptions): ChannelsHandle {
     const layout = () => {
         const rect = stage.getBoundingClientRect();
         size = { w: rect.width, h: rect.height };
-        net = channelNetwork(channelRoutes(readLayout(opts)));
+        const read = readLayout(opts);
+        net = channelNetwork(channelRoutes(read));
         if (els != null) {
             for (const a of els.ambientAnims) {
                 a.cancel();
             }
         }
-        els = drawChannels(layer, net, size);
+        const glows = net.entries.filter((_, i) => read.tiles?.[i] != null);
+        els = drawChannels(layer, net, size, glows);
     };
     layout();
     const view = doc.defaultView as Window & typeof globalThis;
