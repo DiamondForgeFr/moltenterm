@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InlineCodeText, splitInlineCode } from "./inline-code";
 import { displayActions, GoToTerminalLabel, MoltentermNotification } from "./notifications-model";
 import {
+    bellOrder,
     checkQuestion,
     goneNotificationToasts,
     makeToast,
@@ -16,6 +17,7 @@ import {
     pushToast,
     Toast,
     toastActionsOf,
+    toastStackPlace,
     toneOf,
 } from "./toast-model";
 import { ToastStack } from "./toast-stack";
@@ -82,6 +84,63 @@ describe("toast stack (FR-SHELL-055 AC1)", () => {
     });
 });
 
+describe("the stack comes from the bell (#1403)", () => {
+    it("sits under the bell's row, one frame margin right of a docked or floating sidebar", () => {
+        expect(
+            toastStackPlace({ windowWidth: 2000, frameGap: 8, bellBottom: 34, bellRight: 264, sidebarRight: 272 })
+        ).toEqual({ top: 40, left: 280, width: 360 });
+    });
+
+    it("keeps the frame margin when the sidebar is hidden off the window's edge", () => {
+        expect(
+            toastStackPlace({ windowWidth: 1000, frameGap: 8, bellBottom: 34, bellRight: -20, sidebarRight: -24 })
+        ).toEqual({ top: 40, left: 8, width: 360 });
+    });
+
+    it("narrows in a small window instead of running past its right edge", () => {
+        const place = toastStackPlace({ windowWidth: 600, frameGap: 8, bellBottom: 34, sidebarRight: 300 });
+        expect(place.left + place.width).toBeLessThanOrEqual(600 - 8);
+    });
+
+    it("hangs under a bell that is not in the sidebar, inside the window", () => {
+        const place = toastStackPlace({ windowWidth: 1200, frameGap: 0, bellBottom: 30, bellRight: 1100 });
+        expect(place).toEqual({ top: 36, left: 1100 - 360, width: 360 });
+    });
+
+    it("falls back to the window row's height without a bell", () => {
+        expect(toastStackPlace({ windowWidth: 1280, frameGap: 8 }).top).toBe(40);
+    });
+
+    it("shows the newest toast first, nearest the bell", () => {
+        let stack: Toast[] = [];
+        for (const id of ["a", "b", "c"]) {
+            stack = pushToast(stack, toast(id)).stack;
+        }
+        expect(bellOrder(stack).map((t) => t.id)).toEqual(["c", "b", "a"]);
+    });
+
+    it("lets long labels wrap inside their buttons and the actions wrap to a new row", () => {
+        Toasts.resetInstance();
+        showToast({
+            title: "Un terminal veut garder cet ordinateur éveillé",
+            actions: [
+                { id: "a", label: "Ouvrir un terminal à cet endroit", run: () => {} },
+                { id: "b", label: "Ouvrir le panneau Intégration", run: () => {} },
+            ],
+        });
+        const html = renderToStaticMarkup(<ToastStack onOpenCenter={() => {}} />);
+        expect(html).toContain("flex flex-wrap items-center gap-1");
+        const buttons = html.match(/<button type="button"[^>]*>Ouvrir[^<]*<\/button>/g);
+        expect(buttons).toHaveLength(2);
+        for (const button of buttons) {
+            expect(button).toContain("min-h-6");
+            expect(button).toContain("whitespace-normal");
+            expect(button).not.toMatch(/[" ]h-6[" ]/);
+        }
+        expect(html).not.toContain("truncate");
+    });
+});
+
 describe("toast store", () => {
     beforeEach(() => Toasts.resetInstance());
 
@@ -99,6 +158,18 @@ describe("toast store", () => {
         model.clearNotificationToasts();
         expect(model.stack()).toEqual([]);
         expect(globalStore.get(model.collapsedAtom)).toBe(0);
+    });
+
+    it("pulses the bell only for a notification's toast that times out (#1403)", () => {
+        const model = Toasts.getInstance();
+        showToast({ id: "n", title: "n", notificationId: "n" });
+        showToast({ id: "p", title: "p" });
+        showToast({ id: "u", title: "u", notificationId: "u" });
+        model.dismiss("p", "timeout");
+        model.dismiss("u", "user");
+        expect(globalStore.get(model.landedAtom)).toBe(0);
+        model.dismiss("n", "timeout");
+        expect(globalStore.get(model.landedAtom)).toBe(1);
     });
 
     it("lets a caller push its own question with two actions (#413)", () => {
@@ -253,7 +324,14 @@ describe("a question's answers in a toast (#595)", () => {
         const question = entry("q", { kind: "warning", actions: [answer("once"), answer("always"), answer("block")] });
         expect(checkQuestion(question)).toBe(true);
         expect(toastActionsOf(question).map((a) => a.id)).toEqual(["once", "always", "block"]);
-        const shown = makeToast({ title: "q", question: true, actions: toastActionsOf(question).map((a) => ({ id: a.id, label: a.label, run: () => {} })) }, "q");
+        const shown = makeToast(
+            {
+                title: "q",
+                question: true,
+                actions: toastActionsOf(question).map((a) => ({ id: a.id, label: a.label, run: () => {} })),
+            },
+            "q"
+        );
         expect(shown.actions).toHaveLength(MaxToastAnswers);
     });
 
