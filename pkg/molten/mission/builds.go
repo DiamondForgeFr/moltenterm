@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,9 +24,10 @@ import (
 // local CI when the build asks for it, runs its prepare command, then starts the build command detached as any run.
 
 const (
-	buildPrepareTimeout = 15 * time.Minute
-	buildCiPoll         = time.Second
-	ManifestFileName    = "manifest.json"
+	buildPrepareTimeout   = 15 * time.Minute
+	buildCiPoll           = time.Second
+	ManifestFileName      = "manifest.json"
+	maxBuildManifestBytes = 1 << 20
 )
 
 func findBuild(p *molten.Pipeline, id string) molten.PipelineBuild {
@@ -462,11 +464,28 @@ func buildManifestPath(dir string, build molten.PipelineBuild) string {
 }
 
 func readBuildManifest(path string) *BuildManifest {
+	return readBuildManifestWithOpener(path, openBuildManifest)
+}
+
+func readBuildManifestWithOpener(path string, open func(string) (*os.File, error)) *BuildManifest {
 	if path == "" {
 		return nil
 	}
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) > 1<<20 {
+	before, err := os.Stat(path)
+	if err != nil || !before.Mode().IsRegular() || before.Size() > maxBuildManifestBytes {
+		return nil
+	}
+	f, err := open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	after, err := f.Stat()
+	if err != nil || !after.Mode().IsRegular() || !os.SameFile(before, after) || after.Size() > maxBuildManifestBytes {
+		return nil
+	}
+	data := readBuildManifestBytes(f)
+	if data == nil {
 		return nil
 	}
 	var m BuildManifest
@@ -474,6 +493,14 @@ func readBuildManifest(path string) *BuildManifest {
 		return nil
 	}
 	return &m
+}
+
+func readBuildManifestBytes(r io.Reader) []byte {
+	data, err := io.ReadAll(io.LimitReader(r, maxBuildManifestBytes+1))
+	if err != nil || len(data) > maxBuildManifestBytes {
+		return nil
+	}
+	return data
 }
 
 // BuildsFacts reads the declared builds, their last delivered build and the CI's say on the trunk; fresh fetches the
