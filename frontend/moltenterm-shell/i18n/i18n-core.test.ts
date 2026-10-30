@@ -42,8 +42,8 @@ describe("French typography (#1379)", () => {
     });
 
     it("sets a no-break space before the label colon in French only", () => {
-        expect(labelled("fr", "Thème", "Default Dark")).toBe("Thème : Default Dark");
-        expect(labelled("fr-CA", "Thème", "Default Dark")).toBe("Thème : Default Dark");
+        expect(labelled("fr", "Thème", "Default Dark")).toBe("Thème\u00a0: Default Dark");
+        expect(labelled("fr-CA", "Thème", "Default Dark")).toBe("Thème\u00a0: Default Dark");
         expect(labelled("en", "Theme", "Default Dark")).toBe("Theme: Default Dark");
     });
 });

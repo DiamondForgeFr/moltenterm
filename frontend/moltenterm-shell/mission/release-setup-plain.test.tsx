@@ -243,7 +243,7 @@ const fr = (key: string, vars?: Record<string, string | number>) => translate("f
 const en = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
 
 function summary(steps: PlainStep[]) {
-    return steps.map((s) => `${s.n}:${s.kind}:${s.who}${s.ifNeeded ? ":ifNeeded" : ""}${s.yours ? ":yours" : ""}`);
+    return steps.map((s) => `${s.n}:${s.kind}:${s.who}${s.ifNeeded ? ":ifNeeded" : ""}${s.yours ? ":yours" : ""}`);
 }
 
 const Forbidden = [
@@ -282,7 +282,7 @@ describe("Your way of publishing (FR-MC-044)", () => {
         expect(rc.steps.map((s) => stepText(fr, s))).toEqual([
             "On part de develop et on crée la version candidate, par exemple 1.1.0-1, avec le nouveau numéro partout où il apparaît.",
             "Vous écrivez ce qui change dans le journal des changements, en anglais et en français.",
-            "On marque la version candidate, v1.1.0-1. Rien n’est publié : ni master ni develop ne bougent.",
+            "On marque la version candidate, v1.1.0-1. Rien n’est publié\u00a0: ni master ni develop ne bougent.",
         ]);
     });
 
@@ -429,9 +429,9 @@ describe("Your way of publishing (FR-MC-044)", () => {
             expect(html).not.toContain("ALL-CHOICES");
             expect(html).toContain('data-testid="plain-technical"');
             expect(html).not.toMatch(/<details[^>]*open/);
-            expect(text).toContain(lang === "fr" ? "Votre façon de publier" : "Your way of publishing");
-            expect(text).toContain(lang === "fr" ? "Voir les détails techniques" : "Show the technical details");
-            expect(text).toContain(lang === "fr" ? "C’est bien ça" : "That's right");
+            expect(text).toContain(lang === "fr" ? "Votre façon de publier" : "Your way of publishing");
+            expect(text).toContain(lang === "fr" ? "Voir les détails techniques" : "Show the technical details");
+            expect(text).toContain(lang === "fr" ? "C’est bien ça" : "That's right");
             expect(html.match(/data-testid="plain-step-rc-/g)).toHaveLength(3);
             expect(html.match(/data-testid="plain-step-public-/g)).toHaveLength(8);
         });

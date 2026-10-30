@@ -221,7 +221,7 @@ describe("closePlanView", () => {
             const v = closePlanView(
                 plan({ refused: "the home folder", refusedtext: { code: "worktree.refused.home" } })
             );
-            expect(v.blockedReason).toBe("MoltenTerm ne supprime pas ce dossier : c'est le dossier personnel.");
+            expect(v.blockedReason).toBe("MoltenTerm ne supprime pas ce dossier\u00a0: c'est le dossier personnel.");
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }

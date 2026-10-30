@@ -34,7 +34,7 @@ function pr(over: Partial<ReviewPr> = {}, checks: ReviewCheck[] = Green): Review
         updatedat: "",
         merge: "clean",
         ci: {
-            state: failure > 0 ? "failure" : pending > 0 ? "pending" : checks.length > 0 ? "success" : "none",
+            state: failure > 0 ? "failure" : pending > 0 ? "pending" : checks.length > 0 ? "success" : "none",
             success: count("success"),
             failure,
             pending,
@@ -74,7 +74,7 @@ function words(input: Partial<CardInput> & { pr: ReviewPr }) {
         why: wordPhrase(s.why),
         primary: wordPhrase(s.primary?.label),
         molten: s.molten,
-        menu: s.menu.map((a) => (a.disabled ? `${wordPhrase(a.label)} (off)` : wordPhrase(a.label))),
+        menu: s.menu.map((a) => (a.disabled ? `${wordPhrase(a.label)} (off)` : wordPhrase(a.label))),
         facts: s.facts.map((f) => wordPhrase(f.text)),
         history: wordPhrase(s.history),
     };
@@ -569,7 +569,7 @@ describe("in French", () => {
 
     it("names the ticket's other branches (#1172)", () => {
         expect(words({ pr: pr(), others: [{ branch: "test/1101-local" }] }).facts).toContain(
-            "aussi sur ce ticket : la branche test/1101-local"
+            "aussi sur ce ticket\u00a0: la branche test/1101-local"
         );
     });
 
@@ -580,12 +580,12 @@ describe("in French", () => {
         expect(words({ pr: pr({ draft: true }) }).primary).toBe("Passer en revue");
         expect(words({ pr: pr() }).sentence).toBe("Prête à fusionner");
         expect(words({ pr: pr({ merge: "conflicts" }) }).primary).toBe("Confier le rebase");
-        expect(words(Cases[5].input).sentence).toBe("CI en échec : Backend");
+        expect(words(Cases[5].input).sentence).toBe("CI en échec\u00a0: Backend");
         expect(
             words({ pr: pr({ draft: true }, [...Green, { name: "E2E", state: "pending" }]), agents: [Nathan] }).facts
         ).toContain("CI 4/5, 1 en cours");
         expect(words({ pr: pr({}, [...Green, { name: "E2E", state: "neutral" }]) }).facts).toContain(
-            "CI 4/5, ignorées : 1"
+            "CI 4/5, ignorées\u00a0: 1"
         );
     });
 });

@@ -127,7 +127,7 @@ func TestBuildWelcomeBackOrderAndText(t *testing.T) {
 		t.Errorf("worded message\n%q\nwant\n%q", got, input.Message)
 	}
 	fr := loadWbLocale(t, "fr")
-	if got := wordWb(t, fr, done.TextText); got != "moltenterm · Claude Code · dans feature/12-x, en cours depuis 2 h 10 min : terminé" {
+	if got := wordWb(t, fr, done.TextText); got != "moltenterm · Claude Code · dans feature/12-x, en cours depuis 2 h 10 min\u00a0: terminé" {
 		t.Errorf("French line %q", got)
 	}
 }

@@ -181,7 +181,7 @@ describe("the setup's agent board (FR-MC-045)", () => {
         expect(html).toContain("Proposé par Olivia");
         expect(html).toContain('data-testid="plain-step-proposal"');
         expect(html).toContain("Vous vérifiez le site à la main après chaque version.");
-        expect(html).toContain("Réponse proposée : Non, la confirmation suffit.");
+        expect(html).toContain("Réponse proposée\u00a0: Non, la confirmation suffit.");
         expect(html).toContain("Étape 2");
         expect(html).toContain('data-testid="board-accept"');
         expect(html).toContain('data-testid="board-decline"');

@@ -183,7 +183,7 @@ export function resolveKey(dict: Dictionary, key: string): string | undefined {
 // "label: value" in the language's typography: French sets a no-break space before the colon (U+00A0, the same as the
 // dictionary's), so the colon never starts a line.
 export function labelled(locale: string, label: string, value: string): string {
-    const space = /^fr(-|$)/i.test(locale ?? "") ? " " : "";
+    const space = /^fr(-|$)/i.test(locale ?? "") ? "\u00a0" : "";
     return `${label}${space}: ${value}`;
 }
 

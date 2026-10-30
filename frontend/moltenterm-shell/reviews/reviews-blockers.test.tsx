@@ -22,7 +22,7 @@ function pr(over: Partial<ReviewPr> = {}, checks: ReviewCheck[] = []): ReviewPr 
         createdat: "",
         updatedat: "",
         merge: "clean",
-        ci: { state: failure > 0 ? "failure" : "success", success: 0, failure, pending: 0, checks },
+        ci: { state: failure > 0 ? "failure" : "success", success: 0, failure, pending: 0, checks },
         report: { state: "present" },
         unpublished: 0,
         ...over,
@@ -68,7 +68,7 @@ describe("the blockers in French", () => {
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
     it("words the blockers", () => {
         expect(blockersText(pr({ merge: "behind" }, [LocalE2e]))).toBe(
-            "en retard sur develop : rebase, CI locale en échec : local-e2e"
+            "en retard sur develop\u00a0: rebase, CI locale en échec\u00a0: local-e2e"
         );
     });
 });

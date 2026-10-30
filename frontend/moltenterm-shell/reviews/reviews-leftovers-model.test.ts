@@ -56,7 +56,7 @@ describe("after-PR wording (#1088)", () => {
             "after #4 was merged: new commits"
         );
         expect(afterPrText(fr, branch({ afterpr: 4, afterstate: "merged", aftercount: 2 }))).toBe(
-            "après la fusion de #4 : 2 nouveaux commits"
+            "après la fusion de #4\u00a0: 2 nouveaux commits"
         );
     });
 
@@ -189,7 +189,7 @@ describe("what else a done PR left (#1121)", () => {
             "local branch fix/126-external-org",
         ]);
         expect(leftoverParts(fr, { ...closed, lock: "held" }, [])[0].text).toBe(
-            "worktree agent-126, verrouillé : le nettoyage le conserve"
+            "worktree agent-126, verrouillé\u00a0: le nettoyage le conserve"
         );
         const copies: UpcomingLeftover = {
             branch: "feature/164-x",
@@ -227,10 +227,10 @@ describe("what else a done PR left (#1121)", () => {
             "Left as it is: the session that locked the worktree is still running.",
         ]);
         expect(cleanupNotes(fr, res, closed)).toEqual([
-            "pr164, pr-164 conservées : elles contiennent des commits absents de la pull request et de la branche de base.",
-            "Conservée : fix/126-external-org contient des commits absents de develop.",
-            "Conservée : origin/fix/126-external-org contient des commits absents de develop.",
-            "Laissé tel quel : la session qui a verrouillé le worktree tourne encore.",
+            "pr164, pr-164 conservées\u00a0: elles contiennent des commits absents de la pull request et de la branche de base.",
+            "Conservée\u00a0: fix/126-external-org contient des commits absents de develop.",
+            "Conservée\u00a0: origin/fix/126-external-org contient des commits absents de develop.",
+            "Laissé tel quel\u00a0: la session qui a verrouillé le worktree tourne encore.",
         ]);
         expect(cleanedUp(res)).toBe(false);
     });
