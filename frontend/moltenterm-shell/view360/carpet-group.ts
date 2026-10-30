@@ -8,6 +8,7 @@
 // panels that come in numbers; terminals stay where they are, the agent alone on the left.
 
 import type { LayoutNode } from "@/layout/lib/types";
+import { MoltentermBrowserView } from "../browser/browser-model";
 import { canPinBeside, type PinMode } from "./carpet-model";
 import { columnBlockIds, columnPin, GroupPinOrigin, handPins, type TabPins } from "./pin-model";
 
@@ -15,8 +16,8 @@ export const GroupAll = "all";
 export const GroupPages = "pages";
 export type CarpetGroup = typeof GroupAll | typeof GroupPages;
 
-// A page is a browser panel (FR-SHELL-083).
-export const PageView = "web";
+// A page is a browser panel (FR-SHELL-083), Moltenterm's or Wave's own.
+export const PageViews: ReadonlySet<string> = new Set([MoltentermBrowserView, "web"]);
 
 export function readGroup(raw: unknown): CarpetGroup {
     return raw === GroupPages ? GroupPages : GroupAll;
@@ -25,7 +26,7 @@ export function readGroup(raw: unknown): CarpetGroup {
 // A column is a page when every panel in it is one: a column holding anything else is not flipped through as a tab.
 export function isPageColumn(column: LayoutNode, viewOf: (blockId: string) => string): boolean {
     const ids = columnBlockIds(column);
-    return ids.length > 0 && ids.every((id) => viewOf(id) === PageView);
+    return ids.length > 0 && ids.every((id) => PageViews.has(viewOf(id)));
 }
 
 export type GroupColumns = { pages: LayoutNode[]; others: LayoutNode[] };
@@ -56,25 +57,35 @@ export function groupOffered(columns: LayoutNode[], pins: TabPins, viewOf: (bloc
 
 export type GroupPin = { blockId: string; mode: PinMode };
 
+// Whether the pages keep one readable place once the fixed zone holds these beside columns (their widths, the
+// developer's first). Without it, only the half-window rule decides.
+export type BesideRoom = (besideWidthsPx: number[]) => boolean;
+
 // Where the grouping pins each other column (AC2), in the tree's order: beside the agent while one more beside column
-// fits within half of the window (the developer's beside pins counted first), under the agent once it does not.
+// fits within half of the window (the developer's beside pins counted first) and the pages keep a readable place,
+// under the agent once it does not.
 export function groupPinPlan(
     columns: LayoutNode[],
     pins: TabPins,
     viewOf: (blockId: string) => string,
-    widthPx: number
+    widthPx: number,
+    room?: { handBesidePx: number[]; widthOf: (column: LayoutNode) => number; fits: BesideRoom }
 ): GroupPin[] {
     const hand = handPins(pins);
     let beside = Object.values(hand).filter((p) => p.mode === "beside").length;
+    const besidePx = [...(room?.handBesidePx ?? [])];
     const plan: GroupPin[] = [];
     for (const column of groupColumns(columns, pins, viewOf).others) {
         const blockId = columnBlockIds(column)[0];
         if (blockId == null) {
             continue;
         }
-        const mode: PinMode = canPinBeside(widthPx, beside) ? "beside" : "stacked";
-        if (mode === "beside") {
+        const px = room?.widthOf(column);
+        const fits = canPinBeside(widthPx, beside) && (room == null || room.fits([...besidePx, px]));
+        const mode: PinMode = fits ? "beside" : "stacked";
+        if (fits) {
             beside++;
+            besidePx.push(px);
         }
         plan.push({ blockId, mode });
     }
@@ -88,13 +99,14 @@ export function groupedPins(
     columns: LayoutNode[],
     pins: TabPins,
     viewOf: (blockId: string) => string,
-    widthPx: number
+    widthPx: number,
+    room?: Parameters<typeof groupPinPlan>[4]
 ): TabPins {
     const rtn = handPins(pins);
     if (group !== GroupPages) {
         return rtn;
     }
-    for (const { blockId, mode } of groupPinPlan(columns, pins, viewOf, widthPx)) {
+    for (const { blockId, mode } of groupPinPlan(columns, pins, viewOf, widthPx, room)) {
         rtn[blockId] = { mode, by: GroupPinOrigin };
     }
     return rtn;

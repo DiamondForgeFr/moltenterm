@@ -37,7 +37,7 @@ vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
 vi.mock("../toast-store", () => ({ showToast: vi.fn(() => "toast:1") }));
 // Panels whose id starts with "p" are pages; "a" is the agent's terminal, the others are other panels.
 vi.mock("../panel-size/panel-size-store", () => ({
-    cachedBlockView: (blockId: string) => (blockId?.startsWith("b-p") ? "web" : blockId === "b-a" ? "term" : "other"),
+    cachedBlockView: (blockId: string) => (blockId?.startsWith("b-p") ? "molten-browser" : blockId === "b-a" ? "term" : "other"),
     currentPanelSizes: () => ({}),
     currentFirstColumnFloorPx: () => null,
     clearFirstColumnFloor: vi.fn(),
@@ -151,6 +151,14 @@ describe("360 on the pages in the model (FR-SHELL-124)", () => {
         expect(fixedIds(model)).toEqual(["a:first", "int:stacked", "files:stacked"]);
         expect(carpetIds(model)).toEqual(["p1", "p2"]);
         expect(vi.mocked(showToast).mock.calls.every((c) => c[0].id !== "view360-pin-refused")).toBe(true);
+    });
+
+    it("pins under the agent when beside fits half of the window but leaves the pages no readable place", () => {
+        const { model, pass } = makeModel(rowOf("a", "p1", "int", "p2"));
+        const mid = { ...Wide, width: 1356 };
+        pass(mid);
+        expect(model.groupPlan().map((p) => p.mode)).toEqual(["stacked"]);
+        expect(model.placeOptions(GroupPages)[0].offered).toBe(true);
     });
 
     it("starts on the first page when the chooser was opened from a panel the grouping pins", () => {
