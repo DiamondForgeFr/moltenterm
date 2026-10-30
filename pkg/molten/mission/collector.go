@@ -28,6 +28,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
+	"github.com/wavetermdev/waveterm/pkg/molten/materials"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -722,6 +723,8 @@ func Start() {
 	companion.Start()
 	// The workspace task checkpoint (FR-CONT-007) updates from the agents' turns the companion reads.
 	checkpoint.Start()
+	// The materials registry (FR-MAT-001) reads the signals of the sessions the checkpoint follows.
+	materials.Start()
 	// Pages handed off to the installed browser (FR-BRW-002).
 	browsers.StartRoute(func() browsers.Settings {
 		s := wconfig.GetWatcher().GetFullConfig().Settings

@@ -336,6 +336,17 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 			s.AddPRLink(int(n), str(rec, "prUrl"))
 		}
 		return true
+	case "frame-link":
+		// A page shown to the user (FR-MAT-001 signal 1); the records without a path only count them.
+		if path, url := str(rec, "path"), str(rec, "frameUrl"); path != "" && url != "" {
+			s.NotePublication(Publication{Path: path, Url: url, Title: str(rec, "title")}, at)
+		}
+		return true
+	case "system":
+		if sub := str(rec, "subtype"); sub == "turn_duration" || sub == "stop_hook_summary" {
+			s.NoteTurnEnd()
+		}
+		return true
 	}
 	if claudeQuietTypes[kind] {
 		return true
@@ -395,7 +406,54 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	}
 	if result := obj(rec, "toolUseResult"); result != nil {
 		a.parseEdits(result, callId, s, at)
+		a.parsePublication(result, callId, s, at)
 	}
+}
+
+// parsePublication reads the result of Claude Code's Artifact tool (FR-MAT-001 signal 1): {url, path, artifact_id,
+// title, updated, files_written: [{path}]}; the call's own files map adds the linked files it sent.
+func (a *ClaudeAdapter) parsePublication(result map[string]any, callId string, s *Session, at int64) {
+	sources := s.takePublishInput(callId)
+	url, path := str(result, "url"), str(result, "path")
+	if url == "" || path == "" || str(result, "artifact_id") == "" {
+		return
+	}
+	var input []any
+	for published := range sources {
+		input = append(input, published)
+	}
+	files := signalFiles(arr(result, "files_written"), arr(result, "new_files"), arr(result, "own_files"), input)
+	sort.Strings(files)
+	s.NotePublication(Publication{Path: path, Url: url, Title: str(result, "title"), ArtifactId: str(result, "artifact_id"), Updated: boolean(result, "updated"), Files: files, Sources: sources}, at)
+}
+
+// claudePublishFiles reads the linked files an Artifact call sends: files maps each published path (relative to the
+// page) to its source, a path or {from}.
+func claudePublishFiles(input map[string]any) map[string]string {
+	rtn := map[string]string{}
+	switch files := input["files"].(type) {
+	case map[string]any:
+		for published, source := range files {
+			switch src := source.(type) {
+			case string:
+				rtn[published] = src
+			case map[string]any:
+				if from := str(src, "from"); from != "" {
+					rtn[published] = from
+				}
+			}
+			if len(rtn) >= MaxSignalFiles {
+				break
+			}
+		}
+	case []any:
+		for _, f := range files {
+			if p := str(asObj(f), "path"); p != "" {
+				rtn[p] = ""
+			}
+		}
+	}
+	return rtn
 }
 
 // parseEdits reads the file changes of a tool result: Edit and Write give a structured patch (Write of a new file,
@@ -457,6 +515,9 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			s.NoteActivity(name, activityTarget(input), at)
 			if name == "Bash" {
 				s.NoteShellCommand(shellLine(input))
+			}
+			if name == "Artifact" {
+				s.notePublishInput(str(block, "id"), claudePublishFiles(input))
 			}
 			a.parseTasks(name, input, s)
 			a.parseSubagent(str(block, "id"), name, input, s, at)

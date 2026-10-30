@@ -46,6 +46,47 @@ type sessionReader interface {
 	Close()
 }
 
+// materialsReader is a reader that also gives the materials' signals (FR-MAT-001): the registry reads the records this
+// reader already holds, so no transcript is followed twice.
+type materialsReader interface {
+	MaterialSignals(after int64) companion.MaterialBatch
+}
+
+// An unlinked running agent (no adapter, a remote terminal) is offered to the registry at most this often: its
+// terminal's output is the only place its links show.
+const terminalFeedInterval = 15 * time.Second
+
+// MaterialFeed is what the updater hands the materials registry (pkg/molten/materials): new signals of a pane's
+// session, the end of a turn its hook reported, or a running agent no transcript is linked to.
+type MaterialFeed struct {
+	BlockId     string
+	Agent       string
+	SessionPath string
+	Batch       companion.MaterialBatch
+	TurnEnded   bool
+	Unlinked    bool
+}
+
+var materialsSinkLock sync.Mutex
+var materialsSink func(MaterialFeed)
+
+// SetMaterialsSink is called once by the materials registry at its start. The sink must not block: it runs under a
+// pane's lock, on the poll.
+func SetMaterialsSink(fn func(MaterialFeed)) {
+	materialsSinkLock.Lock()
+	defer materialsSinkLock.Unlock()
+	materialsSink = fn
+}
+
+func defaultMaterialsSink(feed MaterialFeed) {
+	materialsSinkLock.Lock()
+	fn := materialsSink
+	materialsSinkLock.Unlock()
+	if fn != nil {
+		fn(feed)
+	}
+}
+
 type blockFolder struct {
 	cwd    string
 	remote bool
@@ -61,6 +102,10 @@ type blockState struct {
 	turns     int
 	// forgotten: the pane closed; no reader is opened for it again (guarded by lock).
 	forgotten bool
+	// The materials (guarded by lock): the block, the last signal handed over, when an unlinked agent was last offered.
+	blockId     string
+	materialSeq int64
+	termFedAt   time.Time
 	// Guarded by the updater's lock.
 	wsId     string
 	seen     time.Time
@@ -99,6 +144,7 @@ type Updater struct {
 	// until wake: an agent state changed, a trigger (FR-PERF-011).
 	pollEvery time.Duration
 	wake      chan struct{}
+	materials func(MaterialFeed)
 }
 
 func MakeUpdater(store *Store) *Updater {
@@ -120,6 +166,7 @@ func MakeUpdater(store *Store) *Updater {
 		interval:  WorkspaceInterval,
 		pollEvery: PollInterval,
 		wake:      make(chan struct{}, 1),
+		materials: defaultMaterialsSink,
 	}
 }
 
@@ -155,7 +202,7 @@ func (u *Updater) block(blockId string) *blockState {
 	defer u.lock.Unlock()
 	bs := u.blocks[blockId]
 	if bs == nil {
-		bs = &blockState{}
+		bs = &blockState{blockId: blockId}
 		u.blocks[blockId] = bs
 	}
 	bs.seen = u.now()
@@ -165,6 +212,39 @@ func (u *Updater) block(blockId string) *blockState {
 // TurnEnded is the agent states' listener: a hook reported the end of a turn.
 func (u *Updater) TurnEnded(blockId string, agent string) {
 	u.Trigger(blockId)
+	if u.materials != nil {
+		u.materials(MaterialFeed{BlockId: blockId, Agent: agent, TurnEnded: true})
+	}
+}
+
+// feedMaterialsLocked hands the registry the signals the last poll read (bs.lock held).
+func (u *Updater) feedMaterialsLocked(bs *blockState) {
+	mr, ok := bs.reader.(materialsReader)
+	if !ok || u.materials == nil {
+		return
+	}
+	batch := mr.MaterialSignals(bs.materialSeq)
+	bs.materialSeq = batch.Seq
+	if len(batch.Signals) == 0 {
+		return
+	}
+	u.materials(MaterialFeed{BlockId: bs.blockId, Agent: bs.agent, SessionPath: bs.path, Batch: batch})
+}
+
+// feedUnlinked offers the registry a running agent no transcript is linked to, at most every terminalFeedInterval.
+func (u *Updater) feedUnlinked(run molten.AgentRunInfo, bs *blockState, now time.Time) {
+	if u.materials == nil {
+		return
+	}
+	bs.lock.Lock()
+	due := bs.reader == nil && !bs.forgotten && now.Sub(bs.termFedAt) >= terminalFeedInterval
+	if due {
+		bs.termFedAt = now
+	}
+	bs.lock.Unlock()
+	if due {
+		u.materials(MaterialFeed{BlockId: run.BlockId, Agent: run.Agent, Unlinked: true})
+	}
 }
 
 // Trigger schedules the update of the block's workspace.
@@ -322,7 +402,7 @@ func (u *Updater) setSession(bs *blockState, agent string, path string) bool {
 		bs.reader.Close()
 		bs.reader = nil
 	}
-	bs.agent, bs.path, bs.signature, bs.turns = agent, path, "", 0
+	bs.agent, bs.path, bs.signature, bs.turns, bs.materialSeq = agent, path, "", 0, 0
 	r, err := u.openReader(agent, path)
 	if err != nil {
 		bs.path = ""
@@ -344,6 +424,7 @@ func (u *Updater) pollBlock(bs *blockState) (companion.SessionDigest, string, st
 		bs.reader, bs.path = nil, ""
 		return companion.SessionDigest{}, "", "", false
 	}
+	u.feedMaterialsLocked(bs)
 	return d, bs.agent, bs.path, true
 }
 
@@ -361,6 +442,7 @@ func (u *Updater) activity(bs *blockState) (bool, bool) {
 		bs.reader, bs.path = nil, ""
 		return false, false
 	}
+	u.feedMaterialsLocked(bs)
 	turnEnded := d.TurnsEnded > bs.turns
 	bs.turns = d.TurnsEnded
 	sig := digestSignature(d)
@@ -409,6 +491,7 @@ func (u *Updater) Tick() {
 			}
 			u.markLinked(bs, now)
 		}
+		u.feedUnlinked(run, bs, now)
 		turnEnded, changed := u.activity(bs)
 		if turnEnded || (changed && run.State != molten.AgentStateWorking) {
 			u.Trigger(run.BlockId)
