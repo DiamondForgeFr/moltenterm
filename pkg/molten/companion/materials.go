@@ -54,6 +54,7 @@ type MaterialSignal struct {
 	Title      string   `json:"title,omitempty"`
 	ArtifactId string   `json:"artifactid,omitempty"`
 	Updated    bool     `json:"updated,omitempty"`
+	Version    int      `json:"version,omitempty"`
 	Files      []string `json:"files,omitempty"`
 	// Sources: the source of a linked file the tool took from elsewhere, by its path relative to the page.
 	Sources map[string]string `json:"sources,omitempty"`
@@ -82,9 +83,13 @@ func (s *Session) addMaterialSignal(sig MaterialSignal) {
 	if sig.At == 0 {
 		sig.At = s.recordAt
 	}
+	if s.materialSink != nil {
+		s.materialSink(sig)
+		return
+	}
 	s.materialSignals = append(s.materialSignals, sig)
 	if len(s.materialSignals) > MaxMaterialSignals {
-		s.materialSignals = append([]MaterialSignal(nil), s.materialSignals[len(s.materialSignals)-MaxMaterialSignals:]...)
+		s.materialSignals = dropOldestSignal(s.materialSignals)
 	}
 	// The newest texts are kept: the older ones were taken long ago.
 	textBytes := 0
@@ -96,15 +101,30 @@ func (s *Session) addMaterialSignal(sig MaterialSignal) {
 	}
 }
 
+// dropOldestSignal makes room in a full list: the oldest signal that is not a publication goes first, since a poll
+// reading a long transcript at once (16 MB) gathers hundreds of answers, and a publication lost is a page lost.
+func dropOldestSignal(signals []MaterialSignal) []MaterialSignal {
+	drop := 0
+	for i, sig := range signals {
+		if sig.Kind != SignalPublished {
+			drop = i
+			break
+		}
+	}
+	return append(signals[:drop:drop], signals[drop+1:]...)
+}
+
 // Publication is a page the agent published: its source path, its address, the title the tool gave, the tool's id of
-// the page, whether it replaced an earlier version, its linked files (relative to the page's folder) and, for those the
-// tool took from elsewhere, their sources.
+// the page, whether it replaced an earlier version, the page's version number at its address (0 when the record does
+// not say), its linked files (relative to the page's folder) and, for those the tool took from elsewhere, their
+// sources.
 type Publication struct {
 	Path       string
 	Url        string
 	Title      string
 	ArtifactId string
 	Updated    bool
+	Version    int
 	Files      []string
 	Sources    map[string]string
 }
@@ -116,7 +136,7 @@ func (s *Session) NotePublication(p Publication, at int64) {
 	if len(p.Files) > MaxSignalFiles {
 		p.Files = p.Files[:MaxSignalFiles]
 	}
-	s.addMaterialSignal(MaterialSignal{Kind: SignalPublished, At: at, Path: p.Path, Url: p.Url, Title: cutString(p.Title, 500), ArtifactId: cutString(p.ArtifactId, 200), Updated: p.Updated, Files: p.Files, Sources: p.Sources})
+	s.addMaterialSignal(MaterialSignal{Kind: SignalPublished, At: at, Path: p.Path, Url: p.Url, Title: cutString(p.Title, 500), ArtifactId: cutString(p.ArtifactId, 200), Updated: p.Updated, Version: p.Version, Files: p.Files, Sources: p.Sources})
 }
 
 // noteLinks records the web addresses of an answer's text.

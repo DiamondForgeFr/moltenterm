@@ -29,6 +29,8 @@ const (
 	gitTimeout = 5 * time.Second
 	// A page's own text read for its linked files.
 	pageScanBytes = 4 * 1024 * 1024
+	// A tool's version number further than this past the latest copy is not believed.
+	maxVersionSkip = 1000
 )
 
 // Limits are the registry's limits (AC9 of FR-MAT-001); FR-MAT-005 makes them adjustable.
@@ -78,7 +80,9 @@ type Capture struct {
 	Requested   bool
 	AllowSecret bool
 	// Recopy: the end-of-turn copy; it replaces the latest version's files when they changed, and adds nothing new.
-	Recopy      bool
+	Recopy bool
+	// Version: the page's version number at its address, as the publishing tool gives it (0: not given).
+	Version     int
 	Agent       string
 	Tool        string
 	SessionId   string
@@ -185,7 +189,7 @@ func (r *Registry) capture(c Capture) (molten.Material, bool, error) {
 	if found {
 		existingId = existing.Id
 	}
-	return r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != ""}, r.limits)
+	return r.store.commit(c.Project, c.Folder, existingId, rec, ver, commitOpts{recopy: c.Recopy, toolTitle: c.ToolTitle != "", version: c.Version}, r.limits)
 }
 
 // resolveSource checks a material's file: it returns its real path and kind when it may be copied, the original path
@@ -448,6 +452,7 @@ func sanitizedSvg(src string, size int64) ([]byte, error) {
 type commitOpts struct {
 	recopy    bool
 	toolTitle bool
+	version   int
 }
 
 // fits tells whether a copy of size bytes keeps the drawer and the whole registry under their caps.
@@ -549,6 +554,9 @@ func (s *Store) commit(key string, folder string, existingId string, rec molten.
 		replace := opts.recopy && len(m.Versions) > 0
 		if replace {
 			n = m.Versions[len(m.Versions)-1].N
+		} else if opts.version > n && opts.version <= n+maxVersionSkip {
+			// The copy is of the page's version the tool numbered: the sources of the versions before it are gone.
+			n = opts.version
 		}
 		name := fmt.Sprintf("v%d", n)
 		if _, statErr := os.Lstat(filepath.Join(item, name)); statErr == nil || replace {

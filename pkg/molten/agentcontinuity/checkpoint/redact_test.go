@@ -55,6 +55,8 @@ func TestRedactSecrets(t *testing.T) {
 		{"password flag", "psql --password Hunter22 -h db", "Hunter22", "-h db"},
 		{"api key flag", "tool --api-key abc123xyz run", "abc123xyz", "run"},
 		{"curl user", "curl -u admin:pw-123 https://x", "pw-123", "-u admin:"},
+		{"spaced colon, not a word", "password : Hunter22", "Hunter22", "password :"},
+		{"spaced colon, identifier", "DB_PASSWORD : swordfish", "swordfish", "DB_PASSWORD :"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -89,6 +91,9 @@ func TestRedactKeepsNonSecrets(t *testing.T) {
 		"mkdir -p build && ls -u dir",
 		"Run go test ./pkg/... then task check:ts",
 		"https://github.com/DiamondForgeFr/moltenterm/pull/335",
+		".life li.key::before { border-color: var(--pg-action); }",
+		"a.token::after{content:\"\"}",
+		"Le secret : des copies gardées sur cet ordinateur.",
 	}
 	for _, in := range cases {
 		out, n := Redact(in)

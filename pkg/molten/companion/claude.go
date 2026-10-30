@@ -411,7 +411,8 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 }
 
 // parsePublication reads the result of Claude Code's Artifact tool (FR-MAT-001 signal 1): {url, path, artifact_id,
-// title, updated, files_written: [{path}]}; the call's own files map adds the linked files it sent.
+// title, updated, seq (the page's version at its address), files_written: [{path}]}; the call's own files map adds
+// the linked files it sent.
 func (a *ClaudeAdapter) parsePublication(result map[string]any, callId string, s *Session, at int64) {
 	sources := s.takePublishInput(callId)
 	url, path := str(result, "url"), str(result, "path")
@@ -424,7 +425,11 @@ func (a *ClaudeAdapter) parsePublication(result map[string]any, callId string, s
 	}
 	files := signalFiles(arr(result, "files_written"), arr(result, "new_files"), arr(result, "own_files"), input)
 	sort.Strings(files)
-	s.NotePublication(Publication{Path: path, Url: url, Title: str(result, "title"), ArtifactId: str(result, "artifact_id"), Updated: boolean(result, "updated"), Files: files, Sources: sources}, at)
+	version := 0
+	if n, ok := num(result, "seq"); ok && n > 0 && n < 1e6 {
+		version = int(n)
+	}
+	s.NotePublication(Publication{Path: path, Url: url, Title: str(result, "title"), ArtifactId: str(result, "artifact_id"), Updated: boolean(result, "updated"), Version: version, Files: files, Sources: sources}, at)
 }
 
 // claudePublishFiles reads the linked files an Artifact call sends: files maps each published path (relative to the

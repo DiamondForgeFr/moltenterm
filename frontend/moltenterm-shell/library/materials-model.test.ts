@@ -18,6 +18,7 @@ import {
     materialSizeText,
     materialVersion,
     newMaterialsCount,
+    recoveredParts,
 } from "./materials-model";
 
 function lookup(dict: any, key: string): unknown {
@@ -181,5 +182,38 @@ describe("materials list (FR-MAT-002)", () => {
             expect(typeof lookup(en, key), key).toBe("string");
             expect(typeof lookup(fr, key), key).toBe("string");
         }
+    });
+});
+
+describe("search past sessions (FR-MAT-008)", () => {
+    const Done = { sessions: 3, found: 14, new: 12, kept: 11, gone: 3, notcopied: 0 };
+
+    it("reports what it found, then the erased sources and those not copied", () => {
+        expect(recoveredParts(Done)).toEqual([
+            { key: "library.materials.recover.found", count: 14 },
+            { key: "library.materials.recover.gone", count: 3 },
+        ]);
+        expect(recoveredParts({ ...Done, gone: 0, notcopied: 2 })).toEqual([
+            { key: "library.materials.recover.found", count: 14 },
+            { key: "library.materials.recover.notCopied", count: 2 },
+        ]);
+        expect(recoveredParts({ ...Done, found: 0 })).toEqual([{ key: "library.materials.recover.none" }]);
+        expect(recoveredParts({ ...Done, sessions: 0, found: 0 })).toEqual([
+            { key: "library.materials.recover.noSessions" },
+        ]);
+        expect(recoveredParts(null)).toEqual([]);
+    });
+
+    it("has its words in both languages, the counts in both plural forms", () => {
+        for (const key of ["found", "gone", "notCopied"]) {
+            for (const dict of [en, fr]) {
+                const node = lookup(dict, `library.materials.recover.${key}`) as Record<string, string>;
+                expect(node?.one, key).toContain("{count}");
+                expect(node?.other, key).toContain("{count}");
+            }
+        }
+        expect(lookup(fr, "library.materials.recover.button")).toBe("Chercher dans les sessions passées");
+        expect((lookup(fr, "library.materials.recover.found") as any).other).toBe("{count} matériaux retrouvés");
+        expect((lookup(fr, "library.materials.recover.gone") as any).other).toBe("{count} sources déjà effacées");
     });
 });

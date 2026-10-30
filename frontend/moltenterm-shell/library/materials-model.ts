@@ -16,6 +16,7 @@ export const MaterialPinCommand = "moltenmaterialpin";
 export const MaterialDeleteCopyCommand = "moltenmaterialdeletecopy";
 export const MaterialRestoreCommand = "moltenmaterialrestore";
 export const MaterialCopyCommand = "moltenmaterialcopy";
+export const MaterialsRecoverCommand = "moltenmaterialsrecover";
 export const MaterialsNoProject = "noproject";
 
 export const MaterialKindPage = "page";
@@ -352,4 +353,42 @@ export function materialKeepOffer(m: Material): MaterialKeepOffer {
 // Title edits: an empty title brings the automatic one back (the registry's rule).
 export function renamedTitle(input: string): string {
     return (input ?? "").trim();
+}
+
+// ---------- Search past sessions (FR-MAT-008) ----------
+
+// A search reads gigabytes of transcripts for a large project: its call waits much longer than the others.
+export const MaterialsRecoverTimeoutMs = 10 * 60 * 1000;
+
+export type MaterialsRecovered = {
+    sessions: number;
+    found: number;
+    new: number;
+    kept: number;
+    gone: number;
+    notcopied: number;
+};
+
+export type RecoveredPart = { key: string; count?: number };
+
+// What the one-line report says: the materials found, then the sources already erased and those not copied when
+// there are any; or that nothing was found, or that no session is left.
+export function recoveredParts(r: MaterialsRecovered): RecoveredPart[] {
+    if (r == null) {
+        return [];
+    }
+    if ((r.sessions ?? 0) === 0) {
+        return [{ key: "library.materials.recover.noSessions" }];
+    }
+    if ((r.found ?? 0) === 0) {
+        return [{ key: "library.materials.recover.none" }];
+    }
+    const parts: RecoveredPart[] = [{ key: "library.materials.recover.found", count: r.found }];
+    if ((r.gone ?? 0) > 0) {
+        parts.push({ key: "library.materials.recover.gone", count: r.gone });
+    }
+    if ((r.notcopied ?? 0) > 0) {
+        parts.push({ key: "library.materials.recover.notCopied", count: r.notcopied });
+    }
+    return parts;
 }

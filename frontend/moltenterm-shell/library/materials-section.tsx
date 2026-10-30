@@ -54,6 +54,9 @@ import {
     materialSizeText,
     MaterialsListCommand,
     MaterialsNoProject,
+    MaterialsRecoverCommand,
+    MaterialsRecovered,
+    MaterialsRecoverTimeoutMs,
     MaterialsRoute,
     materialsSeenStorageKey,
     MaterialsView,
@@ -61,6 +64,7 @@ import {
     materialVersion,
     newMaterialsCount,
     OpenPanel,
+    recoveredParts,
     renamedTitle,
 } from "./materials-model";
 
@@ -440,6 +444,83 @@ function showMaterialMenu(e: React.MouseEvent, m: Material, handlers: RowHandler
     ContextMenuModel.getInstance().showContextMenu(items, e);
 }
 
+// ---------- Search past sessions (FR-MAT-008) ----------
+
+type RecoverState = { running: boolean; result?: MaterialsRecovered; failed?: string };
+
+// Runs only on the developer's click; the registry's event refreshes the list as materials arrive. Nothing opens.
+function useRecover(workspaceId: string): [RecoverState, () => void, () => void] {
+    const [state, setState] = useState<RecoverState>({ running: false });
+    const runningRef = useRef(false);
+    useEffect(() => {
+        setState({ running: false });
+    }, [workspaceId]);
+    const run = () => {
+        if (runningRef.current || !workspaceId) {
+            return;
+        }
+        runningRef.current = true;
+        setState({ running: true });
+        fireAndForget(async () => {
+            try {
+                const result = await TabRpcClient.wshRpcCall(
+                    MaterialsRecoverCommand,
+                    { workspaceid: workspaceId },
+                    { route: MaterialsRoute, timeout: MaterialsRecoverTimeoutMs }
+                );
+                setState({ running: false, result: result as MaterialsRecovered });
+            } catch (e) {
+                setState({ running: false, failed: String(e?.message ?? e) });
+            } finally {
+                runningRef.current = false;
+            }
+        });
+    };
+    return [state, run, () => setState({ running: false })];
+}
+
+function RecoverStatus({ state, onDismiss }: { state: RecoverState; onDismiss: () => void }) {
+    const t = useT();
+    const tc = useTCount();
+    if (!state.running && state.result == null && state.failed == null) {
+        return null;
+    }
+    let text: string;
+    if (state.running) {
+        text = t("library.materials.recover.running");
+    } else if (state.failed != null) {
+        text = t("library.materials.recover.failed");
+    } else {
+        text = recoveredParts(state.result)
+            .map((p) => (p.count != null ? tc(p.key, p.count) : t(p.key)))
+            .join(", ");
+    }
+    return (
+        <div
+            className="mt-lib-mat-recover"
+            role="status"
+            title={state.failed ?? undefined}
+            data-testid="library-materials-recover-status"
+            data-state={state.running ? "running" : state.failed != null ? "failed" : "done"}
+        >
+            {state.running ? <i className={makeIconClass("spinner", true) + " fa-spin"} aria-hidden /> : null}
+            <span className="min-w-0 flex-1">{text}</span>
+            {!state.running ? (
+                <button type="button" className="mt-lib-link" onClick={onDismiss}>
+                    {t("library.materials.recover.dismiss")}
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
+function showSectionMenu(e: React.MouseEvent, running: boolean, onRecover: () => void) {
+    const items: ContextMenuItem[] = [
+        { label: tNow("library.materials.recover.button"), enabled: !running, click: onRecover },
+    ];
+    ContextMenuModel.getInstance().showContextMenu(items, e);
+}
+
 // ---------- Rows ----------
 
 const KindIcons: Record<string, string> = {
@@ -778,6 +859,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     const [renaming, setRenaming] = useState<string>(null);
     const [asking, setAsking] = useState<{ id: string; plan: MaterialOpen }>(null);
     const [deleting, setDeleting] = useState<string>(null);
+    const [recover, runRecover, dismissRecover] = useRecover(workspaceId);
     const listRef = useRef<HTMLDivElement>(null);
     const shown = useMemo(() => filterMaterials(view?.materials, query), [view, query]);
     const groups = useMemo(() => groupMaterials(shown, Date.now(), locale), [shown, locale]);
@@ -857,9 +939,24 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
     };
     return (
         <div className="flex flex-col gap-2" data-testid="library-materials" data-project={view.project?.key}>
-            <div className="mt-lib-mat-scope" data-testid="library-materials-scope">
-                {noProject ? projectName : t("library.materials.thisProject", { name: projectName })}
+            <div className="flex items-center gap-1.5">
+                <div className="mt-lib-mat-scope" data-testid="library-materials-scope">
+                    {noProject ? projectName : t("library.materials.thisProject", { name: projectName })}
+                </div>
+                {!noProject ? (
+                    <button
+                        type="button"
+                        className="mt-lib-mat-menu cursor-pointer"
+                        title={t("library.materials.sectionMenu")}
+                        aria-label={t("library.materials.sectionMenu")}
+                        data-testid="library-materials-menu"
+                        onClick={(e) => showSectionMenu(e, recover.running, runRecover)}
+                    >
+                        <i className={makeIconClass("ellipsis", true)} aria-hidden />
+                    </button>
+                ) : null}
             </div>
+            <RecoverStatus state={recover} onDismiss={dismissRecover} />
             {shown.length === 0 ? (
                 <div className="mt-lib-empty" data-testid="library-materials-empty">
                     <b>
@@ -870,6 +967,21 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                         )}
                     </b>
                     {(view.materials?.length ?? 0) === 0 ? <span>{t("library.materials.empty")}</span> : null}
+                    {(view.materials?.length ?? 0) === 0 && !noProject ? (
+                        <>
+                            <span>{t("library.materials.recover.hint")}</span>
+                            <button
+                                type="button"
+                                className="molten-btn mt-2 cursor-pointer rounded-4 px-3 py-1.5 text-12"
+                                disabled={recover.running}
+                                data-testid="library-materials-recover"
+                                onClick={runRecover}
+                            >
+                                {t("library.materials.recover.button")}
+                                <MoltenWave />
+                            </button>
+                        </>
+                    ) : null}
                 </div>
             ) : (
                 <div
