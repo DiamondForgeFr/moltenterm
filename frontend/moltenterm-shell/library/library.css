@@ -1110,12 +1110,15 @@
    as it cools. */
 .mt-lib-setstage {
     position: relative;
+    /* The channels lie under the page's content (#1549): their layer is at a negative z-index inside the stage. */
+    isolation: isolate;
 }
 
+/* Above the sticky row (z-index 3): the clicked chip melts where it is. */
 .mt-reveal-layer {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 4;
     pointer-events: none;
     overflow: visible;
 }
@@ -1139,26 +1142,6 @@
         color-mix(in srgb, var(--mt-action) 60%, transparent)
     );
     box-shadow: 0 0 18px 2px color-mix(in srgb, var(--mt-action) 55%, transparent);
-}
-
-.mt-reveal-stream {
-    height: 4px;
-    margin-top: -2px;
-    border-radius: var(--mt-radius-control);
-    transform-origin: 0 50%;
-    background: linear-gradient(to right, var(--mt-action), var(--mt-state-running) 70%, var(--mt-action-glint));
-    box-shadow: 0 0 8px color-mix(in srgb, var(--mt-action) 70%, transparent);
-}
-
-.mt-reveal-head {
-    left: 0;
-    top: 0;
-    width: 12px;
-    height: 12px;
-    margin: -6px 0 0 -6px;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--mt-action-glint), var(--mt-state-running) 45%, var(--mt-action));
-    box-shadow: 0 0 12px 3px color-mix(in srgb, var(--mt-state-running) 60%, transparent);
 }
 
 .mt-reveal-slab {
@@ -1205,3 +1188,242 @@
     filter: drop-shadow(0 0 3px var(--mt-action));
 }
 
+/* The channels of the reveal (#1549, DS-SHELL-138, settings-channels.ts): pipework engraved in the page's background,
+   behind the cards and never over text. The groove is cast iron: a dark cut with a lighter lower lip, painted once.
+   The reveal's molten slides into each run (a pre-painted bar moved by transform) and its bulge leads it; it drains
+   into the bed, a faint incandescent line in the groove, where the ambient flow keeps running: a pre-painted tile of
+   streaks per run, moved by one tile per whole-second cycle on the 1/15 s grid. The ambient flow is in the running
+   colour, never the action orange (it is not an action). */
+.mt-ch-layer {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.mt-ch-layer:empty {
+    display: none;
+}
+
+.mt-ch-layer > *,
+.mt-ch-molten > *,
+.mt-ch-ambient > * {
+    position: absolute;
+}
+
+.mt-ch-molten,
+.mt-ch-ambient {
+    inset: 0;
+}
+
+.mt-ch-groove,
+.mt-ch-bed {
+    left: 0;
+    top: 0;
+    overflow: visible;
+    fill: none;
+    stroke-linecap: butt;
+}
+
+.mt-ch-lip {
+    transform: translateY(1px);
+    stroke: color-mix(in srgb, var(--mt-surface-2) 85%, transparent);
+    stroke-width: 12px;
+}
+
+.mt-ch-cut {
+    stroke: color-mix(in srgb, var(--mt-sink) 48%, var(--mt-surface-0));
+    stroke-width: 12px;
+}
+
+.mt-ch-bed-line {
+    stroke: color-mix(in srgb, var(--mt-state-running) 16%, transparent);
+    stroke-width: 2px;
+}
+
+/* The molten of the reveal: darker cooling edges around a hot core. */
+.mt-ch-run {
+    overflow: hidden;
+}
+
+/* The bar sits in the middle of its clip box, the glow (ChannelPx.glow) on each side. Its lumps, brighter clots of
+   melt along it, travel with it, so it reads as a liquid flowing rather than a line drawing itself. */
+.mt-ch-fill {
+    position: absolute;
+    inset: 4px 0;
+    border-radius: 4px;
+    --mt-ch-edge: color-mix(in srgb, var(--mt-action) 50%, var(--mt-sink));
+    --mt-ch-lump: color-mix(in srgb, var(--mt-action-glint) 40%, transparent);
+    --mt-ch-clot: color-mix(in srgb, var(--mt-ch-edge) 50%, transparent);
+    background:
+        repeating-linear-gradient(
+            to right,
+            transparent 0 21px,
+            var(--mt-ch-lump) 29px,
+            transparent 41px,
+            transparent 53px
+        ),
+        repeating-linear-gradient(
+            to right,
+            transparent 0 30px,
+            var(--mt-ch-clot) 36px,
+            transparent 43px,
+            transparent 63px,
+            var(--mt-ch-lump) 66px,
+            transparent 71px,
+            transparent 83px
+        ),
+        linear-gradient(
+            to bottom,
+            var(--mt-ch-edge),
+            var(--mt-action) 22%,
+            var(--mt-state-running) 40%,
+            var(--mt-action-glint) 50%,
+            var(--mt-state-running) 60%,
+            var(--mt-action) 78%,
+            var(--mt-ch-edge)
+        );
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--mt-action) 50%, transparent);
+}
+
+.mt-ch-run.is-y .mt-ch-fill {
+    inset: 0 4px;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 21px,
+            var(--mt-ch-lump) 29px,
+            transparent 41px,
+            transparent 53px
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 30px,
+            var(--mt-ch-clot) 36px,
+            transparent 43px,
+            transparent 63px,
+            var(--mt-ch-lump) 66px,
+            transparent 71px,
+            transparent 83px
+        ),
+        linear-gradient(
+            to right,
+            var(--mt-ch-edge),
+            var(--mt-action) 22%,
+            var(--mt-state-running) 40%,
+            var(--mt-action-glint) 50%,
+            var(--mt-state-running) 60%,
+            var(--mt-action) 78%,
+            var(--mt-ch-edge)
+        );
+}
+
+.mt-ch-elbow {
+    overflow: visible;
+    fill: none;
+}
+
+.mt-ch-elbow-edge {
+    stroke: color-mix(in srgb, var(--mt-action) 75%, var(--mt-sink));
+    stroke-width: 8px;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mt-action) 60%, transparent));
+}
+
+.mt-ch-elbow-core {
+    stroke: var(--mt-state-running);
+    stroke-width: 3px;
+}
+
+/* The bulge at the flow's front: a droplet wider than the channel, rounder and white-hot at its leading end
+   (settings-reveal.ts turns it the way the run flows). */
+.mt-ch-head {
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 14px;
+    margin: -7px 0 0 -14px;
+    /* The point on the route: the droplet turns around it. */
+    transform-origin: 14px 7px;
+    border-radius: 45% 55% 55% 45% / 50%;
+    background: radial-gradient(
+        ellipse 70% 60% at 68% 50%,
+        var(--mt-action-glint) 0 22%,
+        var(--mt-state-running) 46%,
+        var(--mt-action) 72%,
+        color-mix(in srgb, var(--mt-action) 60%, var(--mt-sink))
+    );
+    box-shadow: 0 0 10px 2px color-mix(in srgb, var(--mt-state-running) 50%, transparent);
+}
+
+/* The ambient flow: the core of each long run, with streaks that lead in the flow's direction. */
+.mt-ch-flow {
+    overflow: hidden;
+    border-radius: 1px;
+}
+
+.mt-ch-flow-tile {
+    position: absolute;
+    will-change: transform;
+    --mt-ch-streak: color-mix(in srgb, var(--mt-state-running) 55%, transparent);
+    --mt-ch-trail: color-mix(in srgb, var(--mt-state-running) 14%, transparent);
+}
+
+.mt-ch-flow.is-x .mt-ch-flow-tile {
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(
+            to right,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 56px 100% repeat-x;
+}
+
+.mt-ch-flow.is-x.is-rev .mt-ch-flow-tile {
+    background: linear-gradient(
+            to left,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 56px 100% repeat-x;
+}
+
+.mt-ch-flow.is-y .mt-ch-flow-tile {
+    left: 0;
+    right: 0;
+    background: linear-gradient(
+            to bottom,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 100% 56px repeat-y;
+}
+
+.mt-ch-flow.is-y.is-rev .mt-ch-flow-tile {
+    background: linear-gradient(
+            to top,
+            transparent 16px,
+            var(--mt-ch-trail) 30px,
+            var(--mt-ch-streak) 46px,
+            transparent 52px
+        )
+        0 0 / 100% 56px repeat-y;
+}
+
+/* settings-channels.ts does not draw them under reduced motion; these keep them off between the switch and the render. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-ch-layer {
+        display: none;
+    }
+}
+
+.prefers-reduced-motion .mt-ch-layer {
+    display: none;
+}

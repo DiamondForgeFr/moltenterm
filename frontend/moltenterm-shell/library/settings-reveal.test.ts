@@ -3,18 +3,22 @@
 
 import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
+import { channelNetwork, channelRoutes, type ChannelElements, type ChannelsHandle } from "./settings-channels";
 import {
     crackLines,
     finishSettingsReveal,
+    flowTime,
     MaxRevealCards,
+    onClock,
+    onFrameGrid,
+    RevealFrameMs,
     revealMode,
     RevealMs,
-    revealStarts,
+    revealPlan,
     revealTotalMs,
     runSettingsReveal,
     settingsRevealRunning,
     shardPolygons,
-    streamTarget,
 } from "./settings-reveal";
 
 // A DOM just large enough for the runner: elements that record their animations, a document and an input target.
@@ -132,12 +136,34 @@ function makeScene(cardCount: number) {
     const stage = makeEl({ left: 100, top: 50, width: 900, height: 1200 }, all);
     stage.ownerDocument = doc;
     const overlay = makeEl(undefined, all);
-    const cards = Array.from({ length: cardCount }, (_, i) =>
-        makeEl({ left: 100 + (i % 3) * 300, top: 250 + Math.floor(i / 3) * 260, width: 280, height: 240 }, all)
-    );
+    const rects = Array.from({ length: cardCount }, (_, i) => ({
+        x: 32 + (i % 3) * 300,
+        y: 200 + Math.floor(i / 3) * 260,
+        w: 280,
+        h: 240,
+    }));
+    const cards = rects.map((r) => makeEl({ left: 100 + r.x, top: 50 + r.y, width: r.w, height: r.h }, all));
     const chrome = [makeEl(undefined, all)];
     const input = makeInput();
-    return { all, stage, overlay, cards, chrome, input };
+    const net = channelNetwork(
+        channelRoutes({
+            chip: { x: 300, y: 4, w: 100, h: 27 },
+            page: { x: 0, y: 51, w: 900, h: 1100 },
+            cards: rects.slice(0, MaxRevealCards),
+        })
+    );
+    const els = {
+        groove: makeEl(undefined, all),
+        molten: makeEl(undefined, all),
+        ambient: makeEl(undefined, all),
+        ambientAnims: [],
+    };
+    const channels = {
+        net: () => net,
+        elements: () => els as unknown as ChannelElements,
+        dispose: () => {},
+    } as ChannelsHandle;
+    return { all, stage, overlay, cards, chrome, input, net, els, channels };
 }
 
 function run(scene: ReturnType<typeof makeScene>, mode: "molten" | "fade") {
@@ -146,30 +172,65 @@ function run(scene: ReturnType<typeof makeScene>, mode: "molten" | "fade") {
         overlay: scene.overlay as unknown as HTMLElement,
         cards: scene.cards as unknown as HTMLElement[],
         chrome: scene.chrome as unknown as Element[],
-        source: { x: 20, y: 10, w: 200, h: 60 },
+        source: { x: 300, y: 4, w: 100, h: 27 },
         mode,
+        channels: mode === "molten" ? scene.channels : null,
         inputTarget: scene.input as unknown as EventTarget,
     });
 }
 
-function endOf(timing: KeyframeAnimationOptions): number {
-    return ((timing.delay as number) ?? 0) + (timing.duration as number);
-}
-
-describe("settings reveal timeline (DS-SHELL-138)", () => {
-    it("starts the cards in the page's order and ends by 700 ms whatever their number", () => {
-        for (let n = 1; n <= 30; n++) {
-            const starts = revealStarts(n);
-            expect(starts).toHaveLength(n);
-            expect(starts[0]).toBe(0);
-            for (let i = 1; i < n; i++) {
-                expect(starts[i]).toBeGreaterThan(starts[i - 1]);
+describe("settings reveal timeline (DS-SHELL-138, #1549)", () => {
+    it("flows slower as it spreads, with a speed that varies, and reaches the farthest card last", () => {
+        for (const reach of [300, 900, 2400]) {
+            let prev = flowTime(0, reach);
+            expect(prev).toBe(RevealMs.flowStart);
+            const speeds: number[] = [];
+            for (let d = 10; d <= reach; d += 10) {
+                const t = flowTime(d, reach);
+                expect(t).toBeGreaterThan(prev);
+                speeds.push(10 / (t - prev));
+                prev = t;
             }
-            expect(revealTotalMs(n)).toBeLessThanOrEqual(RevealMs.card + RevealMs.window);
+            expect(flowTime(reach, reach)).toBeCloseTo(RevealMs.arriveMax, 6);
+            // slower at the end than at the start
+            expect(speeds[speeds.length - 1]).toBeLessThan(speeds[0]);
         }
-        expect(revealStarts(3)).toEqual([0, 70, 140]);
-        expect(revealTotalMs(0)).toBe(0);
-        expect(revealTotalMs(5, "fade")).toBe(RevealMs.fade);
+        // the wobble: the speed does not just decrease
+        const s = (d: number) => 1 / (flowTime(d + 1, 2400) - flowTime(d, 2400));
+        const ups = Array.from({ length: 200 }, (_, k) => k * 10).filter((d) => s(d + 10) > s(d)).length;
+        expect(ups).toBeGreaterThan(0);
+    });
+
+    it("ends by 700 ms on the frame grid, the cards in the order of their distance along the channels", () => {
+        for (const n of [1, 3, 8, 12]) {
+            const lengths = Array.from({ length: n }, (_, i) => 200 + ((i * 7919) % 13) * 150);
+            const reach = Math.max(...lengths);
+            const plan = revealPlan(lengths, reach);
+            expect(plan.total).toBeLessThanOrEqual(RevealMs.total + 0.001);
+            expect(plan.total / RevealFrameMs).toBeCloseTo(Math.round(plan.total / RevealFrameMs), 6);
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    if (lengths[i] < lengths[j]) {
+                        expect(plan.arrivals[i]).toBeLessThan(plan.arrivals[j]);
+                    }
+                }
+            }
+        }
+        expect(revealTotalMs([], 0)).toBe(0);
+        expect(revealTotalMs([100], 100, "fade")).toBe(onFrameGrid(RevealMs.fade));
+    });
+
+    it("holds an element in its keyframes instead of a delay", () => {
+        const k = onClock(700, [
+            [140, { opacity: 0, easing: "ease-in" }],
+            [350, { opacity: 1 }],
+        ]);
+        expect(k).toEqual([
+            { opacity: 0, offset: 0 },
+            { opacity: 0, easing: "ease-in", offset: 0.2 },
+            { opacity: 1, offset: 0.5 },
+            { opacity: 1, offset: 1 },
+        ]);
     });
 
     it("breaks the same card the same way every time, and cards differently", () => {
@@ -188,17 +249,6 @@ describe("settings reveal timeline (DS-SHELL-138)", () => {
         a.forEach((p, i) => expect(p.x).toBeLessThan(b[i].x));
     });
 
-    it("pours onto the edge of the card that faces the tile", () => {
-        const card = { x: 0, y: 200, w: 300, h: 100 };
-        const below = streamTarget({ x: 150, y: 20 }, card, 0);
-        expect(below.y).toBe(200);
-        expect(below.x).toBeGreaterThanOrEqual(45);
-        expect(below.x).toBeLessThanOrEqual(255);
-        expect(streamTarget({ x: 150, y: 500 }, card, 0).y).toBe(300);
-        expect(streamTarget({ x: 600, y: 250 }, card, 0).x).toBe(300);
-        expect(streamTarget({ x: 150, y: 20 }, card, 3)).toEqual(streamTarget({ x: 150, y: 20 }, card, 3));
-    });
-
     it("fades under reduced motion or with the setting off", () => {
         expect(revealMode(false, true)).toBe("molten");
         expect(revealMode(true, true)).toBe("fade");
@@ -206,36 +256,64 @@ describe("settings reveal timeline (DS-SHELL-138)", () => {
     });
 });
 
+function expectOnTheClock(scene: ReturnType<typeof makeScene>, total: number) {
+    for (const a of scene.all) {
+        // one clock: no delay, the same duration, stepping on the 1/30 s grid
+        expect(a.timing.delay ?? 0).toBe(0);
+        expect(a.timing.duration).toBe(total);
+        expect(a.timing.easing).toBe(`steps(${Math.round(total / RevealFrameMs)}, end)`);
+        let last = 0;
+        for (const k of a.keyframes) {
+            // compositor-only: nothing but opacity and transform moves
+            for (const p of Object.keys(k)) {
+                expect(["opacity", "transform", "offset", "easing"]).toContain(p);
+            }
+            if (k.offset != null) {
+                expect(k.offset).toBeGreaterThanOrEqual(last);
+                expect(k.offset).toBeLessThanOrEqual(1);
+                last = k.offset as number;
+            }
+        }
+    }
+}
+
 describe("settings reveal runner", () => {
-    it("pours, cools and breaks each card, then leaves nothing running", async () => {
+    it("flows along the channels, cools and breaks each card, then leaves only the channels", async () => {
         const scene = makeScene(4);
         const handle = run(scene, "molten");
         expect(settingsRevealRunning()).toBe(true);
-        // the ghost of the tile, then a stream, a head and a slab per card
+        // the melting chip, then a slab per card
         expect(scene.overlay.children.length).toBe(1);
-        expect(scene.overlay.children[0].children.length).toBe(1 + 3 * 4);
-        const starts = revealStarts(4);
-        scene.cards.forEach((card, i) => {
+        expect(scene.overlay.children[0].children.length).toBe(1 + 4);
+        // the molten in the channels: a clip box and a front per run, and an elbow per turn
+        expect(scene.els.molten.children.length).toBe(1);
+        expect(scene.els.molten.children[0].children.length).toBe(2 * scene.net.runs.length + scene.net.elbows.length);
+        const total = revealPlan(scene.net.lengths, scene.net.reach).total;
+        expect(total).toBeLessThanOrEqual(RevealMs.total + 0.001);
+        expectOnTheClock(scene, total);
+        scene.cards.forEach((card) => {
             expect(card.anims).toHaveLength(1);
-            expect(card.anims[0].timing.delay).toBe(starts[i]);
             const first = card.anims[0].keyframes[0];
             const last = card.anims[0].keyframes[card.anims[0].keyframes.length - 1];
             expect(first.opacity).toBe(0);
             expect(last.opacity).toBe(1);
         });
-        for (const a of scene.all) {
-            expect(endOf(a.timing)).toBeLessThanOrEqual(RevealMs.card + RevealMs.window);
-            // compositor-only: nothing but opacity and transform moves
-            for (const k of a.keyframes) {
-                for (const p of Object.keys(k)) {
-                    expect(["opacity", "transform", "offset", "easing"]).toContain(p);
-                }
-            }
-        }
+        // the nearest card along the channels comes out first
+        const shownAt = scene.cards.map(
+            (c) => c.anims[0].keyframes.find((k) => k.opacity === 0 && k.easing != null).offset
+        );
+        const nearest = scene.net.lengths.indexOf(Math.min(...scene.net.lengths));
+        expect(Math.min(...(shownAt as number[]))).toBe(shownAt[nearest]);
+        // the channels come in with the reveal, the ambient flow at its end
+        expect(scene.els.groove.anims[0].keyframes[0].opacity).toBe(0);
+        const ambient = scene.els.ambient.anims[0].keyframes;
+        expect(ambient[0].opacity).toBe(0);
+        expect(ambient[ambient.length - 1].opacity).toBe(1);
         expect(scene.input.count()).toBe(3);
         scene.all.forEach((a) => a.resolve());
         await handle.done;
         expect(scene.overlay.children).toHaveLength(0);
+        expect(scene.els.molten.children).toHaveLength(0);
         expect(scene.all.every((a) => a.cancelled)).toBe(true);
         expect(scene.input.count()).toBe(0);
         expect(settingsRevealRunning()).toBe(false);
@@ -251,6 +329,7 @@ describe("settings reveal runner", () => {
             scene.input.dispatch(type, { key: "a" });
             expect(handle.running()).toBe(false);
             expect(scene.overlay.children).toHaveLength(0);
+            expect(scene.els.molten.children).toHaveLength(0);
             expect(scene.all.every((a) => a.cancelled)).toBe(true);
             await handle.done;
         }
@@ -270,14 +349,14 @@ describe("settings reveal runner", () => {
         finishSettingsReveal();
     });
 
-    it("only fades the cards in, without molten pieces, in the fade mode", async () => {
+    it("only fades the cards in, without molten or channels, in the fade mode", async () => {
         const scene = makeScene(5);
         const handle = run(scene, "fade");
         expect(scene.overlay.children).toHaveLength(0);
+        expect(scene.els.molten.children).toHaveLength(0);
+        expectOnTheClock(scene, onFrameGrid(RevealMs.fade));
         for (const card of scene.cards) {
             expect(card.anims).toHaveLength(1);
-            expect(card.anims[0].timing.duration).toBe(RevealMs.fade);
-            expect(card.anims[0].timing.delay ?? 0).toBe(0);
             expect(card.anims[0].keyframes.map((k) => Object.keys(k))).toEqual([["opacity"], ["opacity"]]);
         }
         scene.all.forEach((a) => a.resolve());
@@ -314,6 +393,26 @@ describe("settings blocks stay on screen (#1548)", () => {
 
     it("starts the reveal from the clicked chip of the row, whichever state it is clicked in", () => {
         expect(library).toContain("onClick={(e) => openFromTile(s.id, e.currentTarget)}");
+    });
+});
+
+describe("settings channels wiring (#1549)", () => {
+    const library = readFileSync("frontend/moltenterm-shell/library/library.tsx", "utf8");
+    const css = readFileSync("frontend/moltenterm-shell/library/library.css", "utf8");
+
+    it("lays the channels behind the page, and the melting chip above the sticky row", () => {
+        expect(library).toContain('className="mt-ch-layer"');
+        expect(css).toMatch(/\.mt-lib-setstage \{[^}]*isolation: isolate;/);
+        expect(css).toMatch(/\.mt-ch-layer \{[^}]*z-index: -1;/);
+        expect(css).toMatch(/\.mt-reveal-layer \{[^}]*z-index: 4;/);
+    });
+
+    it("removes or brings back the channels when reduced motion or the setting changes", () => {
+        const effect = library.slice(library.indexOf("useEffect(() => {\n        if (block == null)"));
+        expect(effect).toContain('if (mode !== "molten")');
+        expect(effect).toContain("channelsRef.current?.dispose()");
+        expect(effect).toContain("channelsRef.current ??= openChannels()");
+        expect(effect.indexOf("}, [mode]);")).toBeGreaterThan(0);
     });
 });
 
