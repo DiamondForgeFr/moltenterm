@@ -90,11 +90,18 @@ const SignInstructions = " Sign your work: add the trailer `molten agent whoami 
 	"make (git commit --trailer \"$(molten agent whoami --trailer)\"), and run `molten agent sign-pr <number>` after " +
 	"opening a pull request or pushing to one. Details: pr-signature.md in the folder `molten docs` prints."
 
+// MaterialsInstructions: what an agent shows the developer outside the repository is kept in Materials (FR-MAT-001,
+// pkg/molten/agentdocs/materials.md); declaring it makes any agent equal to those MoltenTerm reads.
+const MaterialsInstructions = " What you produce for the developer outside the repository (a page, a report, a " +
+	"capture, a recording, a link), declare it with `molten material add <path|url> --title \"...\"` so MoltenTerm " +
+	"keeps it for the project; `molten material list` lists them. Details: materials.md in the folder `molten docs` " +
+	"prints."
+
 // AgentInstructions completes the server's instructions with the agent's own first name (FR-CONT-014): Claude Code
 // puts server instructions in its system prompt, so the agent can sign its briefs and knows it is addressed.
 func AgentInstructions(firstName string) string {
 	rtn := " To hand work to another agent when the user asks (\"send this to Jérôme\"), call list_agents, then " +
-		"send_to_agent with a brief the receiver can act on alone."
+		"send_to_agent with a brief the receiver can act on alone." + MaterialsInstructions
 	if firstName != "" {
 		rtn = fmt.Sprintf(" In MoltenTerm your first name is %s: the user and other agents call you by it, and handoffs you "+
 			"send are signed with it.", firstName) + rtn + SignInstructions
