@@ -9,6 +9,7 @@
 // ticks. It renders when the columns, the set in view, the focus or a panel's facts change, never per scroll frame.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
@@ -21,7 +22,7 @@ import { SidebarModel } from "../sidebar/sidebar-store";
 import { suiteIcon } from "../suite/suite-icons";
 import { addCarpetPanel } from "./carpet-add";
 import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
-import { activePageTab, carpetPageModel, CarpetPageFacts, makeCarpetPagesAtom } from "./carpet-page-store";
+import { activePageTab, CarpetPageFacts, carpetPageModel, makeCarpetPagesAtom } from "./carpet-page-store";
 import { CarpetStrip, StripDrag, StripHandlers } from "./carpet-tabs";
 import {
     carpetMoveAction,
@@ -29,16 +30,25 @@ import {
     dropIndex,
     rovingColumnId,
     stepIndex,
-    StripPlusPx,
     stripLayout,
+    StripPlusPx,
     StripText,
     TabGapPx,
+    tabNumbers,
 } from "./carpet-tabs-model";
-import { buildRadarTicks, radarHint, radarPitchPx, RadarText, RadarTick, radarToContentX, radarWindowLine } from "./radar-model";
+import {
+    buildRadarTicks,
+    radarHint,
+    radarPitchPx,
+    RadarText,
+    RadarTick,
+    radarToContentX,
+    radarWindowLine,
+} from "./radar-model";
 import { makeRadarFactsAtom, radarColumns } from "./radar-store";
 import "./radar.css";
-import { pinMenuItems } from "./view360-pin";
 import type { View360Model } from "./view360-model";
+import { pinMenuItems } from "./view360-pin";
 import { View360Text } from "./view360-text";
 
 const DragThresholdPx = 3;
@@ -124,6 +134,19 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
         [pageKey, pagesEpoch]
     );
     const pages = useAtomValue(pagesAtom);
+    // Wave's Ctrl+Shift hold (main process: both keys down, none else, reset when either goes up or the window loses
+    // focus), the one that numbers the panels.
+    const ctrlShiftHeld = useAtomValue(atoms.controlShiftDelayAtom);
+    const leafOrder = useAtomValue(layoutModel.leafOrder);
+    const numbers = useMemo(
+        () =>
+            tabNumbers(
+                ticks,
+                leafOrder.map((leaf) => leaf.nodeid),
+                ctrlShiftHeld
+            ),
+        [ticks, leafOrder, ctrlShiftHeld]
+    );
     const [hover, setHover] = useState<Hover>(null);
     const [scrubbing, setScrubbing] = useState(false);
     const [drag, setDrag] = useState<StripDrag>(null);
@@ -414,6 +437,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
                 focusedColumnId={focusedColumnId}
                 rovingColumnId={rovingColumnId(ticks, focusedColumnId)}
                 pages={pages}
+                numbers={numbers}
                 drag={drag}
                 scrubbing={scrubbing}
                 handlers={handlers}

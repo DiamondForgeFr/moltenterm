@@ -353,6 +353,26 @@
     object-fit: contain;
 }
 
+/* The Ctrl+Shift number takes the glyph's place while both keys are held (FR-SHELL-126-AC2): the same 14 px, so the
+   tabs do not move. */
+.mt-strip-num {
+    flex: none;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 2px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--df-radius-sm);
+    background: var(--mt-surface-0);
+    color: var(--mt-text-1);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1;
+}
+
 .mt-strip-title {
     flex: 1;
     min-width: 0;

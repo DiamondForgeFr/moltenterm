@@ -2077,7 +2077,7 @@
             "dismissTitle": "Garder MoltenTerm pour cette page, et redemander la prochaine fois"
         },
         "share": {
-            "noAgent": "Aucun agent ne tourne dans cet onglet",
+            "noAgent": "Aucun agent ne tourne dans cette vue",
             "share": "Partager avec…",
             "shareWith": "Partager avec {name}",
             "andTell": "Partager et prévenir {name}",

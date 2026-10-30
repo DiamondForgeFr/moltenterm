@@ -241,8 +241,9 @@ export function radarWindowLine(): string {
     return `${RadarText.window} — ${RadarText.windowHint}`;
 }
 
-// The column the previous / next shortcut goes to. From the fixed zone (current null) next goes to the first column
-// in view, previous to none; at either end of the carpet it stays.
+// The column the next / previous tab keys go to (FR-SHELL-126-AC1): the carpet's tabs cycle, from the last to the
+// first and back. The agent's fixed zone is not part of the cycle: from it (current null) next goes to the first
+// column in view and previous to the last column.
 export function stepCarpetColumn(
     columnIds: string[],
     currentColumnId: string,
@@ -255,15 +256,11 @@ export function stepCarpetColumn(
     const at = currentColumnId == null ? -1 : columnIds.indexOf(currentColumnId);
     if (at === -1) {
         if (dir < 0) {
-            return null;
+            return columnIds[columnIds.length - 1];
         }
         return columnIds.find((id) => visibleIds?.includes(id)) ?? columnIds[0];
     }
-    const next = at + dir;
-    if (next < 0 || next >= columnIds.length) {
-        return null;
-    }
-    return columnIds[next];
+    return columnIds[(at + dir + columnIds.length) % columnIds.length];
 }
 
 // Where the carpet's content is under a point of the radar while the pill is dragged: tick centres map to column

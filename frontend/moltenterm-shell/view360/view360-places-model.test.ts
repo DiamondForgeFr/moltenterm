@@ -195,7 +195,10 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         expect(model.grippedFixedPx).toBeNull();
         pass();
         // Another window unpinned meanwhile: Undo writes the pins back.
-        globalStore.set(tabAtom, { oid: "tab-1", meta: { [View360MetaKey]: true, [View360PlacesMetaKey]: 1 } } as unknown as Tab);
+        globalStore.set(tabAtom, {
+            oid: "tab-1",
+            meta: { [View360MetaKey]: true, [View360PlacesMetaKey]: 1 },
+        } as unknown as Tab);
         lastUndo()();
         expect(model.grippedFixedPx).toBe(700);
         expect(globalStore.get(model.pinsAtom)).toEqual(pins);
@@ -248,5 +251,63 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         const { model, pass } = makeModel(rowOf(3), { [View360PinsMetaKey]: { "b-c2": { mode: "stacked" } } });
         pass();
         expect(globalStore.get(model.rolesAtom)).toEqual({ "b-c0": "first", "b-c1": "carpet", "b-c2": "stacked" });
+    });
+});
+
+describe("closing a panel under a 360 × N (FR-SHELL-126-AC3)", () => {
+    // Seven carpet columns c1…c7 and two places: the places in view, then the pass after the close.
+    async function closed(startBlock: string, closeBlock: string, closeColumn: string) {
+        const root = rowOf(8);
+        const { model, pass } = makeModel(root);
+        pass();
+        model.applyPlaces(startBlock, 2);
+        pass();
+        const before = wholeInView(model);
+        await vi.waitFor(() => expect(globalStore.get(model.visibleColumnIdsAtom)).toEqual(before), { timeout: 30000 });
+        model.planClose(closeBlock);
+        root.children.splice(
+            root.children.findIndex((c) => c.id === closeColumn),
+            1
+        );
+        pass();
+        return { before, after: wholeInView(model) };
+    }
+
+    it("the next stored panel to the right takes the place of a visible one that closes", async () => {
+        const { before, after } = await closed("b-c3", "b-c3", "c3");
+        expect(before).toEqual(["c3", "c4"]);
+        expect(after).toEqual(["c4", "c5"]);
+        const second = await closed("b-c3", "b-c4", "c4");
+        expect(second.after).toEqual(["c3", "c5"]);
+    });
+
+    it("at the start of the carpet", async () => {
+        const { before, after } = await closed("b-c1", "b-c1", "c1");
+        expect(before).toEqual(["c1", "c2"]);
+        expect(after).toEqual(["c2", "c3"]);
+    });
+
+    it("at the end of the carpet the stored panel to the left comes in", async () => {
+        const { before, after } = await closed("b-c7", "b-c7", "c7");
+        expect(before).toEqual(["c6", "c7"]);
+        expect(after).toEqual(["c5", "c6"]);
+    });
+
+    it("keeps the same places in view when a stored panel to their left closes", async () => {
+        const { before, after } = await closed("b-c4", "b-c1", "c1");
+        expect(before).toEqual(["c4", "c5"]);
+        expect(after).toEqual(["c4", "c5"]);
+    });
+
+    it("plans nothing for a panel of the fixed zone, or without a 360 × N", () => {
+        const { model, pass } = makeModel(rowOf(5));
+        pass();
+        model.planClose("b-c1");
+        expect(model.pendingStart).toBeNull();
+        model.applyPlaces("b-c2", 2);
+        pass();
+        model.pendingStart = null;
+        model.planClose("b-c0");
+        expect(model.pendingStart).toBeNull();
     });
 });

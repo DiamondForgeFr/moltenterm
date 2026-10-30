@@ -946,7 +946,9 @@ export class LayoutModel {
             additionalPropsMap[child.id] = {
                 rect,
                 transform,
-                treeKey: additionalProps.treeKey + i,
+                // MOLTENTERM-PATCH (#1415): the index is padded, so past 9 children the keys still sort in tree order (the
+                // carpet has a column per panel, and the panel numbers and Ctrl+Shift+1…9 follow this order)
+                treeKey: additionalProps.treeKey + String(i).padStart(3, "0"),
                 moltenCarpet,
                 // MOLTENTERM-PATCH (#616): a column pinned to the fixed zone, and every panel inside it
                 moltenPinned: moltenView360 != null && (moltenChild?.pinned || !!additionalProps.moltenPinned),

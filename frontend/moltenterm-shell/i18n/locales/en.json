@@ -2077,7 +2077,7 @@
             "dismissTitle": "Keep MoltenTerm for this page, and ask again next time"
         },
         "share": {
-            "noAgent": "No agent is running in this tab",
+            "noAgent": "No agent is running in this view",
             "share": "Share with…",
             "shareWith": "Share with {name}",
             "andTell": "Share and tell {name}",

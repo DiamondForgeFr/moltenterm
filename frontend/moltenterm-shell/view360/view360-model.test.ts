@@ -10,6 +10,7 @@ import {
     LayoutTreeActionType,
     type LayoutNode,
     type LayoutTreeInsertNodeAction,
+    type LayoutTreeInsertNodeAtIndexAction,
     type LayoutTreeSplitHorizontalAction,
     type LayoutTreeSplitVerticalAction,
 } from "@/layout/lib/types";
@@ -190,6 +191,36 @@ describe("View360Model", () => {
         };
         const right = model.rewriteAction(splitRight, root) as LayoutTreeSplitHorizontalAction;
         expect([right.targetNodeId, right.position]).toEqual(["stack", "after"]);
+    });
+
+    it("puts a reopened pane back at its index among the columns, the end of the carpet past the last one (FR-SHELL-126-AC4)", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c"), leaf("d")],
+        };
+        const { model } = makeModel(true, root);
+        const reopen = (indexArr: number[]): LayoutTreeInsertNodeAtIndexAction => ({
+            type: LayoutTreeActionType.InsertNodeAtIndex,
+            node: leaf("new"),
+            indexArr,
+            magnified: false,
+            focused: true,
+        });
+        const after = (indexArr: number[]) => {
+            const rewritten = model.rewriteAction(reopen(indexArr), root) as LayoutTreeSplitHorizontalAction;
+            expect(rewritten.type).toBe(LayoutTreeActionType.SplitHorizontal);
+            expect(rewritten.position).toBe("after");
+            expect(rewritten.focused).toBe(true);
+            return rewritten.targetNodeId;
+        };
+        expect(after([0])).toBe("a");
+        expect(after([1])).toBe("b");
+        expect(after([2])).toBe("c");
+        expect(after([3])).toBe("d");
+        expect(after([9])).toBe("d");
+        expect(after([1, 0])).toBe("d");
     });
 
     it("wraps a lone panel so the new one becomes the first carpet column", () => {

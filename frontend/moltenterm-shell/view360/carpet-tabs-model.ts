@@ -124,6 +124,28 @@ export function rovingColumnId(ticks: RadarTick[], focusedColumnId: string): str
     return (ticks.find((tick) => tick.visible) ?? ticks[0]).columnId;
 }
 
+// ---- numbers (FR-SHELL-126-AC2) ---------------------------------------------------------------------------------
+
+// Ctrl+Shift+1…9 stop at 9: a tab beyond them carries no number.
+export const MaxTabNumber = 9;
+
+// The numbers the tabs show while Ctrl and Shift are held, by column. A tab's number is the one its panel has for
+// Ctrl+Shift+1…9 (the focus-number command: the panel's place in the layout, the agent's column first), so the keys
+// and the tabs always agree. Nothing shows once either key is released or the window loses focus (held false).
+export function tabNumbers(ticks: RadarTick[], leafNodeIds: string[], held: boolean): Record<string, number> {
+    const rtn: Record<string, number> = {};
+    if (!held) {
+        return rtn;
+    }
+    for (const tick of ticks ?? []) {
+        const at = (leafNodeIds ?? []).indexOf(tick.focusNodeId);
+        if (at >= 0 && at < MaxTabNumber) {
+            rtn[tick.columnId] = at + 1;
+        }
+    }
+    return rtn;
+}
+
 // ---- order (AC5) ------------------------------------------------------------------------------------------------
 
 // Where a dragged tab drops: the index, among the tabs in their current order, before which it goes (the tab itself

@@ -282,7 +282,7 @@ describe("share with agent: the panel's tab only (#594)", () => {
             enabled: false,
             sublabel: noAgentReason(),
         });
-        expect(noAgentReason()).toBe("No agent is running in this tab");
+        expect(noAgentReason()).toBe("No agent is running in this view");
     });
 
     it("keeps nothing without the tab's panes or entries without a pane", () => {
