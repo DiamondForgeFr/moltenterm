@@ -1,8 +1,9 @@
 # Dependency upgrades for #810
 
-Electron is pinned to 42.11.15, the smallest currently maintained major, preserving the application's existing
-macOS 12+ requirement. The builder minimum now states that actual floor. Electron 44 would require macOS 13;
-this maintenance does not change that platform promise. Historic performance baselines keep their recorded versions.
+Electron is pinned to 45.2.0 (#1590), with the developer-approved macOS 13+ minimum. Electron 42 is out of support;
+the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines keep their
+recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review expires
+at the start of December 1, 2026 UTC. Check the live upstream release list and schedule before every release.
 See [Electron releases](https://releases.electronjs.org/), its
 [support policy](https://www.electronjs.org/docs/latest/tutorial/electron-timelines) and
 [macOS 12 removal in Electron 44](https://www.electronjs.org/docs/latest/breaking-changes#removed-macos-12-support).
