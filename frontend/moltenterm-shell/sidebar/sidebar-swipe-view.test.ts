@@ -292,6 +292,132 @@ describe("where a swipe starts: over the sidebar only (FR-SHELL-082, #1389)", ()
     });
 });
 
+// Chromium's frame order: the wheel events of a frame are dispatched first, then its requestAnimationFrame callbacks
+// run. The fixtures above run the frame first whenever both fall due, which hid #1405.
+describe("a swipe leaving the library or the new-workspace page lands, whatever its momentum does (#1405)", () => {
+    let queued = new Map<number, FrameRequestCallback>();
+    let nextId = 1;
+
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
+        queued = new Map();
+        vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) => {
+            const id = nextId++;
+            queued.set(id, fn);
+            return id;
+        });
+        vi.stubGlobal("cancelAnimationFrame", (id: number) => queued.delete(id));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
+
+    const inAside = { where: "aside" } as unknown as EventTarget;
+    const inLibrary = { where: "library" } as unknown as EventTarget;
+
+    function runFrame() {
+        const callbacks = Array.from(queued.values());
+        queued.clear();
+        callbacks.forEach((fn) => fn(performance.now()));
+    }
+
+    // One wheel event per 60 Hz frame, dispatched before the frame's callbacks. The pointer stays where the gesture
+    // began, over the sidebar; while the library is open it lies over it. The library's look is checked after each
+    // frame: once moved, it never shows back at rest while it is open.
+    function frames(f: Fixture, dxs: number[]): { flashes: number } {
+        let flashes = 0;
+        let moved = false;
+        for (const dx of dxs) {
+            vi.advanceTimersByTime(16);
+            const lib = f.view.library();
+            const wheel = {
+                deltaX: dx,
+                deltaY: 0,
+                ctrlKey: false,
+                timeStamp: performance.now(),
+                target: lib != null ? inLibrary : inAside,
+                preventDefault: () => {},
+            } as unknown as WheelEvent;
+            if (lib != null) {
+                f.controller.onWindowWheel(wheel);
+            } else {
+                f.controller.onAsideWheel(wheel);
+            }
+            runFrame();
+            if (lib == null) {
+                continue;
+            }
+            if (lib.style.transform) {
+                moved = true;
+            } else if (moved && f.view.library() === lib) {
+                flashes++;
+                moved = false;
+            }
+        }
+        return { flashes };
+    }
+
+    // A trackpad's momentum at 60 Hz: a tail decaying to nothing over about 1.5 s, with now and then a delta a pixel or
+    // two the other way.
+    function tail(from: number, reversals = false): number[] {
+        const out: number[] = [];
+        for (let v = Math.abs(from) * 0.96, i = 0; Math.round(v) > 0; v *= 0.96, i++) {
+            out.push(Math.sign(from) * (reversals && i > 4 && i % 9 === 0 ? -2 : Math.round(v)));
+        }
+        return out;
+    }
+
+    it("closes the library when its momentum outlasts the settle", () => {
+        const f = fixture({ libraryOpen: true });
+        const lib = f.view.library();
+        const shown = frames(f, [...Array(10).fill(20), ...tail(20)]);
+        vi.advanceTimersByTime(2000);
+        runFrame();
+        expect(f.actions.closeLibrary).toHaveBeenCalledTimes(1);
+        expect(f.view.library()).toBeNull();
+        expect(shown.flashes).toBe(0);
+        // It keeps its leaving look until React removes it: cleared, it would show at rest for a frame.
+        expect(lib.style.transform).toMatch(/^translate3d\(-/);
+    });
+
+    it("closes it for good through a tail with small reversals", () => {
+        const f = fixture({ libraryOpen: true });
+        const shown = frames(f, [...Array(10).fill(20), ...tail(20, true)]);
+        vi.advanceTimersByTime(2000);
+        runFrame();
+        expect(f.actions.closeLibrary).toHaveBeenCalledTimes(1);
+        expect(f.view.library()).toBeNull();
+        expect(shown.flashes).toBe(0);
+    });
+
+    it("a library opened by a pull and closed by a swipe back never opens again from that swipe", () => {
+        const f = fixture({ activeId: "a" });
+        frames(f, [...Array(20).fill(-12), ...tail(-12)]);
+        vi.advanceTimersByTime(400);
+        runFrame();
+        expect(f.actions.openLibrary).toHaveBeenCalledTimes(1);
+        frames(f, [...Array(10).fill(20), ...tail(20, true)]);
+        vi.advanceTimersByTime(2000);
+        runFrame();
+        expect(f.actions.closeLibrary).toHaveBeenCalledTimes(1);
+        expect(f.actions.openLibrary).toHaveBeenCalledTimes(1);
+        expect(f.view.library()).toBeNull();
+        expect(f.actions.switchTo).not.toHaveBeenCalled();
+        expect(f.actions.startCreate).not.toHaveBeenCalled();
+    });
+
+    it("leaves the new-workspace page when its momentum outlasts the settle", () => {
+        const f = fixture({ activeId: "c", creating: true });
+        frames(f, [...Array(10).fill(-20), ...tail(-20, true)]);
+        vi.advanceTimersByTime(2000);
+        runFrame();
+        expect(f.actions.leaveCreate).toHaveBeenCalledTimes(1);
+        expect(f.actions.switchTo).not.toHaveBeenCalled();
+    });
+});
+
 describe("the pull's ring", () => {
     it("fills the right half first, then the left", () => {
         expect(ringTurns(0)).toEqual({ right: 0, left: 0 });

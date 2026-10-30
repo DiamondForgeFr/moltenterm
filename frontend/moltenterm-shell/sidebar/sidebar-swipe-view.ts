@@ -180,10 +180,12 @@ export class SidebarSwipeController {
     handle(dx: number, dy: number, at: number, place: SwipePlace): boolean {
         // A view left keeps getting the gesture's momentum (the system latches a gesture to its view): it never acts.
         if (this.switchingUntil > performance.now() || globalThis.document?.visibilityState === "hidden") {
-            const a = this.state.absorb;
-            if (a != null && Math.sign(dx) === a.sign) {
-                this.state = { ...this.state, absorb: { ...a, lastAbs: Math.abs(dx), lastAt: at } };
-            }
+            this.absorbOnly(dx, at);
+            return true;
+        }
+        this.landEnded(at);
+        if (this.leaving()) {
+            this.absorbOnly(dx, at);
             return true;
         }
         // From rest, each gesture reads where it starts: the page on screen may have changed (a pull opened one).
@@ -199,6 +201,35 @@ export class SidebarSwipeController {
         const r = swipeWheel(this.state, { dx, dy, at }, this.gesture.ctx);
         this.apply(r);
         return r.handled;
+    }
+
+    // The event is the spent gesture's momentum: it only keeps the absorb going.
+    private absorbOnly(dx: number, at: number) {
+        const a = this.state.absorb;
+        if (a != null && Math.sign(dx) === a.sign) {
+            this.state = { ...this.state, absorb: { ...a, lastAbs: Math.abs(dx), lastAt: at } };
+        }
+    }
+
+    // Chromium hands a frame's wheel events to the page before its requestAnimationFrame callbacks: in the frame a
+    // settle ended, the momentum reached the machine first, which dropped the settle without landing it, and the library
+    // came back at rest instead of closing (#1405). A settle that ended lands before the event.
+    private landEnded(at: number) {
+        const s = this.state;
+        if (s.phase !== "settling" || s.settle == null || !settleDone(s.settle, at)) {
+            return;
+        }
+        cancelAnimationFrame(this.frame);
+        this.frame = 0;
+        this.settled(s.settle);
+    }
+
+    // A committed settle leaving the library or the new-workspace page always lands (#1405): the rest of the gesture, a
+    // reversal included, is spent. Taken back by a reversal, the momentum after it could not commit and the page sprang
+    // back open. A switch between workspaces is spent the same way (switchingUntil).
+    private leaving(): boolean {
+        const settle = this.state.settle;
+        return this.state.phase === "settling" && settle != null && settle.commit !== 0 && settle.kind === "page";
     }
 
     private absorbing(at: number): boolean {
@@ -395,6 +426,9 @@ export class SidebarSwipeController {
         const g = this.gesture;
         if (settle.commit !== 0 && g != null && settle.kind === "page") {
             if (g.place === "library") {
+                // The library leaves with its last look: its styles cleared before React removes it, it showed at rest
+                // for a frame (#1405).
+                this.moved.delete(this.view.library());
                 this.actions.closeLibrary();
             } else if (this.view.position().creating) {
                 this.actions.leaveCreate();
