@@ -66,7 +66,9 @@ var (
 	variableRefRegex = regexp.MustCompile(`^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\{\{.*\}\}$|^<[^<>]*>$`)
 	plainWordRegex   = regexp.MustCompile(`^[a-z]{1,12}$`)
 	// Two more words of prose after a value, on its line (a comma or a semicolon may follow the first).
-	proseTailRegex = regexp.MustCompile(`^[ \t]+\p{L}+[,;]?[ \t]+\p{L}+`)
+	proseTailRegex   = regexp.MustCompile(`^[ \t]+\p{L}+[,;]?[ \t]+\p{L}+`)
+	sentenceEndRegex = regexp.MustCompile(`\p{L}[.!?…][ \t]*$`)
+	cssPseudoRegex   = regexp.MustCompile(`^[a-z-]+(?:\([^()]*\))?[ \t]*\{`)
 )
 
 func containsAny(text string, hints ...string) bool {
@@ -236,6 +238,12 @@ func replaceAssignments(text string, count *int) string {
 		prefix := strings.TrimSpace(text[lineStart:idx[0]])
 		mapping := strings.TrimSpace(sep) == ":" && (prefix == "" || prefix == "-")
 		flow := strings.TrimSpace(sep) == ":" && strings.LastIndex(prefix, "{") > strings.LastIndex(prefix, "}")
+		if cssSelector(sep, text[idx[10]:]) {
+			continue
+		}
+		if mapping && proseSentence(name, sep, value, quoted, text[idx[1]:]) {
+			continue
+		}
 		end := idx[11]
 		plain := !strings.HasPrefix(value, `"`) && !strings.HasPrefix(value, "'")
 		if plain && (mapping || flow) {
@@ -304,6 +312,25 @@ func proseColon(name string, rawSep string, value string, quotedName bool, rest 
 		return false
 	}
 	return proseTailRegex.MatchString(rest)
+}
+
+// proseSentence tells a French sentence that opens its line ("Secret : des copies gardées sur cet ordinateur.") from a
+// YAML mapping with a passphrase ("password : correct horse battery staple"): the prose reads as proseColon, its first
+// word may take a capital, and it ends as a sentence does.
+func proseSentence(name string, rawSep string, value string, quotedName bool, rest string) bool {
+	if !proseColon(strings.ToLower(name), rawSep, value, quotedName, rest) {
+		return false
+	}
+	lineEnd := strings.IndexByte(rest, '\n')
+	if lineEnd < 0 {
+		lineEnd = len(rest)
+	}
+	return sentenceEndRegex.MatchString(rest[:lineEnd])
+}
+
+// cssSelector tells a pseudo-class opening a rule (".secret:hover {"): no space around the colon, a block after it.
+func cssSelector(rawSep string, valueOn string) bool {
+	return rawSep == ":" && cssPseudoRegex.MatchString(valueOn)
 }
 
 func quoteLike(value string, replacement string) string {

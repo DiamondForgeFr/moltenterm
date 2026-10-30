@@ -129,6 +129,9 @@ func TestRedactSpacedColon(t *testing.T) {
 		"Rien de secret : des nombres, des identifiants de modèle, des numéros de ticket.",
 		".life li.key::before { border-color: var(--pg-action); }",
 		"a.token::after{content:\"\"}",
+		"Secret : des copies gardées sur cet ordinateur et ailleurs.",
+		".secret:hover {\n  color: red;\n}",
+		"input.password:focus{outline: none}",
 	}
 	for _, in := range prose {
 		if out, n := Redact(in); n != 0 || out != in {
