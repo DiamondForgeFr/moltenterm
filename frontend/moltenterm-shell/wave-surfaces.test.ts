@@ -25,7 +25,9 @@ function tokenValue(name: string): string {
 // Theme "Coulée" step 7 (FR-SHELL-120, #1340).
 describe("Wave surfaces on the Coulée tokens (FR-SHELL-120)", () => {
     it("points Wave's panel, inset and link colours at the tokens (AC-1)", () => {
-        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root \{([^}]*)\}/.exec(shellCss)[1];
+        const neutrals = /\/\* Cast-iron neutrals[\s\S]*?:root,\n\.mt-light \[data-mt-dark-surface\] \{([^}]*)\}/.exec(
+            shellCss
+        )[1];
         const aliases: Record<string, string> = {
             "--block-bg-color": "--mt-surface-1",
             "--block-bg-solid-color": "--mt-surface-1",
