@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
@@ -112,6 +113,9 @@ func TestRecoverPastSessions(t *testing.T) {
 	if len(page.Versions) != 1 || page.Versions[0].N != 2 || page.Files != 4 {
 		t.Errorf("one source left, numbered after its latest publication: %+v", page.Versions)
 	}
+	if published := time.Date(2026, 10, 30, 11, 3, 5, 0, time.UTC).UnixMilli(); page.Versions[0].At != published || page.Created > published {
+		t.Errorf("a recovered material is dated by its publication: %+v", page)
+	}
 	gone := byLink(list, "https://claude.ai/artifact/GoneSource01")
 	if gone == nil || gone.Copy != molten.MaterialCopyMissing || len(gone.Versions) != 0 || gone.Title != "Erased report" {
 		t.Errorf("erased source: %+v", gone)
@@ -152,6 +156,23 @@ func TestRecoverTwoSources(t *testing.T) {
 	}
 	if !strings.HasSuffix(m.CopyPath, "report-v2.html") {
 		t.Errorf("the current copy is the latest source: %s", m.CopyPath)
+	}
+	if m.Ticket != 1432 {
+		t.Errorf("a session on one branch gives its ticket: %d", m.Ticket)
+	}
+}
+
+// A main checkout's session records the branches of its agents' worktrees: it gives no ticket by branch.
+func TestRecoverSessionOfSeveralBranches(t *testing.T) {
+	h := makeHarness(t)
+	h.write("p/page.html", "<html>p</html>")
+	url := "https://claude.ai/artifact/SeveralBranches"
+	lines := pastPublishLines(h.project, url, "{{DIR}}/p/page.html", "Page", 1)
+	lines = append(lines, `{"type":"user","sessionId":"`+pastSession+`","cwd":"`+h.project+`","gitBranch":"feature/1461-any-agent","timestamp":"2026-10-30T12:00:00.000Z","message":{"role":"user","content":"next"}}`)
+	h.writePastLines(filepath.Join(h.pastRoots().claude, companion.ClaudeSlug(h.project), pastSession+".jsonl"), lines...)
+	h.recoverNow()
+	if m := byLink(h.list(), url); m == nil || m.Ticket != 0 {
+		t.Fatalf("ticket taken from a shared branch: %+v", m)
 	}
 }
 
@@ -198,4 +219,3 @@ func TestDesignPageIsNotASecret(t *testing.T) {
 		t.Fatalf("design page held back: %+v", page)
 	}
 }
-
