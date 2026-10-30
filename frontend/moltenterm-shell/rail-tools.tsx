@@ -11,17 +11,10 @@ import { atoms } from "@/app/store/global";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
-import {
-    autoUpdate,
-    FloatingPortal,
-    offset,
-    shift,
-    useDismiss,
-    useFloating,
-    useInteractions,
-} from "@floating-ui/react";
+import { autoUpdate, FloatingPortal, offset, shift, useDismiss, useInteractions } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
+import { useFloatingInPlace } from "./floating-in-place";
 import { useLocale, useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
@@ -111,7 +104,7 @@ function OverflowFlyout({
     onClose: () => void;
     env: WidgetsEnv;
 }) {
-    const { refs, floatingStyles, context } = useFloating({
+    const { refs, floatingStyles, context } = useFloatingInPlace({
         open: true,
         onOpenChange: onClose,
         placement: FlyoutPlacement,

@@ -13,7 +13,6 @@ import {
     shift,
     size,
     useClick,
-    useFloating,
     useFloatingNodeId,
     useFloatingParentNodeId,
     useFloatingTree,
@@ -23,6 +22,7 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFloatingInPlace } from "../floating-in-place";
 import { t } from "../i18n/i18n";
 import { actionableMenuItem, layoutMenuItems, menuItemRole, menuLabel, shortcutLabel } from "./menu-model";
 import { menuDisplayLabel } from "./menu-text";
@@ -96,7 +96,7 @@ function MenuBranch({
         setActiveIndex(moved < 0 ? null : moved);
     }, [keys]);
     labelsRef.current = visible.map((entry) => (actionableMenuItem(entry) ? menuDisplayLabel(entry) : null));
-    const { refs, floatingStyles, context, isPositioned } = useFloating({
+    const { refs, floatingStyles, context, isPositioned } = useFloatingInPlace({
         nodeId,
         open,
         onOpenChange: setOpen,
@@ -228,7 +228,7 @@ function MenuBranch({
                                 },
                             })}
                             ref={mountPanel}
-                            style={{ ...floatingStyles, visibility: isPositioned ? "visible" : "hidden" }}
+                            style={floatingStyles}
                             className="molten-menu"
                             role="menu"
                             tabIndex={-1}

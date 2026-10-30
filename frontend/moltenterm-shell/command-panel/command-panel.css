@@ -26,7 +26,9 @@
     background: transparent;
 }
 
-.molten-cmdpanel {
+/* The entrance starts once the panel stands at its place (#1440): positioned through left/top by useFloatingInPlace,
+   so the keyframe's transform only scales it from its anchor and never moves it from the window's corner. */
+.molten-cmdpanel[data-placed] {
     animation: molten-cmdpanel-in var(--mt-duration-fast) var(--mt-ease);
     transform-origin: top right;
 }
@@ -61,14 +63,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .molten-cmdpanel,
+    .molten-cmdpanel[data-placed],
     .molten-cmdpanel-slide-in,
     .molten-cmdpanel-slide-back {
         animation: none;
     }
 }
 
-.prefers-reduced-motion .molten-cmdpanel,
+.prefers-reduced-motion .molten-cmdpanel[data-placed],
 .prefers-reduced-motion .molten-cmdpanel-slide-in,
 .prefers-reduced-motion .molten-cmdpanel-slide-back {
     animation: none;

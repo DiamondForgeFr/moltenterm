@@ -1,10 +1,11 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { FloatingPortal, type Placement, useDismiss, useFloating, useInteractions } from "@floating-ui/react";
+import { FloatingPortal, type Placement, useDismiss, useInteractions } from "@floating-ui/react"; // MOLTENTERM-PATCH (#1440)
 import clsx from "clsx";
 import { createRef, Fragment, memo, ReactNode, useRef, useState } from "react";
 import ReactDOM from "react-dom";
+import { useFloatingInPlace } from "../../moltenterm-shell/floating-in-place"; // MOLTENTERM-PATCH (#1440)
 
 import "./flyoutmenu.scss";
 
@@ -32,7 +33,8 @@ const FlyoutMenuComponent = memo(
             setIsOpen(isOpen);
             onOpenChange?.(isOpen);
         };
-        const { refs, floatingStyles, context } = useFloating({
+        const { refs, floatingStyles, context } = useFloatingInPlace({
+            // MOLTENTERM-PATCH (#1440)
             placement: placement ?? "bottom-start",
             open: isOpen,
             onOpenChange: onOpenChangeMenu,
