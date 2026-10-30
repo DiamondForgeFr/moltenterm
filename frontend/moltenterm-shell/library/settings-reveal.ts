@@ -41,7 +41,7 @@ export const RevealMs = {
 
 // A card's phases, in ms from the arrival of the molten at its top edge.
 const Phase = {
-    slabStart: -20,
+    slabStart: 0,
     slabEnd: 70,
     coolStart: 60,
     coolEnd: 150,
@@ -305,7 +305,8 @@ function runPieces(doc: Document, r: ChannelRun, t: (d: number) => number, total
     const head = piece(doc, "mt-ch-head");
     const gone = r.card != null ? t1 + Phase.slabEnd : t1 + RevealFrameMs;
     const headKeys = onClock(total, [
-        [Math.max(0, t0 - RevealFrameMs), { transform: `${at(r.a)} scale(0.8)`, opacity: 0 }],
+        // Shown from the first frame the flow is there: a fade over the frame before would light it ahead of the flow.
+        [Math.max(0, t0 - 1), { transform: `${at(r.a)} scale(0.8)`, opacity: 0 }],
         [t0, { transform: `${at(r.a)} scale(1)`, opacity: 1 }],
         [t1, { transform: `${at(r.b)} scale(${r.card != null ? 1.3 : 1})`, opacity: 1 }],
         [gone, { transform: `${at(r.b)} scale(${r.card != null ? 2 : 1})`, opacity: 0 }],
