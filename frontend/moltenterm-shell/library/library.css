@@ -526,11 +526,11 @@
     min-width: 16px;
     height: 16px;
     padding: 0 4px;
-    border-radius: 8px;
+    border-radius: 9999px;
     background: var(--mt-surface-3);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
     color: var(--mt-text-1);
-    font-size: 10px;
+    font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-semibold);
     line-height: 16px;
 }
@@ -571,7 +571,7 @@
     place-items: center;
     width: 44px;
     height: 32px;
-    border-radius: 3px;
+    border-radius: var(--mt-radius-control);
     background: var(--mt-surface-2);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
     color: var(--mt-text-3);
@@ -588,8 +588,8 @@
 .mt-lib-mat-tx b {
     overflow: hidden;
     color: var(--mt-text-1);
-    font-size: 12.5px;
-    font-weight: var(--mt-weight-medium, 500);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -605,12 +605,12 @@
 .mt-lib-tk {
     color: var(--mt-text-2);
     font-family: var(--fixed-font, monospace);
-    font-size: 10.5px;
+    font-size: var(--mt-text-11);
 }
 
 .mt-lib-mat-pin {
     color: var(--mt-text-3);
-    font-size: 11px;
+    font-size: var(--mt-text-11);
 }
 
 /* The form is a state, never the action orange. */
@@ -624,7 +624,7 @@
     border-radius: var(--mt-radius-panel);
     background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--mt-text-3);
-    font-size: 10.5px;
+    font-size: var(--mt-text-11);
     white-space: nowrap;
 }
 
@@ -676,11 +676,11 @@
     height: 24px;
     padding: 0 8px;
     border: 0;
-    border-radius: 3px;
+    border-radius: var(--mt-radius-control);
     background: var(--mt-surface-term);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
     color: var(--mt-text-1);
-    font-size: 12.5px;
+    font-size: var(--mt-text-12);
     outline: none;
 }
 

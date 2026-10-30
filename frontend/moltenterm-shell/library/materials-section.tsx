@@ -26,7 +26,6 @@ import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
 import { useTabIdentity } from "../tab-identity-ui";
 import { showToast } from "../toast-store";
-import { viewNameText } from "../workspace-views/workspace-views-model";
 import { libraryAddAsk, whenText } from "./library-model";
 import {
     filterMaterials,
@@ -34,6 +33,7 @@ import {
     groupMaterials,
     linkHost,
     Material,
+    materialAt,
     materialCopied,
     MaterialCopyCommand,
     MaterialDeleteCopyCommand,
@@ -193,7 +193,7 @@ export function useMaterialsNewCount(view: MaterialsView, open: boolean): number
 
 // ---------- Where a material is open ----------
 
-type ShownPanel = OpenPanel & { tabName: string; browserTabId?: string };
+type ShownPanel = OpenPanel;
 
 // The panels of the workspace's views that show a page or a file, as the store has them.
 function useOpenPanels(workspaceId: string): ShownPanel[] {
@@ -216,11 +216,10 @@ function useOpenPanels(workspaceId: string): ShownPanel[] {
                                 blockId,
                                 tabId,
                                 view,
-                                tabName: tab?.name ?? "",
                                 urls: tabs.map((b) => b.url),
                             });
                         } else if (view === PreviewView && block.meta?.file) {
-                            rtn.push({ blockId, tabId, view, tabName: tab?.name ?? "", file: block.meta.file });
+                            rtn.push({ blockId, tabId, view, file: block.meta.file });
                         }
                     }
                 }
@@ -500,6 +499,19 @@ function RenameField({ m, onDone }: { m: Material; onDone: () => void }) {
     );
 }
 
+// "Open in 'Cadrage'" (AC8): the view's name as the sidebar shows it.
+function OpenInPill({ tabId }: { tabId: string }) {
+    const t = useT();
+    const [tab] = useWaveObjectValue<Tab>(WOS.makeORef("tab", tabId));
+    const identity = useTabIdentity(tabId, tab?.name ?? "");
+    const name = identity.name || t("library.panels.thisView");
+    return (
+        <span className="mt-lib-mat-form is-live" data-testid="library-material-open-in">
+            {t("library.materials.openIn", { view: name })}
+        </span>
+    );
+}
+
 function MaterialFacts({ m, timeOnly }: { m: Material; timeOnly: boolean }) {
     const t = useT();
     const tc = useTCount();
@@ -507,7 +519,7 @@ function MaterialFacts({ m, timeOnly }: { m: Material; timeOnly: boolean }) {
     const version = materialVersion(m);
     const files = materialLinkedFiles(m);
     const originKey = materialOriginKey(m);
-    const at = m.updated || m.created;
+    const at = materialAt(m);
     const time = timeOnly
         ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(at))
         : whenText(at, Date.now(), locale);
@@ -546,6 +558,7 @@ function MaterialRow({
     handlers,
     onSelect,
     onRenameDone,
+    asked,
 }: {
     m: Material;
     timeOnly: boolean;
@@ -555,6 +568,8 @@ function MaterialRow({
     handlers: RowHandlers;
     onSelect: () => void;
     onRenameDone: () => void;
+    // A question is open under the row: its own buttons answer, the row's orange one steps aside.
+    asked: boolean;
 }) {
     const t = useT();
     const locale = useLocale();
@@ -564,7 +579,6 @@ function MaterialRow({
         form.warn && m.size
             ? `${t(`library.materials.form.${form.key}`)} · ${materialSizeText(m.size, locale)}`
             : t(`library.materials.form.${form.key}`);
-    const openName = open ? viewNameText(open.tabName, t) || t("library.panels.thisView") : null;
     const primary = open
         ? t("library.materials.showIt")
         : plan?.how === "folder"
@@ -613,19 +627,17 @@ function MaterialRow({
                 />
             ) : null}
             {open ? (
-                <span className="mt-lib-mat-form is-live" data-testid="library-material-open-in">
-                    {t("library.materials.openIn", { view: openName })}
-                </span>
+                <OpenInPill tabId={open.tabId} />
             ) : (
                 <span className={cn("mt-lib-mat-form", form.warn && "is-warn")} data-testid="library-material-form">
                     {form.key === "linkCopy" ? <i className={makeIconClass("cloud", true)} aria-hidden /> : null}
                     {formText}
                 </span>
             )}
-            {!renaming && (open != null || plan != null) ? (
+            {!renaming && !asked && (open != null || plan != null) ? (
                 <button
                     type="button"
-                    className="mt-lib-mat-go molten-btn cursor-pointer rounded px-2.5 py-1 text-12"
+                    className="mt-lib-mat-go molten-btn cursor-pointer rounded-4 px-2.5 py-1 text-12"
                     tabIndex={selected ? 0 : -1}
                     data-testid="library-material-open"
                     onClick={(e) => {
@@ -745,7 +757,7 @@ function DeleteAsk({ m, onCancel, onConfirm }: { m: Material; onCancel: () => vo
                 <button
                     ref={ref}
                     type="button"
-                    className="molten-btn cursor-pointer rounded px-2.5 py-1 text-12"
+                    className="molten-btn cursor-pointer rounded-4 px-2.5 py-1 text-12"
                     data-testid="library-material-delete-confirm"
                     onClick={onConfirm}
                 >
@@ -883,6 +895,7 @@ export function MaterialsSection({ view, failed, query }: { view: MaterialsView;
                                         timeOnly={g.timeOnly}
                                         selected={m.id === current?.id}
                                         renaming={renaming === m.id}
+                                        asked={asking?.id === m.id || deleting === m.id}
                                         open={findOpenPanel(panels, m) as ShownPanel}
                                         handlers={handlers}
                                         onSelect={() => setSelected(m.id)}
