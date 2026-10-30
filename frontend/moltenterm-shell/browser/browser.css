@@ -161,3 +161,38 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     overflow: hidden;
     border-radius: 0 0 var(--mt-panel-radius) var(--mt-panel-radius);
 }
+
+/* The row folds from the right edge in a stable order (#1439), so close, "Store on the carpet" and the command panel
+   trigger are never clipped: the address shrinks first, then the label of Open in <browser> goes (fold 1), Share and
+   Open in <browser> move into the "⋯" (fold 2), then Forward, Reload and Magnify do (fold 3). The widths mirror
+   FoldNavPx in browser-view.tsx. */
+.molten-browser-row {
+    container-type: inline-size;
+    container-name: molten-browser-row;
+}
+
+.molten-browser-row .molten-fold-more {
+    display: none;
+}
+
+@container molten-browser-row (max-width: 539px) {
+    .molten-browser-row .molten-fold-1 {
+        display: none;
+    }
+}
+
+@container molten-browser-row (max-width: 439px) {
+    .molten-browser-row .molten-fold-2 {
+        display: none;
+    }
+
+    .molten-browser-row .molten-fold-more {
+        display: flex;
+    }
+}
+
+@container molten-browser-row (max-width: 339px) {
+    .molten-browser-row .molten-fold-3 {
+        display: none;
+    }
+}

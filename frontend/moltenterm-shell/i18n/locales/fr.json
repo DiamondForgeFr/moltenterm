@@ -150,6 +150,7 @@
             "commandsAndOptions": "Commandes et options ({shortcut})",
             "suggestionsAndOptions": "Suggestions, commandes et options ({shortcut})",
             "addToLayout": "Ajouter à la disposition",
+            "moreActions": "Plus d'actions",
             "magnify": "Agrandir",
             "unmagnify": "Réduire",
             "noView": "(Aucune vue)",
@@ -2149,7 +2150,8 @@
             "stopTitle": "Arrêter le chargement de cette page",
             "reload": "Recharger",
             "reloadTitle": "Recharger ({shortcut})\nMaj-clic ou {hardShortcut} : recharger sans le cache",
-            "loadingPage": "Chargement de la page"
+            "loadingPage": "Chargement de la page",
+            "more": "Plus d'actions"
         },
         "handoff": {
             "keeps": "{browser} garde vos sessions, mots de passe et extensions pour cette page.",
