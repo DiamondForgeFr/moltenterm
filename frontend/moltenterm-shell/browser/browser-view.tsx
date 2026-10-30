@@ -35,6 +35,7 @@ import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
 import { HeaderCloseButton } from "../header/header-close-button";
+import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
@@ -1854,7 +1855,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 aria-label={t("browser.nav.more")}
                 title={t("browser.nav.more")}
                 data-testid="browser-more"
-                onClick={(e) => model.showOverflowMenu(e, active, rowRef.current?.getBoundingClientRect().width ?? 0)}
+                onClick={(e) => model.showOverflowMenu(e, active, contentBoxWidth(rowRef.current))}
                 className="molten-fold-more mt-focus-only h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-ellipsis text-12" />
