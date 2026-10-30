@@ -470,7 +470,6 @@
     background: transparent;
     color: var(--color-secondary);
     text-align: left;
-    cursor: pointer;
 }
 
 .mt-lib-airow:hover {
@@ -508,9 +507,72 @@
     white-space: nowrap;
 }
 
-.mt-lib-state.is-live {
-    background: color-mix(in srgb, var(--color-success) 20%, transparent);
-    color: var(--color-success);
+/* Shared with agents (#1538): one block per agent, its pages under it. Remove and Show are calm secondary actions:
+   the orange stays for calls to action. */
+.mt-lib-aigroup {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+}
+
+.mt-lib-aihead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 6px;
+}
+
+.mt-lib-aihead .t {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mt-lib-aihead .t b {
+    color: var(--color-primary);
+    font-size: var(--mt-text-13);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-lib-aihead .t > span:last-child {
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-aiact {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    border-radius: var(--mt-radius-panel);
+    background: transparent;
+    color: var(--color-secondary);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mt-lib-aiact:hover {
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    color: var(--color-primary);
+}
+
+.mt-lib-aiact:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.mt-lib-ai-empty {
+    max-width: 420px;
+    margin-inline: auto;
+    gap: 8px;
 }
 
 /* Materials (FR-MAT-002, mockups a and b of #1290). */

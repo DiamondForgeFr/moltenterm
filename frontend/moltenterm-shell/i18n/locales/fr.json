@@ -9445,9 +9445,9 @@
                 "sub": "Ce que chaque panneau fait, et l'ajouter à la vue en cours."
             },
             "ai": {
-                "label": "Envoyé à l'IA",
-                "title": "Envoyé à l'IA",
-                "sub": "Les pages que les agents tiennent en ce moment : celles que vous avez partagées et celles qu'ils ont ouvertes."
+                "label": "Partagé avec les agents",
+                "title": "Partagé avec les agents",
+                "sub": "Les pages que chaque agent peut lire et piloter en ce moment, pour que vous gardiez la main. Retirez l'accès quand vous voulez."
             },
             "materials": {
                 "label": "Matériaux",
@@ -9497,12 +9497,30 @@
             }
         },
         "ai": {
-            "now": "En ce moment",
             "since": "depuis {when}",
-            "shared": "partagée",
-            "opened": "ouverte par l'agent",
-            "emptyTitle": "Rien de partagé en ce moment",
-            "empty": "Une page que vous partagez avec un agent depuis un panneau Page web s'affiche ici tant que l'agent la tient."
+            "shared": "partagée par vous",
+            "opened": "ouverte par {name}",
+            "takenOver": "vous avez la main",
+            "canUse": {
+                "one": "{name} peut lire et piloter cette page.",
+                "other": "{name} peut lire et piloter ces {count} pages."
+            },
+            "show": "Afficher",
+            "remove": "Retirer l'accès",
+            "removeAll": "Retirer tous ses accès",
+            "removed": "{name} n'a plus « {title} »",
+            "removedAll": "{name} n'a plus aucune page",
+            "removedSub": {
+                "one": "La page reste ouverte, à vous.",
+                "other": "Les {count} pages restent ouvertes, à vous."
+            },
+            "undo": "Annuler",
+            "removeFailed": "Impossible de retirer l'accès de {name}",
+            "undoFailed": "{name} n'est plus connecté : la page reste à vous",
+            "emptyTitle": "Aucune page partagée en ce moment",
+            "empty": "Les pages que vos agents peuvent lire ou piloter en ce moment apparaissent ici, pour que vous gardiez la main.",
+            "howTo": "Pour partager une page, utilisez « {share} » dans l'en-tête de son panneau.",
+            "toMaterials": "Ce que les agents ont produit est dans Matériaux"
         },
         "materials": {
             "thisProject": "Ce projet · {name}",
