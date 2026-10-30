@@ -5,7 +5,8 @@
 // of the tab bar, the workspace rail and the status bar. Top to bottom: the window row (sidebar toggle; keep-awake and
 // notifications), the top field (FR-SHELL-083, top-field.tsx), the top row (views pinned everywhere, FR-SHELL-080),
 // the workspace header (name, project type, its menu on hover), the tiles (pinned tabs), the temporary views (the
-// other tabs, New view), the branch and build line, and the bottom bar (library, workspace dots, +).
+// other tabs, New view), the heat in the free space while agents work (sidebar-heat.tsx), the branch and build line, and
+// the bottom bar (library, workspace dots, +).
 // Everything the replaced bars offered keeps a home here or in these menus (see the PR of #1183 for the mapping).
 
 import { getTabBadgeAtom } from "@/app/store/badge";
@@ -115,6 +116,7 @@ import {
 } from "./sidebar-drag";
 import { SidebarGhost } from "./sidebar-ghost";
 import { workspaceHeaderLogo } from "./sidebar-header-model";
+import { SidebarHeat } from "./sidebar-heat";
 import { SidebarGlyph } from "./sidebar-icons";
 import {
     buildLetterKey,
@@ -2466,6 +2468,7 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     asideRef={asideRef}
                                 />
+                                <SidebarHeat agents={sections.agents} shown={!hidden || peek} />
                             </>
                         )}
                     </div>
