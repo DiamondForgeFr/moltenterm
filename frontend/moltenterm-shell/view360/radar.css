@@ -290,10 +290,11 @@
     align-items: center;
     gap: 6px;
     height: 26px;
-    padding: 0 4px 0 7px;
+    --mt-strip-bg: var(--mt-surface-1);
+    padding: 0 7px;
     border: 1px solid var(--mt-line-1);
     border-radius: var(--mt-radius-control);
-    background: var(--mt-surface-1);
+    background: var(--mt-strip-bg);
     color: var(--mt-text-3);
     font-family: var(--mt-ui-font);
     font-size: var(--mt-text-12);
@@ -313,7 +314,7 @@
 }
 
 .mt-strip-tab[data-visible] {
-    background: var(--mt-surface-3);
+    --mt-strip-bg: var(--mt-surface-3);
     border-color: var(--mt-line-2);
     color: var(--mt-text-1);
 }
@@ -359,18 +360,23 @@
     text-overflow: ellipsis;
 }
 
-/* The close cross shows on hover and on keyboard focus (AC1); without them it keeps its room so the title does not
-   move. */
+/* The close cross shows on hover and on keyboard focus (AC1), over the end of the title: hidden, it takes no room
+   from a tightened title. */
 .mt-strip-close {
-    flex: none;
+    position: absolute;
+    top: 50%;
+    right: 4px;
     display: grid;
     place-items: center;
     width: 16px;
     height: 16px;
     border-radius: var(--df-radius-sm);
+    background: var(--mt-strip-bg);
+    box-shadow: -6px 0 6px -2px var(--mt-strip-bg);
     color: var(--mt-text-3);
     font-size: 10px;
     opacity: 0;
+    transform: translateY(-50%);
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -380,7 +386,7 @@
 }
 
 .mt-strip-close:hover {
-    background: color-mix(in srgb, var(--mt-text-1) 12%, transparent);
+    background: color-mix(in srgb, var(--mt-text-1) 12%, var(--mt-strip-bg));
     color: var(--mt-text-1);
 }
 
@@ -442,8 +448,10 @@
     line-height: 1;
 }
 
+/* Above the dragged tab, which passes over it. */
 .mt-strip-drop {
     position: absolute;
+    z-index: 3;
     top: 50%;
     width: 2px;
     height: 24px;
