@@ -97,6 +97,11 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 		return r.store.Rename(req.Project, req.Id, req.Title)
 	case molten.MaterialPinCommand:
 		return r.store.Pin(req.Project, req.Id, req.Pinned)
+	case molten.MaterialOpenedCommand:
+		if req.Place == nil {
+			return nil, fmt.Errorf("give the place the material is open in")
+		}
+		return r.store.Opened(req.Project, req.Id, *req.Place)
 	case molten.MaterialDeleteCopyCommand:
 		trashId, err := r.store.DeleteCopy(req.Project, req.Id)
 		if err != nil {

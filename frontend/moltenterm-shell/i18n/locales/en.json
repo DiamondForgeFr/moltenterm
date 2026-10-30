@@ -9587,6 +9587,12 @@
             },
             "pinned": "Pinned",
             "openIn": "Open in “{view}”",
+            "place": {
+                "open": "{place}",
+                "closed": "Closed · was in {view}",
+                "lastOpen": "Last open in {place}",
+                "never": "Never opened"
+            },
             "openInView": "Open in a view",
             "showIt": "Show it",
             "actions": "Actions",

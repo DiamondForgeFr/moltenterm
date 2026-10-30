@@ -793,6 +793,216 @@
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
 }
 
+/* Material cards on a wide section (#1546, DS-MAT-010). The kind and the state take state and neutral tokens: the
+   action orange stays on the one button. */
+.mt-lib-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    padding: 2px 2px 8px;
+}
+
+.mt-lib-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-1, var(--mt-line-2));
+    color: var(--mt-text-2);
+    cursor: pointer;
+    outline: none;
+}
+
+.mt-lib-card:hover {
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
+}
+
+.mt-lib-card.is-sel {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+.mt-lib-card:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--mt-text-3);
+}
+
+.mt-lib-card-vis {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--mt-surface-2);
+    box-shadow: inset 0 -1px 0 var(--mt-line-2);
+}
+
+.mt-lib-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mt-lib-card-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 90%;
+    color: var(--mt-text-3);
+    font-size: 30px;
+}
+
+.mt-lib-card-host {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-card-kind {
+    --mt-kind: var(--mt-state-draft);
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-kind) 20%, var(--mt-surface-1, var(--mt-surface-2)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-kind) 40%, transparent);
+    color: var(--mt-kind);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    white-space: nowrap;
+}
+
+.mt-lib-card-kind.is-page {
+    --mt-kind: var(--mt-state-info);
+}
+
+.mt-lib-card-kind.is-link {
+    --mt-kind: var(--mt-state-waiting);
+}
+
+.mt-lib-card-kind.is-image {
+    --mt-kind: var(--mt-state-ready);
+}
+
+.mt-lib-card-kind.is-video {
+    --mt-kind: var(--mt-state-warning);
+}
+
+.mt-lib-card-kind.is-pdf {
+    --mt-kind: var(--mt-state-blocked);
+}
+
+.mt-lib-card-state {
+    position: absolute;
+    top: 9px;
+    right: 8px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+}
+
+.mt-lib-card-state.is-warn {
+    background: color-mix(in srgb, var(--mt-state-running) 18%, var(--mt-surface-2));
+}
+
+/* The one action and the menu at the foot of the visual, on hover, focus or selection. */
+.mt-lib-card-acts {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.mt-lib-card:hover .mt-lib-card-acts,
+.mt-lib-card:focus-within .mt-lib-card-acts,
+.mt-lib-card.is-sel .mt-lib-card-acts {
+    display: flex;
+}
+
+.mt-lib-card-acts .mt-lib-mat-go {
+    display: inline-flex;
+}
+
+.mt-lib-card-acts .mt-lib-mat-more {
+    display: grid;
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+}
+
+.mt-lib-card-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px 10px;
+}
+
+.mt-lib-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.mt-lib-card-title {
+    display: -webkit-box;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13, var(--mt-text-12));
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.mt-lib-card-head .mt-lib-mat-pin {
+    margin-top: 3px;
+}
+
+.mt-lib-card-place {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-card-place.is-live {
+    color: var(--mt-text-1);
+}
+
+.mt-lib-card-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--mt-state-ready);
+}
+
+.mt-lib-card-origin {
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-lib-card .mt-lib-mat-ask {
+    margin: 6px 0 0;
+    cursor: default;
+}
+
 /* Put-away views. */
 .mt-lib-item {
     display: flex;

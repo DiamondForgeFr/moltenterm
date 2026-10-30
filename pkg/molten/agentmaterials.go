@@ -24,6 +24,8 @@ const (
 	MaterialWorkFilesCommand  = "moltenmaterialworkfiles"
 	// MaterialsRecoverCommand: "Search past sessions" (FR-MAT-008), from a window only.
 	MaterialsRecoverCommand = "moltenmaterialsrecover"
+	// MaterialOpenedCommand: a window saw the material open in a view (#1546), the card's "where it lives".
+	MaterialOpenedCommand = "moltenmaterialopened"
 
 	// The drawer of the workspaces without a project ("No project").
 	MaterialsNoProject = "noproject"
@@ -69,6 +71,18 @@ type MaterialsRequest struct {
 	Cwd         string `json:"cwd,omitempty"`
 	Requested   bool   `json:"requested,omitempty"`
 	AllowSecret bool   `json:"allowsecret,omitempty"`
+	// Place: where a window saw the material open (MaterialOpenedCommand).
+	Place *MaterialPlace `json:"place,omitempty"`
+}
+
+// MaterialPlace is the view a material was last open in (#1546). The names are kept as they were then, so a closed
+// view or workspace can still be named.
+type MaterialPlace struct {
+	WorkspaceId string `json:"workspaceid"`
+	Workspace   string `json:"workspace,omitempty"`
+	TabId       string `json:"tabid"`
+	View        string `json:"view,omitempty"`
+	At          int64  `json:"at"`
 }
 
 // MaterialVersion is one copy of a material; N counts from 1, the first is always kept.
@@ -112,6 +126,10 @@ type Material struct {
 	Versions []MaterialVersion `json:"versions,omitempty"`
 	Pinned   bool              `json:"pinned,omitempty"`
 	Thumb    bool              `json:"thumb,omitempty"`
+	// ThumbPath: the preview image's absolute path (filled when listed).
+	ThumbPath string `json:"thumbpath,omitempty"`
+	// LastOpened: the view a window last saw it open in, nil when never seen open.
+	LastOpened *MaterialPlace `json:"lastopened,omitempty"`
 	// Agent: the agent's first name; Tool: its id (claude, codex), "" for the developer.
 	Agent       string `json:"agent,omitempty"`
 	Tool        string `json:"tool,omitempty"`
