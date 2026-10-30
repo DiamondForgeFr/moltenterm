@@ -320,16 +320,16 @@ describe("Codex plan usage", () => {
     });
 
     it("gives Codex's own reasons", () => {
-        expect(usageReasonText("waiting", "codex")).toBe("Waiting for Codex: the limits come with its next response");
-        expect(usageReasonText("noplan", "codex")).toBe("Codex reports no plan limits for this sign-in");
+        expect(usageReasonText("waiting", "codex")).toBe("Waiting for the agent: the limits come with its next response");
+        expect(usageReasonText("noplan", "codex")).toBe("The agent reports no plan limits for this sign-in");
         expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
         const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
-        expect(html).toContain('title="Waiting for Codex: the limits come with its next response"');
+        expect(html).toContain('title="Waiting for the agent: the limits come with its next response"');
         const expired = { ...codex, snapshot: { ...codex.snapshot, credits: undefined } };
         expect(gaugesView(expired, now + 5 * 24 * Hour)).toEqual({
             kind: "unavailable",
-            reason: "The limits were reset: new values come with Codex's next response",
+            reason: "The limits were reset: new values come with the agent's next response",
         });
     });
 
