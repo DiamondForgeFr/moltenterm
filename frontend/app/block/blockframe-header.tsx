@@ -34,6 +34,7 @@ import {
 import { AgentLinksHeaderButton } from "../../moltenterm-shell/agent-links/agent-links-menu"; // MOLTENTERM-PATCH (#1050)
 import { HeaderCloseButton } from "../../moltenterm-shell/header/header-close-button"; // MOLTENTERM-PATCH (#705)
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { anchoredMenuEvent, buttonMenuAnchor } from "../../moltenterm-shell/menu/menu-anchor"; // MOLTENTERM-PATCH (#1439)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { CarpetHeaderButton } from "../../moltenterm-shell/view360/view360-places"; // MOLTENTERM-PATCH (#616, #1412)
@@ -195,7 +196,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
             if (canFoldMagnify && width < FoldMagnifyPx) {
                 items.push({ label: t("wave.block.magnify"), icon: "expand", click: () => nodeModel.toggleMagnify() });
             }
-            blockEnv.showContextMenu(items, e);
+            blockEnv.showContextMenu(items, anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget as Element)));
         },
     };
     if (foldedDecls.length > 0 || canFoldMagnify) {
