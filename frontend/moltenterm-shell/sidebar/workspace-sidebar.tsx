@@ -32,22 +32,22 @@ import { agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { HoldToCloseButton } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
-import { coffeeCondition, coffeeSupported, SleepPolicySetting, sleepPolicyLabel } from "../keepawake-model";
 import { KeepAwakeStatusItem } from "../keepawake-cup";
+import { coffeeCondition, coffeeSupported, sleepPolicyLabel, SleepPolicySetting } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
 import { MoltentermCicdView } from "../mission/cicd-view";
-import { narrowWindowAtom } from "../narrow-window";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
+import { narrowWindowAtom } from "../narrow-window";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
-import { EmptyWorkspace } from "./empty-workspace";
 import { NotificationCenter } from "../notification-center";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
+import { runPaletteEntry } from "../palette/palette-actions";
 import { PourLight } from "../panel-motion/view-pour";
 import {
     isAgentWorking,
@@ -56,7 +56,6 @@ import {
     withWorkingTitle,
     WorkingLight,
 } from "../panel-motion/working-light";
-import { runPaletteEntry } from "../palette/palette-actions";
 import { ProjectTabMetaKey, tabShownName } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -86,6 +85,7 @@ import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model
 import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
+import { EmptyWorkspace } from "./empty-workspace";
 import { plusMenuItems } from "./plus-menu-model";
 import {
     PrDots,
@@ -2353,14 +2353,22 @@ export function WorkspaceSidebar() {
     usePageSlide(contentRef, draft != null);
     useSwitchArrival(contentRef, onArrive);
     const restRef = useRef<() => boolean>(null);
-    restRef.current = () =>
-        sidebarAtRest({
+    // Asked every 700 ms while the sidebar is not at rest. getAnimations() forces a style update, which costs a
+    // main-thread frame whenever an infinite animation runs elsewhere (the library's channels, #1549): it is asked
+    // only once every other fact says the sidebar is at rest.
+    restRef.current = () => {
+        const facts = {
             hidden,
             pageOver: pinDraft != null || projectPage != null || draft != null,
             libraryOpen: globalStore.get(model.libraryAtom) != null,
             swiping: swipe.busy() || swipe.moved.size > 0,
-            animating: (contentRef.current?.getAnimations?.().length ?? 0) > 0,
-        });
+            animating: false,
+        };
+        if (!sidebarAtRest(facts)) {
+            return false;
+        }
+        return sidebarAtRest({ ...facts, animating: (contentRef.current?.getAnimations?.().length ?? 0) > 0 });
+    };
     const snapshotSource = useMemo<SnapshotSource>(
         () => ({ viewport: () => viewportRef.current, atRest: () => restRef.current?.() ?? false }),
         []

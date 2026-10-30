@@ -1192,7 +1192,7 @@
    behind the cards and never over text. The groove is cast iron: a dark cut with a lighter lower lip, painted once.
    The reveal's molten slides into each run (a pre-painted bar moved by transform) and its bulge leads it; it drains
    into the bed, a faint incandescent line in the groove, where the ambient flow keeps running: a pre-painted tile of
-   streaks per run, moved by one tile per whole-second cycle on the 1/15 s grid. The ambient flow is in the running
+   streaks per run, moved by one tile per whole-second cycle on the 1/15 s grid (every other step). It is in the running
    colour, never the action orange (it is not an action). */
 .mt-ch-layer {
     position: absolute;
@@ -1242,7 +1242,8 @@
     stroke-width: 2px;
 }
 
-/* The molten of the reveal: darker cooling edges around a hot core. */
+/* The molten of the reveal: darker cooling edges around a hot core. The edges darken towards black, not the sink:
+   the light theme's sink is pale and would wash them out. */
 .mt-ch-run {
     overflow: hidden;
 }
@@ -1252,8 +1253,8 @@
 .mt-ch-fill {
     position: absolute;
     inset: 4px 0;
-    border-radius: 4px;
-    --mt-ch-edge: color-mix(in srgb, var(--mt-action) 50%, var(--mt-sink));
+    border-radius: var(--mt-radius-control);
+    --mt-ch-edge: color-mix(in oklab, var(--mt-action) 62%, black);
     --mt-ch-lump: color-mix(in srgb, var(--mt-action-glint) 40%, transparent);
     --mt-ch-clot: color-mix(in srgb, var(--mt-ch-edge) 50%, transparent);
     background:
@@ -1325,7 +1326,7 @@
 }
 
 .mt-ch-elbow-edge {
-    stroke: color-mix(in srgb, var(--mt-action) 75%, var(--mt-sink));
+    stroke: color-mix(in oklab, var(--mt-action) 78%, black);
     stroke-width: 8px;
     filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mt-action) 60%, transparent));
 }
@@ -1351,7 +1352,7 @@
         var(--mt-action-glint) 0 22%,
         var(--mt-state-running) 46%,
         var(--mt-action) 72%,
-        color-mix(in srgb, var(--mt-action) 60%, var(--mt-sink))
+        color-mix(in oklab, var(--mt-action) 66%, black)
     );
     box-shadow: 0 0 10px 2px color-mix(in srgb, var(--mt-state-running) 50%, transparent);
 }
@@ -1359,7 +1360,7 @@
 /* The ambient flow: the core of each long run, with streaks that lead in the flow's direction. */
 .mt-ch-flow {
     overflow: hidden;
-    border-radius: 1px;
+    border-radius: 9999px;
 }
 
 .mt-ch-flow-tile {
