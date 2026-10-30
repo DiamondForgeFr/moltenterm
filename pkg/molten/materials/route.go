@@ -129,7 +129,8 @@ func (l *routeLink) drawerOf(req molten.MaterialsRequest, caller localroute.Call
 		if bc == nil {
 			return "", fmt.Errorf("no such terminal")
 		}
-		return bc.key, nil
+		_, key, _ := l.r.contextIdentity(bc)
+		return key, nil
 	}
 	if !caller.IsUi() {
 		return "", fmt.Errorf("no workspace: run molten material in a MoltenTerm terminal")

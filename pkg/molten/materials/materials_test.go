@@ -873,7 +873,7 @@ func TestKillPoints(t *testing.T) {
 	// store's lock, where a real kill stops everything.
 	scenario := func(h *harness) {
 		h.r.context("block-1")
-		c := h.r.who("block-1", molten.AgentIdClaude, h.r.blocks["block-1"])
+		c, _ := h.r.who("block-1", molten.AgentIdClaude, h.r.blocks["block-1"])
 		c.Source, c.Path, c.Link, c.ToolTitle, c.ArtifactId, c.Linked = molten.MaterialSourcePublished, filepath.Join(h.dir, "360", "proposal.html"), "https://claude.ai/artifact/Kill1", "Kill", "k1", []string{"shots/cut-01.png"}
 		h.r.capture(c)
 		h.r.Add("block-1", "", filepath.Join(h.dir, "360", "four-states.png"), "", "", false, molten.MaterialSourceNamed)

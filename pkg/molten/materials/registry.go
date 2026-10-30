@@ -238,11 +238,17 @@ func (r *Registry) ForgetBlock(blockId string) {
 	delete(r.blocks, blockId)
 }
 
+func (r *Registry) contextIdentity(bc *blockCtx) (BlockInfo, string, string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return bc.info, bc.key, bc.folder
+}
+
 // who fills a capture with the pane's project, agent and session.
-func (r *Registry) who(blockId string, agent string, bc *blockCtx) Capture {
+func (r *Registry) who(blockId string, agent string, bc *blockCtx) (Capture, bool) {
 	r.lock.Lock()
 	session := bc.session
-	key, folder, wsId := bc.key, bc.folder, bc.info.WorkspaceId
+	key, folder, wsId, remote := bc.key, bc.folder, bc.info.WorkspaceId, bc.info.Remote
 	r.lock.Unlock()
 	c := Capture{Project: key, Folder: folder, Tool: agent, SessionId: session.SessionId, Subject: session.Subject, Ticket: session.Ticket, WorkspaceId: wsId, BlockId: blockId}
 	if r.runOf != nil {
@@ -253,14 +259,14 @@ func (r *Registry) who(blockId string, agent string, bc *blockCtx) Capture {
 			}
 		}
 	}
-	return c
+	return c, remote
 }
 
 func (r *Registry) signal(feed checkpoint.MaterialFeed, bc *blockCtx, sig companion.MaterialSignal) {
-	remote := bc.info.Remote
+	base, remote := r.who(feed.BlockId, feed.Agent, bc)
 	switch sig.Kind {
 	case companion.SignalPublished:
-		c := r.who(feed.BlockId, feed.Agent, bc)
+		c := base
 		c.Source, c.Link, c.ToolTitle, c.ArtifactId, c.Linked, c.Sources, c.Version = molten.MaterialSourcePublished, sig.Url, sig.Title, sig.ArtifactId, sig.Files, sig.Sources, sig.Version
 		if !remote {
 			c.Path = sig.Path
@@ -268,7 +274,7 @@ func (r *Registry) signal(feed checkpoint.MaterialFeed, bc *blockCtx, sig compan
 		r.keep(feed.BlockId, bc, c)
 	case companion.SignalLinks:
 		for _, link := range ProductionAddresses(sig.Links...) {
-			c := r.who(feed.BlockId, feed.Agent, bc)
+			c := base
 			c.Source, c.Link = molten.MaterialSourceNamed, link
 			r.keep(feed.BlockId, bc, c)
 		}
@@ -277,13 +283,13 @@ func (r *Registry) signal(feed checkpoint.MaterialFeed, bc *blockCtx, sig compan
 			return
 		}
 		for _, path := range existingMaterialPaths(NamedPaths(sig.Text, r.home)) {
-			c := r.who(feed.BlockId, feed.Agent, bc)
+			c := base
 			c.Source, c.Path = molten.MaterialSourceNamed, path
 			r.keep(feed.BlockId, bc, c)
 		}
 	case companion.SignalWritten:
 		if !remote {
-			r.workFile(feed, bc, sig)
+			r.workFile(base, sig)
 		}
 	case companion.SignalTurnEnd:
 		r.endTurn(feed.BlockId, bc)
@@ -317,14 +323,14 @@ func (r *Registry) endTurn(blockId string, bc *blockCtx) {
 		ids = append(ids, id)
 	}
 	bc.turn = map[string]bool{}
-	key := bc.key
+	key, folder := bc.key, bc.folder
 	r.lock.Unlock()
 	for _, id := range ids {
 		m, err := r.store.Get(key, id)
 		if err != nil || m.Original == "" || (m.Copy != molten.MaterialCopyKept && m.Copy != molten.MaterialCopyMissing) {
 			continue
 		}
-		c := Capture{Project: key, Folder: bc.folder, Source: m.Source, Path: m.Original, Link: m.Link, ArtifactId: m.ArtifactId, Recopy: true, Tool: m.Tool, Agent: m.Agent, SessionId: m.SessionId, Subject: m.Subject, Ticket: m.Ticket}
+		c := Capture{Project: key, Folder: folder, Source: m.Source, Path: m.Original, Link: m.Link, ArtifactId: m.ArtifactId, Recopy: true, Tool: m.Tool, Agent: m.Agent, SessionId: m.SessionId, Subject: m.Subject, Ticket: m.Ticket}
 		if last := len(m.Versions); last > 0 {
 			c.Linked = r.versionFiles(m)
 		}
@@ -353,7 +359,7 @@ func (r *Registry) versionFiles(m molten.Material) []string {
 }
 
 // workFile records a file the agent created: listed, never copied by itself (AC2).
-func (r *Registry) workFile(feed checkpoint.MaterialFeed, bc *blockCtx, sig companion.MaterialSignal) {
+func (r *Registry) workFile(c Capture, sig companion.MaterialSignal) {
 	path := sig.Path
 	if path == "" || !filepath.IsAbs(path) {
 		return
@@ -366,7 +372,6 @@ func (r *Registry) workFile(feed checkpoint.MaterialFeed, bc *blockCtx, sig comp
 	if err != nil || !r.outside(real) {
 		return
 	}
-	c := r.who(feed.BlockId, feed.Agent, bc)
 	r.store.addWorkFile(c.Project, c.Folder, molten.MaterialWorkFile{Path: real, At: sig.At, Kind: kind, Agent: c.Agent, Tool: c.Tool, SessionId: c.SessionId, Ticket: c.Ticket, MayBeLost: r.guard.mayBeLost(real)})
 }
 
@@ -376,7 +381,8 @@ func (r *Registry) scanTerminal(feed checkpoint.MaterialFeed, bc *blockCtx) {
 	if r.readTerm == nil {
 		return
 	}
-	if companion.AdapterFor(feed.Agent) != nil && !bc.info.Remote {
+	info, _, _ := r.contextIdentity(bc)
+	if companion.AdapterFor(feed.Agent) != nil && !info.Remote {
 		return
 	}
 	r.lock.Lock()
@@ -396,7 +402,7 @@ func (r *Registry) scanTerminal(feed checkpoint.MaterialFeed, bc *blockCtx) {
 	// A hyperlink's address is inside its escape sequence (OSC 8): read once with the control characters as spaces,
 	// once without the sequences (an address the colours cut).
 	for _, link := range ProductionAddresses(controlRegex.ReplaceAllString(text, " "), ansiRegex.ReplaceAllString(text, "")) {
-		c := r.who(feed.BlockId, feed.Agent, bc)
+		c, _ := r.who(feed.BlockId, feed.Agent, bc)
 		c.Source, c.Link = molten.MaterialSourceNamed, link
 		r.keep(feed.BlockId, bc, c)
 	}
@@ -454,8 +460,9 @@ func (r *Registry) Add(blockId string, workspaceId string, target string, cwd st
 				run = info.Agent
 			}
 		}
-		c = r.who(blockId, run, bc)
-		if bc.info.Remote && !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") {
+		var remote bool
+		c, remote = r.who(blockId, run, bc)
+		if remote && !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") {
 			return molten.Material{}, errors.New("a remote terminal can declare addresses only, not files of the remote machine")
 		}
 	} else {
