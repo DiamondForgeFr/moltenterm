@@ -8,7 +8,9 @@
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
+import { serverErrorText } from "../i18n/server-text";
 import { showTabFromHere } from "../opener-tab";
 import { pathBaseName } from "../workspace-project";
 import { MissionRouteId } from "./mission-client";
@@ -51,4 +53,15 @@ export async function openPipelineSetupTab(
     });
     deps.show(tabid);
     return tabid;
+}
+
+// The setup actions open the setup's own tab (#1150), focused when it is already open; a failure is said in place.
+export function openSetupTab(dir: string, projectName: string, openAt: StepperStep, onError: (text: string) => void) {
+    fireAndForget(async () => {
+        try {
+            await openPipelineSetupTab(dir, projectName, openAt);
+        } catch (e) {
+            onError(serverErrorText(e));
+        }
+    });
 }

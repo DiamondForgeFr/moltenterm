@@ -81,6 +81,7 @@ function LineMapFullContent({
             <div className="flex min-h-0 flex-1 flex-col px-3 py-2" data-testid="line-map-full">
                 <LineMap
                     dir={project.dir}
+                    projectName={project.facts?.name}
                     snapshot={snapshot}
                     ciBranches={ci?.branches}
                     ciRunning={ciRunningBranch(ci)}
