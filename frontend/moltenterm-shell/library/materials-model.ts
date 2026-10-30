@@ -424,8 +424,9 @@ export function recoveredParts(r: MaterialsRecovered): RecoveredPart[] {
 
 // ---------- Cards (#1546, DS-MAT-010) ----------
 
-// From this width the section lays its days out as cards; below it keeps the rows.
-export const MaterialsCardsMinWidth = 720;
+// From this width the section lays its days out as cards; below it keeps the rows. A window about 1000 px wide leaves
+// the section near 820 px: rows there, cards from about 1150 px.
+export const MaterialsCardsMinWidth = 960;
 
 function decodeSegment(segment: string): string {
     try {
@@ -478,10 +479,16 @@ export function placeName(...names: string[]): string {
 export function materialPlaceText(
     m: Material,
     live: { workspace: string; view: string },
-    currentWorkspaceId: string
+    currentWorkspaceId: string,
+    // A workspace's name as the interface shows it (a default name is translated); names are kept raw.
+    shown: (name: string) => string = (name) => name
 ): MaterialPlaceText {
     if (live != null) {
-        return { key: "library.materials.place.open", vars: { place: placeName(live.workspace, live.view) }, live: true };
+        return {
+            key: "library.materials.place.open",
+            vars: { place: placeName(shown(live.workspace), live.view) },
+            live: true,
+        };
     }
     const last = m?.lastopened;
     if (last == null || !(last.view || last.workspace)) {
@@ -490,7 +497,7 @@ export function materialPlaceText(
     if (last.workspaceid === currentWorkspaceId && last.view) {
         return { key: "library.materials.place.closed", vars: { view: last.view } };
     }
-    return { key: "library.materials.place.lastOpen", vars: { place: placeName(last.workspace, last.view) } };
+    return { key: "library.materials.place.lastOpen", vars: { place: placeName(shown(last.workspace), last.view) } };
 }
 
 // The one state chip of a card: none for a plain link, whose kind chip already says it.

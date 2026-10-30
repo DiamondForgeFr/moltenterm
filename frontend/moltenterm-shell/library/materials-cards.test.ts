@@ -58,6 +58,10 @@ describe("material cards (#1546)", () => {
             key: "library.materials.place.lastOpen",
             vars: { place: "MoltenTerm · Cadrage" },
         });
+        const shown = (name: string) => (name === "Starter workspace" ? "Espace de départ" : name);
+        expect(materialPlaceText(m, { workspace: "Starter workspace", view: "Terminal" }, "ws-1", shown).vars).toEqual({
+            place: "Espace de départ · Terminal",
+        });
     });
 
     it("shows one state chip, none for a plain link", () => {
