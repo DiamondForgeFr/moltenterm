@@ -9166,8 +9166,14 @@
                 "other": "{count} done"
             },
             "more": "+{count}",
-            "doneFold": "Done ({count})",
-            "clearDone": "Clear done"
+            "doneToday": {
+                "one": "Done today · {count}",
+                "other": "Done today · {count}"
+            },
+            "doneAll": {
+                "one": "Done · {count}",
+                "other": "Done · {count}"
+            }
         },
         "subKind": {
             "general": "General purpose",

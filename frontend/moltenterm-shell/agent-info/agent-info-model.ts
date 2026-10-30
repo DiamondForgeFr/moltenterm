@@ -132,46 +132,121 @@ export function subagentRunning(row: SubagentRow): boolean {
     return row?.state === "working" || row?.state === "idle";
 }
 
-// The sub-agents of an agent as the sidebar groups them (FR-SHELL-104, #1333): the running ones (quiet included), the
-// finished ones that ended during the parent's current turn, still shown as rows, and the older ones, folded under
-// "Done (n)". A finished one is gone once cleared by hand, and all are once the parent no longer runs.
+// A finished sub-agent (done or stopped) cannot be called back, so the sidebar keeps it this long after it ended, for a
+// glance at its mark, then drops it on its own (FR-SHELL-104, #1542). A failed one stays until it is seen.
+export const SubagentLingerMs = 5 * 60 * 1000;
+
+// Whether a sub-agent is a failure nobody has looked at yet: it stays listed until it is seen.
+export function subagentUnseenFailure(row: SubagentRow, seen: Record<string, boolean>): boolean {
+    return row?.state === "error" && !seen?.[row.id];
+}
+
+// One with no recorded end cannot be timed, so it does not linger.
+function subagentLingers(row: SubagentRow, now: number): boolean {
+    return (row.ended ?? 0) > 0 && now - row.ended < SubagentLingerMs;
+}
+
+// The sub-agents of an agent as the sidebar groups them (FR-SHELL-104, #1542): the running ones (quiet included) and
+// the finished ones still listed, which are the ones that ended less than SubagentLingerMs ago and the failures not
+// yet seen. parentEnded: the agent no longer runs, so only the unseen failures remain.
 export type SubagentGroups = {
     running: SubagentRow[];
-    recent: SubagentRow[];
-    folded: SubagentRow[];
+    lingering: SubagentRow[];
     // working: how many are at work now (the header's one loader).
     working: number;
 };
 
 export function subagentGroups(
     rows: SubagentRow[],
-    turnStart: number,
+    now: number,
     parentEnded: boolean,
-    cleared: Record<string, boolean>
+    seen: Record<string, boolean>
 ): SubagentGroups {
     const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
-    const done = parentEnded
-        ? []
-        : (rows ?? [])
-              .filter((r) => !subagentRunning(r) && !cleared?.[r.id])
-              .sort((a, b) => (b.ended ?? 0) - (a.ended ?? 0));
-    const isRecent = (r: SubagentRow) => turnStart > 0 && (!r.ended || r.ended >= turnStart);
+    const lingering = (rows ?? [])
+        .filter((r) => !subagentRunning(r))
+        .filter(
+            (r) => subagentUnseenFailure(r, seen) || (!parentEnded && r.state !== "error" && subagentLingers(r, now))
+        )
+        .sort((a, b) => (b.ended ?? 0) - (a.ended ?? 0));
+    return { running, lingering, working: running.filter((r) => r.state === "working").length };
+}
+
+// In how many ms the next finished sub-agent leaves the sidebar, null when none will: the caller waits that long, then
+// reads the groups again. A failure not yet seen has no end to wait for.
+export function nextSubagentExpiry(rows: SubagentRow[], now: number): number {
+    let rtn: number = null;
+    for (const r of rows ?? []) {
+        if (subagentRunning(r) || r.state === "error" || !subagentLingers(r, now)) {
+            continue;
+        }
+        const left = r.ended + SubagentLingerMs - now;
+        rtn = rtn == null ? left : Math.min(rtn, left);
+    }
+    return rtn;
+}
+
+// The agent window's sub-agents (FR-SHELL-084, #1542): the running ones first, the failures not yet seen, then the
+// finished ones, newest first, which the window folds into one line.
+export type SubagentCardGroups = {
+    running: SubagentRow[];
+    unseen: SubagentRow[];
+    finished: SubagentRow[];
+    working: number;
+};
+
+export function subagentCardGroups(rows: SubagentRow[], seen: Record<string, boolean>): SubagentCardGroups {
+    const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
+    const rest = (rows ?? []).filter((r) => !subagentRunning(r));
+    const byEnd = (a: SubagentRow, b: SubagentRow) => (b.ended ?? 0) - (a.ended ?? 0);
     return {
         running,
-        recent: done.filter(isRecent),
-        folded: done.filter((r) => !isRecent(r)),
+        unseen: rest.filter((r) => subagentUnseenFailure(r, seen)).sort(byEnd),
+        finished: rest.filter((r) => !subagentUnseenFailure(r, seen)).sort(byEnd),
         working: running.filter((r) => r.state === "working").length,
     };
 }
 
-// The parent's current turn: when its latest prompt was typed, 0 when unknown (then every finished one is folded).
-// A topic only lists once its turn used a tool: the session's last prompt comes first.
-export function parentTurnStart(view: CompanionView): number {
-    let rtn = view?.session?.lastprompt ?? 0;
-    for (const t of view?.topics ?? []) {
-        rtn = Math.max(rtn, t.at ?? 0);
+export type SubagentDay = {
+    // Days before today: 0 today, 1 yesterday; -1 when the end is unknown.
+    daysAgo: number;
+    // The day's start in ms (local time), 0 when unknown.
+    day: number;
+    rows: SubagentRow[];
+};
+
+function dayStart(ms: number): number {
+    const d = new Date(ms);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+// The finished sub-agents grouped by the local day they ended on, the latest day first; ones with no recorded end
+// come last.
+export function subagentDays(finished: SubagentRow[], now: number): SubagentDay[] {
+    const today = dayStart(now);
+    const days = new Map<number, SubagentDay>();
+    for (const r of finished ?? []) {
+        const day = r.ended > 0 ? dayStart(r.ended) : 0;
+        let group = days.get(day);
+        if (group == null) {
+            group = { daysAgo: day > 0 ? Math.round((today - day) / 86_400_000) : -1, day, rows: [] };
+            days.set(day, group);
+        }
+        group.rows.push(r);
     }
-    return rtn;
+    return Array.from(days.values()).sort((a, b) => (a.day === 0 ? 1 : b.day === 0 ? -1 : b.day - a.day));
+}
+
+// "Today", "Yesterday", else the date, in the interface language.
+export function subagentDayLabel(day: SubagentDay, locale: string): string {
+    if (day.daysAgo < 0) {
+        return "";
+    }
+    if (day.daysAgo > 1) {
+        return new Date(day.day).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
+    }
+    const text = new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(-day.daysAgo, "day");
+    return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 }
 
 // The i18n key of a sub-agent type the agents name (Claude Code's subagent_type, Codex's agent_type); an unknown one

@@ -41,15 +41,7 @@ import { useTabIdentity } from "../tab-identity-ui";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { readWorktreeLink } from "../worktree-model";
 import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "./agent-info-hooks";
-import {
-    agentTool,
-    sharedPages,
-    startedAgo,
-    subagentKindKey,
-    subagentRows,
-    type SharedPage,
-} from "./agent-info-model";
-import { AgentInfoModel } from "./agent-info-store";
+import { agentTool, sharedPages, startedAgo, type SharedPage } from "./agent-info-model";
 import {
     commandRows,
     fetchAgentToolkit,
@@ -60,6 +52,7 @@ import {
     type ToolkitPlugin,
     type ToolkitSkill,
 } from "./agent-toolkit-model";
+import { SubagentsSection } from "./subagents-section";
 
 export const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -132,51 +125,6 @@ function FactsSection({ ctx }: { ctx: AgentInfoContext }) {
                 title={started ? new Date(started).toLocaleString(locale) : undefined}
             />
         </div>
-    );
-}
-
-function SubagentsSection({ ctx }: { ctx: AgentInfoContext }) {
-    const t = useT();
-    const rows = subagentRows(ctx.companion);
-    if (rows.length === 0) {
-        return null;
-    }
-    // One loader: the card's head shows the agent's own while it works.
-    const working = rows.some((s) => s.state === "working") && agentRowLook(ctx.info) !== "working";
-    return (
-        <section data-testid="agent-info-subagents">
-            <h5 className={cn(SectionTitle, "flex items-center gap-2")}>
-                {t("agentInfo.subagents")}
-                {working ? <WorkingDominoes /> : null}
-            </h5>
-            {rows.map((s) => {
-                const kindKey = subagentKindKey(s.kind);
-                const kind = kindKey ? t(kindKey) : s.kind !== s.name ? s.kind : "";
-                return (
-                    <button
-                        key={s.id}
-                        type="button"
-                        className={LineButton}
-                        data-testid="agent-info-sub"
-                        onClick={() => AgentInfoModel.getInstance().openSub(ctx.blockId, s.id)}
-                    >
-                        <AgentGlyph name="sub" size={14} />
-                        <span className="min-w-0 truncate text-primary">{s.name}</span>
-                        <span className="shrink-0 truncate text-muted">
-                            {[kind, s.model].filter(Boolean).join(" · ")}
-                        </span>
-                        <span
-                            className={cn(
-                                "ml-auto shrink-0 text-11",
-                                s.state === "error" ? "text-danger" : "text-muted"
-                            )}
-                        >
-                            {t(`agentInfo.subState.${s.state}`)}
-                        </span>
-                    </button>
-                );
-            })}
-        </section>
     );
 }
 
@@ -600,7 +548,11 @@ function ViewSection({ ctx }: { ctx: AgentInfoContext }) {
 // The window's sections, in order. A later story appends its own here.
 export const AgentInfoSections: AgentInfoSection[] = [
     { key: "facts", column: "top", Component: FactsSection },
-    { key: "subagents", column: "main", Component: SubagentsSection },
+    {
+        key: "subagents",
+        column: "main",
+        Component: ({ ctx }) => <SubagentsSection blockId={ctx.blockId} info={ctx.info} companion={ctx.companion} />,
+    },
     { key: "linked", column: "main", Component: LinkedSection },
     { key: "pages", column: "main", Component: PagesSection },
     { key: "view", column: "main", Component: ViewSection },

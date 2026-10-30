@@ -36,6 +36,28 @@ function readStoredTrees(): AgentTreeStates {
     }
 }
 
+const SeenStorageKey = "molten:sidebar:seensubs";
+const SeenMaxIds = 300;
+
+function readStoredSeen(): Record<string, Record<string, boolean>> {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(SeenStorageKey) ?? "{}");
+        return parsed != null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+// Keeps the latest ids only, so the stored list does not grow for ever.
+function trimSeen(all: Record<string, Record<string, boolean>>): Record<string, Record<string, boolean>> {
+    const flat = Object.entries(all).flatMap(([blockId, ids]) => Object.keys(ids).map((id) => [blockId, id]));
+    const rtn: Record<string, Record<string, boolean>> = {};
+    for (const [blockId, id] of flat.slice(-SeenMaxIds)) {
+        rtn[blockId] = { ...(rtn[blockId] ?? {}), [id]: true };
+    }
+    return rtn;
+}
+
 export class AgentInfoModel {
     private static instance: AgentInfoModel = null;
 
@@ -45,8 +67,8 @@ export class AgentInfoModel {
     treesAtom = atom(readStoredTrees()) as PrimitiveAtom<AgentTreeStates>;
     // The sub-agent whose own card is open (FR-SHELL-104): its parent's terminal and its id; null when none is.
     openSubAtom = atom(null) as PrimitiveAtom<{ blockId: string; id: string }>;
-    // The finished sub-agents cleared by hand, per agent terminal; kept for this window's run only.
-    clearedSubsAtom = atom({}) as PrimitiveAtom<Record<string, Record<string, boolean>>>;
+    // The sub-agents whose card was opened (a failure stays listed until then), per agent terminal.
+    seenSubsAtom = atom(readStoredSeen()) as PrimitiveAtom<Record<string, Record<string, boolean>>>;
     started = false;
 
     private constructor() {}
@@ -122,6 +144,7 @@ export class AgentInfoModel {
             return;
         }
         globalStore.set(this.openAtom, null);
+        this.markSubSeen(blockId, id);
         globalStore.set(this.openSubAtom, { blockId, id });
     }
 
@@ -129,16 +152,18 @@ export class AgentInfoModel {
         globalStore.set(this.openSubAtom, null);
     }
 
-    clearDoneSubs(blockId: string, ids: string[]): void {
-        if (!blockId || !(ids?.length > 0)) {
+    markSubSeen(blockId: string, id: string): void {
+        const all = globalStore.get(this.seenSubsAtom);
+        if (!blockId || !id || all[blockId]?.[id]) {
             return;
         }
-        const all = globalStore.get(this.clearedSubsAtom);
-        const own = { ...(all[blockId] ?? {}) };
-        for (const id of ids) {
-            own[id] = true;
+        const next = { ...all, [blockId]: { ...(all[blockId] ?? {}), [id]: true } };
+        globalStore.set(this.seenSubsAtom, next);
+        try {
+            localStorage.setItem(SeenStorageKey, JSON.stringify(trimSeen(next)));
+        } catch {
+            // A private window keeps what was seen for this session only.
         }
-        globalStore.set(this.clearedSubsAtom, { ...all, [blockId]: own });
     }
 
     toggleTree(blockId: string): void {

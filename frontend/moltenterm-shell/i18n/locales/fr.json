@@ -9166,8 +9166,14 @@
                 "other": "{count} finis"
             },
             "more": "+{count}",
-            "doneFold": "Terminés ({count})",
-            "clearDone": "Effacer les terminés"
+            "doneToday": {
+                "one": "Terminé aujourd'hui · {count}",
+                "other": "Terminés aujourd'hui · {count}"
+            },
+            "doneAll": {
+                "one": "Terminé · {count}",
+                "other": "Terminés · {count}"
+            }
         },
         "subKind": {
             "general": "Usage général",

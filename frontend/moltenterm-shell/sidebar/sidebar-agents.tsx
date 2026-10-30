@@ -8,10 +8,15 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { goToAgent, useLinkedAgents, useWorkspaceName, type LinkedAgentRow } from "../agent-info/agent-info-hooks";
+import {
+    goToAgent,
+    useLinkedAgents,
+    useSubagentNow,
+    useWorkspaceName,
+    type LinkedAgentRow,
+} from "../agent-info/agent-info-hooks";
 import {
     MaxRunningSubRows,
-    parentTurnStart,
     subagentGroups,
     subagentKindKey,
     subagentRows,
@@ -144,13 +149,13 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     const t = useT();
     const tc = useTCount();
     const model = AgentInfoModel.getInstance();
-    const clearedAll = useAtomValue(model.clearedSubsAtom);
+    const seenAll = useAtomValue(model.seenSubsAtom);
     const trees = useAtomValue(model.treesAtom);
     const [allRunning, setAllRunning] = useState(false);
-    const [doneOpen, setDoneOpen] = useState(false);
     const rows = subagentRows(companion);
-    const groups = subagentGroups(rows, parentTurnStart(companion), !!companion?.ended, clearedAll[info.blockid]);
-    const doneCount = groups.recent.length + groups.folded.length;
+    const now = useSubagentNow(rows);
+    const groups = subagentGroups(rows, now, !!companion?.ended, seenAll[info.blockid]);
+    const doneCount = groups.lingering.length;
     if (groups.running.length + doneCount === 0) {
         return null;
     }
@@ -197,41 +202,9 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
                             {t("agentInfo.sub.more", { count: more })}
                         </button>
                     ) : null}
-                    {groups.recent.map((s) => (
+                    {groups.lingering.map((s) => (
                         <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />
                     ))}
-                    {groups.folded.length > 0 ? (
-                        <button
-                            type="button"
-                            className={cn("mt-sb-leaf mt-sb-fold", !doneOpen && "is-shut")}
-                            aria-expanded={doneOpen}
-                            data-testid="sidebar-agent-subs-done"
-                            onClick={() => setDoneOpen(!doneOpen)}
-                        >
-                            <SidebarGlyph name="chev" size={10} />
-                            <span className="mt-sb-leaf-t">
-                                {t("agentInfo.sub.doneFold", { count: groups.folded.length })}
-                            </span>
-                        </button>
-                    ) : null}
-                    {doneOpen
-                        ? groups.folded.map((s) => <SubagentLeaf key={s.id} row={s} onOpen={() => open(s)} />)
-                        : null}
-                    {doneCount > 0 ? (
-                        <button
-                            type="button"
-                            className="mt-sb-sub-clear"
-                            data-testid="sidebar-agent-subs-clear"
-                            onClick={() =>
-                                model.clearDoneSubs(
-                                    info.blockid,
-                                    [...groups.recent, ...groups.folded].map((s) => s.id)
-                                )
-                            }
-                        >
-                            {t("agentInfo.sub.clearDone")}
-                        </button>
-                    ) : null}
                 </>
             )}
         </>
