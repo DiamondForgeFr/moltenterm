@@ -24,12 +24,12 @@
 }
 
 .mt-sb-arow:hover {
-    background: rgb(255 255 255 / 0.08);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
     color: var(--color-primary);
 }
 
 .mt-sb-arow.is-on {
-    background: rgb(255 255 255 / 0.15);
+    background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
     color: var(--color-primary);
 }
 
@@ -54,7 +54,7 @@
 
 .mt-sb-tw:hover {
     color: var(--color-primary);
-    background: rgb(255 255 255 / 0.1);
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
 }
 
 .mt-sb-tw > svg,
@@ -160,7 +160,7 @@
     margin: 0 0 6px 18px;
     padding-left: 9px;
     overflow: hidden;
-    border-left: 1px solid rgb(255 255 255 / 0.12);
+    border-left: 1px solid color-mix(in srgb, var(--mt-veil) 12%, transparent);
     animation: mt-sb-tree-in var(--mt-duration-base) var(--mt-ease);
 }
 
@@ -221,7 +221,7 @@
 }
 
 .mt-sb-leaf:hover {
-    background: rgb(255 255 255 / 0.08);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
     color: var(--color-primary);
 }
 
@@ -263,7 +263,7 @@
     border: 0;
     border-radius: var(--mt-radius-panel);
     background: transparent;
-    color: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 75%, white);
+    color: color-mix(in srgb, var(--mt-accent, var(--color-accent)) 75%, var(--mt-tone-ink, white));
     font-size: var(--mt-text-12);
     font-weight: 600;
     cursor: pointer;

@@ -495,9 +495,19 @@
             "360View": "360 view",
             "codingAgent": "Coding agent",
             "newViews": "New views",
-            "sidebar": "Sidebar"
+            "sidebar": "Sidebar",
+            "theme": "Theme"
         },
         "items": {
+            "moltenterm:theme": {
+                "label": "Theme",
+                "description": "The interface's colours. Terminals stay dark unless you pick a light terminal theme.",
+                "options": {
+                    "dark": "Dark",
+                    "light": "Light",
+                    "system": "Same as the system"
+                }
+            },
             "app:nativecontextmenu": {
                 "label": "System context menus",
                 "description": "Use the system's context menus instead of MoltenTerm's."
@@ -1106,7 +1116,7 @@
             },
             "appearance": {
                 "title": "Appearance",
-                "description": "The window, its text and the magnified panel."
+                "description": "The theme, the window, its text and the magnified panel."
             },
             "terminal": {
                 "title": "Terminal",

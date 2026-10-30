@@ -11,11 +11,11 @@
 import { getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { getWaveWindowByWebContentsId } from "./emain-window";
 import { handleAppIpc, onAppIpc } from "./moltenterm-privileged-ipc";
+import { opaqueBackground } from "./moltenterm-theme";
 
 export const WindowLookChannel = "moltenterm-window-look";
 export const WindowLookSupportChannel = "moltenterm-window-look-support";
 
-const OpaqueViewBg = "#222222";
 const ClearViewBg = "#00000000";
 // Dark in every system appearance, so the sidebar's light text stays readable over it.
 const BlurVibrancy = "hud";
@@ -70,7 +70,7 @@ export function applyWindowLook(
     const support = windowLookSupport(look);
     const translucent = request.translucent && support.translucent;
     const blur = translucent && request.blur && support.blur;
-    view.setBackgroundColor(translucent || look?.blur ? ClearViewBg : OpaqueViewBg);
+    view.setBackgroundColor(translucent || look?.blur ? ClearViewBg : opaqueBackground());
     if (!isActiveView || look?.platform !== "darwin") {
         return true;
     }

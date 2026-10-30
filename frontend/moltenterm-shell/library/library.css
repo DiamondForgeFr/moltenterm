@@ -18,7 +18,7 @@
     background: var(--mt-surface-0);
     box-shadow:
         var(--mt-shadow-command),
-        inset 0 0 0 1px rgb(255 255 255 / 0.08);
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 8%, transparent);
     color: var(--color-primary);
     font-size: var(--mt-text-13);
     animation: mt-lib-in var(--mt-duration-base) var(--mt-ease);
@@ -99,12 +99,12 @@
 }
 
 .mt-lib-ni:hover {
-    background: rgb(255 255 255 / 0.07);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--color-primary);
 }
 
 .mt-lib-ni.is-on {
-    background: rgb(255 255 255 / 0.12);
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
     color: var(--color-primary);
 }
 
@@ -129,7 +129,7 @@
 }
 
 .mt-lib-icon:hover {
-    background: rgb(255 255 255 / 0.08);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
     color: var(--color-primary);
 }
 
@@ -144,10 +144,10 @@
     gap: 8px;
     padding: 10px;
     border-radius: var(--mt-radius-panel);
-    background: color-mix(in srgb, rgb(20 17 16) 92%, white);
+    background: color-mix(in srgb, var(--mt-iron, rgb(20 17 16)) 92%, var(--mt-tone-ink, white));
     box-shadow:
         var(--mt-shadow-command),
-        inset 0 0 0 1px rgb(255 255 255 / 0.1);
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
 }
 
 .mt-lib-pop p {
@@ -166,7 +166,7 @@
     padding: 12px;
     box-sizing: border-box;
     border-radius: var(--mt-radius-panel);
-    background: rgb(0 0 0 / 0.18);
+    background: color-mix(in srgb, var(--mt-sink) 18%, transparent);
 }
 
 .mt-lib-head {
@@ -193,15 +193,15 @@
     padding: 5px 9px;
     border: 0;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.06);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    background: color-mix(in srgb, var(--mt-veil) 6%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
     color: var(--color-primary);
     font-size: var(--mt-text-12);
     outline: none;
 }
 
 .mt-lib-search:focus {
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 40%, transparent);
 }
 
 .mt-lib-body {
@@ -226,8 +226,12 @@
     padding: 10px;
     overflow-y: auto;
     border-radius: var(--mt-radius-panel);
-    background: color-mix(in srgb, color-mix(in srgb, var(--mt-lib-c) 18%, rgb(20 17 16)) 70%, black);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    background: color-mix(
+        in srgb,
+        color-mix(in srgb, var(--mt-lib-c) 18%, var(--mt-iron, rgb(20 17 16))) 70%,
+        var(--color-black, black)
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 7%, transparent);
     cursor: pointer;
     transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
 }
@@ -264,7 +268,7 @@
     padding: 0 4px;
     border: 0;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.09);
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
     color: var(--color-primary);
     font-size: var(--mt-text-11);
     cursor: pointer;
@@ -273,16 +277,16 @@
 /* A top-row block: glyph only, as in the sidebar's top row (#1307). */
 .mt-lib-tile.mt-lib-top {
     height: 32px;
-    background: rgb(255 255 255 / 0.07);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
 }
 
 .mt-lib-tile:hover {
-    background: rgb(255 255 255 / 0.15);
+    background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
 }
 
 .mt-lib-tile.is-on {
-    background: rgb(255 255 255 / 0.2);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+    background: color-mix(in srgb, var(--mt-veil) 20%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 20%, transparent);
 }
 
 .mt-lib-sect {
@@ -313,7 +317,7 @@
 
 .mt-lib-mrow:hover,
 .mt-lib-mrow.is-on {
-    background: rgb(255 255 255 / 0.07);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--color-primary);
 }
 
@@ -333,7 +337,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: rgb(255 255 255 / 0.14);
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
     color: var(--color-primary);
     font-size: var(--mt-text-11);
     font-weight: var(--mt-weight-semibold);
@@ -368,8 +372,8 @@
     gap: 6px;
     padding: 12px;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.05);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 6%, transparent);
 }
 
 .mt-lib-pcard p {
@@ -388,7 +392,7 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.08);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
     font-style: normal;
 }
 
@@ -402,8 +406,8 @@
     padding: 4px 10px;
     border: 0;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.08);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 10%, transparent);
     color: var(--color-primary);
     font-size: var(--mt-text-12);
     white-space: nowrap;
@@ -413,7 +417,7 @@
 }
 
 .mt-lib-btn:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
 }
 
 /* Add to on a pinned view: the question in place of the button (FR-SHELL-094). */
@@ -442,7 +446,7 @@
 }
 
 .mt-lib-link:hover {
-    background: rgb(255 255 255 / 0.07);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--color-primary);
 }
 
@@ -470,7 +474,7 @@
 }
 
 .mt-lib-airow:hover {
-    background: rgb(255 255 255 / 0.06);
+    background: color-mix(in srgb, var(--mt-veil) 6%, transparent);
     color: var(--color-primary);
 }
 
@@ -498,7 +502,7 @@
 .mt-lib-state {
     padding: 2px 7px;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.07);
+    background: color-mix(in srgb, var(--mt-veil) 7%, transparent);
     color: var(--mt-lib-fg-3);
     font-size: var(--mt-text-11);
     white-space: nowrap;
@@ -516,7 +520,7 @@
     gap: 10px;
     padding: 9px 10px;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.04);
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
 }
 
 .mt-lib-empty {
@@ -549,14 +553,14 @@
     padding: 12px;
     border: 0;
     border-radius: var(--mt-radius-panel);
-    background: rgb(255 255 255 / 0.05);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
     color: var(--color-primary);
     text-align: left;
     cursor: pointer;
 }
 
 .mt-lib-set:hover {
-    background: rgb(255 255 255 / 0.1);
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
 }
 
 .mt-lib-set > span {

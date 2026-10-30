@@ -155,6 +155,21 @@
     --mt-line-2: rgba(242, 237, 230, 0.14);
     --mt-line-control: #857b70;
 
+    /* The veil raises a hover, a selection or a chip over the surface it sits on, and the sink lowers an inset (a code
+       block, a field) into it; both are drawn at a low opacity (color-mix with transparent). White and black in this
+       theme, so these rules draw exactly what they drew before; the light theme turns them around (#1341). */
+    --mt-veil: #ffffff;
+    --mt-sink: #000000;
+
+    /* Text on a solid state fill (a badge, a count), the colours these badges had before the light theme: black on
+       ready, waiting, draft and running, white on blocked. The light theme's darker fills take white, except running's,
+       each at 4.5:1 or more (moltenterm-shell.test.ts). */
+    --mt-state-fg: #000000;
+    --mt-state-blocked-fg: #f7f7f7;
+    --mt-state-running-fg: #000000;
+    /* Text on a fill in the main text colour (a count on a pale badge). */
+    --mt-text-inverse: #000000;
+
     --mt-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
     --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(0 0 0 / 0.3);
     --mt-shadow-e2: var(--mt-shadow-highlight), 0 6px 20px -4px rgb(0 0 0 / 0.5);
@@ -193,6 +208,79 @@
     --mt-ease-cool: cubic-bezier(0.3, 0, 0.1, 1);
 }
 
+/* The light theme (theme "Coulée" step 8, FR-SHELL-121, #1341): opt-in, dark stays the default. app-theme.ts puts
+   .mt-light (and the suite's .df-light) on the root when Preferences › Appearance › Theme is Light, or follows the
+   system. Only the values change: every rule reads the same role tokens, so nothing else needs a light variant.
+   The proposal's light set, each pair at WCAG 2.1 AA on surfaces 0 to 3 (moltenterm-shell.test.ts, both themes):
+   - surfaces: 2 and 3 are both white, and lines and shadows separate them;
+   - the terminal stays dark (decision 7): --mt-surface-term keeps its value, and terminals keep their terminal theme;
+   - the action stays molten #ff7c0d as a fill with its dark text (molten-btn, the suite's chips and tiles, a solid
+     bg-accent), but is never text: #ff7c0d on white is 2.6:1. Everything else the code draws in the accent
+     (--mt-accent and Tailwind's accent: text-accent, borders, a checked toggle or radio, small marks, washes) takes the
+     action text #a84a00, 4.82:1 at worst. A solid fill that carries text reads --mt-action, never --mt-accent, and
+     moltenterm-shell.css keeps Tailwind's solid bg-accent molten. The focus ring is #c25600;
+   - the states darken until each mark reads at 3:1 and each text state at 4.5:1. Warning takes the proposal's
+     warning-text value #765a00, because Wave also writes text in it;
+   - the veil turns to ink and the sink to a warm grey, so a hover darkens and an inset reads with secondary text on it.
+     Tailwind's white and black follow them: in this codebase they are the dark theme's veils, insets and main text
+     (bg-white/5, bg-black/30, text-white), and text on a coloured fill uses the --mt-*-fg tokens instead;
+   - a hue pulled towards the main text to read as text (a workspace glyph, an icon in the workspace colour) keeps
+     35 % of its hue: past that, a yellow workspace fails 4.5:1 on cream.
+   --mt-tone-ink, --mt-iron and --mt-place-tone-share exist in this theme only: each rule reads them with its dark
+   value as fallback (white, its dark base, its own share), so the dark theme draws what it drew before. */
+:root.mt-light {
+    color-scheme: light;
+
+    --mt-surface-0: #efeae3;
+    --mt-surface-1: #f8f5f0;
+    --mt-surface-2: #ffffff;
+    --mt-surface-3: #ffffff;
+
+    --mt-text-1: #1f1a15;
+    --mt-text-2: #4d453d;
+    --mt-text-3: #6b6158;
+
+    --mt-line-1: rgba(31, 26, 21, 0.09);
+    --mt-line-2: rgba(31, 26, 21, 0.16);
+    --mt-line-control: #8c8278;
+
+    --mt-action-text: #a84a00;
+    --mt-action-wash: rgba(255, 124, 13, 0.14);
+    --mt-focus: #c25600;
+    --mt-accent: var(--mt-action-text);
+
+    --mt-state-blocked: #b42e4a;
+    --mt-state-blocked-text: #b42e4a;
+    --mt-state-running: #b86e00;
+    --mt-state-ready: #1e7f52;
+    --mt-state-draft: #77706a;
+    --mt-state-waiting: #6e52c8;
+    --mt-state-warning: #765a00;
+    --mt-state-info: #2f66b0;
+    --mt-state-warning-fg: #ffffff;
+    --mt-state-fg: #ffffff;
+    --mt-state-blocked-fg: #ffffff;
+    --mt-state-running-fg: #000000;
+    --mt-text-inverse: #ffffff;
+    --mt-chart-1: #3f6fb5;
+
+    --mt-veil: #1f1a15;
+    --mt-sink: #b5aca2;
+    --mt-tone-ink: var(--mt-text-1);
+    --mt-iron: var(--mt-surface-2);
+    --mt-place-tone-share: 35%;
+
+    --mt-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 0.6);
+    --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(31 26 21 / 0.12);
+    --mt-shadow-e2: var(--mt-shadow-highlight), 0 6px 20px -4px rgb(31 26 21 / 0.18);
+    --mt-shadow-e3: var(--mt-shadow-highlight), 0 16px 40px -8px rgb(31 26 21 / 0.24);
+    --mt-shadow-command: var(--mt-shadow-highlight), 0 16px 40px rgb(31 26 21 / 0.2);
+    --mt-scrim: rgb(31 26 21 / 0.35);
+
+    --color-white: var(--mt-veil);
+    --color-black: var(--mt-sink);
+}
+
 /* MoltenTerm's slots of the DiamondForge suite kit (suite/suite.css, #658, suite/suite-language.md). The
    kit keeps Notulia's dimensions; MoltenTerm brings its accent (the action, molten orange in every workspace,
    #1319), its warm neutrals, its type scale and its motion tokens, so reduced motion stops the kit too. */
@@ -222,6 +310,14 @@
     --df-weight-semibold: var(--mt-weight-semibold);
 
     --df-duration-fast: var(--mt-duration-fast);    --df-tile-fg: var(--mt-action-fg);
+}
+
+/* The suite's light mapping (#1341): the root also carries the kit's .df-light, but these slots win over the kit's
+   Notulia defaults, and their --mt-* sources already hold the light values. What differs from the dark mapping: the
+   accent drawn as a line or text (a radio, "Selected", a chosen toggle) takes the action text, since the molten
+   orange stays a fill and is never text in light. */
+:root.mt-light {
+    --df-accent-ink: var(--mt-action-text);
 }
 
 /* MoltenTerm's own reduced-motion setting (the app root's class) stills the turning light like the system's. */
@@ -264,7 +360,11 @@
    whatever the colour (a dark blue included); the caller sets --mt-glyph-color. On a dark surface, mixing towards
    the surface would lower the contrast, so the tone mixes towards the text. */
 .molten-glyph-tone {
-    --mt-glyph-tone: color-mix(in srgb, var(--mt-glyph-color, var(--mt-place)) 50%, var(--mt-text-main));
+    --mt-glyph-tone: color-mix(
+        in srgb,
+        var(--mt-glyph-color, var(--mt-place)) var(--mt-place-tone-share, 50%),
+        var(--mt-text-main)
+    );
     color: var(--mt-glyph-tone);
 }
 
@@ -274,8 +374,8 @@
     background-image: linear-gradient(
         135deg,
         var(--mt-glyph-tone),
-        color-mix(in srgb, var(--mt-glyph-mid) 50%, var(--mt-text-main)),
-        color-mix(in srgb, var(--mt-glyph-end) 50%, var(--mt-text-main))
+        color-mix(in srgb, var(--mt-glyph-mid) var(--mt-place-tone-share, 50%), var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-glyph-end) var(--mt-place-tone-share, 50%), var(--mt-text-main))
     );
     -webkit-background-clip: text;
     background-clip: text;

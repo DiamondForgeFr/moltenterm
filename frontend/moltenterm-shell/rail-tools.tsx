@@ -151,9 +151,9 @@ function OverflowFlyout({
 }
 
 const BadgeToneClasses: Record<RailBadge["tone"], string> = {
-    waiting: "bg-[var(--mt-state-waiting)] text-black",
-    error: "bg-error text-white",
-    accent: "bg-[var(--mt-state-running)] text-black",
+    waiting: "bg-[var(--mt-state-waiting)] text-[var(--mt-state-fg)]",
+    error: "bg-error text-[var(--mt-state-blocked-fg)]",
+    accent: "bg-[var(--mt-state-running)] text-[var(--mt-state-running-fg)]",
 };
 
 // The Sessions view (FR-SHELL-020), with the number of agents running in durable sessions, coloured by the most urgent

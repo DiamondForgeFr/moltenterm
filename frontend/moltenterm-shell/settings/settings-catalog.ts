@@ -52,7 +52,7 @@ export const SettingsSections: SettingsSection[] = [
         id: "appearance",
         title: "Appearance",
         icon: "palette",
-        description: "The window, the 360 view, its text and the magnified panel.",
+        description: "The theme, the window, the 360 view, its text and the magnified panel.",
     },
     {
         id: "terminal",

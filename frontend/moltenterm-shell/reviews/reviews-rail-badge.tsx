@@ -57,7 +57,7 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
                 <span
                     className={cn(
                         Badge,
-                        "molten-reviews-toreview top-0 right-0 bg-[var(--mt-state-waiting)] text-black"
+                        "molten-reviews-toreview top-0 right-0 bg-[var(--mt-state-waiting)] text-[var(--mt-state-fg)]"
                     )}
                     aria-hidden="true"
                 >
@@ -66,7 +66,10 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
             ) : null}
             {mergeable > 0 ? (
                 <span
-                    className={cn(Badge, "molten-reviews-mergeable bottom-0 right-0 bg-success text-black")}
+                    className={cn(
+                        Badge,
+                        "molten-reviews-mergeable bottom-0 right-0 bg-success text-[var(--mt-state-fg)]"
+                    )}
                     aria-hidden="true"
                 >
                     {railCountText(mergeable)}
@@ -76,7 +79,7 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
                 <span
                     className={cn(
                         Badge,
-                        "molten-reviews-drafts left-0 bg-muted text-black",
+                        "molten-reviews-drafts left-0 bg-muted text-[var(--mt-state-fg)]",
                         drafts.top ? "top-0" : "bottom-0",
                         drafts.dot && "h-2 w-2 min-w-0 p-0"
                     )}

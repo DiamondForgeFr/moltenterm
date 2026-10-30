@@ -213,7 +213,7 @@ describe("settings search (FR-SHELL-050-AC2)", () => {
         expect(searchSettings(all(), "scrollback nothinglikethis")).toEqual([]);
         expect(searchSettings(all(), "  ")).toEqual([]);
         const theme = searchSettings(all(), "theme");
-        expect(theme[0].key).toBe("term:theme");
+        expect(theme.slice(0, 2).map((e) => e.key)).toEqual(["moltenterm:theme", "term:theme"]);
     });
 
     it("finds the workspace settings", () => {

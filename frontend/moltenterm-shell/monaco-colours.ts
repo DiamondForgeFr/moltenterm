@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { colord } from "colord";
+import type { AppTheme } from "./app-theme";
 
 // The code editor on the Coulée tokens (FR-SHELL-120, #1340). Monaco takes hex colours, not CSS variables, so the
 // tokens are read once when its theme is defined. Each entry names the token it takes; a token that does not
@@ -61,6 +62,32 @@ export function moltenMonacoColours(readToken: (name: string) => string): Record
         colours[key] = (ref.alpha == null ? parsed : parsed.alpha(parsed.alpha() * ref.alpha)).toHex();
     }
     return colours;
+}
+
+export const MonacoDarkTheme = "wave-theme-dark";
+export const MonacoLightTheme = "molten-theme-light";
+
+type MonacoThemes = {
+    defineTheme(
+        name: string,
+        data: { base: "vs" | "vs-dark"; inherit: boolean; rules: []; colors: Record<string, string> }
+    ): void;
+    setTheme(name: string): void;
+};
+
+// The editor follows the interface theme (FR-SHELL-121, #1341): its theme is defined again from the tokens in force,
+// so the light theme's text and widgets replace the dark ones, and the background stays transparent over the panel.
+// Called once the root carries the theme's class, which is what the tokens are read from.
+export function applyMoltenMonacoTheme(editor: MonacoThemes, theme: AppTheme, base: Record<string, string>): void {
+    const light = theme === "light";
+    const name = light ? MonacoLightTheme : MonacoDarkTheme;
+    editor.defineTheme(name, {
+        base: light ? "vs" : "vs-dark",
+        inherit: true,
+        rules: [],
+        colors: { ...base, ...moltenMonacoColours(readDocumentToken) },
+    });
+    editor.setTheme(name);
 }
 
 export function readDocumentToken(name: string): string {

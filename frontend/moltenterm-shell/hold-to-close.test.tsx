@@ -194,7 +194,10 @@ describe("hold-to-close rendering", () => {
 
     it("keeps the glyph readable on the full tint of the fixed action colour (NFR-SHELL-003, #1319)", () => {
         const css = readFileSync(new URL("./hold-to-confirm.css", import.meta.url), "utf8");
-        const mix = /--molten-hold-glyph: color-mix\(in srgb, var\(--mt-accent\) (\d+)%, white\)/.exec(css);
+        const mix =
+            /--molten-hold-glyph: color-mix\(in srgb, var\(--mt-accent\) (\d+)%, var\(--mt-tone-ink, white\)\)/.exec(
+                css
+            );
         expect(mix).not.toBeNull();
         const white = parseColor("#FFFFFF");
         for (const accent of [MoltentermDefaultAccent]) {

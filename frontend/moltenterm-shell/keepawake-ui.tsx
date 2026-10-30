@@ -351,7 +351,7 @@ export function KeepAwakeStatusItem({ variant = "status" }: { variant?: "status"
             <i className={cn("fa fa-solid fa-mug-hot", sidebar ? "text-icon-14" : "text-11")} aria-hidden />
             {count > 1 && !sidebar ? <span>{count}</span> : null}
             {count > 1 && sidebar ? (
-                <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary/85 px-[3px] text-11 leading-none font-semibold text-black tabular-nums">
+                <span className="pointer-events-none absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary/85 px-[3px] text-11 leading-none font-semibold text-[var(--mt-text-inverse)] tabular-nums">
                     {count}
                 </span>
             ) : null}
