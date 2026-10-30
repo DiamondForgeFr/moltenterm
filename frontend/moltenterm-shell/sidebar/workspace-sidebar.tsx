@@ -128,7 +128,7 @@ import {
     TileGridColumns,
     type SidebarTabSplit,
 } from "./sidebar-model";
-import { pruneSnapshots, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
+import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
 import { SidebarSwipeController } from "./sidebar-swipe-view";
@@ -2320,6 +2320,7 @@ export function WorkspaceSidebar() {
     const tinted = useAtomValue(getSettingsKeyAtom(SidebarTintSettingKey)) === true;
     const sections = useSidebarSections(split);
     const draft = useAtomValue(model.createDraftAtom);
+    const libraryOpen = useAtomValue(model.libraryAtom) != null;
     const contentRef = useRef<HTMLDivElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const ghostPrevRef = useRef<HTMLDivElement>(null);
@@ -2350,18 +2351,18 @@ export function WorkspaceSidebar() {
     useSwitchArrival(contentRef, onArrive);
     const restRef = useRef<() => boolean>(null);
     restRef.current = () =>
-        !hidden &&
-        pinDraft == null &&
-        projectPage == null &&
-        draft == null &&
-        !swipe.busy() &&
-        swipe.moved.size === 0 &&
-        (contentRef.current?.getAnimations?.().length ?? 0) === 0;
+        sidebarAtRest({
+            hidden,
+            pageOver: pinDraft != null || projectPage != null || draft != null,
+            libraryOpen: globalStore.get(model.libraryAtom) != null,
+            swiping: swipe.busy() || swipe.moved.size > 0,
+            animating: (contentRef.current?.getAnimations?.().length ?? 0) > 0,
+        });
     const snapshotSource = useMemo<SnapshotSource>(
         () => ({ viewport: () => viewportRef.current, atRest: () => restRef.current?.() ?? false }),
         []
     );
-    useSidebarCapture(ws?.oid, snapshotSource);
+    useSidebarCapture(ws?.oid, snapshotSource, libraryOpen);
     const workspaceIdsKey = workspaces.entries.map((w) => w.id).join(" ");
     useEffect(() => {
         if (workspaceIdsKey) {

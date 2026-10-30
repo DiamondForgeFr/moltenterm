@@ -111,6 +111,21 @@ export function useSidebarSnapshot(workspaceId: string): SidebarSnapshot {
     return snap;
 }
 
+export type SidebarRestFacts = {
+    hidden: boolean;
+    // A page drawn in the sidebar's place: a pin's draft, a project page, the new-workspace page.
+    pageOver: boolean;
+    libraryOpen: boolean;
+    swiping: boolean;
+    animating: boolean;
+};
+
+// The capture is of the screen's pixels, not of the sidebar's DOM: the library, a fixed layer over the whole window,
+// would be captured as this workspace's sidebar and slide in on every swipe toward it (#1392).
+export function sidebarAtRest(f: SidebarRestFacts): boolean {
+    return !f.hidden && !f.pageOver && !f.libraryOpen && !f.swiping && !f.animating;
+}
+
 export type SnapshotSource = {
     // The sidebar's page area, captured whole.
     viewport(): HTMLElement;
@@ -118,8 +133,9 @@ export type SnapshotSource = {
     atRest(): boolean;
 };
 
-// Captures this view's sidebar once it stays still on screen, after each change.
-export function useSidebarCapture(workspaceId: string, source: SnapshotSource) {
+// Captures this view's sidebar once it stays still on screen, after each change. A change of restKey (something
+// drawn over the sidebar outside it, like the library) asks for a capture too: what covered it is gone.
+export function useSidebarCapture(workspaceId: string, source: SnapshotSource, restKey?: unknown) {
     useEffect(() => {
         const viewport = source.viewport();
         if (!workspaceId || viewport == null || getApi()?.captureScreenshot == null) {
@@ -182,5 +198,5 @@ export function useSidebarCapture(workspaceId: string, source: SnapshotSource) {
             document.removeEventListener("visibilitychange", onVisibility);
             window.removeEventListener("resize", onVisibility);
         };
-    }, [workspaceId, source]);
+    }, [workspaceId, source, restKey]);
 }
