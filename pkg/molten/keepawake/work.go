@@ -95,11 +95,18 @@ const (
 	moreReasonFormat      = "%d more"
 )
 
-func agentReason(agent string, rank int) reason {
-	if rank == reasonAgentBackground {
-		return reason{rank: rank, text: molten.AgentDisplayName(agent) + agentBackgroundSuffix}
+// unnamedAgent stands for a session that has no first name yet. A reason never names the tool (#1550, #1452).
+const unnamedAgent = "An agent"
+
+func agentReason(firstName string, rank int) reason {
+	name := strings.TrimSpace(firstName)
+	if name == "" {
+		name = unnamedAgent
 	}
-	return reason{rank: rank, text: molten.AgentDisplayName(agent) + agentWorkingSuffix}
+	if rank == reasonAgentBackground {
+		return reason{rank: rank, text: name + agentBackgroundSuffix}
+	}
+	return reason{rank: rank, text: name + agentWorkingSuffix}
 }
 
 func commandReason(cmdline string) reason {
@@ -129,6 +136,10 @@ func reasonsText(reasons []string) []*uimsg.Text {
 			rtn[i] = uimsg.Make("keepawake.why.anycommand")
 		case strings.HasPrefix(r, commandReasonPrefix):
 			rtn[i] = uimsg.Make("keepawake.why.command", "command", strings.TrimPrefix(r, commandReasonPrefix))
+		case r == unnamedAgent+agentWorkingSuffix:
+			rtn[i] = uimsg.Make("keepawake.why.workingunnamed")
+		case r == unnamedAgent+agentBackgroundSuffix:
+			rtn[i] = uimsg.Make("keepawake.why.backgroundunnamed")
 		case strings.HasSuffix(r, agentWorkingSuffix):
 			rtn[i] = uimsg.Make("keepawake.why.working", "agent", strings.TrimSuffix(r, agentWorkingSuffix))
 		case strings.HasSuffix(r, agentBackgroundSuffix):
@@ -301,12 +312,12 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRunInfo, commands map[string]string, cmdBlocks map[string]bool, busy map[string]bool) (reason, bool) {
 	if run, ok := agents[blockId]; ok {
 		if run.State == molten.AgentStateWorking {
-			return agentReason(run.Agent, reasonAgentWorking), true
+			return agentReason(run.FirstName, reasonAgentWorking), true
 		}
 		// Only a local agent's process is known (procwatch): a remote one counts through its state alone. Sub-agents
 		// its hooks report running are background work too (#1092), even while they wait for their model.
 		if busy[blockId] || run.Subagents > 0 {
-			return agentReason(run.Agent, reasonAgentBackground), true
+			return agentReason(run.FirstName, reasonAgentBackground), true
 		}
 		return reason{}, false
 	}

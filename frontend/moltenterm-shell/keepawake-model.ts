@@ -299,7 +299,7 @@ export function keepAwakeActive(state: KeepAwakeState): boolean {
 
 // What keeps the computer awake now, one phrase per cause: terminals that asked, coffee mode (the workspaces the
 // user kept awake) and the Until work ends policy.
-export function keepAwakeReasons(state: KeepAwakeState): string[] {
+export function keepAwakeReasons(state: KeepAwakeState, now?: number): string[] {
     const reasons: string[] = [];
     const terminals = new Set(state.attempts.filter(attemptAlive).map((a) => a.blockid)).size;
     if (terminals > 0) {
@@ -310,14 +310,27 @@ export function keepAwakeReasons(state: KeepAwakeState): string[] {
         reasons.push(tCount("keepawake.byYou", state.coffees.length, { name }));
     }
     if (state.policyholding) {
-        reasons.push(t("keepawake.byWork"));
+        reasons.push(policyWorkReason(state, now));
     }
     return reasons;
 }
 
+// The work cause, with who works (or the countdown once it ended) when a clock is given: the popover says it in one
+// sentence instead of a second line that repeats the first (#1550).
+function policyWorkReason(state: KeepAwakeState, now?: number): string {
+    if (now == null) {
+        return t("keepawake.byWork");
+    }
+    if (state.policyworking || !state.policyendsat) {
+        const why = state.policyworking ? reasonsText(state.policyreasons, state.policyreasonstext) : "";
+        return why ? t("keepawake.byWorkWhy", { why }) : t("keepawake.byWork");
+    }
+    return t("keepawake.byWorkEnding", { time: formatCountdown(state.policyendsat, now) });
+}
+
 // What the cup says is holding the computer awake, for its tooltip and the popover.
-export function keepAwakeIndicatorLabel(state: KeepAwakeState): string {
-    return t("keepawake.indicatorLabel", { reasons: keepAwakeReasons(state).join(" · ") });
+export function keepAwakeIndicatorLabel(state: KeepAwakeState, now?: number): string {
+    return t("keepawake.indicatorLabel", { reasons: keepAwakeReasons(state, now).join(" · ") });
 }
 
 export function cleanSleepPolicy(value: string): SleepPolicy {

@@ -271,13 +271,13 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 	src := WorkSources{
 		Agents: func() []molten.AgentRunInfo {
 			return []molten.AgentRunInfo{
-				{BlockId: "working", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking, Pid: 10, PidStartMs: 1},
-				{BlockId: "background", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: 20, PidStartMs: 2},
-				{BlockId: "prompt", Agent: molten.AgentIdCodex, Running: true, State: molten.AgentStateWaiting, Pid: 30, PidStartMs: 3},
+				{BlockId: "working", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking, Pid: 10, PidStartMs: 1},
+				{BlockId: "background", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: 20, PidStartMs: 2},
+				{BlockId: "prompt", FirstName: "Jérôme", Agent: molten.AgentIdCodex, Running: true, State: molten.AgentStateWaiting, Pid: 30, PidStartMs: 3},
 				// A remote agent's process is not known: it counts through its state only.
-				{BlockId: "remote", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone},
+				{BlockId: "remote", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone},
 				// Its hooks report running sub-agents after its turn ended (#1092): background work, process or not.
-				{BlockId: "subagents", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Subagents: 2},
+				{BlockId: "subagents", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Subagents: 2},
 			}
 		},
 		Commands: func() map[string]string { return map[string]string{"background": "claude", "prompt": "codex"} },
@@ -303,13 +303,13 @@ func TestComputeWorkBackgroundWork(t *testing.T) {
 			t.Errorf("sampled %v: a working agent or a remote one", r)
 		}
 	}
-	if got := work.Reasons["ws-b"]; !reflect.DeepEqual(got, []string{"Claude Code: background work"}) {
+	if got := work.Reasons["ws-b"]; !reflect.DeepEqual(got, []string{"Adrien: background work"}) {
 		t.Errorf("reasons of ws-b: %v", got)
 	}
-	if got := work.Reasons["ws-e"]; !reflect.DeepEqual(got, []string{"Claude Code: background work"}) {
+	if got := work.Reasons["ws-e"]; !reflect.DeepEqual(got, []string{"Adrien: background work"}) {
 		t.Errorf("reasons of ws-e: %v", got)
 	}
-	if got := work.LocalReasons; !reflect.DeepEqual(got, []string{"Claude Code: working", "Claude Code: background work"}) {
+	if got := work.LocalReasons; !reflect.DeepEqual(got, []string{"Adrien: working", "Adrien: background work"}) {
 		t.Errorf("local reasons: %v", got)
 	}
 }
@@ -318,12 +318,12 @@ func TestSortReasons(t *testing.T) {
 	got := sortReasons([]reason{
 		{rank: reasonMission, text: missionReason},
 		commandReason("make   all"),
-		agentReason(molten.AgentIdClaude, reasonAgentBackground),
-		agentReason(molten.AgentIdClaude, reasonAgentBackground),
-		agentReason(molten.AgentIdCodex, reasonAgentWorking),
+		agentReason("Adrien", reasonAgentBackground),
+		agentReason("Adrien", reasonAgentBackground),
+		agentReason("Jérôme", reasonAgentWorking),
 		commandReason("go test ./..."),
 	})
-	want := []string{"Codex: working", "Claude Code: background work", "Command: go test ./...", "2 more"}
+	want := []string{"Jérôme: working", "Adrien: background work", "Command: go test ./...", "2 more"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("reasons %v, want %v", got, want)
 	}
@@ -342,7 +342,7 @@ func TestCoffeeHoldsWhileAgentTreeBusy(t *testing.T) {
 	tracker := makeBusyTracker(trees.sample, func() time.Time { return f.now })
 	src := WorkSources{
 		Agents: func() []molten.AgentRunInfo {
-			return []molten.AgentRunInfo{{BlockId: "b1", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: agentPid, PidStartMs: agentStart}}
+			return []molten.AgentRunInfo{{BlockId: "b1", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: agentPid, PidStartMs: agentStart}}
 		},
 		Locate: func(ctx context.Context, blockId string) (BlockInfo, bool) {
 			return BlockInfo{WorkspaceId: "ws-a"}, true
@@ -377,7 +377,7 @@ func TestCoffeeHoldsWhileAgentTreeBusy(t *testing.T) {
 	if len(state.Coffees) != 1 || !state.Coffees[0].Working || !state.PolicyWorking {
 		t.Fatalf("5 minutes of background work after the turn ended: %+v", state)
 	}
-	if !reflect.DeepEqual(state.Coffees[0].Reasons, []string{"Claude Code: background work"}) || !reflect.DeepEqual(state.PolicyReasons, state.Coffees[0].Reasons) {
+	if !reflect.DeepEqual(state.Coffees[0].Reasons, []string{"Adrien: background work"}) || !reflect.DeepEqual(state.PolicyReasons, state.Coffees[0].Reasons) {
 		t.Errorf("why it is kept awake: %v, %v", state.Coffees[0].Reasons, state.PolicyReasons)
 	}
 	if len(f.notices) != 0 {
@@ -404,7 +404,7 @@ func TestCoffeeEndsWithIdleAgentTree(t *testing.T) {
 	tracker := makeBusyTracker(trees.sample, func() time.Time { return f.now })
 	src := WorkSources{
 		Agents: func() []molten.AgentRunInfo {
-			return []molten.AgentRunInfo{{BlockId: "b1", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: agentPid, PidStartMs: agentStart}}
+			return []molten.AgentRunInfo{{BlockId: "b1", FirstName: "Adrien", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateDone, Pid: agentPid, PidStartMs: agentStart}}
 		},
 		Locate: func(ctx context.Context, blockId string) (BlockInfo, bool) {
 			return BlockInfo{WorkspaceId: "ws-a"}, true

@@ -113,6 +113,9 @@ async function getClipboardURL(): Promise<URL> {
 
 let contextMenuRequest = 0; // MOLTENTERM-PATCH (#371): discard delayed clipboard responses.
 async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
+    // MOLTENTERM-PATCH (#1550): a control that already took the right-click (its own menu or popover) said so with
+    // preventDefault; the window's clipboard menu must not open over it.
+    if (e.defaultPrevented) return;
     e.preventDefault();
     const request = ++contextMenuRequest;
     const origin = {
