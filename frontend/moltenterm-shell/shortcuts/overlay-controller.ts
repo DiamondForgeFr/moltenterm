@@ -39,11 +39,12 @@ export class OverlayController {
     // Whether the overlay may open now (no dialog up).
     canOpen: () => boolean;
 
-    constructor(opts: { mac?: boolean; loader?: OverlayLoader; canOpen?: () => boolean } = {}) {
+    constructor(opts: { mac?: boolean; loader?: OverlayLoader; canOpen?: () => boolean; isFocused?: () => boolean } = {}) {
         this.loader = opts.loader ?? DefaultLoader;
         this.canOpen = opts.canOpen ?? (() => !modalIsOpen());
         this.hold = new HoldDetector({
             holdKey: holdKeyFor(opts.mac ?? isMacOS()),
+            isFocused: opts.isFocused,
             onShow: () => this.show("held"),
             onHide: () => {
                 if (this.mode === "held") {
@@ -122,6 +123,10 @@ export class OverlayController {
     blur() {
         this.hold.blur();
     }
+
+    focus() {
+        this.hold.focus();
+    }
 }
 
 let controller: OverlayController = null;
@@ -154,5 +159,6 @@ export function installShortcutOverlay() {
     document.addEventListener("keyup", (e) => ctl.key(keyutil.adaptFromReactOrNativeKeyEvent(e)), true);
     document.addEventListener("pointerdown", (e) => ctl.pointer(e.target as Node), true);
     window.addEventListener("blur", () => ctl.blur());
+    window.addEventListener("focus", () => ctl.focus());
     (window as { api?: ElectronApi }).api?.onMoltentermKeyNotice?.((e) => ctl.key(e));
 }
