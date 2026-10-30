@@ -9501,6 +9501,7 @@
         "nothingFound": "Rien trouvé",
         "settings": {
             "openInView": "Ouvrir dans une vue",
+            "overview": "Aperçu",
             "openInViewTitle": "Ouvrir {name} dans la vue Réglages de cet espace de travail"
         },
         "sections": {

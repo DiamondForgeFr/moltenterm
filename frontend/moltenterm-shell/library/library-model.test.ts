@@ -14,11 +14,13 @@ import {
     panelAboutKey,
     PublicDownloadUrl,
     putAwayAgentNames,
+    readLastSettingsTab,
     sentToAiRows,
     sharedAgentGroups,
     suggestClipboardText,
     whenText,
     workspaceAgents,
+    writeLastSettingsTab,
 } from "./library-model";
 
 function lookup(dict: any, key: string): unknown {
@@ -170,7 +172,14 @@ describe("Shared with agents (#1538)", () => {
                 tabId: "t",
                 workspaceId: "w",
                 agentTabs: [
-                    { browsertabid: "x", agentname: "Olivia", agentblockid: "t1", sessionid: "s1", origin: "agent", state: "takenover" },
+                    {
+                        browsertabid: "x",
+                        agentname: "Olivia",
+                        agentblockid: "t1",
+                        sessionid: "s1",
+                        origin: "agent",
+                        state: "takenover",
+                    },
                 ],
                 browserTabs: [{ id: "x", url: "https://x.example", title: "X" }],
             } as any,
@@ -238,5 +247,41 @@ describe("Escape in the library (#1406, #1548)", () => {
     it("closes the popover first, then the library, whatever settings block is open", () => {
         expect(libraryEscapeStep(true)).toBe("suggest");
         expect(libraryEscapeStep(false)).toBe("close");
+    });
+});
+
+describe("Settings reopens on the last tab (#1592)", () => {
+    const blocks = ["general", "keyboard"] as const;
+    function memory(): Pick<Storage, "getItem" | "setItem"> {
+        const m = new Map<string, string>();
+        return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v) };
+    }
+
+    it("opens on Overview the first time", () => {
+        expect(readLastSettingsTab(memory(), blocks)).toBeNull();
+    });
+
+    it("reopens on the block last opened, and on Overview once it was chosen again", () => {
+        const s = memory();
+        writeLastSettingsTab(s, "keyboard");
+        expect(readLastSettingsTab(s, blocks)).toBe("keyboard");
+        writeLastSettingsTab(s, null);
+        expect(readLastSettingsTab(s, blocks)).toBeNull();
+    });
+
+    it("falls back to Overview for a block that no longer exists or a storage that fails", () => {
+        const s = memory();
+        writeLastSettingsTab(s, "gone");
+        expect(readLastSettingsTab(s, blocks)).toBeNull();
+        const failing = {
+            getItem: (): string => {
+                throw new Error("denied");
+            },
+            setItem: () => {
+                throw new Error("denied");
+            },
+        };
+        expect(() => writeLastSettingsTab(failing, "general")).not.toThrow();
+        expect(readLastSettingsTab(failing, blocks)).toBeNull();
     });
 });

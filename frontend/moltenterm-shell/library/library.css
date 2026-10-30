@@ -1029,52 +1029,11 @@
     font-size: var(--mt-text-13);
 }
 
-/* Settings. */
-.mt-lib-setgrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 8px;
-}
-
-.mt-lib-set {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    border: 0;
-    border-radius: var(--mt-radius-panel);
-    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
-    color: var(--color-primary);
-    text-align: left;
-    cursor: pointer;
-}
-
-.mt-lib-set:hover {
-    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
-}
-
-.mt-lib-set > span {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.mt-lib-set small {
-    color: var(--mt-lib-fg-3);
-    font-size: var(--mt-text-11);
-}
-
-.mt-lib-set.is-error {
-    color: var(--color-error);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-error) 50%, transparent);
-}
-
-/* A settings block open in the page (#1406). The stage's data-state ("tiles" or "open") is the hook of the reveal
-   animation (#1407): the blocks stay mounted, in Preferences' order, while one is open. They then become a compact
-   row, sticky at the top of the scrolling page (#1548): icon and name, the open one marked, never hidden (on a narrow
-   window it scrolls sideways). The reveal starts from the chip clicked in it. */
-.mt-lib-setstage[data-state="open"] > .mt-lib-setgrid {
+/* Settings: one navigation (#1592). The row of tabs is always there, sticky at the top of the scrolling page (#1548):
+   Overview first, then one tab per block in Preferences' order, icon and name, the shown one marked, never hidden (on
+   a narrow window it scrolls sideways). The reveal of an opened block (#1407) starts from its chip in the row. The
+   stage's data-state ("overview" or "open") says which. */
+.mt-lib-settabs {
     position: sticky;
     top: 0;
     z-index: 3;
@@ -1086,16 +1045,69 @@
     background: color-mix(in srgb, var(--mt-sink) 18%, var(--mt-surface-0));
 }
 
-.mt-lib-setstage[data-state="open"] .mt-lib-set {
+.mt-lib-set {
+    display: flex;
     flex: none;
+    align-items: center;
     gap: 6px;
     padding: 6px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    color: var(--color-primary);
     font-size: var(--mt-text-12);
     white-space: nowrap;
+    text-align: left;
+    cursor: pointer;
 }
 
-.mt-lib-setstage[data-state="open"] .mt-lib-set small {
-    display: none;
+.mt-lib-set:hover,
+.mt-lib-setcard:hover {
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-lib-set.is-error {
+    align-self: flex-start;
+    color: var(--color-error);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-error) 50%, transparent);
+}
+
+/* Overview: the blocks as compact cards, icon, name and one line of description, so they hold in about three rows at
+   the usual width. */
+.mt-lib-setgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 6px;
+}
+
+.mt-lib-setcard {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 5%, transparent);
+    color: var(--color-primary);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-lib-setcard > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mt-lib-setcard small {
+    overflow: hidden;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mt-lib-set[aria-current="true"] {
