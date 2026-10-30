@@ -14,6 +14,7 @@ import {
     OptionList,
     OptionRow,
     SectionBlock,
+    snapToCycle,
     SuiteSignature,
     ToggleGroup,
 } from "./suite";
@@ -186,6 +187,32 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(css).toMatch(
             /@media \(prefers-reduced-motion: reduce\) \{\s*\.df-dominos > span,\s*\.df-domino-loader > span \{\s*animation: none;/
         );
+    });
+
+    it("puts a chain's start back onto the last whole cycle, so every chain falls on one clock (#1399)", () => {
+        const anim = (startTime: number, duration: number = 1000) => ({
+            startTime: startTime as CSSNumberish,
+            effect: { getComputedTiming: () => ({ duration }) } as AnimationEffect,
+        });
+        for (const [start, want] of [
+            [1234.5, 1000],
+            [99_999.9, 99_000],
+            [50, 0],
+            [3000, 3000],
+        ]) {
+            const a = anim(start);
+            snapToCycle(a);
+            expect(a.startTime).toBe(want);
+        }
+        const slower = anim(2500, 2000);
+        snapToCycle(slower);
+        expect(slower.startTime).toBe(2000);
+        const pending = { ...anim(0), startTime: null as CSSNumberish };
+        snapToCycle(pending);
+        expect(pending.startTime).toBeNull();
+        const endless = anim(1234.5, Infinity);
+        snapToCycle(endless);
+        expect(endless.startTime).toBe(1234.5);
     });
 
     it("maps each concept to one Lucide icon, Notulia's where it has one", () => {

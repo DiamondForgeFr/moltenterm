@@ -83,6 +83,34 @@ export function SectionBlock({
 }
 
 const DominoCount = 8;
+type CycleAnimation = Pick<Animation, "startTime" | "effect">;
+
+// Every domino chain falls on one clock (#1399): its start goes back onto the last whole cycle counted from the
+// document timeline's origin. Chains started apart would otherwise change on different frames (N chains, N times the
+// frames), and Chromium runs a main-thread frame at each lap of each phase. Back, never forward: a start in the
+// future would leave the bars lying flat until it comes.
+export function snapToCycle(anim: CycleAnimation) {
+    if (anim.startTime == null) {
+        return;
+    }
+    const duration = anim.effect?.getComputedTiming().duration;
+    if (typeof duration !== "number" || !Number.isFinite(duration) || !(duration > 0)) {
+        return;
+    }
+    const start = Number(anim.startTime);
+    const snapped = Math.floor(start / duration) * duration;
+    if (Math.abs(snapped - start) < 0.01) {
+        return;
+    }
+    anim.startTime = snapped;
+}
+
+// Run when a bar's animation starts: on mount, and when the dominoes move again after standing still.
+function snapDomino(bar: Element) {
+    for (const anim of bar.getAnimations?.() ?? []) {
+        anim.ready.then(() => snapToCycle(anim)).catch(() => {});
+    }
+}
 
 export type DominoLoaderProps = {
     // "inline" fits a button or a line of text in the text colour; "large" is the accent chain of a loading state.
@@ -103,6 +131,7 @@ export function DominoLoader({ size = "inline", label, className }: DominoLoader
             role={label ? "status" : undefined}
             aria-label={label || undefined}
             aria-hidden={label ? undefined : true}
+            onAnimationStart={(e) => snapDomino(e.target as Element)}
         >
             {Array.from({ length: DominoCount }, (_, i) => (
                 <span key={i} />

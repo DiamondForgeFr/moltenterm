@@ -173,8 +173,8 @@
     /* Theme Coulée's loops (FR-SHELL-118). A loop has no duration to zero under reduced motion: its rule stops it and
        says how it stands still (motion-still-states.test.ts checks that every looping animation has one).
        spin       the "running" sweep and arc, 1.1 s; the browser's load line stands full at 70 % opacity
-       dominoes   the suite's chain loader, 1 s; the bars stand in their rest angle (--df-domino-still). The bars' delays
-                  are written in 1/24 s of this cycle (moltenterm-shell.css), so the token and them move together
+       dominoes   the suite's chain loader, 1 s; the bars stand in their rest angle (--df-domino-still). The bars' keyframes
+                  are written in 1/15 of this cycle (moltenterm-shell.css), so the token and them move together
        loop       a pulse (the sidebar ring, the radar), up to 1.6 s; the pulse stays lit at full opacity
        glow       the suite's turning light (--df-glow-duration), 8 s; it stands at its rest angle (--df-glow-rest) */
     --mt-duration-spin: 1100ms;
@@ -221,7 +221,8 @@
     --df-weight-medium: var(--mt-weight-medium);
     --df-weight-semibold: var(--mt-weight-semibold);
 
-    --df-duration-fast: var(--mt-duration-fast);    --df-tile-fg: var(--mt-action-fg);
+    --df-duration-fast: var(--mt-duration-fast);
+    --df-tile-fg: var(--mt-action-fg);
 }
 
 /* MoltenTerm's own reduced-motion setting (the app root's class) stills the turning light like the system's. */
