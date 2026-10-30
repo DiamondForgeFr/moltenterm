@@ -343,6 +343,52 @@
     font-weight: 500;
 }
 
+.mt-places-seg {
+    display: flex;
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+}
+
+.mt-places-seg-choice {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-places-seg-choice + .mt-places-seg-choice {
+    border-left: 1px solid var(--mt-line-2);
+}
+
+.mt-places-seg-choice:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-places-seg-choice.is-on {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    font-weight: 500;
+}
+
+.mt-places-seg-choice em {
+    margin-left: 4px;
+    color: var(--mt-text-3);
+    font-family: var(--font-mono);
+    font-size: var(--mt-text-11);
+    font-style: normal;
+}
+
+.mt-places-seg-choice:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: -2px;
+}
+
 .mt-places-section {
     margin-top: 12px;
 }

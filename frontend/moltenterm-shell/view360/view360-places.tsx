@@ -18,6 +18,7 @@ import { useRestoreFocus } from "../busy-close";
 import { t, tCount, useLocale, useT, useTCount } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { ReadableCarpetColumnPx } from "./carpet-model";
+import { CarpetGroup, GroupAll, GroupPages, type GroupPin } from "./carpet-group";
 import { PlaceOption } from "./carpet-places";
 import { PinText } from "./pin-text";
 import { makeRadarFactsAtom } from "./radar-store";
@@ -109,6 +110,50 @@ function PlacesDiagram({ option, active }: { option: PlaceOption; active: boolea
     );
 }
 
+export type ChooserChoices = {
+    // Whether "On the carpet: All panels · The pages" is shown (FR-SHELL-124-AC1), and the choice selected on opening.
+    offered: boolean;
+    initial: CarpetGroup;
+    all: PlaceOption[];
+    pages: PlaceOption[];
+    // The panels each choice lays on the carpet (the segment's counts).
+    allCount: number;
+    pagesCount: number;
+    // Where "The pages" would pin the other panels.
+    plan: GroupPin[];
+};
+
+export function chooserChoices(view360: View360Model): ChooserChoices {
+    const offered = view360.groupOffered();
+    return {
+        offered,
+        initial: offered ? view360.effectiveGroup() : GroupAll,
+        all: view360.placeOptions(GroupAll),
+        pages: offered ? view360.placeOptions(GroupPages) : [],
+        allCount: view360.groupCarpetCount(GroupAll),
+        pagesCount: offered ? view360.groupCarpetCount(GroupPages) : 0,
+        plan: offered ? view360.groupPlan() : [],
+    };
+}
+
+// The lines saying, before the click, where "The pages" pins the other panels (AC3): beside the agent, under it.
+export function groupPlanLines(
+    plan: GroupPin[],
+    titleOf: (blockId: string) => string,
+    agent: string
+): { mode: "beside" | "stacked"; text: string }[] {
+    const lines: { mode: "beside" | "stacked"; text: string }[] = [];
+    for (const mode of ["beside", "stacked"] as const) {
+        const names = plan.filter((p) => p.mode === mode).map((p) => titleOf(p.blockId));
+        if (!names.length) {
+            continue;
+        }
+        const key = mode === "beside" ? "view360.places.groupBeside" : "view360.places.groupUnder";
+        lines.push({ mode, text: tCount(key, names.length, { panels: names.join(", "), agent }) });
+    }
+    return lines;
+}
+
 type ChooserProps = { view360: View360Model; state: PlacesChooserState };
 
 function PlacesChooser({ view360, state }: ChooserProps) {
@@ -124,24 +169,32 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     const roles = useAtomValue(view360.rolesAtom);
     const blockId = state.blockId;
     const firstBlockId = Object.keys(roles).find((id) => roles[id] === "first") ?? null;
+    // Computed each time the chooser opens (AC3), for both choices of "On the carpet" (FR-SHELL-124).
+    const [choices] = useState(() => chooserChoices(view360));
+    const [group, setGroup] = useState<CarpetGroup>(choices.initial);
+    const groupRef = useRef(group);
+    groupRef.current = group;
+    const options = group === GroupPages ? choices.pages : choices.all;
     const factsAtom = useMemo(
-        () => makeRadarFactsAtom([blockId, firstBlockId].filter((id) => id != null)),
-        [blockId, firstBlockId]
+        () =>
+            makeRadarFactsAtom(
+                [blockId, firstBlockId, ...choices.plan.map((p) => p.blockId)].filter((id) => id != null)
+            ),
+        [blockId, firstBlockId, choices]
     );
     const facts = useAtomValue(factsAtom);
-    // Computed each time the chooser opens (AC3).
-    const [options] = useState(() => view360.placeOptions());
     const [pinnedCount] = useState(() => view360.pinnedColumnCount());
     const placement = active ? placements[blockId] : "carpet";
     useRestoreFocus();
 
     const apply = (n: number) => {
-        const option = options.find((o) => o.n === n);
+        const current = groupRef.current;
+        const option = (current === GroupPages ? choices.pages : choices.all).find((o) => o.n === n);
         if (option == null || !option.offered) {
             return;
         }
         closePlacesChooser();
-        view360.applyPlaces(blockId, n);
+        view360.applyPlaces(blockId, n, current);
     };
     const run = (fn: () => void) => {
         closePlacesChooser();
@@ -196,6 +249,11 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     const agent = facts[firstBlockId]?.title || t("view360.places.fallbackAgent");
     const panel = facts[blockId]?.title || t("view360.places.fallbackPanel");
     const why = optionsWhy(options);
+    const planLines = groupPlanLines(
+        choices.plan,
+        (id) => facts[id]?.title || t("view360.places.fallbackPanel"),
+        agent
+    );
     const offeredKeys = options.filter((o) => o.offered).map((o) => String(o.n));
     const pinShortcut = formatShortcutById("pin-panel");
     const style: CSSProperties = {
@@ -218,14 +276,43 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                 <CarpetIcon />
                 <span>{t("view360.places.title")}</span>
             </div>
-            <p className="mt-places-intro">{t("view360.places.intro", { agent, panel })}</p>
+            <p className="mt-places-intro">
+                {t(group === GroupPages ? "view360.places.introPages" : "view360.places.intro", { agent, panel })}
+            </p>
+            {choices.offered && (
+                <>
+                    <div className="mt-places-label" id="mt-places-group-label">
+                        {t("view360.places.groupLabel")}
+                    </div>
+                    <div className="mt-places-seg" role="group" aria-labelledby="mt-places-group-label">
+                        {(
+                            [
+                                [GroupAll, "view360.places.groupAll", choices.allCount],
+                                [GroupPages, "view360.places.groupPages", choices.pagesCount],
+                            ] as const
+                        ).map(([g, key, count]) => (
+                            <button
+                                key={g}
+                                type="button"
+                                className={cn("mt-places-seg-choice cursor-pointer", group === g && "is-on")}
+                                aria-pressed={group === g}
+                                data-testid={`mt-places-group-${g}`}
+                                onClick={() => setGroup(g)}
+                            >
+                                {t(key)}
+                                <em>{count}</em>
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
             <div className="mt-places-label" id="mt-places-label">
                 {t("view360.places.label")}
             </div>
             <div className="mt-places-counts" role="group" aria-labelledby="mt-places-label">
                 {options.map((option, i) => {
                     const caption = optionCaption(option);
-                    const current = shown === option.n;
+                    const current = shown === option.n && group === choices.initial;
                     return (
                         <button
                             key={option.n}
@@ -272,6 +359,20 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                     <span>{tc("view360.places.pinned", pinnedCount)}</span>
                 </div>
             )}
+            {group === GroupPages &&
+                planLines.map((line) => (
+                    <div
+                        key={line.mode}
+                        className="mt-places-why"
+                        data-testid={`mt-places-group-plan-${line.mode}`}
+                    >
+                        <i
+                            className={cn("fa fa-solid", line.mode === "beside" ? "fa-thumbtack" : "fa-layer-group")}
+                            aria-hidden="true"
+                        />
+                        <span>{line.text}</span>
+                    </div>
+                ))}
             {active && placement != null && placement !== "first" && (
                 <>
                     <div className="mt-places-label mt-places-section">{t("view360.places.already")}</div>

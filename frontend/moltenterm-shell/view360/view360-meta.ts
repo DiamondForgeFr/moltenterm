@@ -7,6 +7,7 @@
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { GroupPages, readGroup, type CarpetGroup } from "./carpet-group";
 import { readPlaces } from "./carpet-places";
 import { parsePins, type TabPins } from "./pin-model";
 import { manualChoice, readFractions } from "./view360-decision";
@@ -69,7 +70,15 @@ export type View360PlacesState = {
     manual?: boolean;
     pins?: TabPins;
     fixedPx?: number;
+    group?: CarpetGroup;
 };
+
+// The view's "360 on the pages" (FR-SHELL-124), next to its N and its pins: "pages", or none for all panels.
+export const View360GroupMetaKey = "molten:view360group";
+
+export function storedGroup(tab: Tab): CarpetGroup {
+    return readGroup((tab?.meta as Record<string, unknown>)?.[View360GroupMetaKey]);
+}
 
 export function writePlacesState(tabId: string, state: View360PlacesState): Promise<void> {
     const meta: Record<string, unknown> = {};
@@ -81,6 +90,9 @@ export function writePlacesState(tabId: string, state: View360PlacesState): Prom
     }
     if (state.pins !== undefined) {
         meta[View360PinsMetaKey] = state.pins == null || Object.keys(state.pins).length === 0 ? null : state.pins;
+    }
+    if (state.group !== undefined) {
+        meta[View360GroupMetaKey] = state.group === GroupPages ? GroupPages : null;
     }
     if (state.fixedPx !== undefined) {
         meta[View360FixedPxMetaKey] = state.fixedPx == null ? null : Math.round(state.fixedPx);
