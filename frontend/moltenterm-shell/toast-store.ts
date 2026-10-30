@@ -14,6 +14,8 @@ export class Toasts {
     stackAtom = atom([]) as PrimitiveAtom<Toast[]>;
     // How many notification toasts left the stack for the center since the user last opened it.
     collapsedAtom = atom(0) as PrimitiveAtom<number>;
+    // Bumped each time a notification's toast times out into the bell, which pulses its count (#1403).
+    landedAtom = atom(0) as PrimitiveAtom<number>;
     nextId = 0;
 
     private constructor() {}
@@ -51,6 +53,9 @@ export class Toasts {
             return;
         }
         globalStore.set(this.stackAtom, removeToast(this.stack(), id));
+        if (reason === "timeout" && toast.notificationId != null) {
+            globalStore.set(this.landedAtom, globalStore.get(this.landedAtom) + 1);
+        }
         toast.onDismiss?.(reason);
     }
 

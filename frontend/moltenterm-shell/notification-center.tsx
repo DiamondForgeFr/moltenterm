@@ -446,6 +446,14 @@ export function NotificationCenter() {
         lastCountRef.current = count;
     }, [count]);
 
+    // A toast that timed out went into the bell (#1403): the count pulses as it lands.
+    const landed = useAtomValue(Toasts.getInstance().landedAtom, { store: globalStore });
+    useEffect(() => {
+        if (landed > 0) {
+            setPulse((p) => p + 1);
+        }
+    }, [landed]);
+
     // A notification that needs an answer opens the panel on it (notification-toasts.ts decides which, #790). A panel
     // the user opened stays theirs: the entry is only highlighted.
     useEffect(() => {
@@ -580,7 +588,7 @@ export function NotificationCenter() {
             </button>
             <DepSyncHost />
             <TrustApprovalHost />
-            {createPortal(<ToastStack onOpenCenter={openForUser} />, document.body)}
+            {createPortal(<ToastStack onOpenCenter={openForUser} bellRef={bellRef} />, document.body)}
             {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
             {panelOpen && anchor
                 ? createPortal(

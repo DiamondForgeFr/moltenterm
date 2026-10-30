@@ -1,8 +1,8 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The toast stack (FR-SHELL-055, DS-SHELL-097). A toast rises into place in the panels' 240 ms; the duration token is
-   0 under reduced motion, so it simply appears (NFR-SHELL-027). */
+/* The toast stack (FR-SHELL-055, DS-SHELL-097). A toast drops from the bell into place in the panels' 240 ms (#1403);
+   the duration token is 0 under reduced motion, so it simply appears (NFR-SHELL-027). */
 .molten-toast {
     animation: molten-toast-in var(--mt-duration-slow) var(--mt-ease);
 }
@@ -10,7 +10,21 @@
 @keyframes molten-toast-in {
     from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(-8px);
+    }
+}
+
+/* A notification's toast that times out shrinks into the bell (#1403): its top-left corner travels to the bell's
+   centre (--mt-toast-to-x, --mt-toast-to-y, measured when it leaves). Instant under reduced motion. */
+.molten-toast.molten-toast-to-bell {
+    transform-origin: 0 0;
+    animation: molten-toast-to-bell var(--mt-duration-slow) var(--mt-ease) forwards;
+}
+
+@keyframes molten-toast-to-bell {
+    to {
+        opacity: 0;
+        transform: translate(var(--mt-toast-to-x), var(--mt-toast-to-y)) scale(0.08);
     }
 }
 
