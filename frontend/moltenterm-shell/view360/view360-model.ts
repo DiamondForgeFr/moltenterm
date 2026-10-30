@@ -753,6 +753,8 @@ export class View360Model {
     // equal parts of a 360 × N (AC5). Under a 360 × N the widths dragged by hand give way to the view's own equal
     // parts; in the plain 360 view the fixed zone and every carpet column are set to them. Returns each place's
     // width, or null when the view already shows equal parts (the auto mode calls it after every pass).
+    // Equalize moves the fixed zone as its grip would: the first column's floor, which the grip sets (#848), does not
+    // hold it wider than its share, and is set to that share, or a zone dragged wider would never come back.
     equalizeParts(): number {
         const layout = this.layout;
         const width = this.layoutWidth;
@@ -761,24 +763,31 @@ export class View360Model {
             return null;
         }
         const shown = globalStore.get(this.shownPlacesAtom);
-        const n = equalizePlaceCount(layout, shown, width, this.fixedNeedPx, this.besidePx);
-        const parts = equalParts(width, n, this.fixedNeedPx, this.besidePx);
+        const n = equalizePlaceCount(layout, shown, width, 0, this.besidePx);
+        const parts = equalParts(width, n, 0, this.besidePx);
+        const floorAbove = (currentFirstColumnFloorPx() ?? 0) > parts.fixedPx;
         // Decided on what the view was asked for, not on the drawn widths, which the layout may round or clamp: the
         // auto mode would otherwise ask again after every pass.
         if (shown != null) {
-            if (this.grippedFixedPx == null && this.carpetPx.size === 0) {
+            if (this.grippedFixedPx == null && this.carpetPx.size === 0 && !floorAbove) {
                 return null;
             }
             this.grippedFixedPx = null;
             this.carpetPx.clear();
+            if (floorAbove) {
+                setFirstColumnFloor(parts.fixedPx);
+            }
             return parts.placePx;
         }
         const fixedEqual = this.lastFixedPx != null && Math.abs(this.lastFixedPx - parts.fixedPx) <= 1;
         const columnsEqual = layout.columns.every(
             (c) => this.carpetPx.get(c.nodeId) === parts.placePx || Math.abs(c.width - parts.placePx) <= 1
         );
-        if (fixedEqual && columnsEqual) {
+        if (fixedEqual && columnsEqual && !floorAbove) {
             return null;
+        }
+        if (floorAbove) {
+            setFirstColumnFloor(parts.fixedPx);
         }
         this.grippedFixedPx = parts.fixedPx;
         this.savedFixedPx = parts.fixedPx;
