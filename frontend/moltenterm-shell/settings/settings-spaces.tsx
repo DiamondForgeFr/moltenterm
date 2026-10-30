@@ -24,7 +24,7 @@ import { PageCard } from "./settings-page";
 export const SidebarTintKey = "moltenterm:sidebartint";
 
 const TileClass =
-    "relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 bg-surface-2 px-1 text-11 text-primary transition-colors duration-120 ease-mt select-none hover:bg-surface-3";
+    "relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 bg-white/[0.09] px-1 text-11 text-primary transition-colors duration-120 ease-mt select-none hover:bg-white/15";
 
 type SidebarMode = "docked" | "floating";
 
