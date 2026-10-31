@@ -9470,7 +9470,7 @@
             }
         },
         "dots": {
-            "keyHint": "{name} ({keys})"
+            "project": "{name} · {type}"
         },
         "create": {
             "title": "New workspace",
