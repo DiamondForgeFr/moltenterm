@@ -3,10 +3,22 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import * as WOS from "@/store/wos"; // MOLTENTERM-PATCH (#1626)
 import { fireAndForget, isBlank } from "@/util/util";
 import dayjs from "dayjs";
 import React from "react";
 import { t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
+// MOLTENTERM-PATCH (#1626)
+import {
+    DefaultSortSettingValues,
+    DirSort,
+    DirSortColumn,
+    DirSortMetaKey,
+    firstDirectionDesc,
+    formatDirSort,
+    nextDirSort,
+    resolveDirSort,
+} from "./directory-sort";
 import { type PreviewModel } from "./preview-model";
 
 export const recursiveError = "recursive flag must be set for directory operations";
@@ -156,33 +168,81 @@ export function handleFileDelete(
     });
 }
 
-export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuItem[] {
+// MOLTENTERM-PATCH (#1626): the panel's sort lives in its block meta (FR-FILE-003); the setting is only the default
+function currentPanelSort(model: PreviewModel): DirSort {
     const defaultSort = globalStore.get(model.env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
+    return resolveDirSort(globalStore.get(model.blockAtom)?.meta, defaultSort);
+}
+
+export function setPanelSort(model: PreviewModel, sort: DirSort) {
+    fireAndForget(() =>
+        model.env.rpc.SetMetaCommand(TabRpcClient, {
+            oref: WOS.makeORef("block", model.blockId),
+            meta: { [DirSortMetaKey]: formatDirSort(sort) } as MetaType,
+        })
+    );
+}
+
+export function setPanelSortColumn(model: PreviewModel, column: DirSortColumn) {
+    setPanelSort(model, nextDirSort(currentPanelSort(model), column));
+}
+
+const SortMenuColumns: { column: DirSortColumn; labelKey: string }[] = [
+    { column: "name", labelKey: "wave.files.sortName" },
+    { column: "type", labelKey: "wave.files.sortType" },
+    { column: "modtime", labelKey: "wave.files.sortModified" },
+    { column: "size", labelKey: "wave.files.sortSize" },
+];
+
+export function makeDirectorySortMenuItem(model: PreviewModel): ContextMenuItem {
+    const sort = currentPanelSort(model);
+    const canBeDefault = (DefaultSortSettingValues as readonly string[]).includes(sort.column);
+    return {
+        label: t("wave.files.sortBy"),
+        submenu: [
+            ...SortMenuColumns.map(
+                ({ column, labelKey }): ContextMenuItem => ({
+                    label: t(labelKey),
+                    type: "checkbox",
+                    checked: sort.column === column,
+                    click: () =>
+                        setPanelSort(model, {
+                            column,
+                            desc: sort.column === column ? sort.desc : firstDirectionDesc(column),
+                        }),
+                })
+            ),
+            { type: "separator" },
+            {
+                label: t("wave.files.sortAscending"),
+                type: "checkbox",
+                checked: !sort.desc,
+                click: () => setPanelSort(model, { column: sort.column, desc: false }),
+            },
+            {
+                label: t("wave.files.sortDescending"),
+                type: "checkbox",
+                checked: sort.desc,
+                click: () => setPanelSort(model, { column: sort.column, desc: true }),
+            },
+            { type: "separator" },
+            {
+                label: t("wave.files.sortUseForNewPanels"),
+                enabled: canBeDefault,
+                click: () =>
+                    fireAndForget(() =>
+                        model.env.rpc.SetConfigCommand(TabRpcClient, { "preview:defaultsort": sort.column })
+                    ),
+            },
+        ],
+    };
+}
+
+// MOLTENTERM-PATCH (#1626): withSort false leaves the sort out, for a menu that already shows it
+export function makeDirectoryDefaultMenuItems(model: PreviewModel, withSort = true): ContextMenuItem[] {
     const showHiddenFiles = globalStore.get(model.showHiddenFiles) ?? true;
     return [
-        {
-            label: t("wave.files.sortOrder"), // MOLTENTERM-PATCH (#742)
-            submenu: [
-                {
-                    label: t("wave.files.sortName"), // MOLTENTERM-PATCH (#742)
-                    type: "checkbox",
-                    checked: defaultSort === "name",
-                    click: () =>
-                        fireAndForget(() =>
-                            model.env.rpc.SetConfigCommand(TabRpcClient, { "preview:defaultsort": "name" })
-                        ),
-                },
-                {
-                    label: t("wave.files.sortModified"), // MOLTENTERM-PATCH (#742)
-                    type: "checkbox",
-                    checked: defaultSort === "modtime",
-                    click: () =>
-                        fireAndForget(() =>
-                            model.env.rpc.SetConfigCommand(TabRpcClient, { "preview:defaultsort": "modtime" })
-                        ),
-                },
-            ],
-        },
+        ...(withSort ? [makeDirectorySortMenuItem(model)] : []),
         {
             label: t("wave.files.showHidden"), // MOLTENTERM-PATCH (#742)
             submenu: [

@@ -19,7 +19,6 @@ import {
     createColumnHelper,
     flexRender,
     getCoreRowModel,
-    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
@@ -30,6 +29,7 @@ import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
 import { t, useLocale, useT } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#742)
+import { resolveDirSort, sortColumnFromTableId, sortDirectoryEntries, tableColumnId } from "./directory-sort"; // MOLTENTERM-PATCH (#1626)
 import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
@@ -40,8 +40,10 @@ import {
     handleRename,
     isIconValid,
     makeDirectoryDefaultMenuItems,
+    makeDirectorySortMenuItem, // MOLTENTERM-PATCH (#1626)
     mergeError,
     overwriteError,
+    setPanelSortColumn, // MOLTENTERM-PATCH (#1626)
     typeLabel, // MOLTENTERM-PATCH (#742)
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
@@ -60,7 +62,11 @@ function DirectoryTableHeaderCell({ header }: DirectoryTableHeaderCellProps) {
             key={header.id}
             style={{ width: `calc(var(--header-${header.id}-size) * 1px)` }}
         >
-            <div className="dir-table-head-cell-content" onClick={() => header.column.toggleSorting()}>
+            {/* MOLTENTERM-PATCH (#1626): the panel's sort lives in its block meta, so a click goes through the model */}
+            <div
+                className={clsx("dir-table-head-cell-content", header.column.getCanSort() && "cursor-pointer")}
+                onClick={() => header.getContext().table.options.meta.sortBy(header.column.id)}
+            >
                 {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 {getSortIcon(header.column.getIsSorted())}
             </div>
@@ -80,6 +86,7 @@ declare module "@tanstack/react-table" {
         updateName: (path: string, isDir: boolean) => void;
         newFile: () => void;
         newDirectory: () => void;
+        sortBy: (columnId: string) => void; // MOLTENTERM-PATCH (#1626)
     }
 }
 
@@ -115,6 +122,7 @@ function DirectoryTable({
     const env = useWaveEnv<PreviewEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
+    const blockMeta = useAtomValue(model.blockAtom)?.meta; // MOLTENTERM-PATCH (#1626)
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const tr = useT(); // MOLTENTERM-PATCH (#742)
     const locale = useLocale(); // MOLTENTERM-PATCH (#742)
@@ -214,17 +222,30 @@ function DirectoryTable({
         [model, setErrorMsg]
     );
 
-    const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];
+    // MOLTENTERM-PATCH (#1626): folders first in every sort, sorted here rather than by the table (whose
+    // descending order would put the folders last); the table only shows the panel's column and direction.
+    const sort = resolveDirSort(blockMeta, defaultSort);
+    const sortedData = useMemo(() => sortDirectoryEntries(data, sort), [data, sort.column, sort.desc]);
+    const sorting = useMemo(() => [{ id: tableColumnId(sort.column), desc: sort.desc }], [sort.column, sort.desc]);
+    const sortBy = useCallback(
+        (columnId: string) => {
+            const column = sortColumnFromTableId(columnId);
+            if (column == null) {
+                return;
+            }
+            setPanelSortColumn(model, column);
+        },
+        [model]
+    );
 
     const table = useReactTable({
-        data,
+        data: sortedData,
         columns,
         columnResizeMode: "onChange",
-        getSortedRowModel: getSortedRowModel(),
         getCoreRowModel: getCoreRowModel(),
-
+        manualSorting: true,
+        state: { sorting },
         initialState: {
-            sorting: initialSorting,
             columnVisibility: {
                 path: false,
             },
@@ -235,6 +256,7 @@ function DirectoryTable({
             updateName,
             newFile,
             newDirectory,
+            sortBy,
         },
     });
     const sortingState = table.getState().sorting;
@@ -419,9 +441,10 @@ function TableBody({
                 {
                     type: "separator",
                 },
+                makeDirectorySortMenuItem(model), // MOLTENTERM-PATCH (#1626): this panel's sort, outside the defaults
                 {
                     label: t("wave.files.defaultSettings"), // MOLTENTERM-PATCH (#742)
-                    submenu: makeDirectoryDefaultMenuItems(model),
+                    submenu: makeDirectoryDefaultMenuItems(model, false), // MOLTENTERM-PATCH (#1626)
                 },
                 {
                     type: "separator",
@@ -868,6 +891,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 },
             ];
             addOpenMenuItems(menu, conn, finfo);
+            menu.push({ type: "separator" }, makeDirectorySortMenuItem(model)); // MOLTENTERM-PATCH (#1626)
 
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },

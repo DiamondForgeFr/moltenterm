@@ -221,7 +221,12 @@
             "copyPathQuoted": "Copier le chemin complet (échappé pour le shell)",
             "defaultSettings": "Réglages par défaut",
             "delete": "Supprimer",
-            "sortOrder": "Ordre de tri des dossiers",
+            "sortBy": "Trier par",
+            "sortType": "Type",
+            "sortSize": "Taille",
+            "sortAscending": "Croissant",
+            "sortDescending": "Décroissant",
+            "sortUseForNewPanels": "Utiliser pour les nouveaux panneaux",
             "sortName": "Nom",
             "sortModified": "Date de modification",
             "showHidden": "Afficher les fichiers cachés",
@@ -944,9 +949,10 @@
             },
             "preview:defaultsort": {
                 "label": "Trier les fichiers par",
-                "description": "L'ordre de la liste d'une vue de fichiers.",
+                "description": "L'ordre de la liste d'une nouvelle vue de fichiers, dossiers en premier ; chaque panneau garde le sien.",
                 "options": {
                     "name": "Nom",
+                    "type": "Type",
                     "modtime": "Dernière modification"
                 }
             },

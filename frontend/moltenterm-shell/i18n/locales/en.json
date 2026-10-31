@@ -221,7 +221,12 @@
             "copyPathQuoted": "Copy full path (shell quoted)",
             "defaultSettings": "Default settings",
             "delete": "Delete",
-            "sortOrder": "Folder sort order",
+            "sortBy": "Sort by",
+            "sortType": "Type",
+            "sortSize": "Size",
+            "sortAscending": "Ascending",
+            "sortDescending": "Descending",
+            "sortUseForNewPanels": "Use for new panels",
             "sortName": "Name",
             "sortModified": "Last modified",
             "showHidden": "Show hidden files",
@@ -790,9 +795,10 @@
             },
             "preview:defaultsort": {
                 "label": "Sort files by",
-                "description": "The order of a file view's list.",
+                "description": "The order of a new file view's list, folders first; each panel keeps its own.",
                 "options": {
                     "name": "Name",
+                    "type": "Type",
                     "modtime": "Last modified"
                 }
             },
