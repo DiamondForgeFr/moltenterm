@@ -6,9 +6,11 @@ import {
     AiIcon,
     DefaultTabIcon,
     isGenericTabName,
+    numberDuplicateViewNames,
     panelIcon,
     panelReviewDone,
     panelTitle,
+    panelViewName,
     tabDisplayName,
 } from "./tab-identity";
 
@@ -46,9 +48,46 @@ describe("tab identity (FR-SHELL-056, DS-SHELL-098)", () => {
 
     it("keeps a name the user typed and replaces T<n> only", () => {
         const term = { view: "term", "cmd:cwd": "/src/api" };
-        expect(tabDisplayName("T3", term)).toBe("api");
+        expect(tabDisplayName("T3", term)).toBe("Terminal · api");
         expect(tabDisplayName("Release", term)).toBe("Release");
         expect(tabDisplayName("T3", null)).toBe("T3");
+    });
+
+    it("names a new view after its main panel's kind and place (#1669)", () => {
+        expect(panelViewName({ view: "term", "cmd:cwd": "/src/roman" })).toBe("Terminal · roman");
+        expect(panelViewName({ view: "preview", file: "/src/roman" })).toBe("Files · roman");
+        expect(panelViewName({ view: "molten-browser", url: "https://github.com/x" })).toBe("Web page · github.com");
+        expect(panelViewName({ view: "term", "cmd:cwd": "/Users/me" }, "/Users/me")).toBe("Terminal · ~");
+        expect(panelViewName({ view: "term" })).toBe("Terminal");
+        expect(panelViewName({ view: "preview" })).toBe("Files");
+        expect(panelViewName({ view: "molten-project" })).toBe("Project");
+        expect(panelViewName({ view: "something-new" })).toBe("");
+        expect(panelViewName(null)).toBe("");
+    });
+
+    it("numbers a derived name only on a real duplicate, never a typed one (#1669)", () => {
+        const names = numberDuplicateViewNames([
+            { id: "a", name: "Terminal · roman", derived: true },
+            { id: "b", name: "Files · roman", derived: true },
+            { id: "c", name: "Terminal · roman", derived: true },
+            { id: "d", name: "Release", derived: false },
+            { id: "e", name: "Release", derived: false },
+            { id: "f", name: "Terminal · roman", derived: true },
+        ]);
+        expect([...names.entries()]).toEqual([
+            ["a", "Terminal · roman"],
+            ["b", "Files · roman"],
+            ["c", "Terminal · roman 2"],
+            ["d", "Release"],
+            ["e", "Release"],
+            ["f", "Terminal · roman 3"],
+        ]);
+        const typed = numberDuplicateViewNames([
+            { id: "t", name: "Files · roman", derived: false },
+            { id: "g", name: "Files · roman", derived: true },
+        ]);
+        expect(typed.get("t")).toBe("Files · roman");
+        expect(typed.get("g")).toBe("Files · roman 2");
     });
 
     it("shows the AI icon for a terminal that holds an agent, and only for a terminal (#1257)", () => {
