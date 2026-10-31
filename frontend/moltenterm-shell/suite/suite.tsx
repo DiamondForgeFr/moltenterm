@@ -5,7 +5,7 @@
 // moves as is into the shared UI kit. Text comes from the caller (each app owns its translations); icons are
 // components, the suite's Lucide set (suite-icons.ts).
 
-import { useId, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import "./suite.css";
 
 export type SuiteIcon = React.ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean }>;
@@ -48,8 +48,13 @@ export function SectionBlock({
     ...rest
 }: SectionBlockProps) {
     const headingId = useId();
+    const blockRef = useRef<HTMLElement>(null);
+    const pocketRef = useRef<HTMLSpanElement>(null);
+    const footerRef = useRef<HTMLSpanElement>(null);
+    useNotchWidths(blockRef, pocketRef, footerRef, !!title, !!footer);
     return (
         <section
+            ref={blockRef}
             aria-labelledby={title ? headingId : undefined}
             {...rest}
             className={joinClasses("df-block", className)}
@@ -65,7 +70,7 @@ export function SectionBlock({
                 </span>
             ) : null}
             {title ? (
-                <span className="df-pocket">
+                <span className="df-pocket" ref={pocketRef}>
                     <span className="df-chip">
                         <h3 id={headingId} className="df-chip-text">
                             {title}
@@ -77,9 +82,61 @@ export function SectionBlock({
                 {description ? <p className="df-block-desc">{description}</p> : null}
                 {children}
             </div>
-            {footer ? <span className="df-pocket df-pocket-bottom">{footer}</span> : null}
+            {footer ? (
+                <span className="df-pocket df-pocket-bottom" ref={footerRef}>
+                    {footer}
+                </span>
+            ) : null}
         </section>
     );
+}
+
+// The pockets are notches cut out of the block (#1615): the block's fill and outline leave them out, so the background
+// the block sits on shows around the chip. Blocks sit on several backgrounds, so the notch cannot be painted in one
+// colour; the fill's mask needs each pocket's width instead, which only layout knows (a chip's label, a footer's
+// button).
+function useNotchWidths(
+    blockRef: React.RefObject<HTMLElement>,
+    pocketRef: React.RefObject<HTMLSpanElement>,
+    footerRef: React.RefObject<HTMLSpanElement>,
+    hasPocket: boolean,
+    hasFooter: boolean
+) {
+    useLayoutEffect(() => {
+        const block = blockRef.current;
+        if (block == null) {
+            return;
+        }
+        const notches: [HTMLElement, string][] = [
+            [pocketRef.current, "--df-notch-top"],
+            [footerRef.current, "--df-notch-bottom"],
+        ];
+        // Rounded down: a notch a fraction narrower than its pocket hides under the pocket's side line, a wider one
+        // would break the block's outline beside it. The scale undoes a transform on an ancestor (a block revealed
+        // with a zoom).
+        const measure = () => {
+            const blockWidth = block.getBoundingClientRect().width;
+            const scale = blockWidth > 0 ? block.offsetWidth / blockWidth : 1;
+            for (const [pocket, prop] of notches) {
+                if (pocket == null) {
+                    block.style.removeProperty(prop);
+                    continue;
+                }
+                block.style.setProperty(prop, `${Math.floor(pocket.getBoundingClientRect().width * scale)}px`);
+            }
+        };
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measure);
+        for (const [pocket] of notches) {
+            if (pocket != null) {
+                observer.observe(pocket);
+            }
+        }
+        return () => observer.disconnect();
+    }, [hasPocket, hasFooter]);
 }
 
 const DominoCount = 8;
