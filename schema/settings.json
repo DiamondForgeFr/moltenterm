@@ -1415,9 +1415,10 @@
           "type": "string",
           "enum": [
             "auto",
+            "grid",
             "always"
           ],
-          "description": "When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. The automatic decision cannot be turned off; a stored never reads as auto. A tab's own 360 button also turns it on on demand",
+          "description": "When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: beyond the screen's column threshold or when a panel would fall under its readable width, back when everything fits again. grid (Keep the grid): the panels stay side by side, only columns that cannot fit even at their readable widths still switch. always: every tab with several columns. Unset behaves as auto and asks once, at the first automatic switch, which to keep; a stored never reads as auto. A tab's own 360 button also turns it on on demand",
           "x-moltenterm": {
             "section": "appearance",
             "group": "360 view",
@@ -1430,10 +1431,15 @@
                 "label": "Automatic"
               },
               {
+                "value": "grid",
+                "label": "Keep the grid"
+              },
+              {
                 "value": "always",
                 "label": "Always"
               }
             ],
+            "unsetlabel": "Automatic (asks the first time)",
             "order": 24
           }
         },

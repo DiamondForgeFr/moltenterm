@@ -1164,8 +1164,10 @@
             "moltenterm:view360": {
                 "label": "Vue 360",
                 "description": "Quand une vue fixe sa première colonne et pose les autres sur un tapis latéral. Le menu de la vue l'active aussi.",
+                "unset": "Automatique (demande la première fois)",
                 "options": {
                     "auto": "Automatique",
+                    "grid": "Garder la grille",
                     "always": "Toujours"
                 }
             },
@@ -5751,6 +5753,7 @@
             "heldColumns": "Automatique : plus de {count} colonnes sur cet écran.",
             "offManual": "Désactivée pour cette vue jusqu'à ce qu'elle revienne au nombre de colonnes de cet écran. Elle s'active encore d'elle-même si les panneaux ne tiennent plus du tout côte à côte.",
             "offColumns": "Automatique : s'active d'elle-même au-delà de {count} colonnes sur cet écran, ou quand les panneaux ne tiennent plus côte à côte.",
+            "offGrid": "Garder la grille : les panneaux restent côte à côte. Elle s'active d'elle-même seulement s'ils ne tiennent plus du tout côte à côte.",
             "clickOn": "Cliquer pour l'activer.",
             "clickOff": "Cliquer pour la quitter : les panneaux retrouvent les proportions que vous leur avez données.",
             "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
@@ -5762,6 +5765,12 @@
             "blockedOne": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez une colonne pour quitter la vue 360.",
             "blockedMany": "Les panneaux ne tiennent pas côte à côte, même à leur plus petite largeur lisible. Fermez {count} colonnes pour quitter la vue 360.",
             "blockedOk": "Rester en vue 360"
+        },
+        "notice": {
+            "title": "Cette vue est passée en vue 360",
+            "message": "La première colonne reste fixe et les autres panneaux s'alignent sur un tapis qui défile sur le côté. Modifiable dans les Réglages.",
+            "keepGrid": "Garder la grille",
+            "use360": "Utiliser la 360"
         },
         "screens": {
             "title": "Colonnes par écran",

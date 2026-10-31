@@ -44,7 +44,12 @@ function toggleTitle(decision: View360Decision, single: boolean, threshold: numb
                   : View360Text.heldSetting;
         return `${View360Text.tooltipOn}\n${held}\n${View360Text.clickOff}`;
     }
-    const off = decision.source === "manual" ? View360Text.offManual : t("view360.ui.offColumns", { count: threshold });
+    const off =
+        decision.source === "manual"
+            ? View360Text.offManual
+            : decision.source === "setting"
+              ? t("view360.ui.offGrid")
+              : t("view360.ui.offColumns", { count: threshold });
     return `${View360Text.tooltipOff}\n${off}\n${View360Text.clickOn}`;
 }
 

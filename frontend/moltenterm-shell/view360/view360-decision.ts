@@ -33,14 +33,22 @@ export function autoMinColumns(narrowWindow: boolean): number {
 // A width change alone (the window being resized) switches only once the width has held this long.
 export const ResizeSettleMs = 250;
 
-export type View360Setting = "auto" | "always";
+// grid (#1654), "Keep the grid": the column threshold and the readable-minimum rule no longer switch a view; only
+// columns that cannot fit side by side at all still do (#733's safety net).
+export type View360Setting = "auto" | "grid" | "always";
 // Where the tab's state comes from: its own button (on demand, or turned off under the always setting), the always
 // setting, or the automatic decision.
 export type View360Source = "manual" | "setting" | "auto";
 
 // "never" was removed (#733): a stored one reads as automatic, like anything unknown.
 export function normalizeView360Setting(raw: unknown): View360Setting {
-    return raw === "always" ? "always" : "auto";
+    return raw === "always" || raw === "grid" ? raw : "auto";
+}
+
+// Whether the developer never chose (#1654): the setting unset behaves as automatic and announces the first automatic
+// switch once.
+export function view360Unchosen(raw: unknown): boolean {
+    return raw == null || raw === "";
 }
 
 // The tab's manual choice, from its meta: true on demand, false turned off (only the always setting yields to it),
@@ -182,6 +190,10 @@ export function decideView360(inputs: View360Inputs): View360Decision {
     } else if (inputs.manual === false) {
         wanted = !!inputs.cannotFit && autoColumns;
         source = wanted ? "auto" : "manual";
+        reason = wanted ? "fit" : undefined;
+    } else if (inputs.setting === "grid") {
+        wanted = !!inputs.cannotFit && autoColumns;
+        source = wanted ? "auto" : "setting";
         reason = wanted ? "fit" : undefined;
     } else if (inputs.columnsOver && inputs.columnCount >= AutoMinColumns) {
         wanted = true;
