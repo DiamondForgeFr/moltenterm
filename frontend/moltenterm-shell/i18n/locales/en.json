@@ -9646,6 +9646,12 @@
             "show": "Show it",
             "thisView": "this view",
             "editList": "Edit the panel list",
+            "morph": {
+                "title": "Missing a tool?",
+                "about": "Ask your agent with {morph}: it builds the panel you need.",
+                "noAgent": "Start a coding agent from the palette ({keys}), then ask it for the tool with /morph.",
+                "type": "Type {morph} in {agent}"
+            },
             "about": {
                 "terminal": "A shell in the current project's folder.",
                 "files": "Browse the project's files and open one to read or edit it.",
