@@ -5,7 +5,8 @@
 // attention and its jump key. It never takes the focus or a click: the dot keeps both, and its aria-label says the
 // same.
 
-import { autoUpdate, FloatingPortal, offset, shift, useFloating } from "@floating-ui/react";
+import { autoUpdate, FloatingPortal, offset, shift } from "@floating-ui/react";
+import { useFloatingInPlace } from "../floating-in-place";
 import { useT } from "../i18n/i18n";
 import { DotPopoverProject } from "./workspace-dot-popover-model";
 
@@ -71,7 +72,7 @@ export function WorkspaceDotCard({ name, stops, project, attention, keys }: Work
 }
 
 export function WorkspaceDotPopover({ anchor, ...card }: WorkspaceDotCardProps & { anchor: HTMLElement }) {
-    const { refs, floatingStyles } = useFloating({
+    const { refs, floatingStyles } = useFloatingInPlace({
         open: true,
         placement: "top",
         elements: { reference: anchor },
