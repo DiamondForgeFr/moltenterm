@@ -580,6 +580,24 @@ export class View360Model {
         return autoWants(prevOn, count, width, gap, columnMins);
     }
 
+    // Whether the decision would want 360 view once the tab holds `count` top-level columns at this width (#1668): a
+    // column added beside a panel asks before it is added, so it never forces an on-demand 360 view and the setting,
+    // Keep the grid included, stays the judge. The tab's own choice and its 360 × N count as they are now.
+    wantsWithColumns(count: number, width: number, gap: number): boolean {
+        const threshold = globalStore.get(this.thresholdAtom);
+        const columnMins = columnMinimumsPx(count, currentFirstColumnFloorPx());
+        return decideView360({
+            setting: normalizeView360Setting(globalStore.get(this.settingAtom)),
+            manual: globalStore.get(this.manualAtom),
+            autoOn: this.autoWantsNow(globalStore.get(this.autoOnAtom), count, width, gap, columnMins),
+            columnsOver: count >= AutoMinColumns && overThreshold(count, threshold),
+            cannotFit: !fitsAtReadableMinimums(count, width, gap),
+            columnCount: count,
+            narrowWindow: globalStore.get(narrowWindowAtom),
+            places: globalStore.get(this.placesAtom),
+        }).wanted;
+    }
+
     // Whether the tab's columns, as last measured, fit side by side at their minimums with the terminal floor (#733).
     fitsAtCurrentFloors(marginPx = 0): boolean {
         return fitsAtCurrentFloors(this.lastColumnMins, this.lastEvalWidth, this.lastEvalGap, marginPx);
