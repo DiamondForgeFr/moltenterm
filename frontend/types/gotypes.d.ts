@@ -1504,6 +1504,8 @@ declare global {
         "window:transparent"?: boolean;
         "window:blur"?: boolean;
         "window:opacity"?: number;
+        "window:texture"?: string;
+        "window:textureintensity"?: number;
         "window:bgcolor"?: string;
         "window:reducedmotion"?: boolean;
         "window:tilegapsize"?: number;

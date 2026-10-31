@@ -38,12 +38,12 @@ describe("a workspace's look in Electron main (FR-SHELL-091, DS-SHELL-131)", () 
         expect(win.setVibrancy).toHaveBeenCalledWith(null);
     });
 
-    it("keeps the blur of a window created with Wave's global blur when the look is opaque", () => {
+    it("makes an opaque look opaque even on a window created with a blur (#1629)", () => {
         const win = makeWindow();
         const view = makeView();
         applyWindowLook(win, view, true, { ...Mac, blur: true }, { translucent: false, blur: false });
-        expect(view.setBackgroundColor).toHaveBeenCalledWith("#00000000");
-        expect(win.setVibrancy).toHaveBeenCalledWith("fullscreen-ui");
+        expect(view.setBackgroundColor).toHaveBeenCalledWith("#222222");
+        expect(win.setVibrancy).toHaveBeenCalledWith(null);
     });
 
     it("lets a view off screen set only its own background, never the window's blur", () => {

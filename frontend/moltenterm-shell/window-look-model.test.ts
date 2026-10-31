@@ -80,12 +80,22 @@ describe("precedence: workspace over project over global (#1281, TC-SHELL-210)",
         expect(resolveLook(null, project, global)).toEqual({ look: project, source: "project" });
     });
 
-    it("then Wave's global settings, opaque unless window:transparent or window:blur is on", () => {
+    it("then the app's settings, opaque unless window:transparent or window:blur is on", () => {
         expect(resolveLook(null, null, global)).toEqual({ look: global, source: "global" });
         expect(globalLook({})).toEqual(OpaqueLook);
         expect(globalLook({ "window:opacity": 0.5 })).toEqual(OpaqueLook);
-        expect(globalLook({ "window:transparent": true })).toEqual({ opacity: 0.8, blur: false });
+        expect(globalLook({ "window:transparent": true })).toEqual({ opacity: 0.7, blur: false });
         expect(globalLook({ "window:blur": true, "window:opacity": 0.6 })).toEqual({ opacity: 0.6, blur: true });
+    });
+
+    it("carries the global texture, on an opaque look too (#1629)", () => {
+        expect(globalLook({ "window:texture": "grain", "window:textureintensity": 0.83 })).toEqual({
+            ...OpaqueLook,
+            texture: "grain",
+            intensity: 0.8,
+        });
+        expect(globalLook({ "window:blur": true, "window:texture": "none" })).toEqual({ opacity: 0.7, blur: true });
+        expect(globalLook({ "window:texture": "wood" })).toEqual(OpaqueLook);
     });
 
     it("reads the project's look by its folder", () => {
@@ -110,6 +120,51 @@ describe("precedence: workspace over project over global (#1281, TC-SHELL-210)",
         });
         expect(lookWrites("workspace", ws, "/code/a", clientMeta)).toEqual({ workspace: { [WindowLookMetaKey]: ws } });
         expect(lookWrites("project", ws, "", clientMeta)).toEqual({ workspace: { [WindowLookMetaKey]: ws } });
+    });
+});
+
+describe("the default look of a fresh install (#1629, TC-SHELL-210)", () => {
+    // The app's default settings, as wavesrv merges them under the user's settings.json.
+    const defaults = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "../../pkg/wconfig/defaultconfig/settings.json"), "utf8")
+    );
+    const designed = { opacity: 0.7, blur: true, texture: "paper", intensity: 0.5 };
+
+    it("is 70 %, blur, Paper at 50 %", () => {
+        expect(globalLook(defaults)).toEqual(designed);
+    });
+
+    it("is what a workspace without a look of its own, on a project without one, shows", () => {
+        expect(lookForWorkspace({ meta: {} }, "/code/a", {}, defaults)).toEqual({ look: designed, source: "global" });
+    });
+
+    it("never replaces a look the user saved on the workspace or the project", () => {
+        const opaque = { meta: { [WindowLookMetaKey]: { opacity: 1, blur: false } } };
+        const clientMeta = { [ProjectLooksMetaKey]: { "/code/a": { opacity: 0.85, blur: false, texture: "none" } } };
+        expect(lookForWorkspace(opaque, "/code/a", clientMeta, defaults)).toEqual({
+            look: { opacity: 1, blur: false },
+            source: "workspace",
+        });
+        expect(lookForWorkspace({ meta: {} }, "/code/a", clientMeta, defaults)).toEqual({
+            look: { opacity: 0.85, blur: false },
+            source: "project",
+        });
+    });
+
+    it("gives way to global settings the user changed", () => {
+        const user = { ...defaults, "window:blur": false, "window:texture": "none" };
+        expect(globalLook(user)).toEqual(OpaqueLook);
+    });
+
+    it("falls back where the window cannot be see-through or blur, keeping the texture", () => {
+        expect(effectiveLook(globalLook(defaults), false, { translucent: false, blur: false })).toEqual({
+            look: { opacity: 1, blur: false, texture: "paper", intensity: 0.5 },
+            reason: "unsupported",
+        });
+        expect(effectiveLook(globalLook(defaults), false, { translucent: true, blur: false })).toEqual({
+            look: { opacity: 0.7, blur: false, texture: "paper", intensity: 0.5 },
+            reason: null,
+        });
     });
 });
 

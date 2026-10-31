@@ -248,6 +248,8 @@ type SettingsType struct {
 	WindowTransparent                   bool     `json:"window:transparent,omitempty"`
 	WindowBlur                          bool     `json:"window:blur,omitempty"`
 	WindowOpacity                       *float64 `json:"window:opacity,omitempty"`
+	WindowTexture                       string   `json:"window:texture,omitempty"` // MOLTENTERM-PATCH (#1629): the global layer of the window look carries a texture (FR-SHELL-091)
+	WindowTextureIntensity              *float64 `json:"window:textureintensity,omitempty"`
 	WindowBgColor                       string   `json:"window:bgcolor,omitempty"`
 	WindowReducedMotion                 bool     `json:"window:reducedmotion,omitempty"`
 	WindowTileGapSize                   *int64   `json:"window:tilegapsize,omitempty"`

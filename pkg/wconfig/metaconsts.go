@@ -151,6 +151,8 @@ const (
 	ConfigKey_WindowTransparent              = "window:transparent"
 	ConfigKey_WindowBlur                     = "window:blur"
 	ConfigKey_WindowOpacity                  = "window:opacity"
+	ConfigKey_WindowTexture                  = "window:texture"
+	ConfigKey_WindowTextureIntensity         = "window:textureintensity"
 	ConfigKey_WindowBgColor                  = "window:bgcolor"
 	ConfigKey_WindowReducedMotion            = "window:reducedmotion"
 	ConfigKey_WindowTileGapSize              = "window:tilegapsize"
