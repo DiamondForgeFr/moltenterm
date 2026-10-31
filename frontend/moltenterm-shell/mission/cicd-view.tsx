@@ -126,7 +126,7 @@ function CicdView({ blockId }: ViewComponentProps<CicdViewModel>) {
         }
     }, [request?.at]);
     return (
-        <MissionFrame title={t("mc.cicd.frameTitle")}>
+        <MissionFrame title={t("mc.cicd.frameTitle")} gitPanel="cicd">
             {({ project, snapshot, refresh }) => (
                 <CicdContent
                     blockId={blockId}

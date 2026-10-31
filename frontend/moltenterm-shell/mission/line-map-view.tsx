@@ -47,7 +47,7 @@ export function ciRunningBranch(ci: CiState): string {
 function LineMapFullView({ blockId }: ViewComponentProps<LineMapViewModel>) {
     const t = useT();
     return (
-        <MissionFrame title={t("mc.lineMap.frameTitle")}>
+        <MissionFrame title={t("mc.lineMap.frameTitle")} gitPanel="linemap">
             {({ project, snapshot, refresh }) => (
                 <LineMapFullContent
                     key={project.dir}

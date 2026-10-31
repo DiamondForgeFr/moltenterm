@@ -11,7 +11,6 @@ import { CheckState } from "../mission/github";
 import type { NotRepoText } from "../mission/mission-frame";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import type { InvestigateBlockers } from "../review/review-client";
-import { pathBaseName } from "../workspace-project";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import type { PrTaskKind } from "./reviews-task-model";
 
@@ -620,17 +619,10 @@ export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
     return null;
 }
 
-// The panel in a project folder that does not use git yet (FR-REV-001 AC15): why it needs git, in its own words, and
-// a confirmation that names the folder before git init runs.
-export function reviewsNotRepoText(dir: string): NotRepoText {
-    return {
-        title: t("reviews.notRepo.title"),
-        hint: t("reviews.notRepo.hint"),
-        action: t("reviews.notRepo.action"),
-        confirmTitle: t("reviews.notRepo.confirmTitle", { name: pathBaseName(dir) }),
-        confirm: t("reviews.notRepo.confirm"),
-        cancel: t("reviews.notRepo.notNow"),
-    };
+// The panel in a project folder that does not use git yet (FR-REV-001 AC15): why it needs git, in its own words; the
+// action and its confirmation are every git panel's (#1671).
+export function reviewsNotRepoText(): NotRepoText {
+    return { hint: t("reviews.notRepo.hint") };
 }
 
 // Only a failed read can come back on a retry alone; the other empty states wait on the user (install gh, log in, add
