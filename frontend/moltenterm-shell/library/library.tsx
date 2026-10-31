@@ -15,10 +15,10 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { makeConfigFiles } from "@/app/view/waveconfig/waveconfig-model";
 import { isWindows } from "@/util/platformutil";
-import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { cn, fireAndForget, makeIconClass, stringToBase64 } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { agentCallName, agentStateMessage } from "../agent-state-model";
+import { agentCallName, agentStateMessage, type AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BrowserActiveMetaKey } from "../browser/browser-model";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
@@ -61,6 +61,8 @@ import {
     LibrarySections,
     liveAgents,
     matchesQuery,
+    morphCallText,
+    morphTarget,
     panelAboutKey,
     putAwayAgentNames,
     readLastSettingsTab,
@@ -362,6 +364,51 @@ function WorkspacesSection({ entries }: { entries: WorkspaceRailEntry[] }) {
 
 // ---------- Panels ----------
 
+// Types the agent's morph call into its terminal without Enter (#1653): the developer writes the request and sends it.
+async function typeMorphCall(agent: AgentStateInfo): Promise<void> {
+    close();
+    await goToBlock(agent.workspaceid, agent.tabid, agent.blockid);
+    await RpcApi.ControllerInputCommand(TabRpcClient, {
+        blockid: agent.blockid,
+        inputdata64: stringToBase64(morphCallText(agent.agent)),
+    });
+}
+
+// The last card of Panels (#1653): a tool that does not exist yet is asked of the workspace's agent with /morph.
+function MorphCard({ workspaceId, tabId }: { workspaceId: string; tabId: string }) {
+    const t = useT();
+    const data = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agent = useMemo(() => morphTarget(workspaceAgents(data, workspaceId), tabId), [data, workspaceId, tabId]);
+    return (
+        <div className="mt-lib-pcard" data-testid="library-morph-card">
+            <div className="flex items-center gap-2 font-semibold text-primary">
+                <i className="mt-lib-pic" aria-hidden>
+                    <i className={makeIconClass("wand-magic-sparkles", true)} />
+                </i>
+                <span className="truncate">{t("library.panels.morph.title")}</span>
+            </div>
+            <p>
+                {agent
+                    ? t("library.panels.morph.about", { morph: morphCallText(agent.agent).trim() })
+                    : t("library.panels.morph.noAgent", { keys: formatShortcutById("palette") })}
+            </p>
+            {agent ? (
+                <button
+                    type="button"
+                    className="mt-lib-btn"
+                    data-testid="library-morph-type"
+                    onClick={() => fireAndForget(() => typeMorphCall(agent))}
+                >
+                    {t("library.panels.morph.type", {
+                        morph: morphCallText(agent.agent).trim(),
+                        agent: agentCallName(agent),
+                    })}
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
 function PanelsSection({ onApps }: { onApps: () => void }) {
     const t = useT();
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
@@ -484,6 +531,7 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
                         </div>
                     );
                 })}
+                <MorphCard workspaceId={workspaceId} tabId={tabId} />
             </div>
             <div className="flex flex-wrap gap-2">
                 <button

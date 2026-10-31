@@ -4,7 +4,7 @@
 // The library behind the sidebar's bottom-left button (FR-SHELL-088): what is not in the sidebar, in one place. Its
 // sections, and the rules each one shows its rows by.
 
-import { agentStateUrgency, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
+import { agentPromptState, agentStateUrgency, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import type { AgentTab } from "../browser/browser-agent";
 import type { BrowserTab } from "../browser/browser-model";
 import type { PutAwayView } from "../reopen/reopen-model";
@@ -228,6 +228,28 @@ export function workspaceAgents(data: AgentStatesData, workspaceId: string): Age
 // An agent is live while it works, waits or errs; done and idle ones rest.
 export function liveAgents(agents: AgentStateInfo[]): number {
     return (agents ?? []).filter((a) => agentStateUrgency(a.state) >= agentStateUrgency("working")).length;
+}
+
+// Each agent's own call of the morph guide (pkg/molten/agentdocs/mod-format.md); the others use /morph.
+const MorphCalls: Record<string, string> = { codex: "$morph", kimi: "/skill:morph" };
+
+// What the Missing a tool card types (#1653): the call and a space, never Enter, so the developer writes the request.
+export function morphCallText(agent: string): string {
+    return `${MorphCalls[agent] ?? "/morph"} `;
+}
+
+// The agent the card types into (#1653): the current view's first, then one whose prompt is free, then the latest.
+export function morphTarget(agents: AgentStateInfo[], tabId: string): AgentStateInfo {
+    const free = (a: AgentStateInfo) => (agentPromptState(a) === "working" ? 0 : 1);
+    const here = (a: AgentStateInfo) => (tabId && a.tabid === tabId ? 1 : 0);
+    const sorted = [...(agents ?? [])].sort(
+        (a, b) =>
+            here(b) - here(a) ||
+            free(b) - free(a) ||
+            (b.started ?? 0) - (a.started ?? 0) ||
+            a.blockid.localeCompare(b.blockid)
+    );
+    return sorted[0] ?? null;
 }
 
 // When something happened, as the rows say it: the time today, else the day and the time.

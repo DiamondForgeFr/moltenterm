@@ -9607,6 +9607,12 @@
             "show": "L'afficher",
             "thisView": "cette vue",
             "editList": "Modifier la liste des panneaux",
+            "morph": {
+                "title": "Il vous manque un outil ?",
+                "about": "Demandez-le à votre agent avec {morph} : il construit le panneau qu'il vous faut.",
+                "noAgent": "Lancez un agent de code depuis la palette ({keys}), puis demandez-lui l'outil avec /morph.",
+                "type": "Écrire {morph} dans {agent}"
+            },
             "about": {
                 "terminal": "Un shell dans le dossier du projet courant.",
                 "files": "Parcourir les fichiers du projet et en ouvrir un pour le lire ou le modifier.",
