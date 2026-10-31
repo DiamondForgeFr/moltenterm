@@ -20,10 +20,11 @@ import { translate } from "../i18n/i18n-core";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
 import { typeCommandWhenReady } from "../palette/palette-actions";
 import { recordingTabClose, reopenLastQuietly } from "../reopen/reopen-store";
+import { viewDisplayName } from "../tab-identity-ui";
 import { dismissToast, showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
-import { ViewPendingMetaKey, viewShownName } from "../workspace-views/workspace-views-model";
+import { ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { showUndoToast } from "./sidebar-undo";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
@@ -95,9 +96,10 @@ function blockMetaOf(get: jotai.Getter, blockId: string): Record<string, any> {
     return get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta ?? null;
 }
 
-// The name a toast or a copy says: a new workspace's view still named by its key reads in the interface language.
+// The name a toast or a copy says: the view's sidebar line, never Wave's generic T<n> (#1669); a new workspace's view
+// still named by its key reads in the interface language.
 export function shownName(tab: Tab): string {
-    return viewShownName(tab?.name ?? "", tab?.meta, t);
+    return viewDisplayName(tab);
 }
 
 // A new workspace's view not opened yet (#1305): pinned in the workspace, its panels still to be made.

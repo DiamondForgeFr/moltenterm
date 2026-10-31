@@ -67,6 +67,17 @@ describe("the name a kept view takes (#1669)", () => {
         expect(viewDisplayName(typed)).toBe("Draft");
     });
 
+    it("words a view named by its key and never numbers it", async () => {
+        const meta = { "molten:viewnamekey": "workspaceViews.names.view" } as unknown as MetaType;
+        const keyed = { ...view("t5", "workspaceViews.names.view", { view: "term" }), meta };
+        const twin = { ...view("t6", "workspaceViews.names.view", { view: "term" }), meta };
+        put("tab:t5", keyed);
+        put("tab:t6", twin);
+        await setWorkspace(["t5", "t6"]);
+        expect(viewDisplayName(keyed)).toBe("View");
+        expect(viewDisplayName(twin)).toBe("View");
+    });
+
     it("names a view of another workspace without a number", async () => {
         await setWorkspace([]);
         const other = view("t9", "T9", { view: "term", "cmd:cwd": "/Users/me" });

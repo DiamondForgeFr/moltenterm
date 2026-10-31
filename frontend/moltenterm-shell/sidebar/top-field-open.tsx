@@ -28,6 +28,7 @@ import { useListedReviewsAnswer } from "../reviews/reviews-client";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { formatKeys, formatShortcutById } from "../shortcuts/format";
 import { panelIcon, PanelMeta, tabDisplayName } from "../tab-identity";
+import { viewDisplayName } from "../tab-identity-ui";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
 import { workspaceShownName } from "../workspace-default-name";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
@@ -131,7 +132,8 @@ async function loadSources(t: TFn, activeId: string): Promise<LoadedSources> {
             views.push({
                 id: `view:${tabId}`,
                 group: "view",
-                label: tabDisplayName(tabShownName(tab), first?.meta as PanelMeta, home),
+                // This workspace's views read as their sidebar line, duplicate number included (#1669).
+                label: here ? viewDisplayName(tab) : tabDisplayName(tabShownName(tab), first?.meta as PanelMeta, home),
                 where: here ? kind : `${wsName} · ${kind}`,
                 icon: panelIcon(first?.meta as PanelMeta),
                 here,
