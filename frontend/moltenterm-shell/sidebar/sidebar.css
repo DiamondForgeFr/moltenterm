@@ -886,18 +886,20 @@
 }
 
 /* The place cues (FR-SHELL-004, theme "Coulée" #1319): the workspace colour shows only here in the sidebar, as a 2 px
-   strip along its top edge, a bar beside the workspace's name and the line under the active view's tile, besides the
+   strip down its left edge, a bar beside the workspace's name and the line under the active view's tile, besides the
    workspace dots. Everything that acts stays molten (--mt-action), whatever the workspace. A gradient workspace paints
-   the strip and the bar with its stops. */
+   the strip and the bar with its stops, top to bottom. The docked sidebar's left edge is the window's: the strip runs
+   from the window's top to its bottom and the window's rounded corners clip it (#1630). The floating sidebar has its
+   own rounded corners, which nothing clips, so its strip stops short of them. */
 .mt-sb-place-strip {
     position: absolute;
     top: 0;
+    bottom: 0;
     left: 0;
-    right: 0;
-    height: 2px;
+    width: 2px;
     background-color: var(--mt-place);
     background-image: linear-gradient(
-        to right,
+        to bottom,
         var(--mt-place),
         var(--mt-place-mid, var(--mt-place)),
         var(--mt-place-end, var(--mt-place))
@@ -906,8 +908,8 @@
 }
 
 .mt-sb.is-hidden .mt-sb-place-strip {
-    left: var(--mt-radius-panel);
-    right: var(--mt-radius-panel);
+    top: var(--mt-radius-panel);
+    bottom: var(--mt-radius-panel);
 }
 
 .mt-sb-place-bar {

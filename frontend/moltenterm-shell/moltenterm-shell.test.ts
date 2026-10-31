@@ -535,6 +535,20 @@ describe("action and place (#1319)", () => {
         }
     });
 
+    it("runs the place strip down the sidebar's left edge, top to bottom, inset from the floating sidebar's corners (#1630)", () => {
+        const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
+        const strip = /\n\.mt-sb-place-strip \{([^}]*)\}/.exec(sidebarCss)?.[1] ?? "";
+        expect(strip).toMatch(/top: 0;/);
+        expect(strip).toMatch(/bottom: 0;/);
+        expect(strip).toMatch(/left: 0;/);
+        expect(strip).toMatch(/width: 2px;/);
+        expect(strip).not.toMatch(/right:|height:/);
+        expect(strip).toMatch(/linear-gradient\(\s*to bottom,/);
+        const floating = /\n\.mt-sb\.is-hidden \.mt-sb-place-strip \{([^}]*)\}/.exec(sidebarCss)?.[1] ?? "";
+        expect(floating).toMatch(/top: var\(--mt-radius-panel\);/);
+        expect(floating).toMatch(/bottom: var\(--mt-radius-panel\);/);
+    });
+
     it("keeps the window, the floating sidebar, the library, the 360 carpet and the agent avatar on cast iron (AC-1)", () => {
         const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
         const agentsCss = readFileSync(new URL("./sidebar/sidebar-agents.css", import.meta.url), "utf8");
